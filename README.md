@@ -8,7 +8,7 @@ reports via retrieval-augmented generation.
 ## Architecture
 
 The system is five independently deployable services across four tiers, communicating
-over HTTP, sharing a MongoDB Atlas cluster and an AWS S3 bucket in the data tier:
+over HTTP, using MongoDB, AWS S3, and Chroma in the data tier:
 
 | Service | Role | Language | Port |
 |---|---|---|---|
@@ -18,21 +18,24 @@ over HTTP, sharing a MongoDB Atlas cluster and an AWS S3 bucket in the data tier
 | `rag-service` (S4) | Retrieve, assemble context, generate, guardrail-check | Python/FastAPI | 8002 |
 | `speech-ocr-service` (S5) | Stateless STT and OCR, returns results only | Python/FastAPI | 8003 |
 | `mongo` | Local dev database (Atlas is used for staging/prod) | — | 27017 |
+| `chroma` | Persistent vector database shared by ingestion and RAG | — | 8000 |
 
-Each service is currently scaffolded with stub routes only — the folder structure
-(routes/services/models separation in `server`, `api`/pipeline/orchestrator layout in
-the Python services) is in place, every route responds, but no route has real
-business logic yet (parsing, retrieval, generation, STT/OCR are all placeholders).
-Real logic lands service-by-service as the project progresses. See `docs/DECISIONS.md`
-for why this is microservices rather than a monolith, and why S4 uses a single
-orchestrator function rather than choreography.
+Ingestion now exposes `/index` for already anonymised text chunks, using Cohere
+Embed and Chroma. RAG `/retrieve` embeds queries, searches Chroma, and reranks
+with Cohere. MongoDB connectivity and the site schema are also implemented.
+Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
+forwarding remain placeholders; the UI is a health-check page.
+
+See [Cohere + Chroma setup](docs/COHERE_CHROMA.md) for configuration, Docker/manual
+startup, shared Chroma Cloud configuration for the team, and a live smoke check. See `docs/DECISIONS.md` for the service boundaries
+and why S4 uses a single orchestrator function.
 
 ## Running the stack locally
 
 One `.env.example` covers both run modes — pick one per session, don't mix them
 for the same service.
 
-**Docker (all five services + Mongo, one command):**
+**Docker (all five services + Mongo + Chroma, one command):**
 ```
 cp .env.example .env   # fill in the real values
 docker-compose up --build

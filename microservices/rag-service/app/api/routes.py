@@ -1,18 +1,21 @@
+from typing import Annotated
+
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
 from app.orchestrator.orchestrator import run
 from app.retrieval.retriever import retrieve
 
 router = APIRouter()
+Query = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
 
 class GenerateRequest(BaseModel):
-    query: str
+    query: Query
 
 
 class RetrieveRequest(BaseModel):
-    query: str
+    query: Query
 
 
 @router.get("/health")

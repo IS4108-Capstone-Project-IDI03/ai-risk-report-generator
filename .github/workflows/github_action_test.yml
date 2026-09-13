@@ -187,7 +187,7 @@ jobs:
         run: docker build -t a2603-${{ matrix.service.name }}:ci ${{ matrix.service.context }}
 
   # ── Full stack smoke test ──────────────────────────────────────────────
-  # Builds and boots all six containers, then checks every health endpoint.
+  # Builds and boots all seven containers, then checks every health endpoint.
   # This is the only job that proves the services can actually reach each
   # other by Docker service name (see CLAUDE.md "Known pitfalls").
   compose:
@@ -228,6 +228,7 @@ jobs:
 
           failed=0
           check "server"      http://localhost:4000/api/health || failed=1
+          check "chroma"      http://localhost:8000/api/v2/heartbeat || failed=1
           check "ingestion"   http://localhost:8001/health     || failed=1
           check "rag"         http://localhost:8002/health     || failed=1
           check "speech-ocr"  http://localhost:8003/health     || failed=1

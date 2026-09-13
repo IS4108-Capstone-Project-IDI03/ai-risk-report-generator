@@ -1,1 +1,42 @@
-Document schema, metadata fields, Atlas Vector Search index config, and indexing conventions go here.
+# Storage and retrieval
+
+- MongoDB stores application records (currently the site schema; document/report records are planned).
+- AWS S3 stores original uploaded files.
+- Chroma stores anonymised chunk text, vectors, and citation/filter metadata. Chroma replaces the planned Atlas Vector Search role.
+
+Ingestion and RAG connect to one Chroma database. `CHROMA_MODE=local` uses
+the local HTTP server; `CHROMA_MODE=cloud` uses Chroma Cloud with
+`CHROMA_API_KEY`, `CHROMA_TENANT`, `CHROMA_DATABASE`, and `CHROMA_CLOUD_HOST`.
+See [team setup](../COHERE_CHROMA.md#shared-chroma-cloud-for-the-team). Docker persists its data in
+`chroma-data:/data`; `docker compose down` keeps it, `down -v` deletes it.
+The Chroma server and Python HTTP clients are pinned to 1.5.5.
+
+Both services read the root `.env` locally and process environment in Docker:
+`COHERE_API_KEY`, `EMBEDDING_MODEL=embed-v4.0`, `CHROMA_HOST`, `CHROMA_PORT`,
+and `CHROMA_COLLECTION`. RAG also uses `RERANK_MODEL=rerank-v3.5`.
+Embeddings use 1024 float dimensions and cosine distance. The actual collection
+name is `<CHROMA_COLLECTION>_<EMBEDDING_MODEL>_1024`; switching models selects a
+new collection and requires re-indexing. Do not point at an existing collection
+containing vectors from another model. Reranker changes do not require re-indexing.
+
+`POST /index` accepts 1–96 already anonymised chunks, each with a unique stable
+`id`, nonblank `text` (at most 8,000 characters), and `metadata`:
+`document_id`, `source_type`, `jurisdiction`, `facility_type`, `COPE_dimension`,
+`effective_date`, and positive integer `page`. Use document/version/chunk IDs to
+avoid collisions. Upsert makes retrying identical IDs safe; it does not remove
+old IDs when a document is revised or shortened. Document replacement/deletion
+must be implemented with the future raw-file ingestion lifecycle.
+
+`POST /retrieve` embeds the query, searches up to 20 candidates, and returns up
+to 5 Cohere-reranked results with ID, text, metadata, vector distance, and relevance
+score. An absent/empty collection returns no results; dependency failures propagate
+as errors rather than pretending retrieval succeeded. Metadata is stored for
+future filtering; the initial endpoint searches the whole collection.
+
+The current direct endpoints are for local development with synthetic or already
+anonymised text. Raw-file parsing, automatic anonymisation, gateway auth, and
+per-user evidence filtering are not implemented. Compose binds Chroma and these
+Python service ports to loopback; do not expose them publicly as-is.
+
+References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
+[Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
