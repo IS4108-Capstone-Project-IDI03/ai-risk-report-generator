@@ -31,3 +31,13 @@ validates env at import time on purpose, so the server can never boot
 half-configured. Weakening that to suit tests would trade a production
 safety property for test convenience. Nothing in CI connects out.
 Story: F-03.
+
+## 2026-09-13 — Cohere retrieval with shared Chroma
+
+Use Cohere Embed (`embed-v4.0`, 1024 dimensions) and Rerank (`rerank-v3.5`),
+with one persistent Chroma HTTP server shared by ingestion and RAG. This
+implements the requested Cohere/Chroma setup and replaces the planned Atlas
+Vector Search role. MongoDB retains application records; S3 retains original
+files. Use direct SDK calls inside existing services, without an additional
+retrieval service or framework. Raw-file processing and report generation remain
+separate unfinished work. See `docs/COHERE_CHROMA.md`.

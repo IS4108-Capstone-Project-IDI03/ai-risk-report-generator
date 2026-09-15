@@ -1,9 +1,12 @@
 # Running the stack — local vs Docker
 
 Two ways to run the 5 services (`client`, `server`, `ingestion-service`,
-`rag-service`, `speech-ocr-service`) + `mongo`. Same `.env.example` drives
+`rag-service`, `speech-ocr-service`) + `mongo` + `chroma`. Same `.env.example` drives
 both — see `CLAUDE.md` "Known pitfalls" for why `*_SERVICE_URL` differs
 between them.
+
+For Cohere/Chroma configuration and the retrieval smoke check, follow
+[Cohere + Chroma setup](COHERE_CHROMA.md).
 
 ## Before either mode: check iCloud isn't syncing the project
 
@@ -44,16 +47,11 @@ docker-compose up -d mongo
 ```
 
 ### 3. `server`
-**What/why:** confirms the gateway boots, connects to Mongo, and is wired
-to the right microservice URLs. `dotenv` resolves `.env` relative to the
-current working directory, so — since `server` runs with `/server` as its
-root directory — the `.env` file has to live *inside* `server/`, not at the
-project root:
-```
-cd server
-cp ../.env.example .env
-```
-Edit `server/.env`:
+**What/why:** confirms the gateway boots and connects to Mongo. Its config loads
+the root `.env` relative to the source file. From the repository root, create
+`.env` from `.env.example` if needed, preserving any existing credentials.
+
+Edit the root `.env`:
 ```
 MONGODB_URI=mongodb://localhost:27017/a2603
 JWT_SECRET=any-random-32-plus-character-string
@@ -66,6 +64,7 @@ microservices on in step 1 — `server` doesn't validate these are real, only
 that they're non-empty. If `localhost` ever stalls oddly on connect, try
 `127.0.0.1` instead — macOS occasionally resolves `localhost` to IPv6 first.)
 ```
+cd server
 npm run dev
 curl -s localhost:4000/api/health
 ```
@@ -90,7 +89,7 @@ mode wouldn't surface.
 ### 1. Root `.env`
 **What/why:** Docker Compose's `env_file: .env` on each service resolves
 relative to `docker-compose.yml` — the project root, not each service's own
-folder — so one `.env` at the root covers all 6 containers:
+folder — so one `.env` at the root covers all 7 containers:
 ```
 cp .env.example .env
 ```
@@ -108,7 +107,7 @@ three `*_SERVICE_URL` vars as their `localhost` defaults — `server`'s and
 Docker names automatically.
 
 ### 2. Bring the whole stack up
-**What/why:** one command builds and starts all 6 containers in dependency
+**What/why:** one command builds and starts all 7 containers in dependency
 order:
 ```
 docker info > /dev/null 2>&1 && echo "daemon up" || echo "daemon NOT running"
@@ -120,7 +119,7 @@ docker-compose up --build
 health-checking each app confirms the process layer, not just the
 container layer:
 ```
-docker compose ps                      # all 6 should show Up
+docker compose ps                      # all 7 should show Up
 curl -s localhost:4000/api/health
 curl -s localhost:8001/health
 curl -s localhost:8002/health
