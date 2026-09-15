@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  merge_group:
+      types: [checks_requested]
 
 jobs:
   # ── Tests ──────────────────────────────────────────────────────────────
