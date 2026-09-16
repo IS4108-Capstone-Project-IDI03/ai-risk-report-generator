@@ -44,3 +44,13 @@ select = ["E", "F", "I", "UP"]
 [tool.black]
 line-length = 100
 target-version = ["py311"]
+
+[tool.pytest.ini_options]
+# Slow tests are deselected by default so the everyday suite stays fast.
+# Specify the start and end page to test in test_parser. Page 45-55 selected for FM200 (contains images, tables and text).
+# Full run of FM200 will take more than 11minutes, longer for first run when downloading and caching the model locally.
+# Run them explicitly with:  pytest -m slow   (or -m "slow or not slow" for all)
+addopts = "-m 'not slow'"
+markers = [
+    "slow: full-document Docling parse; opt in with -m slow (minutes on CPU)",
+]
