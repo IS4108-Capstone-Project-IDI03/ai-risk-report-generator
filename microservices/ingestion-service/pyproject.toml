@@ -7,14 +7,20 @@ version = "0.1.0"
 description = "S3 — parse, PII-guard, chunk, embed"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi[standard]>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "python-dotenv>=1.0",
     "cohere>=5.20,<6",
     "chromadb-client==1.5.5",
+    "docling>=2.0,<3",
+    "pymupdf>=1.24",
+    "pdfplumber>=0.11",
 ]
+
+[tool.setuptools]
+packages = ["app"]
 
 [project.optional-dependencies]
 dev = [
