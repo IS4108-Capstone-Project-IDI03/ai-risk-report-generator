@@ -5,6 +5,19 @@ import os
 from app.pipeline.embedder import embed
 from app.retrieval_config import COLLECTION, chroma_client
 
+"""
+Chunk: {
+    "id": "string",
+    "text": "string",
+    "metadata": {
+        "vector_id": "string"
+        "doc_id": "string",
+        "doc_name": "string",
+        "section_path": list["string"],
+        "page_range": [string, string],
+        ......
+    }
+"""
 
 def index_chunks(chunks: list[dict]) -> int:
     texts = [chunk["text"] for chunk in chunks]
