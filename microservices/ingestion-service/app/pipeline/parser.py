@@ -178,14 +178,14 @@ def _extract_text_blocks(doc) -> tuple[list[TextBlock], list[CapturedItem], list
 
 
 def _fallback_extract(file_path: str) -> tuple[list[CapturedItem], list[CapturedItem]]:
-    """PyMuPDF/pdfplumber fallback for tables/images Docling could not extract.
+    """PyMuPDF fallback for tables/images Docling could not extract.
 
     Only intended for the case where Docling parses the text but misses tables
     or figures that clearly exist. Not needed for the current fixture, so it is
     an explicit, unimplemented hook rather than silent behaviour.
     """
     raise NotImplementedError(
-        "PyMuPDF/pdfplumber table/image fallback is not implemented yet"
+        "PyMuPDF table/image fallback is not implemented yet"
     )
 
 
