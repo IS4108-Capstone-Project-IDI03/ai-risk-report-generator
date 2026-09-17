@@ -32,10 +32,14 @@ def _parsed(tables=0, images=0) -> ParsedDocument:
 
 
 def _install_fakes(monkeypatch, parsed, calls, *, chunks=None):
-    chunks = chunks if chunks is not None else [
-        {"id": "manual.pdf:0", "text": "alpha", "metadata": {"doc_name": "manual.pdf"}},
-        {"id": "manual.pdf:1", "text": "beta", "metadata": {"doc_name": "manual.pdf"}},
-    ]
+    chunks = (
+        chunks
+        if chunks is not None
+        else [
+            {"id": "manual.pdf:0", "text": "alpha", "metadata": {"doc_name": "manual.pdf"}},
+            {"id": "manual.pdf:1", "text": "beta", "metadata": {"doc_name": "manual.pdf"}},
+        ]
+    )
 
     def fake_parse(file_path, page_range=None):
         calls.append(("parse", file_path, page_range))
