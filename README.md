@@ -1,6 +1,6 @@
 # A2603 — AI Risk Report Generator
 
-Capstone project (A2603) for Marsh Singapore: an AI-powered system that generates
+Capstone Project (A2603) for Marsh Singapore: An AI-powered system that generates
 insurance risk reports. Users upload documents (and audio/scanned files), the system
 extracts and indexes their content, and generates grounded, citation-checked risk
 reports via retrieval-augmented generation.
