@@ -6,6 +6,7 @@ once real logic lands.
 """
 
 from starlette.testclient import TestClient as TestClient
+
 from app.main import app
 
 client = TestClient(app)

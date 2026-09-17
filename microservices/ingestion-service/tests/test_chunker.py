@@ -13,9 +13,7 @@ import pytest
 from app.pipeline.chunker import chunk
 from app.pipeline.parser import ParsedDocument, parse
 
-FIXTURE = (
-    Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
-)
+FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
 
 # Small slice so the real parse+chunk stays fast (see test_parser for rationale).
 TEST_PAGE_RANGE: tuple[int, int] = (45, 55)
@@ -103,10 +101,12 @@ def test_inspect_chunks(chunks):
     chunk dicts that would be handed to `index_chunks`.
     """
     print(f"\n=== {len(chunks)} chunks (showing up to {INSPECT_LIMIT}) ===")
-    for c in chunks[INSPECT_START:INSPECT_START+INSPECT_LIMIT]:
+    for c in chunks[INSPECT_START : INSPECT_START + INSPECT_LIMIT]:
         meta = c["metadata"]
-        print(f"\n[{c['id']}] pages={meta.get('page_start')}-{meta.get('page_end')} "
-              f"section_path={meta.get('section_path')!r}")
+        print(
+            f"\n[{c['id']}] pages={meta.get('page_start')}-{meta.get('page_end')} "
+            f"section_path={meta.get('section_path')!r}"
+        )
         print(c["text"][:INSPECT_TEXT_CHARS])
     # Light sanity check so this isn't a silent no-op if chunking breaks.
     assert chunks

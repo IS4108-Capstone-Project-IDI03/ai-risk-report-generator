@@ -55,7 +55,8 @@ class TextBlock:
 
 @dataclass
 class CapturedItem:
-    """ For tables and images"""
+    """For tables and images"""
+
     kind: str  # "table" | "image"
     page: int | None
     section_path: list[str]
@@ -192,9 +193,7 @@ def _fallback_extract(file_path: str) -> tuple[list[CapturedItem], list[Captured
     or figures that clearly exist. Not needed for the current fixture, so it is
     an explicit, unimplemented hook rather than silent behaviour.
     """
-    raise NotImplementedError(
-        "PyMuPDF table/image fallback is not implemented yet"
-    )
+    raise NotImplementedError("PyMuPDF table/image fallback is not implemented yet")
 
 
 # Bound a single document's processing time so a pathological file cannot hang
@@ -232,9 +231,7 @@ def _converter() -> DocumentConverter:
     )
 
 
-def parse(
-    file_path: str, page_range: tuple[int, int] | None = None
-) -> ParsedDocument:
+def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDocument:
     """Parse a document into structured text blocks plus captured tables/images.
 
     Args:
@@ -263,9 +260,7 @@ def parse(
             )
         page_count = _page_count(source)
         if page_count is not None and end > page_count:
-            raise ValueError(
-                f"page_range end {end} exceeds document page count {page_count}"
-            )
+            raise ValueError(f"page_range end {end} exceeds document page count {page_count}")
         convert_kwargs["page_range"] = (start, end)
 
     # raises_on_error=False so a per-document failure comes back as a status we
@@ -285,9 +280,7 @@ def parse(
     text_blocks, tables, images = _extract_text_blocks(doc)
 
     if not text_blocks and not tables and not images:
-        raise UnparsableDocumentError(
-            str(file_path), "Docling produced no extractable content"
-        )
+        raise UnparsableDocumentError(str(file_path), "Docling produced no extractable content")
 
     return ParsedDocument(
         doc_name=source.name,
