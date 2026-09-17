@@ -1,0 +1,135 @@
+.workflow {
+  height: 100svh;
+  min-height: 420px;
+  background: var(--surface-page);
+}
+.workflow-frame {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-page);
+}
+.workflow-toast {
+  position: fixed;
+  left: max(20px, calc(50vw - 240px));
+  right: 20px;
+  bottom: 20px;
+  z-index: 90;
+  width: fit-content;
+  max-width: calc(100vw - 40px);
+}
+.workflow-toast > div {
+  max-width: 100%;
+}
+.user-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.user-footer > div {
+  flex: 1;
+  min-width: 0;
+}
+.user-footer strong,
+.user-footer small {
+  display: block;
+  line-height: 1.3;
+}
+.user-footer strong {
+  color: var(--text-inverse);
+  font-size: 14px;
+}
+.user-footer small {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+.user-footer button {
+  color: var(--text-inverse) !important;
+}
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-inverse);
+  font-size: 13px;
+  font-weight: 600;
+}
+@keyframes omPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes omFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes omSlide {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes omBar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+.om-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.om-hidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.om-scroll::-webkit-scrollbar-thumb {
+  background: var(--graphite-300);
+  border-radius: var(--radius-lg);
+  border: 3px solid var(--surface-card);
+}
+@media (max-width: 759px) {
+  .workflow main {
+    overflow-x: hidden !important;
+  }
+}
+.navigation-drawer {
+  margin: 0;
+  height: 100svh;
+  max-height: 100svh;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-nav);
+}
+.navigation-drawer .ds-dialog-close {
+  --text-secondary: var(--text-inverse);
+  --surface-hover: rgba(255, 255, 255, 0.1);
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-5);
+}
+.navigation-drawer .ds-dialog-body {
+  padding: 0;
+  height: 100%;
+}
+.navigation-drawer nav {
+  max-width: 100%;
+}

@@ -11,7 +11,7 @@ The system is five independently deployable services across four tiers, communic
 over HTTP, using MongoDB, AWS S3, and Chroma in the data tier:
 
 | Service | Role | Language | Port |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `client` (S1) | React client | TypeScript (Vite) | 3000 |
 | `server` (S2) | API gateway | Node/Express (TypeScript) | 4000 |
 | `ingestion-service` (S3) | Parse, PII-guard, chunk, embed documents | Python/FastAPI | 8001 |
@@ -20,32 +20,58 @@ over HTTP, using MongoDB, AWS S3, and Chroma in the data tier:
 | `mongo` | Local dev database (Atlas is used for staging/prod) | — | 27017 |
 | `chroma` | Persistent vector database shared by ingestion and RAG | — | 8000 |
 
+## Current implementation
+
+### Backend
+
 Ingestion now exposes `/index` for already anonymised text chunks, using Cohere
 Embed and Chroma. RAG `/retrieve` embeds queries, searches Chroma, and reranks
 with Cohere. MongoDB connectivity and the site schema are also implemented.
 Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
-forwarding remain placeholders; the UI is a health-check page.
+forwarding remain placeholders.
 
-See [Cohere + Chroma setup](docs/COHERE_CHROMA.md) for configuration, Docker/manual
-startup, shared Chroma Cloud configuration for the team, and a live smoke check. See `docs/DECISIONS.md` for the service boundaries
-and why S4 uses a single orchestrator function.
+### Frontend demo
+
+The UI follows the Marsh design system and includes sign-in, the assessment
+dashboard, observations, generation, review, and simulated export. It runs without
+a backend and keeps demo changes in memory only. Refreshing or signing out resets
+the demo; authentication and export are simulated.
 
 ## Running the stack locally
 
 One `.env.example` covers both run modes — pick one per session, don't mix them
 for the same service.
 
-**Docker (all five services + Mongo + Chroma, one command):**
+### UI demo only
+
+```sh
+npm --prefix client ci
+npm --prefix client run dev
 ```
+
+Open `http://localhost:3000`. Use a sample email such as `demo@marsh.com` and any
+non-empty sample password.
+
+### Docker
+
+Start all five services, MongoDB, and Chroma:
+
+```sh
 cp .env.example .env   # fill in the real values
 docker-compose up --build
 ```
 
-**Manual (bare processes, faster iteration, one terminal per service):** copy
-`.env.example` to `.env` in each service's own directory (`server/.env`,
+### Manual services
+
+Use one terminal per service. Copy `.env.example` to `.env` in each backend
+service's own directory (`server/.env`,
 `microservices/rag-service/.env`, etc.), fill in real values, then run each service's own
-dev command (`npm run dev` for client/server, `uvicorn app.main:app --reload
---port <port>` for the Python services).
+dev command: `npm run dev` for client/server, or
+`uvicorn app.main:app --reload --port <port>` for the Python services.
+
+See [Running the stack](docs/RUNNING.md) for the full setup instructions.
+
+### Service URLs and health checks
 
 `.env.example`'s `*_SERVICE_URL` vars default to `localhost`, which is what
 the manual run mode needs. Docker instead needs Docker service names
@@ -53,8 +79,16 @@ the manual run mode needs. Docker instead needs Docker service names
 for the `server` container automatically, so the same `.env` file works
 either way without editing. See `CLAUDE.md` "Known pitfalls" for why.
 
-Either way, each of the five health endpoints should then be reachable at
-`http://localhost:<port>/health` (or `/api/health` for the gateway).
+The Python services expose `http://localhost:<port>/health`. The gateway exposes
+`http://localhost:4000/api/health`, and the client opens at `http://localhost:3000`.
+
+## Documentation
+
+- [Running the stack](docs/RUNNING.md) — Docker and manual setup.
+- [Cohere + Chroma setup](docs/COHERE_CHROMA.md) — configuration and retrieval smoke checks.
+- [Design system](docs/design-system.md) — visual foundations and shared component inventory.
+- [UI conventions](docs/areas/ui.md) — guidance for future screens.
+- [Architecture decisions](docs/DECISIONS.md) — service boundaries and implementation choices.
 
 ## Branch and commit convention
 

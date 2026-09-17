@@ -1,0 +1,27 @@
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-body);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: var(--text-link);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ink-200);
+}
+a:hover {
+  color: var(--ink-700);
+  border-bottom-color: var(--ink-500);
+}
+a:active {
+  color: var(--ink-800);
+}
+*:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+::selection {
+  background: var(--ink-100);
+}
