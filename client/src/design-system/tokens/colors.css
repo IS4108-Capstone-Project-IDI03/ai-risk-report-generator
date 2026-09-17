@@ -1,0 +1,107 @@
+:root {
+  /* Neutrals — graphite. Cool, low-chroma, print-adjacent. */
+  --graphite-0: #ffffff;
+  --graphite-25: #fafbfc;
+  --graphite-50: #f7f9fc;
+  --graphite-100: #eef1f6;
+  --graphite-200: #e0e5ec;
+  --graphite-300: #ccd3dd;
+  --graphite-400: #a3aebb;
+  --graphite-500: #6f7a88;
+  --graphite-600: #545e6b;
+  --graphite-700: #3d4550;
+  --graphite-800: #2a313a;
+  --graphite-900: #1a1f26;
+
+  /* Primary — ink blue. Actions, links, focus. */
+  --ink-50: #e9f2fe;
+  --ink-100: #d3e6fb;
+  --ink-200: #bad0ea;
+  --ink-300: #8fb0d6;
+  --ink-400: #6389bb;
+  --ink-500: #3f6ea7;
+  --ink-600: #2c5488;
+  --ink-700: #22406c;
+  --ink-800: #192f4f;
+  /* Official Marsh brand navy, sampled from the supplied logo lockup. */
+  --marsh-navy: #000f47;
+
+  /* Accent — oxblood. Report identity, severity emphasis, print rules. */
+  --oxblood-50: #fdeae7;
+  --oxblood-100: #fbd5d1;
+  --oxblood-200: #e0b0ad;
+  --oxblood-400: #c5645e;
+  --oxblood-600: #9e3e3b;
+  --oxblood-700: #7c302e;
+
+  /* Semantic hues. The 600 steps carry TEXT (badge labels, status copy) and must hold
+     4.5:1 on their own 50-level background — brightness lives in the --icon-* tier instead. */
+  --green-50: #e2f6ea;
+  --green-600: #2f7049;
+  --amber-50: #fdf1d8;
+  --amber-500: #d6912c;
+  --amber-600: #8f5f13;
+  --red-50: #fdeae8;
+  --red-600: #ad2e2d;
+  --violet-50: #eeecfb;
+  --violet-200: #c9c2f0;
+  --violet-600: #6258a3;
+
+  /* ---- Semantic aliases ---- */
+  --text-primary: var(--graphite-900);
+  --text-body: var(--graphite-800);
+  --text-secondary: var(--graphite-700);
+  --text-muted: var(--graphite-600);
+  --text-inverse: var(--graphite-0);
+  --text-link: var(--ink-600);
+  --text-accent: var(--oxblood-600);
+
+  --surface-page: var(--graphite-50);
+  --surface-card: var(--graphite-0);
+  --surface-sunken: var(--graphite-25);
+  --surface-raised: var(--graphite-0);
+  --surface-inverse: var(--graphite-900);
+  --surface-nav: var(--marsh-navy);
+  --surface-hover: var(--graphite-50);
+  --surface-active: var(--graphite-100);
+  --surface-selected: var(--ink-50);
+  /* Table and table-like card headers. One step darker than --surface-sunken
+     so a header row separates from the body without needing a heavy rule. */
+  --surface-header: var(--graphite-100);
+
+  --border-subtle: var(--graphite-100);
+  --border-default: var(--graphite-200);
+  --border-strong: var(--graphite-300);
+  --border-focus: var(--ink-500);
+
+  --action-primary: var(--ink-600);
+  --action-primary-hover: var(--ink-700);
+  --action-primary-active: var(--ink-800);
+  --action-danger: var(--red-600);
+
+  /* Status — used for risk severity, review state, AI confidence */
+  --status-critical-fg: var(--red-600);
+  --status-critical-bg: var(--red-50);
+  --status-high-fg: var(--oxblood-600);
+  --status-high-bg: var(--oxblood-50);
+  --status-moderate-fg: var(--amber-600);
+  --status-moderate-bg: var(--amber-50);
+  --status-low-fg: var(--green-600);
+  --status-low-bg: var(--green-50);
+  --status-neutral-fg: var(--graphite-600);
+  --status-neutral-bg: var(--graphite-100);
+
+  /* Icon colours — the brightest tier in the system. Glyphs only, never text:
+     these are chosen for vividness at 12–18px and do not meet text contrast. */
+  --icon-draft: #8f7dff;
+  --icon-review: #4f9aee;
+  --icon-signoff: #f9ac10;
+  --icon-final: #2ec47b;
+
+  /* AI provenance — every machine-generated surface uses this one hue */
+  --ai-fg: var(--violet-600);
+  --ai-bg: var(--violet-50);
+  --ai-border: var(--violet-200);
+
+  --focus-ring: 0 0 0 3px rgba(63, 110, 167, 0.32);
+}

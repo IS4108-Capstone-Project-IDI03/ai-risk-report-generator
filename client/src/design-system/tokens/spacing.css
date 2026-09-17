@@ -1,0 +1,40 @@
+:root {
+  --space-0: 0px;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+  --space-12: 64px;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  --border-width: 1px;
+  --border-width-strong: 2px;
+
+  /* Layout */
+  --nav-rail-width: 56px;
+  --sidebar-width: 264px;
+  --inspector-width: 344px;
+  --topbar-height: 56px;
+  --toolbar-height: 52px;
+  /* Chips — Badge and Tag. Deliberately shorter than the control set:
+     they are labels and filters, not typed inputs. Tag matches --control-height-sm
+     so it can sit in a filter row beside sm buttons and inputs. */
+  --chip-height-sm: 24px;
+  --chip-height-md: 32px;
+
+  --control-height-sm: 32px;
+  --control-height-md: 40px;
+  --control-height-lg: 46px;
+}

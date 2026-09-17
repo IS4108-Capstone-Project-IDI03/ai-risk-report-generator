@@ -1,0 +1,56 @@
+:root {
+  --text-display-size: 35px;
+  --text-display-lh: 41px;
+  --text-display-weight: 600;
+  --text-display-ls: -0.02em;
+
+  --text-h1-size: 24px;
+  --text-h1-lh: 31px;
+  --text-h2-size: 20px;
+  --text-h2-lh: 28px;
+  --text-h3-size: 17px;
+  --text-h3-lh: 26px;
+
+  /* Page header hierarchy: eyebrow → title → meta line */
+  --text-eyebrow-size: 12px;
+  --text-eyebrow-lh: 16px;
+  --text-eyebrow-ls: 0.08em;
+  --text-eyebrow-weight: 600;
+  --text-page-title-size: 25px;
+  --text-page-title-lh: 32px;
+  --text-page-title-weight: 700;
+  --text-page-title-ls: -0.02em;
+  --text-meta-size: 14px;
+  --text-meta-lh: 20px;
+
+  /* Metrics: the one place type goes large inside the app */
+  --text-metric-lg-size: 30px;
+  --text-metric-lg-lh: 34px;
+  --text-metric-md-size: 20px;
+  --text-metric-md-lh: 26px;
+  --text-metric-weight: 700;
+
+  --text-body-size: 15px;
+  --text-body-lh: 24px;
+  --text-body-lg-size: 17px;
+  --text-body-lg-lh: 28px;
+  --text-small-size: 14px;
+  --text-small-lh: 21px;
+  --text-caption-size: 13px;
+  --text-caption-lh: 19px;
+
+  --text-label-size: 12px;
+  --text-label-lh: 16px;
+  --text-label-ls: 0.08em;
+  --text-label-weight: 600;
+
+  --text-mono-size: 13px;
+  --text-mono-lh: 19px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --measure-prose: 68ch;
+}

@@ -1,0 +1,126 @@
+.sign-in {
+  min-height: 100svh;
+  background: var(--marsh-navy);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 88px 24px 48px;
+  position: relative;
+}
+.sign-in-brand {
+  position: absolute;
+  top: 28px;
+  left: 32px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-inverse);
+}
+.sign-in-brand strong {
+  font-size: 19px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sign-in-brand span {
+  font-size: 15px;
+  line-height: 22px;
+  color: rgba(255, 255, 255, 0.62);
+}
+.sign-in-card {
+  width: 100%;
+  max-width: 448px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.sign-in-card header {
+  text-align: center;
+}
+.sign-in-card h1 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sign-in-card header p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.sign-in-tabs {
+  display: flex;
+  justify-content: center;
+}
+.sign-in-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sign-in-form > button:first-child {
+  font-size: 15px !important;
+  white-space: normal !important;
+  height: auto !important;
+  min-height: var(--control-height-lg);
+  padding-block: 10px !important;
+}
+.sign-in-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.sign-in-divider span {
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+.sign-in-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sign-in-switch {
+  margin: 0;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.sign-in-footer {
+  width: 100%;
+  max-width: 448px;
+  margin: 20px 0 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+  color: rgba(255, 255, 255, 0.65);
+  text-wrap: pretty;
+}
+@media (max-width: 480px) {
+  .sign-in {
+    padding-inline: 16px;
+  }
+  .sign-in-card {
+    padding: 28px 20px;
+  }
+  .sign-in-brand {
+    left: 20px;
+    right: 20px;
+  }
+}

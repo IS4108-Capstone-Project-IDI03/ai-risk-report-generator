@@ -1,0 +1,95 @@
+@import url('tokens/fonts.css');
+@import url('tokens/colors.css');
+@import url('tokens/typography.css');
+@import url('tokens/spacing.css');
+@import url('tokens/elevation.css');
+@import url('tokens/motion.css');
+@import url('tokens/base.css');
+
+.ds-choice {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.ds-choice > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  z-index: 1;
+  cursor: inherit;
+}
+.ds-choice:has(input:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-xs);
+}
+.ds-dialog {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100svh - 32px);
+  margin: auto;
+  padding: 0;
+  color: var(--text-body);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  font-family: var(--font-sans);
+  overflow: auto;
+}
+.ds-dialog::backdrop {
+  background: var(--scrim);
+  backdrop-filter: var(--blur-overlay);
+}
+.ds-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  padding: var(--space-7) var(--space-7) var(--space-5);
+}
+.ds-dialog-header > div {
+  flex: 1;
+}
+.ds-dialog h2 {
+  margin: 0;
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.ds-dialog p {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-secondary);
+}
+.ds-dialog-body {
+  padding: 0 var(--space-7) var(--space-7);
+}
+.ds-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-7);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+}
+.ds-dialog-footer > div {
+  flex-wrap: wrap;
+}
+.ds-tabs {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+.ds-tabs::-webkit-scrollbar {
+  display: none;
+}
+.ds-tabs > button {
+  white-space: nowrap;
+}
