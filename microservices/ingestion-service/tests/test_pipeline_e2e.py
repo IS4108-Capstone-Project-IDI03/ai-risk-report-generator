@@ -16,9 +16,7 @@ import pytest
 from app import pipeline
 from app.pipeline import embedder, indexer
 
-FIXTURE = (
-    Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
-)
+FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
 TEST_PAGE_RANGE = (1, 5)
 
 
