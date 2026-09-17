@@ -15,8 +15,6 @@ dependencies = [
     "cohere>=5.20,<6",
     "chromadb-client==1.5.5",
     "docling>=2.0,<3",
-    "pymupdf>=1.24",
-    "pdfplumber>=0.11",
 ]
 
 [tool.setuptools]
