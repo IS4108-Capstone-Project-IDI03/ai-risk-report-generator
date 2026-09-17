@@ -1,25 +1,25 @@
-"""Stage 2: anonymise parsed text before it is chunked.
+"""Stage 3: anonymise chunks before they are embedded and stored.
 
-Positioned in the pipeline between parsing and chunking. For now this is a
-pass-through: it takes the parser's text blocks and returns them unchanged.
-Real PII stripping/masking is future work — when it lands it must preserve the
-same shape (``list[TextBlock]`` in, text blocks out) and each block's
-provenance (``section_path``, ``page``, ``order``).
+Positioned AFTER chunking, so it is the last transform before `index_chunks`
+embeds and upserts. For now this is a pass-through: it takes the chunk dicts and
+returns them unchanged.
 
-Tables and images bypass this stage entirely; only body text flows through here.
+Real PII stripping/masking is future work. When it lands it must:
+- rewrite each chunk's ``text`` to remove PII, and
+- scrub PII from chunk metadata (e.g. headings/captions),
+while keeping each chunk's ``id`` and remaining metadata intact. Running here
+(post-chunk) guarantees no PII reaches the embedder or the vector store.
 """
 
-from app.pipeline.parser import TextBlock
 
-
-def anonymise(text_blocks: list[TextBlock]) -> list[TextBlock]:
-    """Return the text blocks unchanged (pass-through).
+def anonymise(chunks: list[dict]) -> list[dict]:
+    """Return the chunk dicts unchanged (pass-through).
 
     Args:
-        text_blocks: body text blocks produced by the parser.
+        chunks: index-ready chunk dicts (``{"id", "text", "metadata"}``).
 
     Returns:
-        The same blocks, content untouched. A future implementation will mask
-        PII here without altering provenance or ordering (list order must be the same after anonymising).
+        The same chunks, untouched. A future implementation will mask PII in
+        each chunk's text and metadata without altering ids.
     """
-    return text_blocks
+    return chunks
