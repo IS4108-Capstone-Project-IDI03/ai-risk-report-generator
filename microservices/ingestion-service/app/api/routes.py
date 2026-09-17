@@ -48,7 +48,14 @@ def health() -> dict:
 
 @router.post("/ingest")
 def ingest(request: IngestRequest) -> dict:
-    # Stub only — no real pipeline call yet.
+    """Accept a document for ingestion.
+
+    The real work is `app.pipeline.run(file_path)`, which parses -> chunks ->
+    anonymises -> indexes and is CPU-bound (minutes per document). It is not run
+    inline here: this endpoint acknowledges the request so a caller/worker can
+    invoke `run()` out of band. A future revision can enqueue `run()` on a
+    background worker and expose job status; that reuses `run()` unchanged.
+    """
     return {"status": "queued", "file": request.filename}
 
 

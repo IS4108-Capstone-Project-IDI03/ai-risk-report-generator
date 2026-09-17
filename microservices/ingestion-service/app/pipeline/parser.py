@@ -22,6 +22,7 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc import (
     DocItemLabel,
+    DoclingDocument,
     PictureItem,
     SectionHeaderItem,
     TableItem,
@@ -64,9 +65,16 @@ class CapturedItem:
 
 @dataclass
 class ParsedDocument:
-    """Structured result of parsing one document."""
+    """Structured result of parsing one document.
+
+    `docling_document` is the raw Docling document, exposed so the chunker can
+    run Docling's native (token-aware, heading-carrying) chunking over it. The
+    derived `text_blocks` / `tables` / `images` remain available for callers
+    that want the flattened, provenance-tagged view.
+    """
 
     doc_name: str
+    docling_document: DoclingDocument | None = None
     text_blocks: list[TextBlock] = field(default_factory=list)
     tables: list[CapturedItem] = field(default_factory=list)
     images: list[CapturedItem] = field(default_factory=list)
@@ -283,6 +291,7 @@ def parse(
 
     return ParsedDocument(
         doc_name=source.name,
+        docling_document=doc,
         text_blocks=text_blocks,
         tables=tables,
         images=images,
