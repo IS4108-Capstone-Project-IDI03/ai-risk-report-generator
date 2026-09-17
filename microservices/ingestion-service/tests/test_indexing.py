@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient as TestClient
 
 from app.main import app
 from app.pipeline import embedder, indexer

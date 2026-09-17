@@ -5,8 +5,7 @@ The pipeline stages are still stubs, so these assert the request/response
 once real logic lands.
 """
 
-from fastapi.testclient import TestClient
-
+from starlette.testclient import TestClient as TestClient
 from app.main import app
 
 client = TestClient(app)
