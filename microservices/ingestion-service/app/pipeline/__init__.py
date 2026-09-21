@@ -7,9 +7,6 @@
 and returns a summary. `index_chunks` embeds each chunk (Cohere) and upserts it
 to Chroma, so embedding happens inside the index step, not as a separate stage.
 
-Tables and images are captured during parsing and reported in the summary, but
-are not indexed here — processing them is out of scope for now.
-
 Execution model: `run()` is synchronous and self-contained. It takes a file
 path, returns a summary on success, and raises on failure (e.g.
 `UnparsableDocumentError`). It does not depend on request/response objects or
@@ -68,7 +65,7 @@ def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
     images_captured = len(parsed.images)
 
     chunks = chunk(parsed, doc_id=None)
-    chunks = anonymise(chunks)
+    #chunks = anonymise(chunks)
     chunks_indexed = index_chunks(chunks) if chunks else 0
 
     return {

@@ -24,22 +24,115 @@ under the embedder limit for retrieval precision — a single vector over a huge
 span can't point at a specific source location (the IN-02 goal). Adjust
 ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
-
+from docling_core.types.doc import DocItemLabel, TableItem
+from docling_core.transforms.chunker import HybridChunker
 from functools import lru_cache
+from warnings import warn
 
 from app.pipeline.parser import ParsedDocument
 
 _SECTION_SEPARATOR = " > "
 
-# --- chunk sizing (adjust these) ----------------------------------------------
-# Max tokens per chunk. Well within Cohere embed-v4.0's 128k limit; sized for
-# focused, citable chunks rather than maximal size. Raise for larger chunks.
+# --- chunk sizing
 MAX_CHUNK_TOKENS = 1024
 # Tokenizer used only to COUNT tokens for boundary decisions (not for embedding).
-# Uses a long-context tokenizer so its own model max doesn't cap us below
-# MAX_CHUNK_TOKENS. Any HF tokenizer works; this does not change the embedder.
+# Adjust it for embeding model (Cohere embed)
 CHUNK_TOKENIZER_MODEL = "BAAI/bge-m3"
 
+def _has_formula_chunk(dl_chunk) -> bool:
+    """True if a chunk is derived (wholly or partly) from a formula.
+
+    Docking's enriched_formula detection slows down run on pages even without formula. Extract out bbox and extract separately with a dedicated tool instead.
+    """
+    
+    has_formula = any(
+        item.label == DocItemLabel.FORMULA
+        for item in dl_chunk.meta.doc_items
+    )
+    return has_formula
+
+def _detect_bboxes(itemType, dl_chunk) -> list[dict]:
+    """Bounding boxes for the formula item(s) behind a formula chunk.
+
+    Each entry is ``{"page": int, "bbox": (l, t, r, b), "coord_origin": str}``
+    taken straight from Docling provenance. NOTE: Docling's origin is typically
+    bottom-left; pdfplumber expects top-left in PDF points — the extraction step
+    must reconcile origin (and scale to the page size) before cropping.
+    """
+
+    boxes: list[dict] = []
+    for item in getattr(dl_chunk.meta, "doc_items", None) or []:
+        if not isinstance(item, itemType):
+            continue
+        for prov in getattr(item, "prov", None) or []:
+            bbox = getattr(prov, "bbox", None)
+            if bbox is None:
+                continue
+            boxes.append(
+                {
+                    "page": getattr(prov, "page_no", None),
+                    "bbox": (bbox.l, bbox.t, bbox.r, bbox.b),
+                    "coord_origin": str(getattr(bbox, "coord_origin", "")),
+                }
+            )
+    return boxes
+
+
+def _chunk_bbox(dl_chunk) -> list[dict]:
+    """Bounding box of the ENTIRE chunk, one union box per page it spans.
+
+    Used for formulas exception: formula lives inside ordinary text items — so
+    `_detect_bboxes(FormulaItem, ...)` returns []. Instead we union the bboxes of
+    all the chunk's items (text and formula).
+
+    Each entry is ``{"page": int, "bbox": (l, t, r, b), "coord_origin": str}``.
+    NOTE: Docling's origin is bottom-left; a downstream crop (e.g. pdfplumber or
+    a formula-OCR) must reconcile origin (and scale to page size) first.
+    """
+    # page_no -> [origin, l, t, r, b] accumulated to a union rectangle.
+    per_page: dict[int, dict] = {}
+    for item in getattr(dl_chunk.meta, "doc_items", None) or []:
+        for prov in getattr(item, "prov", None) or []:
+            bbox = getattr(prov, "bbox", None)
+            page = getattr(prov, "page_no", None)
+            if bbox is None or page is None:
+                continue
+            origin = str(getattr(bbox, "coord_origin", ""))
+            acc = per_page.get(page)
+            if acc is None:
+                # First bbox for this page: start the union with it.
+                per_page[page] = {
+                    "l": bbox.l, "t": bbox.t, "r": bbox.r, "b": bbox.b,
+                    "coord_origin": origin,
+                }
+            else:
+                # Accumulate the union of all bboxes on this page. All bboxes should have the same origin.
+                acc["l"] = min(acc["l"], bbox.l)
+                acc["r"] = max(acc["r"], bbox.r)
+                acc["t"] = max(acc["t"], bbox.t)
+                acc["b"] = min(acc["b"], bbox.b)
+    return [
+        {
+            "page": page,
+            "bbox": (a["l"], a["t"], a["r"], a["b"]),
+            "coord_origin": a["coord_origin"],
+        }
+        for page, a in sorted(per_page.items())
+    ]
+
+
+def _is_table_chunk(dl_chunk) -> bool:
+    """True if a chunk is derived (wholly or partly) from a table.
+
+    The HybridChunker linearises tables into text and may split a large table
+    mid-row, which destroys row/column/header associations. Extract out the table with a dedicated tool (IN-03) instead of keeping the mangled text.
+    """
+    
+    is_table = any(
+        item.label == DocItemLabel.TABLE
+        for item in dl_chunk.meta.doc_items
+    )
+    return is_table
 
 def _pages_of(meta) -> list[int]:
     """Sorted unique page numbers referenced by a Docling chunk's items."""
@@ -69,6 +162,45 @@ def _build_metadata(meta, doc_id: str) -> dict:
     return metadata
 
 
+def _extract_table_chunk(table_bboxes: list[dict], doc_id: str, chunk_id: str, meta) -> dict | None:
+    """Extract a table into a single index-ready chunk (IN-03) — not yet implemented.
+
+    Called IN SERIES the moment a table is detected during chunking, so its
+    result can be appended in document (reading) order rather than collected and
+    reconciled afterwards. `table_bboxes` carries the page + bounding box for the
+    table (see `_table_bboxes`).
+
+    When implemented: for each bbox, convert Docling's (bottom-left) coordinates
+    to pdfplumber's top-left origin using the page height, open the PDF and crop
+    with `page.within_bbox(...)`, then serialise the extracted grid to
+    Markdown/row-wise text as ONE chunk (never token-split) with the
+    `{"id", "text", "metadata"}` shape (reuse `_build_metadata`).
+
+    Returns None for now so tables are effectively skipped until the tool lands.
+    """
+    return None
+
+
+def _extract_formula_chunk(chunk_bboxes: list[dict], doc_id: str, chunk_id: str, meta) -> dict | None:
+    """Extract a formula chunk into one index-ready chunk — not yet implemented.
+
+    Runs IN SERIES the moment a formula chunk is detected, so its result is
+    appended in reading order. `chunk_bboxes` is the whole-chunk region (see
+    `_chunk_bbox`) to crop and hand to a separate formula process (e.g. a
+    LaTeX-OCR on the cropped image), instead of Docling's built-in formula
+    enrichment which is very slow (observed ~1.5min -> ~10min for one formula
+    page). Doing it out-of-band keeps the main text parse fast.
+
+    When implemented: convert the bbox from Docling's bottom-left origin to the
+    crop tool's convention (using page height), crop, decode the formula, and
+    return one {"id", "text", "metadata"} chunk (reuse `_build_metadata`).
+
+    Returns None for now so formula chunks are effectively skipped until the
+    separate process lands.
+    """
+    return None
+
+
 @lru_cache(maxsize=1)
 def _chunker():
     """Build (once) a HybridChunker with an explicit tokenizer + token ceiling.
@@ -78,7 +210,6 @@ def _chunker():
     process. Imported lazily so importing this module doesn't pull Docling's
     heavy deps until chunking is actually used.
     """
-    from docling.chunking import HybridChunker
     from docling_core.transforms.chunker.tokenizer.huggingface import (
         HuggingFaceTokenizer,
     )
@@ -107,13 +238,41 @@ def chunk(parsed: ParsedDocument, doc_id: str | None = None) -> list[dict]:
 
     resolved_doc_id = doc_id or parsed.doc_name
 
-    chunker = _chunker()
+    chunker: HybridChunker = _chunker()
 
     chunks: list[dict] = []
     for n, dl_chunk in enumerate(chunker.chunk(dl_doc=doc)):
         text = (dl_chunk.text or "").strip()
         if not text:
             continue
+        # Tables are handled IN SERIES here, not collected for later: the moment
+        # a table chunk is detected we grab its bounding box and run table
+        # extraction inline, so any table chunk is appended in reading order      
+        
+        if _is_table_chunk(dl_chunk):
+            table_bboxes = _detect_bboxes(TableItem, dl_chunk)  # bbox(es) to use with pdfplumber later
+            table_chunk = _extract_table_chunk(
+                table_bboxes, resolved_doc_id, f"{resolved_doc_id}:table:{n}", dl_chunk.meta
+            )
+            if table_chunk is not None:
+                chunks.append(table_chunk)
+            else:
+                warn("Table extraction and chunking not implemented yet")
+            continue
+        elif _has_formula_chunk(dl_chunk):
+            # With formula enrichment OFF, formula text gets replaced with <!-- formula-not-decoded -->
+            # formula process in series (appended in reading order when done).
+            formula_bboxes = _chunk_bbox(dl_chunk)
+            formula_chunk = _extract_formula_chunk(
+                formula_bboxes, resolved_doc_id, f"{resolved_doc_id}:formula:{n}", dl_chunk.meta
+            )
+            if formula_chunk is not None:
+                chunks.append(formula_chunk)
+            else:
+                warn("Formula extraction and chunking not implemented yet")
+            continue
+        
+
         chunks.append(
             {
                 "id": f"{resolved_doc_id}:{n}",
