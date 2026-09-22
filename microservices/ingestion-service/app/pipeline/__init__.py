@@ -24,7 +24,6 @@ from app.pipeline.anonymiser import anonymise
 from app.pipeline.chunker import chunk
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
-from app.pipeline.parser import parse
 
 __all__ = [
     "run",
@@ -58,6 +57,9 @@ def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
         UnparsableDocumentError: if the document could not be parsed. Propagated
             so a caller (or future OCR fallback) can react.
     """
+    from app.pipeline.parser import parse
+    # Only import parse module to avoid the import of subsequent heavy modules 
+    # (Docling, pix2text, etc)
     parsed = parse(file_path, page_range=page_range)
 
     # Tables and images are captured but not processed/indexed yet.
