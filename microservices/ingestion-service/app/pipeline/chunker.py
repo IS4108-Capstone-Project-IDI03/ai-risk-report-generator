@@ -8,11 +8,9 @@ Docling chunk metadata is mapped as:
 - ``meta.headings``            -> ``headings`` (the heading trail, a list of str)
 - ``meta.doc_items[].prov[].page_no`` -> ``page_start`` / ``page_end``
 
-``headings`` is stored as the raw list (outermost -> nearest heading). Chroma
-accepts a homogeneous list of str but rejects an empty list, so the key is only
-set when the chunk has at least one heading. ``page_start`` / ``page_end`` are
-ints (present only when page provenance is known) so callers can filter/cite by
-page. ``doc_id`` is the foreign key back to the source document.
+``headings`` is stored as the raw list (outermost -> nearest heading).
+``page_start`` / ``page_end`` are ints (present only when page provenance is known) 
+``doc_id`` is the foreign key back to the source document BUT not implemented yet.
 
 Chunk sizing: Defaults to 512-token and triggers overflow, warnings on long chunks.
 We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
@@ -24,7 +22,12 @@ from functools import lru_cache
 from warnings import warn
 
 from docling_core.transforms.chunker import HybridChunker
-from docling_core.types.doc import DocItemLabel, TableItem
+from docling_core.types.doc import (
+    DocItemLabel,
+    SectionHeaderItem,
+    TableItem,
+    TitleItem,
+)
 
 from app.pipeline.chunking_helper.formula_parser import close_document, parse_formula_bbox
 from app.pipeline.parser import ParsedDocument
@@ -143,8 +146,49 @@ def _pages_of(meta) -> list[int]:
     return sorted(pages)
 
 
-def _build_metadata(meta, doc_id: str) -> dict:
-    headings = list(getattr(meta, "headings", None) or [])
+def _update_section_stack(stack: list[tuple[int, str]], level: int, text: str) -> None:
+    """Push a heading onto a level-keyed stack, dropping deeper-or-equal levels.
+
+    If next header is of a higher level, drop until its at the parent of the current level
+    """
+    while stack and stack[-1][0] >= level:
+        stack.pop()
+    stack.append((level, text))
+
+
+def _build_section_trails(doc) -> dict[str, list[str]]:
+    """Map each document item's self_ref -> its heading trail (outermost first)."""
+    trails: dict[str, list[str]] = {}
+    stack: list[tuple[int, str]] = []
+    for item, _tree_level in doc.iterate_items(with_groups=False):
+        label = getattr(item, "label", None)
+        if isinstance(item, TitleItem) or label == DocItemLabel.TITLE:
+            _update_section_stack(stack, 0, item.text) 
+            
+        elif isinstance(item, SectionHeaderItem) or label == DocItemLabel.SECTION_HEADER:
+            level = getattr(item, "level", 1) or 1
+            _update_section_stack(stack, level, item.text)
+
+        self_ref = getattr(item, "self_ref", None)
+        if self_ref is not None:
+            trails[self_ref] = [text for _lvl, text in stack]
+    return trails
+
+
+def _chunk_trail(dl_chunk, trails: dict[str, list[str]]) -> list[str]:
+    """Heading trail for a chunk, via the self_ref of its first doc item."""
+    for item in getattr(dl_chunk.meta, "doc_items", None) or []:
+        self_ref = getattr(item, "self_ref", None)
+        if self_ref in trails:
+            return trails[self_ref]
+    return []
+
+
+def _build_metadata(meta, doc_id: str, headings: list[str] | None = None) -> dict:
+    # Prefer the nested trail computed from heading levels (passed in); fall back
+    # to Docling's flat per-chunk headings only if no trail was provided.
+    if headings is None:
+        headings = list(getattr(meta, "headings", None) or [])
     pages = _pages_of(meta)
     page_start = pages[0] if pages else None
     page_end = pages[-1] if pages else None
@@ -241,6 +285,10 @@ def chunk(
 
     chunker: HybridChunker = _chunker()
 
+    # Precompute nested heading trails (self_ref -> trail) from heading levels,
+    # since a chunk's own meta.headings is flat.
+    section_trails = _build_section_trails(doc)
+
     chunks: list[dict] = []
     for n, dl_chunk in enumerate(chunker.chunk(dl_doc=doc)):
         text = (dl_chunk.text or "").strip()
@@ -269,11 +317,12 @@ def chunk(
             if formula_chunk is not None:
                 text = formula_chunk
 
+        trail = _chunk_trail(dl_chunk, section_trails)
         chunks.append(
             {
                 "id": f"{resolved_doc_id}:{n}",
                 "text": text,
-                "metadata": _build_metadata(dl_chunk.meta, resolved_doc_id),
+                "metadata": _build_metadata(dl_chunk.meta, resolved_doc_id, headings=trail),
             }
         )
     close_document()

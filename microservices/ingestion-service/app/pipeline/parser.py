@@ -18,7 +18,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from docling.datamodel.base_models import ConversionStatus, InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import HeadingHierarchyOptions, PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc import (
     DocItemLabel,
@@ -225,6 +225,13 @@ def _converter() -> DocumentConverter:
         document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
         do_formula_enrichment=False,  # Time taken significantly increases. page 47, 52s -> 10min
     )
+    pipeline_options.heading_hierarchy_options = HeadingHierarchyOptions(
+        enabled=True,
+        max_level=6,
+        use_numbering=False
+    )
+    pipeline_options.generate_parsed_pages = True
+
     return DocumentConverter(
         format_options={
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
