@@ -45,7 +45,7 @@ def _install_fakes(monkeypatch, parsed, calls, *, chunks=None):
         calls.append(("parse", file_path, page_range))
         return parsed
 
-    def fake_chunk(parsed_arg, doc_id=None):
+    def fake_chunk(parsed_arg, doc_path=None, doc_id=None):
         calls.append(("chunk", parsed_arg))
         return chunks
 

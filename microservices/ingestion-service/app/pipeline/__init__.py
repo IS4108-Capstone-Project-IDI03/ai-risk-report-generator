@@ -64,8 +64,8 @@ def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
     tables_captured = len(parsed.tables)
     images_captured = len(parsed.images)
 
-    chunks = chunk(parsed, doc_id=None)
-    #chunks = anonymise(chunks)
+    chunks = chunk(parsed, doc_path=file_path, doc_id=None)
+    chunks = anonymise(chunks)
     chunks_indexed = index_chunks(chunks) if chunks else 0
 
     return {
