@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from app.pipeline.chunker import chunk
+#from app.pipeline.chunker_with_display import chunk
 from app.pipeline.parser import ParsedDocument, parse
 
 FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
