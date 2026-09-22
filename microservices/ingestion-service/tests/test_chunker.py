@@ -18,7 +18,7 @@ from app.pipeline.parser import ParsedDocument, parse
 FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
 
 # Small slice so the real parse+chunk stays fast (see test_parser for rationale).
-TEST_PAGE_RANGE: tuple[int, int] = (30, 60)
+TEST_PAGE_RANGE: tuple[int, int] = (1, 10)
 
 
 @pytest.fixture(scope="module")
