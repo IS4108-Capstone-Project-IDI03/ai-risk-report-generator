@@ -16,6 +16,7 @@ dependencies = [
     "chromadb-client==1.5.5",
     "docling>=2.0,<3",
     "pymupdf>=1.28.2",
+    "pix2text>=1.1.7",
 ]
 
 [tool.setuptools]

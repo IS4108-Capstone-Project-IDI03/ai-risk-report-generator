@@ -16,7 +16,7 @@ from app.pipeline.parser import ParsedDocument, parse
 FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
 
 # Small slice so the real parse+chunk stays fast (see test_parser for rationale).
-TEST_PAGE_RANGE: tuple[int, int] = (45, 55)
+TEST_PAGE_RANGE: tuple[int, int] = (30, 60)
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +26,7 @@ def chunks() -> list[dict]:
         parsed = parse(str(FIXTURE), page_range=TEST_PAGE_RANGE)
     except Exception as exc:  # noqa: BLE001
         pytest.skip(f"Docling models unavailable in this environment: {exc}")
-    return chunk(parsed, doc_id="fm200")
+    return chunk(parsed, doc_path=FIXTURE, doc_id="fm200")
 
 
 # --- fast test (no Docling conversion) ----------------------------------------
@@ -34,8 +34,7 @@ def chunks() -> list[dict]:
 
 def test_empty_document_returns_empty_list():
     parsed = ParsedDocument(doc_name="empty.pdf", docling_document=None)
-    assert chunk(parsed) == []
-
+    assert chunk(parsed, doc_path=None) == []
 
 # --- structural tests against the real fixture --------------------------------
 
