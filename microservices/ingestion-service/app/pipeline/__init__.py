@@ -20,16 +20,36 @@ tracking. That change wraps `run()` unchanged — keep it free of web/framework
 dependencies so a worker can call it exactly as a CLI does.
 """
 
+import sys
+
 from app.pipeline.anonymiser import anonymise
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
 
 __all__ = [
     "run",
+    "parse",
+    "chunk",
     "anonymise",
     "index_chunks",
     "UnparsableDocumentError",
 ]
+
+
+# `parse` and `chunk` live in modules instead of global import
+# Resolving them as package attributes (rather than local imports inside `run()`)
+# keeps them patchable via `monkeypatch.setattr(pipeline, "parse", ...)`, which
+# the orchestrator wiring tests rely on.
+def __getattr__(name: str):
+    if name == "parse":
+        from app.pipeline.parser import parse
+
+        return parse
+    if name == "chunk":
+        from app.pipeline.chunker import chunk
+
+        return chunk
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
@@ -37,7 +57,7 @@ def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
 
     Args:
         file_path: path to the document to ingest.
-        page_range: optional 1-based inclusive ``(start, end)`` page window,
+        page_range: 1-based inclusive ``(start, end)`` page window,
             forwarded to the parser (useful for smoke runs).
 
     Returns:
@@ -54,18 +74,17 @@ def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
         UnparsableDocumentError: if the document could not be parsed. Propagated
             so a caller (or future OCR fallback) can react.
     """
-    # Import the heavy stages (Docling / docling_core / pix2text) lazily, so
-    # importing this package for /health, /ingest, /index does not load them.
-    from app.pipeline.chunker import chunk
-    from app.pipeline.parser import parse
+    # Resolve `parse`/`chunk` through this module so the lazy `__getattr__`
+    # above supplies the real (Docling-backed) implementations on first use
+    # Allow module object to act as a class
+    this = sys.modules[__name__]
 
-    parsed = parse(file_path, page_range=page_range)
+    parsed = this.parse(file_path, page_range=page_range)
 
-    # Tables and images are captured but not processed/indexed yet.
     tables_captured = len(parsed.tables)
     images_captured = len(parsed.images)
 
-    chunks = chunk(parsed, doc_path=file_path, doc_id=None)
+    chunks = this.chunk(parsed, doc_path=file_path, doc_id=None)
     chunks = anonymise(chunks)
     chunks_indexed = index_chunks(chunks) if chunks else 0
 
