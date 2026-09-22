@@ -5,29 +5,29 @@ Runs Docling's `HybridChunker` (token-aware, heading-carrying) over the parsed
 expects: ``{"id", "text", "metadata"}``.
 
 Docling chunk metadata is mapped as:
-- ``meta.headings``            -> ``section_path`` (heading trail)
+- ``meta.headings``            -> ``headings`` (the heading trail, a list of str)
 - ``meta.doc_items[].prov[].page_no`` -> ``page_start`` / ``page_end``
 
-Chroma metadata values must be scalars (str/int/float/bool), so the list-valued
-heading trail is serialised here: ``section_path`` becomes a single
-" > "-joined string. ``page_start`` / ``page_end`` are ints (present only when
-page provenance is known) so callers can filter/cite by page. ``doc_id`` is the
-foreign key back to the source document.
+``headings`` is stored as the raw list (outermost -> nearest heading). Chroma
+accepts a homogeneous list of str but rejects an empty list, so the key is only
+set when the chunk has at least one heading. ``page_start`` / ``page_end`` are
+ints (present only when page provenance is known) so callers can filter/cite by
+page. ``doc_id`` is the foreign key back to the source document.
 
-Chunk sizing: Defaults to 512-token and triggers overflow, warnings on long chunks. 
-We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small. 
+Chunk sizing: Defaults to 512-token and triggers overflow, warnings on long chunks.
+We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 `MAX_CHUNK_TOKENS``. Keep chunks well under the embedder limit for retrieval precision
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
-from docling_core.types.doc import DocItemLabel, TableItem
-from docling_core.transforms.chunker import HybridChunker
-from app.pipeline.chunking_helper.formula_parser import parse_formula_bbox, close_document
+
 from functools import lru_cache
 from warnings import warn
 
-from app.pipeline.parser import ParsedDocument
+from docling_core.transforms.chunker import HybridChunker
+from docling_core.types.doc import DocItemLabel, TableItem
 
-_SECTION_SEPARATOR = " > "
+from app.pipeline.chunking_helper.formula_parser import close_document, parse_formula_bbox
+from app.pipeline.parser import ParsedDocument
 
 # --- chunk sizing
 MAX_CHUNK_TOKENS = 1024
@@ -35,17 +35,17 @@ MAX_CHUNK_TOKENS = 1024
 # Adjust it for embeding model (Cohere embed)
 CHUNK_TOKENIZER_MODEL = "BAAI/bge-m3"
 
+
 def _has_formula_chunk(dl_chunk) -> bool:
     """True if a chunk is derived (wholly or partly) from a formula.
 
-    Docking's enriched_formula detection slows down run on pages even without formula. Extract out bbox and extract separately with a dedicated tool instead.
+    Docking's enriched_formula detection slows down run on pages even without formula.
+    Extract out bbox and extract separately with a dedicated tool instead.
     """
-    
-    has_formula = any(
-        item.label == DocItemLabel.FORMULA
-        for item in dl_chunk.meta.doc_items
-    )
+
+    has_formula = any(item.label == DocItemLabel.FORMULA for item in dl_chunk.meta.doc_items)
     return has_formula
+
 
 def _detect_bboxes(itemType, dl_chunk) -> list[dict]:
     """Bounding boxes for the formula item(s) behind a formula chunk.
@@ -98,11 +98,14 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
             if acc is None:
                 # First bbox for this page: start the union with it.
                 per_page[page] = {
-                    "l": bbox.l, "t": bbox.t, "r": bbox.r, "b": bbox.b,
+                    "l": bbox.l,
+                    "t": bbox.t,
+                    "r": bbox.r,
+                    "b": bbox.b,
                     "coord_origin": origin,
                 }
             else:
-                # Accumulate the union of all bboxes on this page. All bboxes should have the same origin.
+                # Accumulate the union of all bboxes on this page.
                 acc["l"] = min(acc["l"], bbox.l)
                 acc["r"] = max(acc["r"], bbox.r)
                 acc["t"] = max(acc["t"], bbox.t)
@@ -121,14 +124,13 @@ def _is_table_chunk(dl_chunk) -> bool:
     """True if a chunk is derived (wholly or partly) from a table.
 
     The HybridChunker linearises tables into text and may split a large table
-    mid-row, which destroys row/column/header associations. Extract out the table with a dedicated tool (IN-03) instead of keeping the mangled text.
+    mid-row, which destroys row/column/header associations.
+    Extract out the table with a dedicated tool
     """
-    
-    is_table = any(
-        item.label == DocItemLabel.TABLE
-        for item in dl_chunk.meta.doc_items
-    )
+
+    is_table = any(item.label == DocItemLabel.TABLE for item in dl_chunk.meta.doc_items)
     return is_table
+
 
 def _pages_of(meta) -> list[int]:
     """Sorted unique page numbers referenced by a Docling chunk's items."""
@@ -149,9 +151,12 @@ def _build_metadata(meta, doc_id: str) -> dict:
 
     metadata: dict = {
         "doc_id": doc_id,  # foreign key back to the source document
-        # Chroma requires scalar values: serialise the list-valued heading trail.
-        "section_path": _SECTION_SEPARATOR.join(headings),
     }
+    # `headings` is the chunk's heading trail (outermost -> nearest). Chroma
+    # accepts a homogeneous list of str, but rejects an empty list, so only set
+    # the key when there is at least one heading. Join for display when needed.
+    if headings:
+        metadata["headings"] = headings
     if page_start is not None:
         metadata["page_start"] = page_start
         metadata["page_end"] = page_end
@@ -186,7 +191,9 @@ def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> str:
     crop tool's convention (using page height), crop, decode the formula, and
     return one {"id", "text", "metadata"} chunk (reuse `_build_metadata`).
     """
-    text = parse_formula_bbox(bbox=chunk_bboxes[0]["bbox"], page=chunk_bboxes[0]["page"], file_path=file_path)
+    text = parse_formula_bbox(
+        bbox=chunk_bboxes[0]["bbox"], page=chunk_bboxes[0]["page"], file_path=file_path
+    )
     return text
 
 
@@ -209,8 +216,9 @@ def _chunker():
     return HybridChunker(tokenizer=tokenizer)
 
 
-
-def chunk(parsed: ParsedDocument, doc_path: str | None = None, doc_id: str | None = None) -> list[dict]:
+def chunk(
+    parsed: ParsedDocument, doc_path: str | None = None, doc_id: str | None = None
+) -> list[dict]:
     """Chunk a parsed document into index-ready chunk dicts.
 
     Args:
@@ -224,7 +232,7 @@ def chunk(parsed: ParsedDocument, doc_path: str | None = None, doc_id: str | Non
     """
     if doc_path is None:
         return []
-    
+
     doc = parsed.docling_document
     if doc is None:
         return []
@@ -241,28 +249,25 @@ def chunk(parsed: ParsedDocument, doc_path: str | None = None, doc_id: str | Non
 
         # Tables are handled IN SERIES here, not collected for later: the moment
         # a table chunk is detected we grab its bounding box and run table
-        # extraction inline, so any table chunk is appended in reading order      
+        # extraction inline, so any table chunk is appended in reading order
         if _is_table_chunk(dl_chunk):
-            table_bboxes = _detect_bboxes(TableItem, dl_chunk)  # bbox(es) to use with pdfplumber later
-            table_chunk = _extract_table_chunk(
+            table_bboxes = _detect_bboxes(
+                TableItem, dl_chunk
+            )  # bbox(es) to use with pdfplumber later
+            _ = _extract_table_chunk(
                 table_bboxes, resolved_doc_id, f"{resolved_doc_id}:table:{n}", dl_chunk.meta
             )
-            if table_chunk is not None:
-                chunks.append(table_chunk)
-            else:
-                warn("Table extraction and chunking not implemented yet")
+
+            warn("Table extraction and chunking not implemented yet")
             continue
         elif _has_formula_chunk(dl_chunk):
-            # With formula enrichment OFF, formula text gets replaced with <!-- formula-not-decoded -->
+            # With formula enrichment OFF, formula text gets replaced with
+            #  <!-- formula-not-decoded -->
             # formula process in series (appended in reading order when done).
             formula_bboxes = _chunk_bbox(dl_chunk)
-            formula_chunk = _extract_formula_chunk(
-                formula_bboxes, doc_path
-            )
+            formula_chunk = _extract_formula_chunk(formula_bboxes, doc_path)
             if formula_chunk is not None:
                 text = formula_chunk
-            continue
-        
 
         chunks.append(
             {

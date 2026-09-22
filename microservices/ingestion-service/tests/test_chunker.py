@@ -11,7 +11,8 @@ from pathlib import Path
 import pytest
 
 from app.pipeline.chunker import chunk
-#from app.pipeline.chunker_with_display import chunk
+
+# from app.pipeline.chunker_with_display import chunk
 from app.pipeline.parser import ParsedDocument, parse
 
 FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
@@ -37,6 +38,7 @@ def test_empty_document_returns_empty_list():
     parsed = ParsedDocument(doc_name="empty.pdf", docling_document=None)
     assert chunk(parsed, doc_path=None) == []
 
+
 # --- structural tests against the real fixture --------------------------------
 
 
@@ -51,21 +53,32 @@ def test_chunk_ids_are_unique_and_prefixed(chunks):
     assert all(c["id"].startswith("fm200:") for c in chunks)
 
 
-def test_metadata_carries_doc_id_and_section_path(chunks):
+def test_metadata_carries_doc_id_and_headings(chunks):
     for c in chunks:
         meta = c["metadata"]
         assert meta["doc_id"] == "fm200"
-        # section_path serialised to a Chroma-safe scalar string.
-        assert isinstance(meta["section_path"], str)
+        # headings is the raw trail; present only when the chunk has headings,
+        # and when present it is a non-empty homogeneous list of str.
+        if "headings" in meta:
+            assert isinstance(meta["headings"], list)
+            assert meta["headings"]
+            assert all(isinstance(h, str) for h in meta["headings"])
     # At least some chunks should sit under a heading.
-    assert any(c["metadata"]["section_path"] for c in chunks)
+    assert any("headings" in c["metadata"] for c in chunks)
 
 
-def test_metadata_values_are_chroma_safe_scalars(chunks):
-    allowed = (str, int, float, bool)
+def test_metadata_values_are_chroma_safe(chunks):
+    # Chroma 1.5.5 accepts scalars OR a non-empty homogeneous list of scalars.
+    scalars = (str, int, float, bool)
     for c in chunks:
         for key, value in c["metadata"].items():
-            assert isinstance(value, allowed), f"{key}={value!r} is not a scalar"
+            if isinstance(value, list):
+                assert value, f"{key} is an empty list (Chroma rejects [])"
+                first = type(value[0])
+                assert all(type(v) is first for v in value), f"{key} list not homogeneous"
+                assert all(isinstance(v, scalars) for v in value), f"{key} list not scalars"
+            else:
+                assert isinstance(value, scalars), f"{key}={value!r} is not scalar/list"
 
 
 def test_page_bounds_are_ints_within_slice(chunks):
@@ -105,7 +118,7 @@ def test_inspect_chunks(chunks):
         meta = c["metadata"]
         print(
             f"\n[{c['id']}] pages={meta.get('page_start')}-{meta.get('page_end')} "
-            f"section_path={meta.get('section_path')!r}"
+            f"headings={meta.get('headings')!r}"
         )
         print(c["text"][:INSPECT_TEXT_CHARS])
     # Light sanity check so this isn't a silent no-op if chunking breaks.
