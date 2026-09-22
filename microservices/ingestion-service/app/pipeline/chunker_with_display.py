@@ -25,17 +25,15 @@ teardown steps).
 
 """
 
-from pathlib import Path
-
-from docling_core.types.doc import DocItemLabel, TableItem
-from docling_core.transforms.chunker import HybridChunker
-from app.pipeline.chunking_helper.formula_parser import parse_formula_bbox, close_document
 from functools import lru_cache
+from pathlib import Path
 from warnings import warn
 
-from app.pipeline.parser import ParsedDocument
+from docling_core.transforms.chunker import HybridChunker
+from docling_core.types.doc import DocItemLabel, TableItem
 
-_SECTION_SEPARATOR = " > "
+from app.pipeline.chunking_helper.formula_parser import close_document, parse_formula_bbox
+from app.pipeline.parser import ParsedDocument
 
 # --- chunk sizing
 MAX_CHUNK_TOKENS = 1024
@@ -59,7 +57,8 @@ DEBUG_PDF_PATH = (
 )
 # PyMuPDF render zoom factor. Larger = crisper page image, bigger window.
 RENDER_SCALE = 2.0
-DISPLAY_Y_SCALE = 0.5  # Display-only vertical squash so the tall page fits the window; does not affect the coord transform or its tests.
+DISPLAY_Y_SCALE = 0.5  # Display-only vertical squash so the tall page fits the window;
+# does not affect the coord transform or its tests.
 
 
 def _bbox_to_canvas_rect(
@@ -98,20 +97,20 @@ def _bbox_to_canvas_rect(
     Returns:
         ``(x0, y0, x1, y1)`` floats in pixmap pixel space.
     """
-    l, t, r, b = bbox
-    S = scale
-    H = page_height_pts
-    x0 = l * S
-    x1 = r * S
+    left, top, right, bottom = bbox
+    stride = scale
+    height = page_height_pts
+    x0 = left * stride
+    x1 = right * stride
     if "TOP" in coord_origin.upper():
         # Top-left origin: already y-down like the canvas, so no vertical flip (Req 5.3).
-        y0 = t * S
-        y1 = b * S
+        y0 = top * stride
+        y1 = bottom * stride
     else:
         # Bottom-left origin (Docling default): flip against the UNSCALED page
         # height, then scale (Req 5.2).
-        y0 = (H - t) * S
-        y1 = (H - b) * S
+        y0 = (height - top) * stride
+        y1 = (height - bottom) * stride
     return (x0, y0, x1, y1)
 
 
@@ -156,9 +155,7 @@ def _show_page_window(pixmap, rects: list[tuple], title: str) -> None:
     try:
         from PIL import Image, ImageTk
 
-        img = Image.frombytes(
-            "RGB", [pixmap.width, pixmap.height], pixmap.samples
-        )
+        img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
         # Squash to the display size (full width, half height).
         img = img.resize((disp_w, disp_h))
         photo = ImageTk.PhotoImage(img)
@@ -261,9 +258,7 @@ def _debug_show_bboxes(bboxes: list[dict], chunk_id: str, kind: str) -> None:
             # warn and continue to the next page (Req 4.2, 6.4).
             try:
                 page = doc[index]
-                pixmap = page.get_pixmap(
-                    matrix=pymupdf.Matrix(RENDER_SCALE, RENDER_SCALE)
-                )
+                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(RENDER_SCALE, RENDER_SCALE))
             except Exception as exc:  # noqa: BLE001 - never crash (Req 6.4)
                 warn(
                     f"[debug bbox viewer] {chunk_id} [{kind}]: failed to render "
@@ -275,9 +270,7 @@ def _debug_show_bboxes(bboxes: list[dict], chunk_id: str, kind: str) -> None:
             # scale AFTER the flip so rectangles line up with the pixmap (Req 5).
             H = page.rect.height
             rects = [
-                _bbox_to_canvas_rect(
-                    entry["bbox"], H, RENDER_SCALE, entry["coord_origin"]
-                )
+                _bbox_to_canvas_rect(entry["bbox"], H, RENDER_SCALE, entry["coord_origin"])
                 for entry in pages[p]
             ]
 
@@ -285,9 +278,7 @@ def _debug_show_bboxes(bboxes: list[dict], chunk_id: str, kind: str) -> None:
             # (Req 2.3, 2.4, 3.2, 3.3). Wrapped so a missing display (headless)
             # warns rather than crashes.
             try:
-                _show_page_window(
-                    pixmap, rects, title=f"{chunk_id} [{kind}] page {p}"
-                )
+                _show_page_window(pixmap, rects, title=f"{chunk_id} [{kind}] page {p}")
             except Exception as exc:  # noqa: BLE001 - never crash (Req 6)
                 warn(
                     f"[debug bbox viewer] {chunk_id} [{kind}]: could not open "
@@ -301,14 +292,13 @@ def _debug_show_bboxes(bboxes: list[dict], chunk_id: str, kind: str) -> None:
 def _has_formula_chunk(dl_chunk) -> bool:
     """True if a chunk is derived (wholly or partly) from a formula.
 
-    Docking's enriched_formula detection slows down run on pages even without formula. Extract out bbox and extract separately with a dedicated tool instead.
+    Docking's enriched_formula detection slows down run on pages even without formula.
+    Extract out bbox and extract separately with a dedicated tool instead.
     """
-    
-    has_formula = any(
-        item.label == DocItemLabel.FORMULA
-        for item in dl_chunk.meta.doc_items
-    )
+
+    has_formula = any(item.label == DocItemLabel.FORMULA for item in dl_chunk.meta.doc_items)
     return has_formula
+
 
 def _detect_bboxes(itemType, dl_chunk) -> list[dict]:
     """Bounding boxes for the formula item(s) behind a formula chunk.
@@ -361,11 +351,15 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
             if acc is None:
                 # First bbox for this page: start the union with it.
                 per_page[page] = {
-                    "l": bbox.l, "t": bbox.t, "r": bbox.r, "b": bbox.b,
+                    "l": bbox.l,
+                    "t": bbox.t,
+                    "r": bbox.r,
+                    "b": bbox.b,
                     "coord_origin": origin,
                 }
             else:
-                # Accumulate the union of all bboxes on this page. All bboxes should have the same origin.
+                # Accumulate the union of all bboxes on this page.
+                # All bboxes should have the same origin.
                 acc["l"] = min(acc["l"], bbox.l)
                 acc["r"] = max(acc["r"], bbox.r)
                 acc["t"] = max(acc["t"], bbox.t)
@@ -384,14 +378,13 @@ def _is_table_chunk(dl_chunk) -> bool:
     """True if a chunk is derived (wholly or partly) from a table.
 
     The HybridChunker linearises tables into text and may split a large table
-    mid-row, which destroys row/column/header associations. Extract out the table with a dedicated tool (IN-03) instead of keeping the mangled text.
+    mid-row, which destroys row/column/header associations.
+    Extract out the table with a dedicated tool.
     """
-    
-    is_table = any(
-        item.label == DocItemLabel.TABLE
-        for item in dl_chunk.meta.doc_items
-    )
+
+    is_table = any(item.label == DocItemLabel.TABLE for item in dl_chunk.meta.doc_items)
     return is_table
+
 
 def _pages_of(meta) -> list[int]:
     """Sorted unique page numbers referenced by a Docling chunk's items."""
@@ -412,9 +405,12 @@ def _build_metadata(meta, doc_id: str) -> dict:
 
     metadata: dict = {
         "doc_id": doc_id,  # foreign key back to the source document
-        # Chroma requires scalar values: serialise the list-valued heading trail.
-        "section_path": _SECTION_SEPARATOR.join(headings),
     }
+    # `headings` is the heading trail (outermost -> nearest). Chroma accepts a
+    # homogeneous list of str but rejects an empty list, so only set the key
+    # when there is at least one heading.
+    if headings:
+        metadata["headings"] = headings
     if page_start is not None:
         metadata["page_start"] = page_start
         metadata["page_end"] = page_end
@@ -439,6 +435,7 @@ def _extract_table_chunk(table_bboxes: list[dict], doc_id: str, chunk_id: str, m
     """
     return None
 
+
 def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> dict | None:
     """Extract a formula chunk into one index-ready chunk — not yet implemented.
 
@@ -455,6 +452,7 @@ def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> dict | N
         coord_origin=chunk_bboxes[0]["coord_origin"],
     )
     return text
+
 
 @lru_cache(maxsize=1)
 def _chunker():
@@ -475,8 +473,9 @@ def _chunker():
     return HybridChunker(tokenizer=tokenizer)
 
 
-
-def chunk(parsed: ParsedDocument, doc_path:str | None = None, doc_id: str | None = None) -> list[dict]:
+def chunk(
+    parsed: ParsedDocument, doc_path: str | None = None, doc_id: str | None = None
+) -> list[dict]:
     """Chunk a parsed document into index-ready chunk dicts.
 
     Args:
@@ -490,7 +489,7 @@ def chunk(parsed: ParsedDocument, doc_path:str | None = None, doc_id: str | None
     """
     if doc_path is None:
         return []
-    
+
     doc = parsed.docling_document
     if doc is None:
         return []
@@ -506,11 +505,15 @@ def chunk(parsed: ParsedDocument, doc_path:str | None = None, doc_id: str | None
             continue
         # Tables are handled IN SERIES here, not collected for later: the moment
         # a table chunk is detected we grab its bounding box and run table
-        # extraction inline, so any table chunk is appended in reading order      
-        
+        # extraction inline, so any table chunk is appended in reading order
+
         if _is_table_chunk(dl_chunk):
-            table_bboxes = _detect_bboxes(TableItem, dl_chunk)  # bbox(es) to use with pdfplumber later
-            _debug_show_bboxes(table_bboxes, f"{resolved_doc_id}:table:{n}", "table")  # TEMPORARY debug call — remove with this file
+            table_bboxes = _detect_bboxes(
+                TableItem, dl_chunk
+            )  # bbox(es) to use with pdfplumber later
+            _debug_show_bboxes(
+                table_bboxes, f"{resolved_doc_id}:table:{n}", "table"
+            )  # TEMPORARY debug call — remove with this file
             table_chunk = _extract_table_chunk(
                 table_bboxes, resolved_doc_id, f"{resolved_doc_id}:table:{n}", dl_chunk.meta
             )
@@ -520,19 +523,19 @@ def chunk(parsed: ParsedDocument, doc_path:str | None = None, doc_id: str | None
                 warn("Table extraction and chunking not implemented yet")
             continue
         elif _has_formula_chunk(dl_chunk):
-            # With formula enrichment OFF, formula text gets replaced with <!-- formula-not-decoded -->
+            # With formula enrichment OFF, formula text gets replaced with
+            # <!-- formula-not-decoded -->
             # formula process in series (appended in reading order when done).
             formula_bboxes = _chunk_bbox(dl_chunk)
-            _debug_show_bboxes(formula_bboxes, f"{resolved_doc_id}:formula:{n}", "formula")  # TEMPORARY debug call — remove with this file
-            formula_chunk = _extract_formula_chunk(
-                formula_bboxes, doc_path
-            )
+            _debug_show_bboxes(
+                formula_bboxes, f"{resolved_doc_id}:formula:{n}", "formula"
+            )  # TEMPORARY debug call — remove with this file
+            formula_chunk = _extract_formula_chunk(formula_bboxes, doc_path)
             if formula_chunk is not None:
                 chunks.append(formula_chunk)
             else:
                 warn("Formula extraction and chunking not implemented yet")
             continue
-        
 
         chunks.append(
             {

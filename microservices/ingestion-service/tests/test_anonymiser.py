@@ -20,7 +20,7 @@ def _chunk(cid: str, text: str) -> dict:
         "text": text,
         "metadata": {
             "doc_id": "manual",
-            "section_path": "Doc > Section",
+            "headings": ["Doc", "Section"],
             "page_start": 2,
             "page_end": 3,
         },
@@ -38,7 +38,7 @@ def test_preserves_ids_and_metadata():
     result = anonymise(chunks)
     assert [c["id"] for c in result] == ["d:0", "d:1"]
     assert all(c["metadata"]["doc_id"] == "manual" for c in result)
-    assert all(c["metadata"]["section_path"] == "Doc > Section" for c in result)
+    assert all(c["metadata"]["headings"] == ["Doc", "Section"] for c in result)
 
 
 def test_does_not_mutate_input_chunks():
