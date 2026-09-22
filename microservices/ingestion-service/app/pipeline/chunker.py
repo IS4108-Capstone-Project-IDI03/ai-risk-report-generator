@@ -9,7 +9,7 @@ Docling chunk metadata is mapped as:
 - ``meta.doc_items[].prov[].page_no`` -> ``page_start`` / ``page_end``
 
 ``headings`` is stored as the raw list (outermost -> nearest heading).
-``page_start`` / ``page_end`` are ints (present only when page provenance is known) 
+``page_start`` / ``page_end`` are ints (present only when page provenance is known)
 ``doc_id`` is the foreign key back to the source document BUT not implemented yet.
 
 Chunk sizing: Defaults to 512-token and triggers overflow, warnings on long chunks.
@@ -163,8 +163,8 @@ def _build_section_trails(doc) -> dict[str, list[str]]:
     for item, _tree_level in doc.iterate_items(with_groups=False):
         label = getattr(item, "label", None)
         if isinstance(item, TitleItem) or label == DocItemLabel.TITLE:
-            _update_section_stack(stack, 0, item.text) 
-            
+            _update_section_stack(stack, 0, item.text)
+
         elif isinstance(item, SectionHeaderItem) or label == DocItemLabel.SECTION_HEADER:
             level = getattr(item, "level", 1) or 1
             _update_section_stack(stack, level, item.text)

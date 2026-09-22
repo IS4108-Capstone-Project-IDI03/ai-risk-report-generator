@@ -226,9 +226,7 @@ def _converter() -> DocumentConverter:
         do_formula_enrichment=False,  # Time taken significantly increases. page 47, 52s -> 10min
     )
     pipeline_options.heading_hierarchy_options = HeadingHierarchyOptions(
-        enabled=True,
-        max_level=6,
-        use_numbering=False
+        enabled=True, max_level=6, use_numbering=False
     )
     pipeline_options.generate_parsed_pages = True
 
