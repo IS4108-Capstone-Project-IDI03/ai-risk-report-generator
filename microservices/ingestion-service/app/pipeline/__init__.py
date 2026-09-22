@@ -21,14 +21,11 @@ dependencies so a worker can call it exactly as a CLI does.
 """
 
 from app.pipeline.anonymiser import anonymise
-from app.pipeline.chunker import chunk
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
 
 __all__ = [
     "run",
-    "parse",
-    "chunk",
     "anonymise",
     "index_chunks",
     "UnparsableDocumentError",
@@ -57,9 +54,11 @@ def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
         UnparsableDocumentError: if the document could not be parsed. Propagated
             so a caller (or future OCR fallback) can react.
     """
+    # Import the heavy stages (Docling / docling_core / pix2text) lazily, so
+    # importing this package for /health, /ingest, /index does not load them.
+    from app.pipeline.chunker import chunk
     from app.pipeline.parser import parse
-    # Only import parse module to avoid the import of subsequent heavy modules 
-    # (Docling, pix2text, etc)
+
     parsed = parse(file_path, page_range=page_range)
 
     # Tables and images are captured but not processed/indexed yet.
