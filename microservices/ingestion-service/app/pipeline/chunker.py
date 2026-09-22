@@ -227,18 +227,22 @@ def _extract_table_chunk(table_bboxes: list[dict], doc_id: str, chunk_id: str, m
 
 
 def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> str:
-    """Extract a formula chunk into one index-ready chunk — not yet implemented.
+    """Decode a formula chunk by cropping and parsing each page it spans.
 
-    Runs IN SERIES the moment a formula chunk is detected
+    Runs IN SERIES the moment a formula chunk is detected. A formula chunk can
+    span multiple pages, so `chunk_bboxes` holds one box PER page (see
+    `_chunk_bbox`). We decode every page in order and join the results — reading
+    only the first box would silently drop everything after the first page.
 
-    When implemented: convert the bbox from Docling's bottom-left origin to the
-    crop tool's convention (using page height), crop, decode the formula, and
-    return one {"id", "text", "metadata"} chunk (reuse `_build_metadata`).
+    `parse_formula_bbox` converts Docling's bottom-left bbox to the crop tool's
+    convention, crops, and decodes the region.
     """
-    text = parse_formula_bbox(
-        bbox=chunk_bboxes[0]["bbox"], page=chunk_bboxes[0]["page"], file_path=file_path
-    )
-    return text
+    parts: list[str] = []
+    for box in chunk_bboxes:
+        decoded = parse_formula_bbox(bbox=box["bbox"], page=box["page"], file_path=file_path)
+        if decoded:
+            parts.append(decoded)
+    return "\n".join(parts)
 
 
 @lru_cache(maxsize=1)
