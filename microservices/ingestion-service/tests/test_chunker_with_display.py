@@ -34,13 +34,13 @@ RANDOM_SEED = 20240921
 
 def _random_bbox_case(rng: random.Random):
     """Draw a plausible (l, t, r, b, H, S) case within a sane input space."""
-    l = rng.uniform(0, 1000)
-    r = rng.uniform(0, 1000)
-    t = rng.uniform(0, 1000)
-    b = rng.uniform(0, 1000)
-    H = rng.uniform(1, 2000)
-    S = rng.uniform(0.1, 5.0)
-    return l, t, r, b, H, S
+    left = rng.uniform(0, 1000)
+    right = rng.uniform(0, 1000)
+    top = rng.uniform(0, 1000)
+    bottom = rng.uniform(0, 1000)
+    height = rng.uniform(1, 2000)
+    stride = rng.uniform(0.1, 5.0)
+    return left, top, right, bottom, height, stride
 
 
 # --- Property 1: bottom-left origin flips against page height -----------------
@@ -66,11 +66,16 @@ def test_property1_bottom_left_flip_randomized():
     rng = random.Random(RANDOM_SEED)
     bottom_left_origins = ["CoordOrigin.BOTTOMLEFT", "bottomleft", "BOTTOM_LEFT", ""]
     for _ in range(PROPERTY_ITERATIONS):
-        l, t, r, b, H, S = _random_bbox_case(rng)
+        left, top, right, bottom, height, stride = _random_bbox_case(rng)
         origin = rng.choice(bottom_left_origins)
         assert "TOP" not in origin.upper()  # guard the test's own assumption
-        result = _bbox_to_canvas_rect((l, t, r, b), H, S, origin)
-        assert result == (l * S, (H - t) * S, r * S, (H - b) * S)
+        result = _bbox_to_canvas_rect((left, top, right, bottom), height, stride, origin)
+        assert result == (
+            left * stride,
+            (height - top) * stride,
+            right * stride,
+            (height - bottom) * stride,
+        )
 
 
 # --- Property 2: top-left origin applies no vertical flip ---------------------
@@ -97,8 +102,8 @@ def test_property2_top_left_no_flip_randomized():
     rng = random.Random(RANDOM_SEED)
     top_left_origins = ["CoordOrigin.TOPLEFT", "topleft", "TopLeft", "TOP_LEFT"]
     for _ in range(PROPERTY_ITERATIONS):
-        l, t, r, b, H, S = _random_bbox_case(rng)
+        left, top, right, bottom, height, stride = _random_bbox_case(rng)
         origin = rng.choice(top_left_origins)
         assert "TOP" in origin.upper()  # guard the test's own assumption
-        result = _bbox_to_canvas_rect((l, t, r, b), H, S, origin)
-        assert result == (l * S, t * S, r * S, b * S)
+        result = _bbox_to_canvas_rect((left, top, right, bottom), height, stride, origin)
+        assert result == (left * stride, top * stride, right * stride, bottom * stride)

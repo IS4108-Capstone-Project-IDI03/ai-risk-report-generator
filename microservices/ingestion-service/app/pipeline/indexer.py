@@ -10,9 +10,10 @@ Chunk (as produced by chunker.chunk and consumed here):
 {
     "id":   str,              # stable unique id; also the Chroma record id
     "text": str,              # chunk text; embedded via Cohere and stored as the document
-    "metadata": {             # forwarded to Chroma verbatim; values MUST be scalars
+    "metadata": {             # forwarded to Chroma verbatim; scalars or a
+                              # non-empty homogeneous list of scalars
         "doc_id":       str,  # foreign key back to the source document
-        "section_path": str,  # heading trail, " > "-joined (Chroma needs scalars)
+        "headings": list[str],# heading trail; key omitted when the chunk has none
         "page_start":   int,  # present only when known
         "page_end":     int,  # present only when known
     },

@@ -223,7 +223,7 @@ def _converter() -> DocumentConverter:
         do_ocr=False,
         do_table_structure=True,
         document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
-        do_formula_enrichment=False, #Time taken significantly increases. page 47, 52s -> 10min
+        do_formula_enrichment=False,  # Time taken significantly increases. page 47, 52s -> 10min
     )
     return DocumentConverter(
         format_options={

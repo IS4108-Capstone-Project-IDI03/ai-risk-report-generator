@@ -24,8 +24,8 @@ packages = ["app"]
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.7",
-    "black>=24.10",
+    "ruff>=0.7",        # uvx ruff check .  ; uvx ruff format . 
+    "black>=24.10",     # uvx black .
     "pytest>=8.3",
     "httpx2>=2.13.0", # required for starlette.testclient import TestClient as TestClient
 ]

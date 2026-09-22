@@ -1,10 +1,10 @@
 import pymupdf
-
 from PIL import Image
 from pix2text import Pix2Text
 
 document = None
 document_name = None
+
 
 def load_document(file_path):
     """
@@ -18,7 +18,8 @@ def load_document(file_path):
         return document
     else:
         return document
-    
+
+
 def close_document():
     """
     Close the loaded document if it exists.
@@ -28,7 +29,8 @@ def close_document():
     if document is not None:
         document.close()
         document = None
-        document_name = None        
+        document_name = None
+
 
 def parse_formula_bbox(bbox, page, file_path, coord_origin=""):
     """Parse a formula (and text of the chunk if exist) using Pix2Text
@@ -37,7 +39,7 @@ def parse_formula_bbox(bbox, page, file_path, coord_origin=""):
 
     Docling's 1-based; pymupdf is 0-based, so index with ``page - 1``.
     Docling's bbox ``(l, t, r, b)`` defaults to a BOTTOM-LEFT origin
-    pymupdf.Rect get_pixmap(clip=...) expect a TOP-LEFT origin (y-down, ``y0 < y1``). 
+    pymupdf.Rect get_pixmap(clip=...) expect a TOP-LEFT origin (y-down, ``y0 < y1``).
     We flip the y axis against the page height ``H`` only when the origin is NOT top-left
     """
     document = load_document(file_path)
@@ -51,15 +53,15 @@ def parse_formula_bbox(bbox, page, file_path, coord_origin=""):
         return None
 
     page_obj: pymupdf.Page = document[page - 1]
-    H = page_obj.rect.height
+    height = page_obj.rect.height
 
-    l, t, r, b = bbox
+    left, top, right, bottom = bbox
     if "TOP" in coord_origin.upper():
-        y0, y1 = t, b            # already top-left
+        y0, y1 = top, bottom  # already top-left
     else:
-        y0, y1 = H - t, H - b    # bottom-left -> flip against page height
+        y0, y1 = height - top, height - bottom  # bottom-left -> flip against page height
     # normalize so the rect is always valid (y0 < y1, x0 < x1) regardless of ordering
-    x_lo, x_hi = min(l, r), max(l, r)
+    x_lo, x_hi = min(left, right), max(left, right)
     y_lo, y_hi = min(y0, y1), max(y0, y1)
     crop_rect = pymupdf.Rect(x_lo, y_lo, x_hi, y_hi)
 
@@ -72,11 +74,13 @@ def parse_formula_bbox(bbox, page, file_path, coord_origin=""):
         return None
 
     cropped_section = page_obj.get_pixmap(clip=crop_rect)
-    
+
     pix2text = Pix2Text.from_config()
-    
+
     # Recog text/formula takes in str | Path | Image
     # Need to convert pixmap to Image
-    image = Image.frombytes("RGB", (cropped_section.width, cropped_section.height), cropped_section.samples)
+    image = Image.frombytes(
+        "RGB", (cropped_section.width, cropped_section.height), cropped_section.samples
+    )
     output = pix2text.recognize_text_formula(img=image, return_text=True, auto_line_break=True)
     return output

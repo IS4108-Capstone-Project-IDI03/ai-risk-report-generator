@@ -59,6 +59,7 @@ def test_run_end_to_end_indexes_chunks_with_provenance(mocked_index):
     assert len(set(ids)) == len(ids)
     for meta in metadatas:
         assert meta["doc_id"]  # foreign key back to the source document
-        assert "section_path" in meta
+    # Headings are present only for chunks under a heading; at least some should be.
+    assert any("headings" in meta for meta in metadatas)
     # Cohere embed was invoked to vectorise the chunk text.
     assert mocked_index.cohere.embed.called
