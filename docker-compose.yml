@@ -6,6 +6,21 @@ services:
     volumes:
       - chroma-data:/data
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   mongo:
     image: mongo:7
     ports:
@@ -55,8 +70,13 @@ services:
     environment:
       CHROMA_HOST: chroma
       CHROMA_PORT: 8000
+      GLMOCR_MODE: selfhosted
+      GLMOCR_OCR_API_HOST: ollama
+      GLMOCR_OCR_API_PORT: 11434
     depends_on:
       - chroma
+      ollama:
+        condition: service_healthy
     volumes:
       - ./microservices/ingestion-service:/app
 
@@ -86,3 +106,4 @@ services:
 volumes:
   mongo-data:
   chroma-data:
+  ollama-data:

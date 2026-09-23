@@ -17,6 +17,14 @@ dependencies = [
     "docling>=2.0,<3",
     "pymupdf>=1.28.2",
     "pix2text>=1.1.7",
+    "optimum[onnxruntime]>=1.17.1",
+    # Cap transformers at 4.x. optimum's onnxruntime layer (pulled in by
+    # pix2text for LaTeX OCR) imports transformers.utils.is_tf_available, which
+    # transformers 5 removed along with TF support, so pix2text fails to import
+    # on 5.x. Nothing here needs 5: docling-ibm-models allows >=4.42,<6 and
+    # pix2text allows >=4.37. Without a cap transformers floats to the newest
+    # release and breaks collection.
+    "transformers>=4.42,<5",
 ]
 
 [tool.setuptools]
@@ -39,6 +47,9 @@ dev = [
     "black>=26.5.1",
     "pytest>=9.1.1",
     "ruff>=0.16.7",
+    # Lets Python verify TLS against the OS trust store, so Hugging Face model
+    # downloads work behind a TLS-inspecting proxy. See tests/conftest.py.
+    "truststore==0.10.4",
 ]
 
 [tool.ruff]
@@ -57,7 +68,9 @@ target-version = ["py311"]
 # Specify the start and end page to test in test_parser. Page 45-55 selected for FM200 (contains images, tables and text).
 # Full run of FM200 will take more than 11minutes, longer for first run when downloading and caching the model locally.
 # Run them explicitly with:  pytest -m slow   (or -m "slow or not slow" for all)
-addopts = "-m 'not slow and not inspect'"
+# -rs always prints skip reasons: the Docling fixtures skip on any environment
+# failure, and a bare "s" hides why (e.g. a TLS/model-download problem).
+addopts = "-rs -m 'not slow and not inspect'"
 markers = [
     "slow: full-document Docling parse; opt in with -m slow (minutes on CPU)",
     "inspect: dumps chunk text/metadata for manual inspection; opt in with -m inspect -s",
