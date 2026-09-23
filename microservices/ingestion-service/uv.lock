@@ -1675,6 +1675,27 @@ http = [
 ]
 
 [[package]]
+name = "glmocr"
+version = "0.1.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pillow" },
+    { name = "portalocker" },
+    { name = "pydantic" },
+    { name = "pymupdf" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "requests" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b5/0a/1c53e8d52ddc52074307db886c481116aab4b8effeb75955d1fc08b62cdb/glmocr-0.1.5.tar.gz", hash = "sha256:22839b6d7a5dc51c331d1f8f7cfa89b8cda4889cfbb0e4cb64139fa4fb2264da", size = 103617, upload-time = "2026-04-08T06:22:04.993Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/04/baff846a7f0c766b8b77f77c797c01ace154f7d8f9884a6a92711341c554/glmocr-0.1.5-py3-none-any.whl", hash = "sha256:9649aec2e70eeb5a8ebed9979092c58ec5c4e075a085fb82c8fa3b04e4e40977", size = 115188, upload-time = "2026-04-08T06:22:03.721Z" },
+]
+
+[[package]]
 name = "googleapis-common-protos"
 version = "1.75.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1939,6 +1960,7 @@ dependencies = [
     { name = "cohere" },
     { name = "docling" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "glmocr" },
     { name = "optimum", extra = ["onnxruntime"] },
     { name = "pix2text" },
     { name = "pydantic" },
@@ -1972,6 +1994,7 @@ requires-dist = [
     { name = "cohere", specifier = ">=5.20,<6" },
     { name = "docling", specifier = ">=2.0,<3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115" },
+    { name = "glmocr", specifier = ">=0.1.5" },
     { name = "httpx2", marker = "extra == 'dev'", specifier = ">=2.13.0" },
     { name = "optimum", extras = ["onnxruntime"], specifier = ">=1.17.1" },
     { name = "pix2text", specifier = ">=1.1.7" },
@@ -3720,6 +3743,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/85/68/7717bd9e63ed254617a7d3dc9260904fb736d6ea203e58ffddcb186c64e4/polyfactory-3.3.0.tar.gz", hash = "sha256:237258b6ff43edf362ffd1f68086bb796466f786adfa002b0ac256dbf2246e9a", size = 348668, upload-time = "2026-02-22T09:46:28.01Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/dd/34/b6f19941adcdaf415b5e8a8d577499f5b6a76b59cbae37f9b125a9ffe9f2/polyfactory-3.3.0-py3-none-any.whl", hash = "sha256:686abcaa761930d3df87b91e95b26b8d8cb9fdbbbe0b03d5f918acff5c72606e", size = 62707, upload-time = "2026-02-22T09:46:25.985Z" },
+]
+
+[[package]]
+name = "portalocker"
+version = "4.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/cd/d2a23fc80c26f539ac77e7d61bd5e4af5d0b3a09a78ac4c716eead345129/portalocker-4.4.0.tar.gz", hash = "sha256:90c0df939d4ffba121f8e925bbf98ecea8b9381718666ab871a226938d2b63b2", size = 304906, upload-time = "2026-09-19T16:11:09.114Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/52/6c/07fa2775e87b6e241c2aca5cef79f65e450bc115de55f03cda6251f81690/portalocker-4.4.0-py3-none-any.whl", hash = "sha256:a8e99ea29bfb61766ee0b4008cbaf0651e8e050f7a2485ebf54316480e99226e", size = 129647, upload-time = "2026-09-19T16:11:07.377Z" },
 ]
 
 [[package]]

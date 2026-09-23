@@ -25,6 +25,7 @@ dependencies = [
     # pix2text allows >=4.37. Without a cap transformers floats to the newest
     # release and breaks collection.
     "transformers>=4.42,<5",
+    "glmocr>=0.1.5",
 ]
 
 [tool.setuptools]
