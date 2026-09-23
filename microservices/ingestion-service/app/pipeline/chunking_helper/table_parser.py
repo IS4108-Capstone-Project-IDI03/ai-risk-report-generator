@@ -1,52 +1,38 @@
-from glmocr import GlmOcr
-import pymupdf
-from pathlib import Path
-from app.pipeline.chunking_helper.image_crop import crop_section
+"""Decode a table region into Markdown via GLM-OCR (IN-03).
 
-table_parser: GlmOcr | None = None
+Docling's HybridChunker linearises a table into prose and may split a large one
+mid-row, which destroys the row/column/header associations that make a table
+worth retrieving at all. So the chunker skips Docling's text for table chunks and
+sends the table's bounding box here instead: crop the region out of the page and
+ask GLM-OCR to re-read it as a Markdown table.
 
-def get_table_parser() -> GlmOcr:
-    global table_parser
-    if table_parser is None:
-        config_path = Path(__file__).parent.parent.parent.parent / "config.yml"
-        table_parser = GlmOcr(config_path=config_path)
-    return table_parser
+The PDF handle (`page_cache`) and the OCR client (`ocr_model`) are both shared
+process-wide, so decoding N tables opens the file once and reuses one HTTP
+connection pool.
+"""
 
-def load_document(file_path) -> pymupdf.Document:
+from app.pipeline.chunking_helper.image_crop import crop_png
+from app.pipeline.chunking_helper.ocr_model import recognise
+from app.pipeline.chunking_helper.page_cache import load_document
+
+
+def parse_table(bbox, page: int, file_path: str, coord_origin: str = "") -> str | None:
+    """Crop one table region and return its Markdown, or None.
+
+    Args:
+        bbox: Docling's ``(l, t, r, b)`` for the table.
+        page: Docling's 1-based page number.
+        file_path: path to the source PDF (NOT the doc_id).
+        coord_origin: Docling's coord_origin for the bbox.
+
+    Returns None when the region cannot be cropped (page out of range,
+    degenerate rect) or when OCR returned nothing. The caller drops the table
+    rather than indexing an empty chunk.
     """
-    Load a pdf if not already loaded, and return the pymupdf.Document object
-    Else return the already loaded document.
-    """
-    global document, document_name
-    if document is None or document_name != file_path:
-        document_name = file_path
-        document = pymupdf.open(file_path)
-        return document
-    else:
-        return document
-    
-def close_table_parser_document():
-    """
-    Close the loaded document if it exists.
-    Run this at the end of
-    """
-    global document, document_name
-    if document is not None:
-        document.close()
-        document = None
-        document_name = None
-                
-def parse_table(bbox, page, file_path, coord_origin=""):
-    parser = get_table_parser()
     document = load_document(file_path)
-    
-    cropped_section = crop_section(document, bbox, page=page, coord_origin=coord_origin)
-    if cropped_section is None:
+
+    image_png = crop_png(document, bbox, page, coord_origin=coord_origin)
+    if image_png is None:
         return None
-    
-    # GlmOcr parse takes in (images: str | bytes | Path)
-    bytes_data = cropped_section.tobytes(output="png")
-    result = parser.parse(bytes_data)
-    print(f"Parsed table result: {result}")
-    print("Markdown table:", result.to_markdown())
-    return result
+
+    return recognise(image_png, task="table")

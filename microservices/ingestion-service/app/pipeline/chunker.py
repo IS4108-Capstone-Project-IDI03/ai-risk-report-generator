@@ -19,18 +19,17 @@ Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
 from functools import lru_cache
-from warnings import warn
 
 from docling_core.transforms.chunker import HybridChunker
 from docling_core.types.doc import (
     DocItemLabel,
     SectionHeaderItem,
-    TableItem,
     TitleItem,
 )
 
-from app.pipeline.chunking_helper.formula_parser import close_formula_parser_document, parse_formula_bbox
-from app.pipeline.chunking_helper.table_parser import close_table_parser_document, parse_table
+from app.pipeline.chunking_helper.formula_parser import parse_formula_bbox
+from app.pipeline.chunking_helper.page_cache import close_document
+from app.pipeline.chunking_helper.table_parser import parse_table
 from app.pipeline.parser import ParsedDocument
 
 # --- chunk sizing
@@ -51,23 +50,23 @@ def _has_formula_chunk(dl_chunk) -> bool:
     return has_formula
 
 
-def _detect_bboxes(itemType, dl_chunk) -> list[dict]:
-    """Bounding boxes for the formula item(s) behind a formula chunk.
+def _detect_bboxes(item_label: DocItemLabel, dl_chunk) -> list[dict]:
+    """Bounding boxes of the items in `dl_chunk` carrying `item_label`.
 
     Each entry is ``{"page": int, "bbox": (l, t, r, b), "coord_origin": str}``
-    taken straight from Docling provenance. NOTE: Docling's origin is typically
-    bottom-left; pdfplumber expects top-left in PDF points — the extraction step
-    must reconcile origin (and scale to the page size) before cropping.
+    taken straight from Docling provenance. Docling's origin is normally
+    bottom-left; `image_crop` reconciles that against the page height.
+
+    Items whose label does not match are skipped. A chunk usually mixes a table
+    with the text around it, so without the filter the returned boxes would
+    cover that neighbouring prose and the crop would be far too large.
     """
 
     boxes: list[dict] = []
-    print(dl_chunk.meta.doc_items)
     for item in getattr(dl_chunk.meta, "doc_items", None) or []:
-        label = getattr(item, "label", None)
-        
-        if label != itemType:
-            pass
-        
+        if getattr(item, "label", None) != item_label:
+            continue
+
         for prov in getattr(item, "prov", None) or []:
             bbox = getattr(prov, "bbox", None)
             if bbox is None:
@@ -212,21 +211,48 @@ def _build_metadata(meta, doc_id: str, headings: list[str] | None = None) -> dic
     return metadata
 
 
-def _extract_table_chunk(table_bboxes: list[dict], doc_id: str, chunk_id: str, meta) -> dict | None:
-    """Extract a table into a single index-ready chunk
+def _extract_table_chunk(
+    table_bboxes: list[dict],
+    doc_path: str,
+    doc_id: str,
+    chunk_id: str,
+    meta,
+    headings: list[str] | None = None,
+) -> dict | None:
+    """Extract a table into a single index-ready chunk, or None.
 
     Called IN SERIES the moment a table is detected during chunking, so its
     result can be appended in document (reading) order rather than collected and
-    reconciled afterwards. `table_bboxes` carries the page + bounding box for the
-    table (see `_table_bboxes`).
+    reconciled afterwards. `table_bboxes` carries one page + bounding box per
+    table item (see `_detect_bboxes`).
+
+    The table is emitted as ONE chunk and never token-split: splitting a table
+    mid-row is exactly the failure this path exists to avoid, so a table that
+    exceeds `MAX_CHUNK_TOKENS` is still kept whole. A table spanning pages is
+    decoded page by page and joined in order.
+
+    Returns None when no region decoded, so the caller skips the table rather
+    than indexing an empty chunk.
     """
     parts: list[str] = []
     for box in table_bboxes:
-        parsed = parse_table(bbox=box["bbox"], page=box["page"], file_path=doc_id)
-        print(f"Parsed table on page {box['page']} of {doc_id}: {parsed}")
-        if parsed is not None:
-            parts.append(parsed.to_markdown())
-    return "\n".join(parts)
+        parsed = parse_table(
+            bbox=box["bbox"],
+            page=box["page"],
+            file_path=doc_path,
+            coord_origin=box.get("coord_origin", ""),
+        )
+        if parsed:
+            parts.append(parsed)
+
+    if not parts:
+        return None
+
+    return {
+        "id": chunk_id,
+        "text": "\n\n".join(parts),
+        "metadata": _build_metadata(meta, doc_id, headings=headings),
+    }
 
 
 def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> str:
@@ -297,43 +323,50 @@ def chunk(
     section_trails = _build_section_trails(doc)
 
     chunks: list[dict] = []
-    for n, dl_chunk in enumerate(chunker.chunk(dl_doc=doc)):
-        text = (dl_chunk.text or "").strip()
-        if not text:
-            continue
+    try:
+        for n, dl_chunk in enumerate(chunker.chunk(dl_doc=doc)):
+            text = (dl_chunk.text or "").strip()
+            if not text:
+                continue
 
-        # Tables are handled IN SERIES here, not collected for later: the moment
-        # a table chunk is detected we grab its bounding box and run table
-        # extraction inline, so any table chunk is appended in reading order
-        if _is_table_chunk(dl_chunk):
-            print(f"Detected table chunk {resolved_doc_id}:{n} with {len(text)} chars")
-            table_bboxes = _detect_bboxes(
-                DocItemLabel.TABLE, dl_chunk
-            )  # bbox(es) to use with pdfplumber later
-            print(f"Table bboxes: {table_bboxes}")
-            table_text = _extract_table_chunk(
-                table_bboxes, resolved_doc_id, f"{resolved_doc_id}:table:{n}", dl_chunk.meta
+            trail = _chunk_trail(dl_chunk, section_trails)
+
+            # Tables are handled IN SERIES here, not collected for later: the
+            # moment a table chunk is detected we grab its bounding box and run
+            # table extraction inline, so the table lands in reading order.
+            if _is_table_chunk(dl_chunk):
+                # Docling's linearised table text is discarded on purpose — it
+                # has already lost the row/column structure.
+                table_chunk = _extract_table_chunk(
+                    _detect_bboxes(DocItemLabel.TABLE, dl_chunk),
+                    doc_path=str(doc_path),
+                    doc_id=resolved_doc_id,
+                    chunk_id=f"{resolved_doc_id}:table:{n}",
+                    meta=dl_chunk.meta,
+                    headings=trail,
+                )
+                if table_chunk is not None:
+                    chunks.append(table_chunk)
+                continue
+
+            if _has_formula_chunk(dl_chunk):
+                # With formula enrichment OFF, formula text gets replaced with
+                #  <!-- formula-not-decoded -->
+                # formula process in series (appended in reading order when done).
+                formula_bboxes = _chunk_bbox(dl_chunk)
+                formula_chunk = _extract_formula_chunk(formula_bboxes, str(doc_path))
+                if formula_chunk:
+                    text = formula_chunk
+
+            chunks.append(
+                {
+                    "id": f"{resolved_doc_id}:{n}",
+                    "text": text,
+                    "metadata": _build_metadata(dl_chunk.meta, resolved_doc_id, headings=trail),
+                }
             )
-            print(f"Extracted table text: {table_text}")
+    finally:
+        # Release the PDF handle even if a region blows up mid-document.
+        close_document()
 
-            warn("Table extraction and chunking not implemented yet")
-            continue
-        elif _has_formula_chunk(dl_chunk):
-            # With formula enrichment OFF, formula text gets replaced with
-            #  <!-- formula-not-decoded -->
-            # formula process in series (appended in reading order when done).
-            formula_bboxes = _chunk_bbox(dl_chunk)
-            formula_chunk = _extract_formula_chunk(formula_bboxes, doc_path)
-            if formula_chunk is not None:
-                text = formula_chunk
-
-        trail = _chunk_trail(dl_chunk, section_trails)
-        chunks.append(
-            {
-                "id": f"{resolved_doc_id}:{n}",
-                "text": text,
-                "metadata": _build_metadata(dl_chunk.meta, resolved_doc_id, headings=trail),
-            }
-        )
-    close_formula_parser_document()
     return chunks
