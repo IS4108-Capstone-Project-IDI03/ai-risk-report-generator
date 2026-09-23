@@ -1,69 +1,34 @@
-"""Formula parser contract (IN-03) — bbox crop + Pix2Text decode.
+"""Formula region decoding (IN-03, Phase 4).
 
-`app.pipeline.chunking_helper.formula_parser` crops a formula region out of a
-PDF page with PyMuPDF and hands the pixels to Pix2Text. The chunker calls it in
-series the moment a FORMULA chunk is detected (formula enrichment is OFF in the
-parser, so the formula text is re-decoded here from its bounding box).
+`parse_formula_bbox` crops a formula region out of a PDF page and asks GLM-OCR to
+re-read it. Formula enrichment is OFF in the parser, so this is where the formula
+text actually comes from.
 
-These tests avoid the real Pix2Text model (a heavy, network-fetched download):
-`Pix2Text.from_config` is monkeypatched with a fake recogniser so the crop
-geometry and the load/cache/close lifecycle are exercised hermetically. A small
-one-page PDF is generated with PyMuPDF per test instead of parsing the fixture,
-keeping the suite fast.
+The OCR call is faked, so no model runs and no network is touched. A small
+one-page PDF is generated per test rather than parsing the FM-200 fixture, which
+keeps the suite fast.
 """
 
 import pymupdf
 import pytest
-from PIL import Image
 
-from app.pipeline.chunking_helper import formula_parser
-from app.pipeline.chunking_helper.formula_parser import (
-    close_document,
-    load_document,
-    parse_formula_bbox,
-)
+from app.pipeline.chunking_helper import formula_parser, page_cache
 
-# Page geometry of the generated fixture PDF (PyMuPDF points, top-left origin).
 PAGE_WIDTH = 300
 PAGE_HEIGHT = 400
-
-
-class _FakePix2Text:
-    """Stand-in for Pix2Text that records the image it was asked to decode."""
-
-    last_image = None
-    last_kwargs = None
-
-    @classmethod
-    def from_config(cls, *args, **kwargs):
-        return cls()
-
-    def recognize_text_formula(self, img, **kwargs):
-        _FakePix2Text.last_image = img
-        _FakePix2Text.last_kwargs = kwargs
-        return "E = mc^2"
+LATEX = "E = mc^2"
 
 
 @pytest.fixture(autouse=True)
-def _reset_module_state():
-    """The parser caches the open PDF in a module global; reset around each test."""
-    close_document()
-    _FakePix2Text.last_image = None
-    _FakePix2Text.last_kwargs = None
+def _reset_cache():
+    """The PDF handle is shared module state; clear it around each test."""
+    page_cache.close_document()
     yield
-    close_document()
-
-
-@pytest.fixture
-def fake_pix2text(monkeypatch):
-    """Swap in the fake recogniser so no model is downloaded or run."""
-    monkeypatch.setattr(formula_parser, "Pix2Text", _FakePix2Text)
-    return _FakePix2Text
+    page_cache.close_document()
 
 
 @pytest.fixture
 def pdf_path(tmp_path):
-    """A one-page PDF with some text drawn on it (real pixels to crop)."""
     doc = pymupdf.open()
     page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
     page.insert_text((50, 200), "E = mc^2")
@@ -73,117 +38,104 @@ def pdf_path(tmp_path):
     return str(out)
 
 
-# --- load_document / close_document lifecycle ---------------------------------
+@pytest.fixture
+def fake_recognise(monkeypatch):
+    """Record what the OCR layer was asked to read, and return canned LaTeX."""
+    calls: list[dict] = []
+
+    def _recognise(image_png, task):
+        calls.append({"image": image_png, "task": task})
+        return LATEX
+
+    monkeypatch.setattr(formula_parser, "recognise", _recognise)
+    return calls
 
 
-def test_load_document_returns_open_document(pdf_path):
-    doc = load_document(pdf_path)
-    assert doc.page_count == 1
+def parse(pdf_path, bbox=(40, 180, 160, 220), page=1, **kwargs):
+    return formula_parser.parse_formula_bbox(bbox=bbox, page=page, file_path=pdf_path, **kwargs)
 
 
-def test_load_document_caches_same_path(pdf_path):
-    first = load_document(pdf_path)
-    second = load_document(pdf_path)
-    # Same path -> the cached handle is reused, not reopened.
-    assert first is second
+# --- happy path ---------------------------------------------------------------
 
 
-def test_load_document_reopens_on_different_path(pdf_path, tmp_path):
-    first = load_document(pdf_path)
-
-    other = pymupdf.open()
-    other.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
-    other_path = tmp_path / "other.pdf"
-    other.save(str(other_path))
-    other.close()
-
-    second = load_document(str(other_path))
-    assert first is not second
+def test_returns_recognised_text(pdf_path, fake_recognise):
+    assert parse(pdf_path, coord_origin="TOPLEFT") == LATEX
 
 
-def test_close_document_resets_global_state(pdf_path):
-    load_document(pdf_path)
-    close_document()
-    assert formula_parser.document is None
-    assert formula_parser.document_name is None
+def test_uses_the_formula_task_prompt(pdf_path, fake_recognise):
+    parse(pdf_path, coord_origin="TOPLEFT")
+    # Must request formula recognition, not the table or generic text prompt.
+    assert fake_recognise[0]["task"] == "formula"
 
 
-def test_close_document_is_safe_when_nothing_loaded():
-    # No document loaded yet — closing must be a no-op, not an error.
-    close_document()
-    assert formula_parser.document is None
+def test_sends_png_bytes(pdf_path, fake_recognise):
+    parse(pdf_path, coord_origin="TOPLEFT")
+    assert fake_recognise[0]["image"].startswith(b"\x89PNG\r\n\x1a\n")
 
 
-# --- parse_formula_bbox guards ------------------------------------------------
+def test_reuses_the_shared_document_handle(pdf_path, fake_recognise):
+    parse(pdf_path, coord_origin="TOPLEFT")
+    parse(pdf_path, coord_origin="TOPLEFT")
+    # Two formulas in one document must not reopen the file.
+    assert page_cache.cached_path() == pdf_path
+    assert len(fake_recognise) == 2
 
 
-def test_page_out_of_range_returns_none(pdf_path, fake_pix2text):
-    # The fixture has one page; page 2 (index 1) is out of range.
-    result = parse_formula_bbox(bbox=(10, 10, 100, 100), page=2, file_path=pdf_path)
-    assert result is None
+def test_table_and_formula_share_the_same_handle(pdf_path, fake_recognise, monkeypatch):
+    """The regression: separate caches meant two open handles per document."""
+    from app.pipeline.chunking_helper import table_parser
+
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: "| a |")
+
+    parse(pdf_path, coord_origin="TOPLEFT")
+    first = page_cache.load_document(pdf_path)
+
+    table_parser.parse_table(bbox=(40, 180, 160, 220), page=1, file_path=pdf_path)
+
+    assert page_cache.load_document(pdf_path) is first
 
 
-def test_page_zero_returns_none(pdf_path, fake_pix2text):
-    # Docling pages are 1-based; page 0 (index -1) must be rejected, not wrapped.
-    result = parse_formula_bbox(bbox=(10, 10, 100, 100), page=0, file_path=pdf_path)
-    assert result is None
+# --- coordinate origins -------------------------------------------------------
 
 
-def test_degenerate_bbox_returns_none(pdf_path, fake_pix2text):
-    # A zero-width/zero-height box (e.g. a detected line) yields no crop.
-    result = parse_formula_bbox(bbox=(50, 50, 50, 120), page=1, file_path=pdf_path)
-    assert result is None
-    # The recogniser is never invoked when there's nothing to crop.
-    assert _FakePix2Text.last_image is None
+def test_bottom_left_origin_is_flipped(pdf_path, fake_recognise):
+    """t=380,b=340 bottom-left is a valid region near the top of a 400pt page."""
+    result = parse(pdf_path, bbox=(40, 380, 160, 340), coord_origin="BOTTOMLEFT")
+    assert result == LATEX
+    assert len(fake_recognise) == 1
 
 
-# --- parse_formula_bbox happy path & geometry ---------------------------------
+def test_missing_coord_origin_defaults_to_bottom_left(pdf_path, fake_recognise):
+    # Docling's default origin is bottom-left, so "" must flip too.
+    assert parse(pdf_path, bbox=(40, 380, 160, 340)) == LATEX
 
 
-def test_returns_recognised_output(pdf_path, fake_pix2text):
-    result = parse_formula_bbox(bbox=(40, 180, 160, 220), page=1, file_path=pdf_path)
-    assert result == "E = mc^2"
+def test_unordered_bbox_is_normalised(pdf_path, fake_recognise):
+    assert parse(pdf_path, bbox=(160, 220, 40, 180), coord_origin="TOPLEFT") == LATEX
 
 
-def test_passes_a_pil_image_to_recogniser(pdf_path, fake_pix2text):
-    parse_formula_bbox(bbox=(40, 180, 160, 220), page=1, file_path=pdf_path)
-    assert isinstance(_FakePix2Text.last_image, Image.Image)
+# --- guards -------------------------------------------------------------------
 
 
-def test_recogniser_called_with_text_formula_flags(pdf_path, fake_pix2text):
-    parse_formula_bbox(bbox=(40, 180, 160, 220), page=1, file_path=pdf_path)
-    kwargs = _FakePix2Text.last_kwargs
-    assert kwargs["return_text"] is True
-    assert kwargs["auto_line_break"] is True
+def test_page_out_of_range_returns_none_without_calling_ocr(pdf_path, fake_recognise):
+    # The fixture has one page; page 2 is out of range.
+    assert parse(pdf_path, page=2) is None
+    assert fake_recognise == []
 
 
-def test_bottom_left_origin_is_flipped(pdf_path, fake_pix2text):
-    """Default (bottom-left) origin: y is flipped against page height.
-
-    top=380, bottom=340 in bottom-left coords maps to y in [20, 60] top-left,
-    which is a valid, non-degenerate crop near the top of the page.
-    """
-    result = parse_formula_bbox(
-        bbox=(40, 380, 160, 340), page=1, file_path=pdf_path, coord_origin="BOTTOMLEFT"
-    )
-    assert result == "E = mc^2"
-    assert _FakePix2Text.last_image is not None
+def test_page_zero_returns_none_without_calling_ocr(pdf_path, fake_recognise):
+    # Docling pages are 1-based; page 0 must be rejected, not wrapped to -1.
+    assert parse(pdf_path, page=0) is None
+    assert fake_recognise == []
 
 
-def test_top_left_origin_is_not_flipped(pdf_path, fake_pix2text):
-    """Explicit top-left origin: y coordinates are used as-is."""
-    result = parse_formula_bbox(
-        bbox=(40, 180, 160, 220), page=1, file_path=pdf_path, coord_origin="TOPLEFT"
-    )
-    assert result == "E = mc^2"
-    # Crop height should reflect the given top/bottom (220 - 180 = 40 pts).
-    assert _FakePix2Text.last_image.height > 0
+def test_degenerate_bbox_returns_none_without_calling_ocr(pdf_path, fake_recognise):
+    # A zero-width box (e.g. a detected rule) yields no crop.
+    assert parse(pdf_path, bbox=(50, 50, 50, 120), coord_origin="TOPLEFT") is None
+    assert fake_recognise == []
 
 
-def test_unordered_bbox_is_normalised(pdf_path, fake_pix2text):
-    """left>right / y0>y1 must be normalised so the crop rect stays valid."""
-    result = parse_formula_bbox(
-        bbox=(160, 220, 40, 180), page=1, file_path=pdf_path, coord_origin="TOPLEFT"
-    )
-    assert result == "E = mc^2"
-    assert _FakePix2Text.last_image is not None
+def test_ocr_failure_returns_none(pdf_path, monkeypatch):
+    monkeypatch.setattr(formula_parser, "recognise", lambda image_png, task: None)
+    # Caller keeps Docling's original chunk text when the formula cannot be read.
+    assert parse(pdf_path, coord_origin="TOPLEFT") is None

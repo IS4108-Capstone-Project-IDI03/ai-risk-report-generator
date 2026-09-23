@@ -32,7 +32,8 @@ from warnings import warn
 from docling_core.transforms.chunker import HybridChunker
 from docling_core.types.doc import DocItemLabel, TableItem
 
-from app.pipeline.chunking_helper.formula_parser import close_document, parse_formula_bbox
+from app.pipeline.chunking_helper.formula_parser import parse_formula_bbox
+from app.pipeline.chunking_helper.page_cache import close_document
 from app.pipeline.parser import ParsedDocument
 
 # --- chunk sizing
