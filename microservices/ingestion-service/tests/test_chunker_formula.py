@@ -6,13 +6,8 @@ crops + decodes those boxes via `parse_formula_bbox`.
 
 These tests drive the bbox logic directly with duck-typed fakes (the code only
 uses ``getattr`` on Docling's ``meta.doc_items[].prov[].bbox``), so no Docling
-parse or Pix2Text model runs. `parse_formula_bbox` is monkeypatched to record
+parse and no OCR call happens. `parse_formula_bbox` is monkeypatched to record
 which pages it was asked to decode.
-
-NOTE: `test_multi_page_formula_decodes_every_page` is EXPECTED TO FAIL today.
-`_extract_formula_chunk` only reads ``chunk_bboxes[0]``, so a formula that spans
-pages silently drops every page after the first. The failing test documents the
-bug and should start passing once the extractor loops over all pages.
 """
 
 from types import SimpleNamespace
@@ -107,7 +102,7 @@ def test_chunk_bbox_ignores_items_without_page_or_bbox():
 def test_extract_formula_chunk_decodes_single_page(monkeypatch):
     seen: list[int] = []
 
-    def fake_parse(bbox, page, file_path):
+    def fake_parse(bbox, page, file_path, coord_origin=""):
         seen.append(page)
         return "E = mc^2"
 
@@ -124,13 +119,12 @@ def test_extract_formula_chunk_decodes_single_page(monkeypatch):
 def test_multi_page_formula_decodes_every_page(monkeypatch):
     """A formula spanning pages 5 and 6 must decode BOTH pages.
 
-    EXPECTED TO FAIL today: `_extract_formula_chunk` only reads
-    ``chunk_bboxes[0]``, so page 6 is dropped and only page 5 is decoded. This
-    test pins the correct behaviour so the truncation bug gets fixed later.
+    Guards a truncation bug: the extractor once read only ``chunk_bboxes[0]``,
+    silently dropping every page after the first.
     """
     seen: list[int] = []
 
-    def fake_parse(bbox, page, file_path):
+    def fake_parse(bbox, page, file_path, coord_origin=""):
         seen.append(page)
         return f"formula-p{page}"
 

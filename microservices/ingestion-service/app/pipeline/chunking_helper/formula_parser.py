@@ -1,60 +1,41 @@
-import pymupdf
-from PIL import Image
-from pix2text import Pix2Text
-from app.pipeline.chunking_helper.image_crop import crop_section
+"""Decode a formula region into LaTeX/Markdown via GLM-OCR (IN-03).
 
-document = None
-document_name = None
+Formula enrichment is OFF in the parser (it multiplied parse time even on pages
+with no formulas), so Docling replaces formula text with
+``<!-- formula-not-decoded -->``. The chunker therefore re-reads the region here
+from its bounding box.
 
+Unlike a table, a formula is not a separate Docling item we can isolate: it sits
+inside ordinary text items, so the chunker passes the union bbox of the whole
+chunk (see `chunker._chunk_bbox`). The recognised text consequently replaces the
+chunk's text rather than becoming a chunk of its own.
 
-def load_document(file_path):
-    """
-    Load a pdf if not already loaded, and return the pymupdf.Document object
-    Else return the already loaded document.
-    """
-    global document, document_name
-    if document is None or document_name != file_path:
-        document_name = file_path
-        document = pymupdf.open(file_path)
-        return document
-    else:
-        return document
+Shares the process-wide PDF handle (`page_cache`) and OCR client (`ocr_model`)
+with the table path — one model, two prompts.
+"""
+
+from app.pipeline.chunking_helper.image_crop import crop_png
+from app.pipeline.chunking_helper.ocr_model import recognise
+from app.pipeline.chunking_helper.page_cache import load_document
 
 
-def close_formula_parser_document():
-    """
-    Close the loaded document if it exists.
-    Run this at the end of
-    """
-    global document, document_name
-    if document is not None:
-        document.close()
-        document = None
-        document_name = None
+def parse_formula_bbox(bbox, page: int, file_path: str, coord_origin: str = "") -> str | None:
+    """Crop one formula region and return its recognised text, or None.
 
+    Args:
+        bbox: Docling's ``(l, t, r, b)`` — normally the union box of the chunk.
+        page: Docling's 1-based page number.
+        file_path: path to the source PDF.
+        coord_origin: Docling's coord_origin for the bbox.
 
-def parse_formula_bbox(bbox, page, file_path, coord_origin=""):
-    """Parse a formula (and text of the chunk if exist) using Pix2Text
-    Load specific page with pymupdf and crop to the box
-    Returns the parsed chunk. To be ran in series with other chunking processes
-
-    Docling's 1-based; pymupdf is 0-based, so index with ``page - 1``.
-    Docling's bbox ``(l, t, r, b)`` defaults to a BOTTOM-LEFT origin
-    pymupdf.Rect get_pixmap(clip=...) expect a TOP-LEFT origin (y-down, ``y0 < y1``).
-    We flip the y axis against the page height ``H`` only when the origin is NOT top-left
+    Returns None when the region cannot be cropped (page out of range,
+    degenerate rect) or when OCR returned nothing, in which case the caller
+    keeps Docling's original chunk text.
     """
     document = load_document(file_path)
 
-    cropped_section = crop_section(document, bbox, page, coord_origin=coord_origin)
-    if cropped_section is None:
+    image_png = crop_png(document, bbox, page, coord_origin=coord_origin)
+    if image_png is None:
         return None
-    
-    pix2text = Pix2Text.from_config()
 
-    # Recog text/formula takes in str | Path | Image
-    # Need to convert pixmap to Image
-    image = Image.frombytes(
-        "RGB", (cropped_section.width, cropped_section.height), cropped_section.samples
-    )
-    output = pix2text.recognize_text_formula(img=image, return_text=True, auto_line_break=True)
-    return output
+    return recognise(image_png, task="formula")

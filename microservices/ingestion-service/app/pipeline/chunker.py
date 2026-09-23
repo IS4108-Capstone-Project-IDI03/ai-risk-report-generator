@@ -268,7 +268,12 @@ def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> str:
     """
     parts: list[str] = []
     for box in chunk_bboxes:
-        decoded = parse_formula_bbox(bbox=box["bbox"], page=box["page"], file_path=file_path)
+        decoded = parse_formula_bbox(
+            bbox=box["bbox"],
+            page=box["page"],
+            file_path=file_path,
+            coord_origin=box.get("coord_origin", ""),
+        )
         if decoded:
             parts.append(decoded)
     return "\n".join(parts)
