@@ -61,9 +61,13 @@ def _detect_bboxes(itemType, dl_chunk) -> list[dict]:
     """
 
     boxes: list[dict] = []
+    print(dl_chunk.meta.doc_items)
     for item in getattr(dl_chunk.meta, "doc_items", None) or []:
-        if not isinstance(item, itemType):
-            continue
+        label = getattr(item, "label", None)
+        
+        if label != itemType:
+            pass
+        
         for prov in getattr(item, "prov", None) or []:
             bbox = getattr(prov, "bbox", None)
             if bbox is None:
@@ -209,24 +213,17 @@ def _build_metadata(meta, doc_id: str, headings: list[str] | None = None) -> dic
 
 
 def _extract_table_chunk(table_bboxes: list[dict], doc_id: str, chunk_id: str, meta) -> dict | None:
-    """Extract a table into a single index-ready chunk (IN-03) — not yet implemented.
+    """Extract a table into a single index-ready chunk
 
     Called IN SERIES the moment a table is detected during chunking, so its
     result can be appended in document (reading) order rather than collected and
     reconciled afterwards. `table_bboxes` carries the page + bounding box for the
     table (see `_table_bboxes`).
-
-    When implemented: for each bbox, convert Docling's (bottom-left) coordinates
-    to pdfplumber's top-left origin using the page height, open the PDF and crop
-    with `page.within_bbox(...)`, then serialise the extracted grid to
-    Markdown/row-wise text as ONE chunk (never token-split) with the
-    `{"id", "text", "metadata"}` shape (reuse `_build_metadata`).
-
-    Returns None for now so tables are effectively skipped until the tool lands.
     """
     parts: list[str] = []
     for box in table_bboxes:
         parsed = parse_table(bbox=box["bbox"], page=box["page"], file_path=doc_id)
+        print(f"Parsed table on page {box['page']} of {doc_id}: {parsed}")
         if parsed is not None:
             parts.append(parsed.to_markdown())
     return "\n".join(parts)
@@ -309,12 +306,15 @@ def chunk(
         # a table chunk is detected we grab its bounding box and run table
         # extraction inline, so any table chunk is appended in reading order
         if _is_table_chunk(dl_chunk):
+            print(f"Detected table chunk {resolved_doc_id}:{n} with {len(text)} chars")
             table_bboxes = _detect_bboxes(
-                TableItem, dl_chunk
+                DocItemLabel.TABLE, dl_chunk
             )  # bbox(es) to use with pdfplumber later
-            _ = _extract_table_chunk(
+            print(f"Table bboxes: {table_bboxes}")
+            table_text = _extract_table_chunk(
                 table_bboxes, resolved_doc_id, f"{resolved_doc_id}:table:{n}", dl_chunk.meta
             )
+            print(f"Extracted table text: {table_text}")
 
             warn("Table extraction and chunking not implemented yet")
             continue
