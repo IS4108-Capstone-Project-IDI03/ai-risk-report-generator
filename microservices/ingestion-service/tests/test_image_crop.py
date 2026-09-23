@@ -99,8 +99,9 @@ def test_render_dpi_is_above_the_pymupdf_default(document):
     """Crops must be rendered above 72 DPI or OCR cannot read small glyphs."""
     assert RENDER_DPI > 72
 
-    default_dpi = crop_section(document, (40, 180, 160, 220), page=1, coord_origin="TOPLEFT", dpi=72)
-    high_dpi = crop_section(document, (40, 180, 160, 220), page=1, coord_origin="TOPLEFT")
+    box = (40, 180, 160, 220)
+    default_dpi = crop_section(document, box, page=1, coord_origin="TOPLEFT", dpi=72)
+    high_dpi = crop_section(document, box, page=1, coord_origin="TOPLEFT")
 
     assert high_dpi.width > default_dpi.width
     assert high_dpi.height > default_dpi.height
