@@ -1,14 +1,14 @@
 from glmocr import GlmOcr
 import pymupdf
-from image_crop import crop_section
+from app.pipeline.chunking_helper.image_crop import crop_section
 
-parser: GlmOcr | None = None
+table_parser: GlmOcr | None = None
 
-def get_parser() -> GlmOcr:
-    if parser is None:
-        global parser
-        parser = GlmOcr(config_path="../../../config.yml")
-    return parser
+def get_table_parser() -> GlmOcr:
+    global table_parser
+    if table_parser is None:
+        table_parser = GlmOcr(config_path="../../../config.yml")
+    return table_parser
 
 def load_document(file_path) -> pymupdf.Document:
     """
@@ -23,7 +23,7 @@ def load_document(file_path) -> pymupdf.Document:
     else:
         return document
     
-def close_document():
+def close_table_parser_document():
     """
     Close the loaded document if it exists.
     Run this at the end of
@@ -34,11 +34,11 @@ def close_document():
         document = None
         document_name = None
                 
-def parse_table(bbox, file_path, coord_origin=""):
-    parser = get_parser()
+def parse_table(bbox, page, file_path, coord_origin=""):
+    parser = get_table_parser()
     document = load_document(file_path)
     
-    cropped_section = crop_section(document, bbox, page=1, coord_origin=coord_origin)
+    cropped_section = crop_section(document, bbox, page=page, coord_origin=coord_origin)
     if cropped_section is None:
         return None
     

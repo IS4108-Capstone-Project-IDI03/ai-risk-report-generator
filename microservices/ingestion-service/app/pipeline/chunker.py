@@ -29,7 +29,8 @@ from docling_core.types.doc import (
     TitleItem,
 )
 
-from app.pipeline.chunking_helper.formula_parser import close_document, parse_formula_bbox
+from app.pipeline.chunking_helper.formula_parser import close_formula_parser_document, parse_formula_bbox
+from app.pipeline.chunking_helper.table_parser import close_table_parser_document, parse_table
 from app.pipeline.parser import ParsedDocument
 
 # --- chunk sizing
@@ -223,7 +224,12 @@ def _extract_table_chunk(table_bboxes: list[dict], doc_id: str, chunk_id: str, m
 
     Returns None for now so tables are effectively skipped until the tool lands.
     """
-    return None
+    parts: list[str] = []
+    for box in table_bboxes:
+        parsed = parse_table(bbox=box["bbox"], page=box["page"], file_path=doc_id)
+        if parsed is not None:
+            parts.append(parsed.to_markdown())
+    return "\n".join(parts)
 
 
 def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> str:
@@ -329,5 +335,5 @@ def chunk(
                 "metadata": _build_metadata(dl_chunk.meta, resolved_doc_id, headings=trail),
             }
         )
-    close_document()
+    close_formula_parser_document()
     return chunks
