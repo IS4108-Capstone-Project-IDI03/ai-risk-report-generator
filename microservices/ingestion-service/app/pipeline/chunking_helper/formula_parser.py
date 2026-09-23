@@ -1,7 +1,7 @@
 import pymupdf
 from PIL import Image
 from pix2text import Pix2Text
-from image_crop import crop_section
+from app.pipeline.chunking_helper.image_crop import crop_section
 
 document = None
 document_name = None
@@ -21,7 +21,7 @@ def load_document(file_path):
         return document
 
 
-def close_document():
+def close_formula_parser_document():
     """
     Close the loaded document if it exists.
     Run this at the end of
