@@ -1,5 +1,6 @@
 from glmocr import GlmOcr
 import pymupdf
+from pathlib import Path
 from app.pipeline.chunking_helper.image_crop import crop_section
 
 table_parser: GlmOcr | None = None
@@ -7,7 +8,8 @@ table_parser: GlmOcr | None = None
 def get_table_parser() -> GlmOcr:
     global table_parser
     if table_parser is None:
-        table_parser = GlmOcr(config_path="../../../config.yml")
+        config_path = Path(__file__).parent.parent.parent.parent / "config.yml"
+        table_parser = GlmOcr(config_path=config_path)
     return table_parser
 
 def load_document(file_path) -> pymupdf.Document:
