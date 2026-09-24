@@ -16,16 +16,8 @@ dependencies = [
     "chromadb-client==1.5.5",
     "docling>=2.0,<3",
     "pymupdf>=1.28.2",
-    "pix2text>=1.1.7",
-    "optimum[onnxruntime]>=1.17.1",
-    # Cap transformers at 4.x. optimum's onnxruntime layer (pulled in by
-    # pix2text for LaTeX OCR) imports transformers.utils.is_tf_available, which
-    # transformers 5 removed along with TF support, so pix2text fails to import
-    # on 5.x. Nothing here needs 5: docling-ibm-models allows >=4.42,<6 and
-    # pix2text allows >=4.37. Without a cap transformers floats to the newest
-    # release and breaks collection.
-    "transformers>=4.42,<5",
     "glmocr>=0.1.5",
+    "opencv-python>=5.0.0.93",
 ]
 
 [tool.setuptools]
