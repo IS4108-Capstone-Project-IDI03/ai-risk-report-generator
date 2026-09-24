@@ -3,6 +3,7 @@ import cors from 'cors'
 import { config } from './config'
 import { connectDb } from './models/db'
 import healthRoutes from './routes/health.routes'
+import assessmentRoutes from './routes/assessment.routes'
 import authRoutes from './routes/auth.routes'
 import ingestionRoutes from './routes/ingestion.routes'
 import ragRoutes from './routes/rag.routes'
@@ -14,6 +15,7 @@ app.use(cors())
 app.use(express.json())
 
 app.use('/api/health', healthRoutes)
+app.use('/api/assessments', assessmentRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/ingestion', ingestionRoutes)
 app.use('/api/rag', ragRoutes)
