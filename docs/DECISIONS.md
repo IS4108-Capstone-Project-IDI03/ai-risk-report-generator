@@ -41,3 +41,18 @@ Vector Search role. MongoDB retains application records; S3 retains original
 files. Use direct SDK calls inside existing services, without an additional
 retrieval service or framework. Raw-file processing and report generation remain
 separate unfinished work. See `docs/COHERE_CHROMA.md`.
+
+## 2026-09-23 — Server tests run against an in-memory mongod
+
+Chose: `mongodb-memory-server-core` starts a real, throwaway mongod for
+server tests that touch MongoDB.
+Rejected: mocking Mongoose, or adding a Mongo service container to CI.
+Reason: capture sessions rely on a partial unique index and duplicate-key
+handling that only a real database exercises; mocks would pass while the
+index was wrong. The in-process server keeps the CI workflow unchanged. The
+`-core` package downloads the binary on first test run, not on install, so
+the Alpine server image (which runs `npm install`) is unaffected. The first
+local run on Windows downloads roughly 800 MB into `~/.cache/mongodb-binaries`
+(Linux, as in CI, is far smaller); set `MONGOMS_SYSTEM_BINARY` to an installed
+mongod to skip the download.
+Story: CP-01.

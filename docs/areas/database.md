@@ -1,6 +1,6 @@
 # Storage and retrieval
 
-- MongoDB stores application records (currently the site schema; document/report records are planned).
+- MongoDB stores application records: sites, assessments and capture sessions today; document/report records are planned.
 - AWS S3 stores original uploaded files.
 - Chroma stores anonymised chunk text, vectors, and citation/filter metadata. Chroma replaces the planned Atlas Vector Search role.
 
@@ -37,6 +37,36 @@ The current direct endpoints are for local development with synthetic or already
 anonymised text. Raw-file parsing, automatic anonymisation, gateway auth, and
 per-user evidence filtering are not implemented. Compose binds Chroma and these
 Python service ports to loopback; do not expose them publicly as-is.
+
+## Assessments and capture sessions
+
+`assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
+`RPT-2026-0411`), a `site` reference, `client`, optional `policyReference`,
+`surveyType`, optional `siteVisitDate` and `reportDueDate`, and the selected
+`standards` and `engineers` (names for now; the first engineer is the lead).
+Extend it rather than creating a parallel assessment schema.
+
+`POST /api/assessments` creates an assessment and a new site for it (the site
+gains an optional `address`). The body is validated with Zod; a 400 returns
+`{ error, fields }`, where `fields` maps each invalid path (e.g. `site.name`) to
+its first problem. `jurisdiction` is a two-letter code (`SG`, `MY`, `UK`, …)
+because retrieval filters on it. The server allocates the reference
+`RPT-<year>-<nnnn>` and the site code `SITE-<nnnn>` from atomically incremented
+`counters` documents (`assessment:<year>`, `site`), skipping any code already
+in use, such as a seeded one. Dev and test MongoDB are standalone servers without
+transactions, so if the assessment insert fails, the new site is deleted by hand.
+
+`capture_sessions` records each on-site capture for an assessment, with
+`status` `active` or `ready_for_generation` (set by CP-14). A partial unique
+index on `assessment` where `status: 'active'` allows at most one active
+session per assessment, so concurrent requests cannot start two. Completed
+sessions fall outside the index and are kept as history.
+
+`POST /api/assessments/:reference/capture-session` returns the active session
+(200) or starts one (201), together with the assessment's reference, client and
+site for the capture screen. Assessments are addressed by `reference`, the ID the
+client already holds, not by ObjectId. An unknown reference returns 404. The
+gateway does not authenticate this route yet (F-04).
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
