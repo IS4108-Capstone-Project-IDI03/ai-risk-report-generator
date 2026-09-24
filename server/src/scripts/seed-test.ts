@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import mongoose from 'mongoose'
+import { AssessmentModel } from '../models/assessment.model'
 import { connectDb } from '../models/db'
 import { SiteModel } from '../models/site.model'
 
@@ -31,6 +32,37 @@ async function seedAndVerify(): Promise<void> {
   }
 
   console.log('MongoDB test record read successfully:', record)
+
+  // Sample assessment for the capture screen (CP-01). Matches the client's
+  // demo assessment, so live and demo views name the same site.
+  const tilbury = await SiteModel.findOneAndUpdate(
+    { code: 'SYN-UK-TDC' },
+    {
+      $set: {
+        name: 'Tilbury Distribution Centre',
+        address: 'Ferry Lane, Tilbury RM18 7HR',
+        jurisdiction: 'UK',
+        facilityType: 'Distribution warehouse',
+      },
+    },
+    { upsert: true, returnDocument: 'after' },
+  )
+  await AssessmentModel.updateOne(
+    { reference: 'RPT-2026-0411' },
+    {
+      $set: {
+        site: tilbury._id,
+        client: 'Northgate Logistics',
+        surveyType: 'Property risk survey',
+        siteVisitDate: new Date('2026-04-11'),
+        reportDueDate: new Date('2026-04-25'),
+        standards: ['FM Global 2-0', 'NFPA 13'],
+        engineers: ['A. Rowe'],
+      },
+    },
+    { upsert: true },
+  )
+  console.log('Sample assessment RPT-2026-0411 is available.')
 }
 
 seedAndVerify()
