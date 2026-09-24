@@ -1,6 +1,7 @@
 import { Fragment } from 'react'
 import { Badge, Button, Icon, Input, Select, Textarea } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
 
 export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -11,6 +12,15 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
           animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
         }}
       >
+        {!!v.capture && (
+          <div style={{ maxWidth: '1200px', marginBottom: '20px' }}>
+            <CaptureSessionNotice
+              capture={v.capture}
+              reference={v.captureRef}
+              onRetry={v.retryCapture}
+            />
+          </div>
+        )}
         <div
           style={{
             maxWidth: '1200px',
@@ -58,7 +68,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                   color: 'var(--text-muted)',
                 }}
               >
-                {'RPT-2026-0411 \u00b7 '}
+                {v.captureRef + ' \u00b7 '}
                 {v.fSavedLabel}
               </span>
             </div>
@@ -459,6 +469,19 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                   {v.fSavedLabel}
                 </span>
               </div>
+              {v.fRecent.length === 0 && (
+                <p
+                  style={{
+                    margin: '0',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    lineHeight: '20px',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  {v.fieldEmptyLabel}
+                </p>
+              )}
               {v.fRecent.map((o, index) => (
                 <Fragment key={index}>
                   <div
@@ -526,11 +549,13 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                 </Fragment>
               ))}
             </div>
-            <div>
-              <Button variant="secondary" iconLeft="arrow-up-right" onClick={v.goAssessment}>
-                {'Open the assessment workspace'}
-              </Button>
-            </div>
+            {!!v.showWorkspaceLink && (
+              <div>
+                <Button variant="secondary" iconLeft="arrow-up-right" onClick={v.goAssessment}>
+                  {'Open the assessment workspace'}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -64,6 +64,13 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                 value={v.cfAddr}
                 onChange={v.setCfAddr}
               ></Input>
+              <Select
+                label="Jurisdiction"
+                hint="Filters the standards and regulations drafting draws on"
+                options={v.jurisdictionOptions}
+                value={v.cfJurisdiction}
+                onChange={v.setCfJurisdiction}
+              ></Select>
               <Input
                 label="Policy reference"
                 hint="Optional \u2014 links the report to the placement file"
@@ -291,9 +298,19 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
               </Callout>
             </>
           )}
+          {!!v.cfServerError && (
+            <Callout tone="danger" title="Assessment not created">
+              {v.cfServerError}
+            </Callout>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0 0' }}>
-            <Button variant="primary" iconLeft="plus" onClick={v.createAssessment}>
-              {'Create assessment'}
+            <Button
+              variant="primary"
+              iconLeft="plus"
+              disabled={v.cfBusy}
+              onClick={v.createAssessment}
+            >
+              {v.createLabel}
             </Button>
             <Button variant="ghost" onClick={v.goDash}>
               {'Cancel'}

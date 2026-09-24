@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 beforeAll(() => {
@@ -12,9 +12,17 @@ beforeAll(() => {
     this.removeAttribute('open')
   }
 })
+beforeEach(() => {
+  // The capture screen calls the gateway; these demo tests run without one.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+  )
+})
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 function signIn() {
   fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
@@ -58,7 +66,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Request access' }))
     expect(screen.getByRole('status')).toHaveTextContent('No request was sent')
   })
-  it('filters the dashboard and creates an in-memory assessment', () => {
+  it('filters the dashboard and creates an in-memory assessment', async () => {
     render(<App />)
     signIn()
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
@@ -76,13 +84,16 @@ describe('Marsh prototype integration', () => {
       target: { value: 'Demo Client' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(screen.getByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
     expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'exists only in this demo and is not saved',
+    )
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Second Warehouse' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
+    expect(await screen.findByText('Second Warehouse')).toBeInTheDocument()
     expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
-    expect(screen.getByText('Second Warehouse')).toBeInTheDocument()
     expect(screen.getByText('8 of 8 assessments')).toBeInTheDocument()
   })
   it('saves observations and displays them in the assessment', () => {

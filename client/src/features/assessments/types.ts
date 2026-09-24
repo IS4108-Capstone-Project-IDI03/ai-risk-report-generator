@@ -9,6 +9,8 @@ export type AssessmentRow = {
   sev: string
   live?: boolean
   open?: number
+  // Created through the gateway, so it can be opened for capture.
+  persisted?: boolean
 }
 export type Observation = {
   icon: string
@@ -52,8 +54,15 @@ export type WorkflowState = {
     due: string
     stds: string[]
     engs: string[]
+    jurisdiction: string
   }
   cfErr: boolean
+  cfBusy: boolean
+  cfServerError: string | null
+  // The assessment the Site observation screen captures for.
+  captureTarget: { reference: string; site: string }
+  // Observations for assessments other than the demo one, by reference.
+  captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
   fRec: boolean
