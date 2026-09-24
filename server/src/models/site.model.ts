@@ -5,6 +5,7 @@ export interface ISite {
   name: string
   jurisdiction: string
   facilityType: string
+  address?: string
 }
 
 const siteSchema = new Schema<ISite>(
@@ -28,6 +29,10 @@ const siteSchema = new Schema<ISite>(
     facilityType: {
       type: String,
       required: true,
+      trim: true,
+    },
+    address: {
+      type: String,
       trim: true,
     },
   },

@@ -26,7 +26,9 @@ over HTTP, using MongoDB, AWS S3, and Chroma in the data tier:
 
 Ingestion now exposes `/index` for already anonymised text chunks, using Cohere
 Embed and Chroma. RAG `/retrieve` embeds queries, searches Chroma, and reranks
-with Cohere. MongoDB connectivity and the site schema are also implemented.
+with Cohere. MongoDB connectivity and the site schema are also implemented. The
+gateway creates assessments at `POST /api/assessments` and starts or resumes an
+assessment's capture session at `POST /api/assessments/:reference/capture-session`.
 Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
 forwarding remain placeholders.
 
@@ -36,6 +38,15 @@ The UI follows the Marsh design system and includes sign-in, the assessment
 dashboard, observations, generation, review, and simulated export. It runs without
 a backend and keeps demo changes in memory only. Refreshing or signing out resets
 the demo; authentication and export are simulated.
+
+Creating an assessment and capturing on site are the exceptions. New assessment
+saves the assessment through the gateway; opening it from the dashboard starts its
+capture session on the Site observation screen. Site observation opened from the
+sample workspace captures for `RPT-2026-0411`; seed that assessment with
+`npm --prefix server run seed`. Without the gateway, a new assessment is kept in
+the demo only and capture shows sample data, and both say so. Saved observations
+are still memory-only, and the dashboard does not yet list assessments from the
+server, so created assessments are gone after a refresh (RV-10).
 
 ## Running the stack locally
 

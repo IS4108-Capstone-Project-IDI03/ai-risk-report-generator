@@ -1,4 +1,24 @@
 import type { AssessmentRow, WorkflowState } from './types'
+
+// The assessment the capture screen opens. The server seed (`npm run seed`)
+// creates the same reference, so live and demo views name the same site.
+export const CAPTURE_ASSESSMENT = {
+  reference: 'RPT-2026-0411',
+  site: 'Tilbury Distribution Centre',
+}
+
+// Stored as two-letter codes; retrieval (RT-01) filters on them.
+export const JURISDICTIONS = [
+  { value: 'SG', label: 'Singapore' },
+  { value: 'MY', label: 'Malaysia' },
+  { value: 'ID', label: 'Indonesia' },
+  { value: 'TH', label: 'Thailand' },
+  { value: 'PH', label: 'Philippines' },
+  { value: 'VN', label: 'Vietnam' },
+  { value: 'HK', label: 'Hong Kong' },
+  { value: 'UK', label: 'United Kingdom' },
+]
+
 export const initialState: WorkflowState = {
   screen: 'dashboard',
   tab: 'overview',
@@ -19,8 +39,13 @@ export const initialState: WorkflowState = {
     due: '2026-05-02',
     stds: ['FM Global 2-0', 'NFPA 13'],
     engs: ['A. Rowe'],
+    jurisdiction: 'SG',
   },
   cfErr: false,
+  cfBusy: false,
+  cfServerError: null,
+  captureTarget: CAPTURE_ASSESSMENT,
+  captureObs: {},
   fMode: 'note',
   fNote: '',
   fRec: false,

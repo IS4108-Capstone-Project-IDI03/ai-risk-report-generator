@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react'
 import type * as React from 'react'
 import { Icon, Button } from '../../design-system'
-import type { WorkflowState } from './types'
+import { createAssessment as requestCreateAssessment, GatewayError } from './api'
+import { formatDayTime } from './format'
+import type { AssessmentRow, WorkflowState } from './types'
+import { useCaptureSession } from './useCaptureSession'
 import {
   initialState,
+  CAPTURE_ASSESSMENT,
+  JURISDICTIONS,
   ROWS,
   CAT_ICON,
   SEV,
@@ -19,6 +24,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
   const [state, updateState] = useState<WorkflowState>(() => structuredClone(initialState))
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [timeouts] = useState(() => new Set<ReturnType<typeof setTimeout>>())
+  const capture = useCaptureSession(state.captureTarget.reference, state.screen === 'field')
   function later(callback: () => void, delay: number) {
     const timer = setTimeout(() => {
       timeouts.delete(timer)
@@ -97,6 +103,20 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       toast: message,
       toastTone: tone || 'success',
     })
+  }
+  // The workspace always shows the demo assessment, so capture opened from it
+  // targets that assessment.
+  function navigate(screen: string): Partial<WorkflowState> {
+    return screen === 'assessment' ? { screen, captureTarget: CAPTURE_ASSESSMENT } : { screen }
+  }
+  function addCreatedRow(row: AssessmentRow) {
+    updateState((previous) => ({
+      ...previous,
+      createdRows: [row, ...previous.createdRows],
+      screen: 'dashboard',
+      cfBusy: false,
+      cfErr: false,
+    }))
   }
   function openItems() {
     const out = []
@@ -213,6 +233,15 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     const narrow = w < 1080
     const phone = w < 760
 
+    /* capture session: name the assessment from the server when live */
+    const liveCapture = capture.state?.status === 'live' ? capture.state : null
+    const captureRef = liveCapture?.assessment.reference ?? s.captureTarget.reference
+    const captureSite = liveCapture?.assessment.site?.name ?? s.captureTarget.site
+    // The demo assessment keeps its sample observations; others start empty.
+    const isDemoCapture = s.captureTarget.reference === CAPTURE_ASSESSMENT.reference
+    const fieldRecent = isDemoCapture ? s.fRecent : (s.captureObs[s.captureTarget.reference] ?? [])
+    const fieldSaved = isDemoCapture ? s.fSaved : fieldRecent.length
+
     /* nav */
     const navSections = [
       {
@@ -233,7 +262,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             value: 'field',
             label: 'Site observation',
             icon: 'camera',
-            count: s.fSaved,
+            count: fieldSaved,
           },
         ],
       },
@@ -510,7 +539,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         }),
       goFromDrawer: (v: string) =>
         setState({
-          screen: v,
+          ...navigate(v),
           navOpen: false,
           toast: null,
         }),
@@ -559,7 +588,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           } as React.CSSProperties),
       go: (v: string) => {
         setState({
-          screen: v,
+          ...navigate(v),
           toast: null,
         })
       },
@@ -571,15 +600,13 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         setState({
           screen: 'create',
           cfErr: false,
+          cfServerError: null,
         }),
       goField: () =>
         setState({
           screen: 'field',
         }),
-      goAssessment: () =>
-        setState({
-          screen: 'assessment',
-        }),
+      goAssessment: () => setState(navigate('assessment')),
       goReview: () =>
         setState({
           tab: 'review',
@@ -714,9 +741,12 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           : sc === 'create'
             ? 'Opening an assessment creates the report record and its drafting set.'
             : sc === 'field'
-              ? 'Tilbury Distribution Centre · RPT-2026-0411 · ' +
-                s.fSaved +
-                ' observations captured'
+              ? captureSite +
+                ' · ' +
+                captureRef +
+                ' · ' +
+                fieldSaved +
+                (fieldSaved === 1 ? ' observation captured' : ' observations captured')
               : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
       showSeverity: isAssessment,
       tab: s.tab,
@@ -794,11 +824,20 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       assignedCount: rows.filter((row) => row.eng === 'A. Rowe').length,
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id
-        if (id === 'RPT-2026-0411')
+        const created = s.createdRows.find((row) => row.id === id)
+        if (id === CAPTURE_ASSESSMENT.reference)
           setState({
-            screen: 'assessment',
+            ...navigate('assessment'),
             toast: null,
           })
+        else if (created?.persisted)
+          // Nothing is drafted for a new assessment yet, so it opens on capture.
+          setState({
+            screen: 'field',
+            toast: null,
+            captureTarget: { reference: created.id, site: created.site },
+          })
+        else if (created) toast(id + ' exists only in this demo, so it cannot be opened.', 'info')
         else toast('This prototype opens RPT-2026-0411. ' + id + ' is shown for context.', 'info')
       },
       /* create */
@@ -885,6 +924,20 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             due: e.target.value,
           },
         }),
+      cfJurisdiction: s.cf.jurisdiction,
+      setCfJurisdiction: (
+        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
+      ) =>
+        setState({
+          cf: {
+            ...s.cf,
+            jurisdiction: e.target.value,
+          },
+        }),
+      jurisdictionOptions: JURISDICTIONS,
+      cfBusy: s.cfBusy,
+      cfServerError: s.cfServerError,
+      createLabel: s.cfBusy ? 'Creating assessment…' : 'Create assessment',
       facilityOptions: [
         'Distribution warehouse',
         'Cold store',
@@ -920,45 +973,96 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           },
         })
       },
-      createAssessment: () => {
+      createAssessment: async () => {
+        if (s.cfBusy) return
         if (!s.cf.site.trim() || !s.cf.client.trim()) {
           setState({
             cfErr: true,
           })
           return
         }
-        const row = {
-          id: `RPT-2026-${String(416 + s.createdRows.length).padStart(4, '0')}`,
-          site: s.cf.site,
-          client: s.cf.client,
-          type: s.cf.survey,
-          date: s.cf.date
-            ? new Date(s.cf.date + 'T00:00:00').toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              })
-            : 'Unscheduled',
-          eng: s.cf.engs[0] || 'Unassigned',
-          status: 'Draft',
-          sev: 'low',
-          open: 0,
+        setState({ cfBusy: true, cfErr: false, cfServerError: null })
+        const date = s.cf.date
+          ? new Date(s.cf.date + 'T00:00:00').toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'Unscheduled'
+        try {
+          const created = await requestCreateAssessment({
+            site: {
+              name: s.cf.site,
+              address: s.cf.addr,
+              jurisdiction: s.cf.jurisdiction,
+              facilityType: s.cf.type,
+            },
+            client: s.cf.client,
+            policyReference: s.cf.ref,
+            surveyType: s.cf.survey,
+            siteVisitDate: s.cf.date,
+            reportDueDate: s.cf.due,
+            standards: s.cf.stds,
+            engineers: s.cf.engs,
+          })
+          addCreatedRow({
+            id: created.reference,
+            site: created.site.name,
+            client: created.client,
+            type: created.surveyType,
+            date,
+            eng: created.engineers[0] ?? 'Unassigned',
+            status: 'Draft',
+            sev: 'low',
+            open: 0,
+            persisted: true,
+          })
+          toast(
+            created.reference +
+              ' created for ' +
+              created.site.name +
+              '. Open it from the list to capture observations on site.',
+          )
+        } catch (error: unknown) {
+          if (error instanceof GatewayError && error.status === null) {
+            // Keep the demo usable without the gateway, and say nothing was saved.
+            const id = `RPT-2026-${String(416 + s.createdRows.length).padStart(4, '0')}`
+            addCreatedRow({
+              id,
+              site: s.cf.site,
+              client: s.cf.client,
+              type: s.cf.survey,
+              date,
+              eng: s.cf.engs[0] || 'Unassigned',
+              status: 'Draft',
+              sev: 'low',
+              open: 0,
+            })
+            toast(
+              'The gateway could not be reached, so ' +
+                id +
+                ' exists only in this demo and is not saved.',
+              'warning',
+            )
+            return
+          }
+          const problems = error instanceof GatewayError ? Object.values(error.fields) : []
+          setState({
+            cfBusy: false,
+            cfServerError: problems.length
+              ? problems.join(' ') + ' Correct the details above, then create the assessment again.'
+              : (error instanceof Error ? error.message : 'The assessment could not be created.') +
+                ' Try again, or check the gateway logs if it keeps failing.',
+          })
         }
-        setState({
-          createdRows: [row, ...s.createdRows],
-          screen: 'dashboard',
-          cfErr: false,
-        })
-        toast(
-          'Demo assessment ' +
-            row.id +
-            ' created for ' +
-            s.cf.site +
-            '. Capture observations on site to begin drafting.',
-        )
       },
       /* field */
-      fSavedLabel: s.fSaved + ' saved',
+      capture: capture.state,
+      retryCapture: capture.retry,
+      captureRef,
+      fSavedLabel: fieldSaved + ' saved',
+      showWorkspaceLink: isDemoCapture,
+      fieldEmptyLabel: 'No observations captured for ' + captureRef + ' yet.',
       isNoteMode: s.fMode === 'note',
       isVoiceMode: s.fMode === 'voice',
       isPhotoMode: s.fMode === 'photo',
@@ -1103,7 +1207,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           fStd: e.target.value,
         }),
       fToast: s.fToast,
-      fRecent: s.fRecent,
+      fRecent: fieldRecent,
       saveObservation: () => {
         const text =
           s.fNote.trim() ||
@@ -1121,7 +1225,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           icon: s.fMode === 'photo' ? 'camera' : s.fMode === 'voice' ? 'mic' : 'sticky-note',
           color: s.fMode === 'photo' ? '#4f9aee' : s.fMode === 'voice' ? '#8f7dff' : '#f9ac10',
           cat: s.fCat,
-          time: '11 Apr 15:0' + (s.fSaved - 27),
+          time: isDemoCapture ? '11 Apr 15:0' + (s.fSaved - 27) : formatDayTime(new Date()),
           text,
           area: s.fArea,
           sev: s.fSev,
@@ -1129,13 +1233,15 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           media: s.fPhotos.map((p) => p.name),
           detail: text,
         }
+        const reference = s.captureTarget.reference
         setState({
-          fRecent: [entry].concat(s.fRecent),
-          fSaved: s.fSaved + 1,
+          ...(isDemoCapture
+            ? { fRecent: [entry].concat(s.fRecent), fSaved: s.fSaved + 1 }
+            : { captureObs: { ...s.captureObs, [reference]: [entry].concat(fieldRecent) } }),
           fNote: '',
           fPhotos: [],
           fTrans: false,
-          fToast: 'Observation saved to RPT-2026-0411.',
+          fToast: 'Observation added to ' + reference + '. It is kept in this demo only.',
         })
         later(
           () =>
