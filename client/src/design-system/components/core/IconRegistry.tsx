@@ -20,20 +20,30 @@ const registry = {
     openExternal: 'arrow-up-right',
   },
   status: {
+    notStarted: {
+      icon: 'circle-dashed',
+      color: 'var(--text-muted)',
+      label: 'Not started',
+    },
+    capturing: {
+      icon: 'camera',
+      color: 'var(--icon-review)',
+      label: 'Capturing',
+    },
+    readyToGenerate: {
+      icon: 'file-check',
+      color: 'var(--icon-review)',
+      label: 'Ready to generate',
+    },
     draft: {
       icon: 'sparkles',
       color: 'var(--icon-draft)',
       label: 'Draft',
     },
-    inReview: {
-      icon: 'user-round-search',
-      color: 'var(--icon-review)',
-      label: 'In review',
-    },
-    awaitingSignOff: {
+    underReview: {
       icon: 'stamp',
       color: 'var(--icon-signoff)',
-      label: 'Awaiting sign-off',
+      label: 'Under review',
     },
     finalised: {
       icon: 'circle-check',

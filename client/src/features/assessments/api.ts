@@ -14,6 +14,11 @@ export type NewAssessment = {
   engineers: string[]
 }
 
+// Capture statuses come from the assessment's capture session; report
+// statuses are stored once a report exists.
+export type AssessmentStatus =
+  'not_started' | 'capturing' | 'ready_to_generate' | 'draft' | 'under_review' | 'finalised'
+
 export type Assessment = {
   id: string
   reference: string
@@ -24,6 +29,7 @@ export type Assessment = {
   reportDueDate: string | null
   standards: string[]
   engineers: string[]
+  status: AssessmentStatus
   createdAt: string
   site: {
     code: string
@@ -66,7 +72,8 @@ export class GatewayError extends Error {
   }
 }
 
-async function post<T>(
+async function request<T>(
+  method: 'GET' | 'POST',
   path: string,
   body?: unknown,
   signal?: AbortSignal,
@@ -74,7 +81,7 @@ async function post<T>(
   let response: Response
   try {
     response = await fetch(path, {
-      method: 'POST',
+      method,
       signal,
       ...(body === undefined
         ? {}
@@ -97,9 +104,14 @@ async function post<T>(
   return { status: response.status, data: (await response.json()) as T }
 }
 
+// Every assessment, most recent site visit first (RV-10).
+export async function listAssessments(signal?: AbortSignal): Promise<Assessment[]> {
+  return (await request<Assessment[]>('GET', '/api/assessments', undefined, signal)).data
+}
+
 // Creates the assessment and its site; the server allocates the reference.
 export async function createAssessment(input: NewAssessment): Promise<Assessment> {
-  return (await post<Assessment>('/api/assessments', input)).data
+  return (await request<Assessment>('POST', '/api/assessments', input)).data
 }
 
 // Starts the assessment's capture session, or returns the one in progress.
@@ -107,7 +119,8 @@ export async function startCaptureSession(
   reference: string,
   signal?: AbortSignal,
 ): Promise<CaptureSession> {
-  const { status, data } = await post<Omit<CaptureSession, 'resumed'>>(
+  const { status, data } = await request<Omit<CaptureSession, 'resumed'>>(
+    'POST',
     `/api/assessments/${encodeURIComponent(reference)}/capture-session`,
     undefined,
     signal,

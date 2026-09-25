@@ -549,13 +549,11 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                 </Fragment>
               ))}
             </div>
-            {!!v.showWorkspaceLink && (
-              <div>
-                <Button variant="secondary" iconLeft="arrow-up-right" onClick={v.goAssessment}>
-                  {'Open the assessment workspace'}
-                </Button>
-              </div>
-            )}
+            <div>
+              <Button variant="secondary" iconLeft="arrow-up-right" onClick={v.goAssessment}>
+                {'Open the assessment workspace'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
