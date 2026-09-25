@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { AssessmentModel, type IAssessment } from '../models/assessment.model'
+import { AssessmentModel, REPORT_STATUSES, type IAssessment } from '../models/assessment.model'
+import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { CounterModel } from '../models/counter.model'
 import { SiteModel, type ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
@@ -54,6 +55,21 @@ export const newAssessmentSchema = z
 
 export type NewAssessment = z.infer<typeof newAssessmentSchema>
 
+// Where an assessment stands: the capture statuses are derived from its latest
+// capture session, the report statuses are stored on the assessment.
+export const ASSESSMENT_STATUSES = [
+  'not_started',
+  'capturing',
+  'ready_to_generate',
+  ...REPORT_STATUSES,
+] as const
+export type AssessmentStatus = (typeof ASSESSMENT_STATUSES)[number]
+
+const CAPTURE_STATUS: Record<CaptureSessionStatus, AssessmentStatus> = {
+  active: 'capturing',
+  ready_for_generation: 'ready_to_generate',
+}
+
 export type AssessmentDto = {
   id: string
   reference: string
@@ -64,6 +80,7 @@ export type AssessmentDto = {
   reportDueDate: string | null
   standards: string[]
   engineers: string[]
+  status: AssessmentStatus
   createdAt: Date
   site: {
     code: string
@@ -112,6 +129,29 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
   }
 }
 
+// Every assessment, most recent site visit first. Two queries regardless of
+// list size: the assessments, then all their capture sessions.
+// ponytail: loads the whole collection; paginate and index engineers /
+// reportStatus once the list outgrows one response.
+export async function listAssessments(): Promise<AssessmentDto[]> {
+  const assessments = await AssessmentModel.find()
+    .sort({ siteVisitDate: -1, createdAt: -1 })
+    .populate<{ site: ISite }>('site')
+    .lean()
+  const sessions = await CaptureSessionModel.find({
+    assessment: { $in: assessments.map((a) => a._id) },
+  })
+    .sort({ createdAt: 1 })
+    .lean()
+  // Later sessions overwrite earlier ones, so each assessment keeps its latest.
+  const latest = new Map(sessions.map((s) => [String(s.assessment), s.status]))
+  return assessments.map((a) => {
+    const session = latest.get(String(a._id))
+    const status = a.reportStatus ?? (session ? CAPTURE_STATUS[session] : 'not_started')
+    return toDto(a, a.site, status)
+  })
+}
+
 // Takes the next number in a sequence and inserts with the code built from
 // it. A code already in use (e.g. a seeded record) is skipped.
 async function insertWithNextCode<T>(
@@ -148,7 +188,11 @@ function isoDay(date?: Date) {
   return date ? date.toISOString().slice(0, 10) : null
 }
 
-function toDto(assessment: IAssessment & { _id: unknown }, site: ISite): AssessmentDto {
+function toDto(
+  assessment: Omit<IAssessment, 'site'> & { _id: unknown },
+  site: ISite,
+  status: AssessmentStatus = 'not_started',
+): AssessmentDto {
   return {
     id: String(assessment._id),
     reference: assessment.reference,
@@ -159,6 +203,7 @@ function toDto(assessment: IAssessment & { _id: unknown }, site: ISite): Assessm
     reportDueDate: isoDay(assessment.reportDueDate),
     standards: [...assessment.standards],
     engineers: [...assessment.engineers],
+    status,
     createdAt: assessment.createdAt,
     site: {
       code: site.code,
