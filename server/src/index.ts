@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.routes'
 import ingestionRoutes from './routes/ingestion.routes'
 import ragRoutes from './routes/rag.routes'
 import speechRoutes from './routes/speech.routes'
+import userRoutes from './routes/user.routes'
 
 const app = express()
 
@@ -20,6 +21,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/ingestion', ingestionRoutes)
 app.use('/api/rag', ragRoutes)
 app.use('/api/speech', speechRoutes)
+app.use('/api/users', userRoutes)
 
 async function start() {
   await connectDb()

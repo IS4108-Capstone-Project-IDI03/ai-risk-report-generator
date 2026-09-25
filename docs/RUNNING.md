@@ -77,6 +77,15 @@ npm run dev
 curl -s localhost:4000/api/health
 ```
 
+**Using the shared Atlas cluster instead of local Mongo:** set `MONGODB_URI`
+to the team's `mongodb+srv://` string and skip step 2. Atlas only accepts
+allow-listed IPs: in Atlas, open Network Access → Add IP Address → Add
+current IP address (the cluster owner may have to do this). Campus networks
+such as NUS Wi-Fi can block MongoDB's port 27017; if the server still times
+out after your IP is added, try a phone hotspot. `npm run seed` then writes
+sample records, including four user accounts, to the shared database, and any
+edits made in the UI change them for everyone.
+
 ### 4. `client`
 
 **What/why:** the interactive UI demo runs independently of the backend. No `.env`
