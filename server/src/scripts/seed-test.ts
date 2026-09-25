@@ -63,6 +63,47 @@ async function seedAndVerify(): Promise<void> {
     { upsert: true },
   )
   console.log('Sample assessment RPT-2026-0411 is available.')
+
+  // Two more for the work list (RV-10), with reports at later stages so the
+  // status filter and site/client search have something to narrow.
+  const extras = [
+    {
+      reference: 'RPT-2026-0408',
+      site: { code: 'SYN-UK-LCS', name: 'Leeds Cold Store', facilityType: 'Cold store' },
+      client: 'Fennick Foods',
+      siteVisitDate: '2026-04-08',
+      engineers: ['A. Rowe'],
+      reportStatus: 'under_review',
+    },
+    {
+      reference: 'RPT-2026-0327',
+      site: { code: 'SYN-IE-DW4', name: 'Dublin Warehouse 4', facilityType: 'Warehouse' },
+      client: 'Northgate Logistics',
+      siteVisitDate: '2026-03-20',
+      engineers: ['J. Okafor'],
+      reportStatus: 'finalised',
+    },
+  ]
+  for (const { site, siteVisitDate, ...assessment } of extras) {
+    const stored = await SiteModel.findOneAndUpdate(
+      { code: site.code },
+      { $set: { ...site, jurisdiction: site.code.slice(4, 6) } },
+      { upsert: true, returnDocument: 'after' },
+    )
+    await AssessmentModel.updateOne(
+      { reference: assessment.reference },
+      {
+        $set: {
+          ...assessment,
+          site: stored._id,
+          surveyType: 'Property risk survey',
+          siteVisitDate: new Date(siteVisitDate),
+        },
+      },
+      { upsert: true },
+    )
+  }
+  console.log('Work list assessments RPT-2026-0408 and RPT-2026-0327 are available.')
 }
 
 seedAndVerify()

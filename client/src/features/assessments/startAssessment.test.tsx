@@ -28,10 +28,16 @@ function respond(status: number, body: unknown = CAPTURE) {
     }),
   )
 }
+// The dashboard's GET of the work list is answered by listReply, so fetchMock
+// sees only the POSTs a test queues. The list defaults to an unreachable gateway.
+const unreachable = () => Promise.reject(new TypeError('Failed to fetch'))
+let listReply: () => Promise<Response> = unreachable
 function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
-  vi.stubGlobal('fetch', fetchMock)
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+    init?.method === 'GET' ? listReply() : fetchMock(url, init),
+  )
   return fetchMock
 }
 function signIn() {
@@ -56,6 +62,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  listReply = unreachable
 })
 
 describe('Capture session (CP-01)', () => {
@@ -159,6 +166,7 @@ const CREATED = {
   reportDueDate: '2026-05-02',
   standards: ['FM Global 2-0', 'NFPA 13'],
   engineers: ['A. Rowe'],
+  status: 'not_started',
   createdAt: '2026-09-23T09:00:00.000Z',
   site: {
     code: 'SITE-0001',
@@ -232,7 +240,7 @@ describe('Create assessment (CP-01)', () => {
     })
   })
 
-  it('opens a created assessment on capture, with its own session and observations', async () => {
+  it('opens a created assessment in its workspace, then captures against it', async () => {
     const fetchMock = mockGateway(
       () => respond(201, CREATED),
       () => respond(201, CREATED_CAPTURE),
@@ -243,15 +251,17 @@ describe('Create assessment (CP-01)', () => {
 
     openRow()
 
+    expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
+    expect(screen.getByText(/^RPT-2026-0001 · Property risk survey/)).toBeInTheDocument()
+
+    openCapture()
+
     expect(await screen.findByText('Capture session started')).toBeInTheDocument()
     expect(fetchMock.mock.calls[1][0]).toBe('/api/assessments/RPT-2026-0001/capture-session')
     expect(
       screen.getByText('Jurong Distribution Hub · RPT-2026-0001 · 0 observations captured'),
     ).toBeInTheDocument()
     expect(screen.getByText('No observations captured for RPT-2026-0001 yet.')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Open the assessment workspace' }),
-    ).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('textbox', { name: /Observation/ }), {
       target: { value: 'Sprinkler control valve chained open' },
@@ -264,28 +274,6 @@ describe('Create assessment (CP-01)', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText('Observation added to RPT-2026-0001. It is kept in this demo only.'),
-    ).toBeInTheDocument()
-  })
-
-  it('returns capture to the demo assessment once the workspace is opened', async () => {
-    const fetchMock = mockGateway(
-      () => respond(201, CREATED),
-      () => respond(201, CREATED_CAPTURE),
-      () => Promise.reject(new TypeError('Failed to fetch')),
-    )
-    signIn()
-    createFromForm()
-    await screen.findByText(/RPT-2026-0001 created/)
-    openRow()
-    await screen.findByText('Capture session started')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Tilbury Distribution Centre' }))
-    openCapture()
-
-    await screen.findByText('Showing sample data')
-    expect(fetchMock.mock.calls[2][0]).toBe(CAPTURE_URL)
-    expect(
-      screen.getByText('Tilbury Distribution Centre · RPT-2026-0411 · 28 observations captured'),
     ).toBeInTheDocument()
   })
 
@@ -334,7 +322,7 @@ describe('Create assessment (CP-01)', () => {
     expect(await screen.findByText(/RPT-2026-0001 created/)).toBeInTheDocument()
   })
 
-  it('keeps a demo-only assessment when the gateway is unreachable, which cannot be opened', async () => {
+  it('keeps a demo-only assessment when the gateway is unreachable, and opens its workspace', async () => {
     mockGateway(() => Promise.reject(new TypeError('Failed to fetch')))
     signIn()
 
@@ -346,8 +334,85 @@ describe('Create assessment (CP-01)', () => {
       ),
     ).toBeInTheDocument()
     openRow()
-    expect(
-      screen.getByText('RPT-2026-0416 exists only in this demo, so it cannot be opened.'),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
+  })
+})
+
+describe('Work list (RV-10)', () => {
+  const LIST = [
+    { ...CREATED, status: 'capturing' },
+    {
+      ...CREATED,
+      id: '6ab3a1c0e45cf009e4507899',
+      reference: 'RPT-2026-0002',
+      client: 'Harbourside Foods',
+      siteVisitDate: null,
+      engineers: ['J. Okafor', 'A. Rowe'],
+      status: 'under_review',
+      site: { ...CREATED.site, code: 'SITE-0002', name: 'Harbourside Cold Store' },
+    },
+    {
+      ...CREATED,
+      id: '6ab3a1c0e45cf009e4507900',
+      reference: 'RPT-2026-0003',
+      engineers: ['M. Haas'],
+      site: { ...CREATED.site, code: 'SITE-0003', name: 'Someone Else Depot' },
+    },
+  ]
+  const results = () => screen.getByText(/of \d+ assessments/)
+  const search = (value: string) =>
+    fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
+      target: { value },
+    })
+
+  it('lists the assessments assigned to you with their site, date and status', async () => {
+    listReply = () => respond(200, LIST)
+    mockGateway()
+    signIn()
+
+    const row = await screen.findByRole('button', { name: /Jurong Distribution Hub/ })
+    expect(row).toHaveTextContent('RPT-2026-0001')
+    expect(row).toHaveTextContent('21 Apr 2026')
+    expect(row).toHaveTextContent('Capturing')
+    expect(screen.getByRole('button', { name: /Harbourside Cold Store/ })).toHaveTextContent(
+      'Unscheduled',
+    )
+    expect(results()).toHaveTextContent('2 of 2 assessments')
+    expect(screen.queryByText('Someone Else Depot')).not.toBeInTheDocument()
+    // The tiles come before the table, which also shows status names.
+    const tile = (label: string) => screen.getAllByText(label)[0].parentElement
+    expect(tile('Outstanding review items')).toHaveTextContent('0')
+    expect(tile('Under review')).toHaveTextContent('1')
+    expect(tile('Observations not yet filed')).toHaveTextContent('0')
+  })
+
+  it('filters by status and searches by site and client', async () => {
+    listReply = () => respond(200, LIST)
+    mockGateway()
+    signIn()
+    await screen.findByRole('button', { name: /Jurong Distribution Hub/ })
+
+    fireEvent.change(screen.getByLabelText('Filter by status'), {
+      target: { value: 'Under review' },
+    })
+    expect(results()).toHaveTextContent('1 of 2 assessments')
+    expect(screen.queryByRole('button', { name: /Jurong/ })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Filter by status'), {
+      target: { value: 'All statuses' },
+    })
+    search('jurong')
+    expect(results()).toHaveTextContent('1 of 2 assessments')
+    search('harbourside foods')
+    expect(screen.getByRole('button', { name: /Harbourside Cold Store/ })).toBeInTheDocument()
+    expect(results()).toHaveTextContent('1 of 2 assessments')
+  })
+
+  it('shows the sample assessments when the gateway cannot be reached', async () => {
+    mockGateway()
+    signIn()
+
+    expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
+    expect(results()).toHaveTextContent('4 of 4 assessments')
   })
 })

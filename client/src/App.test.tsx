@@ -72,7 +72,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value: 'does-not-exist' },
     })
-    expect(screen.getByText(/0 of 6 assessments/)).toBeInTheDocument()
+    expect(screen.getByText(/0 of 4 assessments/)).toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value: '' },
     })
@@ -86,15 +86,13 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
     expect(await screen.findByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
     expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'exists only in this demo and is not saved',
-    )
+    expect(screen.getByText(/exists only in this demo and is not saved/)).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Second Warehouse' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
     expect(await screen.findByText('Second Warehouse')).toBeInTheDocument()
     expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
-    expect(screen.getByText('8 of 8 assessments')).toBeInTheDocument()
+    expect(screen.getByText('6 of 6 assessments')).toBeInTheDocument()
   })
   it('saves observations and displays them in the assessment', () => {
     render(<App />)

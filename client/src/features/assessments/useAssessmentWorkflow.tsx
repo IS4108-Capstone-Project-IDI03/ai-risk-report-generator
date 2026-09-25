@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
 import type * as React from 'react'
 import { Icon, Button } from '../../design-system'
-import { createAssessment as requestCreateAssessment, GatewayError } from './api'
+import {
+  createAssessment as requestCreateAssessment,
+  GatewayError,
+  listAssessments,
+  type Assessment,
+  type AssessmentStatus,
+} from './api'
 import { formatDayTime } from './format'
 import type { AssessmentRow, WorkflowState } from './types'
 import { useCaptureSession } from './useCaptureSession'
@@ -20,11 +26,63 @@ import {
   OBS,
 } from './demo-data'
 export type AssessmentWorkflow = ReturnType<typeof useAssessmentWorkflow>
+const STATUS_LABEL: Record<AssessmentStatus, string> = {
+  not_started: 'Not started',
+  capturing: 'Capturing',
+  ready_to_generate: 'Ready to generate',
+  draft: 'Draft',
+  under_review: 'Under review',
+  finalised: 'Finalised',
+}
+function formatDay(isoDay: string | null) {
+  return isoDay
+    ? new Date(isoDay + 'T00:00:00').toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    : 'Unscheduled'
+}
+function toRow(a: Assessment): AssessmentRow {
+  return {
+    id: a.reference,
+    site: a.site.name,
+    client: a.client,
+    type: a.surveyType,
+    date: formatDay(a.siteVisitDate),
+    eng: a.engineers[0] ?? 'Unassigned',
+    engs: a.engineers,
+    status: STATUS_LABEL[a.status],
+    sev: 'low',
+    open: 0,
+    persisted: true,
+  }
+}
 export function useAssessmentWorkflow(onSignOut: () => void) {
   const [state, updateState] = useState<WorkflowState>(() => structuredClone(initialState))
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [timeouts] = useState(() => new Set<ReturnType<typeof setTimeout>>())
   const capture = useCaptureSession(state.captureTarget.reference, state.screen === 'field')
+  // The work list from the gateway (RV-10); null until it loads, and when the
+  // gateway cannot be reached, in which case the dashboard shows the demo rows.
+  const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
+  const [listFailed, setListFailed] = useState(false)
+  const onDashboard = state.screen === 'dashboard'
+  useEffect(() => {
+    // Refetched on every return to the dashboard, so capture progress shows.
+    if (!onDashboard) return
+    const controller = new AbortController()
+    listAssessments(controller.signal).then(
+      (list) => {
+        setServerRows(list.map(toRow))
+        setListFailed(false)
+      },
+      () => {
+        if (!controller.signal.aborted) setListFailed(true)
+      },
+    )
+    return () => controller.abort()
+  }, [onDashboard])
   function later(callback: () => void, delay: number) {
     const timer = setTimeout(() => {
       timeouts.delete(timer)
@@ -104,10 +162,9 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       toastTone: tone || 'success',
     })
   }
-  // The workspace always shows the demo assessment, so capture opened from it
-  // targets that assessment.
+  // The workspace and capture both act on the assessment last opened from the list.
   function navigate(screen: string): Partial<WorkflowState> {
-    return screen === 'assessment' ? { screen, captureTarget: CAPTURE_ASSESSMENT } : { screen }
+    return { screen }
   }
   function addCreatedRow(row: AssessmentRow) {
     updateState((previous) => ({
@@ -242,6 +299,19 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     const fieldRecent = isDemoCapture ? s.fRecent : (s.captureObs[s.captureTarget.reference] ?? [])
     const fieldSaved = isDemoCapture ? s.fSaved : fieldRecent.length
 
+    /* dashboard rows: demo rows until the gateway answers */
+    const serverIds = new Set(serverRows?.map((r) => r.id))
+    // Engineers see only the assessments they are assigned to.
+    // ponytail: the signed-in user is fixed and filtered here until accounts exist (F-04);
+    // the gateway must scope the list once it knows who is asking.
+    const rows = (
+      serverRows
+        ? [...s.createdRows.filter((r) => !serverIds.has(r.id)), ...serverRows]
+        : [...s.createdRows, ...ROWS]
+    ).filter((r) => (r.engs ?? [r.eng]).includes('A. Rowe'))
+    // Only the demo assessment has sample workspace content; others show their own details.
+    const openRow = isDemoCapture ? null : rows.find((r) => r.id === s.captureTarget.reference)
+
     /* nav */
     const navSections = [
       {
@@ -251,7 +321,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             value: 'dashboard',
             label: 'Dashboard',
             icon: 'inbox',
-            count: ROWS.length + s.createdRows.length,
+            count: rows.length,
           },
           {
             value: 'create',
@@ -271,25 +341,23 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         items: [
           {
             value: 'assessment',
-            label: 'Tilbury Distribution Centre',
+            label: s.captureTarget.site,
             icon: 'file-pen',
           },
         ],
       },
     ]
 
-    /* dashboard rows */
-    const rows = [...s.createdRows, ...ROWS]
     const q = s.q.trim().toLowerCase()
+    const openCount = (r: AssessmentRow) => (r.live ? open.length : r.open || 0)
     const filtered = rows
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
         if (s.fStatus !== 'All statuses' && r.status !== s.fStatus) return false
-        if (s.fEng !== 'All engineers' && r.eng !== s.fEng) return false
         return true
       })
       .map((r) => {
-        const n = r.live ? open.length : r.open || 0
+        const n = openCount(r)
         return {
           ...r,
           sevIcon: SEV[r.sev].icon,
@@ -623,36 +691,45 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         setState({
           tab: 'generate',
         }),
-      ovFacts: [
-        {
-          label: 'Report',
-          value: 'RPT-2026-0411',
-        },
-        {
-          label: 'Site',
-          value: 'Tilbury Distribution Centre, Ferry Lane, Tilbury RM18 7HR',
-        },
-        {
-          label: 'Client',
-          value: 'Northgate Logistics',
-        },
-        {
-          label: 'Assessment type',
-          value: 'Property risk survey',
-        },
-        {
-          label: 'Site visit',
-          value: '11 Apr 2026',
-        },
-        {
-          label: 'Report due',
-          value: '25 Apr 2026',
-        },
-        {
-          label: 'Lead engineer',
-          value: 'A. Rowe',
-        },
-      ],
+      ovFacts: openRow
+        ? [
+            { label: 'Report', value: openRow.id },
+            { label: 'Site', value: openRow.site },
+            { label: 'Client', value: openRow.client },
+            { label: 'Assessment type', value: openRow.type },
+            { label: 'Site visit', value: openRow.date },
+            { label: 'Lead engineer', value: openRow.eng },
+          ]
+        : [
+            {
+              label: 'Report',
+              value: 'RPT-2026-0411',
+            },
+            {
+              label: 'Site',
+              value: 'Tilbury Distribution Centre, Ferry Lane, Tilbury RM18 7HR',
+            },
+            {
+              label: 'Client',
+              value: 'Northgate Logistics',
+            },
+            {
+              label: 'Assessment type',
+              value: 'Property risk survey',
+            },
+            {
+              label: 'Site visit',
+              value: '11 Apr 2026',
+            },
+            {
+              label: 'Report due',
+              value: '25 Apr 2026',
+            },
+            {
+              label: 'Lead engineer',
+              value: 'A. Rowe',
+            },
+          ],
       obsWide: !narrow,
       obsStack: narrow,
       obsList: s.fRecent.map((o, i) => {
@@ -734,7 +811,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             ? 'Create assessment'
             : sc === 'field'
               ? 'Site observation'
-              : 'Tilbury Distribution Centre',
+              : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · A. Rowe · Week of 11 Apr 2026'
@@ -747,7 +824,14 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
                 ' · ' +
                 fieldSaved +
                 (fieldSaved === 1 ? ' observation captured' : ' observations captured')
-              : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
+              : openRow
+                ? [
+                    openRow.id,
+                    openRow.type,
+                    'Assessed ' + openRow.date,
+                    'Lead engineer ' + openRow.eng,
+                  ].join(' · ')
+                : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
@@ -809,36 +893,27 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         setState({
           fStatus: e.target.value,
         }),
-      fEng: s.fEng,
-      setEng: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
-        setState({
-          fEng: e.target.value,
-        }),
-      statusOptions: ['All statuses', 'Draft', 'In review', 'Awaiting sign-off', 'Finalised'],
-      engOptions: ['All engineers', 'A. Rowe', 'J. Okafor', 'M. Haas'],
+      statusOptions: ['All statuses', ...Object.values(STATUS_LABEL)],
       filteredRows: filtered,
       noResults: filtered.length === 0,
       resultLabel: filtered.length + ' of ' + rows.length + ' assessments',
       openTotal: open.length + 3,
-      unfiled: 12,
-      assignedCount: rows.filter((row) => row.eng === 'A. Rowe').length,
+      // The same open items the table's Items column shows, across your assessments.
+      openItemCount: rows.reduce((sum, r) => sum + openCount(r), 0),
+      // Observations captured in this browser that the gateway does not store yet.
+      unfiledCount: rows.reduce((sum, r) => sum + (s.captureObs[r.id]?.length ?? 0), 0),
+      reviewCount: rows.filter((row) => row.status === STATUS_LABEL.under_review).length,
+      listOffline: listFailed && !serverRows,
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id
-        const created = s.createdRows.find((row) => row.id === id)
-        if (id === CAPTURE_ASSESSMENT.reference)
+        const row = rows.find((r) => r.id === id)
+        if (row)
           setState({
-            ...navigate('assessment'),
+            screen: 'assessment',
+            tab: 'overview',
             toast: null,
+            captureTarget: { reference: row.id, site: row.site },
           })
-        else if (created?.persisted)
-          // Nothing is drafted for a new assessment yet, so it opens on capture.
-          setState({
-            screen: 'field',
-            toast: null,
-            captureTarget: { reference: created.id, site: created.site },
-          })
-        else if (created) toast(id + ' exists only in this demo, so it cannot be opened.', 'info')
-        else toast('This prototype opens RPT-2026-0411. ' + id + ' is shown for context.', 'info')
       },
       /* create */
       cfSite: s.cf.site,
@@ -982,13 +1057,6 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           return
         }
         setState({ cfBusy: true, cfErr: false, cfServerError: null })
-        const date = s.cf.date
-          ? new Date(s.cf.date + 'T00:00:00').toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })
-          : 'Unscheduled'
         try {
           const created = await requestCreateAssessment({
             site: {
@@ -1005,18 +1073,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             standards: s.cf.stds,
             engineers: s.cf.engs,
           })
-          addCreatedRow({
-            id: created.reference,
-            site: created.site.name,
-            client: created.client,
-            type: created.surveyType,
-            date,
-            eng: created.engineers[0] ?? 'Unassigned',
-            status: 'Draft',
-            sev: 'low',
-            open: 0,
-            persisted: true,
-          })
+          addCreatedRow(toRow(created))
           toast(
             created.reference +
               ' created for ' +
@@ -1032,9 +1089,9 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
               site: s.cf.site,
               client: s.cf.client,
               type: s.cf.survey,
-              date,
+              date: formatDay(s.cf.date || null),
               eng: s.cf.engs[0] || 'Unassigned',
-              status: 'Draft',
+              status: STATUS_LABEL.not_started,
               sev: 'low',
               open: 0,
             })
@@ -1061,7 +1118,6 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       retryCapture: capture.retry,
       captureRef,
       fSavedLabel: fieldSaved + ' saved',
-      showWorkspaceLink: isDemoCapture,
       fieldEmptyLabel: 'No observations captured for ' + captureRef + ' yet.',
       isNoteMode: s.fMode === 'note',
       isVoiceMode: s.fMode === 'voice',

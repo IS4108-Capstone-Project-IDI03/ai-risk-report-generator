@@ -1,5 +1,10 @@
 import { Schema, Types, model } from 'mongoose'
 
+// Report progress once a report exists. Before that, an assessment's status is
+// derived from its capture session (see assessment.service.ts), not stored.
+export const REPORT_STATUSES = ['draft', 'under_review', 'finalised'] as const
+export type ReportStatus = (typeof REPORT_STATUSES)[number]
+
 export interface IAssessment {
   // Human-readable report ID shown in the UI, e.g. RPT-2026-0411. Allocated
   // by the server when the assessment is created.
@@ -14,6 +19,7 @@ export interface IAssessment {
   // (F-04) and the knowledge base exist. The first engineer is the lead.
   standards: string[]
   engineers: string[]
+  reportStatus?: ReportStatus
   createdAt: Date
   updatedAt: Date
 }
@@ -54,6 +60,10 @@ const assessmentSchema = new Schema<IAssessment>(
     engineers: {
       type: [String],
       default: [],
+    },
+    reportStatus: {
+      type: String,
+      enum: REPORT_STATUSES,
     },
   },
   {

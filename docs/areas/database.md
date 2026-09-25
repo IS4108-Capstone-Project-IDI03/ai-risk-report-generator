@@ -68,5 +68,23 @@ site for the capture screen. Assessments are addressed by `reference`, the ID th
 client already holds, not by ObjectId. An unknown reference returns 404. The
 gateway does not authenticate this route yet (F-04).
 
+An assessment's status is stored only once a report exists: `reportStatus` is
+`draft`, `under_review` or `finalised`, set by the generation and sign-off
+stories. Before that it is derived from the latest capture session rather than
+copied onto the assessment, so there is one source of truth:
+
+| Status | Comes from |
+| --- | --- |
+| `not_started` | no capture session |
+| `capturing` | latest session `active` |
+| `ready_to_generate` | latest session `ready_for_generation` |
+| `draft` / `under_review` / `finalised` | `reportStatus`, which wins when set |
+
+`GET /api/assessments` returns every assessment with its derived `status`, most
+recent site visit first, in two queries (assessments, then their sessions). The
+dashboard filters and searches it in the browser (RV-10) and shows only the
+assessments whose `engineers` include the signed-in user. That user is fixed
+until accounts exist (F-04); the gateway does not paginate or filter by user yet.
+
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

@@ -4,7 +4,9 @@ export type AssessmentRow = {
   client: string
   type: string
   date: string
+  // The lead engineer; engs lists everyone assigned when known.
   eng: string
+  engs?: string[]
   status: string
   sev: string
   live?: boolean
@@ -41,7 +43,6 @@ export type WorkflowState = {
   toastTone: string
   q: string
   fStatus: string
-  fEng: string
   createdRows: AssessmentRow[]
   cf: {
     site: string

@@ -1,5 +1,13 @@
 import { Fragment } from 'react'
-import { Badge, EmptyState, Input, MetricStat, Select, StatusIcon } from '../../../design-system'
+import {
+  Badge,
+  Callout,
+  EmptyState,
+  Input,
+  MetricStat,
+  Select,
+  StatusIcon,
+} from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 export function Dashboard({ v }: { v: AssessmentWorkflow }) {
@@ -28,7 +36,11 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
               boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <MetricStat label="Assigned to you" value={v.assignedCount} size="lg"></MetricStat>
+            <MetricStat
+              label="Outstanding review items"
+              value={v.openItemCount}
+              size="lg"
+            ></MetricStat>
           </div>
           <div
             style={{
@@ -39,7 +51,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
               boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <MetricStat label="Outstanding review items" value={v.openTotal} size="lg"></MetricStat>
+            <MetricStat label="Under review" value={v.reviewCount} size="lg"></MetricStat>
           </div>
           <div
             style={{
@@ -50,20 +62,22 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
               boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <MetricStat label="Awaiting sign-off" value="1" size="lg"></MetricStat>
-          </div>
-          <div
-            style={{
-              background: 'var(--surface-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '8px',
-              padding: '16px 18px',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <MetricStat label="Observations not yet filed" value={v.unfiled} size="lg"></MetricStat>
+            <MetricStat
+              label="Observations not yet filed"
+              value={v.unfiledCount}
+              size="lg"
+            ></MetricStat>
           </div>
         </div>
+        {v.listOffline && (
+          <div role="status" style={{ marginBottom: '20px' }}>
+            <Callout tone="warning" title="Showing sample assessments">
+              {
+                'The gateway could not be reached, so saved assessments are not listed. Start the gateway, then return to the dashboard.'
+              }
+            </Callout>
+          </div>
+        )}
         <div
           style={{
             background: 'var(--surface-card)',
@@ -100,15 +114,6 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 options={v.statusOptions}
                 value={v.fStatus}
                 onChange={v.setStatus}
-              ></Select>
-            </div>
-            <div style={{ flex: '0 1 180px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by engineer"
-                options={v.engOptions}
-                value={v.fEng}
-                onChange={v.setEng}
               ></Select>
             </div>
             <span style={{ flex: '1' }}></span>

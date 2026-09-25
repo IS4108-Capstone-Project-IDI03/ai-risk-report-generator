@@ -1,8 +1,17 @@
 import { Router } from 'express'
-import { createAssessment, newAssessmentSchema } from '../services/assessment.service'
+import {
+  createAssessment,
+  listAssessments,
+  newAssessmentSchema,
+} from '../services/assessment.service'
 import { AssessmentNotFoundError, startCaptureSession } from '../services/capture-session.service'
 
 const router = Router()
+
+// The work list (RV-10). Filtering and search happen in the client for now.
+router.get('/', async (_req, res) => {
+  res.json(await listAssessments())
+})
 
 // Creates an assessment (and its site). 400 lists the first problem with each
 // invalid field, keyed by path, e.g. { "site.name": "Site name is required." }.

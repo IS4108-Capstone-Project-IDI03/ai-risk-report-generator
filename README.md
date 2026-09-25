@@ -29,6 +29,7 @@ Embed and Chroma. RAG `/retrieve` embeds queries, searches Chroma, and reranks
 with Cohere. MongoDB connectivity and the site schema are also implemented. The
 gateway creates assessments at `POST /api/assessments` and starts or resumes an
 assessment's capture session at `POST /api/assessments/:reference/capture-session`.
+It lists assessments with their status at `GET /api/assessments`.
 Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
 forwarding remain placeholders.
 
@@ -39,14 +40,15 @@ dashboard, observations, generation, review, and simulated export. It runs witho
 a backend and keeps demo changes in memory only. Refreshing or signing out resets
 the demo; authentication and export are simulated.
 
-Creating an assessment and capturing on site are the exceptions. New assessment
-saves the assessment through the gateway; opening it from the dashboard starts its
-capture session on the Site observation screen. Site observation opened from the
-sample workspace captures for `RPT-2026-0411`; seed that assessment with
-`npm --prefix server run seed`. Without the gateway, a new assessment is kept in
+Creating an assessment, the dashboard list and capturing on site are the
+exceptions. The dashboard lists assessments from the gateway, with the sample
+rows as a fallback when it cannot be reached, and shows only the assessments
+the engineer is assigned to. New assessment saves the assessment through the
+gateway; opening it from the dashboard opens its workspace, and Site observation
+from there starts its capture session. Only `RPT-2026-0411` has sample workspace
+content; seed it with `npm --prefix server run seed`. Without the gateway, a new assessment is kept in
 the demo only and capture shows sample data, and both say so. Saved observations
-are still memory-only, and the dashboard does not yet list assessments from the
-server, so created assessments are gone after a refresh (RV-10).
+are still memory-only.
 
 ## Running the stack locally
 
