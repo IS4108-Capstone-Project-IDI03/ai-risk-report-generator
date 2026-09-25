@@ -2,6 +2,7 @@ import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
+import { CaptureSessionModel } from '../models/capture-session.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
 
@@ -176,5 +177,62 @@ describe('POST /api/assessments', () => {
       client: 'Straits Logistics',
       site: { name: 'Jurong Distribution Hub' },
     })
+  })
+})
+
+describe('GET /api/assessments', () => {
+  it('lists assessments with their site, date and status, latest visit first', async () => {
+    const site = await SiteModel.create({ code: 'SITE-0001', ...SITE })
+    const seed = (reference: string, siteVisitDate: string, extra = {}) =>
+      AssessmentModel.create({
+        reference,
+        site: site._id,
+        client: `Client ${reference}`,
+        surveyType: 'Property risk survey',
+        siteVisitDate: new Date(siteVisitDate),
+        engineers: ['A. Rowe'],
+        ...extra,
+      })
+    await seed('RPT-A', '2026-01-01')
+    const capturing = await seed('RPT-B', '2026-02-01')
+    const ready = await seed('RPT-C', '2026-03-01')
+    const drafted = await seed('RPT-D', '2026-04-01', { reportStatus: 'draft' })
+    await CaptureSessionModel.create({ assessment: capturing._id })
+    await CaptureSessionModel.create({ assessment: ready._id, status: 'ready_for_generation' })
+    // A stored report status wins over the capture session.
+    await CaptureSessionModel.create({ assessment: drafted._id, status: 'ready_for_generation' })
+
+    const response = await request(app).get('/api/assessments')
+
+    expect(response.status).toBe(200)
+    expect(
+      response.body.map((a: { reference: string; status: string; siteVisitDate: string }) => [
+        a.reference,
+        a.status,
+        a.siteVisitDate,
+      ]),
+    ).toEqual([
+      ['RPT-D', 'draft', '2026-04-01'],
+      ['RPT-C', 'ready_to_generate', '2026-03-01'],
+      ['RPT-B', 'capturing', '2026-02-01'],
+      ['RPT-A', 'not_started', '2026-01-01'],
+    ])
+    expect(response.body[0].site).toMatchObject({ code: 'SITE-0001', name: SITE.name })
+  })
+
+  it('uses the latest capture session', async () => {
+    const site = await SiteModel.create({ code: 'SITE-0001', ...SITE })
+    const a = await AssessmentModel.create({
+      reference: 'RPT-A',
+      site: site._id,
+      client: 'Client',
+      surveyType: 'Property risk survey',
+    })
+    await CaptureSessionModel.create({ assessment: a._id, status: 'ready_for_generation' })
+    await CaptureSessionModel.create({ assessment: a._id, status: 'active' })
+
+    const response = await request(app).get('/api/assessments')
+
+    expect(response.body[0].status).toBe('capturing')
   })
 })
