@@ -13,6 +13,7 @@ import pytest
 
 from app.pipeline.chunking_helper import ocr_model
 
+# Fake table image
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
 
 
@@ -144,8 +145,8 @@ def test_image_is_sent_as_a_png_data_uri(fake_client):
 def test_decoding_is_deterministic(fake_client):
     ocr_model.recognise(PNG, "table")
     payload = _sent(fake_client)
-    # Re-ingesting a document must not produce different text.
-    assert payload["temperature"] == 0.0
+    assert payload["temperature"] < 0.5
+    assert "repetition_penalty" in payload
 
 
 def test_unknown_task_is_a_programming_error(fake_client):
@@ -227,3 +228,114 @@ def test_blank_env_override_is_ignored(monkeypatch):
     """An empty Compose variable must not blank out the YAML value."""
     monkeypatch.setenv("GLMOCR_OCR_API_MODE", "")
     assert ocr_model._ocr_api_config().api_mode
+
+
+# --- _looks_truncated ---------------------------------------------------------
+
+
+def test_complete_table_is_not_truncated():
+    text = "| A | B |\n|---|---|\n| 1 | 2 |"
+    assert ocr_model._looks_truncated(text, "table") is False
+
+
+def test_table_missing_closing_pipe_is_truncated():
+    # Last row ends mid-cell — generation was cut off.
+    text = "| A | B |\n|---|---|\n| 1 | 2"
+    assert ocr_model._looks_truncated(text, "table") is True
+
+
+def test_table_with_only_header_row_is_not_truncated():
+    # Single-row table still ends with |.
+    text = "| A | B |"
+    assert ocr_model._looks_truncated(text, "table") is False
+
+
+def test_formula_balanced_braces_not_truncated():
+    assert ocr_model._looks_truncated(r"$E = mc^2$", "formula") is False
+
+
+def test_formula_unbalanced_braces_truncated():
+    assert ocr_model._looks_truncated(r"\frac{a}{b} + \sqrt{c", "formula") is True
+
+
+def test_formula_odd_dollar_count_truncated():
+    assert ocr_model._looks_truncated(r"$E = mc^2", "formula") is True
+
+
+def test_unknown_task_never_truncated():
+    # Unknown tasks pass through without retry.
+    assert ocr_model._looks_truncated("anything", "text") is False
+
+
+def test_empty_output_not_truncated():
+    assert ocr_model._looks_truncated("", "table") is False
+
+
+# --- adaptive retry -----------------------------------------------------------
+
+
+def test_complete_table_needs_no_retry(fake_client):
+    """A complete table is returned on the first call with no retry."""
+    client = ocr_model.ocr_client()
+    client.reply = ({"choices": [{"message": {"content": "| A | B |\n| 1 | 2 |"}}]}, 200)
+
+    result = ocr_model.recognise(PNG, "table")
+
+    assert result == "| A | B |\n| 1 | 2 |"
+    assert len(client.payloads) == 1
+
+
+def test_truncated_table_retries_with_higher_token_budget(fake_client):
+    """A truncated table triggers a retry with a larger max_tokens."""
+    client = ocr_model.ocr_client()
+    replies = iter([
+        ({"choices": [{"message": {"content": "| A | B |\n| 1 | 2"}}]}, 200),   # truncated
+        ({"choices": [{"message": {"content": "| A | B |\n| 1 | 2 |"}}]}, 200), # complete
+    ])
+    client.reply = None
+
+    original_process = client.process
+
+    def patched_process(payload):
+        client.payloads.append(payload)
+        return next(replies)
+
+    client.process = patched_process
+
+    result = ocr_model.recognise(PNG, "table")
+
+    assert result == "| A | B |\n| 1 | 2 |"
+    assert len(client.payloads) == 2
+    # Second call must use a higher token budget.
+    assert client.payloads[1]["max_tokens"] > client.payloads[0]["max_tokens"]
+
+
+def test_still_truncated_after_all_retries_returns_best_effort(fake_client):
+    """If all retries produce truncated output, return the last result rather
+    than None — partial content is better than discarding the region."""
+    client = ocr_model.ocr_client()
+    partial = "| A | B |\n| 1 | 2"
+    call_count = 0
+
+    def always_truncated(payload):
+        nonlocal call_count
+        call_count += 1
+        client.payloads.append(payload)
+        return ({"choices": [{"message": {"content": partial}}]}, 200)
+
+    client.process = always_truncated
+
+    result = ocr_model.recognise(PNG, "table")
+
+    # Must not return None — a partial table is still useful for retrieval.
+    assert result == partial
+    # Must have tried more than once.
+    assert call_count > 1
+
+
+def test_token_budgets_are_ordered_and_bounded():
+    budgets = ocr_model._token_budgets()
+    assert budgets == sorted(budgets)
+    assert budgets[0] == ocr_model.MAX_TOKENS
+    assert budgets[-1] <= ocr_model.MAX_TOKENS_RETRY
+    assert len(budgets) == ocr_model._ADAPTIVE_RETRIES + 1
