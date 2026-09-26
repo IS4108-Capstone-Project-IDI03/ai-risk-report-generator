@@ -21,6 +21,19 @@ services:
       retries: 12
       start_period: 10s
 
+  # Pulls the GLM-OCR model into the Ollama volume once, then exits.
+  # ingestion-service waits for this before starting so the model is ready.
+  ollama-pull:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["ollama", "pull", "glm-ocr"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+
   mongo:
     image: mongo:7
     ports:
@@ -63,7 +76,9 @@ services:
       - /app/node_modules
 
   ingestion-service:
-    build: ./microservices/ingestion-service
+    build:
+      context: ./microservices/ingestion-service
+      target: production
     ports:
       - "127.0.0.1:8001:8001"
     env_file: .env
@@ -73,12 +88,46 @@ services:
       GLMOCR_MODE: selfhosted
       GLMOCR_OCR_API_HOST: ollama
       GLMOCR_OCR_API_PORT: 11434
+      GLMOCR_OCR_API_PATH: /api/generate
+      GLMOCR_OCR_API_MODE: ollama_generate
+      GLMOCR_OCR_MODEL: glm-ocr:latest
     depends_on:
-      - chroma
-      ollama:
-        condition: service_healthy
+      chroma:
+        condition: service_started
+      ollama-pull:
+        condition: service_completed_successfully
+
+  ingestion-test:
+    build:
+      context: ./microservices/ingestion-service
+      target: test
+    command: ["uv", "run", "pytest", "-q", "--tb=short", "-m", "not slow and not inspect"]
+    env_file: .env
+    environment:
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+      GLMOCR_MODE: selfhosted
+      GLMOCR_OCR_API_HOST: ollama
+      GLMOCR_OCR_API_PORT: 11434
+      GLMOCR_OCR_API_PATH: /api/generate
+      GLMOCR_OCR_API_MODE: ollama_generate
+      GLMOCR_OCR_MODEL: glm-ocr:latest
+      # Skip the Hugging Face revision-check network call so the container
+      # uses the mounted model cache without contacting huggingface.co.
+      HF_HUB_OFFLINE: "1"
     volumes:
-      - ./microservices/ingestion-service:/app
+      # Mount the test fixture PDFs (excluded from the image by .dockerignore).
+      - ./microservices/ingestion-service/tests/FM_Standard_File:/app/tests/FM_Standard_File:ro
+      # Mount the host Hugging Face model cache so Docling finds its weights
+      # without downloading them inside the container.
+      - ${HUGGINGFACE_CACHE:-~/.cache/huggingface}:/root/.cache/huggingface:ro
+    depends_on:
+      chroma:
+        condition: service_started
+      ollama-pull:
+        condition: service_completed_successfully
+    profiles:
+      - test
 
   rag-service:
     build: ./microservices/rag-service

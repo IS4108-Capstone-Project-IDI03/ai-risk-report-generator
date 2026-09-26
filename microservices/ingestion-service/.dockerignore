@@ -11,7 +11,6 @@ build/
 .pytest_cache/
 
 # Test fixtures (large PDFs) and test outputs.
-tests/FM_Standard_File/
 tests/__pycache__/
 
 # Dev tooling and IDE.
