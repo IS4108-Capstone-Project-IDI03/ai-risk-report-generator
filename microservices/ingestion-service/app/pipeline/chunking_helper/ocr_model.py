@@ -43,11 +43,13 @@ TASK_PROMPTS = {
 # points us at the `ollama` service instead of localhost.
 CONFIG_PATH = Path(__file__).resolve().parents[3] / "config.yml"
 
-# Generation parameters mirroring glmocr's page_loader defaults. Deterministic
-# decoding matters: we re-read the same region on every re-ingest and want the
-# same text out.
-MAX_TOKENS = 8192
-TEMPERATURE = 0.0
+# Generation parameters. These are tuned for table/formula OCR on CPU via
+MAX_TOKENS = 1200
+MAX_TOKENS_RETRY = 1600
+_ADAPTIVE_RETRIES = 2
+
+TEMPERATURE = 0.1
+REPEAT_PENALTY = 1.2
 
 _BUILD_LOCK = threading.Lock()
 
@@ -75,6 +77,11 @@ def _ocr_api_config() -> OCRApiConfig:
     api_path = os.getenv("GLMOCR_OCR_API_PATH", "").strip()
     if api_path:
         ocr_api.api_path = api_path
+
+    # CPU inference on a full-page table crop can take several minutes.
+    # The SDK default (120 s) is too short; override unless explicitly set.
+    timeout_env = os.getenv("GLMOCR_OCR_REQUEST_TIMEOUT", "").strip()
+    ocr_api.request_timeout = int(timeout_env) if timeout_env else 600
 
     return ocr_api
 
@@ -117,6 +124,46 @@ def _data_uri(image_png: bytes) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+def _looks_truncated(text: str, task: str) -> bool:
+    """Return True if the output appears to be cut off mid-generation.
+
+    Used to decide whether to retry with a higher token budget.
+
+    For tables: look for an opening <table> tag without a matching closing </table> tag.
+    if the closing tag is present but comes before the opening tag, treat it as truncated.
+
+    For formulas: LaTeX expressions commonly end with ``}`` or ``$``. An
+    unmatched opening delimiter is a reasonable truncation signal, but false
+    positives here are low-cost (just one extra inference call), so we use a
+    simple heuristic: the text ends mid-word (no sentence-ending punctuation and
+    no closing delimiter).
+
+    Returns False for unknown tasks so unknown content is never retried.
+    """
+    if not text:
+        return False
+
+    if task == "table":
+        start = text.lower().find("<table")
+        if start < 0:
+            return True
+        end = text.lower().find("</table")
+        if end < 0:
+            return True
+        if end < start:
+            return True
+        # Stick with detecting closing tag of table first
+        # Checking for closing tag of rows might be too strict for badly parsed table
+        # Currently just detecting any table
+        return False
+
+    if task == "formula":
+        # LaTeX: unbalanced braces or an open $ is a clear sign of truncation.
+        return text.count("{") > text.count("}") or text.count("$") % 2 != 0
+
+    return False
+
+
 def recognise(image_png: bytes, task: str) -> str | None:
     """Recognise one cropped region, returning Markdown/LaTeX text or None.
 
@@ -140,26 +187,58 @@ def recognise(image_png: bytes, task: str) -> str | None:
         expected = sorted(TASK_PROMPTS)
         raise ValueError(f"unknown OCR task {task!r}; expected one of {expected}") from None
 
-    payload = {
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": _data_uri(image_png)}},
-                ],
-            }
-        ],
-        "max_tokens": MAX_TOKENS,
-        "temperature": TEMPERATURE,
-    }
+    token_budgets = _token_budgets()
 
-    response, status = ocr_client().process(payload)
-    if status != 200 or "error" in response:
-        return None
+    for max_tokens in token_budgets:
+        payload = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": _data_uri(image_png)}},
+                    ],
+                }
+            ],
+            "max_tokens": max_tokens,
+            "temperature": TEMPERATURE,
+            # Down-weight tokens that have already appeared. Prevents the model from
+            # getting stuck in repetition loops (repeated table rows, formula
+            # fragments) which cause the server to abort with "token repeat limit
+            # reached" and trigger expensive retries.
+            # Named "repetition_penalty" because OCRClient._convert_to_ollama_generate
+            # maps that key to Ollama's "repeat_penalty" option. Using Ollama's native
+            # name directly would be silently dropped by the converter.
+            "repetition_penalty": REPEAT_PENALTY,
+        }
 
-    choices = response.get("choices") or []
-    if not choices:
-        return None
-    content = (choices[0].get("message", {}).get("content") or "").strip()
-    return content or None
+        response, status = ocr_client().process(payload)
+        if status != 200 or "error" in response:
+            return None
+
+        choices = response.get("choices") or []
+        if not choices:
+            return None
+        content = (choices[0].get("message", {}).get("content") or "").strip()
+        if not content:
+            return None
+        
+        if not _looks_truncated(content, task):
+            return content
+
+        # Output looks truncated — retry with a higher budget if we have one.
+        # If this was already the last budget, return what we have rather than
+        # dropping the region entirely.
+        if max_tokens == token_budgets[-1]:
+            return content
+
+    return None  # unreachable but satisfies type checkers
+
+def _token_budgets() -> list[int]:
+    """Sequence of max_token values to try: [MAX_TOKENS, ..., MAX_TOKENS_RETRY]"""
+    if _ADAPTIVE_RETRIES == 0 or MAX_TOKENS >= MAX_TOKENS_RETRY:
+        return [MAX_TOKENS]
+    step = (MAX_TOKENS_RETRY - MAX_TOKENS) // _ADAPTIVE_RETRIES
+    budgets = [MAX_TOKENS + step * i for i in range(_ADAPTIVE_RETRIES)]
+    budgets.append(MAX_TOKENS_RETRY)
+    return budgets

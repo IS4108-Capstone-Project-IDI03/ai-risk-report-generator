@@ -17,7 +17,7 @@ dependencies = [
     "docling>=2.0,<3",
     "pymupdf>=1.28.2",
     "glmocr>=0.1.5",
-    "opencv-python>=5.0.0.93",
+    "opencv-python-headless>=5.0.0.93",
 ]
 
 [tool.setuptools]
@@ -63,8 +63,10 @@ target-version = ["py311"]
 # Run them explicitly with:  pytest -m slow   (or -m "slow or not slow" for all)
 # -rs always prints skip reasons: the Docling fixtures skip on any environment
 # failure, and a bare "s" hides why (e.g. a TLS/model-download problem).
-addopts = "-rs -m 'not slow and not inspect'"
+addopts = "-rs -m 'not slow and not inspect and not model and not e2e'"
 markers = [
     "slow: full-document Docling parse; opt in with -m slow (minutes on CPU)",
     "inspect: dumps chunk text/metadata for manual inspection; opt in with -m inspect -s",
+    "model: requires local Docling model weights and the fixture PDF",
+    "e2e: full pipeline end-to-end; requires Docling models and the fixture PDF",
 ]

@@ -33,9 +33,11 @@ def mocked_index(monkeypatch):
     return SimpleNamespace(cohere=cohere, chroma=chroma)
 
 
+@pytest.mark.e2e
+@pytest.mark.model
 def test_run_end_to_end_indexes_chunks_with_provenance(mocked_index):
-    print("Test")
-    assert FIXTURE.exists(), f"fixture missing: {FIXTURE}"
+    if not FIXTURE.exists():
+        pytest.skip(f"fixture missing: {FIXTURE}")
     try:
         summary = pipeline.run(str(FIXTURE), page_range=TEST_PAGE_RANGE)
         print("summary", summary)

@@ -23,7 +23,8 @@ TEST_PAGE_RANGE: tuple[int, int] = (1, 10)
 
 @pytest.fixture(scope="module")
 def chunks() -> list[dict]:
-    assert FIXTURE.exists(), f"fixture missing: {FIXTURE}"
+    if not FIXTURE.exists():
+        pytest.skip(f"fixture missing: {FIXTURE}")
     try:
         parsed = parse(str(FIXTURE), page_range=TEST_PAGE_RANGE)
     except Exception as exc:  # noqa: BLE001
@@ -42,17 +43,20 @@ def test_empty_document_returns_empty_list():
 # --- structural tests against the real fixture --------------------------------
 
 
+@pytest.mark.model
 def test_produces_chunks(chunks):
     assert chunks, "expected at least one chunk from the manual slice"
     assert all(c["text"].strip() for c in chunks)
 
 
+@pytest.mark.model
 def test_chunk_ids_are_unique_and_prefixed(chunks):
     ids = [c["id"] for c in chunks]
     assert len(set(ids)) == len(ids)
     assert all(c["id"].startswith("fm200:") for c in chunks)
 
 
+@pytest.mark.model
 def test_metadata_carries_doc_id_and_headings(chunks):
     for c in chunks:
         meta = c["metadata"]
@@ -67,6 +71,7 @@ def test_metadata_carries_doc_id_and_headings(chunks):
     assert any("headings" in c["metadata"] for c in chunks)
 
 
+@pytest.mark.model
 def test_metadata_values_are_chroma_safe(chunks):
     # Chroma 1.5.5 accepts scalars OR a non-empty homogeneous list of scalars.
     scalars = (str, int, float, bool)
@@ -81,6 +86,7 @@ def test_metadata_values_are_chroma_safe(chunks):
                 assert isinstance(value, scalars), f"{key}={value!r} is not scalar/list"
 
 
+@pytest.mark.model
 def test_page_bounds_are_ints_within_slice(chunks):
     with_pages = [c for c in chunks if "page_start" in c["metadata"]]
     assert with_pages, "expected page provenance on at least some chunks"
@@ -103,6 +109,7 @@ INSPECT_LIMIT = 40
 INSPECT_TEXT_CHARS = 300
 
 
+@pytest.mark.model
 @pytest.mark.inspect
 def test_inspect_chunks(chunks):
     """Dump chunk text + metadata for eyeballing, before any indexing.

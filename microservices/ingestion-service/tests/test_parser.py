@@ -29,7 +29,8 @@ TEST_PAGE_RANGE: tuple[int, int] = (45, 55)
 
 
 def _parse_fixture(page_range: tuple[int, int] | None) -> ParsedDocument:
-    assert FIXTURE.exists(), f"fixture missing: {FIXTURE}"
+    if not FIXTURE.exists():
+        pytest.skip(f"fixture missing: {FIXTURE}")
     try:
         return parse(str(FIXTURE), page_range=page_range)
     except UnparsableDocumentError:
@@ -82,9 +83,11 @@ def test_page_range_rejects_malformed_bounds(bad_range):
         parse(str(FIXTURE), page_range=bad_range)
 
 
+@pytest.mark.model
 def test_page_range_rejects_out_of_document_bounds():
     # end must fall within the real document page count (read via PyMuPDF).
-    assert FIXTURE.exists(), f"fixture missing: {FIXTURE}"
+    if not FIXTURE.exists():
+        pytest.skip(f"fixture missing: {FIXTURE}")
     with pytest.raises(ValueError, match="exceeds document page count"):
         parse(str(FIXTURE), page_range=(1, 10_000))
 
@@ -92,12 +95,14 @@ def test_page_range_rejects_out_of_document_bounds():
 # --- structural tests against the real fixture --------------------------------
 
 
+@pytest.mark.model
 def test_produces_text_blocks(parsed):
     assert parsed.text_blocks, "expected at least one text block from the manual"
     assert all(isinstance(b, TextBlock) for b in parsed.text_blocks)
     assert all(b.text.strip() for b in parsed.text_blocks)
 
 
+@pytest.mark.model
 def test_every_text_block_has_section_path_and_page(parsed):
     # IN-02 (1): section path present (list, may be empty before first heading).
     # IN-02 (2): source PDF page number present.
@@ -107,11 +112,13 @@ def test_every_text_block_has_section_path_and_page(parsed):
         assert block.page >= 1
 
 
+@pytest.mark.model
 def test_some_text_blocks_carry_a_heading_path(parsed):
     # The manual has headings, so at least some blocks should sit under one.
     assert any(block.section_path for block in parsed.text_blocks)
 
 
+@pytest.mark.model
 def test_reading_order_preserved(parsed):
     # IN-02 (3): original positions retained as a monotonic order index.
     orders = [block.order for block in parsed.text_blocks]
@@ -119,6 +126,7 @@ def test_reading_order_preserved(parsed):
     assert len(set(orders)) == len(orders)
 
 
+@pytest.mark.model
 def test_tables_and_images_separated_and_unprocessed(parsed):
     # Tables/images are captured on their own streams, never mixed into text.
     for item in parsed.tables:
@@ -132,6 +140,7 @@ def test_tables_and_images_separated_and_unprocessed(parsed):
     assert captured_orders.isdisjoint(text_orders)
 
 
+@pytest.mark.model
 def test_doc_name_is_fixture_filename(parsed):
     assert parsed.doc_name == FIXTURE.name
 
