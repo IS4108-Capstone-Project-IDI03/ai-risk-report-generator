@@ -1,8 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.processors.ocr import extract_text
-from app.processors.stt import transcribe
+from app.processors.stt import TranscriptionError, transcribe
 
 router = APIRouter()
 
@@ -18,7 +18,11 @@ def health() -> dict:
 
 @router.post("/transcribe")
 def transcribe_audio(request: S3KeyRequest) -> dict:
-    return transcribe(request.s3_key)
+    # The gateway stores the result and shows `detail` to the engineer on failure.
+    try:
+        return transcribe(request.s3_key)
+    except TranscriptionError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
 
 
 @router.post("/ocr")

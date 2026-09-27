@@ -107,5 +107,35 @@ does not yet restrict these routes to knowledge admins (F-04).
 re-seeding keeps edits made on screen. Against the shared Atlas cluster, those
 edits are visible to the whole team.
 
+## Observations
+
+`observations` holds voice notes; notes and photos are still browser-only. The
+original audio goes to S3 at `audio/<reference>/<observation id>.<ext>`; the
+document keeps the key, content type and size, never the audio. Each document
+links to its `assessment` and the capture `session` it was recorded in, the
+recording `engineer` (a name until F-04), and `metadata` with the five required
+fields: `source_type: 'voice'`, `jurisdiction` and `facility_type` copied from
+the site, `COPE_dimension` from the COPE category the engineer picked
+(`Construction`, `Occupancy`, `Protection` or `Exposure`, the same values the
+knowledge base uses), and `effective_date` (when it was recorded). `severity`
+(`critical`, `high`, `moderate` or `low`) is required; `area` (the location on
+site) and `standard` are optional. `standard` is the standard the engineer tied
+the note to (e.g. `NFPA 25 – 2026 Edition`); only the standard is stored, and
+the draft finds the clause.
+
+`transcription.status` is `transcribing`, `transcribed` (with `transcript`) or
+`failed` (with `error`, the reason shown to the engineer). `attempts` records
+each run with its start, finish and error. Saving a recording creates exactly
+one attempt; a retry adds one only while the status is `failed`, using an
+atomic update so two clicks cannot start two. Saving leaves the capture session
+`active`.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/assessments/:reference/observations/voice` | Body is the audio with its own `Content-Type`, up to 25 MB; `X-Engineer` names the engineer, `X-COPE-Dimension` gives the category and `X-Severity` the severity; the optional `?area=` and `?standard=` query values hold the location and standard (a query, since they are not plain ASCII). 201, or 400 (missing engineer, category or severity) / 404 / 409 (no active session) / 413 / 415 |
+| `GET /api/assessments/:reference/observations` | The assessment's voice notes, newest first |
+| `POST /api/observations/:id/transcription/retry` | New attempt for a failed note: 202, or 404 / 409 |
+| `GET /api/observations/:id/audio` | Streams the original recording from S3 |
+
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

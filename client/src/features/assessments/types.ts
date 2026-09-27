@@ -1,3 +1,5 @@
+import type { TranscriptionStatus } from './api'
+
 export type AssessmentRow = {
   id: string
   site: string
@@ -26,6 +28,13 @@ export type Observation = {
   media: string[]
   detail: string
   audio?: string
+  // Set on voice notes saved on the server (CP-03).
+  voice?: {
+    id: string
+    status: TranscriptionStatus
+    error: string | null
+    audioUrl: string
+  }
 }
 export type GenerationSection = {
   id: string
@@ -70,6 +79,10 @@ export type WorkflowState = {
   fSecs: number
   fTrans: boolean
   fTransBusy: boolean
+  // Why the last recording could not start or be saved, shown on the voice panel.
+  fVoiceError: { title: string; message: string } | null
+  // Recordings and files waiting for Save observation, each saved as its own voice note.
+  fClips: VoiceClip[]
   fPhotos: { name: string }[]
   fArea: string
   fCat: string
@@ -99,4 +112,13 @@ export type WorkflowState = {
   navOpen?: boolean
   navCollapsed?: boolean
   obsOpen?: number | null
+}
+
+// A recording or audio file held in the browser until Save observation uploads it.
+export type VoiceClip = {
+  id: number
+  name: string
+  length: string | null
+  audio: Blob
+  url: string
 }

@@ -56,3 +56,16 @@ local run on Windows downloads roughly 800 MB into `~/.cache/mongodb-binaries`
 (Linux, as in CI, is far smaller); set `MONGOMS_SYSTEM_BINARY` to an installed
 mongod to skip the download.
 Story: CP-01.
+
+## 2026-09-26 — Voice transcription runs in the gateway, tracked in MongoDB
+
+Chose: the gateway starts each transcription itself after saving the
+recording, and records its status and attempts on the observation document.
+Rejected: a job queue (Redis/BullMQ, SQS) or a separate worker.
+Reason: one transcription per recording at capture volume does not justify
+broker infrastructure (see the orchestration decision above). S5 stays
+stateless and never writes to MongoDB. The cost is that an attempt running
+when the gateway restarts is lost; startup marks it failed so the engineer can
+retry. Move to a job collection with a worker if volume grows or restarts
+become common.
+Story: CP-03.

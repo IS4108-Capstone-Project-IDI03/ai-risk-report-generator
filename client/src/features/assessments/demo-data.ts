@@ -51,11 +51,13 @@ export const initialState: WorkflowState = {
   fSecs: 0,
   fTrans: false,
   fTransBusy: false,
+  fVoiceError: null,
+  fClips: [],
   fPhotos: [],
   fArea: 'Bay 3 — north aisle',
   fCat: 'Fire protection',
   fSev: 'high',
-  fStd: 'FM Global 2-0 §2.4.1',
+  fStd: '',
   fSaved: 28,
   fToast: null,
   fRecent: [
@@ -75,7 +77,7 @@ export const initialState: WorkflowState = {
     {
       icon: 'mic',
       color: '#8f7dff',
-      cat: 'Water supplies',
+      cat: 'Fire protection',
       time: '11 Apr 11:05',
       text: 'Pump test certificate not produced on request. Site engineer believes it is held by the contractor.',
       area: 'Pump house',
@@ -89,7 +91,7 @@ export const initialState: WorkflowState = {
     {
       icon: 'sticky-note',
       color: '#f9ac10',
-      cat: 'Business interruption',
+      cat: 'Occupancy, hazards and utilities',
       time: '11 Apr 13:40',
       text: 'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.',
       area: 'Sortation line',
@@ -255,15 +257,28 @@ export const ROWS: AssessmentRow[] = [
   },
 ]
 
+// The COPE categories an observation is filed under, named after the report
+// sections they feed (Construction, Occupancy, Protection, Exposure).
 export const CAT_ICON: Record<string, string> = {
-  'Fire protection': 'flame',
-  'Water supplies': 'droplets',
-  'Business interruption': 'chart-column',
   Construction: 'hard-hat',
-  Electrical: 'zap',
-  Security: 'shield',
-  'Natural hazards': 'cloud-lightning',
-  Housekeeping: 'clipboard-check',
+  'Occupancy, hazards and utilities': 'factory',
+  'Fire protection': 'flame',
+  'External exposures': 'cloud-lightning',
+}
+// Standards an observation can be tied to. The draft finds the clause itself.
+export const STANDARD_REFERENCES = [
+  'NFPA 25 – 2026 Edition',
+  'NFPA 13 – 2022 Edition',
+  'FM 2.0 – Last published April 2026',
+  'FM 2.81 – Last published April 2026',
+]
+
+// The COPE_dimension each category is stored under, matching the knowledge base.
+export const COPE_DIMENSION: Record<string, string> = {
+  Construction: 'Construction',
+  'Occupancy, hazards and utilities': 'Occupancy',
+  'Fire protection': 'Protection',
+  'External exposures': 'Exposure',
 }
 
 export const SEV: Record<string, { icon: string; color: string }> = {

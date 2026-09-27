@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { Badge, Button, Icon } from '../../../design-system'
+import { Badge, Button, Callout, Icon } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
@@ -119,6 +119,9 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                       >
                         {o.cat}
                       </span>
+                      {!!o.voiceBadge && (
+                        <Badge tone={o.voiceBadge.tone}>{o.voiceBadge.label}</Badge>
+                      )}
                     </span>
                     {!!v.obsStack && (
                       <>
@@ -247,6 +250,35 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                         >
                           {o.detail}
                         </p>
+                        {!!o.voiceError && (
+                          <div role="status" style={{ marginTop: '14px' }}>
+                            <Callout
+                              tone="warning"
+                              title="Transcription failed"
+                              actions={
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  iconLeft="refresh-cw"
+                                  onClick={o.retryVoice}
+                                >
+                                  {'Retry transcription'}
+                                </Button>
+                              }
+                            >
+                              {o.voiceError}
+                            </Callout>
+                          </div>
+                        )}
+                        {!!o.audioUrl && (
+                          <audio
+                            controls
+                            preload="none"
+                            src={o.audioUrl}
+                            aria-label="Original recording"
+                            style={{ display: 'block', width: '100%', marginTop: '14px' }}
+                          />
+                        )}
                         <div
                           style={{
                             marginTop: '14px',
