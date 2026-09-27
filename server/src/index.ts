@@ -9,6 +9,7 @@ import ingestionRoutes from './routes/ingestion.routes'
 import ragRoutes from './routes/rag.routes'
 import observationRoutes from './routes/observation.routes'
 import { failInterruptedTranscriptions } from './services/observation.service'
+import userRoutes from './routes/user.routes'
 
 const app = express()
 
@@ -21,6 +22,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/ingestion', ingestionRoutes)
 app.use('/api/rag', ragRoutes)
 app.use('/api/observations', observationRoutes)
+app.use('/api/users', userRoutes)
 
 async function start() {
   await connectDb()

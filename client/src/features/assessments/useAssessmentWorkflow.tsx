@@ -508,6 +508,16 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           },
         ],
       },
+      {
+        label: 'Administration',
+        items: [
+          {
+            value: 'users',
+            label: 'User accounts',
+            icon: 'users',
+          },
+        ],
+      },
     ]
 
     const q = s.q.trim().toLowerCase()
@@ -844,6 +854,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       isDashboard: sc === 'dashboard',
       isCreate: sc === 'create',
       isField: sc === 'field',
+      isUsers: sc === 'users',
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
@@ -970,7 +981,9 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             ? 'New assessment'
             : sc === 'field'
               ? 'On site'
-              : 'Assessment workspace',
+              : sc === 'users'
+                ? 'Administration'
+                : 'Assessment workspace',
       title:
         sc === 'dashboard'
           ? 'Your assessments'
@@ -978,7 +991,9 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             ? 'Create assessment'
             : sc === 'field'
               ? 'Site observation'
-              : s.captureTarget.site,
+              : sc === 'users'
+                ? 'User accounts'
+                : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · A. Rowe · Week of 11 Apr 2026'
@@ -991,14 +1006,16 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
                 ' · ' +
                 fieldSaved +
                 (fieldSaved === 1 ? ' observation captured' : ' observations captured')
-              : openRow
-                ? [
-                    openRow.id,
-                    openRow.type,
-                    'Assessed ' + openRow.date,
-                    'Lead engineer ' + openRow.eng,
-                  ].join(' · ')
-                : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
+              : sc === 'users'
+                ? 'View and update the account details of your team.'
+                : openRow
+                  ? [
+                      openRow.id,
+                      openRow.type,
+                      'Assessed ' + openRow.date,
+                      'Lead engineer ' + openRow.eng,
+                    ].join(' · ')
+                  : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>

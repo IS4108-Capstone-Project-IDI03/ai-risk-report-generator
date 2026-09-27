@@ -9,6 +9,7 @@ import { Observations } from './screens/Observations'
 import { Generation } from './screens/Generation'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
+import { UserAccounts } from '../accounts/UserAccounts'
 
 export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -265,6 +266,8 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                 {v.isCreate && <CreateAssessment v={v} />}
 
                 {v.isField && <SiteObservation v={v} />}
+
+                {v.isUsers && <UserAccounts narrow={v.stackTable} />}
 
                 {v.isOverview && <Overview v={v} />}
 
