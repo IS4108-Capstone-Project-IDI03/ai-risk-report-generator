@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
-import { Badge, Button, Icon, Input, Select, Textarea } from '../../../design-system'
-import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { Badge, Button, Callout, Icon, Select, Textarea } from '../../../design-system'
+import { VOICE_BADGE, type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
 
 export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
@@ -156,7 +156,129 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     >
                       {v.recHint}
                     </span>
+                    {v.fClips.length > 0 && (
+                      <section
+                        aria-label="Recordings to save"
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          <span>{'Ready to save'}</span>
+                          <span>{v.fClips.length}</span>
+                        </div>
+                        {v.fClips.map((clip) => (
+                          <div
+                            key={clip.id}
+                            style={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '10px 12px',
+                              background: 'var(--surface-card)',
+                              border: '1px solid var(--border-default)',
+                              borderRadius: '8px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: 'grid',
+                                placeItems: 'center',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                background: 'var(--surface-sunken)',
+                                color: 'var(--action-primary)',
+                              }}
+                            >
+                              <Icon name={clip.length ? 'mic' : 'file-audio'} size={16} />
+                            </span>
+                            <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: '14px',
+                                  fontWeight: '500',
+                                  color: 'var(--text-primary)',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {clip.name}
+                              </div>
+                              {!!clip.length && (
+                                <div
+                                  style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: '12px',
+                                    color: 'var(--text-muted)',
+                                  }}
+                                >
+                                  {clip.length}
+                                </div>
+                              )}
+                            </div>
+                            <audio
+                              controls
+                              src={clip.url}
+                              aria-label={'Play ' + clip.name}
+                              style={{ height: '32px', flex: '1 1 180px', minWidth: 0 }}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              iconLeft="trash-2"
+                              aria-label={'Remove ' + clip.name}
+                              disabled={v.recBusy}
+                              onClick={() => v.removeClip(clip)}
+                            />
+                          </div>
+                        ))}
+                      </section>
+                    )}
+                    {!!v.liveVoice && (
+                      <label
+                        className="ds-choice"
+                        style={{
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          color: v.recBusy ? 'var(--text-muted)' : 'var(--action-primary)',
+                          cursor: v.recBusy ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <Icon name="upload" size={16} />
+                        {'Upload audio files'}
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          multiple
+                          onChange={v.uploadRecording}
+                          disabled={v.recBusy}
+                        />
+                      </label>
+                    )}
                   </div>
+                  {!!v.fVoiceError && (
+                    <div role="alert">
+                      <Callout tone="warning" title={v.fVoiceError.title}>
+                        {v.fVoiceError.message}
+                      </Callout>
+                    </div>
+                  )}
                   {!!v.hasTranscript && (
                     <>
                       <div
@@ -318,7 +440,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     onChange={v.setFArea}
                   ></Select>
                   <Select
-                    label="Risk category"
+                    label="COPE category"
                     options={v.catOptions}
                     value={v.fCat}
                     onChange={v.setFCat}
@@ -367,12 +489,13 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     </button>
                   </div>
                 </div>
-                <Input
+                <Select
                   label="Standard reference"
-                  hint="Cited verbatim in the draft"
+                  hint="Optional. The draft cites the matching clause from this standard."
+                  options={v.stdOptions}
                   value={v.fStd}
                   onChange={v.setFStd}
-                ></Input>
+                ></Select>
               </div>
             </div>
             <div
@@ -425,7 +548,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
               }}
             >
               {
-                'Observations recorded here sync to the assessment as evidence. Each one keeps its location, risk category, severity and timestamp, so a generated passage can cite the observation it came from. The same screen runs on a phone on site.'
+                'Observations recorded here sync to the assessment as evidence. Each one keeps its location, COPE category, severity and timestamp, so a generated passage can cite the observation it came from. The same screen runs on a phone on site.'
               }
             </p>
             <div
@@ -521,6 +644,11 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                         >
                           {o.time}
                         </span>
+                        {!!o.voice && VOICE_BADGE[o.voice.status] && (
+                          <Badge tone={VOICE_BADGE[o.voice.status]!.tone}>
+                            {VOICE_BADGE[o.voice.status]!.label}
+                          </Badge>
+                        )}
                       </div>
                       <p
                         style={{

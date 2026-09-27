@@ -5,18 +5,24 @@ import {
   createAssessment as requestCreateAssessment,
   GatewayError,
   listAssessments,
+  retryTranscription,
+  uploadVoiceObservation,
   type Assessment,
   type AssessmentStatus,
+  type VoiceObservation,
 } from './api'
 import { formatDayTime } from './format'
-import type { AssessmentRow, WorkflowState } from './types'
+import type { AssessmentRow, Observation, VoiceClip, WorkflowState } from './types'
 import { useCaptureSession } from './useCaptureSession'
+import { useVoiceObservations } from './useVoiceObservations'
 import {
   initialState,
   CAPTURE_ASSESSMENT,
   JURISDICTIONS,
   ROWS,
   CAT_ICON,
+  COPE_DIMENSION,
+  STANDARD_REFERENCES,
   SEV,
   STANDARDS,
   ENGINEERS,
@@ -58,11 +64,66 @@ function toRow(a: Assessment): AssessmentRow {
     persisted: true,
   }
 }
+// ponytail: the signed-in engineer is fixed until accounts exist (F-04).
+const ME = 'A. Rowe'
+
+const TRANSCRIPTION_TEXT = {
+  transcribing: 'Transcribing the recording…',
+  failed: 'The recording could not be transcribed.',
+}
+function toVoiceEntry(o: VoiceObservation): Observation {
+  const { status, transcript, error } = o.transcription
+  const text =
+    status === 'transcribed'
+      ? transcript || '(No speech was detected.)'
+      : TRANSCRIPTION_TEXT[status]
+  return {
+    icon: 'mic',
+    color: '#8f7dff',
+    // Shown under the category the engineer picked when recording.
+    cat:
+      Object.keys(COPE_DIMENSION).find((c) => COPE_DIMENSION[c] === o.copeDimension) ??
+      'Voice note',
+    time: formatDayTime(new Date(o.recordedAt)),
+    text,
+    area: o.area ?? '',
+    sev: o.severity,
+    std: o.standard ?? '',
+    media: [],
+    detail: text,
+    voice: { id: o.id, status, error, audioUrl: o.audio.url },
+  }
+}
+// Only a note still in progress or needing attention is badged; a transcribed one is the norm.
+export const VOICE_BADGE = {
+  transcribing: { tone: 'info', label: 'Transcribing' },
+  transcribed: null,
+  failed: { tone: 'high', label: 'Transcription failed' },
+} as const
+
+// Why the microphone could not start (CP-03 AC8), then what to do instead.
+function microphoneProblem(error: unknown) {
+  // A DOMException, which is not an Error instance in every browser.
+  const name = (error as { name?: unknown } | null)?.name
+  if (name === 'NotAllowedError' || name === 'SecurityError')
+    return "Microphone access is blocked. Allow it in your browser's site settings, or upload a recording instead."
+  if (name === 'NotFoundError')
+    return 'No microphone was found. Connect one, or upload a recording instead.'
+  return 'The microphone could not be started. Upload a recording instead.'
+}
+
 export function useAssessmentWorkflow(onSignOut: () => void) {
   const [state, updateState] = useState<WorkflowState>(() => structuredClone(initialState))
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [timeouts] = useState(() => new Set<ReturnType<typeof setTimeout>>())
   const capture = useCaptureSession(state.captureTarget.reference, state.screen === 'field')
+  const voice = useVoiceObservations(
+    state.captureTarget.reference,
+    state.screen === 'field' || state.screen === 'assessment',
+  )
+  // The recorder in progress, and a counter naming the clips it makes.
+  const [media] = useState(() => ({ recorder: null as MediaRecorder | null, clips: 0 }))
+  useEffect(() => () => media.recorder?.stream.getTracks().forEach((t) => t.stop()), [media])
   // The work list from the gateway (RV-10); null until it loads, and when the
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
@@ -296,8 +357,109 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     const captureSite = liveCapture?.assessment.site?.name ?? s.captureTarget.site
     // The demo assessment keeps its sample observations; others start empty.
     const isDemoCapture = s.captureTarget.reference === CAPTURE_ASSESSMENT.reference
-    const fieldRecent = isDemoCapture ? s.fRecent : (s.captureObs[s.captureTarget.reference] ?? [])
-    const fieldSaved = isDemoCapture ? s.fSaved : fieldRecent.length
+    const localRecent = isDemoCapture ? s.fRecent : (s.captureObs[s.captureTarget.reference] ?? [])
+    // Voice notes saved on the server come first, then this browser's notes and photos.
+    const voiceEntries = voice.observations.map(toVoiceEntry)
+    const fieldRecent = [...voiceEntries, ...localRecent]
+    const fieldSaved = (isDemoCapture ? s.fSaved : localRecent.length) + voiceEntries.length
+    // Real recording needs a capture session on the server; without one, voice stays simulated.
+    const liveVoice = !!liveCapture
+    // A recording is named by its number; an uploaded file keeps its own name.
+    const addClip = (audio: Blob, name: string | null, length: string | null) => {
+      const id = ++media.clips
+      const clip = {
+        id,
+        name: name ?? 'Recording ' + id,
+        length,
+        audio,
+        url: URL.createObjectURL(audio),
+      }
+      updateState((previous) => ({ ...previous, fClips: [...previous.fClips, clip] }))
+    }
+    const dropClip = (clip: VoiceClip) => {
+      URL.revokeObjectURL(clip.url)
+      updateState((previous) => ({
+        ...previous,
+        fClips: previous.fClips.filter((c) => c.id !== clip.id),
+      }))
+    }
+    // Each clip becomes its own voice note with one transcription (AC3), all
+    // filed under what the form shows. A clip that fails stays for another try.
+    async function saveClips(clips: VoiceClip[]) {
+      const reference = s.captureTarget.reference
+      setState({ fTransBusy: true, fVoiceError: null })
+      let saved = 0
+      let cause: string | null = null
+      for (const clip of clips) {
+        try {
+          await uploadVoiceObservation(reference, clip.audio, {
+            engineer: ME,
+            copeDimension: COPE_DIMENSION[s.fCat],
+            severity: s.fSev,
+            area: s.fArea,
+            standard: s.fStd,
+          })
+          dropClip(clip)
+          saved++
+        } catch (error: unknown) {
+          cause =
+            error instanceof GatewayError && error.status !== null
+              ? error.message
+              : 'The gateway could not be reached.'
+        }
+      }
+      if (saved) voice.reload()
+      const notes = saved === 1 ? 'Voice note' : saved + ' voice notes'
+      setState({
+        fTransBusy: false,
+        fToast: saved ? notes + ' saved to ' + reference + '. Transcribing now.' : null,
+        fVoiceError:
+          cause === null
+            ? null
+            : {
+                title: clips.length - saved === 1 ? 'Recording not saved' : 'Recordings not saved',
+                message: cause + ' They are still listed; press Save observation to try again.',
+              },
+      })
+      if (saved) later(() => setState({ fToast: null }), 3200)
+    }
+    async function retryVoice(id: string) {
+      try {
+        await retryTranscription(id)
+        voice.reload()
+      } catch (error: unknown) {
+        const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
+        toast(cause + ' Try again.', 'warning')
+      }
+    }
+    async function startRecording() {
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch (error: unknown) {
+        setState({
+          fVoiceError: { title: 'Microphone unavailable', message: microphoneProblem(error) },
+        })
+        return
+      }
+      const chunks: Blob[] = []
+      const next = new MediaRecorder(stream)
+      const startedAt = Date.now()
+      next.ondataavailable = (event) => chunks.push(event.data)
+      next.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        media.recorder = null
+        const secs = Math.round((Date.now() - startedAt) / 1000)
+        addClip(
+          new Blob(chunks, { type: next.mimeType || 'audio/webm' }),
+          null,
+          String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0'),
+        )
+      }
+      next.start()
+      media.recorder = next
+      setState({ fRec: true, fSecs: 0, fVoiceError: null })
+    }
 
     /* dashboard rows: demo rows until the gateway answers */
     const serverIds = new Set(serverRows?.map((r) => r.id))
@@ -308,7 +470,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       serverRows
         ? [...s.createdRows.filter((r) => !serverIds.has(r.id)), ...serverRows]
         : [...s.createdRows, ...ROWS]
-    ).filter((r) => (r.engs ?? [r.eng]).includes('A. Rowe'))
+    ).filter((r) => (r.engs ?? [r.eng]).includes(ME))
     // Only the demo assessment has sample workspace content; others show their own details.
     const openRow = isDemoCapture ? null : rows.find((r) => r.id === s.captureTarget.reference)
 
@@ -732,7 +894,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           ],
       obsWide: !narrow,
       obsStack: narrow,
-      obsList: s.fRecent.map((o, i) => {
+      obsList: fieldRecent.map((o, i) => {
         const open = s.obsOpen === i
         const sev = o.sev || 'low'
         const cols = narrow
@@ -748,6 +910,11 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           clock: (o.time || '').split(' ').slice(-1)[0],
           sev,
           sevLabel: sev.charAt(0).toUpperCase() + sev.slice(1),
+          // A voice note also shows where its transcription stands.
+          voiceBadge: o.voice ? VOICE_BADGE[o.voice.status] : null,
+          audioUrl: o.voice?.audioUrl ?? null,
+          voiceError: o.voice?.status === 'failed' ? o.voice.error : null,
+          retryVoice: o.voice ? () => void retryVoice(o.voice!.id) : undefined,
           detail: o.detail || o.text,
           media: (o.media || []).map((n) => ({
             name: n,
@@ -774,7 +941,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           obsOpen: s.obsOpen === k ? null : k,
         })
       },
-      obsCountLabel: 'Showing 1–' + s.fRecent.length + ' of ' + s.fSaved + ' observations',
+      obsCountLabel: 'Showing 1–' + fieldRecent.length + ' of ' + fieldSaved + ' observations',
       obsNext: () => toast('Later observations are not loaded in this prototype.', 'info'),
       ovStandards: [
         {
@@ -1146,16 +1313,38 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         }),
       waveBars,
       fClock: mm + ':' + ss,
+      liveVoice,
       recLabel: s.fRec
         ? 'Stop recording'
         : s.fTransBusy
-          ? 'Loading transcript…'
-          : 'Start recording',
-      recHint: s.fRec
-        ? 'Simulating recording; your microphone is not accessed.'
-        : s.fTransBusy
-          ? 'Loading the sample transcript.'
-          : 'Demo recording produces a sample transcript; no audio is captured.',
+          ? liveVoice
+            ? 'Saving recording…'
+            : 'Loading transcript…'
+          : liveVoice && s.fClips.length
+            ? 'Record another'
+            : 'Start recording',
+      recHint: liveVoice
+        ? s.fRec
+          ? 'Recording. Stop when you are done; it is added to the list below.'
+          : s.fTransBusy
+            ? 'Uploading the recordings.'
+            : s.fClips.length
+              ? 'Save observation stores and transcribes each one as its own voice note.'
+              : 'Record one or more voice notes, or upload audio files, then Save observation.'
+        : s.fRec
+          ? 'Simulating recording; your microphone is not accessed.'
+          : s.fTransBusy
+            ? 'Loading the sample transcript.'
+            : 'No capture session, so recording is simulated and produces a sample transcript.',
+      fVoiceError: s.fVoiceError,
+      recBusy: s.fRec || s.fTransBusy,
+      uploadRecording: (e: React.ChangeEvent<HTMLInputElement>) => {
+        for (const file of e.target.files ?? []) addClip(file, file.name, null)
+        e.target.value = ''
+        setState({ fVoiceError: null })
+      },
+      fClips: s.fClips,
+      removeClip: dropClip,
       recStyle: {
         display: 'flex',
         alignItems: 'center',
@@ -1173,6 +1362,15 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         cursor: 'pointer',
       } as React.CSSProperties,
       toggleRec: () => {
+        if (s.fTransBusy) return
+        if (liveVoice) {
+          if (media.recorder) {
+            // The clock goes back to 00:00; the clip waits in the list for Save observation.
+            setState({ fRec: false, fSecs: 0 })
+            media.recorder.stop()
+          } else void startRecording()
+          return
+        }
         if (s.fRec) {
           setState({
             fRec: false,
@@ -1239,16 +1437,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         'External yard',
         'Sprinkler valve room',
       ],
-      catOptions: [
-        'Fire protection',
-        'Water supplies',
-        'Business interruption',
-        'Construction',
-        'Electrical',
-        'Security',
-        'Natural hazards',
-        'Housekeeping',
-      ],
+      catOptions: Object.keys(CAT_ICON),
       sevCriticalStyle: chipStyle(s.fSev === 'critical', 'critical'),
       sevHighStyle: chipStyle(s.fSev === 'high', 'high'),
       sevModerateStyle: chipStyle(s.fSev === 'moderate', 'moderate'),
@@ -1258,6 +1447,10 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           fSev: e.currentTarget.dataset.v || 'low',
         }),
       fStd: s.fStd,
+      stdOptions: [
+        { value: '', label: 'None, let the draft find it' },
+        ...STANDARD_REFERENCES.map((name) => ({ value: name, label: name })),
+      ],
       setFStd: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
         setState({
           fStd: e.target.value,
@@ -1265,6 +1458,13 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       fToast: s.fToast,
       fRecent: fieldRecent,
       saveObservation: () => {
+        // A voice note is uploaded now, filed under what the form shows.
+        if (liveVoice && s.fMode === 'voice') {
+          if (s.fTransBusy || s.fRec) return
+          if (s.fClips.length) void saveClips(s.fClips)
+          else setState({ fToast: 'Record a voice note or choose an audio file first.' })
+          return
+        }
         const text =
           s.fNote.trim() ||
           (s.fTrans
@@ -1293,7 +1493,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         setState({
           ...(isDemoCapture
             ? { fRecent: [entry].concat(s.fRecent), fSaved: s.fSaved + 1 }
-            : { captureObs: { ...s.captureObs, [reference]: [entry].concat(fieldRecent) } }),
+            : { captureObs: { ...s.captureObs, [reference]: [entry].concat(localRecent) } }),
           fNote: '',
           fPhotos: [],
           fTrans: false,

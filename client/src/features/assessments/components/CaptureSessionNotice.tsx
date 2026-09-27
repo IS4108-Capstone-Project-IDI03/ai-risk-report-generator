@@ -62,7 +62,9 @@ export function CaptureSessionNotice({
         <span style={mono}>{assessment.reference}</span>
         {'. Started '}
         <span style={mono}>{formatDayTime(new Date(session.startedAt))}</span>
-        {'. Saved observations are not yet stored on the server.'}
+        {
+          '. Voice notes are stored on the server and transcribed; notes and photos stay in this demo.'
+        }
       </Callout>
     )
   } else {

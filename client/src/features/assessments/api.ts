@@ -53,6 +53,27 @@ export type CaptureSession = {
   }
 }
 
+// A voice observation saved on the server (CP-03). The transcription runs
+// after the upload returns, so it starts as 'transcribing'.
+export type TranscriptionStatus = 'transcribing' | 'transcribed' | 'failed'
+export type VoiceObservation = {
+  id: string
+  type: 'voice'
+  engineer: string
+  copeDimension: string
+  standard: string | null
+  severity: string
+  area: string | null
+  recordedAt: string
+  audio: { contentType: string; size: number; url: string }
+  transcription: {
+    status: TranscriptionStatus
+    transcript: string | null
+    error: string | null
+    attempts: number
+  }
+}
+
 export class GatewayError extends Error {
   // HTTP status from the gateway, or null when no response arrived.
   readonly status: number | null
@@ -77,15 +98,22 @@ async function request<T>(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
+  headers: Record<string, string> = {},
 ): Promise<{ status: number; data: T }> {
   let response: Response
   try {
     response = await fetch(path, {
       method,
       signal,
+      // A Blob (a recording) is sent as-is with its own type; anything else as JSON.
       ...(body === undefined
-        ? {}
-        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+        ? { headers }
+        : body instanceof Blob
+          ? { headers: { ...headers, 'Content-Type': body.type }, body }
+          : {
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            }),
     })
   } catch (error: unknown) {
     if (signal?.aborted) throw error
@@ -126,4 +154,53 @@ export async function startCaptureSession(
     signal,
   )
   return { ...data, resumed: status === 200 }
+}
+
+const observationsPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/observations`
+
+// Saves a recording to the assessment's active capture session under a COPE
+// dimension; the server stores the audio and queues its transcription.
+export async function uploadVoiceObservation(
+  reference: string,
+  audio: Blob,
+  details: {
+    engineer: string
+    copeDimension: string
+    severity: string
+    area?: string
+    standard?: string
+  },
+): Promise<VoiceObservation> {
+  // The standard and location go in the query because they are not plain
+  // ASCII (e.g. "Bay 3 — north aisle"), which headers cannot carry.
+  const query = new URLSearchParams()
+  if (details.standard) query.set('standard', details.standard)
+  if (details.area) query.set('area', details.area)
+  const path = observationsPath(reference) + '/voice' + (query.size ? '?' + query : '')
+  return (
+    await request<VoiceObservation>('POST', path, audio, undefined, {
+      'X-Engineer': details.engineer,
+      'X-COPE-Dimension': details.copeDimension,
+      'X-Severity': details.severity,
+    })
+  ).data
+}
+
+export async function listObservations(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<VoiceObservation[]> {
+  return (await request<VoiceObservation[]>('GET', observationsPath(reference), undefined, signal))
+    .data
+}
+
+// Starts a new transcription attempt for a failed recording.
+export async function retryTranscription(id: string): Promise<VoiceObservation> {
+  return (
+    await request<VoiceObservation>(
+      'POST',
+      `/api/observations/${encodeURIComponent(id)}/transcription/retry`,
+    )
+  ).data
 }
