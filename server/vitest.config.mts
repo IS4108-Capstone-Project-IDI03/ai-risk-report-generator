@@ -5,5 +5,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,js,jsx}'],
     fileParallelism: false,
+    // Downloads the in-memory MongoDB binary once, before test files run.
+    globalSetup: ['src/test/global-setup.ts'],
   },
 })
