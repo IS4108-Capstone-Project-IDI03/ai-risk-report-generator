@@ -88,7 +88,7 @@ describe('Capture session (CP-01)', () => {
     await screen.findByText('Capture session started')
     expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
     expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
-    expect(notice).toHaveTextContent('Saved observations are not yet stored on the server.')
+    expect(notice).toHaveTextContent('Voice notes are stored on the server and transcribed')
     expect(
       screen.getByText('Harbourside Cold Store · RPT-2026-0411 · 28 observations captured'),
     ).toBeInTheDocument()
