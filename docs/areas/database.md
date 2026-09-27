@@ -1,6 +1,6 @@
 # Storage and retrieval
 
-- MongoDB stores application records: sites, assessments and capture sessions today; document/report records are planned.
+- MongoDB stores application records: sites, assessments, capture sessions and user accounts today; document/report records are planned.
 - AWS S3 stores original uploaded files.
 - Chroma stores anonymised chunk text, vectors, and citation/filter metadata. Chroma replaces the planned Atlas Vector Search role.
 
@@ -85,6 +85,27 @@ recent site visit first, in two queries (assessments, then their sessions). The
 dashboard filters and searches it in the browser (RV-10) and shows only the
 assessments whose `engineers` include the signed-in user. That user is fixed
 until accounts exist (F-04); the gateway does not paginate or filter by user yet.
+
+## User accounts
+
+`users` holds one profile per team member (F-03): a unique, fixed `staffId`
+(`MRE-0001`), `name`, a unique lowercased `email`, `role`
+(`risk_engineer`, `reviewer` or `knowledge_admin`), optional `jobTitle`,
+`phone` and `office` (a two-letter jurisdiction code), and `active`. There are
+no passwords; sign-in arrives with F-04, which should extend this collection
+rather than add a parallel one.
+
+`GET /api/users` lists accounts by name and `GET /api/users/:id` returns one
+(404 for an unknown or malformed ID). `PUT /api/users/:id` replaces the whole
+editable profile; optional fields sent as `''` are removed. Invalid input
+returns 400 `{ error, fields }` like assessments, and an email another account
+uses returns 409 with `fields.email`. `staffId` cannot be changed. The gateway
+does not yet restrict these routes to knowledge admins (F-04).
+
+`npm --prefix server run seed` inserts four sample accounts (`MRE-0001` to
+`MRE-0004`, `example.com` emails) only when their staff ID is missing, so
+re-seeding keeps edits made on screen. Against the shared Atlas cluster, those
+edits are visible to the whole team.
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
