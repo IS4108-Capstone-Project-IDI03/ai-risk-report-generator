@@ -16,6 +16,7 @@ Chunk (as produced by chunker.chunk and consumed here):
         "headings": list[str],# heading trail; key omitted when the chunk has none
         "page_start":   int,  # present only when known
         "page_end":     int,  # present only when known
+        "bbox":         list[float], # flattened [l, t, r, b] values in page order
     },
 }
 Note: the embedding is NOT a chunk field — index_chunks computes it from `text`.
