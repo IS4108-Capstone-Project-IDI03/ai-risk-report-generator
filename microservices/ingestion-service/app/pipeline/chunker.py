@@ -19,6 +19,7 @@ We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
+import re
 from functools import lru_cache
 
 from docling_core.transforms.chunker import HybridChunker
@@ -38,6 +39,7 @@ MAX_CHUNK_TOKENS = 1024
 # Tokenizer used only to COUNT tokens for boundary decisions (not for embedding).
 # Adjust it for embeding model (Cohere embed)
 CHUNK_TOKENIZER_MODEL = "BAAI/bge-m3"
+_FIRST_PAGES_LIMIT = 10
 
 
 def _has_formula_chunk(dl_chunk) -> bool:
@@ -107,10 +109,7 @@ def _bboxes_match(first: dict, second: dict) -> bool:
     if area_diff_ratio >= 0.1:
         return False
 
-    return all(
-        abs(first["bbox"][idx] - second["bbox"][idx]) <= 2.0
-        for idx in range(4)
-    )
+    return all(abs(first["bbox"][idx] - second["bbox"][idx]) <= 2.0 for idx in range(4))
 
 
 def _bbox_area_deduplication(chunk_bboxes: list[dict]) -> list[dict]:
@@ -123,11 +122,8 @@ def _bbox_area_deduplication(chunk_bboxes: list[dict]) -> list[dict]:
 
 def _unseen_bboxes(bboxes: list[dict], seen_bboxes: list[dict]) -> list[dict]:
     """Return bboxes not already emitted by an earlier table chunk."""
-    return [
-        bbox
-        for bbox in bboxes
-        if not any(_bboxes_match(bbox, seen) for seen in seen_bboxes)
-    ]
+    return [bbox for bbox in bboxes if not any(_bboxes_match(bbox, seen) for seen in seen_bboxes)]
+
 
 def _chunk_bbox(dl_chunk) -> list[dict]:
     """Bounding box of the ENTIRE chunk, one union box per page it spans.
@@ -137,8 +133,8 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
     all the chunk's items (text and formula).
 
     Each entry is ``{"page": int, "bbox": [float, ...], "coord_origin": str}``.
-    NOTE: Docling's origin is bottom-left; a downstream crop (e.g. pdfplumber or
-    a formula-OCR) must reconcile origin (and scale to page size) first.
+    NOTE: Docling's origin is bottom-left; a downstream crop (e.g.
+    OCR) must reconcile origin (and scale to page size) first.
     """
     # page_no -> [origin, l, t, r, b] accumulated to a union rectangle.
     per_page: dict[int, dict] = {}
@@ -245,6 +241,49 @@ def _flatten_bboxes(bboxes: list[dict] | None) -> list[float]:
     return [float(coordinate) for box in bboxes for coordinate in box["bbox"]]
 
 
+def _is_first_pages(bboxes: list[dict]) -> bool:
+    """Whether every provenance box belongs to the document's first few pages."""
+    pages = [box.get("page") for box in bboxes]
+    return bool(pages) and all(
+        isinstance(page, int) and 1 <= page <= _FIRST_PAGES_LIMIT for page in pages
+    )
+
+
+_DOCLING_COLUMN_MARKER_RE = re.compile(r",\s*(?P<column>\d+)\s*=")
+_TOC_LEADER_RE = re.compile(r"[ \t]*(?:[.\-\u2013\u2014][ \t]*){3,}")
+_DOCLING_TRIPLET_RE = re.compile(r"(?P<row>\d+\.)?,\s*(?P<column>\d+)\s*=\s*")
+
+
+def _clean_toc_leaders(text: str) -> str:
+    """Remove table-of-contents leaders and Docling cell markers."""
+    text = _TOC_LEADER_RE.sub(" ", text)
+
+    def replace_triplet(match: re.Match[str]) -> str:
+        if match.group("column") != "1":
+            return " "
+
+        row = match.group("row")
+        following = text[match.end() :].lstrip()
+        if row and not following.startswith("\u2022"):
+            # bullet: keep the row number if it leads a bulleted list, else drop it
+            return f"\n{row} "
+        if row:
+            return "\n"
+
+        preceding = text[: match.start()]
+        if preceding.rstrip()[-1:].isalnum():
+            return " "
+        markers = list(_DOCLING_COLUMN_MARKER_RE.finditer(preceding))
+        if markers and markers[-1].group("column") == "2":
+            return "\n"
+        return " " if "\u2022" in preceding.rsplit("\n", 1)[-1] else "\n"
+
+    text = _DOCLING_TRIPLET_RE.sub(replace_triplet, text)
+    text = re.sub(r"(?P<page>\d+\.)\s+(?=\d+\.\s)", r"\g<page>\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    return re.sub(r" *\n *", "\n", text).strip()
+
+
 def _build_metadata(
     meta,
     doc_id: str,
@@ -321,9 +360,13 @@ def _extract_table_chunk(
     if not parts:
         return None
 
+    text = "\n\n".join(parts)
+    if _is_first_pages(table_bboxes):
+        text = _clean_toc_leaders(text)
+
     return {
         "id": chunk_id,
-        "text": "\n\n".join(parts),
+        "text": text,
         "metadata": _build_metadata(
             meta,
             doc_id,
@@ -438,13 +481,16 @@ def chunk(
                 continue
 
             chunk_bboxes = _chunk_bbox(dl_chunk)
-            if _has_formula_chunk(dl_chunk):
+            has_formula = _has_formula_chunk(dl_chunk)
+            if has_formula:
                 # With formula enrichment OFF, formula text gets replaced with
                 #  <!-- formula-not-decoded -->
                 # formula process in series (appended in reading order when done).
                 formula_chunk = _extract_formula_chunk(chunk_bboxes, str(doc_path))
                 if formula_chunk:
                     text = formula_chunk
+            elif _is_first_pages(chunk_bboxes):
+                text = _clean_toc_leaders(text)
 
             chunks.append(
                 {
