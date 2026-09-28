@@ -7,16 +7,14 @@ and that the summary reports sensible counts. Skips where Docling models are
 unavailable.
 """
 
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from test_file_option import get_fixture
 
 from app import pipeline
 from app.pipeline import embedder, indexer
-
-from test_file_option import get_fixture
 
 FIXTURE = get_fixture()
 TEST_PAGE_RANGE = (1, 5)

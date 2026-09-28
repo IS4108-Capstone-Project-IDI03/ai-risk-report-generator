@@ -20,13 +20,16 @@ IMAGE_DEBUG = False  # set True to pop up a Tkinter window showing the crop befo
 RENDER_DPI = 100
 _PDF_POINTS_PER_INCH = 72
 
+
 def convert_bbox(bbox: tuple, page_obj: pymupdf.Page, coord_origin: str) -> tuple:
     """_summary_
 
     Args:
         bbox (tuple): docling's ``(l, t, r, b)`` for the region.
         page_obj (pymupdf.Page): the page object of the document.
-        coord_origin (str): docling's coord_origin string. Anything containing "TOP" is treated as top-left; everything else is flipped as bottom-left.
+        coord_origin (str): docling's coord_origin string.
+        Anything containing "TOP" is treated as top-left;
+        everything else is flipped as bottom-left.
 
     Returns:
         tuple: return bottom-left origin bbox in PyMuPDF's ``(x0, y0, x1, y1)`` format.
@@ -43,6 +46,7 @@ def convert_bbox(bbox: tuple, page_obj: pymupdf.Page, coord_origin: str) -> tupl
     x_lo, x_hi = min(left, right), max(left, right)
     y_lo, y_hi = min(y0, y1), max(y0, y1)
     return (x_lo, y_lo, x_hi, y_hi)
+
 
 def crop_section(
     document: pymupdf.Document,
@@ -97,11 +101,13 @@ def crop_png(
     pixmap = crop_section(document, bbox, page, coord_origin=coord_origin, dpi=dpi)
     if pixmap is None:
         return None
-    
-    if IMAGE_DEBUG:        
-        import tkinter as tk
-        from PIL import Image, ImageTk
+
+    if IMAGE_DEBUG:
         import io
+        import tkinter as tk
+
+        from PIL import Image, ImageTk
+
         root = tk.Tk()
         root.title(f"Page {page} Crop Preview")
         image = Image.open(io.BytesIO(pixmap.tobytes(output="png")))
@@ -110,5 +116,5 @@ def crop_png(
         label = tk.Label(root, image=photo)
         label.pack()
         root.mainloop()
-    
+
     return pixmap.tobytes(output="png")
