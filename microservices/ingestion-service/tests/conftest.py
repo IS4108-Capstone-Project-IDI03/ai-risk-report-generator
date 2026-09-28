@@ -52,7 +52,7 @@ else:
 
 # Tagged per task, so a mis-routed prompt shows up in a failure message rather
 # than silently looking plausible.
-STUBBED_TABLE_TEXT = "| stubbed | table |"
+STUBBED_TABLE_TEXT = "stubbed table record"
 STUBBED_FORMULA_TEXT = "stubbed-formula"
 
 
@@ -76,9 +76,7 @@ def stub_region_ocr(request):
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: STUBBED_TABLE_TEXT)
-    monkeypatch.setattr(
-        formula_parser, "recognise", lambda image_png, task: STUBBED_FORMULA_TEXT
-    )
+    monkeypatch.setattr(formula_parser, "recognise", lambda image_png, task: STUBBED_FORMULA_TEXT)
     try:
         yield
     finally:

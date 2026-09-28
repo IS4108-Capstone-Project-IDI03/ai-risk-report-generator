@@ -1,13 +1,13 @@
 """One cached GLM-OCR client, shared by the table and formula extractors.
 
-`glmocr.ocr_client.OCRClient` instead of `glmocr.GlmOcr` which 
+`glmocr.ocr_client.OCRClient` instead of `glmocr.GlmOcr` which
 POST an image plus a task prompt to the OCR service and return text. It
 imports nothing heavier than `requests`.
 
 Caching
 -------
 The client is built once per process and reused for every region of every
-document. 
+document.
 
 `lru_cache` guards its own dict but does not serialise the factory, so two
 threads that both miss can both build. FastAPI runs sync endpoints in a
@@ -24,11 +24,13 @@ import base64
 import os
 import threading
 from functools import lru_cache
-from pathlib import Path
 from html.parser import HTMLParser
+from pathlib import Path
 
 from glmocr.config import OCRApiConfig, load_config
 from glmocr.ocr_client import OCRClient
+
+TABLE_HEADER_DETECTION_THRESHOLD = 1.3
 
 # GLM-OCR's own task prompts, copied from the SDK's packaged config.yaml
 # (`pipeline.page_loader.task_prompt_mapping`). The model was trained against
@@ -166,7 +168,7 @@ def _looks_truncated(text: str, task: str) -> bool:
 
 
 def recognise(image_png: bytes, task: str) -> str | None:
-    """Recognise one cropped region, returning Markdown/LaTeX text or None.
+    """Recognise one cropped region, returning table records or LaTeX text.
 
     Args:
         image_png: the region as PNG bytes (see `image_crop.crop_png`).
@@ -224,12 +226,13 @@ def recognise(image_png: bytes, task: str) -> str | None:
         content = (choices[0].get("message", {}).get("content") or "").strip()
         if not content:
             return None
-        
+
         truncated = _looks_truncated(content, task)
 
         if not truncated or max_tokens == token_budgets[-1]:
             if task == "table":
-                content = post_process_deduplication(content)
+                table_html = post_process_deduplication(content) or content
+                content = table_to_records(html_table_to_list(table_html))
             return content
 
         # Output looks truncated — retry with a higher budget if we have one.
@@ -240,8 +243,10 @@ def recognise(image_png: bytes, task: str) -> str | None:
 
     return None  # unreachable but satisfies type checkers
 
+
 def _get_raw_string(raw: str) -> str:
     return "".join(raw.split()).strip()
+
 
 def post_process_deduplication(text: str) -> str:
     tables = text.split("<table")
@@ -256,7 +261,9 @@ def post_process_deduplication(text: str) -> str:
     for idx in range(len(deduplicated_tables)):
         is_partial = False
         for idx2 in range(idx + 1, len(deduplicated_tables)):
-            if _get_raw_string(deduplicated_tables[idx]) in _get_raw_string(deduplicated_tables[idx2]):
+            if _get_raw_string(deduplicated_tables[idx]) in _get_raw_string(
+                deduplicated_tables[idx2]
+            ):
                 is_partial = True
                 break
         if not is_partial:
@@ -272,3 +279,124 @@ def _token_budgets() -> list[int]:
     budgets = [MAX_TOKENS + step * i for i in range(_ADAPTIVE_RETRIES)]
     budgets.append(MAX_TOKENS_RETRY)
     return budgets
+
+
+class TableParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.table = []
+        self.row = None
+        self.cell = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self.row = []
+        elif tag in ("th", "td"):
+            self.cell = []
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in ("th", "td"):
+            self.row.append("".join(self.cell).strip())
+            self.cell = None
+        elif tag == "tr":
+            self.table.append(self.row)
+            self.row = None
+
+
+def html_table_to_list(html: str) -> list[list[str]]:
+    parser = TableParser()
+    parser.feed(html)
+    converted = parser.table
+    return converted
+
+
+def _sum_of_row(row: list[str]) -> int:
+    return sum(len(str(cell)) for cell in row if cell is not None)
+
+
+def _header_detection(table: list[list[str]]) -> tuple[bool, bool]:
+    """Return whether a table has a header and whether it is vertical."""
+    has_header = False
+    vertical_score = 0
+    horizontal_score = 0
+
+    # Check whether the first row is much longer than the remaining rows.
+    first_row = table[0]
+    remaining_rows = table[1:]
+    length_first_row = _sum_of_row(first_row)
+    avg_length_rest_rows = 0
+    for row in remaining_rows:
+        avg_length_rest_rows += _sum_of_row(row)
+    avg_length_rest_rows = avg_length_rest_rows / len(remaining_rows) if remaining_rows else 0
+
+    if avg_length_rest_rows == 0:
+        return (False, True)  # No header, vertical table
+    diff = abs(length_first_row - avg_length_rest_rows)
+    if (
+        diff > avg_length_rest_rows * 1.5
+        or diff > length_first_row * TABLE_HEADER_DETECTION_THRESHOLD
+    ):
+        has_header = True
+        avg_row_length = (avg_length_rest_rows + length_first_row) / 2
+        vertical_score = diff / avg_row_length if avg_row_length > 0 else 0
+
+    # Check whether the first column is much longer than the other columns.
+    first_col = [row[0] for row in table]
+    remaining_cols = [row[1:] for row in table]
+    length_first_col = _sum_of_row(first_col)
+    length_rest_cols = []
+
+    for col in zip(*remaining_cols):
+        length_rest_cols.append(_sum_of_row(col))
+    avg_length_rest_cols = sum(length_rest_cols) / len(length_rest_cols) if length_rest_cols else 0
+
+    if avg_length_rest_cols == 0:
+        return (False, False)  # No header, horizontal table
+    diff = abs(length_first_col - avg_length_rest_cols)
+    if (
+        diff > avg_length_rest_cols * 1.5
+        or diff > length_first_col * TABLE_HEADER_DETECTION_THRESHOLD
+    ):
+        has_header = True
+        avg_col_length = (avg_length_rest_cols + length_first_col) / 2
+        horizontal_score = diff / avg_col_length if avg_col_length > 0 else 0
+
+    if has_header is False:
+        return (False, True)  # No header, vertical table
+    if vertical_score > horizontal_score:
+        return (has_header, True)  # Header exists, vertical table
+    return (has_header, False)  # Header exists, horizontal table
+
+
+def table_to_records(table: list[list[str]]) -> str:
+    if table is None or len(table) < 1:
+        return ""
+
+    has_header, is_vertical = _header_detection(table)
+    if is_vertical:
+        table = list(map(list, zip(*table)))
+
+    if not has_header:
+        table = [["" for _ in range(len(table[0]))]] + table
+
+    header, *body = table
+    records = []
+
+    for row in enumerate(body, start=1):
+        fields = []
+        for index, value in enumerate(row[1]):
+            column = header[index] if index < len(header) else ""
+            if column and value:
+                fields.append(f"{column}: {value}")
+            elif value:
+                fields.append(f"{value}")
+
+        record = "; ".join(fields)
+        if record:
+            records.append(record)
+
+    return "\n".join(records)
