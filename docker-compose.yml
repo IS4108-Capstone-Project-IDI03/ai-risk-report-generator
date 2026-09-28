@@ -117,7 +117,7 @@ services:
       HF_HUB_OFFLINE: "1"
     volumes:
       # Mount the test fixture PDFs (excluded from the image by .dockerignore).
-      - ./microservices/ingestion-service/tests/FM_Standard_File:/app/tests/FM_Standard_File:ro
+      - ./microservices/ingestion-service/tests/test_files:/app/tests/test_files:ro
       # Mount the host Hugging Face model cache so Docling finds its weights
       # without downloading them inside the container.
       - ${HUGGINGFACE_CACHE:-~/.cache/huggingface}:/root/.cache/huggingface:ro
