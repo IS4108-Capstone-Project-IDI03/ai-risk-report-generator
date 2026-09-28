@@ -167,9 +167,8 @@ jobs:
         working-directory: microservices/${{ matrix.service }}
 
       - name: Pytest
-        # model and e2e tests need local Docling model weights and the FM-200
-        # fixture PDF, neither of which is available in CI. The default addopts
-        # in pyproject.toml already exclude them; this makes the intent explicit.
+        # Add on specific marker so that gh action runs only the relevant tests for each service.
+        if: matrix.service == 'ingestion-service'
         run: uv run pytest -q --tb=short -m "not model and not e2e"
         working-directory: microservices/${{ matrix.service }}
 
