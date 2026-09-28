@@ -25,6 +25,7 @@ import os
 import threading
 from functools import lru_cache
 from pathlib import Path
+from html.parser import HTMLParser
 
 from glmocr.config import OCRApiConfig, load_config
 from glmocr.ocr_client import OCRClient
@@ -44,12 +45,12 @@ TASK_PROMPTS = {
 CONFIG_PATH = Path(__file__).resolve().parents[3] / "config.yml"
 
 # Generation parameters. These are tuned for table/formula OCR on CPU via
-MAX_TOKENS = 1200
-MAX_TOKENS_RETRY = 1600
+MAX_TOKENS = 300
+MAX_TOKENS_RETRY = 1200
 _ADAPTIVE_RETRIES = 2
 
-TEMPERATURE = 0.1
-REPEAT_PENALTY = 1.2
+TEMPERATURE = 0.0
+REPEAT_PENALTY = 1.05
 
 _BUILD_LOCK = threading.Lock()
 
@@ -210,6 +211,7 @@ def recognise(image_png: bytes, task: str) -> str | None:
             # maps that key to Ollama's "repeat_penalty" option. Using Ollama's native
             # name directly would be silently dropped by the converter.
             "repetition_penalty": REPEAT_PENALTY,
+            "stop": ["</table>"],
         }
 
         response, status = ocr_client().process(payload)
@@ -223,7 +225,11 @@ def recognise(image_png: bytes, task: str) -> str | None:
         if not content:
             return None
         
-        if not _looks_truncated(content, task):
+        truncated = _looks_truncated(content, task)
+
+        if not truncated or max_tokens == token_budgets[-1]:
+            if task == "table":
+                content = post_process_deduplication(content)
             return content
 
         # Output looks truncated — retry with a higher budget if we have one.
@@ -233,6 +239,30 @@ def recognise(image_png: bytes, task: str) -> str | None:
             return content
 
     return None  # unreachable but satisfies type checkers
+
+def _get_raw_string(raw: str) -> str:
+    return "".join(raw.split()).strip()
+
+def post_process_deduplication(text: str) -> str:
+    tables = text.split("<table")
+    hashmap = {}
+    for table in tables:
+        if "</table>" in table:
+            hashmap[hash(table)] = table
+    deduplicated_tables = list(hashmap.values())
+
+    full_tables = []
+    deduplicated_tables = sorted(deduplicated_tables, key=len, reverse=True)
+    for idx in range(len(deduplicated_tables)):
+        is_partial = False
+        for idx2 in range(idx + 1, len(deduplicated_tables)):
+            if _get_raw_string(deduplicated_tables[idx]) in _get_raw_string(deduplicated_tables[idx2]):
+                is_partial = True
+                break
+        if not is_partial:
+            full_tables.append("<table" + deduplicated_tables[idx])
+    return "\n".join(full_tables)
+
 
 def _token_budgets() -> list[int]:
     """Sequence of max_token values to try: [MAX_TOKENS, ..., MAX_TOKENS_RETRY]"""
