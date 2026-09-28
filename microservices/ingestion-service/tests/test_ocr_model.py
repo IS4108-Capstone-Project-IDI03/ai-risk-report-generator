@@ -15,6 +15,8 @@ from app.pipeline.chunking_helper import ocr_model
 
 # Fake table image
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
+HTML_TABLE = "<table><tr><th>Agent</th><th>Qty</th></tr><tr><td>FM-200</td><td>2</td></tr></table>"
+TABLE_RECORDS = "Agent: FM-200; Qty: 2"
 
 
 class _FakeClient:
@@ -26,7 +28,7 @@ class _FakeClient:
         self.config = config
         self.payloads: list[dict] = []
         self.stopped = False
-        self.reply = ({"choices": [{"message": {"content": "| a | b |"}}]}, 200)
+        self.reply = ({"choices": [{"message": {"content": HTML_TABLE}}]}, 200)
         _FakeClient.instances.append(self)
 
     def process(self, payload):
@@ -158,7 +160,57 @@ def test_unknown_task_is_a_programming_error(fake_client):
 
 
 def test_returns_recognised_text(fake_client):
-    assert ocr_model.recognise(PNG, "table") == "| a | b |"
+    assert ocr_model.recognise(PNG, "table") == TABLE_RECORDS
+
+
+def test_table_html_is_converted_to_records(fake_client):
+    client = ocr_model.ocr_client()
+    client.reply = (
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            "<table><tr><th>Control</th><th>X</th></tr>"
+                            "<tr><td>Alarm</td><td>Y</td></tr></table>"
+                        )
+                    }
+                }
+            ]
+        },
+        200,
+    )
+
+    assert ocr_model.recognise(PNG, "table") == "Control: Alarm; X: Y"
+
+
+def test_html_table_parser_extracts_cell_rows():
+    html = "<table><tr><th>A</th><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+
+    assert ocr_model.html_table_to_list(html) == [["A", "B"], ["1", "2"]]
+
+
+def test_table_records_handle_rows_with_different_column_counts():
+    table = [[""], ["Development"], ["Location Surveyed", "ADDRESS"]]
+
+    assert ocr_model.table_to_records(table) == ("Development\nLocation Surveyed; ADDRESS")
+
+
+def test_duplicate_table_outputs_are_reduced_to_one_complete_table():
+    first = "<table><tr><td>A</td></tr></table>"
+    duplicate = "<table><tr><td>A</td></tr></table>"
+
+    result = ocr_model.post_process_deduplication(first + duplicate)
+
+    assert result == first
+
+
+def test_formula_html_like_text_is_returned_unchanged(fake_client):
+    client = ocr_model.ocr_client()
+    formula = r"\frac{x}{y}"
+    client.reply = ({"choices": [{"message": {"content": formula}}]}, 200)
+
+    assert ocr_model.recognise(PNG, "formula") == formula
 
 
 def test_non_200_status_returns_none(fake_client):
@@ -234,19 +286,19 @@ def test_blank_env_override_is_ignored(monkeypatch):
 
 
 def test_complete_table_is_not_truncated():
-    text = "| A | B |\n|---|---|\n| 1 | 2 |"
+    text = "<table><tr><td>A</td><td>B</td></tr></table>"
     assert ocr_model._looks_truncated(text, "table") is False
 
 
 def test_table_missing_closing_pipe_is_truncated():
-    # Last row ends mid-cell — generation was cut off.
-    text = "| A | B |\n|---|---|\n| 1 | 2"
+    # The table has an opening tag but no closing tag.
+    text = "<table><tr><td>A</td><td>B</td></tr>"
     assert ocr_model._looks_truncated(text, "table") is True
 
 
 def test_table_with_only_header_row_is_not_truncated():
-    # Single-row table still ends with |.
-    text = "| A | B |"
+    # A single-row HTML table is still complete.
+    text = "<table><tr><th>A</th><th>B</th></tr></table>"
     assert ocr_model._looks_truncated(text, "table") is False
 
 
@@ -277,24 +329,27 @@ def test_empty_output_not_truncated():
 def test_complete_table_needs_no_retry(fake_client):
     """A complete table is returned on the first call with no retry."""
     client = ocr_model.ocr_client()
-    client.reply = ({"choices": [{"message": {"content": "| A | B |\n| 1 | 2 |"}}]}, 200)
+    client.reply = ({"choices": [{"message": {"content": HTML_TABLE}}]}, 200)
 
     result = ocr_model.recognise(PNG, "table")
 
-    assert result == "| A | B |\n| 1 | 2 |"
+    assert result == TABLE_RECORDS
     assert len(client.payloads) == 1
 
 
 def test_truncated_table_retries_with_higher_token_budget(fake_client):
     """A truncated table triggers a retry with a larger max_tokens."""
     client = ocr_model.ocr_client()
-    replies = iter([
-        ({"choices": [{"message": {"content": "| A | B |\n| 1 | 2"}}]}, 200),   # truncated
-        ({"choices": [{"message": {"content": "| A | B |\n| 1 | 2 |"}}]}, 200), # complete
-    ])
+    replies = iter(
+        [
+            (
+                {"choices": [{"message": {"content": "<table><tr><th>A</th><th>B</th></tr>"}}]},
+                200,
+            ),  # truncated
+            ({"choices": [{"message": {"content": HTML_TABLE}}]}, 200),  # complete
+        ]
+    )
     client.reply = None
-
-    original_process = client.process
 
     def patched_process(payload):
         client.payloads.append(payload)
@@ -304,7 +359,7 @@ def test_truncated_table_retries_with_higher_token_budget(fake_client):
 
     result = ocr_model.recognise(PNG, "table")
 
-    assert result == "| A | B |\n| 1 | 2 |"
+    assert result == TABLE_RECORDS
     assert len(client.payloads) == 2
     # Second call must use a higher token budget.
     assert client.payloads[1]["max_tokens"] > client.payloads[0]["max_tokens"]
@@ -314,7 +369,7 @@ def test_still_truncated_after_all_retries_returns_best_effort(fake_client):
     """If all retries produce truncated output, return the last result rather
     than None — partial content is better than discarding the region."""
     client = ocr_model.ocr_client()
-    partial = "| A | B |\n| 1 | 2"
+    partial = "<table><tr><th>Control</th><th>X</th></tr><tr><td>Alarm</td><td>Y</td></tr>"
     call_count = 0
 
     def always_truncated(payload):
@@ -327,8 +382,8 @@ def test_still_truncated_after_all_retries_returns_best_effort(fake_client):
 
     result = ocr_model.recognise(PNG, "table")
 
-    # Must not return None — a partial table is still useful for retrieval.
-    assert result == partial
+    # Must return record text rather than leaking incomplete HTML.
+    assert result == "Control: Alarm; X: Y"
     # Must have tried more than once.
     assert call_count > 1
 

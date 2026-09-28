@@ -13,6 +13,7 @@ which pages it was asked to decode.
 from types import SimpleNamespace
 
 from app.pipeline import chunker
+from app.pipeline.parser import ParsedDocument
 
 
 def _prov(
@@ -79,7 +80,7 @@ def test_chunk_bbox_unions_multiple_items_on_same_page():
     )
     (box,) = chunker._chunk_bbox(chunk)
     assert box["page"] == 5
-    assert box["bbox"] == (40, 320, 160, 260)
+    assert box["bbox"] == [40.0, 320.0, 160.0, 260.0]
 
 
 def test_chunk_bbox_carries_coord_origin():
@@ -135,3 +136,35 @@ def test_multi_page_formula_decodes_every_page(monkeypatch):
 
     # Both pages of the multi-page formula should be decoded, in order.
     assert seen == [5, 6]
+
+
+def test_chunk_replaces_formula_placeholder_and_keeps_bbox_metadata(monkeypatch):
+    formula_item = _formula_item(_prov(5, 40, 380, 160, 340))
+    dl_chunk = SimpleNamespace(
+        text="<!-- formula-not-decoded -->",
+        meta=SimpleNamespace(doc_items=[formula_item], headings=[]),
+    )
+    doc = SimpleNamespace(iterate_items=lambda with_groups=False: [])
+    fake_chunker = SimpleNamespace(chunk=lambda dl_doc: [dl_chunk])
+    monkeypatch.setattr(chunker, "_chunker", lambda: fake_chunker)
+    monkeypatch.setattr(chunker, "_extract_formula_chunk", lambda boxes, path: r"\frac{x}{y}")
+    monkeypatch.setattr(chunker, "close_document", lambda: None)
+
+    result = chunker.chunk(
+        ParsedDocument(doc_name="manual.pdf", docling_document=doc),
+        doc_path="manual.pdf",
+        doc_id="fm200",
+    )
+
+    assert result == [
+        {
+            "id": "fm200:0",
+            "text": r"\frac{x}{y}",
+            "metadata": {
+                "doc_id": "fm200",
+                "page_start": 5,
+                "page_end": 5,
+                "bbox": [40.0, 380.0, 160.0, 340.0],
+            },
+        }
+    ]

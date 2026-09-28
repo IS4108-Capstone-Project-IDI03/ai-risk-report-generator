@@ -1,7 +1,7 @@
 """Table region decoding (IN-03, Phase 3).
 
 `parse_table` crops a table bbox out of the PDF and asks GLM-OCR to re-read it as
-Markdown. The OCR call is faked so the crop/guard/return contract is exercised
+record text. The OCR call is faked so the crop/guard/return contract is exercised
 without a model or a network. A one-page PDF is generated per test.
 """
 
@@ -12,7 +12,7 @@ from app.pipeline.chunking_helper import page_cache, table_parser
 
 PAGE_WIDTH = 300
 PAGE_HEIGHT = 400
-MARKDOWN = "| Agent | Qty |\n| --- | --- |\n| FM-200 | 2 |"
+TABLE_RECORDS = "Agent: FM-200; Qty: 2"
 
 
 @pytest.fixture(autouse=True)
@@ -35,12 +35,12 @@ def pdf_path(tmp_path):
 
 @pytest.fixture
 def fake_recognise(monkeypatch):
-    """Record what the OCR layer was asked to read, and return canned Markdown."""
+    """Record what the OCR layer was asked to read, and return canned records."""
     calls: list[dict] = []
 
     def _recognise(image_png, task):
         calls.append({"image": image_png, "task": task})
-        return MARKDOWN
+        return TABLE_RECORDS
 
     monkeypatch.setattr(table_parser, "recognise", _recognise)
     return calls
@@ -49,8 +49,8 @@ def fake_recognise(monkeypatch):
 # --- happy path ---------------------------------------------------------------
 
 
-def test_returns_markdown_from_ocr(pdf_path, fake_recognise):
-    assert parse(pdf_path) == MARKDOWN
+def test_returns_records_from_ocr(pdf_path, fake_recognise):
+    assert parse(pdf_path) == TABLE_RECORDS
 
 
 def parse(pdf_path, bbox=(40, 180, 260, 240), page=1, **kwargs):
@@ -78,7 +78,7 @@ def test_reuses_the_shared_document_handle(pdf_path, fake_recognise):
 
 def test_coord_origin_is_forwarded(pdf_path, fake_recognise):
     """A top-left bbox must not be flipped; both origins should still decode."""
-    assert parse(pdf_path, coord_origin="TOPLEFT") == MARKDOWN
+    assert parse(pdf_path, coord_origin="TOPLEFT") == TABLE_RECORDS
     assert len(fake_recognise) == 1
 
 
