@@ -5,9 +5,8 @@ parsed once per module and shared across the structural assertions. Fast tests
 that don't need conversion (error path, section-stack logic) run separately.
 """
 
-from pathlib import Path
-
 import pytest
+from test_file_option import get_fixture
 
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.parser import (
@@ -17,8 +16,6 @@ from app.pipeline.parser import (
     _update_section_stack,
     parse,
 )
-
-from test_file_option import get_fixture
 
 FIXTURE = get_fixture()
 
