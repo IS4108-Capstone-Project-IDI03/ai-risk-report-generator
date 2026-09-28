@@ -15,7 +15,7 @@ from app.pipeline.chunker import chunk
 # from app.pipeline.chunker_with_display import chunk
 from app.pipeline.parser import ParsedDocument, parse
 
-FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
+FIXTURE = get_fixture()
 
 # Small slice so the real parse+chunk stays fast (see test_parser for rationale).
 TEST_PAGE_RANGE: tuple[int, int] = (1, 10)
