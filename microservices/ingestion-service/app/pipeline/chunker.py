@@ -10,6 +10,7 @@ Docling chunk metadata is mapped as:
 
 ``headings`` is stored as the raw list (outermost -> nearest heading).
 ``page_start`` / ``page_end`` are ints (present only when page provenance is known)
+``bbox`` is a flat list of float coordinates, in page order, when provenance is known.
 ``doc_id`` is the foreign key back to the source document BUT not implemented yet.
 
 Chunk sizing: Defaults to 512-token and triggers overflow, warnings on long chunks.
@@ -50,36 +51,83 @@ def _has_formula_chunk(dl_chunk) -> bool:
     return has_formula
 
 
-def _detect_bboxes(item_label: DocItemLabel, dl_chunk) -> list[dict]:
-    """Bounding boxes of the items in `dl_chunk` carrying `item_label`.
+def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk) -> list[dict]:
+    """Bounding boxes of items in `dl_chunk`, optionally filtered by label.
 
-    Each entry is ``{"page": int, "bbox": (l, t, r, b), "coord_origin": str}``
+    Each entry is ``{"page": int, "bbox": [float, ...], "coord_origin": str}``
     taken straight from Docling provenance. Docling's origin is normally
     bottom-left; `image_crop` reconciles that against the page height.
 
-    Items whose label does not match are skipped. A chunk usually mixes a table
-    with the text around it, so without the filter the returned boxes would
-    cover that neighbouring prose and the crop would be far too large.
+    When no label is supplied, each entry also carries ``is_table`` and the
+    source item's ``text``. Text is attached only to the first provenance box
+    for an item so multi-box items are not emitted repeatedly.
     """
 
     boxes: list[dict] = []
     for item in getattr(dl_chunk.meta, "doc_items", None) or []:
-        if getattr(item, "label", None) != item_label:
+        item_label_value = getattr(item, "label", None)
+        if item_label is not None and item_label_value != item_label:
             continue
 
-        for prov in getattr(item, "prov", None) or []:
+        for prov_index, prov in enumerate(getattr(item, "prov", None) or []):
             bbox = getattr(prov, "bbox", None)
             if bbox is None:
                 continue
             boxes.append(
                 {
                     "page": getattr(prov, "page_no", None),
-                    "bbox": (bbox.l, bbox.t, bbox.r, bbox.b),
+                    "bbox": [float(bbox.l), float(bbox.t), float(bbox.r), float(bbox.b)],
                     "coord_origin": str(getattr(bbox, "coord_origin", "")),
+                    "is_table": item_label_value == DocItemLabel.TABLE,
+                    "text": getattr(item, "text", "") if prov_index == 0 else "",
                 }
             )
-    return boxes
+    return _bbox_area_deduplication(boxes)
 
+
+def _bbox_area(chunk_bbox: dict) -> float:
+    left, top, right, bottom = chunk_bbox["bbox"]
+    return abs(right - left) * abs(bottom - top)
+
+
+def _bboxes_match(first: dict, second: dict) -> bool:
+    """Whether two provenance boxes are close enough to represent one region."""
+    if first["page"] != second["page"]:
+        return False
+    if first.get("is_table", True) != second.get("is_table", True):
+        return False
+
+    first_area = _bbox_area(first)
+    second_area = _bbox_area(second)
+    largest_area = max(first_area, second_area)
+    if largest_area == 0:
+        return first["bbox"] == second["bbox"]
+
+    area_diff_ratio = abs(first_area - second_area) / largest_area
+    if area_diff_ratio >= 0.1:
+        return False
+
+    return all(
+        abs(first["bbox"][idx] - second["bbox"][idx]) <= 2.0
+        for idx in range(4)
+    )
+
+
+def _bbox_area_deduplication(chunk_bboxes: list[dict]) -> list[dict]:
+    deduplicated_bboxes: list[dict] = []
+    for chunk_bbox in chunk_bboxes:
+        if not any(_bboxes_match(chunk_bbox, existing) for existing in deduplicated_bboxes):
+            deduplicated_bboxes.append(chunk_bbox)
+    return deduplicated_bboxes
+
+
+def _unseen_bboxes(bboxes: list[dict], seen_bboxes: list[dict]) -> list[dict]:
+    """Return bboxes not already emitted by an earlier table chunk."""
+    return [
+        bbox
+        for bbox in bboxes
+        if not any(_bboxes_match(bbox, seen) for seen in seen_bboxes)
+    ]
 
 def _chunk_bbox(dl_chunk) -> list[dict]:
     """Bounding box of the ENTIRE chunk, one union box per page it spans.
@@ -88,7 +136,7 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
     `_detect_bboxes(FormulaItem, ...)` returns []. Instead we union the bboxes of
     all the chunk's items (text and formula).
 
-    Each entry is ``{"page": int, "bbox": (l, t, r, b), "coord_origin": str}``.
+    Each entry is ``{"page": int, "bbox": [float, ...], "coord_origin": str}``.
     NOTE: Docling's origin is bottom-left; a downstream crop (e.g. pdfplumber or
     a formula-OCR) must reconcile origin (and scale to page size) first.
     """
@@ -117,14 +165,16 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
                 acc["r"] = max(acc["r"], bbox.r)
                 acc["t"] = max(acc["t"], bbox.t)
                 acc["b"] = min(acc["b"], bbox.b)
-    return [
+    chunk_bboxes = [
         {
             "page": page,
-            "bbox": (a["l"], a["t"], a["r"], a["b"]),
+            "bbox": [float(a["l"]), float(a["t"]), float(a["r"]), float(a["b"])],
             "coord_origin": a["coord_origin"],
         }
         for page, a in sorted(per_page.items())
     ]
+
+    return _bbox_area_deduplication(chunk_bboxes)
 
 
 def _is_table_chunk(dl_chunk) -> bool:
@@ -188,7 +238,19 @@ def _chunk_trail(dl_chunk, trails: dict[str, list[str]]) -> list[str]:
     return []
 
 
-def _build_metadata(meta, doc_id: str, headings: list[str] | None = None) -> dict:
+def _flatten_bboxes(bboxes: list[dict] | None) -> list[float]:
+    """Flatten per-page bbox coordinates into Chroma-safe metadata values."""
+    if not bboxes:
+        return []
+    return [float(coordinate) for box in bboxes for coordinate in box["bbox"]]
+
+
+def _build_metadata(
+    meta,
+    doc_id: str,
+    headings: list[str] | None = None,
+    bboxes: list[dict] | None = None,
+) -> dict:
     # Prefer the nested trail computed from heading levels (passed in); fall back
     # to Docling's flat per-chunk headings only if no trail was provided.
     if headings is None:
@@ -208,6 +270,9 @@ def _build_metadata(meta, doc_id: str, headings: list[str] | None = None) -> dic
     if page_start is not None:
         metadata["page_start"] = page_start
         metadata["page_end"] = page_end
+    bbox_coordinates = _flatten_bboxes(bboxes)
+    if bbox_coordinates:
+        metadata["bbox"] = bbox_coordinates
     return metadata
 
 
@@ -224,7 +289,9 @@ def _extract_table_chunk(
     Called IN SERIES the moment a table is detected during chunking, so its
     result can be appended in document (reading) order rather than collected and
     reconciled afterwards. `table_bboxes` carries one page + bounding box per
-    table item (see `_detect_bboxes`).
+    item in the mixed chunk (see `_detect_bboxes`). Only entries labelled as
+    tables are sent to the table parser; other entries contribute their source
+    text directly.
 
     The table is emitted as ONE chunk and never token-split: splitting a table
     mid-row is exactly the failure this path exists to avoid, so a table that
@@ -236,6 +303,12 @@ def _extract_table_chunk(
     """
     parts: list[str] = []
     for box in table_bboxes:
+        if not box.get("is_table", True):
+            text = str(box.get("text", "")).strip()
+            if text:
+                parts.append(text)
+            continue
+
         parsed = parse_table(
             bbox=box["bbox"],
             page=box["page"],
@@ -251,7 +324,12 @@ def _extract_table_chunk(
     return {
         "id": chunk_id,
         "text": "\n\n".join(parts),
-        "metadata": _build_metadata(meta, doc_id, headings=headings),
+        "metadata": _build_metadata(
+            meta,
+            doc_id,
+            headings=headings,
+            bboxes=table_bboxes,
+        ),
     }
 
 
@@ -328,6 +406,7 @@ def chunk(
     section_trails = _build_section_trails(doc)
 
     chunks: list[dict] = []
+    seen_chunk_bboxes: list[dict] = []
     try:
         for n, dl_chunk in enumerate(chunker.chunk(dl_doc=doc)):
             text = (dl_chunk.text or "").strip()
@@ -342,8 +421,11 @@ def chunk(
             if _is_table_chunk(dl_chunk):
                 # Docling's linearised table text is discarded on purpose — it
                 # has already lost the row/column structure.
+                table_bboxes = _unseen_bboxes(_detect_bboxes(None, dl_chunk), seen_chunk_bboxes)
+                if not table_bboxes:
+                    continue
                 table_chunk = _extract_table_chunk(
-                    _detect_bboxes(DocItemLabel.TABLE, dl_chunk),
+                    table_bboxes,
                     doc_path=str(doc_path),
                     doc_id=resolved_doc_id,
                     chunk_id=f"{resolved_doc_id}:table:{n}",
@@ -352,14 +434,15 @@ def chunk(
                 )
                 if table_chunk is not None:
                     chunks.append(table_chunk)
+                    seen_chunk_bboxes.extend(table_bboxes)
                 continue
 
+            chunk_bboxes = _chunk_bbox(dl_chunk)
             if _has_formula_chunk(dl_chunk):
                 # With formula enrichment OFF, formula text gets replaced with
                 #  <!-- formula-not-decoded -->
                 # formula process in series (appended in reading order when done).
-                formula_bboxes = _chunk_bbox(dl_chunk)
-                formula_chunk = _extract_formula_chunk(formula_bboxes, str(doc_path))
+                formula_chunk = _extract_formula_chunk(chunk_bboxes, str(doc_path))
                 if formula_chunk:
                     text = formula_chunk
 
@@ -367,7 +450,12 @@ def chunk(
                 {
                     "id": f"{resolved_doc_id}:{n}",
                     "text": text,
-                    "metadata": _build_metadata(dl_chunk.meta, resolved_doc_id, headings=trail),
+                    "metadata": _build_metadata(
+                        dl_chunk.meta,
+                        resolved_doc_id,
+                        headings=trail,
+                        bboxes=chunk_bboxes,
+                    ),
                 }
             )
     finally:
