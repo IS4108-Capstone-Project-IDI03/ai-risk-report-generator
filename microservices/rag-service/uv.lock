@@ -1441,12 +1441,14 @@ name = "rag-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "black" },
     { name = "chromadb-client" },
     { name = "cohere" },
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
+    { name = "ruff" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1460,6 +1462,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "black", specifier = ">=26.5.1" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.10" },
     { name = "chromadb-client", specifier = "==1.5.5" },
     { name = "cohere", specifier = ">=5.20,<6" },
@@ -1469,6 +1472,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "python-dotenv", specifier = ">=1.0" },
+    { name = "ruff", specifier = ">=0.16.9" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]

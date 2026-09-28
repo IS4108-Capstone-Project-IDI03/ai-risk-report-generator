@@ -14,6 +14,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "cohere>=5.20,<6",
     "chromadb-client==1.5.5",
+    "ruff>=0.16.9",
+    "black>=26.5.1",
 ]
 
 [project.optional-dependencies]

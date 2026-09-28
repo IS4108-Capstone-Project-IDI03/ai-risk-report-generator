@@ -792,12 +792,14 @@ name = "speech-ocr-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "black" },
     { name = "boto3" },
     { name = "fastapi" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
+    { name = "ruff" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -811,6 +813,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "black", specifier = ">=26.5.1" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.10" },
     { name = "boto3", specifier = ">=1.35" },
     { name = "fastapi", specifier = ">=0.115" },
@@ -820,6 +823,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "python-dotenv", specifier = ">=1.0" },
+    { name = "ruff", specifier = ">=0.16.9" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
