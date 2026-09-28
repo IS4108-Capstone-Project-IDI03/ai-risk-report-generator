@@ -1,0 +1,784 @@
+[fm200:table:0] pages=1-2
+bbox=[70.824, 595.562, 413.64200000000005, 546.4057237569061, 295.08, 538.556, 360.356, 527.7928618784531, 70.824, 513.452, 382.922, 491.9257237569061, 70.824, 467.93376, 146.23976000000002, 455.44851977900555, 69.69186426866776, 742.9054979250946, 524.6277523578414, 439.79335448058936, 70.824, 227.13800000000003, 511.2939999999994, 215.03643093922653, 70.824, 207.45799999999997, 520.7020000000001, 125.96643093922648, 70.824, 112.38800000000003, 203.368, 107.00643093922656] headings=['Property Risk Evaluation Report']
+[PROPERTY] Development
+Location Surveyed; [ADDRESS]
+Surveyed By; [NAME], Senior Consultant, Marsh Advisory
+[NAME], Consultant, Marsh Advisory
+Survey Dates; 24 June 2025
+Date Last Surveyed; 21 February 2022
+Site Contacts / In Attendance; [PROPERTY]
+Ms. [NAME], Head, Property Management (SBC)
+Mr. [NAME], Manager, Property Management (SBC)
+Mr. [NAME], Senior Centre Manager ([MANAGEMENT])
+Mr. [NAME], Manager, Operations ([MANAGEMENT])
+Mr. [NAME], Head of Operations ([MANAGEMENT])
+Mr. [NAME], Head of M&E ([MANAGEMENT])
+Mr. [NAME], Residence Manager (ETC)
+Marsh
+Ms. [NAME], Assistant Client Manager, Corporate Services
+File Name & Rev.; [PROPERTY]-PRE Report 2025
+
+[fm200:1] pages=3-4
+bbox=[69.39619050096346, 683.433320045743, 518.1352012521629, 102.24675414749106, 70.02516134377295, 740.8295385684196, 517.9187300345402, 514.5495567426885] headings=['Property Risk Evaluation Report', 'Contents']
+1. Purpose and Scope 1.
+2. Executive Summary 2.
+3. Opportunities for Improvement 4.
+• Risk Assessment Matrix (RAM). 4.
+• Management Programs. 6.
+• Physical Protection 9.
+• Past Opportunities for Improvement. 12.
+4. Risk Quality Ratings and Comments 14.
+5. Management Programs. 28.
+• Management Program Comments. 31.
+6. Construction 32.
+• Construction Narrative. 32.
+• Compartmentalization and Fire Divisions. 33.
+7. Occupancy, Hazards, and Utilities 34.
+• Occupancy. 34.
+• Utilities and Infrastructure. 40.
+8. Fire Protection 42.
+• Automatic Sprinkler Protection. 42.
+• Special Extinguishing Systems. 42.
+• Water Supply Details. 43.
+• Pump Flow Test Data. 44.
+• Wet and Dry Risers. 45.
+• Manual Firefighting Features. 46
+• • Fire Alarm Monitoring Other Manual Firefighting Comments 46 46.
+9. External Exposures 47. • Location Details 47. • Boundary Exposures 47. • Natural Catastrophe Exposures 48.
+10. Security 51.
+11. Business Interruption 53. Site Photos 54
+
+[fm200:2] pages=5-5
+bbox=[70.824, 690.54712, 523.5811199999996, 309.4850329281768] headings=['Property Risk Evaluation Report', 'Purpose and Scope']
+The purpose of this PRE report is to assist [PROPERTY] with the implementation of a Risk Management Strategy to prioritize risk improvements and mitigation strategies for their property, [PROPERTY] Development. It is made on request by Marsh Broking Office. The analysis carried out is based on data provided by a physical review of the location. The report will inform existing and/or prospective insurance markets of physical conditions at this location. This report is based upon conditions and practices observed and information made available to Marsh Risk Consulting at the time of our survey. The report should be used for risk management and insurance placement purposes only.
+The visit comprised of an inspection of main area of the site including the electrical rooms, fire pump room, common areas etc.
+Our visits will use National Fire Protection Association (NFPA), FM Global and local guidelines as technical references. Each site visit included the following activity:
+- Physical tours of occupied spaces to observe storage practices, related property hazards and identify areas not in accordance with the above guidelines.
+- A review of existing loss prevention programs, procedures, reports and documentation to verify status in accordance with corporate standards and practices.
+- Interview relevant staff to gain a perspective on loss prevention programs and implementation to understand issues facing local management.
+- An exit meeting with management to achieve agreement with our conclusions and to develop a recommended action plan.
+This survey also included a review of administrative controls such as inspection, testing, and maintenance of fire protection systems and equipment; impairments to these systems; and fire emergency planning.
+No physical tests were witnessed during the survey.
+
+[fm200:3] pages=6-7
+bbox=[70.824, 690.54712, 526.8124799999996, 98.4750329281768, 70.824, 761.37712, 525.3691999999998, 629.5050329281768] headings=['Property Risk Evaluation Report', 'Executive Summary']
+[PROPERTY] is an integrated mixed-use development which features a 35-storey Grade A premium office tower, a 47-storey tower housing a hotel (Level 1 - 22) and luxury residential spaces (Level 23 - 45), four heritage buildings and four low-rise podium blocks incorporating [club], F&B and retail spaces and 3 basement carpark. The site area for the development is 34,959 m 2 and the total Gross Floor Area (GFA) is 153,067.15 m 2
+The 2 towers, 4 podium blocks, 4 heritage blocks are generally constructed of noncombustible materials. For the 35-storey office tower, the building is generally constructed with reinforced concrete structures (floor plate, beams, columns) with concrete flat roof. The exterior walls of the tower is made of full glazed glass curtain wall with thickness of 33.52mm and aluminum cladding. The surface of the glass curtain is coated with low emissivity coating silver and metal-oxide film, giving the building a blue colour. The interior walls are of masonry construction and internal partition walls in the office spaces are made of mainly drywall gypsum boards. The 47-storey hotel and residences tower is constructed of similar materials to the office tower. The building is generally constructed with reinforced concrete structures (floor plate, beams, columns) with concrete flat roof. The external walls are similarly glass curtain walls while the internal partitions are of masonry walls or drywall gypsum boards. The podium blocks and heritage blocks are generally all constructed of reinforced concrete structures with various exterior walls.
+Sprinkler protection is provided throughout the offices, retail spaces and hotel with the exception of electrical rooms and risers. FM200 fire protection system installed at the server room on Level 3 of [SPACE] and Basement 1 of [PROPERTY] which are activated by cross zone smoke detectors. Gaseous fire protection system as also installed within tenants' office area within [PROPERTY]. Wet chemical suppression system is installed under the kitchen hoods within hotel kitchen and tenant's kitchen and maintained by hotel facility management team and tenants ' third party contractors respectively. Other means of fire protection include wet/dry risers, internal fire hosereels, portable fire extinguishers and manual break glass call points installed at strategic locations throughout the buildings as per local code requirements. Buildings are equipped with dedicated fire alarm systems which are monitored centrally at a 24/7-manned fire command centre, via a decentralized alarm monitoring (DECAM) stations which have direct connections to the local fire brigade.
+There are 8 diesel generator sets, 5 at the generator room on Basement 1 of [PROPERTY] and 3 at the generator room on P04 (Utility Block) roof. Each generator set has a 1000L day tank. There are leak detectors for each day tank which will send a signal to the FCC if any leaks are detected. There are two 20,000L underground diesel storage tanks at Basement 3 of the [PROPERTY] which are estimated to be topped up every 2 years. The diesel is pumped automatically via the diesel transfer pumps on Basement 2 to top up the day tanks when required. The storage of the flammable liquid complies with the Petroleum and Flammable Material Storage License governed under [LOCATION] authority, [LOCATION] Civil Defense Force. The signal of the diesel tank level sensor is sent to BMS and monitored 24/7.
+There is 24/7 security presence and CCTV camera coverage for both internal and external areas. A high standard of risk management programs has been established, including a mature safety management system, formal procedures, self-inspection programs, comprehensive preventive maintenance program for building utility and fire protection equipment.
+Natural catastrophe for the sites are generally low, with the exception of lightning which is adequately addressed via the provision of lightning protection and earthing systems. Building exterior exposures are generally low; the building is situated within non-industrial areas with good spatial separation provided between site boundaries and neighboring third party properties. Overall risk rating for the site is considered to be good risk of its class.
+Opportunities for Improvement were submitted to improve the quality of risk control and loss prevention at the surveyed facilities.
+
+[fm200:4] pages=7-7
+bbox=[70.824, 617.3271199999999, 526.8718399999995, 594.4650329281768] headings=['Property Risk Evaluation Report', 'Executive Summary']
+Marsh Advisory would like to thank [PROPERTY] ' s team for their involvement and assistance in the 1-day survey.
+
+[fm200:5] pages=7-7
+bbox=[70.824, 557.29712, 149.77912, 547.3950329281768] headings=['Property Risk Evaluation Report', 'Executive Summary', 'Changes Since Previous Survey']
+Not applicable.
+
+[fm200:6] pages=7-7
+bbox=[70.824, 510.01712000000003, 146.65912, 500.1150329281768] headings=['Property Risk Evaluation Report', 'Executive Summary', 'Planned Changes / Projects']
+Not applicable.
+
+[fm200:7] pages=7-7
+bbox=[70.824, 468.95712000000003, 143.62176, 459.0550329281768] headings=['Property Risk Evaluation Report', 'Executive Summary', 'Past Losses']
+Not applicable.
+
+[fm200:8] pages=8-8
+bbox=[70.824, 690.54712, 520.4096799999999, 580.5450329281767] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement']
+Opportunities for Improvement (OFI) are suggested to mitigate risks. They are intended to create value and manage risk exposures while maintaining relevance to your business objectives.  The Opportunities for Improvement addresses either specifically identified Risks to Manage SM  or they are suggested as general sound risk management to implement at the location.
+Prioritization of OFI ' s are classified in line with the following indicative Risk Assessment Matrix (RAM). The relative risk associated with each OFI is measures the estimated consequences of the damage versus the likelihood of occurrence.
+
+[fm200:table:9] pages=8-9
+bbox=[70.15746794220586, 545.0143133211475, 525.445220848954, 327.6095562787633, 70.824, 739.29712, 482.53912, 729.3950329281768, 325.34, 694.14712, 471.49912, 684.2450329281768] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Risk Assessment Matrix (RAM)']
+Consequences
+Likelihood; Insignificant; Minor; Moderate; Major; Catastrophic
+Almost Certain; Priority2; Priority2; Priority1; Priority1; Priority1
+Likely; Priority3; Priority2; Priority2; Priority1; Priority1
+Possible; Priority4; Priority3; Priority2; Priority1; Priority1
+Unlikely; Priority4; Priority4; Priority3; Priority2; Priority1
+Very Rare; Priority4; Priority4; Priority3; Priority2; Priority2
+
+[fm200:table:10] pages=10-10
+bbox=[69.75972494650208, 740.3242154909256, 524.634825783544, 314.0573772222016] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Management Programs']
+2025-01: Status; Hot Work Permit- to include clearance for combustibles and firewatch requirement: New; Issue Date; 24-Jun-2025
+2025-01: Priority; Hot Work Permit- to include clearance for combustibles and firewatch requirement: Priority 1; Type; Hot Work Permit
+2025-01: OFI Issued By; Hot Work Permit- to include clearance for combustibles and firewatch requirement: Marsh
+2025-01: Description; Hot Work Permit- to include clearance for combustibles and firewatch requirement: As per NFPA 51B Chapter 5, the existing hot work permit system can be enhanced by incorporating the following precautions:
+• Checks should be made to ensure that any combustibles within 11 meters of the hot work area are removed. If removal is not possible or practical, then the hot work should be separated from the rest of the area with suitable non-combustible shields or covers.
+• The permit form should incorporate the requirement for a constant fire watch to be maintained throughout the duration of the hot work. Moreover, the hot work area and its vicinity should be monitored for any sign of fire in its incipient stage for at least 1 hour after the completion of the established fire watch period.
+• The fire watch should sign off at the end of the hot work after the monitoring of the fire has been completed to facilitate responsibility and accountability.
+2025-01: Observation; Hot Work Permit- to include clearance for combustibles and firewatch requirement: During the review of the hot work checklist on the Permit-to-Work system, it was noted that one of the checks is to verify that there are no combustibles at the designated hot work area. However, the clearance distance allowed was 3m, lower than the recommended 11m. There was also no requirement for fire watch during and after the hot work.
+2025-01: Effort of Implementation; Hot Work Permit- to include clearance for combustibles and firewatch requirement: Moderate Procedural
+
+[fm200:table:11] pages=10-10
+bbox=[69.6277994593678, 292.419418632163, 524.9764844405412, 96.3943439402093] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Management Programs']
+2025-02: Status; Emergency Response Plan(ERP)to include EV Charger and PV Panels Fire Scenario: New; Issue Date; 24-Jun-2025
+2025-02: Priority; Emergency Response Plan(ERP)to include EV Charger and PV Panels Fire Scenario: Priority 4; Type; Pre-Emergency Planning
+2025-02: OFI Issued By; Emergency Response Plan(ERP)to include EV Charger and PV Panels Fire Scenario: Marsh
+2025-02: Description; Emergency Response Plan(ERP)to include EV Charger and PV Panels Fire Scenario: To allow the Emergency Response Team to better respond to fires at the EV charger and PV panels,these scenarios can be included in the ERP together with the actions to be taken.Examples of actions to take for fire at EV charger:Activate emergency stop button near the EV charger(Do not attempt to unplug the charging cable)Pull nearby fire alarm and evacuate
+
+[fm200:table:12] pages=11-11
+bbox=[221.38, 727.50712, 515.9319999999993, 692.1650329281767, 221.38, 687.42712, 509.4625599999995, 639.6027945193371, 221.38, 634.8471199999999, 461.65912, 624.9450329281767, 221.38, 620.2071199999999, 507.53055999999947, 597.5850329281768, 221.38, 592.8471199999999, 418.67912, 582.9450329281767, 221.38, 578.2071199999999, 520.4694399999995, 542.8350329281768, 221.38, 538.3371199999999, 509.4625599999995, 490.292794519337, 69.25532414276329, 484.77293668117204, 525.806453382249, 420.09374930411224] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Management Programs', 'Emergency Response Plan (ERP) to include EV Charger and PV Panels Fire Scenario']
+Observation: Effort of Implementation; During the review of the existing ERP, it was observed that the scenario of fire originating at EV charger and PV panel is not included.: Minor Procedural
+
+[fm200:table:13] pages=11-11
+bbox=[69.83054304801378, 398.33785148131307, 524.7750137636326, 104.52967931172066] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Management Programs', 'Emergency Response Plan (ERP) to include EV Charger and PV Panels Fire Scenario']
+2025-03: Status; Ensure Tenancy Reports are provided to Landlord: New; Issue Date; 24-Jun-2025
+2025-03: Priority; Ensure Tenancy Reports are provided to Landlord: Priority 4; Type; Fire Protection System Maintenance and Testing
+2025-03: OFI Issued By; Ensure Tenancy Reports are provided to Landlord: Marsh
+2025-03: Description; Ensure Tenancy Reports are provided to Landlord: The maintenance reports for the equipment below should be obtained from tenants to ensure the required service is being carried out timely.
+1. Wet chemical suppression system
+2. Gas leak detectors
+3. Servicing of gaseous protection systems
+2025-03: Observation; Ensure Tenancy Reports are provided to Landlord: It was noted that the requirements to install and maintain the wet chemical suppression system and gas leak detectors, and to service the gaseous protection system are written on the tenancy agreement. However, it was stated that copies of the service reports are not maintained.
+2025-03: Client Response; Ensure Tenancy Reports are provided to Landlord: Pending client response
+2025-03: Effort of Implementation; Ensure Tenancy Reports are provided to Landlord: Moderate Procedural
+
+[fm200:table:14] pages=12-13
+bbox=[69.65174087114782, 764.1987169337328, 524.6606803740432, 410.3070815858818, 69.96161484583914, 322.52831302887466, 525.3697913007288, 90.67619831873515, 69.86713735490838, 764.5771828636477, 524.9294705507419, 633.9754493869228] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Management Programs', 'Emergency Response Plan (ERP) to include EV Charger and PV Panels Fire Scenario']
+2025-04: Status; formalize Fire Protection System Impairment Programme: Existing; Issue Date; 24-Jun-2025
+2025-04: Priority; formalize Fire Protection System Impairment Programme: Priority 2; Type; Fire Protection Impairment
+2025-04: OFI Issued By; formalize Fire Protection System Impairment Programme: Marsh
+2025-04: Description; formalize Fire Protection System Impairment Programme: Fire protection systems in place are critical features to detect, suppress,and contain fire. Impairment of these systems can compromise its ability to protect occupants,property,and continuity of the operations.
+As such,checks should be in place prior to impairment of any fire protection system to ensure the necessity of the impairment.The team should work with the fire contractor to reduce the number of fire alarm system isolations to only required isolations and have a proper tracking system for all fire alarm isolations.
+2025-04: Observation; formalize Fire Protection System Impairment Programme: During the visit to the FCC room,it was reported that there are a total of 1451 isolations.
+[Photo]
+System used to track isolation of fire protection system
+2025-04: Effort of Implementation; formalize Fire Protection System Impairment Programme: Moderate Procedural
+
+2025-05: Status; To improve management of fuel day tanks of diesel generator sets: New; Issue Date; 24-Jun-2025
+2025-05: Priority; To improve management of fuel day tanks of diesel generator sets: Priority 2; Type; Management of back up power supply
+2025-05: OFI Issued By; To improve management of fuel day tanks of diesel generator sets: Marsh
+2025-05: Description; To improve management of fuel day tanks of diesel generator sets: Generator sets are critical as they provide reliable backup electrical power in situations where the main power supply is unavailable. Thus, it is important to ensure that the fuel level in the day tanks of diesel generator sets are maintained to support operation during emergencies.
+As the fuel tank is manually topped up, a procedure can be implemented to ensure that the fuel levels are checked regularly and maintained above 75%
+
+2025-05: Observation; To improve management of fuel day tanks of diesel generator sets: During the visit to the generator set at P04,the fuel level of the day tank was noted to be less than 25%.[Photo]Fuel level for day tank at P04
+2025-05: Effort of Implementation; To improve management of fuel day tanks of diesel generator sets: Minor Procedural
+
+[fm200:table:15] pages=13-13
+bbox=[69.98785816986289, 365.23046270737456, 524.8524555795145, 116.85919622643257] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Physical Protection']
+2025-06: Status; Lock Open Hosereel Firewater Valve: New; Issue Date; 24-Jun-2025
+2025-06: Priority; Lock Open Hosereel Firewater Valve: Priority 3; Type; Fire Protection System Operation
+2025-06: OFI Issued By; Lock Open Hosereel Firewater Valve: Marsh
+2025-06: Description; Lock Open Hosereel Firewater Valve: The valves on the hosereel firewater supply line should be locked open to prevent tampering or accidental closing of the valves.
+2025-06: Observation; Lock Open Hosereel Firewater Valve: During the site visit to the L43 hosereel pump room at [PROPERTY], it was observed that the valves were not locked open.
+[Photo]
+L43 Hosereel Pump Room
+2025-06: Effort of Implementation; Lock Open Hosereel Firewater Valve: Minor Capital
+
+[fm200:table:16] pages=14-14
+bbox=[69.93716274491894, 764.424838330774, 524.6668391326291, 475.6465760930077] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Physical Protection']
+2025-07: Status; Install smoke detector within lift motor room: New; Issue Date; 24-Jun-2025
+2025-07: Priority; Install smoke detector within lift motor room: Priority 3; Type; Fire Protection System
+2025-07: OFI Issued By; Install smoke detector within lift motor room: Marsh
+2025-07: Description; Install smoke detector within lift motor room: It is beneficial to install smoke detector within unmanned rooms such as the lift motor room in the [PROPERTY]. These rooms are enclosed and fires starting within the room may go unnoticed. Having smoke detectors will allow for early detection and response to contain the fire and prevent the spread to other areas.
+2025-07: Observation; Install smoke detector within lift motor room: During the site visit to L44 and L47 lift motor room at [PROPERTY], it was observed that there is no smoke detectors installed within the room.
+[Photo]
+[Photo]
+L44 and L47 Lift Motor Room
+2025-07: Effort of Implementation; Install smoke detector within lift motor room: Moderate Capital
+
+[fm200:table:17] pages=14-14
+bbox=[69.86665715467211, 453.80459636189875, 524.6333623161572, 134.51199882163007] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Physical Protection']
+2025-08: Status; Improve housekeeping in electrical rooms: New; Issue Date; 22-Apr-2025
+2025-08: Priority; Improve housekeeping in electrical rooms: Priority 2; Type; Housekeeping
+2025-08: OFI Issued By; Improve housekeeping in electrical rooms: Marsh
+2025-08: Description; Improve housekeeping in electrical rooms: Storage of combustible materials in the L22M LV switch room and MDF room should be removed.
+2025-08: Observation; Improve housekeeping in electrical rooms: The storage of combustible materials can increase the fire loading in the room. In the event of a fire, this may result in a higher-than-expected loss. During the site visit, it was observed that there was storage of tables, tools, cardboard boxes and other items in the Level 22M LV switch room and MDF room.
+[Photo]
+Storage of items in L22M LV Switchroom at [PROPERTY]
+[Photo]
+[Photo]
+Level 22M MDF Room
+2025-08: Effort of Implementation; Improve housekeeping in electrical rooms: Minor Procedural
+
+[fm200:table:18] pages=15-15
+bbox=[69.98129543330046, 764.1460638558212, 524.5914705622117, 457.58478526063317] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Physical Protection']
+2025-09; Ensure room integrity for fire rated room
+Status; New; Issue Date; 24-Jun-2025
+Priority; Priority 2; Type; Fire Protection System
+OFI Issued By; Marsh
+Description; Rooms with fire rated construction such as LV switch rooms should be properly sealed with fire stop material. This will ensure that the integrity of the fire compartment is maintained and the effectiveness of the fire rating.
+Observation; During the site visit to L22M MDF Room at [PROPERTY] and L32M LV switch room at [PROPERTY], it was observed that the cable penetration was improperly sealed.
+[Photo]
+L22M [PROPERTY] MDF Room
+[Photo]
+[Photo]
+L32M [PROPERTY] LV switch room
+Effort of Implementation; Moderate Capital
+
+[fm200:table:19] pages=15-16
+bbox=[69.64826513610431, 435.2676004398011, 524.8447113979263, 89.14881659645937, 70.07367681208873, 764.5768548308529, 525.0199006396813, 660.7008609639437] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Physical Protection']
+2025-10: Status; Replace Concealed Sprinkler Cover Plates: New; Issue Date; 24-Jun-2025
+2025-10: Priority; Replace Concealed Sprinkler Cover Plates: Priority 2; Type; Fire Protection System
+2025-10: OFI Issued By; Replace Concealed Sprinkler Cover Plates: Marsh
+2025-10: Description; Replace Concealed Sprinkler Cover Plates: The cover plates on the concealed sprinkler heads should be installed to ensure that the sprinklers are protected from dust and debris and to ensure accurate thermal response. If the sprinkler cover plate has dropped, it would also be ideal to check if the sprinkler heads are installed correctly. Cover plates should also not be painted over as this will affect the temperature rating of the cover plate which may result in the delayed activation of the sprinkler in times of fire.
+As per CP52 Annex C.4, it is recommended to carry out a quarterly visual check (from ground level) of the sprinklers. Carrying out this check will allow for such issues to be quickly identified and rectified.
+2025-10: Observation; Replace Concealed Sprinkler Cover Plates: During the site visit, it was observed that there were some sprinkler cover plates that have dropped off and some sprinkler cover plates that were painted over.
+[Photo]
+[Photo]
+
+Replace Concealed Sprinkler Cover Plates: L32 Reading Room at [PROPERTY]
+[Photo]
+L32 Lift Lobby
+2025-10: Effort of Implementation; Replace Concealed Sprinkler Cover Plates: Moderate Capital
+
+[fm200:table:20] pages=16-16
+bbox=[69.58900995139308, 596.2593219037633, 524.7921485276191, 268.96699622364906] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Physical Protection']
+2025-11: Status; To Cap and Adjust Nozzle Heads for Wet Chemical Suppression System: New; Issue Date; 24-Jun-2025
+2025-11: Priority; To Cap and Adjust Nozzle Heads for Wet Chemical Suppression System: Priority 1; Type; Fire Protection System
+2025-11: OFI Issued By; To Cap and Adjust Nozzle Heads for Wet Chemical Suppression System: Marsh
+2025-11: Description; To Cap and Adjust Nozzle Heads for Wet Chemical Suppression System: The nozzle caps on the nozzles of the wet chemical suppression system should be properly capped to prevent the buildup of oil and grime on the nozzle openings. The buildup may affect the spray pattern of the nozzles when activated which will reduce its effectiveness in fire extinguishing.The nozzles should also be directly pointed at the cooking area to ensure that the wet chemical is discharged at the cooking area, else, its purpose will not be served.
+2025-11: Observation; To Cap and Adjust Nozzle Heads for Wet Chemical Suppression System: During the site visit to the L1 Hotel Kitchen, it was found that several of the nozzles for the wet chemical suppression system were not capped or had missing caps. Some nozzles were also found to be pointed away from the cooking area.[Photo]Hotel All Day Dining Kitchen
+2025-11: Effort of Implementation; To Cap and Adjust Nozzle Heads for Wet Chemical Suppression System: Minor Capital
+
+[fm200:table:21] pages=16-17
+bbox=[69.69743611585375, 198.26674401072592, 524.7411710803141, 98.43211417662565, 69.7173606145462, 764.9150947857129, 525.2732634310115, 282.80833237455465] headings=['Property Risk Evaluation Report', 'Opportunities for Improvement', 'Past Opportunities for Improvement']
+Rec No.: Description; MA SBD-22-01: Enhance Fire Protection System Impairment Procedures; MA SBD-22-02: To Verify Smoke Detectors Installed Are Compliance to CP; MA SBD-22-03: Ensure Fire Compartment Integrity – Seal Cable Penetration
+Rec No.: Status; MA SBD-22-01: Completed; MA SBD-22-02: Completed; MA SBD-22-03: Completed
+
+Rec No.: MA SBD-22-04; Description: Concealed Sprinkler Head Maintenance; Status: Completed
+Rec No.: MA SBA-22-05; Description: Ensure Fault & Isolation are tracked and promptly resolved; Status: Completed
+Rec No.: MA SBA-22-06; Description: Consider BCP for Critical Utility Failure; Status: Completed
+Rec No.: MA SBA-22-07; Description: Secure Control Valve for Sprinkler Pump Sensing Line; Status: Completed
+Rec No.: MA SBA-22-08; Description: Ensure Minimum 500mm Clearance From Sprinkler Head; Status: Completed
+Rec No.: MA SBA-22-09; Description: Maintenance of Nozzles for Kitchen Hood Fire Protection; Status: Completed
+Rec No.: 2016-1; Description: Cover battery terminals(LV Switchroom 2,L32M); Status: Completed
+Rec No.: 2016-2; Description: Fire compartmentalization between LV Switchroom 1 and switchroom 2(L32M,Office Tower); Status: Completed
+Rec No.: 2016-3; Description: Reinstate fire stopping; Status: Completed
+Rec No.: 2016-4; Description: Repair Smoke Stop Lobby Door(L21M,Office Tower); Status: Completed
+Rec No.: 2016-5; Description: Smoke Detector Covered(L21,Office Tower); Status: Completed
+Rec No.: 2016-6; Description: Relocate overflow pipe(L21M,Office Tower); Status: Completed
+Rec No.: 2016-7; Description: Remove flammable liquids(B1,Consumer LV Switchroom-Office); Status: Completed
+Rec No.: 2016-8; Description: Prevent unauthorized motorcycles parking and obstructing the doors to the Transformer Room.(B1,Consumer Transformer Room-Common); Status: Completed
+Rec No.: 2016-9; Description: Recommendation for Distribution Boards door enclosures(B2 carpark); Status: Completed
+Rec No.: 2016-10; Description: Recommendation for Hot Works Permit; Status: Completed
+Rec No.: 2016-11; Description: Remove storages within Sprinkler Control Valve(C14,L1); Status: Completed
+Rec No.: 2016-12; Description: Depth Markers for Dive Pool(NCO Building,L1); Status: Completed
+Rec No.: 2016-13; Description: Concealed sprinkler cap plastered cover(Gym,L18); Status: Completed
+Rec No.: 2016-14; Description: Recommendation for the Linen Collection Room; Status: Completed
+
+[fm200:table:22] pages=18-18
+bbox=[70.26063477074541, 661.4878040101692, 353.4695705418939, 482.8292431988569] headings=['Property Risk Evaluation Report', 'Risk Quality Ratings and Comments']
+Main Category: External Exposure; Current Score: 9; Potential Score: 9
+Main Category: Fire Protection; Current Score: 7; Potential Score: 9
+Main Category: Occupancy Hazards; Current Score: 8; Potential Score: 8
+Main Category: Construction; Current Score: 7; Potential Score: 8
+Main Category: Water Supply; Current Score: 10; Potential Score: 10
+Main Category: Surveillance; Current Score: 7; Potential Score: 7
+Main Category: Management Programs; Current Score: 6; Potential Score: 9
+Main Category: Location Risk Quality Score; Current Score: 72.4; Potential Score: 86.0
+Main Category: Location Risk Quality Rating; Current Score: B; Potential Score: A
+
+[fm200:table:23] pages=18-18
+bbox=[400.13649661480184, 660.4739538139288, 516.5494123830092, 554.2176929580796] headings=['Property Risk Evaluation Report', 'Risk Quality Ratings and Comments', 'RQR SCORE BENCHMARKING']
+Rating Legend
+A: 85 to 100
+B: 70 to 84
+C: 51 to 69
+D: 36 to 50
+E: 0 to 35
+
+[fm200:24] pages=19-19
+bbox=[70.824, 520.5771199999999, 520.7923999999997, 354.63503292817677] headings=['Property Risk Evaluation Report', 'Risk Quality Ratings and Comments', 'Risk Quality Rating Comments']
+The positive points from the visit are the following:
+- Buildings were constructed of fire resistive construction materials
+- The buildings are fully sprinklered except for residential areas, electrical rooms and risers.
+- Water monitoring system installed in the open-air podium area and activated via IR/UV sensors provided in the area.
+- Wet chemical suppression system is in place within hotel kitchen and tenants' commercial kitchen.
+- Gaseous fire suppression system is installed within tenants' area and in IT Server Room at Level 3 [SPACE] and at Basement 1 of [PROPERTY] (hotel).
+- Preventive maintenance programmes in place for fire protection and detection equipment.
+- Good housekeeping observed for most areas visited.
+
+[fm200:25] pages=20-20
+bbox=[70.824, 658.14712, 525.2414399999994, 496.27503292817676] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)']
+The Loss Estimates presented here are believed to be reasonable, based on industry experience, events postulated, and information provided by the client. The calculation of Loss Expectancies is based on the review of building construction, operations, fire protection systems, and fire protection features at the time of our assessment.  The estimates are further based on conditions observed at the time of the visit.  By their nature, these estimates contain some element of subjectivity.  Accordingly, the estimates cannot be taken as absolutes and could be exceeded due to changes in physical conditions on site, or the initiating event or escalation being more severe than anticipated within the boundaries of the estimate.
+All damage and loss potential figures presented pertain exclusively to primary property damage, associated contents damage, and associated business interruption recovery time loss, caused directly by (fire or explosion) as defined in our Loss Estimate.
+
+[fm200:table:26] pages=20-20
+bbox=[69.87398973605778, 460.5277734375, 525.0916105416318, 264.41078853362535, 70.824, 239.44711999999993, 519.6993599999993, 203.62503292817678] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)', 'Values ([PROPERTY] Consortium)']
+Date of Values:2025; Property Damage(PD)Values; Office; Retail; Hotel; Total Reported SitePD; Total InsurableValues(TIV)/TotalSumsInsured(TSI)
+Currency:SGD; Business Interruption(BI)Time Element(TE)ValuesIndemnityPeriod(36months); [VALUE]; [VALUE]; [VALUE]; [VALUE]; [VALUE]
+
+[fm200:table:27] pages=21-21
+bbox=[69.28556151319671, 742.138786110776, 524.9669109247195, 183.7784356442993] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)', 'Loss Estimate Definitions']
+Level: Level I; Definition: Primary Protection Systems are functioning and manual firefighting availableA loss event in which damage is based on the nature of hazards and construction factors,and where:All fire protection systems are in service and functioning as designed.Full facility Industrial Fire Brigade(Or Plant Emergency Organization) and MunicipalFire Department response expected.Credit is given to all properly maintained fire barriers up to their design duration ratingConstruction features function as designed.
+Level: Level II; Definition: Primary Protection Systems are not functioning, Manual firefighting response onlyA level II Loss Event is one which occurs when:The fire protection system protection the area with the largest PD/BI potential is impaired or is rendered inoperative or ineffective due to the nature of the event.Adjacent fire protection systems are presumed operational unless renderedinoperative or ineffective due to structural failure.Same applies for the use of specialextinguishing systems.Credit can be given for adequate manual emergency response, defined as:—A responding organization that is trained to address the hazards of the facilitybeing evaluated.—Can arrive on site within a reasonable time of being notified to be effective inreducing or limiting impact.—Has up to date preplans or emergency response plans for the facility.Credit given to minimum adequately maintained(including fire doors and firepenetrations)3 hour rated walls where the combustible loading is light to ordinary,structural failure is not expected,and roof assembly is a listed or approvednoncombustible.Combustible roof construction(including combustible or unknown metal deckassemblies)results in a contiguous structure loss.Damage may be limited to the area where the impaired protection system is located andthe nearby surroundings or may extend to the nearest adequate separation or properlydesigned and approved construction cutoffs,depending on site conditions.
+Level: Level III; Definition: Fire Protection Systems are not functioning and no manual firefighting responseA level III Loss Event is one which occurs when:All fire protection systems throughout the entire site or facility are impaired.No credit is given for manual emergency response.Damage is limited only by adequate separation and/or free-standing4-hours ratedfirewalls or equivalent.(Equivalencies must be well defined and proven.)Combustible roof construction(including combustible or unknown metal deckassemblies)results in a contiguous structure loss.The size of this loss can approach the value of the buildings of origin or an entire facility,depending on site layout.
+
+[fm200:table:28] pages=22-22
+bbox=[70.22609084263745, 712.1315818804743, 524.6664732657823, 394.6806672519856, 69.6360695745481, 372.4524022045724, 524.9609960773648, 295.74838697854807, 69.7605024135513, 273.6727868681339, 524.9495932273097, 219.37417439875298, 69.73159893266308, 197.57107036817104, 525.177040450333, 132.08504437444333] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)', 'Property - Level I Loss Estimate', 'Normal Loss Expectancy']
+Definition: Scenario; Definition: Primary Protection Systems are functioning and manual firefighting available: The NLE scenario is a fire originating from Basement 1 HT switchroom due to fault in electrical fixture/equipment, improperly managed hot work activity, arson, etc. The area is protected by smoke detectors and an alarm will be sent to the FCC room. It is assumed that the fire will spread throughout the HT switchboards within the room. The fire will subsequently be controlled by the CERT members and extinguished by the responding fire brigade.
+Definition: Assumptions; Definition: Primary Protection Systems are functioning and manual firefighting available: Direct fire damage, smoke damage, and fire water damage from the sprinklers and fire bride are not expected to impact beyond the Basement 1 HT switchroom. The PD NLE will include the total loss of the HT swithcboards (ie. Restoration is not possible resulting in total replacement), in addition to some smoke/thermal and fire water damage. The PD NLE for building is estimated to be in the range of SGD [VALUE].It will take about 1 month for clean-up and fire investigation and structural review of the building by local authorities. The estimated replacement time for the HT switchboards including procurement, installation and commissioning will be up to 5 months. As power is distributed to all transformers from this HT switchroom, the whole development will not be operable for up to 6 months.
+
+Property Damage: Reported Site PD; Value(SGD): [VALUE]; % Damage: -; Property Damage(SGD): [VALUE]
+Property Damage: Total Property Damage Loss; % Damage: [VALUE]
+
+Business Interruption; Gross Profit
+Duration; 6
+Duration Units; months
+% Impacted; 100%
+BI Loss (SGD); [VALUE]
+
+Total Business Interruption Loss: Total Level I Property Loss Estimate; [VALUE]: [VALUE]
+
+[fm200:table:29] pages=23-23
+bbox=[70.58513579707818, 712.0299680007608, 525.0928910755952, 365.82128791428516, 69.99923053101406, 343.3912598120175, 524.9366659320601, 248.0079892322966] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)', 'Property - Level II Loss Estimate', 'Probable Maximum Loss']
+Definition: Scenario; Definition: Primary Protection Systems are not functioning, Manual firefighting response only: The PML scenario is a fire originating from one of the hotel guest rooms on Level 11 due to electrical faults, arson, etc after operating hours.In the absence of sprinkler protection and lack of 3 hour rated fire doors/shutters(as per PML definition),the fire will reach a fully grown state and spread throughout Level 11 and Level 12.The fire will subsequently be controlled by the CERT members and extinguished by the responding fire brigade.
+Definition: Assumptions; Definition: Primary Protection Systems are not functioning, Manual firefighting response only: It is assumed that the fire damage will be limited to Level 11 and 12 of [PROPERTY].However,smoke damage will affect the floors above while water damage from firefighting efforts will affect the floors.The PD PML for the building is estimated to be in the range of SGD [VALUE].It will take about 3 months for clean-up, investigation and structural review of the building by local authorities.It will take up to 9 months for full reinstatement of the damaged/affected areas resulting in a total of 12 months of recovery time.The hotel will not be able to operate during this period while retail and offices will be operable.However,as this may result in significantly lower foot traffic and disruptions to the retail business during the reparation works,a rental rebate may have to be provided to tenants.
+
+Property Damage: Value(SGD); Office: [VALUE]; Retail: [VALUE]; Hotel: [VALUE]
+Property Damage: % Damage; Office: 0%; Retail: 0%; Hotel: 28.4%
+Property Damage: Property Damage(SGD); Office: -; Retail: -; Hotel: [VALUE]
+
+[fm200:table:30] pages=23-24
+bbox=[414.17, 220.24712, 461.89912, 210.3450329281768, 69.64193106632105, 162.08475725115056, 524.7834896789142, 85.81020561163893, 69.48042372018699, 765.0234752954043, 525.1110014845061, 642.821898828357] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)', 'Property - Level II Loss Estimate', 'Probable Maximum Loss', 'Total Property Damage Loss']
+Business Interruption: Office(Gross Profit); Duration: -; Duration Units: months; % Impacted: -; BI Loss (SGD): -
+Business Interruption: Retail(Gross Profit); Duration: 12; Duration Units: months; % Impacted: 10%; BI Loss (SGD): [VALUE]
+
+Business Interruption; Duration; Duration Units; % Impacted; BI Loss (SGD)
+Hotel(Gross Profit); 12; months; 100%; [VALUE]
+Total Business Interruption Loss; [VALUE]
+Total Level II Property Loss Estimate; [VALUE]
+
+[fm200:table:31] pages=24-25
+bbox=[69.76369612623382, 548.5833101293423, 524.4339648847132, 121.55601555541125, 69.97199631761386, 764.5231489965298, 525.0815492033479, 669.2309494750687] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)', 'Property - Level III Loss Estimate', 'Maximum Foreseeable Loss']
+Definition: Scenario; Definition: Fire Protection Systems are not functioning and no manual firefighting response: The MFL scenario is a fire originating from one of the hotel guest rooms on Level 11 due to electrical faults, arson, etc after operating hours.
+As per MFL Loss Estimate definition, fire protection systems for the buildings are impaired and no credit is given to manual emergency response. However, public fire brigade in [LOCATION] is very reliable and typical respond time is 10 minutes. Instead of no manual emergency response, the local fire brigade is assumed to be severely delayed.
+The fire is expected to spread to the whole hotel block and some neighbouring blocks such as P02 (Padang Terrace) and P02 (Writer's Corner). However, [PROPERTY] is not expected to be affected due to the distance between the two towers.
+Definition: Assumptions; Definition: Fire Protection Systems are not functioning and no manual firefighting response: MFL is estimated to be 70% of the total sum insured of the hotel building and 10% of the retail blocks. The hotel block and surrounding blocks are expected to suffer from fire damage, smoke damage and water damage. The foundation and some framework should not be affected by the fire. However, the other items within the building should be significantly damaged.
+It will take about 6 months for the clean-up, investigation and structural review of the building by local authorities, and up to 12 months for full reinstatement of the damaged areas. The hotel and affected retail units will not be operable for 18 months in total. However, as this may result in significantly lower foot traffic and disruptions to the retail business during, a rental rebate may have to be provided to tenants.
+
+Property Damage: Value(SGD); Office: [VALUE]; Retail: [VALUE]; Hotel: [VALUE]
+Property Damage: % Damage; Office: 0%; Retail: 10%; Hotel: 70%
+Property Damage: Property Damage(SGD); Office: -; Retail: [VALUE]; Hotel: [VALUE]
+
+[fm200:table:32] pages=25-25
+bbox=[414.17, 641.8071199999999, 461.89912, 631.9050329281768, 69.8571598611102, 605.3431450299695, 524.9202019239592, 509.882245107909, 69.58035110268817, 487.8895228645524, 525.2449697282011, 423.42381617892664] headings=['Property Risk Evaluation Report', 'Loss Estimates ([PROPERTY] Consortium)', 'Property - Level III Loss Estimate', 'Maximum Foreseeable Loss', 'Total Property Damage Loss']
+Business Interruption: Office(Gross Profit); Duration: -; Duration Units: months; % Impacted: -; BI Loss (SGD): -
+Business Interruption: Retail(Gross Profit); Duration: 18; Duration Units: months; % Impacted: 10%; BI Loss (SGD): [VALUE]
+Business Interruption: Hotel(Gross Profit); Duration: 18; Duration Units: months; % Impacted: 100%; BI Loss (SGD): [VALUE]
+
+Total Business Interruption Loss: Total Level III Property Loss Estimate; [VALUE]: [VALUE]
+
+[fm200:33] pages=26-26
+bbox=[70.824, 658.14712, 525.2414399999994, 496.27503292817676] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)']
+The Loss Estimates presented here are believed to be reasonable, based on industry experience, events postulated, and information provided by the client. The calculation of Loss Expectancies is based on the review of building construction, operations, fire protection systems, and fire protection features at the time of our assessment.  The estimates are further based on conditions observed at the time of the visit.  By their nature, these estimates contain some element of subjectivity.  Accordingly, the estimates cannot be taken as absolutes and could be exceeded due to changes in physical conditions on site, or the initiating event or escalation being more severe than anticipated within the boundaries of the estimate.
+All damage and loss potential figures presented pertain exclusively to primary property damage, associated contents damage, and associated business interruption recovery time loss, caused directly by (fire or explosion) as defined in our Loss Estimate.
+
+[fm200:table:34] pages=26-26
+bbox=[69.952460552446, 461.04722481118245, 512.2216344313654, 218.90937481442995, 70.824, 194.08712000000003, 519.6993599999993, 158.02503292817676] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Values (MCST)']
+Date of Values: 2025; Property Damage(PD)Values; Main MC(Common Common); Sub-MC No.1(Retail); Sub-MC No.2(Residential); Sub-MC No.3(Office); Total Reported Site PD; Total Insurable Values(TIV)/Total Sums Insured(TSI)
+Currency: SGD; Business Interruption(BI)
+Loss of profit as a result of interruption to insured's business
+Indemnity Period(36 months); [VALUE]; [VALUE]; [VALUE]; 223,[VALUE]; [VALUE]; [VALUE]
+
+[fm200:table:35] pages=27-27
+bbox=[69.39783690177354, 742.2308183814114, 524.7645255806942, 183.91001493839076] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Loss Estimate Definitions']
+Level: Level I; Definition: Primary Protection Systems are functioning and manual firefighting availableA loss event in which damage is based on the nature of hazards and construction factors,and where:All fire protection systems are in service and functioning as designed.Full facility Industrial Fire Brigade(Or Plant Emergency Organization) and MunicipalFire Department response expected.Credit is given to all properly maintained fire barriers up to their design duration ratingConstruction features function as designed.
+Level: Level II; Definition: Primary Protection Systems are not functioning, Manual firefighting response onlyA level II Loss Event is one which occurs when:The fire protection system protection the area with the largest PD/BI potential is impaired or is rendered inoperative or ineffective due to the nature of the event.Adjacent fire protection systems are presumed operational unless renderedinoperative or ineffective due to structural failure.Same applies for the use of specialextinguishing systems.Credit can be given for adequate manual emergency response, defined as:—A responding organization that is trained to address the hazards of the facilitybeing evaluated.—Can arrive on site within a reasonable time of being notified to be effective inreducing or limiting impact.—Has up to date preplans or emergency response plans for the facility.Credit given to minimum adequately maintained(including fire doors and firepenetrations)3 hour rated walls where the combustible loading is light to ordinary,structural failure is not expected,and roof assembly is a listed or approvednoncombustible.Combustible roof construction(including combustible or unknown metal deckassemblies)results in a contiguous structure loss.Damage may be limited to the area where the impaired protection system is located andthe nearby surroundings or may extend to the nearest adequate separation or properlydesigned and approved construction cutoffs,depending on site conditions.
+Level: Level III; Definition: Fire Protection Systems are not functioning and no manual firefighting responseA level III Loss Event is one which occurs when:All fire protection systems throughout the entire site or facility are impaired.No credit is given for manual emergency response.Damage is limited only by adequate separation and/or free-standing4-hours ratedfirewalls or equivalent.(Equivalencies must be well defined and proven.)Combustible roof construction(including combustible or unknown metal deckassemblies)results in a contiguous structure loss.The size of this loss can approach the value of the buildings of origin or an entire facility,depending on site layout.
+
+[fm200:table:36] pages=28-28
+bbox=[70.33503531846425, 712.0735277044519, 524.9314828183988, 365.2603976070739, 69.620779389247, 343.5861570641887, 525.0629509719747, 266.1385296355404, 69.52067669554846, 245.1559042829573, 524.8598948720638, 122.83824234987378] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Property - Level I Loss Estimate', 'Normal Loss Expectancy']
+Definition; Definition: Primary Protection Systems are functioning and manual firefighting available
+Scenario; The NLE scenario is a fire originating from Basement 1 HT switchroom due to fault in electrical fixture/equipment, improperly managed hot work activity, arson, etc.
+The area protected by smoke detectors and an alarm will be sent to the FCC room. It is assumed that the fire will spread throughout the HT switchboards within the room. The fire will subsequently be controlled by the CERT members and extinguished by the responding fire brigade.
+Assumptions; Direct fire damage, smoke damage, and fire water damage from the sprinklers and fire brigade are not expected to impact beyond the Basement 1 HT switchroom. The PD NLE will include the total loss of the HT swithboards (ie. Restoration is not possible resulting in total replacement), in addition to some smoke/thermal and fire water damage. The PD NLE for building is estimated to be in the range of SGD [VALUE].
+It will take about 1 month for clean-up and fire investigation and structural review of the building by local authorities. The estimated replacement time for the HT switchboards including procurement, installation and commissioning will be up to 5 months. As power is distributed to all transformers from this HT switchroom, the whole development will not be operable for up to 6 months.
+
+Property Damage; Reported Site PD; Total Property Damage Loss
+Value(SGD); [VALUE]; [VALUE]
+
+Business Interruption; Duration; Duration Units; % Impacted; BI Loss (SGD)
+Gross Revenue; 6; months; 100%; [VALUE]
+Total Business Interruption Loss; [VALUE]
+Total Level I Property Loss Estimate; [VALUE]
+
+[fm200:table:37] pages=29-29
+bbox=[70.18313197705571, 712.1965323738586, 524.2419457680107, 390.60720177729735, 69.99785090811301, 368.15276193215556, 524.949227360463, 198.9377007636209] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Property - Level II Loss Estimate', 'Probable Maximum Loss']
+Definition; Definition: Primary Protection Systems are not functioning, Manual firefighting response only
+Scenario; The PML scenario is a fire originating from one of the office units on Level 20 due to electrical faults, arson, etc after operating hours.
+In the absence of 3 hour rated fire doors/shutters(as per PML definition),the fire will reach a fully grown state and spread throughout Level 20 and Level 21 via continuity of combustibles,etc.The fire will subsequently be controlled by the CERT members and extinguished by the responding fire brigade.
+Assumptions; It is assumed that the fire damage will be limited to Level 20 and 21.However,smoke damage will affect the floors above while water damage from firefighting efforts will affect the floors below.The PD PML is estimated to be in the range of SGD[VALUE].
+It will take about 3 months for clean-up, investigation and structural review of the building by local authorities.It will take up to 9 months for full reinstatement of the damaged/affected areas resulting in a total of 12 months of recovery time.Floors not affected by the fire/smoke/water damage can continue operation with the damaged floors being properly boarded off.As this may result in significantly lower foot traffic and disruptions to the retail business during,a rental rebate may have to be provided to tenants.
+
+Property Damage: Main MC(Common Common); Value(SGD): [VALUE]; % Damage: -; Property Damage(SGD): -
+Property Damage: Sub-MC No.1(Retail); Value(SGD): [VALUE]; % Damage: -; Property Damage(SGD): -
+Property Damage: Sub-MC No.2(Residential); Value(SGD): [VALUE]; % Damage: -; Property Damage(SGD): -
+Property Damage: Sub-MC No.3(Office); Value(SGD): [VALUE]; % Damage: 30%; Property Damage(SGD): [VALUE]
+
+[fm200:table:38] pages=29-30
+bbox=[414.17, 172.96712000000002, 461.89912, 163.06503292817683, 69.8150546848374, 764.9245390787373, 525.0395964715946, 544.4662696936239] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Property - Level II Loss Estimate', 'Probable Maximum Loss', 'Total Property Damage Loss']
+Business Interruption: Main MC Common-Common Property; Duration: -; Duration Units: months; % Impacted: -; BI Loss (SGD): -
+Business Interruption: Sub-MC No.1(Retail); Duration: 12; Duration Units: months; % Impacted: 10%; BI Loss (SGD): [VALUE]
+Business Interruption: Sub-MC No.3(Office); Duration: 12; Duration Units: months; % Impacted: 50%; BI Loss (SGD): [VALUE]
+Business Interruption: Total Business Interruption Loss; Duration: [VALUE]
+Business Interruption: Total Level II Property Loss Estimate; Duration: [VALUE]
+
+[fm200:table:39] pages=30-30
+bbox=[69.6875881998971, 450.1170500273716, 525.1994193057886, 100.15369131346495] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Property - Level III Loss Estimate', 'Maximum Foreseeable Loss']
+Definition: Scenario; Definition:Fire Protection Systems are not functioning and no manual firefighting response: The MFL scenario is a fire originating from one of the office units on Level 20 due to electrical faults, arson, etc after operating hours.As per MFL Loss Estimate definition,fire protection systems for the buildings are impaired and no credit is given to manual emergency response.However,public fire brigade in [LOCATION] is very reliable and typical respond time is 10 minutes.Instead of no manual emergency response,the local fire brigade is assumed to be severely delayed.The fire is expected to spread throughout the office tower and to neighbouring buildings such as P04 (Utility Block) and C01 ([PROPERTY] Quarter).Due to the distance,the residential block will not be affected.
+Definition: Assumptions; Definition:Fire Protection Systems are not functioning and no manual firefighting response: MFL is estimated to be 70% of the total sum insured for the office tower and 10% of the total sum insured for common-common and retail.Most of the building is expected to suffer from fire damage, smoke damage and water damage.The foundation and some framework should not be affected by the fire.However,the other items within the building should be significantly damaged.It will take about 6 months for the clean-up, investigation and structural review of the building by local authorities,and up to 12
+
+[fm200:table:40] pages=31-31
+bbox=[186.07, 727.50712, 522.0503199999994, 704.8850329281768, 69.91210086592092, 679.0714450863364, 524.9638620343305, 510.7381513277538] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Property - Level III Loss Estimate', 'Maximum Foreseeable Loss', 'Definition: Fire Protection Systems are not functioning and no manual firefighting response']
+Property Damage: Main MC(Common Common); Value(SGD): [VALUE]; % Damage: 10%; Property Damage(SGD): [VALUE]
+Property Damage: Sub-MC No.1(Retail); Value(SGD): [VALUE]; % Damage: 10%; Property Damage(SGD): [VALUE]
+Property Damage: Sub-MC No.2(Residential); Value(SGD): [VALUE]; % Damage: -; Property Damage(SGD): -
+Property Damage: Sub-MC No.3(Office); Value(SGD): [VALUE]; % Damage: 70%; Property Damage(SGD): [VALUE]
+
+[fm200:table:41] pages=31-31
+bbox=[414.17, 483.35712, 461.89912, 473.45503292817676, 69.7933313408154, 446.77084088758164, 524.9341658419411, 312.8273305281324, 73.704, 286.0271200000001, 248.44912, 276.1250329281768, 414.17, 286.0271200000001, 461.89912, 276.1250329281768, 73.704, 241.60712, 272.46912, 231.70503292817682, 413.69, 241.60712, 461.41912, 231.70503292817682] headings=['Property Risk Evaluation Report', 'Loss Estimates (MCST)', 'Property - Level III Loss Estimate', 'Maximum Foreseeable Loss', 'Total Property Damage Loss']
+Business Interruption: Main MC Common-Common Property; Duration: 12; Duration Units: months; % Impacted: 10%; BI Loss (SGD): [VALUE]
+Business Interruption: Sub-MC No.1 (Retail); Duration: 12; Duration Units: months; % Impacted: 10%; BI Loss (SGD): [VALUE]
+Business Interruption: Sub-MC No.3(Office); Duration: 12; Duration Units: months; % Impacted: 50%; BI Loss (SGD): [VALUE]
+
+[fm200:table:42] pages=32-33
+bbox=[70.824, 690.54712, 522.8567999999997, 667.4450329281767, 70.08373815037261, 660.0268527431896, 519.5445203455984, 97.05163011709476, 70.75733712625184, 763.0114518190505, 519.847884939309, 146.67014530136578] headings=['Property Risk Evaluation Report', 'Management Programs']
+Program Category: Maturity; Building Maintenance: Embedded; Electrical Maintenance: Embedded; Equipment Maintenance: Embedded; Fire Protection Impairment Management: Formalized
+Program Category: Comments; Building Maintenance: The buildings were noted to be in good condition. Structural inspection of the buildings is conducted once every 5 years by appointed professional civil engineer with report submitted to the local authority, BCA.; Electrical Maintenance: Planned preventive maintenance programme with predictive elements included. Inspection, testing and maintenance are conducted by third party electrical contractors and Licensed Electrical Workers (LEWs). Maintenance activity includes, but not limited to the following: Biennial partial discharge testing for HT systems and transformers; Biennial shutdown maintenance for HT and LT switchgears Biennial IR thermography scanning for electrical risers Biennial dissolved gas analysis for all transformers Load test done on diesel generator set during shutdown Twice monthly no-load test on diesel generator set; Equipment Maintenance: Maintenance of equipment such as air handling units are being carried out by in house contractors as per manufacturer's recommendation.; Fire Protection Impairment Management: Under office and residence team, there is fire impairment programme in place to ensure that the required personnel are notified of the impairment and the proper approval is obtained prior to approval. It was noted that the hotel has their own programme. However, it was not verified during the visit. OFIs have been raised to enhance the fire protection impairment management programme.
+
+Fire Protection System Maintenance & Testing: Hazardous Materials Handling; Formalized: Embedded; A service contract with Aim Fire Systems & Engineering Pte Ltd is available for the servicing of fire protection equipment.Detailed inspection, testing and maintenance of fire protection systems as follows:Monthly functional test of fire pumpsMonthly servicing of fire pumpsAnnual water flow test of hydrantsAnnual testing of control valvesQuarterly testing of fire detectors(100% covered annually)An OFI has been raised to improve the fire protection system maintenance programme.: There are two 20,000L underground diesel tank supplies the eight 1,000L diesel generator set day tanks for each of the generator sets-5 at the generator room on Basement 1 of [PROPERTY]and 3 at the generator room on P04(Utility Block) roof.The storage of the diesel strictly complies with thePetroleum and Flammable Materials License governed by [LOCATION]Authority,[LOCATION]Civil Defence Force(SCDF).Additionally,there are leak detectors for each generator set to quickly alert the team when there is any leak detected.An OFI has been raised to carry out maintenance on the leak detector.
+Fire Protection System Maintenance & Testing: Housekeeping; Formalized: Established; A service contract with Aim Fire Systems & Engineering Pte Ltd is available for the servicing of fire protection equipment.Detailed inspection, testing and maintenance of fire protection systems as follows:Monthly functional test of fire pumpsMonthly servicing of fire pumpsAnnual water flow test of hydrantsAnnual testing of control valvesQuarterly testing of fire detectors(100% covered annually)An OFI has been raised to improve the fire protection system maintenance programme.: Housekeeping is generally good in most areas inspected.
+Fire Protection System Maintenance & Testing: Hot Work Permit System; Formalized: Established; A service contract with Aim Fire Systems & Engineering Pte Ltd is available for the servicing of fire protection equipment.Detailed inspection, testing and maintenance of fire protection systems as follows:Monthly functional test of fire pumpsMonthly servicing of fire pumpsAnnual water flow test of hydrantsAnnual testing of control valvesQuarterly testing of fire detectors(100% covered annually)An OFI has been raised to improve the fire protection system maintenance programme.: Formal hot work permit and procedures have been established.After the required checks are done,the permit will be approved by appointed personnel before job commencement.An OFI has been raised to improve on some of the checks required before the hot work is approved.
+Fire Protection System Maintenance & Testing: Management of Change; Formalized: Embedded; A service contract with Aim Fire Systems & Engineering Pte Ltd is available for the servicing of fire protection equipment.Detailed inspection, testing and maintenance of fire protection systems as follows:Monthly functional test of fire pumpsMonthly servicing of fire pumpsAnnual water flow test of hydrantsAnnual testing of control valvesQuarterly testing of fire detectors(100% covered annually)An OFI has been raised to improve the fire protection system maintenance programme.: Management of change usually involves the different stakeholders with risk assessment conducted.
+
+[fm200:table:43] pages=34-35
+bbox=[69.59002370744744, 763.1324959203579, 519.0826134516569, 318.73686421373964, 70.824, 761.37712, 501.56063999999964, 738.5150329281768, 69.73486124537936, 738.3909961720374, 525.0963058328309, 575.0678235762136] headings=['Property Risk Evaluation Report', 'Management Programs']
+Pre-Emergency Planning: Self-Inspections; Established: Embedded; Emergency response plans/procedures have been established for various plans/procedures have been established for various scenarios including EV fire, fire, bomb threats and pandemic.A6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of security team is established during the day.During the night,there is a similar set-up with the SIC and SMC on call.The CERT team carries out minimally1 drill per month.: Daily checks are carried out by technicians who will highlight any issues via Whatsapp so that it can be rectified quickly.Monthly walkabout are also carried out by management.
+Pre-Emergency Planning: Smoking Controls; Established: Optimized; Emergency response plans/procedures have been established for various plans/procedures have been established for various scenarios including EV fire, fire, bomb threats and pandemic.A6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of security team is established during the day.During the night,there is a similar set-up with the SIC and SMC on call.The CERT team carries out minimally1 drill per month.: Smoking is prohibited on[PROPERTY]compounds.During the site visit,no cigarette butt was observed throughout the areas inspected.
+Pre-Emergency Planning: Contractor Management; Established: Embedded; Emergency response plans/procedures have been established for various plans/procedures have been established for various scenarios including EV fire, fire, bomb threats and pandemic.A6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of security team is established during the day.During the night,there is a similar set-up with the SIC and SMC on call.The CERT team carries out minimally1 drill per month.: In-house rules are available in PTW for contractors to read and comply to.
+Pre-Emergency Planning: Business Continuity Planning; Established: Established; Emergency response plans/procedures have been established for various plans/procedures have been established for various scenarios including EV fire, fire, bomb threats and pandemic.A6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of security team is established during the day.During the night,there is a similar set-up with the SIC and SMC on call.The CERT team carries out minimally1 drill per month.: Business Continuity Plan(BCP)has been established on a corporate level.
+Pre-Emergency Planning: Environmental, Social & Governance(ESG); Established: Optimized; Emergency response plans/procedures have been established for various plans/procedures have been established for various scenarios including EV fire, fire, bomb threats and pandemic.A6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of security team is established during the day.During the night,there is a similar set-up with the SIC and SMC on call.The CERT team carries out minimally1 drill per month.: [PROPERTY]was awarded Green Mark Platinum by BCA.[PROPERTY]also received funding under BCA's GBIC2.0 Demonstration Programme.
+
+Maturity Rank: Undeveloped; Definition: Informal actions with little or no systematic procedures.
+Maturity Rank: Formalized; Definition: Programs and procedures are established. Full familiarity is uncertain.
+Maturity Rank: Established; Definition: Programs and procedures are communicated throughout the organization. Orientation is ongoing.
+Maturity Rank: Embedded; Definition: Ownership is established at most or all organizational levels. Training and some exercises is conducted.
+Maturity Rank: Optimized; Definition: Full ownership with active program maintenance, testing, exercising and continuous improvement.
+
+[fm200:44] pages=35-35
+bbox=[70.824, 535.9371199999999, 464.1129599999996, 513.0750329281768] headings=['Property Risk Evaluation Report', 'Management Programs', 'Management Program Comments']
+Overall, based on site discussion and observation, the site has established good management procedures/policy and fulfilling local regulatory requirements.
+
+[fm200:table:45] pages=36-37
+bbox=[70.824, 672.0671199999999, 522.8028799999998, 610.0650329281767, 69.29615640729867, 601.532471967321, 482.6198661773477, 307.60443814021676, 70.824, 284.10712, 522.1829599999999, 222.1050329281768, 70.824, 209.92711999999995, 517.5644799999993, 121.99503292817678, 70.824, 110.05712000000005, 514.5005599999996, 86.95903292817684, 70.824, 761.37712, 514.2491200000001, 738.5150329281768, 70.824, 726.3071199999999, 524.78128, 677.5250329281768] headings=['Property Risk Evaluation Report', 'Construction', 'Construction Narrative']
+Area; [PROPERTY](Office); Hotel([LOCATION]-L1-L22 of[PROPERTY]); Residences(L23-L46 of[PROPERTY]); P01([PROPERTY]Avenue); P02; P03(; P04(Utility Block); C01([PROPERTY]Quarter); C09; C14(Assembly); [SPACE]; Retail Common; Total
+TOP; 13 Feb 2015; 19 June 2015; 9 Dec 2015; 3 Dec 2015; 19 June 2015; 8 Oct 2015; 13 Feb 2015; 29 May 2015; 8 Oct 2015; 21 Sept 2015; 28 Sept 2015; N/A; -
+GFA(m2); 57,452; 39,677; 33,024; 1,085; 5,077; 2,199; 1,929; 1,263; 2,585; 1,436; 613; 1,023; 147,363
+
+[fm200:46] pages=37-37
+bbox=[70.824, 665.3471199999999, 525.6153599999996, 564.4650329281768] headings=['Property Risk Evaluation Report', 'Construction', 'Construction Narrative']
+The 4 heritage buildings were given conservation status in 2002 due to their rich historical and architectural significance. Block 1, 9 and 14  were built in 1930s and is constructed in Art Deco style and has the façade finished in Shanghai plaster. The 3 blocks are painted with white mineral paint and orange concrete tile pitch roof. The [SPACE] building, designed by Palmer and Turner and built in 1952-53, is a hybrid of the Art Deco and the Modern style known as Modern architecture. Under the conservation status, more than 50% of the façade on the 4 buildings were retained such as Block 14 which retained its veranda spaces on the 2 nd storey and the old vehicle maintenance pit.
+
+[fm200:47] pages=37-37
+bbox=[70.824, 524.89712, 519.8754399999998, 279.0050329281768] headings=['Property Risk Evaluation Report', 'Construction', 'Compartmentalization and Fire Divisions']
+The whole complex is connected via the 3 basement levels (carpark) where the 3 levels are connected via vehicle ramps. Thus, the entire 3 basement levels of the 3 levels are carpark are considered to be one fire compartment.
+The 4 podium blocks and 4 heritage blocks are interconnected via link bridges on Level 2.
+At P01 ([PROPERTY] Avenue), there is vertical communication throughout basement 1 and level 1 via the atrium void.
+P04 (Utility block) has an open-air link bridge on the second floor to both Suntec City and [LANDMARK]. There is a 2-hour fire rated shutter on the first floor of P04 before the escalator up to the second floor.
+At P01 ([PROPERTY] Avenue), there is a connection to Esplanade MRT Station on Level 1. There is a 2-hour fire rated shutter at the entrance to the MRT Station.
+Each floor of both towers from Level 1 and above are considered to be one 2-hour fire rated compartment.
+Electrical equipment rooms (high-tension switchgear, low-tension switchgear, transformer, etc.) are fire compartmented via 2-hour fire-rated access doors.
+
+[fm200:48] pages=38-38
+bbox=[70.824, 637.9671199999999, 514.3698399999998, 510.91503292817674] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Occupancy', 'Overview']
+[PROPERTY] consist of a 35-storey Grade A premium office tower, a 47-storey tower housing [TENANT] Hotel [LOCATION] [PROPERTY] (L3 - 21) and [PROPERTY] Residences (L22 - 47), 4 podium blocks and 4 heritage buildings. There are some retail and F&B establishments on top of some of the hotel operations housed in the low-rise podium blocks and heritage buildings. Podium block P01 is directly connected to [LOCATION] MRT Station while podium block P04 has a link bridge to [LANDMARK] and [LANDMARK]. [PROPERTY] Residences occupies Level 23 to 47 of the [PROPERTY], above [TENANT]. It houses 190 residential units ranging from 950 sqft for 2-bedroom units to more than 6,400 sqft for a 5-bedroom penthouse unit. [TENANT] occupies Level 3 to 21 of [PROPERTY] with a total of 634 guest rooms, including 47 suites.
+
+[fm200:table:49] pages=38-39
+bbox=[70.824, 476.87712, 484.93912, 466.97503292817674, 69.77196624141412, 459.0677376108781, 511.6109416864383, 109.73261509983672, 69.53098194506344, 764.3672266175911, 532.4714497283321, 299.4124675252375] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Occupancy', 'Overview', '[Site Photo]']
+[PROPERTY]
+Level; Occupancy
+Basement 3; Carpark, domestic water tank(office),sprinkler pump room(common),transfer pump rooms(office and retail), underground diesel tank
+Basement 2; Carpark, centre management office,fuel pump room(common)
+Basement 1; Carpark, security centre,chiller plantroom(common),transformer rooms(office and common),LV switchrooms(office and common),HT switch rooms(office&common),MDF room(office),generator set room(common),SPPG substation
+Level1; Lobby,sprinkler control valves,Fire Command Centre(FCC)
+Level2-11, Level12-21, Level22-32, Level33-34; Offices
+Level11M; Sky Garden(outdoor greenery area),chilled water pump room
+Level21M; Sky Garden(outdoor greenery area),chilled water pump room,MDF room,Lift Motor Room
+Level32M; Packaged Air-conditioning unit room,LV switchroom2,transformer room,lift motor room(high zone)
+Level35(Roof); Roof Garden,hosereel pump room,hosereel tank,office domestic water roof tank,lift motor room
+
+[PROPERTY] (Hotel and Residence)
+Level; Occupancy
+Basement 3; Carpark, linen collection room(for hotel guests only), heat pump room
+Basement 2; Carpark
+Basement 1 and Basement 1M; Carpark area:Carpark,hot water tank room,hot water tank,transformer room(hotel)
+Hotel block(Back-of-house):hot production kitchen for banquet, stewarding office & store, vegetable/fruit/poultry/seafood/meat preparation room, laundry room,sales&marketing office,engineering& maintenance office,HR&Finance office,banquet&catering office,IT server room,housekeeping office,call centre,chef office,General Manager office,main kitchen,staff kitchen
+Level 1; Lobby,lounge,loss prevention room
+Level 2; Meeting rooms,link bridge to Writer's Corner
+Level 3-17; Hotel guest rooms
+Level 18; Sky Terrace(outdoor swimming pool,gym,bar)
+Level 18M; Domestic pump room,hot water tanks,heat pumps
+Level 19-21; Hotel guest rooms
+Level 22; Sky Garden(outdoor swimming pool,outdoor gym,residential gym,function room with kitchenette
+Level 22M; AHU,hot water tanks,heat pumps,LV Switch room,MDF room
+Level 23-31; Condominium units
+Level 32; Sky Garden(outdoor exercise area,children's pool,outdoor cooking area(equipped with electrical grill)),reading room
+Level 32M; LV switchroom,CAS room,transformer room
+Level 33-46; Condominium units(L44:lift motor room;L43:hosereel pump room)
+Level 47; Gondola,PV panel inverter,lift motor room
+
+[fm200:table:50] pages=39-40
+bbox=[69.05499679975063, 275.58727780303593, 532.317480763685, 96.49620193735154, 69.69174231305219, 765.1559700298535, 532.469559416291, 466.44621740925623, 69.30572230089432, 443.4242045422914, 532.2777232330118, 130.2205975124332] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Occupancy', 'Overview', '[Site Photo]']
+Podium Blocks
+Podium Block P01-[PROPERTY] Avenue
+Level; Occupancy
+Basement 1; F&B establishments, connection to Esplanade MRT Station
+Level 1; F&B establishments, connection to Esplanade MRT Station
+Podium Block P02
+Level; Occupancy
+Basement 1; F&B establishments
+Level 1; Hotel dining area and kitchen
+
+Podium Blocks
+Level 2; Spa, hotel rooms, link bridge to [PROPERTY]
+Level 3-5; Hotel rooms
+Roof; Pool, open air area
+Podium Block P03
+Level; Occupancy
+Basement 1M; F&B establishments
+Level 1; All day dining (for hotel guests and open to public)
+Level 2; Retail, link bridge to [PROPERTY], link bridge to Assembly
+Podium Block P04-Utility Block
+Level; Occupancy
+Basement 3-1; Carpark
+Level 1; Escalator, lift lobby
+Level 2; Link bridge to [LANDMARK], link bridge to [LANDMARK]
+Roof; Diesel generator sets, cooling towers
+
+Heritage Blocks
+Heritage Block C01-[PROPERTY]Quarter
+Level; Occupancy
+Level1-2; F&B establishment,retail
+Heritage Block C09
+Level; Occupancy
+Level1; Cocktail reception
+Level2; Ballroom
+Level2M; Mezzanine
+Heritage Block C14
+Level; Occupancy
+Level1; Bar(Court Martial Bar),meeting rooms(7no.s)
+Level2; Meeting rooms(8no.s),link bridge toP03Writer's Corner
+The[SPACE]
+Level; Occupancy
+Level1-2; Restaurant,bars,private pool
+
+[fm200:table:51] pages=41-41
+bbox=[71.52205981363387, 741.9258394262173, 530.657420924654, 99.06083861434831] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Occupancy', 'Key Processes']
+Activity/Processes: The entire [PROPERTY] development is a Strata Titles property. [PROPERTY] Consortium team oversees the management and maintenance of the office, retail and hotel area.The main MCST formed together with 3 other subsidiary MCST looks after different areas of the development.The residence is fully sold and maintenance is handed over to the management corporation(MC).[MANAGEMENT][LOCATION]is appointed as the managing agent(MA) taking care of day-to-day operations and maintenance of the development.Hotel operations and maintenance are fully managed by[TENANT]Hotel[LOCATION]who has a dedicated facility management team.; South Tower Amenities: At the [PROPERTY], Level 22 and 32 has an open air Sky Garden with amenities such as swimming pool, gym, reading room,etc.There is an outdoor electric grill available on Level 32 Sky Garden.Residents will need to book their preferred timeslot(9am-3pm or4pm-10pm)in order to use the facility.All common areas are monitored by the security guards via CCTV.; Employee/Operating Hours: [MANAGEMENT][LOCATION]is appointed as the MA responsible for maintaining the commons areas,office tower and residences.[MANAGEMENT]has a total of11 staff operating from8.30am to5.30pm and1 in house technician operating from9am to6pm.On top of that,cleaning contractors and contract technicians are engaged to assist with day-to-day operations and maintenance.The contract technicians are available24/7and operate in3 shifts.There are about4 technicians in the day shift,4 technicians in the afternoon shift and2 technicians in the night shift.; Third parties/tenanted areas: The retail and office units are100% tenanted.Some anchor tenants for the office tower include[ANCHOR TENANTS]The units in[PROPERTY]Residences are fully sold.; Common Hazard: Common property hazards for such occupancy includefire arising from faults in electrical equipment/fixtures,commercial cooking operations;and water damage arising from wet-pipe sprinkler actuation orchilled/domestic water pipe leaks/burstsMost of the common property hazards are well managed.Preventive and predicative electrical maintenance is expected to be conducted by appointed electrical contractor which will include infra-red thermography.
+
+[fm200:table:52] pages=42-42
+bbox=[69.52669063184086, 764.0999104044499, 533.4163618377072, 92.22439105181115] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Occupancy', 'Key Processes']
+Special Hazards: There are 8 diesel generator sets,5 at the generator room on Basement 1 of [PROPERTY] and 3 at the generator room on P04 (Utility Block) roof.Each generator set has a 1000L day tank.There are leak detectors for each day tank which will send a signal to the FCC if any leaks are detected.
+There are two 20,000L underground diesel storage tanks at Basement 3 of the [PROPERTY] which are estimated to be topped up every 2 years.The diesel is pumped automatically via the diesel transfer pumps on Basement 2 to top up the day tanks when required.; Hotel Laundry Operations: Linen chute is installed from Basement 1 to Level 21.All the linen chute doors are installed with safety interlock,ensuring only one chute door can be opened at a time.The chute doors are usually locked and only housekeepers have the key.
+Majority of the laundry is sent out to be washed by contractors.However,hotel guests' laundry are being washed in house in the laundry room located on Basement 1.There is one dry cleaning machine available with the dry-cleaning chemical being refilled every9-12months by specialist contractor.The dryers are cleared of lint daily to prevent build up and reduce the risk of fire.; Carpark/Bicycle Parking: There is a total of 550 carpark lots across Basement 1-3 with some dedicated lots for residents of[PROPERTY] Residences.On Basement 2,there are 5 EV chargers available at commercial zone and 2 EV chargers at residential zone.; Grand Ballroom: The Grand Ballroom located at Level 2 of C09 is fitted with 11,520 light installations.Each electric light is encased in aluminum tube dripping down from the ceiling forming a sea of lights like icicles.The hall seats370 guests banquet-style,with 320 guests seated on the ballroom floor and the rest on the mezzanine level.; Commercial Kitchens: Town gas is piped into the site from a main underground pipe and distributed to the respectiveF&B tenant kitchens and hotel kitchens via the gas pipe riser.The gas leak detectors are located at the ceilings of the respective kitchens where there is highest potential for gas leak.The gas leak detectors are interlocked with gas supply.Maintenance is carried out as per manufacturer's recommendation by tenant's appointed contractors.
+The exhaust ducts from the kitchen hoods of the F&B establishments converge into a common header before
+
+[fm200:53] pages=43-43
+bbox=[248.26, 740.73712, 518.0886399999995, 395.6750329281768] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Occupancy', 'Key Processes', 'Storage']
+being vented. The cleaning of the kitchen hoods, exhaust ducts and common headers are carried out annually by an appointed contractor.
+All kitchen hoods (in tenant's and hotel's kitchens) for greasy cooking are protected by wet chemical suppression system which is maintained by contractor appointed by tenant or hotel respectively.
+The maintenance requirements mentioned above are written in the tenant's agreement. An OFI has been raised for the landlord to collect the service reports for the above systems to ensure that the maintenance is carried out as required.
+Generally limited to small pockets of back-of-house merchandise storage belonging to retail tenants. There are no major warehousing facilities in the office and retail areas.
+For storage in hotel, most of the operations related storages are location on back-of-house area of B1/B1M. These are stored in various stores managed by different departments. Goods are typically stored on metal shelving up to 2m high, approved by Qualified Persons (QP) and within the protection limit of the sprinkler system installed.
+
+[fm200:table:54] pages=44-44
+bbox=[70.07032303266078, 712.6672518058288, 524.7833677232986, 256.4587853510985] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Utilities and Infrastructure', 'Power']
+University Town
+Site Feed; SP PowerGrid substation through 2 incoming feeders
+Incoming Voltage; 22kV
+Distribution on Site; Underground cables
+Details; Power is supplied from 22kV incoming feeders to the HT switchrooms at Basement 1 of the office tower. The power will then be stepped down to 433V by 12 silicon oil-filled and 4 dry-type transformers at Basement 1 and Level 32M of [PROPERTY]. It is then distributed in the two LT switchroom located at Basement 1 of [PROPERTY] and Level 22M.
+Back-up Power; Backup power for essential services (lifts, fire pumps, FCC equipment) within the development is provided to maintain essential, life safety equipment of the property. On top of the 8 diesel generator sets, the facility also has Legrand Keor S 10KVA UPS located at LV Switchroom on Level 32M of [PROPERTY]. UPS provides continuous power supply to critical equipment until the diesel generator becomes fully operational.
+Details on the diesel generator sets are in the table below.
+Quantity and Rating of Genset; Genset Brand; Genset Location
+1X500KVA; Meccatte; Basement 1 of [PROPERTY]; Common areas, hotel, residence
+2X1,000KVA; Meccatte
+2X2,000KVA; Meccatte
+2X1,500KVA; Meccatte; Roof of P04 (Utility Block) (Outdoor units); Office tower
+1X1,000KVA; Meccatte
+
+[fm200:table:56] pages=44-45
+bbox=[70.824, 219.52711999999997, 519.21976, 170.50503292817677, 70.02029836360241, 765.0762428033606, 518.486067558135, 593.0781514031416, 70.824, 569.0571199999999, 519.26848, 520.0350329281767] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Utilities and Infrastructure', 'Transformer details']
+Location of Transformer; Basement 1 Transformer Room at [PROPERTY]; 2X3MVA; 2X2.5MVA; 4X2.5MVA; Level 32M Transformer Room at [PROPERTY]; 2X2MVA
+Number and Rating of transformer; 4X3MVA; Office; Meiden/silicon oil; Hotel; 2X2.5MVA; Schneider/dry
+
+[fm200:57] pages=45-45
+bbox=[70.824, 482.87712, 516.62848, 386.07503292817677] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Utilities and Infrastructure', 'Refrigeration / Chillers / Cooling towers']
+Centralized chilled water system is provided for this development. There are a total of 7 chillers of located on Basement 1 Chiller Room which is sprinkler protected - 4 chillers with rated capacity of 1,000 RT and 2 chillers with rated capacity of 500 RT. During the day, 3 large chillers will be running. During the night, only 2 small chiller will be running.
+There are 6 cooling towers on Roof of P04 (Utility Block) - 4 cooling towers with rated capacity of 30kW and 2 cooling towers with rated capacity of 15kW. Each cooling towers is dedicated to a corresponding chiller unit.
+
+[fm200:58] pages=45-45
+bbox=[70.824, 348.69712000000004, 518.0622399999992, 286.92503292817685] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Utilities and Infrastructure', 'Fuels and energy supplies']
+Diesel for the 8 diesel generator sets are held in their respective 1,000 litres fuel day-tanks and automatically topped up from two 20,000L diesel underground storage tank via fuel pumps. The underground diesel storage tanks are topped up about every 2 years. At the sampled generator set on the roof of P04, it was seen that the fuel level is less than half the total capacity. An OFI was raised to verify if the tank level and the fuel pump functionality.
+
+[fm200:59] pages=45-45
+bbox=[70.824, 243.52711999999997, 517.8840799999995, 194.74503292817678] headings=['Property Risk Evaluation Report', 'Occupancy, Hazards, and Utilities', 'Utilities and Infrastructure', 'Photo Voltaic (PV) Panels']
+There are 288 PV panels installed on the lower roof (132 panels) and upper roof (156 panels) of [PROPERTY]. The rated output of each panel is 275 Wp resulting in total system capacity of 79.2 kWp. The PV inverters are located on the lower roof of [PROPERTY]. The PV panels are installed and maintained by SolarGy.
+
+[fm200:table:60] pages=46-46
+bbox=[70.824, 666.0671199999999, 289.74912, 656.1650329281767, 69.62338619052964, 647.1965594380938, 520.6859639294516, 488.94423221542826] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Automatic Sprinkler Protection']
+Location; B1 Fire Pump Room; B1 Fire Pump Room/L32 Fire Pump Room; B1 Fire Pump Room/L32 Fire Pump Room
+System Type; Wet; Wet; Wet
+Area covered; [PROPERTY]B3-L10,C01,C01,P04; [PROPERTY]L11-22M,L32-32M[PROPERTY]L11-roof; [PROPERTY]B3-L10,P01,P02,P03,[SPACE]
+Design Standard Applied; CP52:2004,OH2; CP52:2004,OH1; CP52:2004,OH3
+Assessment; Adequate; Adequate; Adequate
+
+[fm200:61] pages=46-46
+bbox=[70.824, 452.63712000000004, 527.12632, 333.7550329281768] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Automatic Sprinkler Protection', 'Comments']
+Automatic sprinkler systems are provided for the whole Frasers Tower with the exception of
+1. [PROPERTY] Residences (Level 23 to 31 and Level 33 to 47 of [PROPERTY]). Sprinkler protection is not required in the condominium area as per local code. Sky Garden on Level 32 and Level 22 are covered by sprinklers.
+2. Electrical equipment rooms, lift shafts and riser compartments.
+The primary system is primarily designed and installed to local code, CP52: 2004 (Code of Practice for Automatic Fire Sprinkler System. The office towers from Basement 3 to Level 10 is designed to OH2 while Level 10 to roof is designed to OH1.
+
+[fm200:62] pages=46-46
+bbox=[70.824, 281.22712, 522.9973599999995, 115.27503292817676] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Special Extinguishing Systems', 'Gaseous Protection Systems']
+FM200 gaseous protection system is installed at the Level 3 IT Server Room in the former [SPACE]. FM200 gaseous protection system is also installed at the Basement 1 server room in the [PROPERTY] and is activated via cross zone smoke detectors installed within the room and in the false ceiling. The discharge nozzle is also installed within the room and in the false ceiling. The maintenance for the above systems are maintained by the respective facility management team.
+Additionally, gaseous protection system is installed within some tenant's area and is maintained by the tenants ' appointed contractor. The signals from the gaseous suppression system are reportedly required to be linked to the main fire alarm panel. Maintenance of the gaseous protection system is wholly managed by the respective tenants. Information regarding office areas which are protected by the gaseous protection system was not available at the time of the visit.
+
+[fm200:63] pages=47-47
+bbox=[70.824, 748.41712, 518.7769599999999, 686.4050329281768] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Special Extinguishing Systems', 'Wet Chemical Suppression Systems']
+Ansul's Wet Chemical Suppression System is installed for the kitchen hoods of the retail F&Bs and hotel kitchen throughout the complex. It is outlined in the tenancy agreement that all F&B establishments will have to install the wet chemical suppression system before starting operation. Maintenance of the wet chemical suppression system is managed by the tenants and hotel respectively.
+
+[fm200:64] pages=47-47
+bbox=[70.824, 657.42712, 525.0855199999997, 556.2750329281768] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Special Extinguishing Systems', 'Automatic Water Monitoring System']
+The open podium area is protected by 6 automatic water monitor systems comprising of the water monitor device, water monitor control panel and water monitor alarm panel.  The systems are installed on the rooftop of P01, P02, P03 and [SPACE].  The water monitor devices are activated by IR/UV sensors to determine the location of the fire source. The water monitor device will then directly discharge water at the source, extinguishing the fire. The monitor has a protection radius of 32m, flowrate of 5 litres/sec, at 600 Pa. The automatic water monitor system is a Chinese product from Liaoyang Tianhe Automatic Fire Extinguishing Equipment Manufacturing Co. Ltd.
+
+[fm200:table:65] pages=47-48
+bbox=[70.824, 516.97712, 526.9116799999996, 402.89503292817676, 70.824, 390.93712, 454.21912, 381.03503292817675, 68.75113676135173, 372.2444446699636, 525.24637221778, 120.38791365888517, 70.824, 761.37712, 347.36912, 751.4750329281768] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Water Supply Details']
+Zone: Low Zone; Area Served: Entire Basement 3, Basement 2, Basement 1 and Basement 1MP01-Level 1 to Level 1P02-Level 1 to Level 6P03-Level 1 to Level 2P03-Level 1 to Level 3C01-Level 1 to Level 2C09-Level 1 to Level 2MC14-Level 1 to Level 2[SPACE]-Level 1 to Level 3[PROPERTY]-Level 1 to Level 10[PROPERTY]-Level 1 to Level 13
+Zone: Mid Zone; Area Served: [PROPERTY]-Level 11 to Level 23[PROPERTY]-Level 14 to Level 22M
+Zone: High Zone; Area Served: [PROPERTY]-Level 24 to Level 37[PROPERTY]-Level 32 to Level 32M
+
+[fm200:table:66] pages=48-48
+bbox=[70.09502666703807, 742.6273337437137, 524.8798346152082, 315.1999078180671] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Water Supply Details']
+Location; B1 Fire Pump Room; Standby Pump; Jockey Pump; B1 Fire Pump Room; Standby Pump; Jockey Pump; B1 Fire Pump Room; Standby Pump; Jockey Pump; L32 Fire Pump Room([PROPERTY]); Standby Pump; Jockey Pump
+Area Served; Low Zone; 1,650L/min@17.7bar; -; Mid Zone; 1,650L/min@17.7bar; -; High Zone; 1,650L/min@17.7bar; -; [PROPERTY]L1-L22M; Info not available; Info not available
+Pump; Duty Pump; 110; 130; Duty Pump; 190; 210; Duty Pump; 270; 290; Duty Pump; Info not available; Info not available
+Nominal Rating/Hazard Group; 1,650L/min@17.7bar; Manual Stop; 170; 1,650L/min@17.7bar; Manual Stop; 260; 1,650L/min@17.7bar; Manual Stop; 350; Info not available; Info not available; Info not available
+
+[fm200:table:67] pages=48-48
+bbox=[70.824, 274.0271200000001, 364.88912, 264.1250329281768, 69.69591167065921, 264.68664122810276, 525.0908788079383, 153.51220756476403] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Water Supply Details']
+Location of Fire Pump; Basement 1 Fire Pump Room; Level 32 Fire Pump Room ([PROPERTY])
+Equipment/Area Served; Fire pumps, wet riser, hosereel and transfer pump system; Fire pumps, wet riser system
+Capacity; 260m3; 154m3
+Tank Material; Reinforced Concrete; Press Steel
+
+[fm200:68] pages=48-48
+bbox=[70.824, 114.85712000000001, 412.19912, 104.95503292817682] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Pump Flow Test Data']
+Fire pump performance test was not observed during the site survey.
+
+[fm200:table:69] pages=49-49
+bbox=[70.10324342663657, 740.3534104096691, 524.6720832240982, 501.4766107134241] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Wet and Dry Risers']
+Wet / Dry Riser; Dry Riser; C01; [SPACE]; Wet Riser; P04; P01; P02; [PROPERTY]; [PROPERTY]; [PROPERTY]
+Building; C09; L1- L2; L1- L3; P03; B3- L3; B3- L1; B3- Roof; B3- L44; B3- Roof; B3- L32M; [PROPERTY]
+
+[fm200:table:70] pages=50-50
+bbox=[69.94793295021826, 740.2578613223259, 525.3027157121697, 519.9082394503414] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Manual Firefighting Features']
+Distance to Fire Department: Response Time(minutes); 1.7km([LOCATION]Fire Station): Within10minutes
+Distance to Fire Department: Hydrant Coverage; 1.7km([LOCATION]Fire Station): There are public fire hydrants installed adjacent to the site along[ADDRESS]and Nicoll HighwayThere are8 private hydrants available on site,connected directly to public water supply.
+Distance to Fire Department: Fire Hydrant Type; 1.7km([LOCATION]Fire Station): Above ground.
+Distance to Fire Department: Industrial Fire Brigade; 1.7km([LOCATION]Fire Station): No.
+Distance to Fire Department: Portable Extinguishers; 1.7km([LOCATION]Fire Station): Portable fire extinguishers strategically located through building as per local code.
+Distance to Fire Department: Hose Stations/Reels; 1.7km([LOCATION]Fire Station): Internal50mm diameter,30m length hose reels are strategically located through building as per local code.
+
+[fm200:71] pages=50-50
+bbox=[70.824, 480.47712, 523.5566399999996, 457.6150329281768] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Other Manual Firefighting Comments']
+Hydrants are drawing water directly from the public water supply which is considered as very reliable in [LOCATION].
+
+[fm200:72] pages=50-50
+bbox=[70.824, 418.07712000000004, 527.20912, 194.02503292817676] headings=['Property Risk Evaluation Report', 'Fire Protection', 'Fire Alarm Monitoring']
+- Spot-type smoke detectors are installed in electrical/telecommunication risers, lift lobbies and electrical equipment rooms such as motor lift rooms (except in residence area), HT and LT rooms and transformer rooms.
+- IR/UV detectors are installed in the podium area to activate the water monitor system provided in that area.
+- Spot-type smoke and heat detectors are also installed on each floor of the [PROPERTY].
+- Cross zone spot type smoke detectors within the L3 server room of [SPACE] and B1 server room of [PROPERTY] are installed to activate the FM200 gaseous protection system.
+- Manual break glass call points with fire alarm bells are installed at strategic locations throughout the development.
+- Building fire alarm systems are monitored 24/7 both locally in a constantly attended central fire command centre and via a decentralized alarm monitoring (DECAM) which is managed by third party, Ademco.
+
+[fm200:table:73] pages=51-51
+bbox=[69.53004441126882, 669.8753279429093, 525.0776466236499, 534.7239092887098] headings=['Property Risk Evaluation Report', 'External Exposures', 'Location Details']
+Latitude: [VALUE]; Longitude: [VALUE]; Point where geo coding was taken: Google Earth; Ground Elevation(above mean sea level): 6Sm; Ground Elevation Source: Munich Re's NATHAN; Building Finished Floor Elevation(above mean sea level): 0.5m higher than public road based on site observation
+
+[fm200:table:74] pages=51-51
+bbox=[69.68121601898399, 498.55653906018034, 524.9961802724545, 318.9181214045799] headings=['Property Risk Evaluation Report', 'External Exposures', 'Boundary Exposures']
+Direction: North; Exposure Rating: Light; Distance: 70m; Comments: [LANDMARK] (33-storey commercial development) separated by [PROPERTY] (currently under construction, to be completed by Q2 2026)
+Direction: East; Exposure Rating: Light; Distance: 80m; Comments: [LANDMARK] (commercial development) separated by [road]
+Direction: South; Exposure Rating: Light; Distance: 40m; Comments: [LANDMARK] Park (Open green space) separated by [road]
+Direction: West; Exposure Rating: Light; Distance: 10m; Comments: Low rise commercial buildings separated by [road]
+
+[fm200:table:75] pages=52-54
+bbox=[70.824, 736.89712, 378.35912, 726.9950329281768, 69.70996705535275, 304.25667275181854, 524.9768503073878, 96.27021022769452, 69.84495667732803, 764.8116423966143, 525.0030707647337, 88.83958084360154, 69.78408558071061, 764.5926995777121, 525.0058757438916, 672.8990732166716] headings=['Property Risk Evaluation Report', 'External Exposures', 'Natural Catastrophe Exposures']
+Peril: Source; Pluvial Flood(Heavy Rain/Flash Flood): MunichReNATHAN
+Peril: Exposure Rating; Pluvial Flood(Heavy Rain/Flash Flood): Low
+Peril: Comments; Pluvial Flood(Heavy Rain/Flash Flood): Moderate exposure per Munich Re's NATHAN risk suite Localized flash flooding due to heavy rainfall and storm water accumulation is a possibility, with the site situated within a NATHAN flash flood hazard Zone 4(zones range from1to6,with6being the most severe).The building is expected to be compliant with local codes/regulations with regards to flood mitigation and not listed as floor prone area.Based on the above,the exposure is considered to be low.
+
+Peril: Source; Hail: MunichRe NATHAN; Tornado: MunichRe NATHAN; Tropical Cyclone: MunichRe NATHAN; Extra-Tropical Storm: MunichRe NATHAN; River (Inland) Flood: MunichRe NATHAN; Storm Surge / Coastal Flooding: MunichRe NATHAN; Tsunami: MunichRe NATHAN; Lightning: MunichRe NATHAN; Earthquake: MunichRe NATHAN; Volcanic: MunichRe NATHAN; Wild Fire: MunichRe NATHAN
+Peril: Exposure Rating; Hail: Low; Tornado: Low; Tropical Cyclone: No Hazard; Extra-Tropical Storm: No Hazard; River (Inland) Flood: Low; Storm Surge / Coastal Flooding: No Hazard; Tsunami: No Hazard; Lightning: Moderate; Earthquake: Low; Volcanic: No Hazard; Wild Fire: No Hazard
+Peril: Comments; Hail: Per Munich Re's NATHAN risk suite,a low frequency and intensity of hailstorms is anticipated at the site.; Tornado: Buildings are of robust (reinforced concrete) construction which is expected to provide for wind loading.; River (Inland) Flood: The nearest river is located about [DISTANCE] away.The exposure to river flood is expected to be low.; Lightning: As per Munich Re's NATHAN risk suite,there is a moderate to high exposure to lightning with 20.1 to 40.0 lightning strokes per sq.km.per year.Lightning presents a source of ignition and can cause electrical power surges which may damage and disrupt power supply systems.The building is provided with an extensive lightning protection system.; Earthquake: [LOCATION] is not situated near any major tectonic plate boundaries,resulting in low exposure to earthquake.However,[LOCATION] do occasionally experience tremors due to earthquakes that happens in the region.Per Munich Re's NATHAN risk suite,the site is situated within and area with a probable maximum earthquake intensity of Modified Mercalli Intensity (MMI) V and below based on a return period of 475 years for medium subsoil conditions.
+
+Peril: Other; Source: MunichRe NATHAN; Exposure Rating: Low; Comments: For underground soil condition, it is classified as soft rock/dense soil and there are no signs of soil subsidence at the time of the visit.
+
+[fm200:table:76] pages=55-56
+bbox=[70.04011615113124, 712.1063004692603, 524.8349549486813, 506.386971763194, 69.59599953260998, 485.2270561279877, 524.615861685324, 359.06027263722905, 69.54793377562657, 337.3642446138287, 524.6148250625918, 90.21176491055519, 69.76332263716115, 743.0603446616129, 524.7805017663329, 608.5173124118542] headings=['Property Risk Evaluation Report', 'Security']
+Site Perimeter
+Vehicle Access; Yes, parking is allowed in the site.
+Perimeter Fencing; No,the complex is accessible by the general public during operating hours.
+Entry Provisions Posted; NA
+No Trespassing Signage; Yes,for restricted areas.
+Fencing Height; NA
+Exterior Lighting; Generally provided via external lamp/light posts and access road streetlamps throughout the site compounds;these are activated during the night.
+
+Building Physical Features
+Ground Level Windows Secure; NA
+Lock and Key Control; All access doors to offices and restricted areas are fitted with electromagnetic locks and/or door magnetic contact to control access. After operating hours, the entry doors will be locked.Critically utility rooms such as fire pump rooms and transformer rooms are secured by lock and key control.
+
+Security Staff / Guards
+On-Site Guards; Guards, provided by accredited security company, CBM Security, are unarmed and perform 12 hour shifts.Day shift has 7 security guards while night, weekends and public holidays shift has 4 security guards. Guards are deployed at the security counters, access points and common areas of the development.
+Visiting Patrols; Regular patrol is expected to be conducted by the local police in the vicinity.
+Police Surveillance; No.
+Recorded Rounds; Yes.
+Rounds Frequency; 2 physical rounds and 2 virtual rounds per shift.
+CCTV; More than 250 fixed CCTV cameras installed with recordings kept for at least 30 days.
+
+Intruder Detection
+Motion Sensors; No.
+Beams; No.
+Door Contacts; Yes. Alarms from doors will sound when the door is left open for an extended period of time.
+Access Monitored; Yes. CCTV is monitored 24/7.
+ID Cards / Badges; Yes.
+
+[fm200:table:77] pages=56-56
+bbox=[70.25429307873618, 563.9950536993393, 524.4081712720218, 248.23038020987974] headings=['Property Risk Evaluation Report', 'Security', 'Other Security Programs / Controls']
+Emergency Response: Employee Screening; Documented emergency response plan has been established. A 6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of staff and security team is established during the day.During the night,there are4 ERT members comprising of the security team with the SIC and SMC on call.There are3 fire evacuation drills(2 internal drills and1 CERT audit),and2 tabletop exercise carried out annually.: Yes,expected to be conducted as part of the employment process.
+Emergency Response: Visitor Management; Documented emergency response plan has been established. A 6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of staff and security team is established during the day.During the night,there are4 ERT members comprising of the security team with the SIC and SMC on call.There are3 fire evacuation drills(2 internal drills and1 CERT audit),and2 tabletop exercise carried out annually.: Tenants will need to register their visitors and get a dedicated QR code.This QR code should then be emailed to the visitor.With the given QR code,the visitor can access the office tower without queuing and registering at the level1 concierge.For security reason,anti-pass back feature will be in place andQR code will be refreshed on a daily basis.
+Emergency Response: Safe/Vaults; Documented emergency response plan has been established. A 6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of staff and security team is established during the day.During the night,there are4 ERT members comprising of the security team with the SIC and SMC on call.There are3 fire evacuation drills(2 internal drills and1 CERT audit),and2 tabletop exercise carried out annually.: Tenants may have their own safe within their premises.
+Emergency Response: Bomb Threat; Documented emergency response plan has been established. A 6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of staff and security team is established during the day.During the night,there are4 ERT members comprising of the security team with the SIC and SMC on call.There are3 fire evacuation drills(2 internal drills and1 CERT audit),and2 tabletop exercise carried out annually.: Detailed instructions are expected to be covered in the security plan.
+Emergency Response: Cash/Check Management; Documented emergency response plan has been established. A 6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of staff and security team is established during the day.During the night,there are4 ERT members comprising of the security team with the SIC and SMC on call.There are3 fire evacuation drills(2 internal drills and1 CERT audit),and2 tabletop exercise carried out annually.: Not applicable.
+Emergency Response: Parking; Documented emergency response plan has been established. A 6-man emergency response team including 1 site management controller,1 site incident controller and4 Emergency Response Team(ERT)members comprising of staff and security team is established during the day.During the night,there are4 ERT members comprising of the security team with the SIC and SMC on call.There are3 fire evacuation drills(2 internal drills and1 CERT audit),and2 tabletop exercise carried out annually.: Carpark is open to public and overnight parking is permitted.
+
+[fm200:table:78] pages=57-57
+bbox=[69.5193275615513, 693.7380202051013, 524.7230606714031, 536.3052104480589] headings=['Property Risk Evaluation Report', 'Business Interruption']
+Business Continuity/Disaster Recovery Planning
+Emergency Response Procedures; In the event of business interruption, there is a crisis communication plan and business continuity plan from corporate in place. There are various scenarios in place based on which equipment has failed. An OFI has been raised to formalize a site-specific business continuity plan.
+Business Continuity Plans available?; Yes
+Last Reviewed/Updated; Reviewed on an annual basis.
+
+[fm200:79] pages=58-60
+bbox=[95.568, 586.12712, 486.85912, 161.14503292817676, 115.73, 657.1871199999999, 486.37912, 260.28503292817675, 70.824, 674.6168799999999, 524.33848, 544.0042598895027] headings=['Property Risk Evaluation Report', 'Business Interruption', 'Appendix A Site Photos']
+External Building Façade The Terrace
+Main Fire Alarm Panel CCTV with VA
+Underground diesel tank and pumps Basement 3 Fire Pump Room
+Level 1 HT Switchroom Level 4 Generator Set Panel
+Level 4 Chiller Plant Room Level 16 Generator Set
+L16 Fire Pump Room L16 Low Tension Switchroom
+Level 16 Transformer Room L37 Sprinkler Pump room
+L37 Lift Motor Room
+L37 Fire Pump Panel
+This document and any recommendations, analysis, or advice provided by Marsh (collectively, the 'Marsh Analysis') are not int ended to be taken as advice regarding any individual situation and should not be relied upon as such. The information contained herein is based on sources we believe reliable, but we make no representation or warranty as to its accuracy. Marsh shall have no obligation to update the Marsh Analysis and shall have no liability to you or any other party arising out of this publication or any matter contained herein. Any statements concerning actuarial, tax, accounting, or legal matters are based solely on our experience as insurance brokers and risk consultants and are not to be relied upon as actuarial, tax, accounting, or legal advice, for which you should consult your own professional advisors. Any modeling, analytics, or projections are subject to inherent uncertainty, and the Marsh Analysis could be materially affected if any underlying assumptions, conditions, information, or factors are inaccurate or incomplete or should change. Marsh makes no representation or warranty concerning the application of policy wording or the financial condition or solvency of insurers or reinsurers. Marsh makes no assurances regarding the availability, cost, or terms of insurance coverage. Although Marsh may provide advice and recommendations, all decisions regarding the amount, type or terms of coverage are the ultimate responsibility of the insurance purchaser, who must decide on the specific coverage that is appropriate to its particular circumstances and financial position.
+Copyright © 2025 Marsh USA Inc. All rights reserved.
+.
