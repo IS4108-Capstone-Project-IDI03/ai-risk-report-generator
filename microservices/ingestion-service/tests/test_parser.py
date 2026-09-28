@@ -18,7 +18,9 @@ from app.pipeline.parser import (
     parse,
 )
 
-FIXTURE = Path(__file__).parent / "FM_Standard_File" / "Tyco Hygood FM-200 Engineered Manual.pdf"
+from test_file_option import get_fixture
+
+FIXTURE = get_fixture()
 
 # Docling runs vision models on CPU per page, so parsing the whole manual takes
 # minutes on every run. The default structural tests only need a representative
