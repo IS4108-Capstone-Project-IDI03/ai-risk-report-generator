@@ -47,6 +47,8 @@ export const initialState: WorkflowState = {
   captureObs: {},
   fMode: 'note',
   fNote: '',
+  fNoteBusy: false,
+  fNoteError: null,
   fRec: false,
   fSecs: 0,
   fTrans: false,
@@ -265,6 +267,9 @@ export const CAT_ICON: Record<string, string> = {
   'Fire protection': 'flame',
   'External exposures': 'cloud-lightning',
 }
+// A text note may be saved before it is categorised (CP-02); report drafting
+// leaves it out until it is. Voice notes and photos always need a category.
+export const UNCATEGORISED = 'Not categorised yet'
 // Standards an observation can be tied to. The draft finds the clause itself.
 export const STANDARD_REFERENCES = [
   'NFPA 25 – 2026 Edition',

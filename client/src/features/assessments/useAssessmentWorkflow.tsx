@@ -6,15 +6,16 @@ import {
   GatewayError,
   listAssessments,
   retryTranscription,
+  saveTextObservation,
   uploadVoiceObservation,
   type Assessment,
   type AssessmentStatus,
-  type VoiceObservation,
+  type SavedObservation,
 } from './api'
 import { formatDayTime } from './format'
 import type { AssessmentRow, Observation, VoiceClip, WorkflowState } from './types'
 import { useCaptureSession } from './useCaptureSession'
-import { useVoiceObservations } from './useVoiceObservations'
+import { useObservations } from './useObservations'
 import {
   initialState,
   CAPTURE_ASSESSMENT,
@@ -22,6 +23,7 @@ import {
   ROWS,
   CAT_ICON,
   COPE_DIMENSION,
+  UNCATEGORISED,
   STANDARD_REFERENCES,
   SEV,
   STANDARDS,
@@ -71,7 +73,25 @@ const TRANSCRIPTION_TEXT = {
   transcribing: 'Transcribing the recording…',
   failed: 'The recording could not be transcribed.',
 }
-function toVoiceEntry(o: VoiceObservation): Observation {
+// Shown under the category the engineer picked when capturing.
+function categoryLabel(copeDimension: string | null) {
+  if (copeDimension === null) return UNCATEGORISED
+  return Object.keys(COPE_DIMENSION).find((c) => COPE_DIMENSION[c] === copeDimension)
+}
+function toEntry(o: SavedObservation): Observation {
+  if (o.type === 'text')
+    return {
+      icon: 'sticky-note',
+      color: '#f9ac10',
+      cat: categoryLabel(o.copeDimension) ?? 'Text note',
+      time: formatDayTime(new Date(o.recordedAt)),
+      text: o.text,
+      area: o.area ?? '',
+      sev: o.severity,
+      std: o.standard ?? '',
+      media: [],
+      detail: o.text,
+    }
   const { status, transcript, error } = o.transcription
   const text =
     status === 'transcribed'
@@ -80,10 +100,7 @@ function toVoiceEntry(o: VoiceObservation): Observation {
   return {
     icon: 'mic',
     color: '#8f7dff',
-    // Shown under the category the engineer picked when recording.
-    cat:
-      Object.keys(COPE_DIMENSION).find((c) => COPE_DIMENSION[c] === o.copeDimension) ??
-      'Voice note',
+    cat: categoryLabel(o.copeDimension) ?? 'Voice note',
     time: formatDayTime(new Date(o.recordedAt)),
     text,
     area: o.area ?? '',
@@ -117,7 +134,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [timeouts] = useState(() => new Set<ReturnType<typeof setTimeout>>())
   const capture = useCaptureSession(state.captureTarget.reference, state.screen === 'field')
-  const voice = useVoiceObservations(
+  const captured = useObservations(
     state.captureTarget.reference,
     state.screen === 'field' || state.screen === 'assessment',
   )
@@ -358,10 +375,11 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     // The demo assessment keeps its sample observations; others start empty.
     const isDemoCapture = s.captureTarget.reference === CAPTURE_ASSESSMENT.reference
     const localRecent = isDemoCapture ? s.fRecent : (s.captureObs[s.captureTarget.reference] ?? [])
-    // Voice notes saved on the server come first, then this browser's notes and photos.
-    const voiceEntries = voice.observations.map(toVoiceEntry)
-    const fieldRecent = [...voiceEntries, ...localRecent]
-    const fieldSaved = (isDemoCapture ? s.fSaved : localRecent.length) + voiceEntries.length
+    // Voice and text notes saved on the server come first, then this browser's
+    // notes and photos, kept in the demo when no capture session is live.
+    const serverEntries = captured.observations.map(toEntry)
+    const fieldRecent = [...serverEntries, ...localRecent]
+    const fieldSaved = (isDemoCapture ? s.fSaved : localRecent.length) + serverEntries.length
     // Real recording needs a capture session on the server; without one, voice stays simulated.
     const liveVoice = !!liveCapture
     // A recording is named by its number; an uploaded file keeps its own name.
@@ -408,7 +426,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
               : 'The gateway could not be reached.'
         }
       }
-      if (saved) voice.reload()
+      if (saved) captured.reload()
       const notes = saved === 1 ? 'Voice note' : saved + ' voice notes'
       setState({
         fTransBusy: false,
@@ -423,10 +441,51 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       })
       if (saved) later(() => setState({ fToast: null }), 3200)
     }
+    // A text note is saved exactly as typed, filed under what the form shows
+    // (CP-02). If it fails, the note stays in the box for another try.
+    async function saveNote(text: string) {
+      const reference = s.captureTarget.reference
+      setState({ fNoteBusy: true, fNoteError: null })
+      let note
+      try {
+        note = await saveTextObservation(reference, {
+          text,
+          engineer: ME,
+          copeDimension: s.fCat === UNCATEGORISED ? null : COPE_DIMENSION[s.fCat],
+          severity: s.fSev,
+          area: s.fArea,
+          standard: s.fStd,
+        })
+      } catch (error: unknown) {
+        const problems = error instanceof GatewayError ? Object.values(error.fields) : []
+        const cause = problems.length
+          ? problems.join(' ')
+          : error instanceof GatewayError && error.status !== null
+            ? error.message
+            : 'The gateway could not be reached.'
+        setState({
+          fNoteBusy: false,
+          fNoteError: {
+            title: 'Note not saved',
+            message: cause + ' Your note is still here; press Save observation to try again.',
+          },
+        })
+        return
+      }
+      captured.add(note)
+      // Keep anything typed while the note was saving.
+      updateState((previous) => ({
+        ...previous,
+        fNoteBusy: false,
+        fNote: previous.fNote === text ? '' : previous.fNote,
+        fToast: 'Note saved to ' + reference + '.',
+      }))
+      later(() => setState({ fToast: null }), 3200)
+    }
     async function retryVoice(id: string) {
       try {
         await retryTranscription(id)
-        voice.reload()
+        captured.reload()
       } catch (error: unknown) {
         const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
         toast(cause + ' Try again.', 'warning')
@@ -1322,6 +1381,8 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           fMode: 'photo',
         }),
       fNote: s.fNote,
+      fNoteBusy: s.fNoteBusy,
+      fNoteError: s.fNoteError,
       setFNote: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
@@ -1454,7 +1515,19 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         'External yard',
         'Sprinkler valve room',
       ],
-      catOptions: Object.keys(CAT_ICON),
+      // Only a text note may be left uncategorised. In other modes the choice
+      // reads as a prompt, and saving asks for a category.
+      catOptions: [
+        ...(s.fMode !== 'note' && s.fCat === UNCATEGORISED
+          ? [{ value: UNCATEGORISED, label: 'Choose a category' }]
+          : []),
+        ...Object.keys(CAT_ICON),
+        ...(s.fMode === 'note' ? [UNCATEGORISED] : []),
+      ],
+      catHint:
+        s.fMode === 'note' && s.fCat === UNCATEGORISED
+          ? 'Report drafting leaves this note out until it is categorised.'
+          : undefined,
       sevCriticalStyle: chipStyle(s.fSev === 'critical', 'critical'),
       sevHighStyle: chipStyle(s.fSev === 'high', 'high'),
       sevModerateStyle: chipStyle(s.fSev === 'moderate', 'moderate'),
@@ -1475,11 +1548,24 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       fToast: s.fToast,
       fRecent: fieldRecent,
       saveObservation: () => {
+        if (s.fMode !== 'note' && s.fCat === UNCATEGORISED) {
+          setState({
+            fToast: 'Choose a COPE category first. Only a text note can be saved uncategorised.',
+          })
+          return
+        }
         // A voice note is uploaded now, filed under what the form shows.
         if (liveVoice && s.fMode === 'voice') {
           if (s.fTransBusy || s.fRec) return
           if (s.fClips.length) void saveClips(s.fClips)
           else setState({ fToast: 'Record a voice note or choose an audio file first.' })
+          return
+        }
+        // So is a text note, once a capture session is live (CP-02).
+        if (liveCapture && s.fMode === 'note') {
+          if (s.fNoteBusy) return
+          if (s.fNote.trim()) void saveNote(s.fNote)
+          else setState({ fToast: 'Write a note first.' })
           return
         }
         const text =
