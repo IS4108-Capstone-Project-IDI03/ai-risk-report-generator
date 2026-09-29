@@ -112,7 +112,7 @@ The seven token stylesheets are fonts, colors, typography, spacing, elevation, m
 | Sign in; request access                                    | Auth feature, with demo entry to dashboard                                     |
 | Engineer dashboard                                         | Dashboard screen with sample records and filters                               |
 | Create assessment                                          | CreateAssessment screen                                                        |
-| Site observation                                           | SiteObservation screen, real voice capture, simulated photos                   |
+| Site observation                                           | SiteObservation screen, real text and voice capture, simulated photos          |
 | Assessment overview                                        | Overview screen                                                                |
 | Observation list                                           | Observations screen                                                            |
 | Report generation                                          | Generation screen with simulated progress and retry states                     |
@@ -128,7 +128,7 @@ Sign-in accepts a syntactically valid email and any non-empty sample password. I
 
 The workflow fills the viewport without a demo banner. The mobile drawer has no additional heading bar; its close button sits on the navy surface. Below 1080px, tables and the review workspace stack; below 760px, navigation becomes a modal drawer. Desktop chrome retains the 264px sidebar and 344px evidence inspector. There is no URL routing or deep-link persistence in this pass.
 
-Only the sample Tilbury assessment has a complete workspace. Other sample records, history and later observation pages explicitly explain their demo limits. New assessments appear in memory. Voice notes are recorded or uploaded, stored and transcribed through the gateway when a capture session is live, and simulated with a sample transcript otherwise; photos add placeholders. Generation uses timers. Review decisions and prose edits update the same state used by validation. Export requires all included sections reviewed and all review items resolved, then opens a simulated confirmation; it generates no file, sends nothing and records no real sign-off.
+Only the sample Tilbury assessment has a complete workspace. Other sample records, history and later observation pages explicitly explain their demo limits. New assessments appear in memory. When a capture session is live, text notes are saved through the gateway, and voice notes are recorded or uploaded, stored and transcribed through it; otherwise notes stay in the demo and voice is simulated with a sample transcript. Photos add placeholders. Generation uses timers. Review decisions and prose edits update the same state used by validation. Export requires all included sections reviewed and all review items resolved, then opens a simulated confirmation; it generates no file, sends nothing and records no real sign-off.
 
 Native form inputs provide keyboard and label activation. Tabs support arrow/Home/End keys. Native modal dialogs provide focus containment and Escape handling; focus returns to the opener. Reduced motion is respected globally.
 
