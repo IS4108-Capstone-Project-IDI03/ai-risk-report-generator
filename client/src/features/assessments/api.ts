@@ -53,18 +53,22 @@ export type CaptureSession = {
   }
 }
 
-// A voice observation saved on the server (CP-03). The transcription runs
-// after the upload returns, so it starts as 'transcribing'.
-export type TranscriptionStatus = 'transcribing' | 'transcribed' | 'failed'
-export type VoiceObservation = {
+// What every observation saved on the server records, however it was captured.
+type SavedObservationBase = {
   id: string
-  type: 'voice'
   engineer: string
-  copeDimension: string
+  // null for a text note that is not categorised yet.
+  copeDimension: string | null
   standard: string | null
   severity: string
   area: string | null
   recordedAt: string
+}
+// A voice observation (CP-03). The transcription runs after the upload
+// returns, so it starts as 'transcribing'.
+export type TranscriptionStatus = 'transcribing' | 'transcribed' | 'failed'
+export type VoiceObservation = SavedObservationBase & {
+  type: 'voice'
   audio: { contentType: string; size: number; url: string }
   transcription: {
     status: TranscriptionStatus
@@ -73,6 +77,9 @@ export type VoiceObservation = {
     attempts: number
   }
 }
+// A text note (CP-02), exactly as the engineer wrote it.
+export type TextObservation = SavedObservationBase & { type: 'text'; text: string }
+export type SavedObservation = VoiceObservation | TextObservation
 
 export class GatewayError extends Error {
   // HTTP status from the gateway, or null when no response arrived.
@@ -187,11 +194,28 @@ export async function uploadVoiceObservation(
   ).data
 }
 
+// Saves a text note, exactly as typed, to the assessment's active capture
+// session. A null copeDimension leaves it uncategorised.
+export async function saveTextObservation(
+  reference: string,
+  note: {
+    text: string
+    engineer: string
+    copeDimension: string | null
+    severity: string
+    area?: string
+    standard?: string
+  },
+): Promise<TextObservation> {
+  return (await request<TextObservation>('POST', observationsPath(reference) + '/text', note)).data
+}
+
+// Every saved observation of the assessment, newest first.
 export async function listObservations(
   reference: string,
   signal?: AbortSignal,
-): Promise<VoiceObservation[]> {
-  return (await request<VoiceObservation[]>('GET', observationsPath(reference), undefined, signal))
+): Promise<SavedObservation[]> {
+  return (await request<SavedObservation[]>('GET', observationsPath(reference), undefined, signal))
     .data
 }
 

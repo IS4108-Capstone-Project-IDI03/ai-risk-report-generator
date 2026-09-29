@@ -97,11 +97,19 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     <Textarea
                       label="Observation"
                       rows={5}
+                      maxLength={5000}
                       placeholder="What did you see? Write as you would for the record."
                       value={v.fNote}
                       onChange={v.setFNote}
                     ></Textarea>
                   </div>
+                  {!!v.fNoteError && (
+                    <div role="alert">
+                      <Callout tone="warning" title={v.fNoteError.title}>
+                        {v.fNoteError.message}
+                      </Callout>
+                    </div>
+                  )}
                 </>
               )}
               {!!v.isVoiceMode && (
@@ -441,6 +449,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                   ></Select>
                   <Select
                     label="COPE category"
+                    hint={v.catHint}
                     options={v.catOptions}
                     value={v.fCat}
                     onChange={v.setFCat}
@@ -527,7 +536,12 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                 </>
               )}
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                <Button variant="primary" iconLeft="check" onClick={v.saveObservation}>
+                <Button
+                  variant="primary"
+                  iconLeft="check"
+                  loading={v.fNoteBusy}
+                  onClick={v.saveObservation}
+                >
                   {'Save observation'}
                 </Button>
                 <Button variant="ghost" onClick={v.goDash}>

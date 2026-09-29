@@ -88,7 +88,7 @@ describe('Capture session (CP-01)', () => {
     await screen.findByText('Capture session started')
     expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
     expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
-    expect(notice).toHaveTextContent('Voice notes are stored on the server and transcribed')
+    expect(notice).toHaveTextContent('Text and voice notes are stored on the server')
     expect(
       screen.getByText('Harbourside Cold Store · RPT-2026-0411 · 28 observations captured'),
     ).toBeInTheDocument()
@@ -189,6 +189,17 @@ const CREATED_CAPTURE = {
     site: { code: 'SITE-0001', name: 'Jurong Distribution Hub' },
   },
 }
+const CREATED_NOTE = {
+  id: '6ab3a1e0e45cf009e4507803',
+  type: 'text',
+  engineer: 'A. Rowe',
+  copeDimension: 'Protection',
+  standard: null,
+  severity: 'high',
+  area: 'Bay 3 — north aisle',
+  recordedAt: '2026-09-23T09:10:00.000Z',
+  text: 'Sprinkler control valve chained open',
+}
 
 function createFromForm() {
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
@@ -244,6 +255,7 @@ describe('Create assessment (CP-01)', () => {
     const fetchMock = mockGateway(
       () => respond(201, CREATED),
       () => respond(201, CREATED_CAPTURE),
+      () => respond(201, CREATED_NOTE),
     )
     signIn()
     createFromForm()
@@ -268,12 +280,12 @@ describe('Create assessment (CP-01)', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
+    // With the session live, the note is saved to the gateway (CP-02).
+    expect(await screen.findByText('Note saved to RPT-2026-0001.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/assessments/RPT-2026-0001/observations/text')
     expect(screen.getByText('Sprinkler control valve chained open')).toBeInTheDocument()
     expect(
       screen.getByText('Jurong Distribution Hub · RPT-2026-0001 · 1 observation captured'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('Observation added to RPT-2026-0001. It is kept in this demo only.'),
     ).toBeInTheDocument()
   })
 

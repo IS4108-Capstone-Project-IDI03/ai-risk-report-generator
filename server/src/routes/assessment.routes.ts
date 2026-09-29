@@ -10,7 +10,9 @@ import {
   isCopeDimension,
   isSeverity,
   listObservations,
+  newTextObservationSchema,
   NoActiveSessionError,
+  saveTextObservation,
   saveVoiceObservation,
 } from '../services/observation.service'
 
@@ -129,6 +131,35 @@ router.get('/:reference/observations', async (req, res) => {
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Records a text note (CP-02) in the assessment's active capture session,
+// exactly as written. A null copeDimension leaves it uncategorised. 400 lists
+// the first problem with each invalid field, as for assessments.
+router.post('/:reference/observations/text', async (req, res) => {
+  const parsed = newTextObservationSchema.safeParse(req.body)
+  if (!parsed.success) {
+    const fields: Record<string, string> = {}
+    for (const issue of parsed.error.issues) {
+      const path = issue.path.map(String).join('.')
+      fields[path] ??= issue.message
+    }
+    res.status(400).json({ error: 'The observation details are invalid.', fields })
+    return
+  }
+  try {
+    res.status(201).json(await saveTextObservation(req.params.reference, parsed.data))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof NoActiveSessionError) {
+      res.status(409).json({ error: error.message })
       return
     }
     throw error

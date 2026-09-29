@@ -1,6 +1,6 @@
 # Storage and retrieval
 
-- MongoDB stores application records: sites, assessments, capture sessions and user accounts today; document/report records are planned.
+- MongoDB stores application records: sites, assessments, capture sessions, observations and user accounts today; document/report records are planned.
 - AWS S3 stores original uploaded files.
 - Chroma stores anonymised chunk text, vectors, and citation/filter metadata. Chroma replaces the planned Atlas Vector Search role.
 
@@ -109,19 +109,36 @@ edits are visible to the whole team.
 
 ## Observations
 
-`observations` holds voice notes; notes and photos are still browser-only. The
-original audio goes to S3 at `audio/<reference>/<observation id>.<ext>`; the
-document keeps the key, content type and size, never the audio. Each document
-links to its `assessment` and the capture `session` it was recorded in, the
-recording `engineer` (a name until F-04), and `metadata` with the five required
-fields: `source_type: 'voice'`, `jurisdiction` and `facility_type` copied from
-the site, `COPE_dimension` from the COPE category the engineer picked
-(`Construction`, `Occupancy`, `Protection` or `Exposure`, the same values the
-knowledge base uses), and `effective_date` (when it was recorded). `severity`
-(`critical`, `high`, `moderate` or `low`) is required; `area` (the location on
-site) and `standard` are optional. `standard` is the standard the engineer tied
-the note to (e.g. `NFPA 25 – 2026 Edition`); only the standard is stored, and
-the draft finds the clause.
+`observations` holds voice notes (CP-03) and text notes (CP-02); photos are
+still browser-only. Both kinds share the collection and are told apart by
+`type` (`voice` or `text`), Mongoose's discriminator key: `ObservationModel`
+reads every kind, and `VoiceObservationModel` and `TextObservationModel` create
+and change their own kind, each requiring its own fields. Photos (CP-04) should
+join as another kind rather than a new collection.
+
+Each document links to its `assessment` and the capture `session` it was
+recorded in, the `engineer` who captured it (a name until F-04), and `metadata`
+with the five required fields: `source_type` (the kind), `jurisdiction` and
+`facility_type` copied from the site, `COPE_dimension` from the COPE category
+the engineer picked (`Construction`, `Occupancy`, `Protection` or `Exposure`,
+the same values the knowledge base uses), and `effective_date` (when it was
+captured). `createdAt` is the capture timestamp. `severity` (`critical`,
+`high`, `moderate` or `low`) is required; `area` (the location on site) and
+`standard` are optional. `standard` is the standard the engineer tied the note
+to (e.g. `NFPA 25 – 2026 Edition`); only the standard is stored, and the draft
+finds the clause.
+
+A text note stores `text` exactly as written, untrimmed, up to 5,000
+characters. It is the only kind that may be saved uncategorised: its
+`COPE_dimension` is then `null`, present but null rather than left out.
+`listCategoryObservations` in `observation.service.ts`, the category-scoped
+drafting inputs for GN-01, matches on `COPE_dimension`, so an uncategorised
+note stays out of drafting until it is categorised. Nothing can categorise a
+saved note yet; editing arrives with CP-06 and CP-08.
+
+A voice note's original audio goes to S3 at
+`audio/<reference>/<observation id>.<ext>`; the document keeps the key, content
+type and size, never the audio.
 
 `transcription.status` is `transcribing`, `transcribed` (with `transcript`) or
 `failed` (with `error`, the reason shown to the engineer). `attempts` records
@@ -133,9 +150,10 @@ atomic update so two clicks cannot start two. Saving leaves the capture session
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations/voice` | Body is the audio with its own `Content-Type`, up to 25 MB; `X-Engineer` names the engineer, `X-COPE-Dimension` gives the category and `X-Severity` the severity; the optional `?area=` and `?standard=` query values hold the location and standard (a query, since they are not plain ASCII). 201, or 400 (missing engineer, category or severity) / 404 / 409 (no active session) / 413 / 415 |
-| `GET /api/assessments/:reference/observations` | The assessment's voice notes, newest first |
-| `POST /api/observations/:id/transcription/retry` | New attempt for a failed note: 202, or 404 / 409 |
-| `GET /api/observations/:id/audio` | Streams the original recording from S3 |
+| `POST /api/assessments/:reference/observations/text` | JSON body: `text`, `engineer`, `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, and optional `area` and `standard` (100 characters each). 201, or 400 `{ error, fields }` as for assessments / 404 / 409 (no active session) |
+| `GET /api/assessments/:reference/observations` | Every observation, newest first, with its `type`: a voice note carries `audio` and `transcription`, a text note `text`. `copeDimension` is `null` for an uncategorised note |
+| `POST /api/observations/:id/transcription/retry` | New attempt for a failed voice note: 202, or 404 / 409 (also for a text note) |
+| `GET /api/observations/:id/audio` | Streams the original recording from S3; 404 for a text note |
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

@@ -75,6 +75,9 @@ export type WorkflowState = {
   captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
+  // A text note being saved to the gateway, and why the last save failed.
+  fNoteBusy: boolean
+  fNoteError: { title: string; message: string } | null
   fRec: boolean
   fSecs: number
   fTrans: boolean

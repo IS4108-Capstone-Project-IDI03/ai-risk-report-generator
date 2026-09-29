@@ -69,3 +69,17 @@ when the gateway restarts is lost; startup marks it failed so the engineer can
 retry. Move to a job collection with a worker if volume grows or restarts
 become common.
 Story: CP-03.
+
+## 2026-09-29 — One observations collection, one Mongoose discriminator per kind
+
+Chose: text notes join voice notes in `observations`, told apart by `type`,
+which is the Mongoose discriminator key; each kind has its own model and
+required fields. An uncategorised text note stores `COPE_dimension: null`.
+Rejected: a separate collection per kind, which splits the per-assessment list
+and the drafting inputs; one schema with every kind's fields optional, which
+loses the database's check that a voice note has its audio; and a placeholder
+category such as `'Uncategorised'`, a value the knowledge base never uses that
+every retrieval filter would have to remember to exclude. Reason: the report
+treats all captures as one observation structure, and null keeps the
+metadata field present (the CLAUDE.md rule) without inventing a category.
+Story: CP-02.
