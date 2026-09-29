@@ -19,6 +19,15 @@ export const JURISDICTIONS = [
   { value: 'UK', label: 'United Kingdom' },
 ]
 
+export const FACILITY_TYPES = [
+  'Distribution warehouse',
+  'Cold store',
+  'Chemical plant',
+  'Paper mill',
+  'Port terminal',
+  'Office and data centre',
+]
+
 export const initialState: WorkflowState = {
   screen: 'dashboard',
   tab: 'overview',

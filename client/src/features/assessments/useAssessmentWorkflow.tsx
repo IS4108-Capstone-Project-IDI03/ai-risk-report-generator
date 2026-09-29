@@ -18,6 +18,7 @@ import { useVoiceObservations } from './useVoiceObservations'
 import {
   initialState,
   CAPTURE_ASSESSMENT,
+  FACILITY_TYPES,
   JURISDICTIONS,
   ROWS,
   CAT_ICON,
@@ -516,6 +517,11 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             label: 'User accounts',
             icon: 'users',
           },
+          {
+            value: 'knowledge',
+            label: 'Knowledge base',
+            icon: 'library',
+          },
         ],
       },
     ]
@@ -855,6 +861,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       isCreate: sc === 'create',
       isField: sc === 'field',
       isUsers: sc === 'users',
+      isKnowledge: sc === 'knowledge',
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
@@ -981,7 +988,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             ? 'New assessment'
             : sc === 'field'
               ? 'On site'
-              : sc === 'users'
+              : sc === 'users' || sc === 'knowledge'
                 ? 'Administration'
                 : 'Assessment workspace',
       title:
@@ -993,7 +1000,9 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
               ? 'Site observation'
               : sc === 'users'
                 ? 'User accounts'
-                : s.captureTarget.site,
+                : sc === 'knowledge'
+                  ? 'Knowledge base'
+                  : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · A. Rowe · Week of 11 Apr 2026'
@@ -1008,14 +1017,16 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
                 (fieldSaved === 1 ? ' observation captured' : ' observations captured')
               : sc === 'users'
                 ? 'View and update the account details of your team.'
-                : openRow
-                  ? [
-                      openRow.id,
-                      openRow.type,
-                      'Assessed ' + openRow.date,
-                      'Lead engineer ' + openRow.eng,
-                    ].join(' · ')
-                  : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
+                : sc === 'knowledge'
+                  ? 'Upload standards and past reports. Each accepted PDF is stored unaltered and queued for ingestion.'
+                  : openRow
+                    ? [
+                        openRow.id,
+                        openRow.type,
+                        'Assessed ' + openRow.date,
+                        'Lead engineer ' + openRow.eng,
+                      ].join(' · ')
+                    : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
@@ -1197,14 +1208,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       cfBusy: s.cfBusy,
       cfServerError: s.cfServerError,
       createLabel: s.cfBusy ? 'Creating assessment…' : 'Create assessment',
-      facilityOptions: [
-        'Distribution warehouse',
-        'Cold store',
-        'Chemical plant',
-        'Paper mill',
-        'Port terminal',
-        'Office and data centre',
-      ],
+      facilityOptions: FACILITY_TYPES,
       surveyOptions: [
         'Property risk survey',
         'Follow-up visit',
