@@ -137,5 +137,29 @@ atomic update so two clicks cannot start two. Saving leaves the capture session
 | `POST /api/observations/:id/transcription/retry` | New attempt for a failed note: 202, or 404 / 409 |
 | `GET /api/observations/:id/audio` | Streams the original recording from S3 |
 
+## Knowledge documents (IN-01)
+
+`knowledge_documents` holds one record per accepted upload. Its `_id` is the
+permanent document identifier; chunk ids in Chroma are `<_id>:<n>`. The admin
+enters `title`, `issuingBody` and `edition`; `fileName` is the original name.
+The unaltered PDF is in S3 at `knowledge/<_id>.pdf`; the record keeps `file`
+(`key`, `contentType`, `size`, `sha256`). `metadata` has the five required
+fields: `source_type` (`fm_standard`, `nfpa_standard` or `marsh_report`),
+`jurisdiction` (two-letter code), `facility_type` (`all` unless the admin picks
+one), `COPE_dimension` (`all`, since a whole standard spans every dimension)
+and `effective_date`.
+
+`status` is `queued` (set by the gateway), then `processing`, `complete` (with
+`result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
+(with `error`, the reason shown to the admin), all set by the ingestion worker,
+which also records `startedAt` and `finishedAt`. Rejected uploads are never
+stored.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `title`, `issuingBody`, `edition`, `effectiveDate`, `sourceType`, `jurisdiction` and optional `facilityType` are query values. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
+| `GET /api/knowledge-documents` | Every accepted document with its status, newest first |
+| `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
+
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
