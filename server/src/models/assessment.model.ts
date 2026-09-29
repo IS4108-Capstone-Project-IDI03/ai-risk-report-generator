@@ -5,6 +5,16 @@ import { Schema, Types, model } from 'mongoose'
 export const REPORT_STATUSES = ['draft', 'under_review', 'finalised'] as const
 export type ReportStatus = (typeof REPORT_STATUSES)[number]
 
+// A place on the site the engineer records observations in, e.g. "Stairwell B"
+// on "Level 2". Added by the engineer during capture.
+export interface ILocation {
+  _id: Types.ObjectId
+  name: string
+  floor?: string
+  // Lowercased name and floor, so "stairwell b" on "level 2" is the same place.
+  key: string
+}
+
 export interface IAssessment {
   // Human-readable report ID shown in the UI, e.g. RPT-2026-0411. Allocated
   // by the server when the assessment is created.
@@ -20,6 +30,7 @@ export interface IAssessment {
   standards: string[]
   engineers: string[]
   reportStatus?: ReportStatus
+  locations: ILocation[]
   createdAt: Date
   updatedAt: Date
 }
@@ -65,6 +76,14 @@ const assessmentSchema = new Schema<IAssessment>(
       type: String,
       enum: REPORT_STATUSES,
     },
+    // Embedded: a short list, always read with its assessment.
+    locations: [
+      {
+        name: { type: String, required: true, trim: true, maxlength: 100 },
+        floor: { type: String, trim: true, maxlength: 40 },
+        key: { type: String, required: true },
+      },
+    ],
   },
   {
     timestamps: true,

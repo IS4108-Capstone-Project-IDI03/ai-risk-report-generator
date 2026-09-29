@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
 import { connectDb } from '../models/db'
 import { SiteModel } from '../models/site.model'
+import { locationKey } from '../services/location.service'
 import { UserModel, type IUser } from '../models/user.model'
 
 // Sample accounts for the user accounts screen (F-03). Synthetic people with
@@ -100,6 +101,22 @@ async function seedAndVerify(): Promise<void> {
       },
     },
     { upsert: true },
+  )
+  // The places the client's demo lists, added only once so ones added on screen stay.
+  await AssessmentModel.updateOne(
+    { reference: 'RPT-2026-0411', 'locations.0': { $exists: false } },
+    {
+      $set: {
+        locations: [
+          { name: 'Bay 3 — north aisle', floor: 'Ground' },
+          { name: 'Bay 1 — despatch', floor: 'Ground' },
+          { name: 'Pump house' },
+          { name: 'Office annexe', floor: 'Level 1' },
+          { name: 'External yard' },
+          { name: 'Sprinkler valve room', floor: 'Ground' },
+        ].map((l) => ({ ...l, key: locationKey(l.name, l.floor) })),
+      },
+    },
   )
   console.log('Sample assessment RPT-2026-0411 is available.')
 

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import {
-  getObservationAudio,
+  getRecordingAudio,
   NotRetryableError,
   ObservationNotFoundError,
   retryTranscription,
@@ -8,10 +8,11 @@ import {
 
 const router = Router()
 
-// Starts a new transcription attempt for a failed voice observation (CP-03 AC7).
-router.post('/:id/transcription/retry', async (req, res) => {
+// Starts a new transcription attempt for a failed recording (CP-03 AC7).
+router.post('/:id/recordings/:recordingId/transcription/retry', async (req, res) => {
   try {
-    res.status(202).json(await retryTranscription(req.params.id))
+    await retryTranscription(req.params.id, req.params.recordingId)
+    res.status(202).end()
   } catch (error: unknown) {
     if (error instanceof ObservationNotFoundError) {
       res.status(404).json({ error: error.message })
@@ -26,9 +27,9 @@ router.post('/:id/transcription/retry', async (req, res) => {
 })
 
 // Streams the original recording from S3, the raw evidence (CP-03 AC1).
-router.get('/:id/audio', async (req, res) => {
+router.get('/:id/recordings/:recordingId/audio', async (req, res) => {
   try {
-    const audio = await getObservationAudio(req.params.id)
+    const audio = await getRecordingAudio(req.params.id, req.params.recordingId)
     res.set({ 'Content-Type': audio.contentType, 'Content-Length': String(audio.size) })
     audio.stream.pipe(res)
   } catch (error: unknown) {

@@ -1,3 +1,4 @@
+import type { ZodError } from 'zod'
 import express, { Router, type ErrorRequestHandler } from 'express'
 import {
   createAssessment,
@@ -6,17 +7,32 @@ import {
 } from '../services/assessment.service'
 import { AssessmentNotFoundError, startCaptureSession } from '../services/capture-session.service'
 import {
+  addLocation,
+  DuplicateLocationError,
+  listLocations,
+  LocationInUseError,
+  LocationNotFoundError,
+  newLocationSchema,
+  removeLocation,
+} from '../services/location.service'
+import {
   audioExtension,
-  isCopeDimension,
-  isSeverity,
   listObservations,
-  newTextObservationSchema,
+  newObservationSchema,
   NoActiveSessionError,
-  saveTextObservation,
-  saveVoiceObservation,
+  saveObservation,
+  UnknownLocationError,
 } from '../services/observation.service'
 
 const router = Router()
+
+// The first problem with each invalid field, keyed by path, e.g.
+// { "site.name": "Site name is required." }.
+function fieldErrors(error: ZodError) {
+  const fields: Record<string, string> = {}
+  for (const issue of error.issues) fields[issue.path.map(String).join('.')] ??= issue.message
+  return fields
+}
 
 // The work list (RV-10). Filtering and search happen in the client for now.
 router.get('/', async (_req, res) => {
@@ -24,16 +40,13 @@ router.get('/', async (_req, res) => {
 })
 
 // Creates an assessment (and its site). 400 lists the first problem with each
-// invalid field, keyed by path, e.g. { "site.name": "Site name is required." }.
+// invalid field.
 router.post('/', async (req, res) => {
   const parsed = newAssessmentSchema.safeParse(req.body)
   if (!parsed.success) {
-    const fields: Record<string, string> = {}
-    for (const issue of parsed.error.issues) {
-      const path = issue.path.map(String).join('.')
-      fields[path] ??= issue.message
-    }
-    res.status(400).json({ error: 'The assessment details are invalid.', fields })
+    res
+      .status(400)
+      .json({ error: 'The assessment details are invalid.', fields: fieldErrors(parsed.error) })
     return
   }
   res.status(201).json(await createAssessment(parsed.data))
@@ -54,64 +67,131 @@ router.post('/:reference/capture-session', async (req, res) => {
   }
 })
 
-// Records a voice observation (CP-03). The body is the audio itself, sent with
-// its own Content-Type; 25 MB is the Whisper upload limit. X-COPE-Dimension is
-// the category the engineer picked and X-Severity how serious it is.
-// ponytail: the engineer's name comes from a header until sign-in (F-04)
-// identifies them on the server.
+// The places on site the engineer records observations in.
+router.get('/:reference/locations', async (req, res) => {
+  try {
+    res.json(await listLocations(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Adds a location. 409 when the same name and floor is already listed.
+router.post('/:reference/locations', async (req, res) => {
+  const parsed = newLocationSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ error: 'The location details are invalid.', fields: fieldErrors(parsed.error) })
+    return
+  }
+  try {
+    res.status(201).json(await addLocation(req.params.reference, parsed.data))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof DuplicateLocationError) {
+      res.status(409).json({ error: error.message, fields: { name: error.message } })
+      return
+    }
+    throw error
+  }
+})
+
+// Removes a location with no observations: 204, 404, or 409 while it has some.
+router.delete('/:reference/locations/:id', async (req, res) => {
+  try {
+    await removeLocation(req.params.reference, req.params.id)
+    res.status(204).end()
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError || error instanceof LocationNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof LocationInUseError) {
+      res.status(409).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Saves one observation (CP-02, CP-03) as a multipart form: a `details` part
+// holding the JSON fields (see newObservationSchema) and a `recording` part
+// per audio file. It needs a note, a recording or both. 400 lists the first
+// problem with each invalid field, as for assessments. Each recording may be
+// up to 25 MB, the Whisper upload limit.
+// ponytail: the whole form is buffered in memory; stream it to S3 if uploads
+// grow past a few recordings.
 router.post(
-  '/:reference/observations/voice',
-  express.raw({ type: 'audio/*', limit: '25mb' }),
+  '/:reference/observations',
+  express.raw({ type: 'multipart/form-data', limit: '100mb' }),
   async (req, res) => {
-    const contentType = req.get('Content-Type') ?? ''
-    const engineer = req.get('X-Engineer')?.trim()
-    const copeDimension = req.get('X-COPE-Dimension')?.trim()
-    const severity = req.get('X-Severity')?.trim()
-    if (!audioExtension(contentType)) {
+    let form: FormData
+    try {
+      form = await new Response(req.body, {
+        headers: { 'Content-Type': req.get('Content-Type') ?? '' },
+      }).formData()
+    } catch {
+      res.status(400).json({ error: 'Send the observation as a multipart form.' })
+      return
+    }
+    let details: unknown
+    try {
+      details = JSON.parse(String(form.get('details')))
+    } catch {
+      details = undefined
+    }
+    const parsed = newObservationSchema.safeParse(details)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'The observation details are invalid.', fields: fieldErrors(parsed.error) })
+      return
+    }
+
+    const files = form.getAll('recording').filter((part) => part instanceof File)
+    if (files.some((file) => !audioExtension(file.type))) {
       res.status(415).json({
         error: 'This audio format is not supported. Use WebM, Ogg, MP4, M4A, MP3, WAV or FLAC.',
       })
       return
     }
-    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      res.status(400).json({ error: 'The recording is empty.' })
+    if (files.some((file) => file.size > 25 * 1024 * 1024)) {
+      res.status(413).json({ error: 'A recording is larger than 25 MB. Upload a shorter one.' })
       return
     }
-    if (!engineer) {
-      res.status(400).json({ error: 'The engineer recording the observation is missing.' })
+    if (files.some((file) => file.size === 0)) {
+      res.status(400).json({ error: 'A recording is empty.' })
       return
     }
-    if (!isCopeDimension(copeDimension)) {
-      res.status(400).json({
-        error: 'Choose a COPE category: Construction, Occupancy, Protection or Exposure.',
-      })
+    if (!parsed.data.note && files.length === 0) {
+      res.status(400).json({ error: 'Add a note or a recording to the observation.' })
       return
     }
-    if (!isSeverity(severity)) {
-      res.status(400).json({ error: 'Choose a severity: critical, high, moderate or low.' })
-      return
-    }
-    // Optional, and in the query rather than headers because their values are
-    // not plain ASCII (e.g. "NFPA 25 – 2026 Edition", "Bay 3 — north aisle").
-    const optional = (name: 'standard' | 'area') =>
-      typeof req.query[name] === 'string' ? req.query[name].trim() || undefined : undefined
-    const standard = optional('standard')
-    const area = optional('area')
-    if ((standard?.length ?? 0) > 100 || (area?.length ?? 0) > 100) {
-      res.status(400).json({ error: 'The standard and location must be 100 characters or fewer.' })
-      return
-    }
+    const recordings = await Promise.all(
+      files.map(async (file, i) => ({
+        name: file.name || `Recording ${i + 1}`,
+        audio: Buffer.from(await file.arrayBuffer()),
+        contentType: file.type,
+      })),
+    )
     try {
-      res.status(201).json(
-        await saveVoiceObservation(req.params.reference, req.body, contentType, {
-          engineer,
-          copeDimension,
-          severity,
-          area,
-          standard,
-        }),
-      )
+      res.status(201).json(await saveObservation(req.params.reference, parsed.data, recordings))
     } catch (error: unknown) {
+      if (error instanceof UnknownLocationError) {
+        res.status(400).json({
+          error: 'The observation details are invalid.',
+          fields: { locationId: error.message },
+        })
+        return
+      }
       if (error instanceof AssessmentNotFoundError) {
         res.status(404).json({ error: error.message })
         return
@@ -137,39 +217,12 @@ router.get('/:reference/observations', async (req, res) => {
   }
 })
 
-// Records a text note (CP-02) in the assessment's active capture session,
-// exactly as written. A null copeDimension leaves it uncategorised. 400 lists
-// the first problem with each invalid field, as for assessments.
-router.post('/:reference/observations/text', async (req, res) => {
-  const parsed = newTextObservationSchema.safeParse(req.body)
-  if (!parsed.success) {
-    const fields: Record<string, string> = {}
-    for (const issue of parsed.error.issues) {
-      const path = issue.path.map(String).join('.')
-      fields[path] ??= issue.message
-    }
-    res.status(400).json({ error: 'The observation details are invalid.', fields })
-    return
-  }
-  try {
-    res.status(201).json(await saveTextObservation(req.params.reference, parsed.data))
-  } catch (error: unknown) {
-    if (error instanceof AssessmentNotFoundError) {
-      res.status(404).json({ error: error.message })
-      return
-    }
-    if (error instanceof NoActiveSessionError) {
-      res.status(409).json({ error: error.message })
-      return
-    }
-    throw error
-  }
-})
-
 // express.raw rejects a body over the limit before the handler runs.
 const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
   if (error?.type !== 'entity.too.large') return next(error)
-  res.status(413).json({ error: 'The recording is larger than 25 MB. Upload a shorter one.' })
+  res
+    .status(413)
+    .json({ error: 'The recordings are larger than 100 MB in total. Save fewer at once.' })
 }
 router.use(tooLarge)
 

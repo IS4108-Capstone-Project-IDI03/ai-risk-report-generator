@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { listObservations, type SavedObservation } from './api'
 
-// The assessment's observations saved on the server: voice notes (CP-03) and
-// text notes (CP-02). Transcription finishes after a voice upload returns, so
-// the list is re-read every few seconds while any note is still transcribing.
+// The assessment's observations saved on the server. Transcription finishes
+// after a save returns, so the list is re-read every few seconds while any
+// recording is still transcribing.
 // An unreachable gateway leaves the list as it was.
 export function useObservations(reference: string, open: boolean) {
   const [loaded, setLoaded] = useState<{ reference: string; list: SavedObservation[] }>({
@@ -20,7 +20,7 @@ export function useObservations(reference: string, open: boolean) {
       listObservations(reference, controller.signal).then(
         (list) => {
           setLoaded({ reference, list })
-          if (list.some((o) => o.type === 'voice' && o.transcription.status === 'transcribing'))
+          if (list.some((o) => o.recordings.some((r) => r.transcription.status === 'transcribing')))
             timer = setTimeout(load, 3000)
         },
         () => undefined,

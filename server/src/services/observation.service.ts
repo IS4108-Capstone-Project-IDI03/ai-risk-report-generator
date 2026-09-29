@@ -1,22 +1,18 @@
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
-import { AssessmentModel } from '../models/assessment.model'
+import { AssessmentModel, type ILocation } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import {
   COPE_DIMENSIONS,
   ObservationModel,
   SEVERITIES,
-  TextObservationModel,
-  VoiceObservationModel,
   type CopeDimension,
   type IObservation,
-  type ITextObservation,
-  type IVoiceObservation,
-  type ObservationType,
-  type Severity,
+  type IRecording,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
 import { AssessmentNotFoundError } from './capture-session.service'
+import { toLocationDto, type LocationDto } from './location.service'
 import { transcribe } from './speech.service'
 import * as storage from './storage.service'
 
@@ -27,9 +23,15 @@ export class NoActiveSessionError extends Error {
   }
 }
 export class ObservationNotFoundError extends Error {
-  constructor() {
-    super('The observation was not found.')
+  constructor(what = 'observation') {
+    super(`The ${what} was not found.`)
     this.name = 'ObservationNotFoundError'
+  }
+}
+export class UnknownLocationError extends Error {
+  constructor() {
+    super('Choose one of the locations listed for this assessment.')
+    this.name = 'UnknownLocationError'
   }
 }
 export class NotRetryableError extends Error {
@@ -57,45 +59,22 @@ export function audioExtension(contentType: string): string | undefined {
   return EXTENSIONS[contentType.split(';')[0].trim().toLowerCase()]
 }
 
-export function isCopeDimension(value: string | undefined): value is CopeDimension {
-  return COPE_DIMENSIONS.includes(value as CopeDimension)
-}
-
-export function isSeverity(value: string | undefined): value is Severity {
-  return SEVERITIES.includes(value as Severity)
-}
-
-// What the engineer fills in on the capture form alongside the recording.
-export type VoiceDetails = {
-  engineer: string
-  copeDimension: CopeDimension
-  severity: Severity
-  area?: string
-  standard?: string
-}
-
-const optionalLabel = (label: string) =>
-  z
-    .string()
-    .trim()
-    .max(100, `${label} must be 100 characters or fewer.`)
-    .optional()
-    .transform((value) => value || undefined)
-
-// Request body for POST /api/assessments/:reference/observations/text (CP-02).
+// The fields of POST /api/assessments/:reference/observations, sent as the
+// form's `details` part alongside any recordings.
 // ponytail: the engineer's name comes in the body until sign-in (F-04)
 // identifies them on the server.
-export const newTextObservationSchema = z.object({
-  // Stored exactly as written (AC1), so checked for content but not trimmed.
-  text: z
-    .string('Observation text is required.')
-    .max(5000, 'Observation text must be 5,000 characters or fewer.')
-    .refine((text) => text.trim() !== '', 'Observation text is required.'),
+export const newObservationSchema = z.object({
+  // Stored exactly as written (CP-02 AC1); a blank note counts as none.
+  note: z
+    .string()
+    .max(5000, 'The note must be 5,000 characters or fewer.')
+    .optional()
+    .transform((note) => (note?.trim() ? note : undefined)),
   engineer: z
     .string('The engineer recording the observation is missing.')
     .trim()
     .min(1, 'The engineer recording the observation is missing.'),
-  // Sent explicitly: null leaves the note uncategorised (AC4).
+  // Sent explicitly: null leaves the observation uncategorised (CP-02 AC4).
   copeDimension: z
     .enum(
       COPE_DIMENSIONS,
@@ -103,62 +82,72 @@ export const newTextObservationSchema = z.object({
     )
     .nullable(),
   severity: z.enum(SEVERITIES, 'Choose a severity: critical, high, moderate or low.'),
-  area: optionalLabel('Location'),
-  standard: optionalLabel('Standard'),
+  locationId: z
+    .string('Choose a location.')
+    .refine(isValidObjectId, 'Choose one of the locations listed for this assessment.'),
+  standard: z
+    .string()
+    .trim()
+    .max(100, 'Standard must be 100 characters or fewer.')
+    .optional()
+    .transform((value) => value || undefined),
 })
-export type TextDetails = z.infer<typeof newTextObservationSchema>
+export type ObservationDetails = z.infer<typeof newObservationSchema>
+export type NewRecording = { name: string; audio: Buffer; contentType: string }
 
-type ObservationDtoBase = {
+export type ObservationDto = {
   id: string
   engineer: string
-  // null for a text note that is not categorised yet.
+  // null when not categorised yet.
   copeDimension: CopeDimension | null
   standard: string | null
-  severity: Severity
-  area: string | null
+  severity: IObservation['severity']
+  // null only if the location is no longer listed.
+  location: LocationDto | null
+  note: string | null
+  recordings: {
+    id: string
+    name: string
+    contentType: string
+    size: number
+    url: string
+    transcription: {
+      status: IRecording['transcription']['status']
+      transcript: string | null
+      error: string | null
+      attempts: number
+    }
+  }[]
   // When it was captured (CP-02 AC2).
   recordedAt: Date
 }
-export type ObservationDto =
-  | (ObservationDtoBase & {
-      type: 'voice'
-      audio: { contentType: string; size: number; url: string }
-      transcription: {
-        status: IVoiceObservation['transcription']['status']
-        transcript: string | null
-        error: string | null
-        attempts: number
-      }
-    })
-  | (ObservationDtoBase & { type: 'text'; text: string })
 
-type StoredObservation = (IVoiceObservation | ITextObservation) & { _id: Types.ObjectId }
+type StoredObservation = IObservation & { _id: Types.ObjectId }
 
-function toDto(o: StoredObservation): ObservationDto {
-  const base = {
+function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
+  const location = locations.find((l) => l._id.equals(o.location))
+  return {
     id: String(o._id),
     engineer: o.engineer,
     copeDimension: o.metadata.COPE_dimension ?? null,
     standard: o.standard ?? null,
     severity: o.severity,
-    area: o.area ?? null,
+    location: location ? toLocationDto(location) : null,
+    note: o.note ?? null,
+    recordings: o.recordings.map((r) => ({
+      id: String(r._id),
+      name: r.name,
+      contentType: r.contentType,
+      size: r.size,
+      url: `/api/observations/${o._id}/recordings/${r._id}/audio`,
+      transcription: {
+        status: r.transcription.status,
+        transcript: r.transcription.transcript ?? null,
+        error: r.transcription.error ?? null,
+        attempts: r.transcription.attempts.length,
+      },
+    })),
     recordedAt: o.createdAt,
-  }
-  if (o.type === 'text') return { ...base, type: 'text', text: o.text }
-  return {
-    ...base,
-    type: 'voice',
-    audio: {
-      contentType: o.audio.contentType,
-      size: o.audio.size,
-      url: `/api/observations/${o._id}/audio`,
-    },
-    transcription: {
-      status: o.transcription.status,
-      transcript: o.transcription.transcript ?? null,
-      error: o.transcription.error ?? null,
-      attempts: o.transcription.attempts.length,
-    },
   }
 }
 
@@ -177,104 +166,85 @@ async function activeCapture(reference: string) {
   return { assessment, session }
 }
 
-// The fields every observation carries (see CLAUDE.md); jurisdiction and
-// facility type are copied from the site.
-function metadataFor(
-  type: ObservationType,
-  site: ISite | null,
-  copeDimension: CopeDimension | null,
-  capturedAt: Date,
-): IObservation['metadata'] {
-  return {
-    source_type: type,
-    jurisdiction: site?.jurisdiction ?? 'unknown',
-    facility_type: site?.facilityType ?? 'unknown',
-    COPE_dimension: copeDimension,
-    effective_date: capturedAt,
-  }
-}
-
-// Stores the recording in S3 and records it against the assessment's active
-// capture session, then queues its one transcription (CP-03 AC1–AC3). The
-// session stays active, so the engineer can keep adding observations.
-export async function saveVoiceObservation(
+// Saves one observation with its note and recordings against the assessment's
+// active capture session. Each recording goes to S3 as raw evidence (CP-03
+// AC1) and queues its one transcription (AC3). The session stays active, so
+// the engineer can keep adding observations.
+export async function saveObservation(
   reference: string,
-  audio: Buffer,
-  contentType: string,
-  details: VoiceDetails,
+  details: ObservationDetails,
+  recordings: NewRecording[],
 ): Promise<ObservationDto> {
   const { assessment, session } = await activeCapture(reference)
-
+  const locations = assessment.locations ?? []
+  if (!locations.some((l) => l._id.equals(details.locationId))) throw new UnknownLocationError()
   const id = new Types.ObjectId()
-  const key = `audio/${reference}/${id}.${audioExtension(contentType)}`
-  await storage.putObject(key, audio, contentType)
-
   const now = new Date()
+  const stored = recordings.map((r) => {
+    const recordingId = new Types.ObjectId()
+    return {
+      _id: recordingId,
+      name: r.name,
+      key: `audio/${reference}/${id}/${recordingId}.${audioExtension(r.contentType)}`,
+      contentType: r.contentType,
+      size: r.audio.length,
+      transcription: { status: 'transcribing' as const, attempts: [{ startedAt: now }] },
+    }
+  })
+
+  // No transactions on a standalone mongod, so undo the uploads by hand.
+  const undo = () =>
+    Promise.all(stored.map((r) => storage.deleteObject(r.key).catch(() => undefined)))
   let observation
   try {
-    observation = await VoiceObservationModel.create({
+    await Promise.all(
+      stored.map((r, i) => storage.putObject(r.key, recordings[i].audio, r.contentType)),
+    )
+    observation = await ObservationModel.create({
       _id: id,
       assessment: assessment._id,
       session: session._id,
-      type: 'voice',
       engineer: details.engineer,
+      note: details.note,
+      recordings: stored,
       standard: details.standard,
       severity: details.severity,
-      area: details.area,
-      audio: { key, contentType, size: audio.length },
-      transcription: { status: 'transcribing', attempts: [{ startedAt: now }] },
-      metadata: metadataFor('voice', assessment.site, details.copeDimension, now),
+      location: details.locationId,
+      metadata: {
+        source_type: 'observation',
+        jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
+        facility_type: assessment.site?.facilityType ?? 'unknown',
+        COPE_dimension: details.copeDimension,
+        effective_date: now,
+      },
     })
   } catch (error) {
-    // No transactions on a standalone mongod, so undo the upload by hand.
-    await storage.deleteObject(key).catch(() => undefined)
+    await undo()
     throw error
   }
 
-  void runTranscription(String(id))
-  return toDto(observation.toObject())
+  for (const r of stored) void runTranscription(String(id), String(r._id))
+  return toDto(observation.toObject(), locations)
 }
 
-// Records a text note exactly as written against the assessment's active
-// capture session (CP-02). Its createdAt is the capture timestamp (AC2).
-export async function saveTextObservation(
-  reference: string,
-  details: TextDetails,
-): Promise<ObservationDto> {
-  const { assessment, session } = await activeCapture(reference)
-  const now = new Date()
-  const observation = await TextObservationModel.create({
-    assessment: assessment._id,
-    session: session._id,
-    type: 'text',
-    engineer: details.engineer,
-    text: details.text,
-    standard: details.standard,
-    severity: details.severity,
-    area: details.area,
-    metadata: metadataFor('text', assessment.site, details.copeDimension, now),
-  })
-  return toDto(observation.toObject())
-}
-
-// Every observation of the assessment, of every kind, newest first.
+// Every observation of the assessment, newest first.
 export async function listObservations(reference: string): Promise<ObservationDto[]> {
-  const assessment = await AssessmentModel.findOne({ reference }, '_id').lean()
+  const assessment = await AssessmentModel.findOne({ reference }, 'locations').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   const observations = await ObservationModel.find({ assessment: assessment._id })
     .sort({ createdAt: -1 })
     .lean<StoredObservation[]>()
-  return observations.map(toDto)
+  return observations.map((o) => toDto(o, assessment.locations ?? []))
 }
 
 // The drafting inputs for one COPE category, oldest first, for section
-// generation (GN-01). A note not categorised yet has a null COPE_dimension, so
-// it is left out until it is categorised (CP-02 AC4).
+// generation (GN-01). An observation not categorised yet has a null
+// COPE_dimension, so it is left out until it is categorised (CP-02 AC4).
 export async function listCategoryObservations(
   reference: string,
   copeDimension: CopeDimension,
 ): Promise<ObservationDto[]> {
-  const assessment = await AssessmentModel.findOne({ reference }, '_id').lean()
+  const assessment = await AssessmentModel.findOne({ reference }, 'locations').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   const observations = await ObservationModel.find({
     assessment: assessment._id,
@@ -282,73 +252,91 @@ export async function listCategoryObservations(
   })
     .sort({ createdAt: 1 })
     .lean<StoredObservation[]>()
-  return observations.map(toDto)
+  return observations.map((o) => toDto(o, assessment.locations ?? []))
 }
 
-// Starts a new attempt for the same recording (AC7). The status filter makes
-// it atomic, so a double click cannot start two attempts.
-export async function retryTranscription(id: string): Promise<ObservationDto> {
-  if (!isValidObjectId(id)) throw new ObservationNotFoundError()
-  const observation = await VoiceObservationModel.findOneAndUpdate(
-    { _id: id, 'transcription.status': 'failed' },
+// Starts a new attempt for the same recording (CP-03 AC7). Matching on the
+// failed status makes it atomic, so a double click cannot start two attempts.
+export async function retryTranscription(id: string, recordingId: string): Promise<void> {
+  if (!isValidObjectId(id) || !isValidObjectId(recordingId)) throw new ObservationNotFoundError()
+  const { matchedCount } = await ObservationModel.updateOne(
+    { _id: id, recordings: { $elemMatch: { _id: recordingId, 'transcription.status': 'failed' } } },
     {
-      $set: { 'transcription.status': 'transcribing' },
-      $unset: { 'transcription.error': 1 },
-      $push: { 'transcription.attempts': { startedAt: new Date() } },
+      $set: { 'recordings.$.transcription.status': 'transcribing' },
+      $unset: { 'recordings.$.transcription.error': 1 },
+      $push: { 'recordings.$.transcription.attempts': { startedAt: new Date() } },
     },
-    { returnDocument: 'after' },
-  ).lean()
-  if (!observation) {
-    if (await ObservationModel.exists({ _id: id })) throw new NotRetryableError()
-    throw new ObservationNotFoundError()
+  )
+  if (!matchedCount) {
+    if (await ObservationModel.exists({ _id: id, 'recordings._id': recordingId }))
+      throw new NotRetryableError()
+    throw new ObservationNotFoundError('recording')
   }
-  void runTranscription(id)
-  return toDto(observation)
+  void runTranscription(id, recordingId)
 }
 
-// Runs the latest attempt and records its outcome. Never throws: a failure is
-// stored as the reason the engineer sees (AC6).
+// Runs the recording's latest attempt and records its outcome. Never throws: a
+// failure is stored as the reason the engineer sees (CP-03 AC6). Updates only
+// this recording, so the observation's other recordings can finish alongside.
 // ponytail: runs in the gateway process with no broker (DECISIONS 2026-09-07);
 // move to a job collection and worker once volume or restarts matter.
-export async function runTranscription(id: string): Promise<void> {
-  const observation = await VoiceObservationModel.findById(id).catch(() => null)
-  if (!observation) return
-  const attempt = observation.transcription.attempts.at(-1)
+export async function runTranscription(id: string, recordingId: string): Promise<void> {
+  const observation = await ObservationModel.findOne(
+    { _id: id, 'recordings._id': recordingId },
+    { 'recordings.$': 1 },
+  )
+    .lean<StoredObservation>()
+    .catch(() => null)
+  const recording = observation?.recordings[0]
+  if (!recording) return
+  const attempt = `recordings.$.transcription.attempts.${recording.transcription.attempts.length - 1}`
+  let outcome: Record<string, unknown>
   try {
-    observation.transcription.transcript = await transcribe(observation.audio.key)
-    observation.transcription.status = 'transcribed'
+    outcome = {
+      'recordings.$.transcription.transcript': await transcribe(recording.key),
+      'recordings.$.transcription.status': 'transcribed',
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Transcription failed.'
-    observation.transcription.status = 'failed'
-    observation.transcription.error = reason
-    if (attempt) attempt.error = reason
+    outcome = {
+      'recordings.$.transcription.status': 'failed',
+      'recordings.$.transcription.error': reason,
+      [`${attempt}.error`]: reason,
+    }
   }
-  if (attempt) attempt.finishedAt = new Date()
-  await observation.save().catch((error) => console.error('Saving transcription failed:', error))
+  await ObservationModel.updateOne(
+    { _id: id, 'recordings._id': recordingId },
+    { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
+  ).catch((error) => console.error('Saving transcription failed:', error))
 }
 
 // A restart loses any attempt still running in memory; mark it failed so the
 // engineer sees why and can retry, rather than waiting on Transcribing forever.
 export async function failInterruptedTranscriptions() {
-  await VoiceObservationModel.updateMany(
-    { 'transcription.status': 'transcribing' },
+  await ObservationModel.updateMany(
+    { 'recordings.transcription.status': 'transcribing' },
     {
       $set: {
-        'transcription.status': 'failed',
-        'transcription.error': 'Transcription was interrupted by a gateway restart. Retry it.',
+        'recordings.$[r].transcription.status': 'failed',
+        'recordings.$[r].transcription.error':
+          'Transcription was interrupted by a gateway restart. Retry it.',
       },
     },
+    { arrayFilters: [{ 'r.transcription.status': 'transcribing' }] },
   )
 }
 
-// Only a voice note has a recording; any other kind is not found here.
-export async function getObservationAudio(id: string) {
-  if (!isValidObjectId(id)) throw new ObservationNotFoundError()
-  const observation = await VoiceObservationModel.findById(id, 'audio').lean()
-  if (!observation) throw new ObservationNotFoundError()
+export async function getRecordingAudio(id: string, recordingId: string) {
+  if (!isValidObjectId(id) || !isValidObjectId(recordingId)) throw new ObservationNotFoundError()
+  const observation = await ObservationModel.findOne(
+    { _id: id, 'recordings._id': recordingId },
+    { 'recordings.$': 1 },
+  ).lean<StoredObservation>()
+  const recording = observation?.recordings[0]
+  if (!recording) throw new ObservationNotFoundError('recording')
   return {
-    contentType: observation.audio.contentType,
-    size: observation.audio.size,
-    stream: await storage.getObjectStream(observation.audio.key),
+    contentType: recording.contentType,
+    size: recording.size,
+    stream: await storage.getObjectStream(recording.key),
   }
 }
