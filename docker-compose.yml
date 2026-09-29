@@ -34,6 +34,16 @@ services:
       ollama:
         condition: service_healthy
 
+  # BullMQ's job queue (IN-01). Append-only persistence, so queued jobs
+  # survive a restart.
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+
   mongo:
     image: mongo:7
     ports:
@@ -53,8 +63,10 @@ services:
       INGESTION_SERVICE_URL: http://ingestion-service:8001
       RAG_SERVICE_URL: http://rag-service:8002
       SPEECH_OCR_SERVICE_URL: http://speech-ocr-service:8003
+      REDIS_URL: redis://redis:6379
     depends_on:
       - mongo
+      - redis
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -92,6 +104,32 @@ services:
       GLMOCR_OCR_API_MODE: ollama_generate
       GLMOCR_OCR_MODEL: glm-ocr:latest
     depends_on:
+      chroma:
+        condition: service_started
+      ollama-pull:
+        condition: service_completed_successfully
+
+  # Takes queued knowledge documents one at a time and runs the pipeline
+  # (app/worker.py). Same image as ingestion-service, different command.
+  ingestion-worker:
+    build:
+      context: ./microservices/ingestion-service
+      target: production
+    command: ["uv", "run", "python", "-m", "app.worker"]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+      GLMOCR_MODE: selfhosted
+      GLMOCR_OCR_API_HOST: ollama
+      GLMOCR_OCR_API_PORT: 11434
+      GLMOCR_OCR_API_PATH: /api/generate
+      GLMOCR_OCR_API_MODE: ollama_generate
+      GLMOCR_OCR_MODEL: glm-ocr:latest
+    depends_on:
+      redis:
+        condition: service_started
       chroma:
         condition: service_started
       ollama-pull:
@@ -153,6 +191,7 @@ services:
       - ./microservices/speech-ocr-service:/app
 
 volumes:
+  redis-data:
   mongo-data:
   chroma-data:
   ollama-data:

@@ -23,3 +23,26 @@ Running S5 outside Docker: `.env` points `SPEECH_OCR_SERVICE_URL` at
 note fails with "The speech service could not be reached", S5 is not running or
 the gateway was started with the Docker hostname. S5 also needs the AWS
 credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
+
+## Knowledge document ingestion (IN-01)
+
+1. The admin picks PDFs on the Knowledge base screen and enters each file's
+   details. The client sends one `POST /api/knowledge-documents` per file, so a
+   rejected file never blocks the others.
+2. The gateway rejects anything that is not a PDF (Content-Type and `%PDF-`
+   header, 415), then asks the ingestion service's `POST /inspect` to open it
+   with PyMuPDF (422 with the reason if it is corrupt, password-protected or has
+   no pages). Nothing is stored for a rejected file.
+3. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
+   `knowledge_documents` as `queued` and adds a BullMQ job (`jobId` = document
+   id) to the `ingestion` queue in Redis. If the queue is down, it removes the
+   record and the file and answers 503.
+4. `ingestion-worker` (same image as the ingestion service, `python -m
+   app.worker`, concurrency 1) claims the document, downloads the original,
+   runs `app.pipeline.run(path, doc_id=<id>)` so chunk ids are `<id>:<n>`, and
+   records `complete` with counts or `failed` with the reason. A job whose
+   worker died mid-run is redelivered by BullMQ and processed again.
+5. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
+   document is queued or processing.
+
+See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).

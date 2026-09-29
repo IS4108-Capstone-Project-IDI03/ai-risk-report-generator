@@ -69,3 +69,17 @@ when the gateway restarts is lost; startup marks it failed so the engineer can
 retry. Move to a job collection with a worker if volume grows or restarts
 become common.
 Story: CP-03.
+
+## 2026-09-29 — Knowledge ingestion runs on a Redis/BullMQ queue
+Chose: the gateway stores each uploaded PDF in S3, records it in MongoDB
+and adds a job to a BullMQ queue in Redis; a separate Python worker
+(`ingestion-worker`, same image as the ingestion service) takes one job at
+a time, runs the ingestion pipeline and writes the outcome to MongoDB.
+Rejected: running ingestion inside the gateway like transcription (above),
+or inside the ingestion service's HTTP process. Reason: one parse takes
+minutes on CPU, so a restart would lose work that is expensive to redo, and
+several uploads must wait their turn rather than compete for the CPU. This
+follows the interim report (Redis + BullMQ for background jobs). Python and
+Node BullMQ share one queue format, so the gateway enqueues in Node and the
+worker consumes in Python. Transcription keeps its no-broker design.
+Story: IN-01.
