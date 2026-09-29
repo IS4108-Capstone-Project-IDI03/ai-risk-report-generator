@@ -30,7 +30,7 @@ with Cohere. MongoDB connectivity and the site schema are also implemented. The
 gateway creates assessments at `POST /api/assessments` and starts or resumes an
 assessment's capture session at `POST /api/assessments/:reference/capture-session`.
 It lists assessments with their status at `GET /api/assessments`, and records
-text and voice observations against the capture session in progress.
+observations (a note, recordings or both) against the capture session in progress.
 Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
 forwarding remain placeholders.
 
@@ -48,11 +48,12 @@ the engineer is assigned to. New assessment saves the assessment through the
 gateway; opening it from the dashboard opens its workspace, and Site observation
 from there starts its capture session. Only `RPT-2026-0411` has sample workspace
 content; seed it with `npm --prefix server run seed`. Without the gateway, a new assessment is kept in
-the demo only and capture shows sample data, and both say so. With a capture
-session live, text notes are saved through the gateway exactly as typed, and
-may be left uncategorised. Voice notes are recorded or uploaded, stored in S3
-and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`); photos are
-still memory-only.
+the demo only and capture shows sample data, and both say so. Capture starts by
+choosing or adding the location on site. With a capture
+session live, an observation's note and recordings are saved through the
+gateway together: the note exactly as typed, and each recording stored in S3
+and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`). An
+observation may be left uncategorised. Photos are still memory-only.
 
 ## Running the stack locally
 
