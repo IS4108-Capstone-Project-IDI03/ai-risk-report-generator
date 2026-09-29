@@ -4,9 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
-import { ObservationModel } from '../models/observation.model'
+import {
+  ObservationModel,
+  TextObservationModel,
+  VoiceObservationModel,
+} from '../models/observation.model'
 import { SiteModel } from '../models/site.model'
-import { failInterruptedTranscriptions } from '../services/observation.service'
+import {
+  failInterruptedTranscriptions,
+  listCategoryObservations,
+} from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
 
 // S3 stands in as a map; S5 as a stubbed fetch.
@@ -71,10 +78,10 @@ function upload(reference = 'RPT-2026-0411', body = AUDIO, type = 'audio/webm;co
 // The transcription runs after the response, so wait for it to settle.
 async function settled(id: string) {
   await vi.waitFor(async () => {
-    const o = await ObservationModel.findById(id).lean()
+    const o = await VoiceObservationModel.findById(id).lean()
     expect(o?.transcription.status).not.toBe('transcribing')
   })
-  return (await ObservationModel.findById(id).lean())!
+  return (await VoiceObservationModel.findById(id).lean())!
 }
 
 describe('POST /api/assessments/:reference/observations/voice', () => {
@@ -85,7 +92,7 @@ describe('POST /api/assessments/:reference/observations/voice', () => {
     const response = await upload()
 
     expect(response.status).toBe(201)
-    const stored = await ObservationModel.findById(response.body.id).lean()
+    const stored = await VoiceObservationModel.findById(response.body.id).lean()
     expect(stored?.type).toBe('voice')
     expect(stored?.engineer).toBe('A. Rowe')
     expect(stored?.severity).toBe('high')
@@ -283,8 +290,135 @@ describe('observation list, audio and restarts', () => {
 
     await failInterruptedTranscriptions()
 
-    const stored = await ObservationModel.findById(id).lean()
+    const stored = await VoiceObservationModel.findById(id).lean()
     expect(stored?.transcription.status).toBe('failed')
     expect(stored?.transcription.error).toMatch(/interrupted by a gateway restart/)
+  })
+})
+
+function saveNote(fields: object = {}, reference = 'RPT-2026-0411') {
+  return request(app)
+    .post(`/api/assessments/${reference}/observations/text`)
+    .send({
+      text: 'Hose reel H3 blocked by stacked pallets.',
+      engineer: 'A. Rowe',
+      copeDimension: 'Protection',
+      severity: 'moderate',
+      ...fields,
+    })
+}
+
+describe('POST /api/assessments/:reference/observations/text (CP-02)', () => {
+  it('stores the note exactly as written, with its capture time and engineer', async () => {
+    const assessment = await assessmentWithSession()
+    const text = '  Hose reel H3 blocked by pallets.\nMoved on request — recheck at close.  '
+    const before = new Date()
+
+    const response = await saveNote({ text, area: 'Bay 1 — despatch' })
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({ type: 'text', text, engineer: 'A. Rowe' })
+    const stored = await TextObservationModel.findById(response.body.id).lean()
+    expect(stored?.text).toBe(text)
+    expect(stored?.engineer).toBe('A. Rowe')
+    expect(stored?.area).toBe('Bay 1 — despatch')
+    expect(stored!.createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime())
+    expect(new Date(response.body.recordedAt)).toEqual(stored!.createdAt)
+    expect(stored?.metadata).toMatchObject({
+      source_type: 'text',
+      jurisdiction: 'SG',
+      facility_type: 'Warehouse',
+    })
+    // Saving adds to the session without ending it.
+    const session = await CaptureSessionModel.findOne({ assessment: assessment._id }).lean()
+    expect(String(stored?.session)).toBe(String(session?._id))
+    expect(session?.status).toBe('active')
+  })
+
+  it('files the note under the COPE category the engineer picked', async () => {
+    await assessmentWithSession()
+
+    const response = await saveNote({ copeDimension: 'Exposure' })
+
+    expect(response.body.copeDimension).toBe('Exposure')
+    const stored = await TextObservationModel.findById(response.body.id).lean()
+    expect(stored?.metadata.COPE_dimension).toBe('Exposure')
+  })
+
+  it('keeps an uncategorised note out of category-scoped drafting inputs', async () => {
+    await assessmentWithSession()
+    const uncategorised = (await saveNote({ copeDimension: null })).body
+    const exposure = (await saveNote({ copeDimension: 'Exposure' })).body
+
+    // The field is present but null, so it is never mistaken for a category.
+    const stored = await TextObservationModel.findById(uncategorised.id).lean()
+    expect(stored?.metadata).toHaveProperty('COPE_dimension', null)
+    expect(uncategorised.copeDimension).toBeNull()
+    for (const dimension of ['Construction', 'Occupancy', 'Protection', 'Exposure'] as const) {
+      const inputs = await listCategoryObservations('RPT-2026-0411', dimension)
+      expect(inputs.map((o) => o.id)).not.toContain(uncategorised.id)
+    }
+    const exposureInputs = await listCategoryObservations('RPT-2026-0411', 'Exposure')
+    expect(exposureInputs.map((o) => o.id)).toEqual([exposure.id])
+  })
+
+  it('rejects a note when no capture session is in progress', async () => {
+    await assessmentWithSession('RPT-2026-0411', 'ready_for_generation')
+
+    const response = await saveNote()
+
+    expect(response.status).toBe(409)
+    expect(await ObservationModel.countDocuments()).toBe(0)
+  })
+
+  it('rejects unknown assessments and names each invalid field', async () => {
+    await assessmentWithSession()
+
+    expect((await saveNote({}, 'RPT-2026-9999')).status).toBe(404)
+    const invalid = [
+      [{ text: '   \n ' }, 'text'],
+      [{ text: 'x'.repeat(5001) }, 'text'],
+      [{ engineer: ' ' }, 'engineer'],
+      [{ copeDimension: 'Fire protection' }, 'copeDimension'],
+      [{ copeDimension: undefined }, 'copeDimension'],
+      [{ severity: 'urgent' }, 'severity'],
+      [{ area: 'x'.repeat(101) }, 'area'],
+    ] as const
+    for (const [fields, field] of invalid) {
+      const response = await saveNote(fields)
+      expect(response.status).toBe(400)
+      expect(Object.keys(response.body.fields)).toEqual([field])
+    }
+    expect(await ObservationModel.countDocuments()).toBe(0)
+  })
+
+  it('lists text notes alongside voice notes, newest first', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'Racking is new.' }))
+    await assessmentWithSession()
+    const voice = (await upload()).body
+    await settled(voice.id)
+    const note = (await saveNote({ copeDimension: null })).body
+
+    const response = await request(app).get('/api/assessments/RPT-2026-0411/observations')
+
+    expect(response.body.map((o: { id: string; type: string }) => [o.id, o.type])).toEqual([
+      [note.id, 'text'],
+      [voice.id, 'voice'],
+    ])
+    expect(response.body[0]).toMatchObject({
+      text: 'Hose reel H3 blocked by stacked pallets.',
+      copeDimension: null,
+      severity: 'moderate',
+    })
+  })
+
+  it('has no recording to stream or transcription to retry', async () => {
+    await assessmentWithSession()
+    const { id } = (await saveNote()).body
+
+    expect((await request(app).get(`/api/observations/${id}/audio`)).status).toBe(404)
+    expect((await request(app).post(`/api/observations/${id}/transcription/retry`)).status).toBe(
+      409,
+    )
   })
 })
