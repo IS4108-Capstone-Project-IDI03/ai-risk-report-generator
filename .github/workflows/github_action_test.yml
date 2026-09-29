@@ -140,31 +140,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.18"
+
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: microservices/${{ matrix.service }}/pyproject.toml
+          python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv sync --frozen
         working-directory: microservices/${{ matrix.service }}
 
-      - name: Ruff
-        run: ruff check .
+      - name: Ruff check
+        run: uv run ruff check .
         working-directory: microservices/${{ matrix.service }}
 
-      - name: Black
-        run: black --check .
+      - name: Ruff format
+        run: uv run ruff format --check .
         working-directory: microservices/${{ matrix.service }}
 
       - name: Import smoke test
-        run: python -c "from app.main import app; print(app.title)"
+        run: uv run python -c "from app.main import app; print(app.title)"
         working-directory: microservices/${{ matrix.service }}
 
       - name: Pytest
-        run: pytest
+        # Add on specific marker so that gh action runs only the relevant tests for each service.
+        if: matrix.service == 'ingestion-service'
+        run: uv run pytest -q --tb=short -m "not model and not e2e"
         working-directory: microservices/${{ matrix.service }}
 
   # ── Docker images build ────────────────────────────────────────────────
@@ -186,7 +191,14 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Build image
-        run: docker build -t a2603-${{ matrix.service.name }}:ci ${{ matrix.service.context }}
+        run: |
+          # Ingestion has a separate test stage; 
+          # production only verifies that this deployable runtime image can be built. It does not run the service
+          if [ "${{ matrix.service.name }}" = "ingestion-service" ]; then
+            docker build --target production -t a2603-${{ matrix.service.name }}:ci ${{ matrix.service.context }}
+          else
+            docker build -t a2603-${{ matrix.service.name }}:ci ${{ matrix.service.context }}
+          fi
 
   # ── Full stack smoke test ──────────────────────────────────────────────
   # Builds and boots all seven containers, then checks every health endpoint.

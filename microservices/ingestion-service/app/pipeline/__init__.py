@@ -1,0 +1,96 @@
+"""Ingestion pipeline orchestrator.
+
+`run(file_path)` chains the stages for one document:
+
+    parse -> (tables/images branched aside) -> chunk -> anonymise -> index
+
+and returns a summary. `index_chunks` embeds each chunk (Cohere) and upserts it
+to Chroma, so embedding happens inside the index step, not as a separate stage.
+
+Execution model: `run()` is synchronous and self-contained. It takes a file
+path, returns a summary on success, and raises on failure (e.g.
+`UnparsableDocumentError`). It does not depend on request/response objects or
+global state.
+
+NOTE (future work): a full parse is CPU-bound and can take minutes, so this must
+not be run inline in an HTTP request. Today a direct caller (CLI/batch/test)
+invokes `run()` and waits. Later, `/ingest` can hand `run()` to a background
+worker or task queue and return "queued" immediately, adding job-status
+tracking. That change wraps `run()` unchanged — keep it free of web/framework
+dependencies so a worker can call it exactly as a CLI does.
+"""
+
+import sys
+
+from app.pipeline.anonymiser import anonymise
+from app.pipeline.errors import UnparsableDocumentError
+from app.pipeline.indexer import index_chunks
+
+__all__ = [
+    "run",
+    "parse",
+    "chunk",
+    "anonymise",
+    "index_chunks",
+    "UnparsableDocumentError",
+]
+
+
+# `parse` and `chunk` live in modules instead of global import
+# Resolving them as package attributes (rather than local imports inside `run()`)
+# keeps them patchable via `monkeypatch.setattr(pipeline, "parse", ...)`, which
+# the orchestrator wiring tests rely on.
+def __getattr__(name: str):
+    if name == "parse":
+        from app.pipeline.parser import parse
+
+        return parse
+    if name == "chunk":
+        from app.pipeline.chunker import chunk
+
+        return chunk
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
+    """Ingest one document end to end and return a summary.
+
+    Args:
+        file_path: path to the document to ingest.
+        page_range: 1-based inclusive ``(start, end)`` page window,
+            forwarded to the parser (useful for smoke runs).
+
+    Returns:
+        A summary dict::
+
+            {
+                "doc_name": str,
+                "chunks_indexed": int,
+                "tables_captured": int,
+                "images_captured": int,
+            }
+
+    Raises:
+        UnparsableDocumentError: if the document could not be parsed. Propagated
+            so a caller (or future OCR fallback) can react.
+    """
+    # Resolve `parse`/`chunk` through this module so the lazy `__getattr__`
+    # above supplies the real (Docling-backed) implementations on first use
+    # Allow module object to act as a class
+    this = sys.modules[__name__]
+
+    parsed = this.parse(file_path, page_range=page_range)
+
+    tables_captured = len(parsed.tables)
+    images_captured = len(parsed.images)
+
+    chunks = this.chunk(parsed, doc_path=file_path, doc_id=None)
+    chunks = anonymise(chunks)
+    chunks_indexed = index_chunks(chunks) if chunks else 0
+
+    return {
+        "doc_name": parsed.doc_name,
+        "chunks_indexed": chunks_indexed,
+        "tables_captured": tables_captured,
+        "images_captured": images_captured,
+    }

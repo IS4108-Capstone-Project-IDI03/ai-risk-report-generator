@@ -1,9 +1,26 @@
-"""Upsert already anonymised chunks with stable IDs and citation metadata."""
+"""Stage 4: upsert anonymised chunks with stable IDs and citation metadata."""
 
 import os
 
 from app.pipeline.embedder import embed
 from app.retrieval_config import COLLECTION, chroma_client
+
+"""
+Chunk (as produced by chunker.chunk and consumed here):
+{
+    "id":   str,              # stable unique id; also the Chroma record id
+    "text": str,              # chunk text; embedded via Cohere and stored as the document
+    "metadata": {             # forwarded to Chroma verbatim; scalars or a
+                              # non-empty homogeneous list of scalars
+        "doc_id":       str,  # foreign key back to the source document
+        "headings": list[str],# heading trail; key omitted when the chunk has none
+        "page_start":   int,  # present only when known
+        "page_end":     int,  # present only when known
+        "bbox":         list[float], # flattened [l, t, r, b] values in page order
+    },
+}
+Note: the embedding is NOT a chunk field — index_chunks computes it from `text`.
+"""
 
 
 def index_chunks(chunks: list[dict]) -> int:

@@ -7,26 +7,43 @@ version = "0.1.0"
 description = "S3 — parse, PII-guard, chunk, embed"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi[standard]>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "python-dotenv>=1.0",
     "cohere>=5.20,<6",
     "chromadb-client==1.5.5",
+    "docling>=2.0,<3",
+    "pymupdf>=1.28.2",
+    "glmocr>=0.1.5",
+    "opencv-python-headless>=5.0.0.93",
 ]
+
+[tool.setuptools]
+packages = ["app"]
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.7",
-    "black>=24.10",
+    "ruff>=0.7",        # uvx ruff check .  ; uvx ruff format . 
+    "black>=24.10",     # uvx black .
     "pytest>=8.3",
-    "httpx>=0.28",   # required by fastapi.testclient.TestClient
+    "httpx2>=2.13.0", # required for starlette.testclient import TestClient as TestClient
 ]
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "black>=26.5.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.7",
+    # Lets Python verify TLS against the OS trust store, so Hugging Face model
+    # downloads work behind a TLS-inspecting proxy. See tests/conftest.py.
+    "truststore==0.10.4",
+]
 
 [tool.ruff]
 line-length = 100
@@ -38,3 +55,18 @@ select = ["E", "F", "I", "UP"]
 [tool.black]
 line-length = 100
 target-version = ["py311"]
+
+[tool.pytest.ini_options]
+# Slow tests are deselected by default so the everyday suite stays fast.
+# Specify the start and end page to test in test_parser. Page 45-55 selected for FM200 (contains images, tables and text).
+# Full run of FM200 will take more than 11minutes, longer for first run when downloading and caching the model locally.
+# Run them explicitly with:  pytest -m slow   (or -m "slow or not slow" for all)
+# -rs always prints skip reasons: the Docling fixtures skip on any environment
+# failure, and a bare "s" hides why (e.g. a TLS/model-download problem).
+addopts = "-rs -m 'not slow and not inspect and not model and not e2e'"
+markers = [
+    "slow: full-document Docling parse; opt in with -m slow (minutes on CPU)",
+    "inspect: dumps chunk text/metadata for manual inspection; opt in with -m inspect -s",
+    "model: requires local Docling model weights and the fixture PDF",
+    "e2e: full pipeline end-to-end; requires Docling models and the fixture PDF",
+]
