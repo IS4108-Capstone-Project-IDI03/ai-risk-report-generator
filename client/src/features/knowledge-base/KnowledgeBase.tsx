@@ -212,9 +212,13 @@ function UploadRow({ upload }: { upload: Upload }) {
                 <Input
                   label="Edition"
                   required
-                  inputMode="numeric"
-                  maxLength={4}
-                  placeholder="Year, e.g. 2022"
+                  type="number"
+                  // A year; up to next year, since a new edition can be
+                  // published ahead of the year it is named for.
+                  min={1900}
+                  max={new Date().getFullYear() + 1}
+                  step={1}
+                  placeholder="e.g. 2022"
                   value={details.edition}
                   error={fieldErrors.edition}
                   onChange={(e) => set({ edition: e.target.value })}

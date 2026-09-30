@@ -133,7 +133,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
     // Switching back starts the standard's own details afresh.
     setField(row, /^Source type/, 'nfpa_standard')
-    expect(within(row).getByLabelText(/^Edition/)).toHaveValue('')
+    expect(within(row).getByLabelText(/^Edition/)).toHaveValue(null)
   })
 
   it("sends only a Marsh report's own details", async () => {
