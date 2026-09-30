@@ -309,3 +309,31 @@ describe('GET /api/knowledge-documents/:id/file', () => {
     expect((await request(app).get('/api/knowledge-documents/not-an-id/file')).status).toBe(404)
   })
 })
+
+// Uploads a document and marks it as the ingestion worker would.
+async function stored(details: Record<string, string>, state: object = { status: 'complete' }) {
+  const { body } = await upload(PDF, details)
+  await KnowledgeDocumentModel.updateOne({ _id: body.id }, { finishedAt: new Date(), ...state })
+  return body.id as string
+}
+
+describe('GET /api/knowledge-documents/active', () => {
+  it('lists every active document, however old, by title, and nothing still ingesting or failed', async () => {
+    const longAgo = new Date('2025-01-01')
+    await stored({ ...DETAILS, title: 'Zinc storage' })
+    await stored(
+      { ...REPORT, title: 'Apple cold store' },
+      { status: 'complete', finishedAt: longAgo },
+    )
+    await stored({ ...DETAILS, title: 'Still queued' }, { status: 'queued' })
+    await stored({ ...DETAILS, title: 'Mid processing' }, { status: 'processing' })
+    await stored({ ...DETAILS, title: 'Broken' }, { status: 'failed' })
+
+    const { body } = await request(app).get('/api/knowledge-documents/active')
+
+    expect(body.map((d: { title: string }) => d.title)).toEqual([
+      'Apple cold store',
+      'Zinc storage',
+    ])
+  })
+})

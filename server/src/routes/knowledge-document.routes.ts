@@ -7,6 +7,7 @@ import {
   documentDetailsSchema,
   getKnowledgeDocumentFile,
   KnowledgeDocumentNotFoundError,
+  listActiveDocuments,
   listKnowledgeDocuments,
   RejectedFileError,
   uploadKnowledgeDocument,
@@ -17,6 +18,11 @@ const router = Router()
 // Upload summary: every accepted document with its ingestion status.
 router.get('/', async (_req, res) => {
   res.json(await listKnowledgeDocuments())
+})
+
+// The knowledge base: every active document, by title (KB-01).
+router.get('/active', async (_req, res) => {
+  res.json(await listActiveDocuments())
 })
 
 // Uploads one knowledge document (IN-01). The body is the PDF itself; its

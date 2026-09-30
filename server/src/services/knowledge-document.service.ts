@@ -261,3 +261,16 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
     .lean()
   return documents.map(toDto)
 }
+
+/**
+ * Returns every active document (ingestion complete), sorted by title A–Z
+ * (KB-01). The collation sorts as a reader would: "apple" beside "Apple",
+ * not after every capital letter.
+ */
+export async function listActiveDocuments(): Promise<KnowledgeDocumentDto[]> {
+  const documents = await KnowledgeDocumentModel.find({ status: 'complete' })
+    .collation({ locale: 'en' })
+    .sort({ title: 1 })
+    .lean()
+  return documents.map(toDto)
+}
