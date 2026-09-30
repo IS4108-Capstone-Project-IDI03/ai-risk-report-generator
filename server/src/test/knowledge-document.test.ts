@@ -43,11 +43,18 @@ const PDF = Buffer.from('%PDF-1.7\nfake but well-formed enough\n%%EOF')
 const DETAILS = {
   fileName: 'NFPA 13 – 2022.pdf',
   title: 'NFPA 13: Standard for the Installation of Sprinkler Systems',
-  issuingBody: 'NFPA',
-  edition: '2022 Edition',
+  edition: '2022',
   effectiveDate: '2022-01-01',
   sourceType: 'nfpa_standard',
   jurisdiction: 'SG',
+}
+const REPORT = {
+  fileName: 'Cold store survey.pdf',
+  title: 'Cold store risk survey',
+  effectiveDate: '2024-03-12',
+  sourceType: 'marsh_report',
+  jurisdiction: 'MY',
+  facilityType: 'Cold store',
 }
 
 function upload(body = PDF, details: Record<string, string> = DETAILS, type = 'application/pdf') {
@@ -59,8 +66,8 @@ function upload(body = PDF, details: Record<string, string> = DETAILS, type = 'a
 }
 
 describe('POST /api/knowledge-documents', () => {
-  it('saves the entered details against the new document ID', async () => {
-    const response = await upload()
+  it("saves a standard's details, with the issuing body set from its source type", async () => {
+    const response = await upload(PDF, { ...DETAILS, issuingBody: 'Typed by hand' })
 
     expect(response.status).toBe(201)
     const list = await request(app).get('/api/knowledge-documents')
@@ -69,11 +76,37 @@ describe('POST /api/knowledge-documents', () => {
         id: response.body.id,
         title: 'NFPA 13: Standard for the Installation of Sprinkler Systems',
         issuingBody: 'NFPA',
-        edition: '2022 Edition',
+        edition: '2022',
         jurisdiction: 'SG',
+        facilityType: 'all',
         fileName: 'NFPA 13 – 2022.pdf',
       }),
     ])
+  })
+
+  it('saves a standard that applies in all countries', async () => {
+    const response = await upload(PDF, {
+      ...DETAILS,
+      sourceType: 'fm_standard',
+      jurisdiction: 'all',
+    })
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({ issuingBody: 'FM Global', jurisdiction: 'all' })
+  })
+
+  it("saves a Marsh report's details, with no edition", async () => {
+    const response = await upload(PDF, REPORT)
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({
+      title: 'Cold store risk survey',
+      issuingBody: 'Marsh',
+      edition: null,
+      effectiveDate: '2024-03-12',
+      jurisdiction: 'MY',
+      facilityType: 'Cold store',
+    })
   })
 
   it('stores the unaltered original under the document ID and queues one ingestion job', async () => {
@@ -136,6 +169,35 @@ describe('POST /api/knowledge-documents', () => {
       title: 'Title is required.',
       jurisdiction: 'Country must be a two-letter code, e.g. SG.',
     })
+    await expectNothingKept()
+  })
+
+  it.each([
+    [
+      'no source type',
+      { ...DETAILS, sourceType: '' },
+      { sourceType: 'Choose a source type: FM standard, NFPA standard or Marsh report.' },
+    ],
+    [
+      "a standard's edition that is not a year",
+      { ...DETAILS, edition: '2022 Edition' },
+      { edition: 'Edition must be a year, e.g. 2022.' },
+    ],
+    [
+      'a Marsh report without a facility type',
+      { ...REPORT, facilityType: '' },
+      { facilityType: 'Facility type is required.' },
+    ],
+    [
+      'a Marsh report for all countries',
+      { ...REPORT, jurisdiction: 'all' },
+      { jurisdiction: 'Country must be a two-letter code, e.g. SG.' },
+    ],
+  ])('refuses %s, naming the field to fix', async (_name, details, fields) => {
+    const response = await upload(PDF, details)
+
+    expect(response.status).toBe(400)
+    expect(response.body.fields).toEqual(fields)
     await expectNothingKept()
   })
 

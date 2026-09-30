@@ -6,8 +6,8 @@ import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import {
   KnowledgeDocumentModel,
-  SOURCE_TYPES,
   type IKnowledgeDocument,
+  type SourceType,
 } from '../models/knowledge-document.model'
 import { enqueueIngestion } from './ingestion-queue.service'
 import { IngestionUnavailableError, whyPdfCannotOpen } from './ingestion.service'
@@ -20,36 +20,65 @@ const text = (label: string, max: number) =>
     .min(1, `${label} is required.`)
     .max(max, `${label} must be ${max} characters or fewer.`)
 
+const country = (allowAll: boolean) =>
+  z
+    .string('Country is required.')
+    .regex(
+      allowAll ? /^([A-Z]{2}|all)$/ : /^[A-Z]{2}$/,
+      'Country must be a two-letter code, e.g. SG.',
+    )
+
 // The details the admin enters for each file (IN-01 AC1), as Zod validation
-// rules. They arrive in the query string because the request body is the PDF
-// itself. A broken rule becomes a 400 naming the field.
-export const documentDetailsSchema = z.object({
+// rules. Which details are asked depends on the source type: a standard has an
+// edition and may apply in all countries; a past Marsh report has neither, but
+// is about one facility type. They arrive in the query string because the
+// request body is the PDF itself. A broken rule becomes a 400 naming the field.
+const common = {
   fileName: text('File name', 255),
   title: text('Title', 200),
-  issuingBody: text('Issuing body', 100),
-  edition: text('Edition', 100),
-  effectiveDate: z.iso.date('Effective date must be a valid date (YYYY-MM-DD).'),
-  sourceType: z.enum(
-    SOURCE_TYPES,
-    'Choose a source type: FM standard, NFPA standard or Marsh report.',
-  ),
-  jurisdiction: z
-    .string('Country is required.')
-    .regex(/^[A-Z]{2}$/, 'Country must be a two-letter code, e.g. SG.'),
-  facilityType: z
-    .string()
-    .trim()
-    .max(100, 'Facility type must be 100 characters or fewer.')
-    .optional()
-    .transform((value) => value || 'all'),
-})
+  effectiveDate: z.iso.date('The date must be a valid date (YYYY-MM-DD).'),
+}
+export const documentDetailsSchema = z.discriminatedUnion(
+  'sourceType',
+  [
+    z.object({
+      ...common,
+      sourceType: z.enum(['fm_standard', 'nfpa_standard']),
+      // A year, so IN-02 can compare editions reliably.
+      edition: z
+        .string('Edition is required.')
+        .regex(/^\d{4}$/, 'Edition must be a year, e.g. 2022.'),
+      jurisdiction: country(true),
+      facilityType: z
+        .string()
+        .trim()
+        .max(100, 'Facility type must be 100 characters or fewer.')
+        .optional()
+        .transform((value) => value || 'all'),
+    }),
+    z.object({
+      ...common,
+      sourceType: z.literal('marsh_report'),
+      jurisdiction: country(false),
+      facilityType: text('Facility type', 100),
+    }),
+  ],
+  'Choose a source type: FM standard, NFPA standard or Marsh report.',
+)
 export type DocumentDetails = z.infer<typeof documentDetailsSchema>
+
+// Who publishes each source type; the admin never types it.
+const ISSUING_BODY: Record<SourceType, string> = {
+  fm_standard: 'FM Global',
+  nfpa_standard: 'NFPA',
+  marsh_report: 'Marsh',
+}
 
 export type KnowledgeDocumentDto = {
   id: string
   title: string
   issuingBody: string
-  edition: string
+  edition: string | null
   fileName: string
   sourceType: string
   jurisdiction: string
@@ -69,7 +98,7 @@ function toDto(d: IKnowledgeDocument & { _id: Types.ObjectId }): KnowledgeDocume
     id: String(d._id),
     title: d.title,
     issuingBody: d.issuingBody,
-    edition: d.edition,
+    edition: d.edition ?? null,
     fileName: d.fileName,
     sourceType: d.metadata.source_type,
     jurisdiction: d.metadata.jurisdiction,
@@ -130,8 +159,8 @@ export async function uploadKnowledgeDocument(
     document = await KnowledgeDocumentModel.create({
       _id: id,
       title: details.title,
-      issuingBody: details.issuingBody,
-      edition: details.edition,
+      issuingBody: ISSUING_BODY[details.sourceType],
+      edition: 'edition' in details ? details.edition : undefined,
       fileName: details.fileName,
       file: {
         key,

@@ -7,13 +7,15 @@ import { request } from '../accounts/api'
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'marsh_report'
 export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed'
 
-// What the admin enters for each file. effectiveDate is YYYY-MM-DD.
+// What the admin enters for each file. Which fields apply depends on the
+// source type (see uploads.ts); unused ones stay ''. effectiveDate is
+// YYYY-MM-DD (a standard's effective date, or a report's report date); edition
+// is a standard's year.
 export type DocumentDetails = {
+  sourceType: SourceType | ''
   title: string
-  issuingBody: string
   edition: string
   effectiveDate: string
-  sourceType: SourceType | ''
   jurisdiction: string
   facilityType: string
 }
@@ -24,7 +26,8 @@ export type KnowledgeDocument = {
   id: string
   title: string
   issuingBody: string
-  edition: string
+  // null for a past report, which has no edition.
+  edition: string | null
   fileName: string
   sourceType: SourceType
   jurisdiction: string
@@ -49,7 +52,10 @@ export function uploadKnowledgeDocument(
   file: File,
   details: DocumentDetails,
 ): Promise<KnowledgeDocument> {
-  const query = new URLSearchParams({ fileName: file.name, ...details })
+  // Blank fields are left out: they belong to the other source type, or are
+  // optional and the gateway fills in its default.
+  const filled = Object.entries(details).filter(([, value]) => value !== '')
+  const query = new URLSearchParams([['fileName', file.name], ...filled])
   return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/pdf' },

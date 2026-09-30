@@ -4,7 +4,7 @@
 // rejected, or back to draft when fixing the details or retrying can help.
 import { useSyncExternalStore } from 'react'
 import { GatewayError } from '../assessments/api'
-import { uploadKnowledgeDocument, type DocumentDetails } from './api'
+import { uploadKnowledgeDocument, type DocumentDetails, type SourceType } from './api'
 
 // A selected file and where its upload stands. `queued` means the gateway
 // accepted it; its ingestion progress then shows in the uploads list.
@@ -53,13 +53,13 @@ export function addFiles(files: File[]) {
     ...files.map((file) => ({
       key: String(nextKey++),
       file,
+      // Only the source type is asked first; it decides the other fields.
       details: {
+        sourceType: '' as const,
         title: file.name.replace(/\.pdf$/i, ''),
-        issuingBody: '',
         edition: '',
         effectiveDate: '',
-        sourceType: '' as const,
-        jurisdiction: 'SG',
+        jurisdiction: '',
         facilityType: '',
       },
       state: 'draft' as const,
@@ -69,9 +69,27 @@ export function addFiles(files: File[]) {
   ])
 }
 
+// Changing the source type starts that type's own fields afresh: a standard
+// applies in all countries unless narrowed; a past report is about one site,
+// most often in Singapore. Title and date suit both types, so they stay.
+function withSourceType(details: DocumentDetails, sourceType: SourceType | ''): DocumentDetails {
+  return {
+    ...details,
+    sourceType,
+    edition: '',
+    facilityType: '',
+    jurisdiction: sourceType === 'marsh_report' ? 'SG' : sourceType ? 'all' : '',
+  }
+}
+
 export function editDetails(key: string, change: Partial<DocumentDetails>) {
   const upload = uploads.find((u) => u.key === key)
-  if (upload) patch(key, { details: { ...upload.details, ...change } })
+  if (!upload) return
+  const details =
+    change.sourceType !== undefined && change.sourceType !== upload.details.sourceType
+      ? withSourceType(upload.details, change.sourceType)
+      : upload.details
+  patch(key, { details: { ...details, ...change } })
 }
 
 export function removeUpload(key: string) {

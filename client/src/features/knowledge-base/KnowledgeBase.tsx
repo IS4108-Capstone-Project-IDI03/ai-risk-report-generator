@@ -43,7 +43,11 @@ const SOURCE_LABELS: Record<SourceType, string> = {
   nfpa_standard: 'NFPA standard',
   marsh_report: 'Marsh report',
 }
-const FACILITY_OPTIONS = [{ value: '', label: 'All facility types' }, ...FACILITY_TYPES]
+// A standard may apply everywhere; a past report is about one country and one
+// facility type, so it has no "all" choice.
+const STANDARD_COUNTRIES = [{ value: 'all', label: 'All countries' }, ...JURISDICTIONS]
+const STANDARD_FACILITIES = [{ value: '', label: 'All facility types' }, ...FACILITY_TYPES]
+const REPORT_FACILITIES = [{ value: '', label: 'Choose a facility type' }, ...FACILITY_TYPES]
 
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   queued: { label: 'Queued', tone: 'neutral' },
@@ -63,6 +67,15 @@ function fileSize(bytes: number) {
   return bytes < 1024 * 1024
     ? `${Math.max(1, Math.round(bytes / 1024))} KB`
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+// A calendar date as "12 Mar 2024". UTC, because the stored date has no time.
+function calendarDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 // The design system's literal date form, e.g. "29 Sep 11:24".
 function uploadedAt(iso: string) {
@@ -144,11 +157,13 @@ export function KnowledgeBase({ narrow }: { narrow: boolean }) {
   )
 }
 
-// One file's details form. Locked unless the row is a draft; the gateway's
-// field errors show under each input.
+// One file's details form. It asks for the source type first, then only the
+// details that type needs (IN-01 AC1). Locked unless the row is a draft; the
+// gateway's field errors show under each input.
 function UploadRow({ upload }: { upload: Upload }) {
   const { key, file, details, state, error, fieldErrors } = upload
   const locked = state !== 'draft'
+  const standard = details.sourceType === 'fm_standard' || details.sourceType === 'nfpa_standard'
   const badge = UPLOAD_STATE[state]
   const set = (change: Partial<typeof details>) => editDetails(key, change)
 
@@ -176,59 +191,61 @@ function UploadRow({ upload }: { upload: Upload }) {
       )}
       {state !== 'rejected' && state !== 'queued' && (
         <div className="kb-fields">
-          <Input
-            label="Title"
-            required
-            value={details.title}
-            error={fieldErrors.title}
-            onChange={(e) => set({ title: e.target.value })}
-          />
-          <Input
-            label="Issuing body"
-            required
-            hint="e.g. FM Global, NFPA"
-            value={details.issuingBody}
-            error={fieldErrors.issuingBody}
-            onChange={(e) => set({ issuingBody: e.target.value })}
-          />
-          <Input
-            label="Edition"
-            required
-            hint="e.g. 2022 Edition"
-            value={details.edition}
-            error={fieldErrors.edition}
-            onChange={(e) => set({ edition: e.target.value })}
-          />
-          <Input
-            label="Effective date"
-            type="date"
-            required
-            value={details.effectiveDate}
-            error={fieldErrors.effectiveDate}
-            onChange={(e) => set({ effectiveDate: e.target.value })}
-          />
           <Select
             label="Source type"
+            required
             options={SOURCE_OPTIONS}
             value={details.sourceType}
             error={fieldErrors.sourceType}
             onChange={(e) => set({ sourceType: e.target.value as SourceType | '' })}
           />
-          <Select
-            label="Country"
-            options={JURISDICTIONS}
-            value={details.jurisdiction}
-            error={fieldErrors.jurisdiction}
-            onChange={(e) => set({ jurisdiction: e.target.value })}
-          />
-          <Select
-            label="Facility type"
-            hint="Optional"
-            options={FACILITY_OPTIONS}
-            value={details.facilityType}
-            error={fieldErrors.facilityType}
-            onChange={(e) => set({ facilityType: e.target.value })}
-          />
+          {details.sourceType && (
+            <>
+              <Input
+                label="Title"
+                required
+                value={details.title}
+                error={fieldErrors.title}
+                onChange={(e) => set({ title: e.target.value })}
+              />
+              {standard && (
+                <Input
+                  label="Edition"
+                  required
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="Year, e.g. 2022"
+                  value={details.edition}
+                  error={fieldErrors.edition}
+                  onChange={(e) => set({ edition: e.target.value })}
+                />
+              )}
+              <Input
+                label={standard ? 'Effective date' : 'Report date'}
+                type="date"
+                required
+                value={details.effectiveDate}
+                error={fieldErrors.effectiveDate}
+                onChange={(e) => set({ effectiveDate: e.target.value })}
+              />
+              <Select
+                label="Country"
+                required
+                options={standard ? STANDARD_COUNTRIES : JURISDICTIONS}
+                value={details.jurisdiction}
+                error={fieldErrors.jurisdiction}
+                onChange={(e) => set({ jurisdiction: e.target.value })}
+              />
+              <Select
+                label="Facility type"
+                required={!standard}
+                options={standard ? STANDARD_FACILITIES : REPORT_FACILITIES}
+                value={details.facilityType}
+                error={fieldErrors.facilityType}
+                onChange={(e) => set({ facilityType: e.target.value })}
+              />
+            </>
+          )}
         </div>
       )}
     </fieldset>
@@ -271,7 +288,9 @@ function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey
     <span className="kb-doc">
       <strong>{d.title}</strong>
       <small>
-        {d.issuingBody} · {d.edition} · {SOURCE_LABELS[d.sourceType]}
+        {d.sourceType === 'marsh_report'
+          ? `${SOURCE_LABELS[d.sourceType]} · ${d.facilityType} · ${calendarDate(d.effectiveDate)}`
+          : `${d.issuingBody} · ${d.edition} Edition · ${SOURCE_LABELS[d.sourceType]}`}
       </small>
     </span>
   )
@@ -347,7 +366,7 @@ function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey
           rows={documents.map((d) => ({
             id: d.id,
             document: title(d),
-            country: d.jurisdiction,
+            country: d.jurisdiction === 'all' ? 'All countries' : d.jurisdiction,
             uploaded: <span className="kb-mono">{uploadedAt(d.uploadedAt)}</span>,
             status: status(d),
             original: original(d),

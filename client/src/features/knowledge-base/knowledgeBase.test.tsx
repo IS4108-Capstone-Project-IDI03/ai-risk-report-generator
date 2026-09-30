@@ -8,7 +8,7 @@ const NFPA = {
   id: '6abb28ae16068a0793e9962a',
   title: 'NFPA 13 sprinkler standard',
   issuingBody: 'NFPA',
-  edition: '2022 Edition',
+  edition: '2022',
   fileName: 'nfpa-13.pdf',
   sourceType: 'nfpa_standard',
   jurisdiction: 'SG',
@@ -33,14 +33,21 @@ const json = (status: number, body: unknown) =>
 // Answers the upload summary with `list` and each upload by its title; the
 // dashboard's own requests fall back to demo data.
 function mockGateway(list: unknown[], uploads: Record<string, () => Promise<Response>> = {}) {
-  const posted: { title: string; body: unknown; type: string | null }[] = []
+  const posted: {
+    title: string
+    query: Record<string, string>
+    body: unknown
+    type: string | null
+  }[] = []
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (!url.startsWith('/api/knowledge-documents'))
       return Promise.reject(new TypeError('Failed to fetch'))
     if (init?.method !== 'POST') return json(200, list)
-    const title = new URL(url, 'http://x').searchParams.get('title') ?? ''
+    const query = Object.fromEntries(new URL(url, 'http://x').searchParams)
+    const title = query.title ?? ''
     posted.push({
       title,
+      query,
       body: init.body,
       type: new Headers(init.headers).get('Content-Type'),
     })
@@ -63,15 +70,16 @@ function choose(...files: File[]) {
   fireEvent.change(screen.getByLabelText(/Choose PDF files/), { target: { files } })
 }
 
-// Fills every required detail on a file's row; the title comes from the file name.
+const setField = (row: HTMLElement, label: RegExp, value: string) =>
+  fireEvent.change(within(row).getByLabelText(label), { target: { value } })
+
+// Fills every required detail of a standard on a file's row; the title comes
+// from the file name.
 function fillDetails(fileName: string) {
   const row = screen.getByRole('group', { name: fileName })
-  const set = (label: RegExp, value: string) =>
-    fireEvent.change(within(row).getByLabelText(label), { target: { value } })
-  set(/^Issuing body/, 'NFPA')
-  set(/^Edition/, '2022 Edition')
-  set(/^Effective date/, '2022-01-01')
-  set(/^Source type/, 'nfpa_standard')
+  setField(row, /^Source type/, 'nfpa_standard')
+  setField(row, /^Edition/, '2022')
+  setField(row, /^Effective date/, '2022-01-01')
   return row
 }
 
@@ -90,7 +98,7 @@ afterEach(() => {
 })
 
 describe('Knowledge base uploads (IN-01)', () => {
-  it('gives each selected PDF its own row of details, titled from its file name', async () => {
+  it('gives each selected PDF its own row, asking first for its source type', async () => {
     mockGateway([])
     openKnowledgeBase()
 
@@ -98,8 +106,58 @@ describe('Knowledge base uploads (IN-01)', () => {
 
     const rows = screen.getAllByRole('group')
     expect(rows.map((r) => r.getAttribute('aria-label'))).toEqual(['nfpa-13.pdf', 'FM 2-0.pdf'])
+    expect(within(rows[1]).getByLabelText(/^Source type/)).toHaveValue('')
+    expect(within(rows[1]).queryByLabelText(/^Title/)).not.toBeInTheDocument()
+
+    setField(rows[1], /^Source type/, 'fm_standard')
     expect(within(rows[1]).getByLabelText(/^Title/)).toHaveValue('FM 2-0')
-    expect(within(rows[0]).getByLabelText(/^Country/)).toHaveValue('SG')
+  })
+
+  it('asks a standard for its edition, and a Marsh report for its report date and facility type', async () => {
+    mockGateway([])
+    openKnowledgeBase()
+    choose(pdf('survey.pdf'))
+    const row = screen.getByRole('group', { name: 'survey.pdf' })
+
+    setField(row, /^Source type/, 'nfpa_standard')
+    setField(row, /^Edition/, '2022')
+    expect(within(row).getByLabelText(/^Country/)).toHaveValue('all')
+    expect(within(row).queryByLabelText(/^Report date/)).not.toBeInTheDocument()
+
+    setField(row, /^Source type/, 'marsh_report')
+    expect(within(row).queryByLabelText(/^Edition/)).not.toBeInTheDocument()
+    expect(within(row).queryByLabelText(/^Issuing body/)).not.toBeInTheDocument()
+    expect(within(row).getByLabelText(/^Report date/)).toBeInTheDocument()
+    expect(within(row).getByLabelText(/^Country/)).toHaveValue('SG')
+    expect(within(row).getByLabelText(/^Facility type/)).toHaveValue('')
+
+    // Switching back starts the standard's own details afresh.
+    setField(row, /^Source type/, 'nfpa_standard')
+    expect(within(row).getByLabelText(/^Edition/)).toHaveValue('')
+  })
+
+  it("sends only a Marsh report's own details", async () => {
+    const posted = mockGateway([])
+    openKnowledgeBase()
+    choose(pdf('survey.pdf'))
+    const row = screen.getByRole('group', { name: 'survey.pdf' })
+    setField(row, /^Source type/, 'nfpa_standard')
+    setField(row, /^Edition/, '2022')
+    setField(row, /^Source type/, 'marsh_report')
+    setField(row, /^Report date/, '2024-03-12')
+    setField(row, /^Facility type/, 'Cold store')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload all' }))
+
+    expect(await within(row).findByText('Uploaded')).toBeInTheDocument()
+    expect(posted[0].query).toEqual({
+      fileName: 'survey.pdf',
+      title: 'survey',
+      effectiveDate: '2024-03-12',
+      sourceType: 'marsh_report',
+      jurisdiction: 'SG',
+      facilityType: 'Cold store',
+    })
   })
 
   it('uploads each file on its own; a rejected file shows its reason and the others go through', async () => {
@@ -156,6 +214,29 @@ describe('Knowledge base uploads (IN-01)', () => {
       'href',
       NFPA.fileUrl,
     )
+  })
+
+  it('describes a standard by its edition and a Marsh report by its facility type and date', async () => {
+    mockGateway([
+      NFPA,
+      {
+        ...NFPA,
+        id: 'r',
+        title: 'Cold store risk survey',
+        issuingBody: 'Marsh',
+        edition: null,
+        sourceType: 'marsh_report',
+        facilityType: 'Cold store',
+        effectiveDate: '2024-03-12',
+      },
+    ])
+    openKnowledgeBase()
+
+    const table = await screen.findByRole('region', { name: 'Uploaded documents' })
+    expect(
+      await within(table).findByText('NFPA · 2022 Edition · NFPA standard'),
+    ).toBeInTheDocument()
+    expect(within(table).getByText('Marsh report · Cold store · 12 Mar 2024')).toBeInTheDocument()
   })
 
   it('keeps upload outcomes when you leave the screen and come back', async () => {

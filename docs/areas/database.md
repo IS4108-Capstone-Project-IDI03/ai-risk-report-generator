@@ -140,14 +140,29 @@ atomic update so two clicks cannot start two. Saving leaves the capture session
 ## Knowledge documents (IN-01)
 
 `knowledge_documents` holds one record per accepted upload. Its `_id` is the
-permanent document identifier; chunk ids in Chroma are `<_id>:<n>`. The admin
-enters `title`, `issuingBody` and `edition`; `fileName` is the original name.
-The unaltered PDF is in S3 at `knowledge/<_id>.pdf`; the record keeps `file`
-(`key`, `contentType`, `size`, `sha256`). `metadata` has the five required
-fields: `source_type` (`fm_standard`, `nfpa_standard` or `marsh_report`),
-`jurisdiction` (two-letter code), `facility_type` (`all` unless the admin picks
-one), `COPE_dimension` (`all`, since a whole standard spans every dimension)
-and `effective_date`.
+permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
+`fileName` is the original name. The unaltered PDF is in S3 at
+`knowledge/<_id>.pdf` (flat: no folder per source type, because a corrected
+source type would leave the file in the wrong folder); the record keeps `file`
+(`key`, `contentType`, `size`, `sha256`).
+
+The source type decides which details the admin gives:
+
+| Field | Standard (`fm_standard`, `nfpa_standard`) | Past report (`marsh_report`) |
+| --- | --- | --- |
+| `title` | required | required |
+| `issuingBody` | set from the source type: `FM Global` / `NFPA` | set: `Marsh` |
+| `edition` | required, a four-digit year, e.g. `2022` | absent |
+| `metadata.effective_date` | the edition's effective date | the report date |
+| `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
+| `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
+| `metadata.COPE_dimension` | `all` | `all` |
+
+`jurisdiction: 'all'` is the only value that isn't a two-letter code; like
+`facility_type: 'all'`, retrieval must treat it as matching any site. These
+fields live on the MongoDB record only: the ingestion pipeline's chunks carry
+`doc_id`, `headings`, pages and `bbox`, not the metadata above (see the `/index`
+contract earlier in this file).
 
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
@@ -157,7 +172,7 @@ stored.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `title`, `issuingBody`, `edition`, `effectiveDate`, `sourceType`, `jurisdiction` and optional `facilityType` are query values. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
 | `GET /api/knowledge-documents` | Every accepted document with its status, newest first |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 

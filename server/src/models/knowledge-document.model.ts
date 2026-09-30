@@ -10,8 +10,10 @@ export type SourceType = (typeof SOURCE_TYPES)[number]
 
 export interface IKnowledgeDocument {
   title: string
+  // Set from the source type (FM Global, NFPA or Marsh).
   issuingBody: string
-  edition: string
+  // A standard's year, e.g. "2022"; absent for a past report.
+  edition?: string
   // The name the file had on the admin's machine.
   fileName: string
   // The unaltered original in S3. MongoDB holds only its key; sha256 lets
@@ -40,7 +42,7 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
   {
     title: { type: String, required: true, trim: true },
     issuingBody: { type: String, required: true, trim: true },
-    edition: { type: String, required: true, trim: true },
+    edition: { type: String, trim: true },
     fileName: { type: String, required: true },
     file: {
       key: { type: String, required: true },
