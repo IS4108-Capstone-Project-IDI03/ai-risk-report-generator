@@ -25,7 +25,7 @@ export const FACILITY_TYPES = [
   'Chemical plant',
   'Paper mill',
   'Port terminal',
-  'Office and data centre',
+  'Data centre',
   // The site types of the sample reports Marsh provided.
   'Office',
   'Shopping mall',
