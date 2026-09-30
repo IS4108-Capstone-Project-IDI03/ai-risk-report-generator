@@ -107,6 +107,14 @@ export class GatewayError extends Error {
   }
 }
 
+// The gateway answers 401 once the session has expired or was never there
+// (F-04). The app listens for this and returns to the sign-in screen, keeping
+// the URL so signing in again reopens the same screen.
+export const SESSION_ENDED_EVENT = 'marsh:session-ended'
+export function reportSessionEnded() {
+  window.dispatchEvent(new Event(SESSION_ENDED_EVENT))
+}
+
 async function request<T>(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
@@ -133,6 +141,7 @@ async function request<T>(
   // Proxies, including Vite's dev proxy, answer 502/504 when the gateway is
   // down: the gateway itself sent nothing.
   if (response.status === 502 || response.status === 504) throw new GatewayError(null)
+  if (response.status === 401) reportSessionEnded()
   if (!response.ok) {
     const problem = (await response.json().catch(() => ({}))) as {
       error?: string

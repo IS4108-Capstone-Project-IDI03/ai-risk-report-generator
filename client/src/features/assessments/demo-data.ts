@@ -21,6 +21,19 @@ export const JURISDICTIONS = [
   { value: 'UK', label: 'United Kingdom' },
 ]
 
+export const FACILITY_TYPES = [
+  'Distribution warehouse',
+  'Cold store',
+  'Chemical plant',
+  'Paper mill',
+  'Port terminal',
+  'Data centre',
+  // The site types of the sample reports Marsh provided.
+  'Office',
+  'Shopping mall',
+  'Mixed-use development',
+]
+
 export const initialState: WorkflowState = {
   screen: 'dashboard',
   tab: 'overview',

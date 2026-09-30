@@ -60,7 +60,22 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 The API is available at `http://localhost:8001`. The health endpoint is
 `http://localhost:8001/health`.
 
-However, ingestion service is not currently connected to other services. For development purposes, ingestion is run through pytest on a set of document fixtures. See [Run tests](#run-tests) below.
+Uploaded documents reach the pipeline through the worker, not this API (IN-01).
+The gateway checks each PDF with `POST /inspect`, stores it in S3, records it in
+MongoDB's `knowledge_documents` and queues a BullMQ job on the `ingestion` queue
+in Redis. The worker takes one job at a time, downloads the original, runs
+`app.pipeline.run(path, doc_id=<document id>)` and writes `processing`, then
+`complete` or `failed` with the reason, back to the document.
+
+To run the worker outside Docker, start Redis (`docker compose up -d redis`) and
+run, from this directory:
+
+```powershell
+uv run python -m app.worker
+```
+
+It reads `REDIS_URL`, `MONGODB_URI`, `S3_BUCKET`, `AWS_REGION` and the AWS
+credentials from the root `.env`.
 
 To stop the supporting services, run this from the repository root:
 
@@ -74,7 +89,7 @@ From the repository root, build the ingestion images on the first run or after
 changing dependencies:
 
 ```powershell
-docker compose build ingestion-service ingestion-test
+docker compose build ingestion-service ingestion-worker ingestion-test
 ```
 
 Start the full stack:
@@ -94,7 +109,7 @@ docker compose ps
 View ingestion logs:
 
 ```powershell
-docker compose logs -f ingestion-service
+docker compose logs -f ingestion-service ingestion-worker
 ```
 
 ## Run tests

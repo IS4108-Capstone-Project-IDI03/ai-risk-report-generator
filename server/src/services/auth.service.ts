@@ -25,7 +25,8 @@ export async function login(
   const user = await UserModel.findOne({ email: email.toLowerCase().trim() }).select(
     '+passwordHash',
   )
-  if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+  // A deactivated account (F-03) cannot sign in; same generic error.
+  if (!user?.passwordHash || !user.active || !(await bcrypt.compare(password, user.passwordHash))) {
     throw new InvalidCredentialsError()
   }
   return { token: signSession(user), user: toSessionUser(user) }

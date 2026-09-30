@@ -52,13 +52,18 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
+def run(
+    file_path: str, page_range: tuple[int, int] | None = None, doc_id: str | None = None
+) -> dict:
     """Ingest one document end to end and return a summary.
 
     Args:
         file_path: path to the document to ingest.
         page_range: 1-based inclusive ``(start, end)`` page window,
             forwarded to the parser (useful for smoke runs).
+        doc_id: the document's permanent id, so chunk ids are
+            ``f"{doc_id}:{n}"`` and never collide across documents.
+            Defaults to the file name.
 
     Returns:
         A summary dict::
@@ -84,7 +89,7 @@ def run(file_path: str, page_range: tuple[int, int] | None = None) -> dict:
     tables_captured = len(parsed.tables)
     images_captured = len(parsed.images)
 
-    chunks = this.chunk(parsed, doc_path=file_path, doc_id=None)
+    chunks = this.chunk(parsed, doc_path=file_path, doc_id=doc_id)
     chunks = anonymise(chunks)
     chunks_indexed = index_chunks(chunks) if chunks else 0
 

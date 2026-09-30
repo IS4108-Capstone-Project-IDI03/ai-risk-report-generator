@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter
+import pymupdf
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.pipeline.indexer import index_chunks
@@ -57,6 +58,26 @@ def ingest(request: IngestRequest) -> dict:
     background worker and expose job status; that reuses `run()` unchanged.
     """
     return {"status": "queued", "file": request.filename}
+
+
+@router.post("/inspect")
+async def inspect(request: Request) -> dict:
+    """Open an uploaded PDF so the gateway can reject one that cannot be ingested.
+
+    Returns the page count, or 422 with the reason shown to the admin (IN-01).
+    Called by the gateway (server/src/services/ingestion.service.ts) before it
+    stores anything; saves nothing itself.
+    """
+    try:
+        doc = pymupdf.open(stream=await request.body(), filetype="pdf")
+    except Exception as error:
+        raise HTTPException(422, "The file is not a valid PDF and cannot be opened.") from error
+    with doc:
+        if doc.needs_pass:
+            raise HTTPException(422, "The PDF is password-protected.")
+        if doc.page_count == 0:
+            raise HTTPException(422, "The PDF has no pages.")
+        return {"pages": doc.page_count}
 
 
 @router.post("/index")

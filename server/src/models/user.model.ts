@@ -1,6 +1,8 @@
 import { Schema, model } from 'mongoose'
 
-export const USER_ROLES = ['risk_engineer', 'reviewer', 'knowledge_admin'] as const
+// The two agreed roles (F-05). What each may do is in
+// services/permissions.service.ts; a role only names the set.
+export const USER_ROLES = ['risk_engineer', 'knowledge_admin'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
 // A team member's account profile (F-03). Sign-in and passwords arrive with

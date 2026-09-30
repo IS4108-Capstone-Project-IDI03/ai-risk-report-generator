@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type * as React from 'react'
 import { Icon, Button } from '../../design-system'
 import {
@@ -28,6 +28,7 @@ import { useObservations } from './useObservations'
 import {
   initialState,
   CAPTURE_ASSESSMENT,
+  FACILITY_TYPES,
   JURISDICTIONS,
   ROWS,
   CAT_ICON,
@@ -43,6 +44,17 @@ import {
   EVIDENCE,
   OBS,
 } from './demo-data'
+import { roleLabel } from '../accounts/api'
+import type { Session } from '../auth/api'
+import {
+  can,
+  canOpen,
+  canOpenTab,
+  homeScreen,
+  SCREEN_PATHS,
+  screenForPath,
+  type Screen,
+} from '../auth/access'
 export type AssessmentWorkflow = ReturnType<typeof useAssessmentWorkflow>
 const STATUS_LABEL: Record<AssessmentStatus, string> = {
   not_started: 'Not started',
@@ -161,22 +173,50 @@ function microphoneProblem(error: unknown) {
   return 'The microphone could not be started. Upload a recording instead.'
 }
 
-export function useAssessmentWorkflow(onSignOut: () => void) {
-  const [state, updateState] = useState<WorkflowState>(() => structuredClone(initialState))
+export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
+  // The screen comes from the URL (F-05), so a screen can be linked to and
+  // reopened after signing in; '/' opens the role's home screen.
+  const [state, updateState] = useState<WorkflowState>(() => ({
+    ...structuredClone(initialState),
+    screen: screenForPath(window.location.pathname, session),
+  }))
+  // The URL follows the screen. The first update replaces '/' (or the path
+  // opened) rather than adding a history entry.
+  const urlSynced = useRef(false)
+  useEffect(() => {
+    const path = SCREEN_PATHS[state.screen as Screen]
+    if (path && window.location.pathname !== path) {
+      if (urlSynced.current) window.history.pushState(null, '', path)
+      else window.history.replaceState(null, '', path)
+    }
+    urlSynced.current = true
+  }, [state.screen])
+  // Back and forward move between screens.
+  useEffect(() => {
+    const follow = () =>
+      updateState((previous) => ({
+        ...previous,
+        screen: screenForPath(window.location.pathname, session),
+        navOpen: false,
+        toast: null,
+      }))
+    window.addEventListener('popstate', follow)
+    return () => window.removeEventListener('popstate', follow)
+  }, [session])
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [timeouts] = useState(() => new Set<ReturnType<typeof setTimeout>>())
-  const capture = useCaptureSession(state.captureTarget.reference, state.screen === 'field')
-  const captured = useObservations(
-    state.captureTarget.reference,
-    state.screen === 'field' || state.screen === 'assessment',
-  )
+  // A screen the route guard blocks (F-05) loads nothing from the gateway.
+  const onField = state.screen === 'field' && canOpen('field', session)
+  const onWorkspace = state.screen === 'assessment' && canOpen('assessment', session)
+  const capture = useCaptureSession(state.captureTarget.reference, onField)
+  const captured = useObservations(state.captureTarget.reference, onField || onWorkspace)
   // The Observations tab needs them too, to move an observation (CP-06).
   const places = useLocations(
     state.captureTarget.reference,
-    state.screen === 'field' || state.screen === 'assessment',
+    onField || onWorkspace,
     // On site they are the gateway's once capture is live; in the workspace,
     // once the gateway has listed the assessment's observations.
-    state.screen === 'field' ? capture.state?.status === 'live' : captured.synced,
+    onField ? capture.state?.status === 'live' : captured.synced,
     state.captureTarget.reference === CAPTURE_ASSESSMENT.reference ? DEMO_LOCATIONS : NO_LOCATIONS,
   )
   // The recorder in progress, and a counter naming the clips it makes.
@@ -186,7 +226,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
   const [listFailed, setListFailed] = useState(false)
-  const onDashboard = state.screen === 'dashboard'
+  const onDashboard = state.screen === 'dashboard' && canOpen('dashboard', session)
   useEffect(() => {
     // Refetched on every return to the dashboard, so capture progress shows.
     if (!onDashboard) return
@@ -380,12 +420,18 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     } as React.CSSProperties
   }
   function userFooter() {
+    const initials = session.user.name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0].toUpperCase())
+      .join('')
     return (
       <div className="user-footer">
-        <span className="user-avatar">AR</span>
+        <span className="user-avatar">{initials}</span>
         <div>
-          <strong>A. Rowe</strong>
-          <small>Risk engineer</small>
+          <strong>{session.user.name}</strong>
+          <small>{roleLabel(session.user.role)}</small>
         </div>
         <Button
           variant="ghost"
@@ -666,6 +712,11 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     const openRow = isDemoCapture ? null : rows.find((r) => r.id === s.captureTarget.reference)
 
     /* nav */
+    // The route guard (F-05): screens the role cannot open are left out of
+    // the navigation, and opening one by URL shows why it is blocked.
+    const canEdit = can('assessments:edit', session)
+    const tabBlocked = isAssessment && !canOpenTab(s.tab, session)
+    const routeBlocked = !canOpen(sc, session) || tabBlocked
     const navSections = [
       {
         label: 'Assessments',
@@ -707,9 +758,19 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             label: 'User accounts',
             icon: 'users',
           },
+          {
+            value: 'knowledge',
+            label: 'Knowledge base',
+            icon: 'library',
+          },
         ],
       },
     ]
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => canOpen(item.value, session)),
+      }))
+      .filter((section) => section.items.length > 0)
 
     const q = s.q.trim().toLowerCase()
     const openCount = (r: AssessmentRow) => (r.live ? open.length : r.open || 0)
@@ -944,6 +1005,20 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     const mm = String(Math.floor(s.fSecs / 60)).padStart(2, '0')
     const ss = String(s.fSecs % 60).padStart(2, '0')
     return {
+      /* access (F-05) */
+      routeBlocked,
+      canEdit,
+      canDraft: can('reports:generate', session),
+      roleName: roleLabel(session.user.role),
+      userId: session.user.id,
+      // Leaves a blocked screen for the role's home, or a blocked tab for the
+      // workspace overview.
+      leaveBlocked: () =>
+        setState(
+          tabBlocked
+            ? { tab: 'overview', toast: null }
+            : { screen: homeScreen(session), toast: null },
+        ),
       /* chrome */
       navSections,
       navValue: isAssessment ? 'assessment' : sc,
@@ -1046,6 +1121,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       isCreate: sc === 'create',
       isField: sc === 'field',
       isUsers: sc === 'users',
+      isKnowledge: sc === 'knowledge',
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
@@ -1247,7 +1323,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             ? 'New assessment'
             : sc === 'field'
               ? 'On site'
-              : sc === 'users'
+              : sc === 'users' || sc === 'knowledge'
                 ? 'Administration'
                 : 'Assessment workspace',
       title:
@@ -1259,7 +1335,9 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
               ? 'Site observation'
               : sc === 'users'
                 ? 'User accounts'
-                : s.captureTarget.site,
+                : sc === 'knowledge'
+                  ? 'Knowledge base'
+                  : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · A. Rowe · Week of 11 Apr 2026'
@@ -1273,15 +1351,17 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
                 fieldSaved +
                 (fieldSaved === 1 ? ' observation captured' : ' observations captured')
               : sc === 'users'
-                ? 'View and update the account details of your team.'
-                : openRow
-                  ? [
-                      openRow.id,
-                      openRow.type,
-                      'Assessed ' + openRow.date,
-                      'Lead engineer ' + openRow.eng,
-                    ].join(' · ')
-                  : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
+                ? 'View and update your team’s account details and roles.'
+                : sc === 'knowledge'
+                  ? 'Upload standards and past reports. Each accepted PDF is stored unaltered and queued for ingestion.'
+                  : openRow
+                    ? [
+                        openRow.id,
+                        openRow.type,
+                        'Assessed ' + openRow.date,
+                        'Lead engineer ' + openRow.eng,
+                      ].join(' · ')
+                    : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
@@ -1317,7 +1397,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           icon: 'stamp',
           count: open.length,
         },
-      ],
+      ].filter((item) => canOpenTab(item.value, session)),
       toast: s.toast,
       toastTone: s.toastTone,
       clearToast: () =>
@@ -1466,14 +1546,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       cfBusy: s.cfBusy,
       cfServerError: s.cfServerError,
       createLabel: s.cfBusy ? 'Creating assessment…' : 'Create assessment',
-      facilityOptions: [
-        'Distribution warehouse',
-        'Cold store',
-        'Chemical plant',
-        'Paper mill',
-        'Port terminal',
-        'Office and data centre',
-      ],
+      facilityOptions: FACILITY_TYPES,
       surveyOptions: [
         'Property risk survey',
         'Follow-up visit',

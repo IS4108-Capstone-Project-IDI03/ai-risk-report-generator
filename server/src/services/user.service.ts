@@ -17,6 +17,19 @@ export class UserEmailTakenError extends Error {
   }
 }
 
+// A knowledge admin tried to change their own role or deactivate themselves,
+// which could leave nobody able to assign roles. Another admin must do it.
+export class OwnAccessChangeError extends Error {
+  constructor(readonly field: 'role' | 'active') {
+    super(
+      field === 'role'
+        ? 'You cannot change your own role. Ask another knowledge admin.'
+        : 'You cannot deactivate your own account. Ask another knowledge admin.',
+    )
+    this.name = 'OwnAccessChangeError'
+  }
+}
+
 const optional = (label: string, max: number) =>
   z
     .string(`${label} must be text.`)
@@ -84,8 +97,20 @@ export async function getUser(id: string): Promise<UserDto> {
 }
 
 // Replaces the editable profile fields and returns the saved account.
-export async function updateUser(id: string, profile: UserProfile): Promise<UserDto> {
+// actorId is the signed-in admin, who may edit their own details but not
+// their own role or active flag.
+export async function updateUser(
+  id: string,
+  profile: UserProfile,
+  actorId?: string,
+): Promise<UserDto> {
   if (!isObjectId(id)) throw new UserNotFoundError()
+  if (actorId === id) {
+    const current = await UserModel.findById(id).select('role active').lean()
+    if (!current) throw new UserNotFoundError()
+    if (current.role !== profile.role) throw new OwnAccessChangeError('role')
+    if (current.active && !profile.active) throw new OwnAccessChangeError('active')
+  }
 
   const $set: Partial<IUser> = {
     name: profile.name,

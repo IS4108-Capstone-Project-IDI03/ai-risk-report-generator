@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { SESSIONS, signIn } from '../../test/session'
 
 const JIDE = {
   id: '6ab39017e45cf009e4507732',
@@ -31,24 +32,22 @@ function respond(status: number, body: unknown) {
     }),
   )
 }
-// The dashboard loads its work list (RV-10) on sign-in; that request is
-// answered as unreachable so it falls back to the demo rows, and fetchMock
-// only sees the account requests.
+// A knowledge admin starts on the knowledge base (F-05), which loads its
+// document list; that request, and the dashboard's work list (RV-10), are
+// answered as unreachable, so fetchMock only sees the account requests.
 function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    url.startsWith('/api/assessments')
+    url.startsWith('/api/assessments') || url.startsWith('/api/knowledge-documents')
       ? Promise.reject(new TypeError('Failed to fetch'))
       : fetchMock(url, init),
   )
   return fetchMock
 }
-function openAccounts() {
+async function openAccounts() {
   render(<App />)
-  fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'sample-password' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+  await signIn('knowledge_admin')
   fireEvent.click(screen.getAllByRole('button', { name: 'User accounts' })[0])
 }
 async function openJide() {
@@ -79,7 +78,7 @@ describe('User accounts (F-03)', () => {
       () => respond(200, [ALEX, JIDE]),
       () => respond(200, JIDE),
     )
-    openAccounts()
+    await openAccounts()
 
     expect(await screen.findByRole('button', { name: 'Open profile for Alex Rowe' })).toBeVisible()
     const profile = await openJide()
@@ -99,7 +98,7 @@ describe('User accounts (F-03)', () => {
       () => respond(200, [ALEX, edited]),
       () => respond(200, edited),
     )
-    openAccounts()
+    await openAccounts()
     await openJide()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
@@ -139,7 +138,7 @@ describe('User accounts (F-03)', () => {
           fields: { email: 'Enter an email address such as name@example.com.' },
         }),
     )
-    openAccounts()
+    await openAccounts()
     await openJide()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
@@ -160,11 +159,65 @@ describe('User accounts (F-03)', () => {
 
   it('explains when the gateway cannot be reached', async () => {
     mockGateway(() => Promise.reject(new TypeError('Failed to fetch')))
-    openAccounts()
+    await openAccounts()
 
     expect(
       await screen.findByText(/The gateway could not be reached, so the accounts could not be/),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+})
+
+describe('Role assignment (F-05)', () => {
+  it('offers only the two agreed roles and saves the one assigned', async () => {
+    const promoted = { ...JIDE, role: 'knowledge_admin' }
+    const fetchMock = mockGateway(
+      () => respond(200, [ALEX, JIDE]),
+      () => respond(200, JIDE),
+      () => respond(200, promoted),
+    )
+    await openAccounts()
+    await openJide()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
+    const role = field(/^Role/)
+    expect(
+      within(role)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Risk engineer', 'Knowledge admin'])
+    fireEvent.change(role, { target: { value: 'knowledge_admin' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('Profile saved')).toBeInTheDocument()
+    const [, init] = fetchMock.mock.calls[2]
+    expect(JSON.parse(init.body)).toMatchObject({ role: 'knowledge_admin' })
+    const saved = screen.getByRole('region', { name: 'Profile for Jide Okafor' })
+    expect(within(saved).getAllByText('Knowledge admin').length).toBeGreaterThan(0)
+  })
+
+  it('does not let an admin change their own role or deactivate themselves', async () => {
+    const self = {
+      ...JIDE,
+      id: SESSIONS.knowledge_admin.user.id,
+      staffId: 'MRE-0004',
+      name: 'Sana Patel',
+      email: 'sana.patel@example.com',
+      role: 'knowledge_admin',
+    }
+    mockGateway(
+      () => respond(200, [JIDE, self]),
+      () => respond(200, self),
+    )
+    await openAccounts()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open profile for Sana Patel' }))
+    await screen.findByRole('region', { name: 'Profile for Sana Patel' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
+
+    expect(field(/^Role/)).toBeDisabled()
+    expect(screen.getByText('Another knowledge admin must change your role.')).toBeVisible()
+    expect(screen.getByRole('switch', { name: 'Account active' })).toBeDisabled()
+    expect(field(/^Job title/)).toBeEnabled()
   })
 })

@@ -105,20 +105,48 @@ until accounts exist (F-04); the gateway does not paginate or filter by user yet
 
 `users` holds one profile per team member (F-03): a unique, fixed `staffId`
 (`MRE-0001`), `name`, a unique lowercased `email`, `role`
-(`risk_engineer`, `reviewer` or `knowledge_admin`), optional `jobTitle`,
-`phone` and `office` (a two-letter jurisdiction code), and `active`. There are
-no passwords; sign-in arrives with F-04, which should extend this collection
-rather than add a parallel one.
+(`risk_engineer` or `knowledge_admin`, F-05), optional `jobTitle`,
+`phone` and `office` (a two-letter jurisdiction code), `active`, and the
+bcrypt `passwordHash` (F-04, never selected by default). A deactivated account
+cannot sign in.
 
 `GET /api/users` lists accounts by name and `GET /api/users/:id` returns one
 (404 for an unknown or malformed ID). `PUT /api/users/:id` replaces the whole
 editable profile; optional fields sent as `''` are removed. Invalid input
 returns 400 `{ error, fields }` like assessments, and an email another account
-uses returns 409 with `fields.email`. `staffId` cannot be changed. The gateway
-does not yet restrict these routes to knowledge admins (F-04).
+uses returns 409 with `fields.email`. `staffId` cannot be changed. These routes
+need a session (401) and the `users:manage` permission, which only knowledge
+admins have (403 otherwise). An admin cannot change their own role or
+deactivate themselves (400 against `fields.role` or `fields.active`), so the
+last admin cannot lock everyone out.
+
+## Role permissions (F-05)
+
+Every `/api` route except `/api/health` and `/api/auth/login|logout` needs a
+session cookie (401 without one). Each then names one permission; a role
+without it gets 403 `{ error: 'Your role does not allow this.' }` before the
+handler reads the body or the database. The matrix lives in
+`server/src/services/permissions.service.ts`, and `/api/auth/login` and
+`/api/auth/me` return the role's `permissions` so the client guards its screens
+with the same list.
+
+| Permission | Routes | Risk engineer | Knowledge admin |
+| --- | --- | --- | --- |
+| `assessments:view` | `GET` assessments, their locations and observations, recording audio | yes | yes |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, tag edits, transcription retry | yes | no |
+| `reports:generate` | `POST /api/rag/generate` | yes | no |
+| `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
+| `knowledge:manage` | `POST /api/knowledge-documents` | no | yes |
+| `users:manage` | `/api/users` | no | yes |
+
+The role is read from the signed session, so a role change takes effect at the
+user's next sign-in (sessions last 15 minutes). The seed script turns accounts
+saved with the retired `reviewer` role into risk engineers; any left unmigrated
+get no permissions.
 
 `npm --prefix server run seed` inserts four sample accounts (`MRE-0001` to
-`MRE-0004`, `example.com` emails) only when their staff ID is missing, so
+`MRE-0004`, `example.com` emails, dev password `password123`; Sana Patel is the
+knowledge admin, the rest risk engineers) only when their staff ID is missing, so
 re-seeding keeps edits made on screen. Against the shared Atlas cluster, those
 edits are visible to the whole team.
 
@@ -180,6 +208,45 @@ capture session `active`.
 | `PATCH /api/observations/:id` | Changes the tags: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations) and `standard` (100 characters; `null` or `''` removes it). A tag left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when no tag is sent) / 404 |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
+
+## Knowledge documents (IN-01)
+
+`knowledge_documents` holds one record per accepted upload. Its `_id` is the
+permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
+`fileName` is the original name. The unaltered PDF is in S3 at
+`knowledge/<_id>.pdf` (flat: no folder per source type, because a corrected
+source type would leave the file in the wrong folder); the record keeps `file`
+(`key`, `contentType`, `size`, `sha256`).
+
+The source type decides which details the admin gives:
+
+| Field | Standard (`fm_standard`, `nfpa_standard`) | Past report (`marsh_report`) |
+| --- | --- | --- |
+| `title` | required | required |
+| `issuingBody` | set from the source type: `FM Global` / `NFPA` | set: `Marsh` |
+| `edition` | required, a four-digit year, e.g. `2022` | absent |
+| `metadata.effective_date` | the edition's effective date | the report date |
+| `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
+| `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
+| `metadata.COPE_dimension` | `all` | `all` |
+
+`jurisdiction: 'all'` is the only value that isn't a two-letter code; like
+`facility_type: 'all'`, retrieval must treat it as matching any site. These
+fields live on the MongoDB record only: the ingestion pipeline's chunks carry
+`doc_id`, `headings`, pages and `bbox`, not the metadata above (see the `/index`
+contract earlier in this file).
+
+`status` is `queued` (set by the gateway), then `processing`, `complete` (with
+`result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
+(with `error`, the reason shown to the admin), all set by the ingestion worker,
+which also records `startedAt` and `finishedAt`. Rejected uploads are never
+stored.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
+| `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
+| `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

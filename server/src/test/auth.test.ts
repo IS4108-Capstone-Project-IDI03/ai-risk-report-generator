@@ -47,6 +47,18 @@ describe('POST /api/auth/login', () => {
   })
 })
 
+describe('POST /api/auth/login for a deactivated account', () => {
+  it('refuses it with the same generic error', async () => {
+    await seedUser({ active: false })
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+    expect(res.status).toBe(401)
+    expect(res.body.error).toBe('Incorrect email or password.')
+    expect(res.headers['set-cookie']).toBeUndefined()
+  })
+})
+
 describe('GET /api/auth/me', () => {
   it('401s without a session cookie', async () => {
     const res = await request(app).get('/api/auth/me')

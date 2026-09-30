@@ -38,9 +38,18 @@ forwarding remain placeholders.
 ### Frontend demo
 
 The UI follows the Marsh design system and includes sign-in, the assessment
-dashboard, observations, generation, review, and simulated export. It runs without
-a backend and keeps demo changes in memory only. Refreshing or signing out resets
-the demo; authentication and export are simulated.
+dashboard, observations, generation, review, and simulated export. Demo changes
+are kept in memory only; refreshing or signing out resets them, and export is
+simulated.
+
+Sign-in is real (F-04): the form checks the credentials with the gateway, which
+sets an httpOnly session cookie, so the gateway must be running. Each screen has
+its own URL, and the role on the account decides which ones open (F-05): a risk
+engineer runs assessments and capture; a knowledge admin manages the knowledge
+base and user accounts (including roles) and can read assessments. A screen the
+role may not open says so instead of loading, and the gateway answers 403 to the
+API calls behind it. The matrix is in
+`server/src/services/permissions.service.ts`.
 
 Creating an assessment, the dashboard list and capturing on site are the
 exceptions. The dashboard lists assessments from the gateway, with the sample
@@ -65,15 +74,19 @@ one.
 One `.env.example` covers both run modes — pick one per session, don't mix them
 for the same service.
 
-### UI demo only
+### Client with a local gateway
 
 ```sh
+npm --prefix server ci
+npm --prefix server run seed   # sample accounts, password `password123`
+npm --prefix server run dev
 npm --prefix client ci
 npm --prefix client run dev
 ```
 
-Open `http://localhost:3000`. Use a sample email such as `demo@marsh.com` and any
-non-empty sample password.
+Open `http://localhost:3000` and sign in as a seeded account, e.g.
+`alex.rowe@example.com` (risk engineer) or `sana.patel@example.com` (knowledge
+admin), with the dev password `password123`.
 
 ### Docker
 

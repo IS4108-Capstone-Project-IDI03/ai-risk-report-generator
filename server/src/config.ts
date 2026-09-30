@@ -24,4 +24,5 @@ export const config = {
   speechOcrServiceUrl: requireEnv('SPEECH_OCR_SERVICE_URL'),
   awsRegion: requireEnv('AWS_REGION'),
   s3Bucket: requireEnv('S3_BUCKET'),
+  redisUrl: requireEnv('REDIS_URL'),
 }

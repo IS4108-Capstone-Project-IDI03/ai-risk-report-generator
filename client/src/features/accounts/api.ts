@@ -1,12 +1,19 @@
 // Gateway (S2) calls for user account profiles (F-03).
-import { GatewayError } from '../assessments/api'
+import { GatewayError, reportSessionEnded } from '../assessments/api'
 
-export type UserRole = 'risk_engineer' | 'reviewer' | 'knowledge_admin'
+// The two agreed roles (F-05). What each may do comes from the gateway with
+// the session (see features/auth/access.ts).
+export type UserRole = 'risk_engineer' | 'knowledge_admin'
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   risk_engineer: 'Risk engineer',
-  reviewer: 'Reviewer',
   knowledge_admin: 'Knowledge admin',
+}
+
+// A role the gateway sent that this client does not know, e.g. from an
+// account saved before F-05, is shown as it is rather than blank.
+export function roleLabel(role: string) {
+  return ROLE_LABELS[role as UserRole] ?? role
 }
 
 export type UserAccount = {
@@ -33,7 +40,7 @@ export type UserProfile = {
   active: boolean
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, init)
@@ -43,6 +50,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   // Proxies, including Vite's dev proxy, answer 502/504 when the gateway is down.
   if (response.status === 502 || response.status === 504) throw new GatewayError(null)
+  if (response.status === 401) reportSessionEnded()
   if (!response.ok) {
     const problem = (await response.json().catch(() => ({}))) as {
       error?: string

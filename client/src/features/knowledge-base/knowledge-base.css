@@ -1,0 +1,247 @@
+.kb {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px clamp(16px, 2vw, 28px) 40px;
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.kb h2 {
+  margin: 0;
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.kb-mono {
+  font-family: var(--font-mono);
+  font-size: 0.93em;
+}
+.kb-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* Add documents */
+.kb-panel {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.kb-panel > .kb-empty {
+  padding: 20px;
+}
+.kb-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.kb-panel-head p,
+.kb-uploaded-head p {
+  margin: 2px 0 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+
+/* A native file input behind a secondary-button label, so keyboard and
+   screen-reader users get the platform's own picker. */
+.kb-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--control-height-md);
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.kb-pick:hover {
+  background: var(--surface-hover);
+}
+.kb-pick:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+.kb-pick input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.kb-rows {
+  display: flex;
+  flex-direction: column;
+}
+.kb-row {
+  min-width: 0;
+  margin: 0;
+  padding: 16px 20px;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  /* Fields reflow to the row's own width, not the viewport's. */
+  container-type: inline-size;
+  transition: background-color 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.kb-row[data-state='uploading'] {
+  background: var(--surface-sunken);
+}
+.kb-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-height-sm);
+  color: var(--text-muted);
+}
+.kb-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  color: var(--text-primary);
+}
+.kb-size {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-small-size);
+  white-space: nowrap;
+}
+.kb-reason {
+  margin: 8px 0 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--status-high-fg);
+}
+.kb-reason-rejected {
+  color: var(--status-critical-fg);
+}
+/* Line one says what the document is (source type, then title across the
+   rest); line two holds that type's own details, one column each, so a
+   standard's four and a report's three line up under the same columns. */
+.kb-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin-top: 12px;
+}
+.kb-fields > :nth-child(2) {
+  grid-column: span 3;
+}
+@container (max-width: 720px) {
+  .kb-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kb-fields > :nth-child(-n + 2) {
+    grid-column: span 2;
+  }
+}
+@container (max-width: 420px) {
+  .kb-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kb-fields > :nth-child(-n + 2) {
+    grid-column: auto;
+  }
+}
+.kb-panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--surface-sunken);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.kb-count {
+  margin-left: auto;
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
+
+/* Uploaded documents */
+.kb-uploaded {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kb-doc strong,
+.kb-doc small {
+  display: block;
+}
+.kb-doc strong {
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.kb-doc small {
+  font-size: var(--text-small-size);
+  color: var(--text-muted);
+}
+.kb-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.kb-status-reason {
+  max-width: 36ch;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--status-critical-fg);
+}
+.kb-link {
+  color: var(--text-link);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.kb-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.kb-stack {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.kb-stack li {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+}
+.kb-stack li + li {
+  border-top: 1px solid var(--border-subtle);
+}
+.kb-stack-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--text-small-size);
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb,
+  .kb-row {
+    animation: none;
+    transition: none;
+  }
+}

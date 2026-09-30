@@ -1,10 +1,13 @@
-import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import app from '../index'
 import { UserModel } from '../models/user.model'
 import { useMemoryMongo } from './memory-mongo'
+import { signedInAs, signedInAsRole } from './auth-test-helpers'
 
 useMemoryMongo()
+
+// A knowledge admin is allowed everything below (F-05); role limits are in permissions.test.ts.
+const api = signedInAsRole(app, 'knowledge_admin')
 
 async function seedUser(overrides: Record<string, unknown> = {}) {
   return UserModel.create({
@@ -22,7 +25,7 @@ function profile(overrides: Record<string, unknown> = {}) {
   return {
     name: 'Jide Okafor',
     email: 'jide.okafor@example.com',
-    role: 'reviewer',
+    role: 'knowledge_admin',
     jobTitle: 'Senior risk engineer · Property',
     phone: '+65 6123 4567',
     office: 'MY',
@@ -32,9 +35,7 @@ function profile(overrides: Record<string, unknown> = {}) {
 }
 
 function save(id: string, body: unknown) {
-  return request(app)
-    .put(`/api/users/${id}`)
-    .send(body as object)
+  return api.put(`/api/users/${id}`).send(body as object)
 }
 
 describe('GET /api/users', () => {
@@ -42,7 +43,7 @@ describe('GET /api/users', () => {
     await seedUser()
     await seedUser({ staffId: 'MRE-0001', name: 'Alex Rowe', email: 'alex.rowe@example.com' })
 
-    const response = await request(app).get('/api/users')
+    const response = await api.get('/api/users')
 
     expect(response.status).toBe(200)
     expect(response.body.map((u: { name: string }) => u.name)).toEqual(['Alex Rowe', 'Jide Okafor'])
@@ -62,14 +63,14 @@ describe('GET /api/users/:id', () => {
   it('returns one account', async () => {
     const user = await seedUser()
 
-    const response = await request(app).get(`/api/users/${user._id}`)
+    const response = await api.get(`/api/users/${user._id}`)
 
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ id: String(user._id), name: 'Jide Okafor' })
   })
 
   it.each(['6ab39017e45cf009e4507731', 'not-an-id'])('returns 404 for %s', async (id) => {
-    const response = await request(app).get(`/api/users/${id}`)
+    const response = await api.get(`/api/users/${id}`)
 
     expect(response.status).toBe(404)
     expect(response.body.error).toBe('The account was not found.')
@@ -87,12 +88,12 @@ describe('PUT /api/users/:id', () => {
       id: String(user._id),
       staffId: 'MRE-0002',
       email: 'jide.okafor@example.com',
-      role: 'reviewer',
+      role: 'knowledge_admin',
       jobTitle: 'Senior risk engineer · Property',
       phone: '+65 6123 4567',
       office: 'MY',
     })
-    const reopened = await request(app).get(`/api/users/${user._id}`)
+    const reopened = await api.get(`/api/users/${user._id}`)
     expect(reopened.body).toEqual(saved.body)
   })
 
@@ -124,6 +125,8 @@ describe('PUT /api/users/:id', () => {
       'Enter an email address such as name@example.com.',
     ],
     ['the role is unknown', { role: 'superuser' }, 'role', 'Choose a role.'],
+    // F-05 keeps two roles; the old third one is no longer assignable.
+    ['the role is the retired reviewer', { role: 'reviewer' }, 'role', 'Choose a role.'],
     [
       'the phone has letters',
       { phone: 'call me' },
@@ -168,5 +171,40 @@ describe('PUT /api/users/:id', () => {
 
     expect(response.status).toBe(404)
     expect(await UserModel.countDocuments()).toBe(0)
+  })
+})
+
+// Role assignment (F-05 AC1): a knowledge admin assigns either role, but not
+// to themselves, so the last admin cannot lock everyone out.
+describe('PUT /api/users/:id role assignment', () => {
+  it('assigns each of the two roles', async () => {
+    const user = await seedUser()
+
+    for (const role of ['knowledge_admin', 'risk_engineer']) {
+      const saved = await save(String(user._id), profile({ role }))
+      expect(saved.status).toBe(200)
+      expect(saved.body.role).toBe(role)
+    }
+  })
+
+  it("refuses an admin's change to their own role or active flag", async () => {
+    const admin = await seedUser({ role: 'knowledge_admin' })
+    const self = signedInAs(app, admin)
+    const own = (overrides: Record<string, unknown>) =>
+      self.put(`/api/users/${admin._id}`).send(profile(overrides))
+
+    const demoted = await own({ role: 'risk_engineer' })
+    expect(demoted.status).toBe(400)
+    expect(demoted.body.fields).toEqual({
+      role: 'You cannot change your own role. Ask another knowledge admin.',
+    })
+    const deactivated = await own({ active: false })
+    expect(deactivated.status).toBe(400)
+    expect(deactivated.body.fields).toHaveProperty('active')
+
+    // Their other details are still theirs to edit.
+    expect((await own({ jobTitle: 'Knowledge lead' })).status).toBe(200)
+    const stored = await UserModel.findById(admin._id).lean()
+    expect(stored).toMatchObject({ role: 'knowledge_admin', active: true })
   })
 })

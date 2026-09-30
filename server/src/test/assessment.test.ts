@@ -1,12 +1,15 @@
-import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
+import { signedInAsRole } from './auth-test-helpers'
 
 useMemoryMongo()
+
+// A risk engineer is allowed everything below (F-05); role limits are in permissions.test.ts.
+const api = signedInAsRole(app, 'risk_engineer')
 
 const YEAR = new Date().getUTCFullYear()
 const SITE = {
@@ -31,9 +34,7 @@ function body(overrides: Record<string, unknown> = {}) {
 }
 
 function create(payload: unknown) {
-  return request(app)
-    .post('/api/assessments')
-    .send(payload as object)
+  return api.post('/api/assessments').send(payload as object)
 }
 
 describe('POST /api/assessments', () => {
@@ -167,9 +168,7 @@ describe('POST /api/assessments', () => {
   it('creates an assessment that capture can start on', async () => {
     const created = await create(body())
 
-    const capture = await request(app).post(
-      `/api/assessments/${created.body.reference}/capture-session`,
-    )
+    const capture = await api.post(`/api/assessments/${created.body.reference}/capture-session`)
 
     expect(capture.status).toBe(201)
     expect(capture.body.assessment).toMatchObject({
@@ -202,7 +201,7 @@ describe('GET /api/assessments', () => {
     // A stored report status wins over the capture session.
     await CaptureSessionModel.create({ assessment: drafted._id, status: 'ready_for_generation' })
 
-    const response = await request(app).get('/api/assessments')
+    const response = await api.get('/api/assessments')
 
     expect(response.status).toBe(200)
     expect(
@@ -231,7 +230,7 @@ describe('GET /api/assessments', () => {
     await CaptureSessionModel.create({ assessment: a._id, status: 'ready_for_generation' })
     await CaptureSessionModel.create({ assessment: a._id, status: 'active' })
 
-    const response = await request(app).get('/api/assessments')
+    const response = await api.get('/api/assessments')
 
     expect(response.body[0].status).toBe('capturing')
   })

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { signIn } from '../../test/session'
 import type { SiteLocation } from './api'
 
 const REF = 'RPT-2026-0411'
@@ -62,9 +63,7 @@ function mockGateway() {
 
 async function openCapture() {
   render(<App />)
-  fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'sample-password' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+  await signIn()
   fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
   await screen.findByText('Capture session started')
 }

@@ -18,6 +18,9 @@ dependencies = [
     "pymupdf>=1.28.2",
     "glmocr>=0.1.5",
     "opencv-python-headless>=5.0.0.93",
+    "bullmq>=3.2.8",
+    "pymongo>=4.18.2",
+    "boto3>=1.43.104",
 ]
 
 [tool.setuptools]

@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { signIn } from './test/session'
 
 beforeAll(() => {
   // jsdom has no native modal implementation; browser supplies focus trapping.
@@ -24,11 +25,6 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
-function signIn() {
-  fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'sample-password' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
-}
 function openAssessment() {
   fireEvent.click(screen.getByRole('button', { name: 'Tilbury Distribution Centre' }))
 }
@@ -37,17 +33,17 @@ function tab(name: RegExp) {
 }
 
 describe('Marsh prototype integration', () => {
-  it('starts at sign-in, validates, enters the dashboard, and resets on sign-out', () => {
+  it('starts at sign-in, validates, enters the dashboard, and resets on sign-out', async () => {
     const view = render(<App />)
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Complete the required fields')
-    signIn()
+    await signIn()
     expect(screen.getByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
     expect(screen.getAllByPlaceholderText('Search site, client or report ID')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
-    signIn()
+    await signIn()
     view.unmount()
     render(<App />)
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
@@ -68,7 +64,7 @@ describe('Marsh prototype integration', () => {
   })
   it('filters the dashboard and creates an in-memory assessment', async () => {
     render(<App />)
-    signIn()
+    await signIn()
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value: 'does-not-exist' },
     })
@@ -96,7 +92,7 @@ describe('Marsh prototype integration', () => {
   })
   it('saves observations and displays them in the assessment', async () => {
     render(<App />)
-    signIn()
+    await signIn()
     fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
     // Capture starts by choosing where the engineer is.
     fireEvent.click(await screen.findByRole('button', { name: /^Pump house/ }))
@@ -110,10 +106,11 @@ describe('Marsh prototype integration', () => {
     tab(/Observations/)
     expect(screen.getByText('Demo sprinkler observation')).toBeInTheDocument()
   })
-  it('stops and resumes simulated generation', () => {
-    vi.useFakeTimers()
+  it('stops and resumes simulated generation', async () => {
+    // Only the generation interval is faked, so signing in can still settle.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     render(<App />)
-    signIn()
+    await signIn()
     openAssessment()
     tab(/Report generation/)
     fireEvent.click(screen.getByRole('button', { name: 'Stop generation' }))
@@ -124,9 +121,9 @@ describe('Marsh prototype integration', () => {
     act(() => vi.advanceTimersByTime(15000))
     expect(screen.getByText(/5 of 7 sections drafted · 2 need attention/)).toBeInTheDocument()
   })
-  it('requires review and evidence resolution before simulating export', () => {
+  it('requires review and evidence resolution before simulating export', async () => {
     render(<App />)
-    signIn()
+    await signIn()
     openAssessment()
     tab(/Validation and export/)
     expect(screen.getByRole('button', { name: 'Export as DOCX' })).toBeDisabled()
@@ -154,13 +151,18 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('radio', { name: /PDF/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Export as PDF' }))
     fireEvent.click(screen.getByRole('button', { name: 'Simulate export' }))
-    expect(screen.getByRole('status')).toHaveTextContent('No file was generated or issued')
+    // The dashboard's "gateway could not be reached" notice is a status too.
+    expect(
+      screen
+        .getAllByRole('status')
+        .some((s) => s.textContent?.includes('No file was generated or issued')),
+    ).toBe(true)
   })
-  it.each([390, 900])('provides usable navigation at %ipx', (width) => {
+  it.each([390, 900])('provides usable navigation at %ipx', async (width) => {
     const previous = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
     render(<App />)
-    signIn()
+    await signIn()
     if (width < 760) {
       fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
       const drawer = screen.getByRole('dialog', { name: 'Navigation' })
