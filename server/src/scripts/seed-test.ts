@@ -1,10 +1,15 @@
 import 'dotenv/config'
+import bcrypt from 'bcrypt'
 import mongoose from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
 import { connectDb } from '../models/db'
 import { SiteModel } from '../models/site.model'
 import { locationKey } from '../services/location.service'
 import { UserModel, type IUser } from '../models/user.model'
+
+// Dev-only default password for every seeded account (F-04). Never used
+// outside local/CI seeding — real accounts set their own via F-06.
+const SEED_PASSWORD = 'password123'
 
 // Sample accounts for the user accounts screen (F-03). Synthetic people with
 // example.com emails; names echo the engineers in the client's demo data.
@@ -162,10 +167,11 @@ async function seedAndVerify(): Promise<void> {
   console.log('Work list assessments RPT-2026-0408 and RPT-2026-0327 are available.')
 
   // Inserted only when missing, so re-seeding keeps edits made on screen.
+  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10)
   for (const user of SAMPLE_USERS) {
     await UserModel.updateOne(
       { staffId: user.staffId },
-      { $setOnInsert: { ...user, active: true } },
+      { $setOnInsert: { ...user, active: true, passwordHash } },
       { upsert: true },
     )
   }

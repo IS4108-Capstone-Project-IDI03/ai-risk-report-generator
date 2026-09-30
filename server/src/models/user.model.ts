@@ -17,6 +17,8 @@ export interface IUser {
   // Two-letter jurisdiction code of the office the user works from, e.g. SG.
   office?: string
   active: boolean
+  // bcrypt hash (F-04). Absent for accounts that predate sign-in.
+  passwordHash?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -31,6 +33,7 @@ const userSchema = new Schema<IUser>(
     phone: { type: String, trim: true },
     office: { type: String, trim: true },
     active: { type: Boolean, required: true, default: true },
+    passwordHash: { type: String, select: false },
   },
   {
     timestamps: true,
