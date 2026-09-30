@@ -26,6 +26,10 @@ export const FACILITY_TYPES = [
   'Paper mill',
   'Port terminal',
   'Office and data centre',
+  // The site types of the sample reports Marsh provided.
+  'Office',
+  'Shopping mall',
+  'Mixed-use development',
 ]
 
 export const initialState: WorkflowState = {
