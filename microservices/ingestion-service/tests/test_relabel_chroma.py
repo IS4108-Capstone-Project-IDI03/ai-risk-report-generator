@@ -36,6 +36,12 @@ def found(jurisdiction: str) -> list[str]:
 
 @pytest.fixture
 def indexed(monkeypatch):
+    # Skip, not error, without a server: CI's own `-m` replaces the `not chroma`
+    # in pyproject.toml's addopts, so this test is selected there with no Chroma.
+    try:
+        chroma_client()
+    except ValueError as error:  # chromadb: "Could not connect to a Chroma server"
+        pytest.skip(f"needs the local Chroma server: {error}")
     # A fixed vector stands in for Cohere: this test is about labels, not meaning.
     monkeypatch.setattr(indexer, "embed", lambda texts: [[0.1] * 1024 for _ in texts])
     chunk = {"id": f"{DOC_ID}:0", "text": "Cold room doors.", "metadata": {"doc_id": DOC_ID}}
