@@ -1,9 +1,21 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Button, Callout, Checkbox, Input, Tabs } from '../../design-system'
+import { GatewayError } from '../assessments/api'
+import { signIn as requestSignIn, type Session } from './api'
 import './sign-in.css'
 
-export function SignIn({ onSignIn }: { onSignIn: () => void }) {
+// Why a sign-in attempt failed. Wrong credentials always read the same, so the
+// message never reveals whether the email has an account (F-04).
+function signInProblem(error: unknown) {
+  if (error instanceof GatewayError && error.status === 401) return 'Incorrect email or password.'
+  if (error instanceof GatewayError && error.status === 429) return error.message
+  if (error instanceof GatewayError && error.status === null)
+    return 'The gateway could not be reached, so you were not signed in. Check that the server is running, then try again.'
+  return 'Something went wrong, so you were not signed in. Try again.'
+}
+
+export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   const [mode, setMode] = useState('signin')
   const [name, setName] = useState('')
   const [employeeNumber, setEmployeeNumber] = useState('')
@@ -12,6 +24,7 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
   const [checked, setChecked] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
   const requestAccess = mode === 'signup'
   function changeMode(value: string) {
     setMode(value)
@@ -20,8 +33,9 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
     setNotice('')
     setPassword('')
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (busy) return
     setNotice('')
     if (!email.trim() || !password.trim() || (requestAccess && !name.trim())) {
       setError('Complete the required fields before continuing.')
@@ -44,9 +58,18 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
     }
     setError('')
     setPassword('')
-    if (requestAccess)
+    if (requestAccess) {
       setNotice('Demo access request complete. No request was sent and no account was created.')
-    else onSignIn()
+      return
+    }
+    setBusy(true)
+    try {
+      onSignIn(await requestSignIn(email, password))
+    } catch (failure: unknown) {
+      setError(signInProblem(failure))
+    } finally {
+      setBusy(false)
+    }
   }
   function unavailable(message: string) {
     setError('')
@@ -163,8 +186,8 @@ export function SignIn({ onSignIn }: { onSignIn: () => void }) {
               </button>
             )}
           </div>
-          <Button type="submit" variant="primary" size="lg" fullWidth>
-            {requestAccess ? 'Request access' : 'Sign in'}
+          <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+            {requestAccess ? 'Request access' : busy ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
         <p className="sign-in-switch">

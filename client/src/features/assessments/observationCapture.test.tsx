@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { signIn } from '../../test/session'
 import type { SavedObservation, SavedRecording } from './api'
 
 const REF = 'RPT-2026-0411'
@@ -120,15 +121,13 @@ function allowMicrophone() {
   )
 }
 
-function signIn() {
+async function openApp() {
   render(<App />)
-  fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'sample-password' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+  await signIn()
 }
 // Opens capture and picks the location, as the engineer does first.
 async function openCapture() {
-  signIn()
+  await openApp()
   fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
   await screen.findByText('Capture session started')
   fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
@@ -396,7 +395,7 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
 
 describe('Observations tab (CP-03)', () => {
   async function openObservations() {
-    signIn()
+    await openApp()
     fireEvent.click(screen.getByRole('button', { name: 'Tilbury Distribution Centre' }))
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   }

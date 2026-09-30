@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { signIn } from '../../test/session'
 
 const doc = {
   issuingBody: 'NFPA',
@@ -81,11 +82,10 @@ function mockGateway(
   return puts
 }
 
-function openKnowledgeBase() {
+// Signs in as a knowledge admin (F-05: only they may correct documents).
+async function openKnowledgeBase() {
   render(<App />)
-  fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'sample-password' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+  await signIn('knowledge_admin')
   fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
 }
 
@@ -115,7 +115,7 @@ afterEach(() => {
 describe('Knowledge base documents (KB-01)', () => {
   it('opens on the documents, grouped under FM standards, NFPA standards and past Marsh reports', async () => {
     mockGateway([FM, NFPA, REPORT])
-    openKnowledgeBase()
+    await openKnowledgeBase()
 
     expect(screen.getByRole('tab', { name: 'Documents' })).toHaveAttribute('aria-selected', 'true')
     expect(within(await group('FM standards')).getByText(FM.title)).toBeInTheDocument()
@@ -125,7 +125,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('shows each document’s edition or report date, country, facility type, status and original', async () => {
     mockGateway([FM, REPORT])
-    openKnowledgeBase()
+    await openKnowledgeBase()
 
     const standards = await group('FM standards')
     expect(within(standards).getByText('FM Global · 2024 Edition')).toBeInTheDocument()
@@ -143,7 +143,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('says which group is empty', async () => {
     mockGateway([FM])
-    openKnowledgeBase()
+    await openKnowledgeBase()
 
     expect(
       within(await group('NFPA standards')).getByText('No NFPA standards yet.'),
@@ -152,7 +152,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('filters by exact label value, so All countries shows only documents for all countries', async () => {
     mockGateway([FM, NFPA, REPORT])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     await group('FM standards')
 
     filter('Country', 'all')
@@ -169,7 +169,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('says no documents match, and Clear filters brings them back', async () => {
     mockGateway([FM, NFPA])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     await group('FM standards')
 
     filter('Country', 'TH')
@@ -182,7 +182,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('saves a corrected label and shows the corrected value', async () => {
     const puts = mockGateway([REPORT], (id) => json(200, { ...REPORT, id, jurisdiction: 'SG' }))
-    openKnowledgeBase()
+    await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
     expect(within(dialog).getByLabelText(/^Title/)).toHaveValue(REPORT.title)
 
@@ -209,7 +209,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('confirms a saved correction', async () => {
     mockGateway([REPORT], (id) => json(200, { ...REPORT, id, jurisdiction: 'SG' }))
-    openKnowledgeBase()
+    await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
     fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
@@ -224,7 +224,7 @@ describe('Knowledge base documents (KB-01)', () => {
     mockGateway([NFPA], (id, body) =>
       json(200, { ...NFPA, id, sourceType: body.sourceType, issuingBody: 'FM Global' }),
     )
-    openKnowledgeBase()
+    await openKnowledgeBase()
     const dialog = await edit(NFPA.title)
 
     fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
@@ -243,7 +243,7 @@ describe('Knowledge base documents (KB-01)', () => {
         fields: { facilityType: 'Choose a facility type from the list.' },
       }),
     )
-    openKnowledgeBase()
+    await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
     fireEvent.change(within(dialog).getByLabelText(/^Facility type/), {
@@ -263,7 +263,7 @@ describe('Knowledge base documents (KB-01)', () => {
         error: 'Search could not be updated, so the correction was not saved. Try again shortly.',
       }),
     )
-    openKnowledgeBase()
+    await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
@@ -277,7 +277,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('checks a standard’s edition before sending anything', async () => {
     const puts = mockGateway([NFPA])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     const dialog = await edit(NFPA.title)
 
     fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '' } })
@@ -289,7 +289,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
   it('saves nothing when you cancel', async () => {
     const puts = mockGateway([REPORT])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
     fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })

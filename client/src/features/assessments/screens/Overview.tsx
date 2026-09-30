@@ -212,14 +212,16 @@ export function Overview({ v }: { v: AssessmentWorkflow }) {
                   label={v.reviewLabel}
                   tone="primary"
                 ></ProgressBar>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  <Button variant="primary" iconLeft="sparkles" onClick={v.goGenerate}>
-                    {'Report generation'}
-                  </Button>
-                  <Button variant="secondary" iconLeft="user-round-search" onClick={v.goReview}>
-                    {'Review'}
-                  </Button>
-                </div>
+                {v.canDraft && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <Button variant="primary" iconLeft="sparkles" onClick={v.goGenerate}>
+                      {'Report generation'}
+                    </Button>
+                    <Button variant="secondary" iconLeft="user-round-search" onClick={v.goReview}>
+                      {'Review'}
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

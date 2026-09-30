@@ -1,9 +1,9 @@
 import { Readable } from 'stream'
-import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { useMemoryMongo } from './memory-mongo'
+import { signedInAsRole } from './auth-test-helpers'
 
 // S3 stands in as a map, the queue as a spy, and the ingestion service's PDF
 // check as a stubbed fetch.
@@ -27,6 +27,9 @@ vi.mock('../services/ingestion-queue.service', () => ({ enqueueIngestion: queued
 const inspect = vi.fn<() => Promise<Response>>()
 
 useMemoryMongo()
+
+// A knowledge admin is allowed everything below (F-05); role limits are in permissions.test.ts.
+const api = signedInAsRole(app, 'knowledge_admin')
 
 beforeEach(() => {
   queued.mockResolvedValue(undefined)
@@ -62,11 +65,7 @@ const REPORT = {
 }
 
 function upload(body = PDF, details: Record<string, string> = DETAILS, type = 'application/pdf') {
-  return request(app)
-    .post('/api/knowledge-documents')
-    .query(details)
-    .set('Content-Type', type)
-    .send(body)
+  return api.post('/api/knowledge-documents').query(details).set('Content-Type', type).send(body)
 }
 
 describe('POST /api/knowledge-documents', () => {
@@ -74,7 +73,7 @@ describe('POST /api/knowledge-documents', () => {
     const response = await upload(PDF, { ...DETAILS, issuingBody: 'Typed by hand' })
 
     expect(response.status).toBe(201)
-    const list = await request(app).get('/api/knowledge-documents')
+    const list = await api.get('/api/knowledge-documents')
     expect(list.body).toEqual([
       expect.objectContaining({
         id: response.body.id,
@@ -125,7 +124,7 @@ describe('POST /api/knowledge-documents', () => {
   async function expectNothingKept() {
     expect(s3.size).toBe(0)
     expect(queued).not.toHaveBeenCalled()
-    expect((await request(app).get('/api/knowledge-documents')).body).toEqual([])
+    expect((await api.get('/api/knowledge-documents')).body).toEqual([])
   }
 
   it.each([
@@ -144,7 +143,7 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   it('rejects an empty file as not a PDF', async () => {
-    const response = await request(app)
+    const response = await api
       .post('/api/knowledge-documents')
       .query(DETAILS)
       .set('Content-Type', 'application/pdf')
@@ -251,7 +250,7 @@ describe('POST /api/knowledge-documents', () => {
     expect(response.status).toBe(503)
     expect(response.body.error).toBe('Ingestion could not be queued. Try uploading again shortly.')
     expect(s3.size).toBe(0)
-    expect((await request(app).get('/api/knowledge-documents')).body).toEqual([])
+    expect((await api.get('/api/knowledge-documents')).body).toEqual([])
   })
 })
 
@@ -272,7 +271,7 @@ describe('GET /api/knowledge-documents', () => {
       await KnowledgeDocumentModel.updateOne({ _id: body.id }, state)
     }
 
-    const { body } = await request(app).get('/api/knowledge-documents')
+    const { body } = await api.get('/api/knowledge-documents')
 
     expect(body.map((d: { title: string }) => d.title).sort()).toEqual([
       'complete 23 h ago',
@@ -302,7 +301,7 @@ describe('GET /api/knowledge-documents/active', () => {
     await stored({ ...DETAILS, title: 'Mid processing' }, { status: 'processing' })
     await stored({ ...DETAILS, title: 'Broken' }, { status: 'failed' })
 
-    const { body } = await request(app).get('/api/knowledge-documents/active')
+    const { body } = await api.get('/api/knowledge-documents/active')
 
     expect(body.map((d: { title: string }) => d.title)).toEqual([
       'Apple cold store',
@@ -321,7 +320,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
     facilityType: 'Data centre',
   }
   const correct = (id: string, details: Record<string, string> = CORRECTED) =>
-    request(app).put(`/api/knowledge-documents/${id}`).send(details)
+    api.put(`/api/knowledge-documents/${id}`).send(details)
 
   it('saves the corrected details and puts the new labels on its passages', async () => {
     const id = await stored(REPORT)
@@ -341,7 +340,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
       COPE_dimension: 'all',
       effective_date: '2024-03-12',
     })
-    const [listed] = (await request(app).get('/api/knowledge-documents/active')).body
+    const [listed] = (await api.get('/api/knowledge-documents/active')).body
     expect(listed).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
   })
 
@@ -360,7 +359,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
   })
 
   // The document as the knowledge base lists it, to show nothing changed.
-  const listed = async () => (await request(app).get('/api/knowledge-documents/active')).body[0]
+  const listed = async () => (await api.get('/api/knowledge-documents/active')).body[0]
 
   it('refuses a value that is not allowed, with the reason, and keeps the old value', async () => {
     const id = await stored(REPORT)
@@ -416,7 +415,7 @@ describe('GET /api/knowledge-documents/:id/file', () => {
   it('returns the original exactly as uploaded', async () => {
     const { body } = await upload()
 
-    const response = await request(app).get(body.fileUrl).buffer(true)
+    const response = await api.get(body.fileUrl).buffer(true)
 
     expect(response.status).toBe(200)
     expect(response.headers['content-type']).toBe('application/pdf')
@@ -427,14 +426,14 @@ describe('GET /api/knowledge-documents/:id/file', () => {
     const { body } = await upload()
     s3.set(`knowledge/${body.id}.pdf`, Object.assign(Buffer.alloc(0), { failMidStream: true }))
 
-    await expect(request(app).get(body.fileUrl)).rejects.toThrow()
-    expect((await request(app).get('/api/knowledge-documents')).status).toBe(200)
+    await expect(api.get(body.fileUrl)).rejects.toThrow()
+    expect((await api.get('/api/knowledge-documents')).status).toBe(200)
   })
 
   it('returns 404 for an unknown or malformed ID', async () => {
-    expect(
-      (await request(app).get('/api/knowledge-documents/6abb28ae16068a0793e9962a/file')).status,
-    ).toBe(404)
-    expect((await request(app).get('/api/knowledge-documents/not-an-id/file')).status).toBe(404)
+    expect((await api.get('/api/knowledge-documents/6abb28ae16068a0793e9962a/file')).status).toBe(
+      404,
+    )
+    expect((await api.get('/api/knowledge-documents/not-an-id/file')).status).toBe(404)
   })
 })

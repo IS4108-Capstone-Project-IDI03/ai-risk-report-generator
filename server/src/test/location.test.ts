@@ -1,12 +1,15 @@
-import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
+import { signedInAsRole } from './auth-test-helpers'
 
 useMemoryMongo()
+
+// A risk engineer is allowed everything below (F-05); role limits are in permissions.test.ts.
+const api = signedInAsRole(app, 'risk_engineer')
 
 async function assessment(reference = 'RPT-2026-0411') {
   const site = await SiteModel.create({
@@ -23,7 +26,7 @@ async function assessment(reference = 'RPT-2026-0411') {
   })
 }
 const add = (body: object, reference = 'RPT-2026-0411') =>
-  request(app).post(`/api/assessments/${reference}/locations`).send(body)
+  api.post(`/api/assessments/${reference}/locations`).send(body)
 
 describe('/api/assessments/:reference/locations', () => {
   it('adds locations and lists them in the order they were added', async () => {
@@ -39,7 +42,7 @@ describe('/api/assessments/:reference/locations', () => {
       floor: 'Level 2',
     })
     expect(yard.body).toMatchObject({ name: 'External yard', floor: null })
-    const list = await request(app).get('/api/assessments/RPT-2026-0411/locations')
+    const list = await api.get('/api/assessments/RPT-2026-0411/locations')
     expect(list.status).toBe(200)
     expect(list.body.map((l: { name: string }) => l.name)).toEqual(['Stairwell B', 'External yard'])
   })
@@ -74,7 +77,7 @@ describe('/api/assessments/:reference/locations', () => {
       expect(Object.keys(response.body.fields)).toEqual([field])
     }
     expect((await add({ name: 'Lift' }, 'RPT-2026-9999')).status).toBe(404)
-    expect((await request(app).get('/api/assessments/RPT-2026-9999/locations')).status).toBe(404)
+    expect((await api.get('/api/assessments/RPT-2026-9999/locations')).status).toBe(404)
   })
 
   it('removes a location with no observations, and keeps one that has some', async () => {
@@ -97,7 +100,7 @@ describe('/api/assessments/:reference/locations', () => {
       },
     })
     const remove = (id: string, reference = 'RPT-2026-0411') =>
-      request(app).delete(`/api/assessments/${reference}/locations/${id}`)
+      api.delete(`/api/assessments/${reference}/locations/${id}`)
 
     expect((await remove(typo.id)).status).toBe(204)
     const inUse = await remove(used.id)
@@ -105,7 +108,7 @@ describe('/api/assessments/:reference/locations', () => {
     expect(inUse.body.error).toBe(
       "Pump house has 1 observation. It can't be removed while they are saved there.",
     )
-    const list = await request(app).get('/api/assessments/RPT-2026-0411/locations')
+    const list = await api.get('/api/assessments/RPT-2026-0411/locations')
     expect(list.body.map((l: { name: string }) => l.name)).toEqual(['Pump house'])
     expect((await remove(typo.id)).status).toBe(404)
     expect((await remove('nope')).status).toBe(404)

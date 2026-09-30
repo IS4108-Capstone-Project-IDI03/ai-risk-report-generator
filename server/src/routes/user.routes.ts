@@ -1,7 +1,9 @@
 import { Router } from 'express'
+import { requirePermission } from '../middleware/auth.middleware'
 import {
   getUser,
   listUsers,
+  OwnAccessChangeError,
   updateUser,
   userProfileSchema,
   UserEmailTakenError,
@@ -10,8 +12,10 @@ import {
 
 const router = Router()
 
-// Account profiles (F-03). Not authenticated yet: F-04 adds sign-in and
-// restricts editing to knowledge admins.
+// Account profiles (F-03) and role assignment (F-05): knowledge admins only.
+// Anyone else signed in gets 403 on every route here.
+router.use(requirePermission('users:manage'))
+
 router.get('/', async (_req, res) => {
   res.json(await listUsers())
 })
@@ -42,8 +46,15 @@ router.put('/:id', async (req, res) => {
     return
   }
   try {
-    res.json(await updateUser(req.params.id, parsed.data))
+    res.json(await updateUser(req.params.id, parsed.data, res.locals.user?.id))
   } catch (error: unknown) {
+    if (error instanceof OwnAccessChangeError) {
+      res.status(400).json({
+        error: 'The profile details are invalid.',
+        fields: { [error.field]: error.message },
+      })
+      return
+    }
     if (error instanceof UserNotFoundError) {
       res.status(404).json({ error: error.message })
       return
