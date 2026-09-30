@@ -89,6 +89,8 @@
   padding: 16px 20px;
   border: none;
   border-bottom: 1px solid var(--border-subtle);
+  /* Fields reflow to the row's own width, not the viewport's. */
+  container-type: inline-size;
   transition: background-color 180ms cubic-bezier(0.2, 0, 0.2, 1);
 }
 .kb-row[data-state='uploading'] {
@@ -125,18 +127,31 @@
 .kb-reason-rejected {
   color: var(--status-critical-fg);
 }
+/* Line one says what the document is (source type, then title across the
+   rest); line two holds that type's own details, one column each, so a
+   standard's four and a report's three line up under the same columns. */
 .kb-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px 16px;
   margin-top: 12px;
 }
-/* The title is the longest value; give it room. */
-.kb-fields > :first-child {
-  grid-column: span 2;
+.kb-fields > :nth-child(2) {
+  grid-column: span 3;
 }
-@media (max-width: 760px) {
-  .kb-fields > :first-child {
+@container (max-width: 720px) {
+  .kb-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kb-fields > :nth-child(-n + 2) {
+    grid-column: span 2;
+  }
+}
+@container (max-width: 420px) {
+  .kb-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kb-fields > :nth-child(-n + 2) {
     grid-column: auto;
   }
 }
