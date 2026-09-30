@@ -181,5 +181,44 @@ capture session `active`.
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 
+## Knowledge documents (IN-01)
+
+`knowledge_documents` holds one record per accepted upload. Its `_id` is the
+permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
+`fileName` is the original name. The unaltered PDF is in S3 at
+`knowledge/<_id>.pdf` (flat: no folder per source type, because a corrected
+source type would leave the file in the wrong folder); the record keeps `file`
+(`key`, `contentType`, `size`, `sha256`).
+
+The source type decides which details the admin gives:
+
+| Field | Standard (`fm_standard`, `nfpa_standard`) | Past report (`marsh_report`) |
+| --- | --- | --- |
+| `title` | required | required |
+| `issuingBody` | set from the source type: `FM Global` / `NFPA` | set: `Marsh` |
+| `edition` | required, a four-digit year, e.g. `2022` | absent |
+| `metadata.effective_date` | the edition's effective date | the report date |
+| `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
+| `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
+| `metadata.COPE_dimension` | `all` | `all` |
+
+`jurisdiction: 'all'` is the only value that isn't a two-letter code; like
+`facility_type: 'all'`, retrieval must treat it as matching any site. These
+fields live on the MongoDB record only: the ingestion pipeline's chunks carry
+`doc_id`, `headings`, pages and `bbox`, not the metadata above (see the `/index`
+contract earlier in this file).
+
+`status` is `queued` (set by the gateway), then `processing`, `complete` (with
+`result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
+(with `error`, the reason shown to the admin), all set by the ingestion worker,
+which also records `startedAt` and `finishedAt`. Rejected uploads are never
+stored.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
+| `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
+| `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
+
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

@@ -49,6 +49,7 @@ jobs:
       SPEECH_OCR_SERVICE_URL: http://localhost:8003
       AWS_REGION: ap-southeast-1
       S3_BUCKET: ci-test-bucket
+      REDIS_URL: redis://localhost:6379
 
     steps:
       - name: Checkout

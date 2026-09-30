@@ -10,6 +10,7 @@ import { Generation } from './screens/Generation'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
 import { UserAccounts } from '../accounts/UserAccounts'
+import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 
 export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -268,6 +269,8 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                 {v.isField && <SiteObservation v={v} />}
 
                 {v.isUsers && <UserAccounts narrow={v.stackTable} />}
+
+                {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} />}
 
                 {v.isOverview && <Overview v={v} />}
 

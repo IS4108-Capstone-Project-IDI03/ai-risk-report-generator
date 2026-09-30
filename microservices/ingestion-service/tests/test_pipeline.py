@@ -115,3 +115,16 @@ def test_page_range_forwarded_to_parse(monkeypatch):
     pipeline.run("some/report.pdf", page_range=(1, 5))
     parse_call = next(c for c in calls if c[0] == "parse")
     assert parse_call[2] == (1, 5)
+
+
+def test_doc_id_forwarded_to_chunk_so_chunk_ids_name_the_document(monkeypatch):
+    seen = {}
+    _install_fakes(monkeypatch, _parsed(), [])
+
+    def fake_chunk(parsed_arg, doc_path=None, doc_id=None):
+        seen["doc_id"] = doc_id
+        return []
+
+    monkeypatch.setattr(pipeline, "chunk", fake_chunk)
+    pipeline.run("some/report.pdf", doc_id="6abb28ae16068a0793e9962a")
+    assert seen["doc_id"] == "6abb28ae16068a0793e9962a"

@@ -19,6 +19,7 @@ function Select({
   error,
   options = [],
   size = 'md',
+  required = false,
   disabled = false,
   style = {},
   ...rest
@@ -44,11 +45,22 @@ function Select({
         <span
           style={{
             fontSize: 'var(--text-small-size)',
+            lineHeight: 'var(--text-small-lh)',
             fontWeight: 'var(--weight-medium)',
             color: 'var(--text-body)',
           }}
         >
           {label}
+          {required ? (
+            <span
+              style={{
+                color: 'var(--action-danger)',
+                marginLeft: 3,
+              }}
+            >
+              {'*'}
+            </span>
+          ) : null}
         </span>
       ) : null}
       <span
@@ -75,6 +87,7 @@ function Select({
         <select
           aria-invalid={!!error}
           aria-describedby={error || hint ? descriptionId : undefined}
+          required={required}
           disabled={disabled}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}

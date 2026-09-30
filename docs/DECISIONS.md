@@ -128,3 +128,17 @@ never reach the gateway. Reason: CP-06 asks for tags that persist and filter,
 and no draft cites an observation yet, so overwriting a tag loses nothing.
 Once drafts cite observations, CP-08 should keep the prior version (its AC5).
 Story: CP-06.
+
+## 2026-09-30 — Knowledge ingestion runs on a Redis/BullMQ queue
+Chose: the gateway stores each uploaded PDF in S3, records it in MongoDB
+and adds a job to a BullMQ queue in Redis; a separate Python worker
+(`ingestion-worker`, same image as the ingestion service) takes one job at
+a time, runs the ingestion pipeline and writes the outcome to MongoDB.
+Rejected: running ingestion inside the gateway like transcription (above),
+or inside the ingestion service's HTTP process. Reason: one parse takes
+minutes on CPU, so a restart would lose work that is expensive to redo, and
+several uploads must wait their turn rather than compete for the CPU. This
+follows the interim report (Redis + BullMQ for background jobs). Python and
+Node BullMQ share one queue format, so the gateway enqueues in Node and the
+worker consumes in Python. Transcription keeps its no-broker design.
+Story: IN-01.

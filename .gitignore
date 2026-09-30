@@ -21,3 +21,7 @@ __pycache__/
 
 # Local Chroma database
 .chroma-data/
+
+# Personal files
+CLAUDE.local.md
+.local-docs/
