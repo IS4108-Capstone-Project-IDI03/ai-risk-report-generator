@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    // Mocks sign-in and resets the URL between tests (F-04, F-05).
+    setupFiles: ['./src/test/setup.ts'],
   },
   server: {
     port: 3000,

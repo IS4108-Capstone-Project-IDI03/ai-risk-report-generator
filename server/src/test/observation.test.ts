@@ -1,6 +1,5 @@
 import { Types } from 'mongoose'
 import { Readable } from 'stream'
-import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
@@ -12,6 +11,7 @@ import {
   listCategoryObservations,
 } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
+import { signedInAsRole } from './auth-test-helpers'
 
 // S3 stands in as a map; S5 as a stubbed fetch.
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
@@ -23,6 +23,9 @@ vi.mock('../services/storage.service', () => ({
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 
 useMemoryMongo()
+
+// A risk engineer is allowed everything below (F-05); role limits are in permissions.test.ts.
+const api = signedInAsRole(app, 'risk_engineer')
 
 beforeEach(() => {
   vi.stubGlobal('fetch', (_url: string, init: RequestInit) => speech(JSON.parse(String(init.body))))
@@ -79,18 +82,16 @@ type Recording = { audio?: Buffer; type?: string; name?: string }
 // Saves an observation as the capture screen does: a JSON `details` part and a
 // `recording` part per audio file.
 function save(fields: object = {}, recordings: Recording[] = [{}], reference = 'RPT-2026-0411') {
-  const req = request(app)
-    .post(`/api/assessments/${reference}/observations`)
-    .field(
-      'details',
-      JSON.stringify({
-        engineer: 'A. Rowe',
-        copeDimension: 'Protection',
-        severity: 'high',
-        locationId: String(BAY_3),
-        ...fields,
-      }),
-    )
+  const req = api.post(`/api/assessments/${reference}/observations`).field(
+    'details',
+    JSON.stringify({
+      engineer: 'A. Rowe',
+      copeDimension: 'Protection',
+      severity: 'high',
+      locationId: String(BAY_3),
+      ...fields,
+    }),
+  )
   recordings.forEach((r, i) =>
     req.attach('recording', r.audio ?? AUDIO, {
       filename: r.name ?? `Recording ${i + 1}`,
@@ -245,9 +246,7 @@ describe('POST /api/assessments/:reference/observations', () => {
     expect((await save({}, [{ type: 'audio/aac' }])).status).toBe(415)
     expect((await save({}, [{ audio: Buffer.from('') }])).status).toBe(400)
     expect((await save({ note: '  \n ' }, [])).status).toBe(400)
-    expect((await request(app).post('/api/assessments/RPT-2026-0411/observations')).status).toBe(
-      400,
-    )
+    expect((await api.post('/api/assessments/RPT-2026-0411/observations')).status).toBe(400)
     expect(s3.size).toBe(0)
     expect(await ObservationModel.countDocuments()).toBe(0)
   })
@@ -276,7 +275,7 @@ describe('POST /api/assessments/:reference/observations', () => {
 
 describe('POST /api/observations/:id/recordings/:recordingId/transcription/retry', () => {
   const retry = (id: unknown, recordingId: unknown) =>
-    request(app).post(`/api/observations/${id}/recordings/${recordingId}/transcription/retry`)
+    api.post(`/api/observations/${id}/recordings/${recordingId}/transcription/retry`)
 
   it('starts a new attempt for the same recording', async () => {
     speech.mockReturnValueOnce(s5(502, { detail: 'Whisper timed out.' }))
@@ -324,8 +323,7 @@ describe('POST /api/observations/:id/recordings/:recordingId/transcription/retry
 })
 
 describe('PATCH /api/observations/:id', () => {
-  const retag = (id: unknown, tags: object) =>
-    request(app).patch(`/api/observations/${id}`).send(tags)
+  const retag = (id: unknown, tags: object) => api.patch(`/api/observations/${id}`).send(tags)
 
   it('categorises an uncategorised observation, bringing it into drafting', async () => {
     await assessmentWithSession()
@@ -353,7 +351,7 @@ describe('PATCH /api/observations/:id', () => {
     })
 
     expect(response.status).toBe(200)
-    const [reopened] = (await request(app).get('/api/assessments/RPT-2026-0411/observations')).body
+    const [reopened] = (await api.get('/api/assessments/RPT-2026-0411/observations')).body
     expect(reopened).toMatchObject({
       id: saved.id,
       severity: 'critical',
@@ -433,7 +431,7 @@ describe('observation list, audio and restarts', () => {
     await settled(first.id)
     const second = (await note({ copeDimension: null })).body
 
-    const response = await request(app).get('/api/assessments/RPT-2026-0411/observations')
+    const response = await api.get('/api/assessments/RPT-2026-0411/observations')
 
     expect(response.status).toBe(200)
     expect(response.body.map((o: { id: string }) => o.id)).toEqual([second.id, first.id])
@@ -463,14 +461,12 @@ describe('observation list, audio and restarts', () => {
     await assessmentWithSession()
     const { id, recordings } = (await save()).body
 
-    const response = await request(app).get(recordings[0].url).buffer(true)
+    const response = await api.get(recordings[0].url).buffer(true)
 
     expect(response.status).toBe(200)
     expect(response.headers['content-type']).toContain('audio/webm')
     expect(Buffer.from(response.body)).toEqual(AUDIO)
-    expect((await request(app).get(`/api/observations/${id}/recordings/nope/audio`)).status).toBe(
-      404,
-    )
+    expect((await api.get(`/api/observations/${id}/recordings/nope/audio`)).status).toBe(404)
     await settled(id)
   })
 

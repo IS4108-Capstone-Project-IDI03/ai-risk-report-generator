@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { signIn } from '../../test/session'
 import { resetUploads } from './uploads'
 
 const NFPA = {
@@ -58,11 +59,9 @@ function mockGateway(list: unknown[], uploads: Record<string, () => Promise<Resp
   return posted
 }
 
-function openKnowledgeBase() {
+async function openKnowledgeBase() {
   render(<App />)
-  fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'sample-password' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+  await signIn('knowledge_admin')
   fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
 }
 
@@ -102,7 +101,7 @@ afterEach(() => {
 describe('Knowledge base uploads (IN-01)', () => {
   it('gives each selected PDF its own row, asking first for its source type', async () => {
     mockGateway([])
-    openKnowledgeBase()
+    await openKnowledgeBase()
 
     choose(pdf('nfpa-13.pdf'), pdf('FM 2-0.pdf'))
 
@@ -117,7 +116,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it('asks a standard for its edition, and a Marsh report for its report date and facility type', async () => {
     mockGateway([])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     choose(pdf('survey.pdf'))
     const row = screen.getByRole('group', { name: 'survey.pdf' })
 
@@ -140,7 +139,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it("keeps a standard's edition to four digits and flags a year out of range as you type", async () => {
     mockGateway([])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     choose(pdf('nfpa-13.pdf'))
     const row = screen.getByRole('group', { name: 'nfpa-13.pdf' })
     setField(row, /^Source type/, 'nfpa_standard')
@@ -158,7 +157,7 @@ describe('Knowledge base uploads (IN-01)', () => {
     ['out of range', '1850', EDITION_RANGE],
   ])('does not upload a standard whose edition is %s', async (_case, edition, message) => {
     const posted = mockGateway([])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     choose(pdf('nfpa-13.pdf'))
     const row = fillDetails('nfpa-13.pdf')
     setField(row, /^Edition/, edition)
@@ -172,7 +171,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it("sends only a Marsh report's own details", async () => {
     const posted = mockGateway([])
-    openKnowledgeBase()
+    await openKnowledgeBase()
     choose(pdf('survey.pdf'))
     const row = screen.getByRole('group', { name: 'survey.pdf' })
     setField(row, /^Source type/, 'nfpa_standard')
@@ -198,7 +197,7 @@ describe('Knowledge base uploads (IN-01)', () => {
     const posted = mockGateway([], {
       broken: () => json(422, { error: 'The PDF is password-protected.' }),
     })
-    openKnowledgeBase()
+    await openKnowledgeBase()
     choose(pdf('nfpa-13.pdf'), pdf('broken.pdf'))
     const good = fillDetails('nfpa-13.pdf')
     const bad = fillDetails('broken.pdf')
@@ -223,7 +222,7 @@ describe('Knowledge base uploads (IN-01)', () => {
           fields: { edition: 'Edition is required.' },
         }),
     })
-    openKnowledgeBase()
+    await openKnowledgeBase()
     choose(pdf('nfpa-13.pdf'))
     const row = fillDetails('nfpa-13.pdf')
 
@@ -237,7 +236,7 @@ describe('Knowledge base uploads (IN-01)', () => {
       { ...NFPA, status: 'failed', error: 'Docling could not parse nfpa-13.pdf' },
       { ...NFPA, id: 'b', title: 'FM Global 2-0', status: 'complete' },
     ])
-    openKnowledgeBase()
+    await openKnowledgeBase()
 
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
     await within(table).findByText('Failed')
@@ -269,7 +268,7 @@ describe('Knowledge base uploads (IN-01)', () => {
         effectiveDate: '2024-03-12',
       },
     ])
-    openKnowledgeBase()
+    await openKnowledgeBase()
 
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(
@@ -280,7 +279,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it('keeps upload outcomes when you leave the screen and come back', async () => {
     mockGateway([], { broken: () => json(415, { error: 'Only PDF files can be uploaded.' }) })
-    openKnowledgeBase()
+    await openKnowledgeBase()
     choose(pdf('broken.pdf'))
     fillDetails('broken.pdf')
     fireEvent.click(screen.getByRole('button', { name: 'Upload all' }))

@@ -105,20 +105,48 @@ until accounts exist (F-04); the gateway does not paginate or filter by user yet
 
 `users` holds one profile per team member (F-03): a unique, fixed `staffId`
 (`MRE-0001`), `name`, a unique lowercased `email`, `role`
-(`risk_engineer`, `reviewer` or `knowledge_admin`), optional `jobTitle`,
-`phone` and `office` (a two-letter jurisdiction code), and `active`. There are
-no passwords; sign-in arrives with F-04, which should extend this collection
-rather than add a parallel one.
+(`risk_engineer` or `knowledge_admin`, F-05), optional `jobTitle`,
+`phone` and `office` (a two-letter jurisdiction code), `active`, and the
+bcrypt `passwordHash` (F-04, never selected by default). A deactivated account
+cannot sign in.
 
 `GET /api/users` lists accounts by name and `GET /api/users/:id` returns one
 (404 for an unknown or malformed ID). `PUT /api/users/:id` replaces the whole
 editable profile; optional fields sent as `''` are removed. Invalid input
 returns 400 `{ error, fields }` like assessments, and an email another account
-uses returns 409 with `fields.email`. `staffId` cannot be changed. The gateway
-does not yet restrict these routes to knowledge admins (F-04).
+uses returns 409 with `fields.email`. `staffId` cannot be changed. These routes
+need a session (401) and the `users:manage` permission, which only knowledge
+admins have (403 otherwise). An admin cannot change their own role or
+deactivate themselves (400 against `fields.role` or `fields.active`), so the
+last admin cannot lock everyone out.
+
+## Role permissions (F-05)
+
+Every `/api` route except `/api/health` and `/api/auth/login|logout` needs a
+session cookie (401 without one). Each then names one permission; a role
+without it gets 403 `{ error: 'Your role does not allow this.' }` before the
+handler reads the body or the database. The matrix lives in
+`server/src/services/permissions.service.ts`, and `/api/auth/login` and
+`/api/auth/me` return the role's `permissions` so the client guards its screens
+with the same list.
+
+| Permission | Routes | Risk engineer | Knowledge admin |
+| --- | --- | --- | --- |
+| `assessments:view` | `GET` assessments, their locations and observations, recording audio | yes | yes |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, tag edits, transcription retry | yes | no |
+| `reports:generate` | `POST /api/rag/generate` | yes | no |
+| `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
+| `knowledge:manage` | `POST /api/knowledge-documents` | no | yes |
+| `users:manage` | `/api/users` | no | yes |
+
+The role is read from the signed session, so a role change takes effect at the
+user's next sign-in (sessions last 15 minutes). The seed script turns accounts
+saved with the retired `reviewer` role into risk engineers; any left unmigrated
+get no permissions.
 
 `npm --prefix server run seed` inserts four sample accounts (`MRE-0001` to
-`MRE-0004`, `example.com` emails) only when their staff ID is missing, so
+`MRE-0004`, `example.com` emails, dev password `password123`; Sana Patel is the
+knowledge admin, the rest risk engineers) only when their staff ID is missing, so
 re-seeding keeps edits made on screen. Against the shared Atlas cluster, those
 edits are visible to the whole team.
 

@@ -23,17 +23,18 @@ import {
   UnknownLocationError,
 } from '../services/observation.service'
 import { fieldErrors } from './field-errors'
+import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
 
 // The work list (RV-10). Filtering and search happen in the client for now.
-router.get('/', async (_req, res) => {
+router.get('/', requirePermission('assessments:view'), async (_req, res) => {
   res.json(await listAssessments())
 })
 
 // Creates an assessment (and its site). 400 lists the first problem with each
 // invalid field.
-router.post('/', async (req, res) => {
+router.post('/', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = newAssessmentSchema.safeParse(req.body)
   if (!parsed.success) {
     res
@@ -46,21 +47,25 @@ router.post('/', async (req, res) => {
 
 // Opens capture for an assessment: 201 when a new session was started, 200
 // when the assessment's active session was returned.
-router.post('/:reference/capture-session', async (req, res) => {
-  try {
-    const { created, session, assessment } = await startCaptureSession(req.params.reference)
-    res.status(created ? 201 : 200).json({ session, assessment })
-  } catch (error: unknown) {
-    if (error instanceof AssessmentNotFoundError) {
-      res.status(404).json({ error: error.message })
-      return
+router.post(
+  '/:reference/capture-session',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      const { created, session, assessment } = await startCaptureSession(req.params.reference)
+      res.status(created ? 201 : 200).json({ session, assessment })
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      throw error
     }
-    throw error
-  }
-})
+  },
+)
 
 // The places on site the engineer records observations in.
-router.get('/:reference/locations', async (req, res) => {
+router.get('/:reference/locations', requirePermission('assessments:view'), async (req, res) => {
   try {
     res.json(await listLocations(req.params.reference))
   } catch (error: unknown) {
@@ -73,7 +78,7 @@ router.get('/:reference/locations', async (req, res) => {
 })
 
 // Adds a location. 409 when the same name and floor is already listed.
-router.post('/:reference/locations', async (req, res) => {
+router.post('/:reference/locations', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = newLocationSchema.safeParse(req.body)
   if (!parsed.success) {
     res
@@ -97,22 +102,26 @@ router.post('/:reference/locations', async (req, res) => {
 })
 
 // Removes a location with no observations: 204, 404, or 409 while it has some.
-router.delete('/:reference/locations/:id', async (req, res) => {
-  try {
-    await removeLocation(req.params.reference, req.params.id)
-    res.status(204).end()
-  } catch (error: unknown) {
-    if (error instanceof AssessmentNotFoundError || error instanceof LocationNotFoundError) {
-      res.status(404).json({ error: error.message })
-      return
+router.delete(
+  '/:reference/locations/:id',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      await removeLocation(req.params.reference, req.params.id)
+      res.status(204).end()
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError || error instanceof LocationNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof LocationInUseError) {
+        res.status(409).json({ error: error.message })
+        return
+      }
+      throw error
     }
-    if (error instanceof LocationInUseError) {
-      res.status(409).json({ error: error.message })
-      return
-    }
-    throw error
-  }
-})
+  },
+)
 
 // Saves one observation (CP-02, CP-03) as a multipart form: a `details` part
 // holding the JSON fields (see newObservationSchema) and a `recording` part
@@ -123,6 +132,7 @@ router.delete('/:reference/locations/:id', async (req, res) => {
 // grow past a few recordings.
 router.post(
   '/:reference/observations',
+  requirePermission('assessments:edit'),
   express.raw({ type: 'multipart/form-data', limit: '100mb' }),
   async (req, res) => {
     let form: FormData
@@ -197,7 +207,7 @@ router.post(
   },
 )
 
-router.get('/:reference/observations', async (req, res) => {
+router.get('/:reference/observations', requirePermission('assessments:view'), async (req, res) => {
   try {
     res.json(await listObservations(req.params.reference))
   } catch (error: unknown) {

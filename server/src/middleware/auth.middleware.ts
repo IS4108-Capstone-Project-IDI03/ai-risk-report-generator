@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import { verifySession, type SessionUser } from '../services/auth.service'
+import { hasPermission, type Permission } from '../services/permissions.service'
 
 export const SESSION_COOKIE = 'session'
 
@@ -25,23 +26,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-// ponytail: minimal role->permission map so F-05 (role permissions) has a
-// real primitive to build on today instead of guessing at auth's shape.
-// F-05 owns replacing this with the agreed permission matrix.
-const ROLE_PERMISSIONS: Record<SessionUser['role'], string[]> = {
-  knowledge_admin: ['*'],
-  risk_engineer: ['assessments:capture', 'assessments:view'],
-  reviewer: ['assessments:view'],
-}
-
-// Composable per-route permission gate, e.g.
-// router.post('/', requireAuth, requirePermission('assessments:capture'), handler)
-export function requirePermission(permission: string) {
+// Per-route permission gate from the agreed matrix (F-05), placed after
+// requireAuth, e.g. router.post('/', requirePermission('assessments:edit'), handler).
+// A signed-in user whose role lacks the permission gets 403, never the data.
+export function requirePermission(permission: Permission) {
   return (_req: Request, res: Response, next: NextFunction) => {
     const user = res.locals.user
-    const allowed = user && ROLE_PERMISSIONS[user.role]
-    if (!allowed || (!allowed.includes('*') && !allowed.includes(permission))) {
-      res.status(403).json({ error: 'Not permitted.' })
+    if (!user) {
+      res.status(401).json({ error: 'Sign in required.' })
+      return
+    }
+    if (!hasPermission(user.role, permission)) {
+      res.status(403).json({ error: 'Your role does not allow this.' })
       return
     }
     next()

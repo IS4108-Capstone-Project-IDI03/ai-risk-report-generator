@@ -11,11 +11,12 @@ import {
   RejectedFileError,
   uploadKnowledgeDocument,
 } from '../services/knowledge-document.service'
+import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
 
 // Upload summary: every accepted document with its ingestion status.
-router.get('/', async (_req, res) => {
+router.get('/', requirePermission('knowledge:view'), async (_req, res) => {
   res.json(await listKnowledgeDocuments())
 })
 
@@ -23,34 +24,39 @@ router.get('/', async (_req, res) => {
 // details are in the query string because they are not plain ASCII.
 // Answers: 201 accepted · 400 bad details · 413 over 100 MB · 415 not a PDF ·
 // 422 a PDF that will not open · 503 ingestion down (retry later).
-router.post('/', express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
-  const parsed = documentDetailsSchema.safeParse(req.query)
-  if (!parsed.success) {
-    const fields: Record<string, string> = {}
-    for (const issue of parsed.error.issues)
-      fields[issue.path.map(String).join('.')] ??= issue.message
-    res.status(400).json({ error: 'The document details are invalid.', fields })
-    return
-  }
-  try {
-    res
-      .status(201)
-      .json(await uploadKnowledgeDocument(req.body, req.get('Content-Type') ?? '', parsed.data))
-  } catch (error: unknown) {
-    if (error instanceof RejectedFileError) {
-      res.status(error.status).json({ error: error.message })
+router.post(
+  '/',
+  requirePermission('knowledge:manage'),
+  express.raw({ type: '*/*', limit: '100mb' }),
+  async (req, res) => {
+    const parsed = documentDetailsSchema.safeParse(req.query)
+    if (!parsed.success) {
+      const fields: Record<string, string> = {}
+      for (const issue of parsed.error.issues)
+        fields[issue.path.map(String).join('.')] ??= issue.message
+      res.status(400).json({ error: 'The document details are invalid.', fields })
       return
     }
-    if (error instanceof IngestionUnavailableError) {
-      res.status(503).json({ error: error.message })
-      return
+    try {
+      res
+        .status(201)
+        .json(await uploadKnowledgeDocument(req.body, req.get('Content-Type') ?? '', parsed.data))
+    } catch (error: unknown) {
+      if (error instanceof RejectedFileError) {
+        res.status(error.status).json({ error: error.message })
+        return
+      }
+      if (error instanceof IngestionUnavailableError) {
+        res.status(503).json({ error: error.message })
+        return
+      }
+      throw error
     }
-    throw error
-  }
-})
+  },
+)
 
 // Streams the original PDF from S3, inline so the browser opens it.
-router.get('/:id/file', async (req, res) => {
+router.get('/:id/file', requirePermission('knowledge:view'), async (req, res) => {
   try {
     const file = await getKnowledgeDocumentFile(req.params.id)
     res.set({

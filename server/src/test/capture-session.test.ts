@@ -1,12 +1,15 @@
-import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
+import { signedInAsRole } from './auth-test-helpers'
 
 useMemoryMongo()
+
+// A risk engineer is allowed everything below (F-05); role limits are in permissions.test.ts.
+const api = signedInAsRole(app, 'risk_engineer')
 
 async function createAssessment(reference = 'RPT-2026-0411') {
   const site = await SiteModel.create({
@@ -24,7 +27,7 @@ async function createAssessment(reference = 'RPT-2026-0411') {
 }
 
 function startCapture(reference: string) {
-  return request(app).post(`/api/assessments/${reference}/capture-session`)
+  return api.post(`/api/assessments/${reference}/capture-session`)
 }
 
 describe('POST /api/assessments/:reference/capture-session', () => {

@@ -5,7 +5,8 @@
   padding: 24px clamp(16px, 2vw, 28px) 40px;
   animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
 }
-.accounts-loading {
+.accounts-loading,
+.accounts-intro {
   margin: 0;
   color: var(--text-muted);
 }
