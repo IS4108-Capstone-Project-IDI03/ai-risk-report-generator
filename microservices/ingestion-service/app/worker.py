@@ -48,6 +48,18 @@ def download(key: str, dest: str) -> None:
     s3.download_file(os.environ["S3_BUCKET"], key, dest)
 
 
+def labels(doc: dict) -> dict:
+    """Return the document's labels as passage metadata: its five metadata fields.
+
+    Chroma metadata holds only strings and numbers, so the date becomes
+    YYYY-MM-DD. Must match `labels()` in
+    server/src/services/knowledge-document.service.ts, which relabels passages
+    after a correction (KB-01).
+    """
+    metadata = doc["metadata"]
+    return {**metadata, "effective_date": metadata["effective_date"].strftime("%Y-%m-%d")}
+
+
 def ingest_document(document_id: str) -> None:
     """Run one queued document through the pipeline; returns None, records the outcome.
 
@@ -69,13 +81,14 @@ def ingest_document(document_id: str) -> None:
         return
 
     # 2. Download the original into a temporary folder that deletes itself, and
-    # 3. run PAR16's pipeline: parse → chunk → anonymise → index.
+    # 3. run PAR16's pipeline: parse → chunk → anonymise → index, with the
+    # document's labels on every passage.
     try:
         with tempfile.TemporaryDirectory() as tmp:
             # Keep the original file name: the parser reports it as the doc name.
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
-            summary = run(path, doc_id=document_id)
+            summary = run(path, doc_id=document_id, labels=labels(doc))
     # 4. Record the outcome: failed here, complete below. The failure reason is
     # what the admin sees; re-raising tells BullMQ the job failed (not retried:
     # attempts is 1).
