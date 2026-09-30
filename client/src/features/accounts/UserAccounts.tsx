@@ -16,6 +16,7 @@ import {
   getUser,
   listUsers,
   ROLE_LABELS,
+  roleLabel,
   updateUser,
   type UserAccount,
   type UserProfile,
@@ -62,10 +63,17 @@ function toProfile(user: UserAccount): UserProfile {
   }
 }
 
-// Knowledge admins view and update team members' account details (F-03).
-// Every open reads the account from the gateway, so saved changes show on
-// reopening.
-export function UserAccounts({ narrow }: { narrow: boolean }) {
+// Knowledge admins view and update team members' account details (F-03) and
+// assign each one's role (F-05). Every open reads the account from the
+// gateway, so saved changes show on reopening. currentUserId is the signed-in
+// admin, who cannot change their own role or deactivate themselves.
+export function UserAccounts({
+  narrow,
+  currentUserId,
+}: {
+  narrow: boolean
+  currentUserId: string
+}) {
   const [listVersion, setListVersion] = useState(0)
   const [list, setList] = useState<Loaded<UserAccount[]> | null>(null)
   const [selected, setSelected] = useState<{ id: string; version: number } | null>(null)
@@ -133,6 +141,7 @@ export function UserAccounts({ narrow }: { narrow: boolean }) {
           <ProfilePanel
             key={current.key}
             user={current.data}
+            isSelf={current.data.id === currentUserId}
             onSaved={(user) => setProfile({ key: current.key, data: user })}
           />
         )}
@@ -143,11 +152,11 @@ export function UserAccounts({ narrow }: { narrow: boolean }) {
   const currentList = list?.key === listKey ? list : null
   return (
     <div className="accounts">
-      <Callout tone="info" title="Access is not restricted yet">
+      <p className="accounts-intro">
         {
-          'Anyone signed in to this demo can edit accounts; sign-in and the knowledge admin role arrive with F-04. Saved changes go to the database the gateway is connected to.'
+          'A role decides what each person can open: risk engineers run assessments; knowledge admins manage the knowledge base and these accounts.'
         }
-      </Callout>
+      </p>
       {!currentList ? (
         <p className="accounts-loading" role="status">
           Loading accounts…
@@ -186,7 +195,7 @@ export function UserAccounts({ narrow }: { narrow: boolean }) {
                 <span className="accounts-stack-text">
                   <strong>{user.name}</strong>
                   <small>
-                    {ROLE_LABELS[user.role]} · {user.email}
+                    {roleLabel(user.role)} · {user.email}
                   </small>
                 </span>
                 {!user.active && <Badge tone="neutral">Deactivated</Badge>}
@@ -222,7 +231,7 @@ export function UserAccounts({ narrow }: { narrow: boolean }) {
             name: user.name,
             staffId: <span className="accounts-mono">{user.staffId}</span>,
             email: user.email,
-            role: ROLE_LABELS[user.role],
+            role: roleLabel(user.role),
             office: officeLabel(user.office),
             status: (
               <Badge tone={user.active ? 'low' : 'neutral'}>
@@ -238,9 +247,11 @@ export function UserAccounts({ narrow }: { narrow: boolean }) {
 
 function ProfilePanel({
   user,
+  isSelf,
   onSaved,
 }: {
   user: UserAccount
+  isSelf: boolean
   onSaved: (user: UserAccount) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -296,7 +307,7 @@ function ProfilePanel({
       <div className="accounts-profile-title">
         <h2>{user.name}</h2>
         <span>
-          <span className="accounts-mono">{user.staffId}</span> · {ROLE_LABELS[user.role]}
+          <span className="accounts-mono">{user.staffId}</span> · {roleLabel(user.role)}
         </span>
       </div>
       <Badge tone={user.active ? 'low' : 'neutral'}>{user.active ? 'Active' : 'Deactivated'}</Badge>
@@ -325,7 +336,7 @@ function ProfilePanel({
           </div>
           <div>
             <dt>Role</dt>
-            <dd>{ROLE_LABELS[user.role]}</dd>
+            <dd>{roleLabel(user.role)}</dd>
           </div>
           <div>
             <dt>Job title</dt>
@@ -374,6 +385,8 @@ function ProfilePanel({
             options={ROLE_OPTIONS}
             value={draft.role}
             error={fieldErrors.role}
+            disabled={isSelf}
+            hint={isSelf ? 'Another knowledge admin must change your role.' : undefined}
             onChange={(e) => set('role', e.target.value as UserRole)}
           />
           <Input
@@ -403,6 +416,7 @@ function ProfilePanel({
           <Switch
             label="Account active"
             checked={draft.active}
+            disabled={isSelf}
             onChange={(checked) => set('active', checked)}
           />
           {fieldErrors.active && <p className="accounts-field-error">{fieldErrors.active}</p>}

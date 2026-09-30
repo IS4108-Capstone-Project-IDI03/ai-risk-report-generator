@@ -40,9 +40,11 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
             {'Observations on file'}
           </span>
           <span style={{ flex: '1' }}></span>
-          <Button variant="secondary" size="sm" iconLeft="camera" onClick={v.goField}>
-            {'New observation'}
-          </Button>
+          {v.canEdit && (
+            <Button variant="secondary" size="sm" iconLeft="camera" onClick={v.goField}>
+              {'New observation'}
+            </Button>
+          )}
         </div>
         <div
           style={{
@@ -408,14 +410,16 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               </Button>
                             </>
                           )}
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            iconLeft={IconRegistry.action.edit}
-                            onClick={o.editTags}
-                          >
-                            {'Edit tags'}
-                          </Button>
+                          {v.canEdit && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              iconLeft={IconRegistry.action.edit}
+                              onClick={o.editTags}
+                            >
+                              {'Edit tags'}
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <div style={{ minWidth: '0' }}>
@@ -467,24 +471,26 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               </div>
                             </Fragment>
                           ))}
-                          <button
-                            type="button"
-                            onClick={v.goField}
-                            style={{
-                              width: '132px',
-                              minHeight: '76px',
-                              border: '1px dashed var(--border-strong)',
-                              borderRadius: '5px',
-                              background: 'transparent',
-                              color: 'var(--text-muted)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <Icon name="camera" size={18}></Icon>
-                          </button>
+                          {v.canEdit && (
+                            <button
+                              type="button"
+                              onClick={v.goField}
+                              style={{
+                                width: '132px',
+                                minHeight: '76px',
+                                border: '1px dashed var(--border-strong)',
+                                borderRadius: '5px',
+                                background: 'transparent',
+                                color: 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Icon name="camera" size={18}></Icon>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

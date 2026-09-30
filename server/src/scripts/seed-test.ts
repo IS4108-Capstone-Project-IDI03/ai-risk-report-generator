@@ -1,10 +1,15 @@
 import 'dotenv/config'
+import bcrypt from 'bcrypt'
 import mongoose from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
 import { connectDb } from '../models/db'
 import { SiteModel } from '../models/site.model'
 import { locationKey } from '../services/location.service'
 import { UserModel, type IUser } from '../models/user.model'
+
+// Dev-only default password for every seeded account (F-04). Never used
+// outside local/CI seeding — real accounts set their own via F-06.
+const SEED_PASSWORD = 'password123'
 
 // Sample accounts for the user accounts screen (F-03). Synthetic people with
 // example.com emails; names echo the engineers in the client's demo data.
@@ -30,7 +35,7 @@ const SAMPLE_USERS: SampleUser[] = [
     staffId: 'MRE-0003',
     name: 'Mira Haas',
     email: 'mira.haas@example.com',
-    role: 'reviewer',
+    role: 'risk_engineer',
     jobTitle: 'Technical reviewer · Business interruption',
     office: 'SG',
   },
@@ -161,12 +166,29 @@ async function seedAndVerify(): Promise<void> {
   }
   console.log('Work list assessments RPT-2026-0408 and RPT-2026-0327 are available.')
 
+  // F-05 keeps two roles. Accounts saved as the retired `reviewer` role
+  // become risk engineers, whose permissions covered everything it had.
+  // The raw collection, because the schema no longer admits `reviewer`.
+  const retired = await UserModel.collection.updateMany(
+    { role: 'reviewer' },
+    { $set: { role: 'risk_engineer' } },
+  )
+  if (retired.modifiedCount)
+    console.log(`${retired.modifiedCount} reviewer account(s) are now risk engineers.`)
+
   // Inserted only when missing, so re-seeding keeps edits made on screen.
+  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10)
   for (const user of SAMPLE_USERS) {
     await UserModel.updateOne(
       { staffId: user.staffId },
-      { $setOnInsert: { ...user, active: true } },
+      { $setOnInsert: { ...user, active: true, passwordHash } },
       { upsert: true },
+    )
+    // Accounts seeded before sign-in existed (F-03) have no password yet;
+    // give them the dev one, without touching a password already set.
+    await UserModel.updateOne(
+      { staffId: user.staffId, passwordHash: { $exists: false } },
+      { $set: { passwordHash } },
     )
   }
   console.log(`${SAMPLE_USERS.length} sample user accounts are available.`)

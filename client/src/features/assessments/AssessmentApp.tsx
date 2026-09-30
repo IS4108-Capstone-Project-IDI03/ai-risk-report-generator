@@ -11,6 +11,7 @@ import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
+import { AccessDenied } from '../auth/AccessDenied'
 
 export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -188,7 +189,7 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                         textWrap: 'pretty',
                       }}
                     >
-                      {v.title}
+                      {v.routeBlocked ? 'Access restricted' : v.title}
                     </h1>
                     <div
                       style={{
@@ -198,7 +199,7 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                         color: 'var(--text-secondary)',
                       }}
                     >
-                      {v.meta}
+                      {v.routeBlocked ? null : v.meta}
                     </div>
                   </div>
                   <div
@@ -211,7 +212,7 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                       paddingTop: '6px',
                     }}
                   >
-                    {v.isDashboard && (
+                    {v.isDashboard && !v.routeBlocked && v.canEdit && (
                       <>
                         <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
                           Site observation
@@ -221,21 +222,23 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                         </Button>
                       </>
                     )}
-                    {!!v.isAssessment && (
+                    {!!v.isAssessment && !v.routeBlocked && (
                       <>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <Button variant="ghost" iconLeft="history" onClick={v.showVersionHistory}>
                             {'Version history'}
                           </Button>
-                          <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
-                            {'Site observation'}
-                          </Button>
+                          {v.canEdit && (
+                            <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
+                              {'Site observation'}
+                            </Button>
+                          )}
                         </div>
                       </>
                     )}
                   </div>
                 </div>
-                {!!v.isAssessment && (
+                {!!v.isAssessment && !v.routeBlocked && (
                   <>
                     <div
                       className="om-hidebar"
@@ -262,25 +265,31 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                   background: 'var(--surface-page)',
                 }}
               >
-                {v.isDashboard && <Dashboard v={v} />}
+                {v.routeBlocked ? (
+                  <AccessDenied roleLabel={v.roleName} onLeave={v.leaveBlocked} />
+                ) : (
+                  <>
+                    {v.isDashboard && <Dashboard v={v} />}
 
-                {v.isCreate && <CreateAssessment v={v} />}
+                    {v.isCreate && <CreateAssessment v={v} />}
 
-                {v.isField && <SiteObservation v={v} />}
+                    {v.isField && <SiteObservation v={v} />}
 
-                {v.isUsers && <UserAccounts narrow={v.stackTable} />}
+                    {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
 
-                {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} />}
+                    {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} />}
 
-                {v.isOverview && <Overview v={v} />}
+                    {v.isOverview && <Overview v={v} />}
 
-                {v.isObservations && <Observations v={v} />}
+                    {v.isObservations && <Observations v={v} />}
 
-                {v.isGenerate && <Generation v={v} />}
+                    {v.isGenerate && <Generation v={v} />}
 
-                {v.isReview && <Review v={v} />}
+                    {v.isReview && <Review v={v} />}
 
-                {v.isExport && <ValidationExport v={v} />}
+                    {v.isExport && <ValidationExport v={v} />}
+                  </>
+                )}
               </main>
             </div>
           </div>

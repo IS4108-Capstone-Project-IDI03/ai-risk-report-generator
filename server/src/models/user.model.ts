@@ -1,6 +1,8 @@
 import { Schema, model } from 'mongoose'
 
-export const USER_ROLES = ['risk_engineer', 'reviewer', 'knowledge_admin'] as const
+// The two agreed roles (F-05). What each may do is in
+// services/permissions.service.ts; a role only names the set.
+export const USER_ROLES = ['risk_engineer', 'knowledge_admin'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
 // A team member's account profile (F-03). Sign-in and passwords arrive with
@@ -17,6 +19,8 @@ export interface IUser {
   // Two-letter jurisdiction code of the office the user works from, e.g. SG.
   office?: string
   active: boolean
+  // bcrypt hash (F-04). Absent for accounts that predate sign-in.
+  passwordHash?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -31,6 +35,7 @@ const userSchema = new Schema<IUser>(
     phone: { type: String, trim: true },
     office: { type: String, trim: true },
     active: { type: Boolean, required: true, default: true },
+    passwordHash: { type: String, select: false },
   },
   {
     timestamps: true,

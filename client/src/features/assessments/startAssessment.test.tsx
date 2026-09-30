@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { signIn } from '../../test/session'
 
 // Deliberately differs from the demo data, so passing tests prove the capture
 // screen names the assessment from the server response.
@@ -40,11 +41,9 @@ function mockGateway(...replies: (() => Promise<Response>)[]) {
   )
   return fetchMock
 }
-function signIn() {
+async function openApp() {
   render(<App />)
-  fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'sample-password' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+  await signIn()
 }
 function openCapture() {
   fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
@@ -68,7 +67,7 @@ afterEach(() => {
 describe('Capture session (CP-01)', () => {
   it('starts a session only when capture opens', async () => {
     const fetchMock = mockGateway(() => respond(201))
-    signIn()
+    await openApp()
     expect(fetchMock).not.toHaveBeenCalled()
 
     openCapture()
@@ -80,7 +79,7 @@ describe('Capture session (CP-01)', () => {
 
   it('identifies the assessment from the session', async () => {
     mockGateway(() => respond(201))
-    signIn()
+    await openApp()
 
     openCapture()
 
@@ -99,12 +98,13 @@ describe('Capture session (CP-01)', () => {
       () => respond(201),
       () => respond(200),
     )
-    signIn()
+    await openApp()
     openCapture()
     await screen.findByText('Capture session started')
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    // Back on the dashboard, only its own gateway notice may show.
+    expect(screen.queryByText('Capture session started')).not.toBeInTheDocument()
     openCapture()
 
     expect(await screen.findByText('Capture session resumed')).toBeInTheDocument()
@@ -116,7 +116,7 @@ describe('Capture session (CP-01)', () => {
       () => Promise.reject(new TypeError('Failed to fetch')),
       () => respond(201),
     )
-    signIn()
+    await openApp()
     openCapture()
 
     const notice = await screen.findByRole('status')
@@ -147,7 +147,7 @@ describe('Capture session (CP-01)', () => {
     [500, 'the gateway returned HTTP 500', 'Check the gateway logs'],
   ])('explains an HTTP %i from the gateway', async (status, cause, next) => {
     mockGateway(() => respond(status, { error: 'unused' }))
-    signIn()
+    await openApp()
 
     openCapture()
 
@@ -222,7 +222,7 @@ function openRow() {
 describe('Create assessment (CP-01)', () => {
   it('creates the assessment on the server and lists it', async () => {
     const fetchMock = mockGateway(() => respond(201, CREATED))
-    signIn()
+    await openApp()
 
     createFromForm()
 
@@ -261,7 +261,7 @@ describe('Create assessment (CP-01)', () => {
       () => respond(201, LOADING_DOCK),
       () => respond(201, CREATED_NOTE),
     )
-    signIn()
+    await openApp()
     createFromForm()
     await screen.findByText(/RPT-2026-0001 created/)
 
@@ -310,7 +310,7 @@ describe('Create assessment (CP-01)', () => {
         fields: { reportDueDate: 'The report due date must be on or after the site visit date.' },
       }),
     )
-    signIn()
+    await openApp()
 
     createFromForm()
 
@@ -331,7 +331,7 @@ describe('Create assessment (CP-01)', () => {
           reply = resolve
         }),
     )
-    signIn()
+    await openApp()
 
     createFromForm()
     const busy = screen.getByRole('button', { name: 'Creating assessment…' })
@@ -350,7 +350,7 @@ describe('Create assessment (CP-01)', () => {
 
   it('keeps a demo-only assessment when the gateway is unreachable, and opens its workspace', async () => {
     mockGateway(() => Promise.reject(new TypeError('Failed to fetch')))
-    signIn()
+    await openApp()
 
     createFromForm()
 
@@ -394,7 +394,7 @@ describe('Work list (RV-10)', () => {
   it('lists the assessments assigned to you with their site, date and status', async () => {
     listReply = () => respond(200, LIST)
     mockGateway()
-    signIn()
+    await openApp()
 
     const row = await screen.findByRole('button', { name: /Jurong Distribution Hub/ })
     expect(row).toHaveTextContent('RPT-2026-0001')
@@ -415,7 +415,7 @@ describe('Work list (RV-10)', () => {
   it('filters by status and searches by site and client', async () => {
     listReply = () => respond(200, LIST)
     mockGateway()
-    signIn()
+    await openApp()
     await screen.findByRole('button', { name: /Jurong Distribution Hub/ })
 
     fireEvent.change(screen.getByLabelText('Filter by status'), {
@@ -436,7 +436,7 @@ describe('Work list (RV-10)', () => {
 
   it('shows the sample assessments when the gateway cannot be reached', async () => {
     mockGateway()
-    signIn()
+    await openApp()
 
     expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
     expect(results()).toHaveTextContent('4 of 4 assessments')
