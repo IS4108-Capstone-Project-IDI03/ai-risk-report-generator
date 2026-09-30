@@ -29,8 +29,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 // Per-route permission gate from the agreed matrix (F-05), placed after
 // requireAuth, e.g. router.post('/', requirePermission('assessments:edit'), handler).
 // A signed-in user whose role lacks the permission gets 403, never the data.
+// The request is typed `unknown` on purpose: typed as Express's Request, it
+// would make TypeScript read each route's params as the generic
+// `string | string[]` dictionary instead of from the route path.
 export function requirePermission(permission: Permission) {
-  return (_req: Request, res: Response, next: NextFunction) => {
+  return (_req: unknown, res: Response, next: NextFunction) => {
     const user = res.locals.user
     if (!user) {
       res.status(401).json({ error: 'Sign in required.' })
