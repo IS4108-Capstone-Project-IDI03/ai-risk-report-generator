@@ -283,33 +283,6 @@ describe('GET /api/knowledge-documents', () => {
   })
 })
 
-describe('GET /api/knowledge-documents/:id/file', () => {
-  it('returns the original exactly as uploaded', async () => {
-    const { body } = await upload()
-
-    const response = await request(app).get(body.fileUrl).buffer(true)
-
-    expect(response.status).toBe(200)
-    expect(response.headers['content-type']).toBe('application/pdf')
-    expect(Buffer.from(response.body)).toEqual(PDF)
-  })
-
-  it('ends the response without crashing the gateway when S3 fails mid-stream', async () => {
-    const { body } = await upload()
-    s3.set(`knowledge/${body.id}.pdf`, Object.assign(Buffer.alloc(0), { failMidStream: true }))
-
-    await expect(request(app).get(body.fileUrl)).rejects.toThrow()
-    expect((await request(app).get('/api/knowledge-documents')).status).toBe(200)
-  })
-
-  it('returns 404 for an unknown or malformed ID', async () => {
-    expect(
-      (await request(app).get('/api/knowledge-documents/6abb28ae16068a0793e9962a/file')).status,
-    ).toBe(404)
-    expect((await request(app).get('/api/knowledge-documents/not-an-id/file')).status).toBe(404)
-  })
-})
-
 // Uploads a document and marks it as the ingestion worker would.
 async function stored(details: Record<string, string>, state: object = { status: 'complete' }) {
   const { body } = await upload(PDF, details)
@@ -335,5 +308,133 @@ describe('GET /api/knowledge-documents/active', () => {
       'Apple cold store',
       'Zinc storage',
     ])
+  })
+})
+
+describe('PUT /api/knowledge-documents/:id', () => {
+  // REPORT's details without the file name (a correction can't rename the PDF).
+  const CORRECTED = {
+    title: REPORT.title,
+    effectiveDate: REPORT.effectiveDate,
+    sourceType: REPORT.sourceType,
+    jurisdiction: 'SG',
+    facilityType: 'Data centre',
+  }
+  const correct = (id: string, details: Record<string, string> = CORRECTED) =>
+    request(app).put(`/api/knowledge-documents/${id}`).send(details)
+
+  it('saves the corrected details and puts the new labels on its passages', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const response = await correct(id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ id, jurisdiction: 'SG', facilityType: 'Data centre' })
+    const [url, init] = inspect.mock.lastCall as unknown as [string, RequestInit]
+    expect(url).toBe(`${process.env.INGESTION_SERVICE_URL}/documents/${id}/labels`)
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(String(init.body))).toEqual({
+      source_type: 'marsh_report',
+      jurisdiction: 'SG',
+      facility_type: 'Data centre',
+      COPE_dimension: 'all',
+      effective_date: '2024-03-12',
+    })
+    const [listed] = (await request(app).get('/api/knowledge-documents/active')).body
+    expect(listed).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
+  })
+
+  it('corrects the source type, which changes the issuing body and edition', async () => {
+    const id = await stored(DETAILS)
+
+    const response = await correct(id, CORRECTED)
+
+    expect(response.body).toMatchObject({
+      sourceType: 'marsh_report',
+      issuingBody: 'Marsh',
+      edition: null,
+      title: 'Cold store risk survey',
+      effectiveDate: '2024-03-12',
+    })
+  })
+
+  // The document as the knowledge base lists it, to show nothing changed.
+  const listed = async () => (await request(app).get('/api/knowledge-documents/active')).body[0]
+
+  it('refuses a value that is not allowed, with the reason, and keeps the old value', async () => {
+    const id = await stored(REPORT)
+    const before = await listed()
+
+    const response = await correct(id, { ...CORRECTED, facilityType: 'Spaceport' })
+
+    expect(response.status).toBe(400)
+    expect(response.body.fields).toEqual({ facilityType: 'Choose a facility type from the list.' })
+    expect(await listed()).toEqual(before)
+  })
+
+  it('returns 404 for an unknown or malformed ID', async () => {
+    expect((await correct('6abb28ae16068a0793e9962a')).status).toBe(404)
+    expect((await correct('not-an-id')).status).toBe(404)
+  })
+
+  it('refuses to correct a document that has not finished ingesting', async () => {
+    const id = await stored(REPORT, { status: 'processing' })
+
+    const response = await correct(id)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      'Only a document that has finished ingesting can be corrected.',
+    )
+  })
+
+  it('keeps the old details when search could not be updated', async () => {
+    const id = await stored(REPORT)
+    const before = await listed()
+    inspect.mockRejectedValue(new TypeError('fetch failed'))
+
+    const response = await correct(id)
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toBe(
+      'Search could not be updated, so the correction was not saved. Try again shortly.',
+    )
+    expect(await listed()).toEqual(before)
+  })
+
+  it("keeps a standard's edition when a failed correction would have removed it", async () => {
+    const id = await stored(DETAILS)
+    inspect.mockResolvedValue(Response.json({ detail: 'Chroma is down' }, { status: 500 }))
+
+    expect((await correct(id)).status).toBe(503)
+    expect(await listed()).toMatchObject({ sourceType: 'nfpa_standard', edition: '2022' })
+  })
+})
+
+describe('GET /api/knowledge-documents/:id/file', () => {
+  it('returns the original exactly as uploaded', async () => {
+    const { body } = await upload()
+
+    const response = await request(app).get(body.fileUrl).buffer(true)
+
+    expect(response.status).toBe(200)
+    expect(response.headers['content-type']).toBe('application/pdf')
+    expect(Buffer.from(response.body)).toEqual(PDF)
+  })
+
+  it('ends the response without crashing the gateway when S3 fails mid-stream', async () => {
+    const { body } = await upload()
+    s3.set(`knowledge/${body.id}.pdf`, Object.assign(Buffer.alloc(0), { failMidStream: true }))
+
+    await expect(request(app).get(body.fileUrl)).rejects.toThrow()
+    expect((await request(app).get('/api/knowledge-documents')).status).toBe(200)
+  })
+
+  it('returns 404 for an unknown or malformed ID', async () => {
+    expect(
+      (await request(app).get('/api/knowledge-documents/6abb28ae16068a0793e9962a/file')).status,
+    ).toBe(404)
+    expect((await request(app).get('/api/knowledge-documents/not-an-id/file')).status).toBe(404)
   })
 })

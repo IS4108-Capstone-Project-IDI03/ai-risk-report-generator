@@ -3,17 +3,28 @@
 import express, { Router, type ErrorRequestHandler } from 'express'
 import { pipeline } from 'stream'
 import { IngestionUnavailableError } from '../services/ingestion.service'
+import type { z } from 'zod'
 import {
+  correctKnowledgeDocument,
   documentDetailsSchema,
   getKnowledgeDocumentFile,
+  KnowledgeDocumentNotActiveError,
   KnowledgeDocumentNotFoundError,
   listActiveDocuments,
   listKnowledgeDocuments,
   RejectedFileError,
+  uploadDetailsSchema,
   uploadKnowledgeDocument,
 } from '../services/knowledge-document.service'
 
 const router = Router()
+
+// A 400 body naming each field to fix, with its first problem.
+function invalidDetails(error: z.ZodError) {
+  const fields: Record<string, string> = {}
+  for (const issue of error.issues) fields[issue.path.map(String).join('.')] ??= issue.message
+  return { error: 'The document details are invalid.', fields }
+}
 
 // Upload summary: every accepted document with its ingestion status.
 router.get('/', async (_req, res) => {
@@ -30,12 +41,9 @@ router.get('/active', async (_req, res) => {
 // Answers: 201 accepted · 400 bad details · 413 over 100 MB · 415 not a PDF ·
 // 422 a PDF that will not open · 503 ingestion down (retry later).
 router.post('/', express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
-  const parsed = documentDetailsSchema.safeParse(req.query)
+  const parsed = uploadDetailsSchema.safeParse(req.query)
   if (!parsed.success) {
-    const fields: Record<string, string> = {}
-    for (const issue of parsed.error.issues)
-      fields[issue.path.map(String).join('.')] ??= issue.message
-    res.status(400).json({ error: 'The document details are invalid.', fields })
+    res.status(400).json(invalidDetails(parsed.error))
     return
   }
   try {
@@ -52,6 +60,31 @@ router.post('/', express.raw({ type: '*/*', limit: '100mb' }), async (req, res) 
       return
     }
     throw error
+  }
+})
+
+// Corrects a document's details (KB-01). The body is the full set of details,
+// as JSON. Answers: 200 corrected · 400 bad details · 404 unknown · 409 not
+// active · 503 search could not be updated (old details kept).
+router.put('/:id', async (req, res) => {
+  const parsed = documentDetailsSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json(invalidDetails(parsed.error))
+    return
+  }
+  try {
+    res.json(await correctKnowledgeDocument(req.params.id, parsed.data))
+  } catch (error: unknown) {
+    const status =
+      error instanceof KnowledgeDocumentNotFoundError
+        ? 404
+        : error instanceof KnowledgeDocumentNotActiveError
+          ? 409
+          : error instanceof IngestionUnavailableError
+            ? 503
+            : null
+    if (!status || !(error instanceof Error)) throw error
+    res.status(status).json({ error: error.message })
   }
 })
 

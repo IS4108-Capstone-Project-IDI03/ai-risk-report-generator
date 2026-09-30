@@ -1,5 +1,6 @@
 // Knowledge documents on the gateway (IN-01): check an upload, store it, record
-// it and queue its ingestion; list them; stream an original back.
+// it and queue its ingestion; list them; stream an original back. KB-01 adds
+// the knowledge base list and correcting a document's details.
 // Called by routes/knowledge-document.routes.ts.
 import { createHash } from 'crypto'
 import { isValidObjectId, Types } from 'mongoose'
@@ -10,7 +11,7 @@ import {
   type SourceType,
 } from '../models/knowledge-document.model'
 import { enqueueIngestion } from './ingestion-queue.service'
-import { IngestionUnavailableError, whyPdfCannotOpen } from './ingestion.service'
+import { IngestionUnavailableError, relabelPassages, whyPdfCannotOpen } from './ingestion.service'
 import * as storage from './storage.service'
 
 const text = (label: string, max: number) =>
@@ -48,13 +49,12 @@ const FACILITY_TYPES = [
 const onTheList = (allowed: string[]) =>
   [(value: string) => allowed.includes(value), 'Choose a facility type from the list.'] as const
 
-// The details the admin enters for each file (IN-01 AC1), as Zod validation
-// rules. Which details are asked depends on the source type: a standard has an
-// edition and may apply in all countries; a past Marsh report has neither, but
-// is about one facility type. They arrive in the query string because the
-// request body is the PDF itself. A broken rule becomes a 400 naming the field.
+// The details the admin enters for each file (IN-01 AC1) or corrects later
+// (KB-01), as Zod validation rules. Which details are asked depends on the
+// source type: a standard has an edition and may apply in all countries; a past
+// Marsh report has neither, but is about one facility type. A broken rule
+// becomes a 400 naming the field.
 const common = {
-  fileName: text('File name', 255),
   title: text('Title', 200),
   effectiveDate: z.iso.date('The date must be a valid date (YYYY-MM-DD).'),
 }
@@ -89,6 +89,13 @@ export const documentDetailsSchema = z.discriminatedUnion(
   'Choose a source type: FM standard, NFPA standard or Marsh report.',
 )
 export type DocumentDetails = z.infer<typeof documentDetailsSchema>
+
+// An upload's details also carry the file's name. They arrive in the query
+// string because the request body is the PDF itself.
+export const uploadDetailsSchema = documentDetailsSchema.and(
+  z.object({ fileName: text('File name', 255) }),
+)
+export type UploadDetails = z.infer<typeof uploadDetailsSchema>
 
 // Who publishes each source type; the admin never types it.
 const ISSUING_BODY: Record<SourceType, string> = {
@@ -136,6 +143,33 @@ function toDto(d: IKnowledgeDocument & { _id: Types.ObjectId }): KnowledgeDocume
   }
 }
 
+// The record fields a document's details decide. `edition` is undefined for a
+// past report, which removes it when a standard is corrected into a report.
+function recordFields(details: DocumentDetails) {
+  return {
+    title: details.title,
+    issuingBody: ISSUING_BODY[details.sourceType],
+    edition: 'edition' in details ? details.edition : undefined,
+    metadata: {
+      source_type: details.sourceType,
+      jurisdiction: details.jurisdiction,
+      facility_type: details.facilityType,
+      COPE_dimension: 'all' as const,
+      effective_date: new Date(details.effectiveDate),
+    },
+  }
+}
+
+/**
+ * Returns the labels every passage of the document carries, so search can
+ * filter on them: its metadata, the date as YYYY-MM-DD. Must match `labels()`
+ * in microservices/ingestion-service/app/worker.py, which labels passages at
+ * ingest.
+ */
+function labels(metadata: IKnowledgeDocument['metadata']) {
+  return { ...metadata, effective_date: metadata.effective_date.toISOString().slice(0, 10) }
+}
+
 // A file IN-01 AC5 turns away. `status` is the HTTP status to answer with.
 export class RejectedFileError extends Error {
   constructor(
@@ -157,7 +191,7 @@ const PDF_MARKER = Buffer.from('%PDF-')
 export async function uploadKnowledgeDocument(
   pdf: Buffer,
   contentType: string,
-  details: DocumentDetails,
+  details: UploadDetails,
 ): Promise<KnowledgeDocumentDto> {
   // a. Is it really a PDF? Cheap, so it runs first.
   if (
@@ -181,9 +215,7 @@ export async function uploadKnowledgeDocument(
   try {
     document = await KnowledgeDocumentModel.create({
       _id: id,
-      title: details.title,
-      issuingBody: ISSUING_BODY[details.sourceType],
-      edition: 'edition' in details ? details.edition : undefined,
+      ...recordFields(details),
       fileName: details.fileName,
       file: {
         key,
@@ -192,13 +224,6 @@ export async function uploadKnowledgeDocument(
         sha256: createHash('sha256').update(pdf).digest('hex'),
       },
       status: 'queued',
-      metadata: {
-        source_type: details.sourceType,
-        jurisdiction: details.jurisdiction,
-        facility_type: details.facilityType,
-        COPE_dimension: 'all',
-        effective_date: new Date(details.effectiveDate),
-      },
     })
   } catch (error) {
     // No transactions on a standalone mongod, so undo the upload by hand.
@@ -273,4 +298,48 @@ export async function listActiveDocuments(): Promise<KnowledgeDocumentDto[]> {
     .sort({ title: 1 })
     .lean()
   return documents.map(toDto)
+}
+
+// KB-01: only an active document can be corrected. One still ingesting would
+// have some passages indexed under the old labels after the correction.
+export class KnowledgeDocumentNotActiveError extends Error {
+  constructor() {
+    super('Only a document that has finished ingesting can be corrected.')
+    this.name = 'KnowledgeDocumentNotActiveError'
+  }
+}
+
+/**
+ * Returns the document with its corrected details (KB-01 AC6), in steps a–c.
+ * Every detail can change, including the source type. Throws
+ * KnowledgeDocumentNotFoundError, KnowledgeDocumentNotActiveError, or
+ * IngestionUnavailableError when search could not be updated, in which case
+ * the old details are kept.
+ */
+export async function correctKnowledgeDocument(
+  id: string,
+  details: DocumentDetails,
+): Promise<KnowledgeDocumentDto> {
+  // a. Find it, and check it is active.
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  const document = await KnowledgeDocumentModel.findById(id)
+  if (!document) throw new KnowledgeDocumentNotFoundError()
+  if (document.status !== 'complete') throw new KnowledgeDocumentNotActiveError()
+
+  // b. Save the new details, keeping the old ones in case step c fails.
+  const { title, issuingBody, edition, metadata } = document.toObject()
+  document.set(recordFields(details))
+  await document.save()
+
+  // c. Put the new labels on its passages in Chroma. If that fails, write the
+  // old details back: without this, MongoDB would show the correction while
+  // search still used the old labels.
+  try {
+    await relabelPassages(id, labels(document.toObject().metadata))
+  } catch (error) {
+    document.set({ title, issuingBody, edition, metadata })
+    await document.save()
+    throw error
+  }
+  return toDto(document.toObject())
 }
