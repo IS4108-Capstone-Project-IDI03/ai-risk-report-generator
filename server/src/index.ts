@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 import { config } from './config'
 import { connectDb } from './models/db'
 import healthRoutes from './routes/health.routes'
@@ -13,8 +14,9 @@ import userRoutes from './routes/user.routes'
 
 const app = express()
 
-app.use(cors())
+app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
+app.use(cookieParser())
 
 app.use('/api/health', healthRoutes)
 app.use('/api/assessments', assessmentRoutes)
