@@ -7,13 +7,21 @@ import {
   listAssessments,
   retryTranscription,
   saveObservation,
+  updateObservationTags,
   type Assessment,
   type AssessmentStatus,
   type SavedObservation,
   type SiteLocation,
 } from './api'
 import { formatDayTime } from './format'
-import type { AssessmentRow, Observation, VoiceClip, WorkflowState } from './types'
+import { filtersActive, labelValues, matchesFilters, NO_FILTERS } from './observationFilters'
+import type {
+  AssessmentRow,
+  Observation,
+  ObservationFilters,
+  VoiceClip,
+  WorkflowState,
+} from './types'
 import { useCaptureSession } from './useCaptureSession'
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
@@ -80,9 +88,17 @@ function categoryLabel(copeDimension: string | null) {
   if (copeDimension === null) return UNCATEGORISED
   return Object.keys(COPE_DIMENSION).find((c) => COPE_DIMENSION[c] === copeDimension)
 }
+// The categories an observation can be filed under: the shared COPE vocabulary
+// (CP-06 AC3), or not categorised yet.
+const CATEGORY_OPTIONS = [...Object.keys(CAT_ICON), UNCATEGORISED]
+const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => ({
+  value,
+  label: value.charAt(0).toUpperCase() + value.slice(1),
+}))
 const NO_LOCATIONS: SiteLocation[] = []
 // "Stairwell B · Level 2"
-const locationLabel = (l: SiteLocation) => [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
+const locationLabel = (l: { name: string; floor?: string | null }) =>
+  [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
 function toEntry(o: SavedObservation, photos: string[] = []): Observation {
   const recordings = o.recordings.map((r) => {
@@ -111,6 +127,7 @@ function toEntry(o: SavedObservation, photos: string[] = []): Observation {
     text,
     area: o.location?.name ?? '',
     locationId: o.location?.id,
+    floor: o.location?.floor ?? null,
     sev: o.severity,
     std: o.standard ?? '',
     media: photos,
@@ -153,10 +170,13 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     state.captureTarget.reference,
     state.screen === 'field' || state.screen === 'assessment',
   )
+  // The Observations tab needs them too, to move an observation (CP-06).
   const places = useLocations(
     state.captureTarget.reference,
-    state.screen === 'field',
-    capture.state?.status === 'live',
+    state.screen === 'field' || state.screen === 'assessment',
+    // On site they are the gateway's once capture is live; in the workspace,
+    // once the gateway has listed the assessment's observations.
+    state.screen === 'field' ? capture.state?.status === 'live' : captured.synced,
     state.captureTarget.reference === CAPTURE_ASSESSMENT.reference ? DEMO_LOCATIONS : NO_LOCATIONS,
   )
   // The recorder in progress, and a counter naming the clips it makes.
@@ -401,6 +421,14 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     const serverEntries = captured.observations.map((o) => toEntry(o, s.savedPhotos[o.id]))
     const fieldRecent = [...serverEntries, ...localRecent]
     const fieldSaved = (isDemoCapture ? s.fSaved : localRecent.length) + serverEntries.length
+    // Observations tab rows keep one key whatever the filters: a saved
+    // observation's id, or local-<n> for the nth kept in this browser.
+    const obsRows = fieldRecent.map((o, i) => ({
+      o,
+      key: o.id ?? 'local-' + (i - serverEntries.length),
+    }))
+    const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
+    const tagRow = s.tagEdit && obsRows.find((r) => r.key === s.tagEdit!.key)
     // Real recording needs a capture session on the server; without one, voice stays simulated.
     const liveVoice = !!liveCapture
     // Capture starts from a location; the sheet stays open until one is chosen.
@@ -492,6 +520,63 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           (clips.length ? ' Transcribing ' + plural(clips.length, 'recording') + ' now.' : ''),
       }))
       later(() => setState({ fToast: null }), 3200)
+    }
+    // Saves the tags in the Edit tags dialog (CP-06): on the gateway for a
+    // saved observation, sending only what changed, or in this browser for one
+    // kept in the demo. On failure the dialog stays open with the changes.
+    async function saveTags() {
+      const edit = s.tagEdit
+      if (!edit || !tagRow || s.tagBusy) return
+      const { o } = tagRow
+      // Unlisted (e.g. a sample observation on a live assessment): left as it is.
+      const location = places.locations.find((l) => l.id === edit.locationId)
+      if (!o.id) {
+        const n = Number(edit.key.slice('local-'.length))
+        const retagged: Observation = {
+          ...o,
+          cat: edit.cat,
+          sev: edit.sev,
+          std: edit.std,
+          ...(location && { area: location.name, floor: location.floor, locationId: location.id }),
+        }
+        const list = localRecent.map((x, i) => (i === n ? retagged : x))
+        setState({
+          ...(isDemoCapture
+            ? { fRecent: list }
+            : { captureObs: { ...s.captureObs, [s.captureTarget.reference]: list } }),
+          tagEdit: null,
+        })
+        toast('Tags updated. They are kept in this demo only.')
+        return
+      }
+      const tags = {
+        ...(edit.cat !== o.cat && {
+          copeDimension: edit.cat === UNCATEGORISED ? null : COPE_DIMENSION[edit.cat],
+        }),
+        ...(edit.sev !== o.sev && { severity: edit.sev }),
+        ...(location && location.id !== o.locationId && { locationId: location.id }),
+        ...(edit.std !== o.std && { standard: edit.std || null }),
+      }
+      if (!Object.keys(tags).length) return setState({ tagEdit: null })
+      setState({ tagBusy: true, tagError: null })
+      let saved
+      try {
+        saved = await updateObservationTags(o.id, tags)
+      } catch (error: unknown) {
+        const problems = error instanceof GatewayError ? Object.values(error.fields) : []
+        const cause = problems.length
+          ? problems.join(' ')
+          : error instanceof GatewayError && error.status !== null
+            ? error.message
+            : 'The gateway could not be reached.'
+        return setState({
+          tagBusy: false,
+          tagError: cause + ' Your changes are still here; press Save tags to try again.',
+        })
+      }
+      captured.replace(saved)
+      setState({ tagBusy: false, tagEdit: null })
+      toast('Tags updated.')
     }
     // Adds the location typed into the sheet and captures in it straight away.
     async function submitLocation() {
@@ -1011,16 +1096,29 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           ],
       obsWide: !narrow,
       obsStack: narrow,
-      obsList: fieldRecent.map((o, i) => {
-        const open = s.obsOpen === i
+      obsList: shownRows.map(({ o, key }) => {
+        const open = s.obsOpen === key
         const sev = o.sev || 'low'
         const cols = narrow
           ? '36px minmax(0,1fr) 72px'
           : '40px minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,2fr) 120px 84px'
         return {
           ...o,
-          key: String(i),
+          key,
           open,
+          // The zone and floor, e.g. "Bay 3 — north aisle · Ground".
+          where: locationLabel({ name: o.area, floor: o.floor }),
+          editTags: () =>
+            setState({
+              tagEdit: {
+                key,
+                cat: o.cat,
+                sev,
+                locationId: o.locationId ?? '',
+                std: o.std,
+              },
+              tagError: null,
+            }),
           icon: CAT_ICON[o.cat] || 'circle-dot',
           color: 'var(--text-secondary)',
           chevron: open ? 'chevron-down' : 'chevron-right',
@@ -1054,13 +1152,74 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         }
       }),
       toggleObs: (e: React.MouseEvent<HTMLElement>) => {
-        const k = Number(e.currentTarget.dataset.i)
+        const k = e.currentTarget.dataset.i ?? null
         setState({
           obsOpen: s.obsOpen === k ? null : k,
         })
       },
-      obsCountLabel: 'Showing 1–' + fieldRecent.length + ' of ' + fieldSaved + ' observations',
+      obsCountLabel: filtersActive(s.of)
+        ? 'Showing ' + shownRows.length + ' of ' + plural(fieldRecent.length, 'observation')
+        : 'Showing 1–' + fieldRecent.length + ' of ' + fieldSaved + ' observations',
       obsNext: () => toast('Later observations are not loaded in this prototype.', 'info'),
+      /* observation filters (CP-06 AC2): any one label returns what carries it */
+      obsFilters: s.of,
+      obsFiltering: filtersActive(s.of),
+      obsNoMatch: filtersActive(s.of) && shownRows.length === 0,
+      setObsFilter: (key: keyof ObservationFilters) => (e: React.ChangeEvent<HTMLSelectElement>) =>
+        setState({ of: { ...s.of, [key]: e.target.value } }),
+      clearObsFilters: () => setState({ of: NO_FILTERS }),
+      obsCatFilterOptions: [{ value: '', label: 'All categories' }, ...CATEGORY_OPTIONS],
+      obsSevFilterOptions: [{ value: '', label: 'All severities' }, ...SEVERITY_OPTIONS],
+      obsLocFilterOptions: [
+        { value: '', label: 'All locations' },
+        ...labelValues(
+          fieldRecent.map((o) => o.area),
+          s.of.loc,
+        ),
+      ],
+      obsFloorFilterOptions: [
+        { value: '', label: 'All floors' },
+        ...labelValues(
+          fieldRecent.map((o) => o.floor),
+          s.of.floor,
+        ),
+      ],
+      /* tag editing (CP-06) */
+      tagOpen: !!tagRow,
+      tagEdit: s.tagEdit,
+      tagBusy: s.tagBusy,
+      tagError: s.tagError,
+      tagCatOptions: CATEGORY_OPTIONS,
+      tagCatHint:
+        s.tagEdit?.cat === UNCATEGORISED
+          ? 'Report drafting leaves this observation out until it is categorised.'
+          : undefined,
+      tagSevOptions: SEVERITY_OPTIONS,
+      tagLocOptions: [
+        // A location not on the assessment's list can be kept, not chosen again.
+        ...(tagRow && !places.locations.some((l) => l.id === s.tagEdit?.locationId)
+          ? [
+              {
+                value: s.tagEdit!.locationId,
+                label: locationLabel({ name: tagRow.o.area, floor: tagRow.o.floor }),
+              },
+            ]
+          : []),
+        ...places.locations.map((l) => ({ value: l.id, label: locationLabel(l) })),
+      ],
+      tagStdOptions: [
+        { value: '', label: 'None, let the draft find it' },
+        ...labelValues(STANDARD_REFERENCES, s.tagEdit?.std ?? '').map((name) => ({
+          value: name,
+          label: name,
+        })),
+      ],
+      setTag:
+        (field: 'cat' | 'sev' | 'locationId' | 'std') =>
+        (e: React.ChangeEvent<HTMLSelectElement>) =>
+          s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
+      closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
+      saveTags: () => void saveTags(),
       ovStandards: [
         {
           icon: 'book-marked',
@@ -1204,6 +1363,9 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             tab: 'overview',
             toast: null,
             captureTarget: { reference: row.id, site: row.site },
+            // Filters name this assessment's locations and floors.
+            of: NO_FILTERS,
+            obsOpen: null,
           })
       },
       /* create */
@@ -1600,7 +1762,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         setState({
           fCat: e.target.value,
         }),
-      catOptions: [...Object.keys(CAT_ICON), UNCATEGORISED],
+      catOptions: CATEGORY_OPTIONS,
       catHint:
         s.fCat === UNCATEGORISED
           ? 'Report drafting leaves this observation out until it is categorised.'
@@ -1659,6 +1821,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           text,
           area: currentLocation.name,
           locationId: currentLocation.id,
+          floor: currentLocation.floor,
           sev: s.fSev,
           std: s.fStd,
           media: s.fPhotos.map((p) => p.name),

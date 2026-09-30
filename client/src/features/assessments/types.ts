@@ -28,8 +28,10 @@ export type Observation = {
   media: string[]
   detail: string
   audio?: string
-  // Where it was captured, when known by id rather than only by name.
+  // Where it was captured, when known by id rather than only by name, and the
+  // location's floor. The location's name (area) is its zone (CP-06).
   locationId?: string
+  floor?: string | null
   // Set on observations saved on the server.
   id?: string
   // What is attached, e.g. "Note · 2 recordings".
@@ -138,8 +140,18 @@ export type WorkflowState = {
   exportOpen: boolean
   navOpen?: boolean
   navCollapsed?: boolean
-  obsOpen?: number | null
+  // The expanded row on the Observations tab, by its key.
+  obsOpen?: string | null
+  // Observations tab filters (CP-06); '' shows every value.
+  of: ObservationFilters
+  // The observation whose tags are being edited, by row key, with the
+  // dialog's values; and why the last save failed.
+  tagEdit: { key: string; cat: string; sev: string; locationId: string; std: string } | null
+  tagBusy: boolean
+  tagError: string | null
 }
+
+export type ObservationFilters = { cat: string; sev: string; loc: string; floor: string }
 
 // A recording or audio file held in the browser until Save observation uploads it.
 export type VoiceClip = {

@@ -59,6 +59,20 @@ export function audioExtension(contentType: string): string | undefined {
   return EXTENSIONS[contentType.split(';')[0].trim().toLowerCase()]
 }
 
+// The tags, shared by capture and by later tag edits so both accept only the
+// shared vocabulary (CP-06 AC3).
+const copeDimensionField = z
+  .enum(
+    COPE_DIMENSIONS,
+    'Choose a COPE category (Construction, Occupancy, Protection or Exposure), or null to leave it uncategorised.',
+  )
+  .nullable()
+const severityField = z.enum(SEVERITIES, 'Choose a severity: critical, high, moderate or low.')
+const locationIdField = z
+  .string('Choose a location.')
+  .refine(isValidObjectId, 'Choose one of the locations listed for this assessment.')
+const standardField = z.string().trim().max(100, 'Standard must be 100 characters or fewer.')
+
 // The fields of POST /api/assessments/:reference/observations, sent as the
 // form's `details` part alongside any recordings.
 // ponytail: the engineer's name comes in the body until sign-in (F-04)
@@ -75,24 +89,25 @@ export const newObservationSchema = z.object({
     .trim()
     .min(1, 'The engineer recording the observation is missing.'),
   // Sent explicitly: null leaves the observation uncategorised (CP-02 AC4).
-  copeDimension: z
-    .enum(
-      COPE_DIMENSIONS,
-      'Choose a COPE category (Construction, Occupancy, Protection or Exposure), or null to leave it uncategorised.',
-    )
-    .nullable(),
-  severity: z.enum(SEVERITIES, 'Choose a severity: critical, high, moderate or low.'),
-  locationId: z
-    .string('Choose a location.')
-    .refine(isValidObjectId, 'Choose one of the locations listed for this assessment.'),
-  standard: z
-    .string()
-    .trim()
-    .max(100, 'Standard must be 100 characters or fewer.')
-    .optional()
-    .transform((value) => value || undefined),
+  copeDimension: copeDimensionField,
+  severity: severityField,
+  locationId: locationIdField,
+  standard: standardField.optional().transform((value) => value || undefined),
 })
 export type ObservationDetails = z.infer<typeof newObservationSchema>
+
+// The body of PATCH /api/observations/:id (CP-06). A tag left out stays as it
+// is; null uncategorises the observation, and null or '' removes the standard.
+export const observationTagsSchema = z.object({
+  copeDimension: copeDimensionField.optional(),
+  severity: severityField.optional(),
+  locationId: locationIdField.optional(),
+  standard: standardField
+    .nullable()
+    .optional()
+    .transform((value) => (value === '' ? null : value)),
+})
+export type ObservationTags = z.infer<typeof observationTagsSchema>
 export type NewRecording = { name: string; audio: Buffer; contentType: string }
 
 export type ObservationDto = {
@@ -225,6 +240,37 @@ export async function saveObservation(
 
   for (const r of stored) void runTranscription(String(id), String(r._id))
   return toDto(observation.toObject(), locations)
+}
+
+// Changes an observation's tags (CP-06): its category, severity, location and
+// standard. They cover the note and every recording, so they are set once.
+// Categorising an uncategorised observation brings it into drafting (CP-02 AC4).
+// ponytail: tags are overwritten in place. Keeping the prior version once
+// drafts cite observations is CP-08 (AC5), and the capture snapshot is CP-14.
+export async function updateObservationTags(
+  id: string,
+  tags: ObservationTags,
+): Promise<ObservationDto> {
+  if (!isValidObjectId(id)) throw new ObservationNotFoundError()
+  const observation = await ObservationModel.findById(id, 'assessment').lean()
+  if (!observation) throw new ObservationNotFoundError()
+  const assessment = await AssessmentModel.findById(observation.assessment, 'locations').lean()
+  const locations = assessment?.locations ?? []
+  if (tags.locationId && !locations.some((l) => l._id.equals(tags.locationId)))
+    throw new UnknownLocationError()
+
+  const set: Record<string, unknown> = {}
+  if (tags.copeDimension !== undefined) set['metadata.COPE_dimension'] = tags.copeDimension
+  if (tags.severity) set.severity = tags.severity
+  if (tags.locationId) set.location = tags.locationId
+  if (tags.standard) set.standard = tags.standard
+  const updated = await ObservationModel.findByIdAndUpdate(
+    id,
+    { $set: set, ...(tags.standard === null && { $unset: { standard: 1 } }) },
+    { returnDocument: 'after' },
+  ).lean<StoredObservation>()
+  if (!updated) throw new ObservationNotFoundError()
+  return toDto(updated, locations)
 }
 
 // Every observation of the assessment, newest first.

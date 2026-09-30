@@ -360,6 +360,40 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
   })
 })
 
+describe('Tagging on the capture screen (CP-06 AC3)', () => {
+  it('offers only the shared COPE vocabulary and saves each category as its shared value', async () => {
+    await openCapture()
+    const category = () => screen.getByLabelText(/COPE category/)
+    expect(
+      within(category())
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([
+      'Construction',
+      'Occupancy, hazards and utilities',
+      'Fire protection',
+      'External exposures',
+      'Not categorised yet',
+    ])
+
+    // Each category is stored as the value the knowledge base tags its chunks with.
+    const shared = {
+      Construction: 'Construction',
+      'Occupancy, hazards and utilities': 'Occupancy',
+      'Fire protection': 'Protection',
+      'External exposures': 'Exposure',
+    }
+    for (const label of Object.keys(shared)) {
+      fireEvent.change(category(), { target: { value: label } })
+      write('Hose reel H3 blocked by pallets.')
+      save()
+      // A saved note clears the box, so the next one starts after this save.
+      await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(''))
+    }
+    expect(saves.map((s) => s.details.copeDimension)).toEqual(Object.values(shared))
+  })
+})
+
 describe('Observations tab (CP-03)', () => {
   async function openObservations() {
     signIn()

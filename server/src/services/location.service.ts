@@ -79,9 +79,9 @@ export async function addLocation(
 
 // Removes a location added by mistake. One with observations stays, so no
 // observation loses where it was captured.
-// ponytail: an observation saved between the check and the removal would keep
-// a location that is gone; it then shows no location. Move observations
-// between locations (CP-06, CP-08) if that ever matters.
+// ponytail: an observation saved or moved here between the check and the
+// removal would keep a location that is gone; it then shows no location until
+// its tags are edited (CP-06).
 export async function removeLocation(reference: string, id: string) {
   const assessment = await AssessmentModel.findOne({ reference }, 'locations').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)

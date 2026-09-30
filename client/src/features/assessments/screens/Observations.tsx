@@ -1,5 +1,14 @@
 import { Fragment } from 'react'
-import { Badge, Button, Callout, Icon } from '../../../design-system'
+import {
+  Badge,
+  Button,
+  Callout,
+  EmptyState,
+  Icon,
+  IconRegistry,
+  Select,
+} from '../../../design-system'
+import { TagDialog } from '../components/TagDialog'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
@@ -44,7 +53,59 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
             overflow: 'hidden',
           }}
         >
-          {!!v.obsWide && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+              <Select
+                size="sm"
+                aria-label="Filter by category"
+                options={v.obsCatFilterOptions}
+                value={v.obsFilters.cat}
+                onChange={v.setObsFilter('cat')}
+              ></Select>
+            </div>
+            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+              <Select
+                size="sm"
+                aria-label="Filter by severity"
+                options={v.obsSevFilterOptions}
+                value={v.obsFilters.sev}
+                onChange={v.setObsFilter('sev')}
+              ></Select>
+            </div>
+            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+              <Select
+                size="sm"
+                aria-label="Filter by location"
+                options={v.obsLocFilterOptions}
+                value={v.obsFilters.loc}
+                onChange={v.setObsFilter('loc')}
+              ></Select>
+            </div>
+            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+              <Select
+                size="sm"
+                aria-label="Filter by floor"
+                options={v.obsFloorFilterOptions}
+                value={v.obsFilters.floor}
+                onChange={v.setObsFilter('floor')}
+              ></Select>
+            </div>
+            {!!v.obsFiltering && (
+              <Button variant="ghost" size="sm" onClick={v.clearObsFilters}>
+                {'Clear filters'}
+              </Button>
+            )}
+          </div>
+          {!!v.obsWide && v.obsList.length > 0 && (
             <>
               <div
                 style={{
@@ -138,7 +199,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               color: 'var(--text-muted)',
                             }}
                           >
-                            {o.area}
+                            {o.where}
                           </span>
                           <span
                             style={{
@@ -165,13 +226,13 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                         style={{
                           minWidth: '0',
                           fontSize: '15px',
+                          lineHeight: '22px',
                           color: 'var(--text-secondary)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          textWrap: 'pretty',
                         }}
                       >
-                        {o.area}
+                        {/* Wraps rather than truncating, so the floor stays visible. */}
+                        {o.where}
                       </span>
                     </>
                   )}
@@ -347,6 +408,14 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               </Button>
                             </>
                           )}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            iconLeft={IconRegistry.action.edit}
+                            onClick={o.editTags}
+                          >
+                            {'Edit tags'}
+                          </Button>
                         </div>
                       </div>
                       <div style={{ minWidth: '0' }}>
@@ -424,6 +493,15 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               </div>
             </Fragment>
           ))}
+          {!!v.obsNoMatch && (
+            <div style={{ padding: '48px 18px' }}>
+              <EmptyState
+                icon={IconRegistry.action.filter}
+                title="No observations match those filters"
+                description="Clear a filter or choose another value to see the other observations on file."
+              ></EmptyState>
+            </div>
+          )}
           <div
             style={{
               display: 'flex',
@@ -446,6 +524,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
           </div>
         </div>
       </div>
+      <TagDialog v={v} />
     </>
   )
 }
