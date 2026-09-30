@@ -108,7 +108,7 @@ export class GatewayError extends Error {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   signal?: AbortSignal,
@@ -200,6 +200,22 @@ export async function listObservations(
 ): Promise<SavedObservation[]> {
   return (await request<SavedObservation[]>('GET', observationsPath(reference), undefined, signal))
     .data
+}
+
+// Changes a saved observation's tags (CP-06). A tag left out stays as it is; a
+// null copeDimension uncategorises it and a null standard removes it.
+export async function updateObservationTags(
+  id: string,
+  tags: {
+    copeDimension?: string | null
+    severity?: string
+    locationId?: string
+    standard?: string | null
+  },
+): Promise<SavedObservation> {
+  return (
+    await request<SavedObservation>('PATCH', `/api/observations/${encodeURIComponent(id)}`, tags)
+  ).data
 }
 
 // Starts a new transcription attempt for a failed recording.
