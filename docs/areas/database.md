@@ -30,8 +30,11 @@ must be implemented with the future raw-file ingestion lifecycle.
 `POST /retrieve` embeds the query, searches up to 20 candidates, and returns up
 to 5 Cohere-reranked results with ID, text, metadata, vector distance, and relevance
 score. An absent/empty collection returns no results; dependency failures propagate
-as errors rather than pretending retrieval succeeded. Metadata is stored for
-future filtering; the initial endpoint searches the whole collection.
+as errors rather than pretending retrieval succeeded. An optional `filters`
+object (`source_type`, `jurisdiction`, `facility_type`) narrows the search:
+`source_type` matches exactly, and `jurisdiction` and `facility_type` match the
+value or `all`. Without filters it searches the whole collection (KB-01; RT-01
+extends this for site applicability).
 
 The current direct endpoints are for local development with synthetic or already
 anonymised text. Raw-file parsing, automatic anonymisation, gateway auth, and
@@ -181,7 +184,7 @@ capture session `active`.
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 
-## Knowledge documents (IN-01)
+## Knowledge documents (IN-01, KB-01)
 
 `knowledge_documents` holds one record per accepted upload. Its `_id` is the
 permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
@@ -203,10 +206,11 @@ The source type decides which details the admin gives:
 | `metadata.COPE_dimension` | `all` | `all` |
 
 `jurisdiction: 'all'` is the only value that isn't a two-letter code; like
-`facility_type: 'all'`, retrieval must treat it as matching any site. These
-fields live on the MongoDB record only: the ingestion pipeline's chunks carry
-`doc_id`, `headings`, pages and `bbox`, not the metadata above (see the `/index`
-contract earlier in this file).
+`facility_type: 'all'`, retrieval must treat it as matching any site. Every
+passage (chunk) in Chroma carries its document's five labels (`source_type`,
+`jurisdiction`, `facility_type`, `COPE_dimension`, `effective_date` as
+`YYYY-MM-DD`) next to the pipeline's `doc_id`, `headings`, pages and `bbox`: the
+worker adds them at ingest, and a correction rewrites them in place (KB-01).
 
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
@@ -214,10 +218,20 @@ contract earlier in this file).
 which also records `startedAt` and `finishedAt`. Rejected uploads are never
 stored.
 
+A `complete` document is **active**: it is what search can use, and the only
+kind the knowledge base lists or lets the admin correct (KB-01). A correction
+overwrites the details in place, with no history; the last save wins. If the
+ingestion service cannot relabel the passages, the gateway writes the old
+details back (no transactions on standalone MongoDB), so a failed relabel
+leaves both on the old labels. Not covered: two admins saving the same
+document at once, or a relabel that succeeds but whose reply is lost.
+
 | Route | Does |
 | --- | --- |
 | `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
+| `GET /api/knowledge-documents/active` | Every active document, by title A–Z (KB-01) |
+| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with the same fields as upload, minus `fileName`. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document, or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details kept) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
