@@ -119,9 +119,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                       >
                         {o.cat}
                       </span>
-                      {!!o.voiceBadge && (
-                        <Badge tone={o.voiceBadge.tone}>{o.voiceBadge.label}</Badge>
-                      )}
+                      {!!o.badge && <Badge tone={o.badge.tone}>{o.badge.label}</Badge>}
                     </span>
                     {!!v.obsStack && (
                       <>
@@ -238,47 +236,85 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                         >
                           {'Detailed notes'}
                         </div>
-                        <p
-                          style={{
-                            margin: '10px 0 0',
-                            fontSize: '15px',
-                            lineHeight: '24px',
-                            color: 'var(--text-body)',
-                            maxWidth: '68ch',
-                            textWrap: 'pretty',
-                          }}
-                        >
-                          {o.detail}
-                        </p>
-                        {!!o.voiceError && (
-                          <div role="status" style={{ marginTop: '14px' }}>
-                            <Callout
-                              tone="warning"
-                              title="Transcription failed"
-                              actions={
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  iconLeft="refresh-cw"
-                                  onClick={o.retryVoice}
-                                >
-                                  {'Retry transcription'}
-                                </Button>
-                              }
+                        {!!o.detail && (
+                          <p
+                            style={{
+                              margin: '10px 0 0',
+                              fontSize: '15px',
+                              lineHeight: '24px',
+                              color: 'var(--text-body)',
+                              maxWidth: '68ch',
+                              textWrap: 'pretty',
+                            }}
+                          >
+                            {o.detail}
+                          </p>
+                        )}
+                        {o.recordings.map((r) => (
+                          <section
+                            key={r.id}
+                            aria-label={r.name}
+                            style={{
+                              marginTop: '14px',
+                              paddingTop: '12px',
+                              borderTop: '1px solid var(--border-subtle)',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                                color: 'var(--text-primary)',
+                              }}
                             >
-                              {o.voiceError}
-                            </Callout>
-                          </div>
-                        )}
-                        {!!o.audioUrl && (
-                          <audio
-                            controls
-                            preload="none"
-                            src={o.audioUrl}
-                            aria-label="Original recording"
-                            style={{ display: 'block', width: '100%', marginTop: '14px' }}
-                          />
-                        )}
+                              <Icon name="mic" size={14} color="#8f7dff"></Icon>
+                              {r.name}
+                            </div>
+                            {r.status === 'failed' ? (
+                              <div role="status" style={{ marginTop: '8px' }}>
+                                <Callout
+                                  tone="warning"
+                                  title="Transcription failed"
+                                  actions={
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      iconLeft="refresh-cw"
+                                      onClick={r.retry}
+                                    >
+                                      {'Retry transcription'}
+                                    </Button>
+                                  }
+                                >
+                                  {r.error}
+                                </Callout>
+                              </div>
+                            ) : (
+                              <p
+                                style={{
+                                  margin: '6px 0 0',
+                                  fontSize: '15px',
+                                  lineHeight: '24px',
+                                  color: 'var(--text-body)',
+                                  maxWidth: '68ch',
+                                  textWrap: 'pretty',
+                                }}
+                              >
+                                {r.text}
+                              </p>
+                            )}
+                            <audio
+                              controls
+                              preload="none"
+                              src={r.audioUrl}
+                              aria-label={'Play ' + r.name}
+                              style={{ display: 'block', width: '100%', marginTop: '8px' }}
+                            />
+                          </section>
+                        ))}
                         <div
                           style={{
                             marginTop: '14px',

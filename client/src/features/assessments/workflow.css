@@ -93,6 +93,11 @@
     transform: translateX(340%);
   }
 }
+/* The styled scrollbar takes layout width, so keep its space reserved;
+   otherwise content narrows whenever a scrollbar appears. */
+.om-scroll {
+  scrollbar-gutter: stable;
+}
 .om-scroll::-webkit-scrollbar {
   width: 10px;
   height: 10px;

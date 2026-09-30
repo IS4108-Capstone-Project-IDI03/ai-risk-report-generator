@@ -6,15 +6,16 @@ import {
   GatewayError,
   listAssessments,
   retryTranscription,
-  saveTextObservation,
-  uploadVoiceObservation,
+  saveObservation,
   type Assessment,
   type AssessmentStatus,
   type SavedObservation,
+  type SiteLocation,
 } from './api'
 import { formatDayTime } from './format'
 import type { AssessmentRow, Observation, VoiceClip, WorkflowState } from './types'
 import { useCaptureSession } from './useCaptureSession'
+import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
 import {
   initialState,
@@ -24,6 +25,7 @@ import {
   CAT_ICON,
   COPE_DIMENSION,
   UNCATEGORISED,
+  DEMO_LOCATIONS,
   STANDARD_REFERENCES,
   SEV,
   STANDARDS,
@@ -78,45 +80,58 @@ function categoryLabel(copeDimension: string | null) {
   if (copeDimension === null) return UNCATEGORISED
   return Object.keys(COPE_DIMENSION).find((c) => COPE_DIMENSION[c] === copeDimension)
 }
-function toEntry(o: SavedObservation): Observation {
-  if (o.type === 'text')
+const NO_LOCATIONS: SiteLocation[] = []
+// "Stairwell B · Level 2"
+const locationLabel = (l: SiteLocation) => [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
+const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
+function toEntry(o: SavedObservation, photos: string[] = []): Observation {
+  const recordings = o.recordings.map((r) => {
+    const { status, transcript, error } = r.transcription
     return {
-      icon: 'sticky-note',
-      color: '#f9ac10',
-      cat: categoryLabel(o.copeDimension) ?? 'Text note',
-      time: formatDayTime(new Date(o.recordedAt)),
-      text: o.text,
-      area: o.area ?? '',
-      sev: o.severity,
-      std: o.standard ?? '',
-      media: [],
-      detail: o.text,
+      id: r.id,
+      name: r.name,
+      status,
+      text:
+        status === 'transcribed'
+          ? transcript || '(No speech was detected.)'
+          : TRANSCRIPTION_TEXT[status],
+      error,
+      audioUrl: r.url,
     }
-  const { status, transcript, error } = o.transcription
-  const text =
-    status === 'transcribed'
-      ? transcript || '(No speech was detected.)'
-      : TRANSCRIPTION_TEXT[status]
+  })
+  const statuses = recordings.map((r) => r.status)
+  // The row reads as the note, or the first recording when there is no note.
+  const text = o.note ?? recordings[0]?.text ?? ''
   return {
-    icon: 'mic',
-    color: '#8f7dff',
-    cat: categoryLabel(o.copeDimension) ?? 'Voice note',
+    id: o.id,
+    icon: o.note ? 'sticky-note' : 'mic',
+    color: o.note ? '#f9ac10' : '#8f7dff',
+    cat: categoryLabel(o.copeDimension) ?? 'Observation',
     time: formatDayTime(new Date(o.recordedAt)),
     text,
-    area: o.area ?? '',
+    area: o.location?.name ?? '',
+    locationId: o.location?.id,
     sev: o.severity,
     std: o.standard ?? '',
-    media: [],
-    detail: text,
-    voice: { id: o.id, status, error, audioUrl: o.audio.url },
+    media: photos,
+    detail: o.note ?? '',
+    attached: [
+      o.note ? 'Note' : '',
+      recordings.length ? plural(recordings.length, 'recording') : '',
+      photos.length ? plural(photos.length, 'photo') : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    // Only a recording still in progress or needing attention is badged; a
+    // transcribed one is the norm.
+    badge: statuses.includes('transcribing')
+      ? { tone: 'info', label: 'Transcribing' }
+      : statuses.includes('failed')
+        ? { tone: 'high', label: 'Transcription failed' }
+        : null,
+    recordings,
   }
 }
-// Only a note still in progress or needing attention is badged; a transcribed one is the norm.
-export const VOICE_BADGE = {
-  transcribing: { tone: 'info', label: 'Transcribing' },
-  transcribed: null,
-  failed: { tone: 'high', label: 'Transcription failed' },
-} as const
 
 // Why the microphone could not start (CP-03 AC8), then what to do instead.
 function microphoneProblem(error: unknown) {
@@ -138,8 +153,14 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     state.captureTarget.reference,
     state.screen === 'field' || state.screen === 'assessment',
   )
+  const places = useLocations(
+    state.captureTarget.reference,
+    state.screen === 'field',
+    capture.state?.status === 'live',
+    state.captureTarget.reference === CAPTURE_ASSESSMENT.reference ? DEMO_LOCATIONS : NO_LOCATIONS,
+  )
   // The recorder in progress, and a counter naming the clips it makes.
-  const [media] = useState(() => ({ recorder: null as MediaRecorder | null, clips: 0 }))
+  const [media] = useState(() => ({ recorder: null as MediaRecorder | null, clips: 0, photos: 0 }))
   useEffect(() => () => media.recorder?.stream.getTracks().forEach((t) => t.stop()), [media])
   // The work list from the gateway (RV-10); null until it loads, and when the
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
@@ -375,13 +396,18 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
     // The demo assessment keeps its sample observations; others start empty.
     const isDemoCapture = s.captureTarget.reference === CAPTURE_ASSESSMENT.reference
     const localRecent = isDemoCapture ? s.fRecent : (s.captureObs[s.captureTarget.reference] ?? [])
-    // Voice and text notes saved on the server come first, then this browser's
-    // notes and photos, kept in the demo when no capture session is live.
-    const serverEntries = captured.observations.map(toEntry)
+    // Observations saved on the server come first, then this browser's ones,
+    // kept in the demo when no capture session is live.
+    const serverEntries = captured.observations.map((o) => toEntry(o, s.savedPhotos[o.id]))
     const fieldRecent = [...serverEntries, ...localRecent]
     const fieldSaved = (isDemoCapture ? s.fSaved : localRecent.length) + serverEntries.length
     // Real recording needs a capture session on the server; without one, voice stays simulated.
     const liveVoice = !!liveCapture
+    // Capture starts from a location; the sheet stays open until one is chosen.
+    const currentLocation = places.locations.find((l) => l.id === s.fLocationId) ?? null
+    const locSheetOpen =
+      sc === 'field' && capture.state?.status !== 'starting' && (s.locOpen || !currentLocation)
+    const query = s.locQuery.trim().toLowerCase()
     // A recording is named by its number; an uploaded file keeps its own name.
     const addClip = (audio: Blob, name: string | null, length: string | null) => {
       const id = ++media.clips
@@ -401,61 +427,32 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         fClips: previous.fClips.filter((c) => c.id !== clip.id),
       }))
     }
-    // Each clip becomes its own voice note with one transcription (AC3), all
-    // filed under what the form shows. A clip that fails stays for another try.
-    async function saveClips(clips: VoiceClip[]) {
+    // Everything in the Ready to save list becomes one observation, filed under
+    // what the form shows: the note exactly as typed (CP-02) and each recording
+    // with its one transcription (CP-03 AC3). If it fails, everything stays
+    // listed for another try.
+    async function saveToGateway(
+      location: SiteLocation,
+      note: string | undefined,
+      clips: VoiceClip[],
+      photos: { name: string }[],
+    ) {
       const reference = s.captureTarget.reference
-      setState({ fTransBusy: true, fVoiceError: null })
-      let saved = 0
-      let cause: string | null = null
-      for (const clip of clips) {
-        try {
-          await uploadVoiceObservation(reference, clip.audio, {
-            engineer: ME,
-            copeDimension: COPE_DIMENSION[s.fCat],
-            severity: s.fSev,
-            area: s.fArea,
-            standard: s.fStd,
-          })
-          dropClip(clip)
-          saved++
-        } catch (error: unknown) {
-          cause =
-            error instanceof GatewayError && error.status !== null
-              ? error.message
-              : 'The gateway could not be reached.'
-        }
-      }
-      if (saved) captured.reload()
-      const notes = saved === 1 ? 'Voice note' : saved + ' voice notes'
-      setState({
-        fTransBusy: false,
-        fToast: saved ? notes + ' saved to ' + reference + '. Transcribing now.' : null,
-        fVoiceError:
-          cause === null
-            ? null
-            : {
-                title: clips.length - saved === 1 ? 'Recording not saved' : 'Recordings not saved',
-                message: cause + ' They are still listed; press Save observation to try again.',
-              },
-      })
-      if (saved) later(() => setState({ fToast: null }), 3200)
-    }
-    // A text note is saved exactly as typed, filed under what the form shows
-    // (CP-02). If it fails, the note stays in the box for another try.
-    async function saveNote(text: string) {
-      const reference = s.captureTarget.reference
-      setState({ fNoteBusy: true, fNoteError: null })
-      let note
+      setState({ fSaving: true, fSaveError: null })
+      let observation
       try {
-        note = await saveTextObservation(reference, {
-          text,
-          engineer: ME,
-          copeDimension: s.fCat === UNCATEGORISED ? null : COPE_DIMENSION[s.fCat],
-          severity: s.fSev,
-          area: s.fArea,
-          standard: s.fStd,
-        })
+        observation = await saveObservation(
+          reference,
+          {
+            note,
+            engineer: ME,
+            copeDimension: s.fCat === UNCATEGORISED ? null : COPE_DIMENSION[s.fCat],
+            severity: s.fSev,
+            locationId: location.id,
+            standard: s.fStd,
+          },
+          clips.map((c) => ({ name: c.name, audio: c.audio })),
+        )
       } catch (error: unknown) {
         const problems = error instanceof GatewayError ? Object.values(error.fields) : []
         const cause = problems.length
@@ -464,27 +461,77 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             ? error.message
             : 'The gateway could not be reached.'
         setState({
-          fNoteBusy: false,
-          fNoteError: {
-            title: 'Note not saved',
-            message: cause + ' Your note is still here; press Save observation to try again.',
+          fSaving: false,
+          fSaveError: {
+            title: 'Observation not saved',
+            message: cause + ' Everything is still listed; press Save observation to try again.',
           },
         })
         return
       }
-      captured.add(note)
-      // Keep anything typed while the note was saving.
+      captured.add(observation)
+      // Re-reading the list keeps it refreshing until the transcriptions finish.
+      if (clips.length) captured.reload()
+      clips.forEach((c) => URL.revokeObjectURL(c.url))
+      const saved = observation
+      // Keep anything added while the observation was saving.
       updateState((previous) => ({
         ...previous,
-        fNoteBusy: false,
-        fNote: previous.fNote === text ? '' : previous.fNote,
-        fToast: 'Note saved to ' + reference + '.',
+        fSaving: false,
+        fNote: previous.fNote === note ? '' : previous.fNote,
+        fNoteListed: previous.fNote === note ? false : previous.fNoteListed,
+        fClips: previous.fClips.filter((c) => !clips.includes(c)),
+        fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
+        savedPhotos: photos.length
+          ? { ...previous.savedPhotos, [saved.id]: photos.map((p) => p.name) }
+          : previous.savedPhotos,
+        fToast:
+          'Observation saved to ' +
+          reference +
+          '.' +
+          (clips.length ? ' Transcribing ' + plural(clips.length, 'recording') + ' now.' : ''),
       }))
       later(() => setState({ fToast: null }), 3200)
     }
-    async function retryVoice(id: string) {
+    // Adds the location typed into the sheet and captures in it straight away.
+    async function submitLocation() {
+      const name = s.lf.name.trim()
+      if (!name) return setState({ lfError: 'Name the location.' })
+      const floor = s.lf.floor.trim()
+      setState({ lfBusy: true, lfError: null })
+      let location
       try {
-        await retryTranscription(id)
+        location = await places.add({ name, floor })
+      } catch (error: unknown) {
+        const reason =
+          error instanceof GatewayError
+            ? (Object.values(error.fields)[0] ?? error.message)
+            : 'The location could not be added.'
+        return setState({ lfBusy: false, lfError: reason })
+      }
+      setState({
+        lfBusy: false,
+        lf: { name: '', floor: '' },
+        locAdding: false,
+        locQuery: '',
+        locOpen: false,
+        fLocationId: location.id,
+      })
+    }
+    // Removing the location in use leaves none chosen, so the sheet stays open.
+    async function removeLocation(id: string) {
+      try {
+        await places.remove(id)
+        setState({ locError: null })
+      } catch (error: unknown) {
+        setState({
+          locError: error instanceof Error ? error.message : 'The location could not be removed.',
+        })
+      }
+    }
+    async function retryVoice(id: string, recordingId: string) {
+      try {
+        await retryTranscription(id, recordingId)
         captured.reload()
       } catch (error: unknown) {
         const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
@@ -980,12 +1027,13 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           clock: (o.time || '').split(' ').slice(-1)[0],
           sev,
           sevLabel: sev.charAt(0).toUpperCase() + sev.slice(1),
-          // A voice note also shows where its transcription stands.
-          voiceBadge: o.voice ? VOICE_BADGE[o.voice.status] : null,
-          audioUrl: o.voice?.audioUrl ?? null,
-          voiceError: o.voice?.status === 'failed' ? o.voice.error : null,
-          retryVoice: o.voice ? () => void retryVoice(o.voice!.id) : undefined,
-          detail: o.detail || o.text,
+          // Each recording shows its transcript, or where its transcription stands.
+          recordings: (o.recordings ?? []).map((r) => ({
+            ...r,
+            retry: () => void retryVoice(o.id!, r.id),
+          })),
+          // A saved observation's recordings carry their own text below its note.
+          detail: o.recordings ? o.detail : o.detail || o.text,
           media: (o.media || []).map((n) => ({
             name: n,
           })),
@@ -1381,8 +1429,16 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           fMode: 'photo',
         }),
       fNote: s.fNote,
-      fNoteBusy: s.fNoteBusy,
-      fNoteError: s.fNoteError,
+      fNoteListed: s.fNoteListed,
+      fSaving: s.fSaving,
+      fSaveError: s.fSaveError,
+      // One note per observation: adding it moves it into the Ready to save list.
+      addNote: () =>
+        s.fNote.trim()
+          ? setState({ fNoteListed: true })
+          : setState({ fToast: 'Write a note first.' }),
+      editNote: () => setState({ fNoteListed: false, fMode: 'note' }),
+      removeNote: () => setState({ fNote: '', fNoteListed: false }),
       setFNote: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
@@ -1395,27 +1451,21 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       recLabel: s.fRec
         ? 'Stop recording'
         : s.fTransBusy
-          ? liveVoice
-            ? 'Saving recording…'
-            : 'Loading transcript…'
+          ? 'Loading transcript…'
           : liveVoice && s.fClips.length
             ? 'Record another'
             : 'Start recording',
       recHint: liveVoice
         ? s.fRec
           ? 'Recording. Stop when you are done; it is added to the list below.'
-          : s.fTransBusy
-            ? 'Uploading the recordings.'
-            : s.fClips.length
-              ? 'Save observation stores and transcribes each one as its own voice note.'
-              : 'Record one or more voice notes, or upload audio files, then Save observation.'
+          : 'Record or upload as many as you need. Each one is transcribed when the observation is saved.'
         : s.fRec
           ? 'Simulating recording; your microphone is not accessed.'
           : s.fTransBusy
             ? 'Loading the sample transcript.'
             : 'No capture session, so recording is simulated and produces a sample transcript.',
       fVoiceError: s.fVoiceError,
-      recBusy: s.fRec || s.fTransBusy,
+      recBusy: s.fRec || s.fTransBusy || s.fSaving,
       uploadRecording: (e: React.ChangeEvent<HTMLInputElement>) => {
         for (const file of e.target.files ?? []) addClip(file, file.name, null)
         e.target.value = ''
@@ -1440,7 +1490,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         cursor: 'pointer',
       } as React.CSSProperties,
       toggleRec: () => {
-        if (s.fTransBusy) return
+        if (s.fTransBusy || s.fSaving) return
         if (liveVoice) {
           if (media.recorder) {
             // The clock goes back to 00:00; the clip waits in the list for Save observation.
@@ -1476,57 +1526,84 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         setState({
           fMode: 'note',
           fTrans: false,
+          fNoteListed: false,
           fNote:
             'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.',
         }),
       fPhotos: s.fPhotos,
       photoHint:
-        s.fPhotos.length === 0
-          ? 'No photographs attached to this observation yet.'
-          : s.fPhotos.length +
-            ' photograph' +
-            (s.fPhotos.length === 1 ? '' : 's') +
-            ' attached. Each is captioned with the location below.',
+        'Photographs are simulated in this prototype and captioned with the location below.',
+      removePhoto: (photo: { name: string }) =>
+        updateState((previous) => ({
+          ...previous,
+          fPhotos: previous.fPhotos.filter((p) => p !== photo),
+        })),
+      readyCount: (s.fNoteListed ? 1 : 0) + s.fClips.length + s.fPhotos.length,
       takePhoto: () =>
         setState({
           fPhotos: s.fPhotos.concat([
             {
-              name: 'IMG_0' + (460 + s.fPhotos.length) + '.jpg',
+              name: 'IMG_0' + (459 + ++media.photos) + '.jpg',
             },
           ]),
         }),
-      fArea: s.fArea,
-      setFArea: (
-        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) =>
-        setState({
-          fArea: e.target.value,
+      /* location */
+      locationLabel: currentLocation ? locationLabel(currentLocation) : null,
+      locSheetOpen,
+      // Closing needs a location to go back to; otherwise the engineer leaves capture.
+      canCloseLocations: !!currentLocation,
+      openLocations: () => setState({ locOpen: true }),
+      closeLocations: () =>
+        setState({ locOpen: false, locQuery: '', lfError: null, locError: null }),
+      locQuery: s.locQuery,
+      setLocQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
+        setState({ locQuery: e.target.value }),
+      locations: places.locations
+        .filter((l) => !query || locationLabel(l).toLowerCase().includes(query))
+        .map((l) => {
+          const count = fieldRecent.filter((o) =>
+            o.locationId ? o.locationId === l.id : o.area === l.name,
+          ).length
+          return {
+            id: l.id,
+            label: locationLabel(l),
+            detail: count ? plural(count, 'observation') : '',
+            selected: l.id === s.fLocationId,
+            // Only a location with nothing saved in it can be removed.
+            remove: count
+              ? undefined
+              : () => {
+                  if (window.confirm('Remove ' + locationLabel(l) + ' from the list?'))
+                    void removeLocation(l.id)
+                },
+          }
         }),
+      noLocations: places.locations.length === 0,
+      chooseLocation: (id: string) =>
+        setState({ fLocationId: id, locOpen: false, locQuery: '', lfError: null }),
+      locAdding: s.locAdding || places.locations.length === 0,
+      startAddLocation: () =>
+        setState({
+          locAdding: true,
+          lf: { ...s.lf, name: s.lf.name || s.locQuery.trim() },
+          lfError: null,
+        }),
+      lf: s.lf,
+      setLf: (field: 'name' | 'floor') => (e: React.ChangeEvent<HTMLInputElement>) =>
+        setState({ lf: { ...s.lf, [field]: e.target.value }, lfError: null }),
+      lfBusy: s.lfBusy,
+      lfError: s.lfError,
+      locError: s.locError,
+      submitLocation: () => void submitLocation(),
       fCat: s.fCat,
       setFCat: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
         setState({
           fCat: e.target.value,
         }),
-      areaOptions: [
-        'Bay 3 — north aisle',
-        'Bay 1 — despatch',
-        'Pump house',
-        'Office annexe',
-        'External yard',
-        'Sprinkler valve room',
-      ],
-      // Only a text note may be left uncategorised. In other modes the choice
-      // reads as a prompt, and saving asks for a category.
-      catOptions: [
-        ...(s.fMode !== 'note' && s.fCat === UNCATEGORISED
-          ? [{ value: UNCATEGORISED, label: 'Choose a category' }]
-          : []),
-        ...Object.keys(CAT_ICON),
-        ...(s.fMode === 'note' ? [UNCATEGORISED] : []),
-      ],
+      catOptions: [...Object.keys(CAT_ICON), UNCATEGORISED],
       catHint:
-        s.fMode === 'note' && s.fCat === UNCATEGORISED
-          ? 'Report drafting leaves this note out until it is categorised.'
+        s.fCat === UNCATEGORISED
+          ? 'Report drafting leaves this observation out until it is categorised.'
           : undefined,
       sevCriticalStyle: chipStyle(s.fSev === 'critical', 'critical'),
       sevHighStyle: chipStyle(s.fSev === 'high', 'high'),
@@ -1548,24 +1625,16 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
       fToast: s.fToast,
       fRecent: fieldRecent,
       saveObservation: () => {
-        if (s.fMode !== 'note' && s.fCat === UNCATEGORISED) {
-          setState({
-            fToast: 'Choose a COPE category first. Only a text note can be saved uncategorised.',
-          })
+        if (s.fSaving || s.fRec) return
+        if (!currentLocation) {
+          setState({ fToast: 'Choose a location first.', locOpen: true })
           return
         }
-        // A voice note is uploaded now, filed under what the form shows.
-        if (liveVoice && s.fMode === 'voice') {
-          if (s.fTransBusy || s.fRec) return
-          if (s.fClips.length) void saveClips(s.fClips)
-          else setState({ fToast: 'Record a voice note or choose an audio file first.' })
-          return
-        }
-        // So is a text note, once a capture session is live (CP-02).
-        if (liveCapture && s.fMode === 'note') {
-          if (s.fNoteBusy) return
-          if (s.fNote.trim()) void saveNote(s.fNote)
-          else setState({ fToast: 'Write a note first.' })
+        // With a capture session live, the note and recordings are saved on the
+        // server as one observation. Photos alone stay in the demo until CP-04.
+        const note = s.fNote.trim() ? s.fNote : undefined
+        if (liveCapture && (note || s.fClips.length)) {
+          void saveToGateway(currentLocation, note, s.fClips, s.fPhotos)
           return
         }
         const text =
@@ -1573,20 +1642,23 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
           (s.fTrans
             ? 'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.'
             : '') ||
-          (s.fPhotos.length ? s.fPhotos.length + ' photograph(s) captured at ' + s.fArea + '.' : '')
+          (s.fPhotos.length
+            ? s.fPhotos.length + ' photograph(s) captured at ' + currentLocation.name + '.'
+            : '')
         if (!text) {
           setState({
             fToast: 'Add a note, recording or photograph first.',
           })
           return
         }
-        const entry = {
+        const entry: Observation = {
           icon: s.fMode === 'photo' ? 'camera' : s.fMode === 'voice' ? 'mic' : 'sticky-note',
           color: s.fMode === 'photo' ? '#4f9aee' : s.fMode === 'voice' ? '#8f7dff' : '#f9ac10',
           cat: s.fCat,
           time: isDemoCapture ? '11 Apr 15:0' + (s.fSaved - 27) : formatDayTime(new Date()),
           text,
-          area: s.fArea,
+          area: currentLocation.name,
+          locationId: currentLocation.id,
           sev: s.fSev,
           std: s.fStd,
           media: s.fPhotos.map((p) => p.name),
@@ -1598,6 +1670,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
             ? { fRecent: [entry].concat(s.fRecent), fSaved: s.fSaved + 1 }
             : { captureObs: { ...s.captureObs, [reference]: [entry].concat(localRecent) } }),
           fNote: '',
+          fNoteListed: false,
           fPhotos: [],
           fTrans: false,
           fToast: 'Observation added to ' + reference + '. It is kept in this demo only.',

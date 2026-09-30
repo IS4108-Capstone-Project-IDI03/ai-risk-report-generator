@@ -1,7 +1,81 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { Badge, Button, Callout, Icon, Select, Textarea } from '../../../design-system'
-import { VOICE_BADGE, type AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
+import { LocationSheet } from '../components/LocationSheet'
+
+// One entry in the Ready to save list: a note, a recording or a photograph.
+function ReadyItem({
+  icon,
+  title,
+  detail,
+  children,
+}: {
+  icon: string
+  title: string
+  detail?: string | null
+  children: ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '10px 12px',
+        background: 'var(--surface-card)',
+        border: '1px solid var(--border-default)',
+        borderRadius: '8px',
+      }}
+    >
+      <span
+        style={{
+          display: 'grid',
+          placeItems: 'center',
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          background: 'var(--surface-sunken)',
+          color: 'var(--action-primary)',
+        }}
+      >
+        <Icon name={icon} size={16} />
+      </span>
+      <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: '14px',
+            fontWeight: '500',
+            color: 'var(--text-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {title}
+        </div>
+        {!!detail && (
+          <div
+            style={{
+              fontSize: '13px',
+              lineHeight: '18px',
+              color: 'var(--text-muted)',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {detail}
+          </div>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
 
 export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -36,7 +110,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
               border: '1px solid var(--border-default)',
               borderRadius: '8px',
               boxShadow: 'var(--shadow-sm)',
-              overflow: 'hidden',
+              // clip rather than hidden, so the location bar can stay in view.
+              overflow: 'clip',
             }}
           >
             <div
@@ -72,6 +147,51 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                 {v.fSavedLabel}
               </span>
             </div>
+            <button
+              type="button"
+              onClick={v.openLocations}
+              aria-label={
+                v.locationLabel ? 'Location: ' + v.locationLabel + '. Change' : 'Choose a location'
+              }
+              style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                minHeight: '56px',
+                padding: '8px 20px',
+                textAlign: 'left',
+                fontFamily: 'inherit',
+                background: v.locationLabel ? 'var(--surface-card)' : 'var(--surface-selected)',
+                border: 0,
+                borderBottom: '1px solid var(--border-default)',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon name="map-pin" size={20} color="var(--action-primary)" />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    color: 'var(--text-primary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {v.locationLabel ?? 'Choose a location'}
+                </span>
+                <span style={{ display: 'block', fontSize: '13px', color: 'var(--text-muted)' }}>
+                  {v.locationLabel ? 'Tap to change' : 'Observations are saved to it'}
+                </span>
+              </span>
+              <Icon name="chevron-down" size={18} color="var(--text-secondary)" />
+            </button>
             <div
               style={{
                 display: 'grid',
@@ -91,27 +211,35 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
               </button>
             </div>
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {!!v.isNoteMode && (
-                <>
-                  <div>
+              {!!v.isNoteMode &&
+                (v.fNoteListed ? (
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: '14px',
+                      lineHeight: '20px',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    {'The note is in the list below. An observation has one note; edit it there.'}
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <Textarea
-                      label="Observation"
+                      label="Note"
                       rows={5}
                       maxLength={5000}
                       placeholder="What did you see? Write as you would for the record."
                       value={v.fNote}
                       onChange={v.setFNote}
                     ></Textarea>
-                  </div>
-                  {!!v.fNoteError && (
-                    <div role="alert">
-                      <Callout tone="warning" title={v.fNoteError.title}>
-                        {v.fNoteError.message}
-                      </Callout>
+                    <div>
+                      <Button variant="secondary" size="sm" iconLeft="plus" onClick={v.addNote}>
+                        {'Add note'}
+                      </Button>
                     </div>
-                  )}
-                </>
-              )}
+                  </div>
+                ))}
               {!!v.isVoiceMode && (
                 <>
                   <div
@@ -164,98 +292,6 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     >
                       {v.recHint}
                     </span>
-                    {v.fClips.length > 0 && (
-                      <section
-                        aria-label="Recordings to save"
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            color: 'var(--text-secondary)',
-                          }}
-                        >
-                          <span>{'Ready to save'}</span>
-                          <span>{v.fClips.length}</span>
-                        </div>
-                        {v.fClips.map((clip) => (
-                          <div
-                            key={clip.id}
-                            style={{
-                              display: 'flex',
-                              flexWrap: 'wrap',
-                              alignItems: 'center',
-                              gap: '10px',
-                              padding: '10px 12px',
-                              background: 'var(--surface-card)',
-                              border: '1px solid var(--border-default)',
-                              borderRadius: '8px',
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: 'grid',
-                                placeItems: 'center',
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                background: 'var(--surface-sunken)',
-                                color: 'var(--action-primary)',
-                              }}
-                            >
-                              <Icon name={clip.length ? 'mic' : 'file-audio'} size={16} />
-                            </span>
-                            <div style={{ flex: '1 1 120px', minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontSize: '14px',
-                                  fontWeight: '500',
-                                  color: 'var(--text-primary)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {clip.name}
-                              </div>
-                              {!!clip.length && (
-                                <div
-                                  style={{
-                                    fontFamily: 'var(--font-mono)',
-                                    fontSize: '12px',
-                                    color: 'var(--text-muted)',
-                                  }}
-                                >
-                                  {clip.length}
-                                </div>
-                              )}
-                            </div>
-                            <audio
-                              controls
-                              src={clip.url}
-                              aria-label={'Play ' + clip.name}
-                              style={{ height: '32px', flex: '1 1 180px', minWidth: 0 }}
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              iconLeft="trash-2"
-                              aria-label={'Remove ' + clip.name}
-                              disabled={v.recBusy}
-                              onClick={() => v.removeClip(clip)}
-                            />
-                          </div>
-                        ))}
-                      </section>
-                    )}
                     {!!v.liveVoice && (
                       <label
                         className="ds-choice"
@@ -347,43 +383,6 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
               {!!v.isPhotoMode && (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px),1fr))',
-                        gap: '10px',
-                      }}
-                    >
-                      {v.fPhotos.map((p, index) => (
-                        <Fragment key={index}>
-                          <div
-                            style={{
-                              border: '1px solid var(--border-default)',
-                              borderRadius: '5px',
-                              background: 'var(--graphite-100)',
-                              aspectRatio: '4/3',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px',
-                              animation: 'omSlide 180ms cubic-bezier(.2,0,.2,1)',
-                            }}
-                          >
-                            <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
-                            <span
-                              style={{
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '12px',
-                                color: 'var(--text-muted)',
-                              }}
-                            >
-                              {p.name}
-                            </span>
-                          </div>
-                        </Fragment>
-                      ))}
-                    </div>
                     <button
                       type="button"
                       onClick={v.takePhoto}
@@ -414,6 +413,80 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                   </div>
                 </>
               )}
+              {v.readyCount > 0 && (
+                <section
+                  aria-label="Ready to save"
+                  style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <span>{'Ready to save'}</span>
+                    <span>{v.readyCount}</span>
+                  </div>
+                  {!!v.fNoteListed && (
+                    <ReadyItem icon="sticky-note" title="Note" detail={v.fNote}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        iconLeft="pencil"
+                        aria-label="Edit note"
+                        disabled={v.fSaving}
+                        onClick={v.editNote}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        iconLeft="trash-2"
+                        aria-label="Remove note"
+                        disabled={v.fSaving}
+                        onClick={v.removeNote}
+                      />
+                    </ReadyItem>
+                  )}
+                  {v.fClips.map((clip) => (
+                    <ReadyItem
+                      key={clip.id}
+                      icon={clip.length ? 'mic' : 'file-audio'}
+                      title={clip.name}
+                      detail={clip.length}
+                    >
+                      <audio
+                        controls
+                        src={clip.url}
+                        aria-label={'Play ' + clip.name}
+                        style={{ height: '32px', flex: '1 1 180px', minWidth: 0 }}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        iconLeft="trash-2"
+                        aria-label={'Remove ' + clip.name}
+                        disabled={v.recBusy}
+                        onClick={() => v.removeClip(clip)}
+                      />
+                    </ReadyItem>
+                  ))}
+                  {v.fPhotos.map((photo) => (
+                    <ReadyItem key={photo.name} icon="image" title={photo.name}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        iconLeft="trash-2"
+                        aria-label={'Remove ' + photo.name}
+                        disabled={v.fSaving}
+                        onClick={() => v.removePhoto(photo)}
+                      />
+                    </ReadyItem>
+                  ))}
+                </section>
+              )}
               <div
                 style={{
                   display: 'flex',
@@ -441,12 +514,6 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     gap: '14px 20px',
                   }}
                 >
-                  <Select
-                    label="Location on site"
-                    options={v.areaOptions}
-                    value={v.fArea}
-                    onChange={v.setFArea}
-                  ></Select>
                   <Select
                     label="COPE category"
                     hint={v.catHint}
@@ -535,11 +602,18 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                   </div>
                 </>
               )}
+              {!!v.fSaveError && (
+                <div role="alert" style={{ marginBottom: '10px' }}>
+                  <Callout tone="warning" title={v.fSaveError.title}>
+                    {v.fSaveError.message}
+                  </Callout>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                 <Button
                   variant="primary"
                   iconLeft="check"
-                  loading={v.fNoteBusy}
+                  loading={v.fSaving}
                   onClick={v.saveObservation}
                 >
                   {'Save observation'}
@@ -658,11 +732,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                         >
                           {o.time}
                         </span>
-                        {!!o.voice && VOICE_BADGE[o.voice.status] && (
-                          <Badge tone={VOICE_BADGE[o.voice.status]!.tone}>
-                            {VOICE_BADGE[o.voice.status]!.label}
-                          </Badge>
-                        )}
+                        {!!o.badge && <Badge tone={o.badge.tone}>{o.badge.label}</Badge>}
                       </div>
                       <p
                         style={{
@@ -684,7 +754,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                           color: 'var(--text-muted)',
                         }}
                       >
-                        {o.area}
+                        {[o.area, o.attached].filter(Boolean).join(' \u00b7 ')}
                       </span>
                     </div>
                   </div>
@@ -699,6 +769,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
           </div>
         </div>
       </div>
+      <LocationSheet v={v} />
     </>
   )
 }

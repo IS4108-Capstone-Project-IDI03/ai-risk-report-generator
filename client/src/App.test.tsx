@@ -94,13 +94,15 @@ describe('Marsh prototype integration', () => {
     expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
     expect(screen.getByText('6 of 6 assessments')).toBeInTheDocument()
   })
-  it('saves observations and displays them in the assessment', () => {
+  it('saves observations and displays them in the assessment', async () => {
     render(<App />)
     signIn()
     fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+    // Capture starts by choosing where the engineer is.
+    fireEvent.click(await screen.findByRole('button', { name: /^Pump house/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
     expect(screen.getByText('Add a note, recording or photograph first.')).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('textbox', { name: /Observation/ }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Demo sprinkler observation' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))

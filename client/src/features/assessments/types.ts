@@ -28,13 +28,23 @@ export type Observation = {
   media: string[]
   detail: string
   audio?: string
-  // Set on voice notes saved on the server (CP-03).
-  voice?: {
+  // Where it was captured, when known by id rather than only by name.
+  locationId?: string
+  // Set on observations saved on the server.
+  id?: string
+  // What is attached, e.g. "Note · 2 recordings".
+  attached?: string
+  // Shown while a recording is transcribing or after one failed.
+  badge?: { tone: 'info' | 'high'; label: string } | null
+  recordings?: {
     id: string
+    name: string
     status: TranscriptionStatus
+    // The transcript, or where the transcription stands.
+    text: string
     error: string | null
     audioUrl: string
-  }
+  }[]
 }
 export type GenerationSection = {
   id: string
@@ -75,19 +85,33 @@ export type WorkflowState = {
   captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
-  // A text note being saved to the gateway, and why the last save failed.
-  fNoteBusy: boolean
-  fNoteError: { title: string; message: string } | null
+  // The note is in the Ready to save list rather than being written.
+  fNoteListed: boolean
+  // An observation being saved to the gateway, and why the last save failed.
+  fSaving: boolean
+  fSaveError: { title: string; message: string } | null
   fRec: boolean
   fSecs: number
   fTrans: boolean
   fTransBusy: boolean
-  // Why the last recording could not start or be saved, shown on the voice panel.
+  // Why the microphone could not start, shown on the voice panel.
   fVoiceError: { title: string; message: string } | null
-  // Recordings and files waiting for Save observation, each saved as its own voice note.
+  // Recordings and files waiting for Save observation, all saved with the one observation.
   fClips: VoiceClip[]
   fPhotos: { name: string }[]
-  fArea: string
+  // ponytail: photos are placeholders kept in the browser until CP-04 stores
+  // them; these are the ones attached to observations saved on the server, by id.
+  savedPhotos: Record<string, string[]>
+  // The location the engineer is capturing in, and the location sheet.
+  fLocationId: string | null
+  locOpen: boolean
+  locQuery: string
+  locAdding: boolean
+  lf: { name: string; floor: string }
+  lfBusy: boolean
+  lfError: string | null
+  // Why the last location could not be removed.
+  locError: string | null
   fCat: string
   fSev: string
   fStd: string

@@ -1,3 +1,4 @@
+import type { SiteLocation } from './api'
 import type { AssessmentRow, WorkflowState } from './types'
 
 // The assessment the capture screen opens. The server seed (`npm run seed`)
@@ -47,16 +48,25 @@ export const initialState: WorkflowState = {
   captureObs: {},
   fMode: 'note',
   fNote: '',
-  fNoteBusy: false,
-  fNoteError: null,
+  fNoteListed: false,
+  fSaving: false,
+  fSaveError: null,
   fRec: false,
   fSecs: 0,
   fTrans: false,
   fTransBusy: false,
   fVoiceError: null,
   fClips: [],
+  savedPhotos: {},
   fPhotos: [],
-  fArea: 'Bay 3 — north aisle',
+  fLocationId: null,
+  locOpen: false,
+  locQuery: '',
+  locAdding: false,
+  lf: { name: '', floor: '' },
+  lfBusy: false,
+  lfError: null,
+  locError: null,
   fCat: 'Fire protection',
   fSev: 'high',
   fStd: '',
@@ -269,6 +279,15 @@ export const CAT_ICON: Record<string, string> = {
 }
 // A text note may be saved before it is categorised (CP-02); report drafting
 // leaves it out until it is. Voice notes and photos always need a category.
+// The sample assessment's places on site, used when the gateway is not live.
+export const DEMO_LOCATIONS: SiteLocation[] = [
+  { id: 'demo-bay-3', name: 'Bay 3 — north aisle', floor: 'Ground' },
+  { id: 'demo-bay-1', name: 'Bay 1 — despatch', floor: 'Ground' },
+  { id: 'demo-pump-house', name: 'Pump house', floor: null },
+  { id: 'demo-office', name: 'Office annexe', floor: 'Level 1' },
+  { id: 'demo-yard', name: 'External yard', floor: null },
+  { id: 'demo-valve-room', name: 'Sprinkler valve room', floor: 'Ground' },
+]
 export const UNCATEGORISED = 'Not categorised yet'
 // Standards an observation can be tied to. The draft finds the clause itself.
 export const STANDARD_REFERENCES = [

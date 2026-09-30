@@ -80,6 +80,22 @@ copied onto the assessment, so there is one source of truth:
 | `ready_to_generate` | latest session `ready_for_generation` |
 | `draft` / `under_review` / `finalised` | `reportStatus`, which wins when set |
 
+`locations` lists the places on site the engineer records observations in, as
+the engineer adds them during capture: each has an `_id`, a `name` (up to 100
+characters), and an optional `floor` (up to 40), plus a
+`key` of the lowercased name and floor. They are embedded because the list is
+short and always read with its assessment. `POST
+/api/assessments/:reference/locations` (JSON `name`, `floor`) returns
+201, 400 `{ error, fields }`, 404, or 409 with `fields.name` when the same name
+and floor is already listed; matching on `key` in the same update keeps two
+taps from adding it twice. `GET` on the same path lists them in the order they
+were added. Adding one needs no capture session. `DELETE
+/api/assessments/:reference/locations/:id` removes one added by mistake: 204,
+404, or 409 while any observation is saved there, so no observation loses its
+location. Moving observations to another location arrives with editing
+(CP-06, CP-08). `npm --prefix server run seed`
+gives `RPT-2026-0411` six sample locations when it has none.
+
 `GET /api/assessments` returns every assessment with its derived `status`, most
 recent site visit first, in two queries (assessments, then their sessions). The
 dashboard filters and searches it in the browser (RV-10) and shows only the
@@ -109,51 +125,53 @@ edits are visible to the whole team.
 
 ## Observations
 
-`observations` holds voice notes (CP-03) and text notes (CP-02); photos are
-still browser-only. Both kinds share the collection and are told apart by
-`type` (`voice` or `text`), Mongoose's discriminator key: `ObservationModel`
-reads every kind, and `VoiceObservationModel` and `TextObservationModel` create
-and change their own kind, each requiring its own fields. Photos (CP-04) should
-join as another kind rather than a new collection.
+`observations` holds one document per observation: one thing the engineer saw
+on site, with everything captured about it. It has an optional `note` (CP-02)
+and a `recordings` list (CP-03), and needs at least one of them. Photos are
+still browser-only placeholders; CP-04 should add a `photos` list to the same
+document rather than a new collection.
 
 Each document links to its `assessment` and the capture `session` it was
 recorded in, the `engineer` who captured it (a name until F-04), and `metadata`
-with the five required fields: `source_type` (the kind), `jurisdiction` and
-`facility_type` copied from the site, `COPE_dimension` from the COPE category
-the engineer picked (`Construction`, `Occupancy`, `Protection` or `Exposure`,
-the same values the knowledge base uses), and `effective_date` (when it was
-captured). `createdAt` is the capture timestamp. `severity` (`critical`,
-`high`, `moderate` or `low`) is required; `area` (the location on site) and
-`standard` are optional. `standard` is the standard the engineer tied the note
-to (e.g. `NFPA 25 – 2026 Edition`); only the standard is stored, and the draft
-finds the clause.
+with the five required fields: `source_type` (`observation`), `jurisdiction`
+and `facility_type` copied from the site, `COPE_dimension` from the COPE
+category the engineer picked (`Construction`, `Occupancy`, `Protection` or
+`Exposure`, the same values the knowledge base uses), and `effective_date`
+(when it was captured). `createdAt` is the capture timestamp. `severity`
+(`critical`, `high`, `moderate` or `low`) and `location` (the `_id` of one of
+the assessment's `locations`) are required; `standard` is optional. `standard` is the standard the engineer tied
+the observation to (e.g. `NFPA 25 – 2026 Edition`); only the standard is
+stored, and the draft finds the clause. The category, severity, location and
+standard are stored once and cover the note and every recording. The location
+is stored by id rather than name, so renaming a location later does not split
+its observations; responses include it as `location: { id, name, floor }`.
 
-A text note stores `text` exactly as written, untrimmed, up to 5,000
-characters. It is the only kind that may be saved uncategorised: its
+`note` is stored exactly as written, untrimmed, up to 5,000 characters; a blank
+note counts as none. An observation may be saved uncategorised: its
 `COPE_dimension` is then `null`, present but null rather than left out.
 `listCategoryObservations` in `observation.service.ts`, the category-scoped
 drafting inputs for GN-01, matches on `COPE_dimension`, so an uncategorised
-note stays out of drafting until it is categorised. Nothing can categorise a
-saved note yet; editing arrives with CP-06 and CP-08.
+observation stays out of drafting until it is categorised. Nothing can
+categorise a saved observation yet; editing arrives with CP-06 and CP-08.
 
-A voice note's original audio goes to S3 at
-`audio/<reference>/<observation id>.<ext>`; the document keeps the key, content
-type and size, never the audio.
-
-`transcription.status` is `transcribing`, `transcribed` (with `transcript`) or
-`failed` (with `error`, the reason shown to the engineer). `attempts` records
-each run with its start, finish and error. Saving a recording creates exactly
-one attempt; a retry adds one only while the status is `failed`, using an
-atomic update so two clicks cannot start two. Saving leaves the capture session
-`active`.
+Each recording has its own `_id`, a `name` ("Recording 2" or the uploaded
+file's name), and its original audio in S3 at
+`audio/<reference>/<observation id>/<recording id>.<ext>`; the document keeps
+the key, content type and size, never the audio. Its `transcription.status` is
+`transcribing`, `transcribed` (with `transcript`) or `failed` (with `error`,
+the reason shown to the engineer). `attempts` records each run with its start,
+finish and error. Saving creates exactly one attempt per recording; a retry
+adds one only while that recording's status is `failed`, using an atomic
+update so two clicks cannot start two. Each recording is transcribed and
+updated on its own, so one failure leaves the others. Saving leaves the
+capture session `active`.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations/voice` | Body is the audio with its own `Content-Type`, up to 25 MB; `X-Engineer` names the engineer, `X-COPE-Dimension` gives the category and `X-Severity` the severity; the optional `?area=` and `?standard=` query values hold the location and standard (a query, since they are not plain ASCII). 201, or 400 (missing engineer, category or severity) / 404 / 409 (no active session) / 413 / 415 |
-| `POST /api/assessments/:reference/observations/text` | JSON body: `text`, `engineer`, `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, and optional `area` and `standard` (100 characters each). 201, or 400 `{ error, fields }` as for assessments / 404 / 409 (no active session) |
-| `GET /api/assessments/:reference/observations` | Every observation, newest first, with its `type`: a voice note carries `audio` and `transcription`, a text note `text`. `copeDimension` is `null` for an uncategorised note |
-| `POST /api/observations/:id/transcription/retry` | New attempt for a failed voice note: 202, or 404 / 409 (also for a text note) |
-| `GET /api/observations/:id/audio` | Streams the original recording from S3; 404 for a text note |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `engineer`, `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
+| `GET /api/assessments/:reference/observations` | Every observation, newest first, with its `note` and `recordings`, each recording with its `url` and `transcription`. `copeDimension` is `null` for an uncategorised observation |
+| `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
+| `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
