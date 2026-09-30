@@ -88,7 +88,7 @@ describe('Capture session (CP-01)', () => {
     await screen.findByText('Capture session started')
     expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
     expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
-    expect(notice).toHaveTextContent('Voice notes are stored on the server and transcribed')
+    expect(notice).toHaveTextContent('Notes and recordings are stored on the server')
     expect(
       screen.getByText('Harbourside Cold Store · RPT-2026-0411 · 28 observations captured'),
     ).toBeInTheDocument()
@@ -127,7 +127,9 @@ describe('Capture session (CP-01)', () => {
     expect(
       screen.getByText('Tilbury Distribution Centre · RPT-2026-0411 · 28 observations captured'),
     ).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('textbox', { name: /Observation/ }), {
+    // Without the gateway, the sample assessment offers its sample locations.
+    fireEvent.click(screen.getByRole('button', { name: /^Pump house/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Offline sprinkler observation' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
@@ -189,6 +191,18 @@ const CREATED_CAPTURE = {
     site: { code: 'SITE-0001', name: 'Jurong Distribution Hub' },
   },
 }
+const LOADING_DOCK = { id: 'l1', name: 'Loading dock', floor: null }
+const CREATED_NOTE = {
+  id: '6ab3a1e0e45cf009e4507803',
+  engineer: 'A. Rowe',
+  copeDimension: 'Protection',
+  standard: null,
+  severity: 'high',
+  location: { id: 'l1', name: 'Loading dock', floor: null },
+  recordedAt: '2026-09-23T09:10:00.000Z',
+  note: 'Sprinkler control valve chained open',
+  recordings: [],
+}
 
 function createFromForm() {
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
@@ -244,6 +258,8 @@ describe('Create assessment (CP-01)', () => {
     const fetchMock = mockGateway(
       () => respond(201, CREATED),
       () => respond(201, CREATED_CAPTURE),
+      () => respond(201, LOADING_DOCK),
+      () => respond(201, CREATED_NOTE),
     )
     signIn()
     createFromForm()
@@ -263,17 +279,27 @@ describe('Create assessment (CP-01)', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('No observations captured for RPT-2026-0001 yet.')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('textbox', { name: /Observation/ }), {
+    // A new assessment has no locations yet, so capture starts by adding one.
+    fireEvent.change(await screen.findByRole('textbox', { name: /^Name/ }), {
+      target: { value: 'Loading dock' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add location' }))
+    expect(
+      await screen.findByRole('button', { name: /Location: Loading dock/ }),
+    ).toBeInTheDocument()
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/assessments/RPT-2026-0001/locations')
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Sprinkler control valve chained open' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
+    // With the session live, the observation is saved to the gateway (CP-02).
+    expect(await screen.findByText('Observation saved to RPT-2026-0001.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/assessments/RPT-2026-0001/observations')
     expect(screen.getByText('Sprinkler control valve chained open')).toBeInTheDocument()
     expect(
       screen.getByText('Jurong Distribution Hub · RPT-2026-0001 · 1 observation captured'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('Observation added to RPT-2026-0001. It is kept in this demo only.'),
     ).toBeInTheDocument()
   })
 

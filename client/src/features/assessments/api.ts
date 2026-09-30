@@ -53,25 +53,39 @@ export type CaptureSession = {
   }
 }
 
-// A voice observation saved on the server (CP-03). The transcription runs
-// after the upload returns, so it starts as 'transcribing'.
+// A recording saved with an observation (CP-03). Its transcription runs after
+// the save returns, so it starts as 'transcribing'.
 export type TranscriptionStatus = 'transcribing' | 'transcribed' | 'failed'
-export type VoiceObservation = {
+export type SavedRecording = {
   id: string
-  type: 'voice'
-  engineer: string
-  copeDimension: string
-  standard: string | null
-  severity: string
-  area: string | null
-  recordedAt: string
-  audio: { contentType: string; size: number; url: string }
+  name: string
+  contentType: string
+  size: number
+  url: string
   transcription: {
     status: TranscriptionStatus
     transcript: string | null
     error: string | null
     attempts: number
   }
+}
+// A place on site the engineer records observations in.
+export type SiteLocation = { id: string; name: string; floor: string | null }
+
+// An observation saved on the server: a note (CP-02), recordings (CP-03) or both.
+export type SavedObservation = {
+  id: string
+  engineer: string
+  // null when not categorised yet.
+  copeDimension: string | null
+  standard: string | null
+  severity: string
+  // null only if the location is no longer listed.
+  location: SiteLocation | null
+  // Exactly as the engineer wrote it.
+  note: string | null
+  recordings: SavedRecording[]
+  recordedAt: string
 }
 
 export class GatewayError extends Error {
@@ -94,26 +108,23 @@ export class GatewayError extends Error {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   signal?: AbortSignal,
-  headers: Record<string, string> = {},
 ): Promise<{ status: number; data: T }> {
   let response: Response
   try {
     response = await fetch(path, {
       method,
       signal,
-      // A Blob (a recording) is sent as-is with its own type; anything else as JSON.
+      // A form (with recordings) is sent as-is, so the browser sets its
+      // multipart boundary; anything else as JSON.
       ...(body === undefined
-        ? { headers }
-        : body instanceof Blob
-          ? { headers: { ...headers, 'Content-Type': body.type }, body }
-          : {
-              headers: { ...headers, 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            }),
+        ? {}
+        : body instanceof FormData
+          ? { body }
+          : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     })
   } catch (error: unknown) {
     if (signal?.aborted) throw error
@@ -129,7 +140,9 @@ async function request<T>(
     }
     throw new GatewayError(response.status, problem.error, problem.fields)
   }
-  return { status: response.status, data: (await response.json()) as T }
+  // 204 No Content has no body to read.
+  const data = response.status === 204 ? undefined : await response.json()
+  return { status: response.status, data: data as T }
 }
 
 // Every assessment, most recent site visit first (RV-10).
@@ -159,48 +172,80 @@ export async function startCaptureSession(
 const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
-// Saves a recording to the assessment's active capture session under a COPE
-// dimension; the server stores the audio and queues its transcription.
-export async function uploadVoiceObservation(
+// Saves one observation, with its note and recordings, to the assessment's
+// active capture session. A null copeDimension leaves it uncategorised. The
+// server stores each recording and queues its transcription.
+export async function saveObservation(
   reference: string,
-  audio: Blob,
   details: {
+    note?: string
     engineer: string
-    copeDimension: string
+    copeDimension: string | null
     severity: string
-    area?: string
+    locationId: string
     standard?: string
   },
-): Promise<VoiceObservation> {
-  // The standard and location go in the query because they are not plain
-  // ASCII (e.g. "Bay 3 — north aisle"), which headers cannot carry.
-  const query = new URLSearchParams()
-  if (details.standard) query.set('standard', details.standard)
-  if (details.area) query.set('area', details.area)
-  const path = observationsPath(reference) + '/voice' + (query.size ? '?' + query : '')
-  return (
-    await request<VoiceObservation>('POST', path, audio, undefined, {
-      'X-Engineer': details.engineer,
-      'X-COPE-Dimension': details.copeDimension,
-      'X-Severity': details.severity,
-    })
-  ).data
+  recordings: { name: string; audio: Blob }[],
+): Promise<SavedObservation> {
+  const form = new FormData()
+  form.append('details', JSON.stringify(details))
+  for (const r of recordings) form.append('recording', r.audio, r.name)
+  return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
 
+// Every saved observation of the assessment, newest first.
 export async function listObservations(
   reference: string,
   signal?: AbortSignal,
-): Promise<VoiceObservation[]> {
-  return (await request<VoiceObservation[]>('GET', observationsPath(reference), undefined, signal))
+): Promise<SavedObservation[]> {
+  return (await request<SavedObservation[]>('GET', observationsPath(reference), undefined, signal))
     .data
 }
 
-// Starts a new transcription attempt for a failed recording.
-export async function retryTranscription(id: string): Promise<VoiceObservation> {
+// Changes a saved observation's tags (CP-06). A tag left out stays as it is; a
+// null copeDimension uncategorises it and a null standard removes it.
+export async function updateObservationTags(
+  id: string,
+  tags: {
+    copeDimension?: string | null
+    severity?: string
+    locationId?: string
+    standard?: string | null
+  },
+): Promise<SavedObservation> {
   return (
-    await request<VoiceObservation>(
-      'POST',
-      `/api/observations/${encodeURIComponent(id)}/transcription/retry`,
-    )
+    await request<SavedObservation>('PATCH', `/api/observations/${encodeURIComponent(id)}`, tags)
   ).data
+}
+
+// Starts a new transcription attempt for a failed recording.
+export async function retryTranscription(observationId: string, recordingId: string) {
+  await request<void>(
+    'POST',
+    `/api/observations/${encodeURIComponent(observationId)}/recordings/${encodeURIComponent(recordingId)}/transcription/retry`,
+  )
+}
+
+const locationsPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/locations`
+
+// The assessment's locations, in the order they were added.
+export async function listLocations(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<SiteLocation[]> {
+  return (await request<SiteLocation[]>('GET', locationsPath(reference), undefined, signal)).data
+}
+
+// Adds a location; 409 when the same name and floor is already listed.
+export async function addLocation(
+  reference: string,
+  location: { name: string; floor?: string },
+): Promise<SiteLocation> {
+  return (await request<SiteLocation>('POST', locationsPath(reference), location)).data
+}
+
+// Removes a location; 409 while it has observations.
+export async function removeLocation(reference: string, id: string): Promise<void> {
+  await request<void>('DELETE', `${locationsPath(reference)}/${encodeURIComponent(id)}`)
 }

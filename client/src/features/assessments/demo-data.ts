@@ -1,3 +1,5 @@
+import type { SiteLocation } from './api'
+import { NO_FILTERS } from './observationFilters'
 import type { AssessmentRow, WorkflowState } from './types'
 
 // The assessment the capture screen opens. The server seed (`npm run seed`)
@@ -60,14 +62,25 @@ export const initialState: WorkflowState = {
   captureObs: {},
   fMode: 'note',
   fNote: '',
+  fNoteListed: false,
+  fSaving: false,
+  fSaveError: null,
   fRec: false,
   fSecs: 0,
   fTrans: false,
   fTransBusy: false,
   fVoiceError: null,
   fClips: [],
+  savedPhotos: {},
   fPhotos: [],
-  fArea: 'Bay 3 — north aisle',
+  fLocationId: null,
+  locOpen: false,
+  locQuery: '',
+  locAdding: false,
+  lf: { name: '', floor: '' },
+  lfBusy: false,
+  lfError: null,
+  locError: null,
   fCat: 'Fire protection',
   fSev: 'high',
   fStd: '',
@@ -81,6 +94,8 @@ export const initialState: WorkflowState = {
       time: '11 Apr 09:22',
       text: 'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.',
       area: 'Bay 3 — north aisle',
+      locationId: 'demo-bay-3',
+      floor: 'Ground',
       sev: 'critical',
       std: 'FM Global 2-0 §2.4.1',
       media: ['IMG_0442.jpg', 'IMG_0443.jpg'],
@@ -94,6 +109,8 @@ export const initialState: WorkflowState = {
       time: '11 Apr 11:05',
       text: 'Pump test certificate not produced on request. Site engineer believes it is held by the contractor.',
       area: 'Pump house',
+      locationId: 'demo-pump-house',
+      floor: null,
       sev: 'high',
       std: 'NFPA 25 §8.3.3',
       audio: '0:45',
@@ -107,7 +124,9 @@ export const initialState: WorkflowState = {
       cat: 'Occupancy, hazards and utilities',
       time: '11 Apr 13:40',
       text: 'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.',
-      area: 'Sortation line',
+      area: 'Bay 1 — despatch',
+      locationId: 'demo-bay-1',
+      floor: 'Ground',
       sev: 'moderate',
       std: '',
       media: [],
@@ -199,6 +218,11 @@ export const initialState: WorkflowState = {
   optPhotos: true,
   optIdx: false,
   exportOpen: false,
+  obsOpen: null,
+  of: NO_FILTERS,
+  tagEdit: null,
+  tagBusy: false,
+  tagError: null,
 }
 
 export const ROWS: AssessmentRow[] = [
@@ -278,6 +302,18 @@ export const CAT_ICON: Record<string, string> = {
   'Fire protection': 'flame',
   'External exposures': 'cloud-lightning',
 }
+// The sample assessment's places on site, used when the gateway is not live.
+export const DEMO_LOCATIONS: SiteLocation[] = [
+  { id: 'demo-bay-3', name: 'Bay 3 — north aisle', floor: 'Ground' },
+  { id: 'demo-bay-1', name: 'Bay 1 — despatch', floor: 'Ground' },
+  { id: 'demo-pump-house', name: 'Pump house', floor: null },
+  { id: 'demo-office', name: 'Office annexe', floor: 'Level 1' },
+  { id: 'demo-yard', name: 'External yard', floor: null },
+  { id: 'demo-valve-room', name: 'Sprinkler valve room', floor: 'Ground' },
+]
+// An observation may be saved before it is categorised (CP-02) and categorised
+// later by editing its tags (CP-06); report drafting leaves it out until then.
+export const UNCATEGORISED = 'Not categorised yet'
 // Standards an observation can be tied to. The draft finds the clause itself.
 export const STANDARD_REFERENCES = [
   'NFPA 25 – 2026 Edition',

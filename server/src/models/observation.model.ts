@@ -1,7 +1,7 @@
 import { Schema, Types, model } from 'mongoose'
 
-// A voice observation's transcription. Saving a recording queues exactly one
-// attempt (CP-03 AC3); a retry after a failure adds another for the same audio.
+// A recording's transcription. Saving a recording queues exactly one attempt
+// (CP-03 AC3); a retry after a failure adds another for the same audio.
 export const TRANSCRIPTION_STATUSES = ['transcribing', 'transcribed', 'failed'] as const
 export type TranscriptionStatus = (typeof TRANSCRIPTION_STATUSES)[number]
 
@@ -13,20 +13,14 @@ export type CopeDimension = (typeof COPE_DIMENSIONS)[number]
 export const SEVERITIES = ['critical', 'high', 'moderate', 'low'] as const
 export type Severity = (typeof SEVERITIES)[number]
 
-export interface IObservation {
-  assessment: Types.ObjectId
-  session: Types.ObjectId
-  type: 'voice'
-  // A name until accounts (F-04) exist, like the assessment's engineers.
-  engineer: string
-  // The standard the engineer tied the finding to, if any. The draft finds the
-  // clause itself, so only the standard is recorded.
-  standard?: string
-  // What the engineer judged on site: how serious it is, and where.
-  severity: Severity
-  area?: string
+export interface IRecording {
+  _id: Types.ObjectId
+  // "Recording 2", or the uploaded file's own name.
+  name: string
   // The original recording in S3, kept as raw evidence. MongoDB holds only its key.
-  audio: { key: string; contentType: string; size: number }
+  key: string
+  contentType: string
+  size: number
   transcription: {
     status: TranscriptionStatus
     transcript?: string
@@ -34,53 +28,75 @@ export interface IObservation {
     error?: string
     attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
   }
+}
+
+// One thing the engineer saw on site, with everything captured about it: a
+// note (CP-02) and any number of recordings (CP-03). Photos (CP-04) will join
+// as another list.
+export interface IObservation {
+  assessment: Types.ObjectId
+  session: Types.ObjectId
+  // A name until accounts (F-04) exist, like the assessment's engineers.
+  engineer: string
+  // Exactly as the engineer wrote it, never trimmed or reworded.
+  note?: string
+  recordings: IRecording[]
+  // The standard the engineer tied the finding to, if any. The draft finds the
+  // clause itself, so only the standard is recorded.
+  standard?: string
+  // How serious the engineer judged it.
+  severity: Severity
+  // Where on site: one of the assessment's locations, by its _id.
+  location: Types.ObjectId
   // Required on every document (see CLAUDE.md). The COPE dimension is the
-  // category the engineer picks when capturing.
+  // category the engineer picks when capturing; null means not categorised
+  // yet (CP-02 AC4).
   metadata: {
-    source_type: 'voice'
+    source_type: 'observation'
     jurisdiction: string
     facility_type: string
-    COPE_dimension: CopeDimension
+    COPE_dimension: CopeDimension | null
     effective_date: Date
   }
   createdAt: Date
   updatedAt: Date
 }
 
+const recordingSchema = new Schema<IRecording>({
+  name: { type: String, required: true },
+  key: { type: String, required: true },
+  contentType: { type: String, required: true },
+  size: { type: Number, required: true },
+  transcription: {
+    status: { type: String, enum: TRANSCRIPTION_STATUSES, required: true },
+    transcript: String,
+    error: String,
+    attempts: [
+      { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
+    ],
+  },
+})
+
 const observationSchema = new Schema<IObservation>(
   {
     assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true, index: true },
     session: { type: Schema.Types.ObjectId, ref: 'CaptureSession', required: true },
-    type: { type: String, enum: ['voice'], required: true },
     engineer: { type: String, required: true, trim: true },
+    note: { type: String, maxlength: 5000 },
+    recordings: [recordingSchema],
     standard: { type: String, trim: true, maxlength: 100 },
     severity: { type: String, enum: SEVERITIES, required: true },
-    area: { type: String, trim: true, maxlength: 100 },
-    audio: {
-      key: { type: String, required: true },
-      contentType: { type: String, required: true },
-      size: { type: Number, required: true },
-    },
-    transcription: {
-      status: { type: String, enum: TRANSCRIPTION_STATUSES, required: true },
-      transcript: String,
-      error: String,
-      attempts: [
-        { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
-      ],
-    },
+    location: { type: Schema.Types.ObjectId, required: true },
     metadata: {
-      source_type: { type: String, enum: ['voice'], required: true },
+      source_type: { type: String, enum: ['observation'], required: true },
       jurisdiction: { type: String, required: true },
       facility_type: { type: String, required: true },
-      COPE_dimension: { type: String, enum: COPE_DIMENSIONS, required: true },
+      // Stored as null rather than left out, so the field is always present.
+      COPE_dimension: { type: String, enum: COPE_DIMENSIONS, default: null },
       effective_date: { type: Date, required: true },
     },
   },
-  {
-    timestamps: true,
-    collection: 'observations',
-  },
+  { timestamps: true, collection: 'observations' },
 )
 
 export const ObservationModel = model<IObservation>('Observation', observationSchema)

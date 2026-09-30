@@ -70,7 +70,66 @@ retry. Move to a job collection with a worker if volume grows or restarts
 become common.
 Story: CP-03.
 
-## 2026-09-29 — Knowledge ingestion runs on a Redis/BullMQ queue
+## 2026-09-29 — One observations collection, one Mongoose discriminator per kind
+
+Chose: text notes join voice notes in `observations`, told apart by `type`,
+which is the Mongoose discriminator key; each kind has its own model and
+required fields. An uncategorised text note stores `COPE_dimension: null`.
+Rejected: a separate collection per kind, which splits the per-assessment list
+and the drafting inputs; one schema with every kind's fields optional, which
+loses the database's check that a voice note has its audio; and a placeholder
+category such as `'Uncategorised'`, a value the knowledge base never uses that
+every retrieval filter would have to remember to exclude. Reason: the report
+treats all captures as one observation structure, and null keeps the
+metadata field present (the CLAUDE.md rule) without inventing a category.
+Story: CP-02.
+
+## 2026-09-29 — One observation holds its note and recordings
+
+Chose: an observation is one thing the engineer saw, stored as one document
+with an optional `note`, a `recordings` list (each with its own transcription)
+and, from CP-04, photos. The category, severity, location and standard are
+stored once for all of them, and it is saved in one multipart request.
+Supersedes the same day's discriminator decision (one document per note or
+per recording). Rejected: keeping one document per item and grouping them with
+a shared ID, which copies the category and severity onto every item so later
+edits (CP-06, CP-08) could leave them disagreeing, and makes drafting regroup
+them. Reason: design-system rule 8 already treats note, voice and photo as
+modes of one record, and the report cites an observation with all its
+evidence. Any observation, not only a note, may now be left uncategorised.
+Stories: CP-02, CP-03.
+
+## 2026-09-29 — Locations on the assessment, chosen from a sheet on the capture screen
+
+Chose: engineers add the site's locations (a name and optional floor) during
+capture. They are embedded in the assessment, and each
+observation stores its location's id. On the capture screen a sticky location
+bar opens a sheet to search, pick or add one; it opens by itself until a
+location is chosen, and is a bottom sheet on phones. Rejected: a separate
+locations page before the observation page, since on a phone every switch of
+location would cost two screen changes; a location type field, which nothing
+used and which usually repeats the name ("Stairwell B"); and storing the location's name on the observation,
+which a later rename would split. Reason: engineers walk a site area by area on
+a phone, so switching location should take one tap.
+Stories: CP-02, CP-03.
+
+## 2026-09-30 — Tags are edited in place, and a location's name is its zone
+
+Chose: `PATCH /api/observations/:id` changes an observation's category,
+severity, location and standard in place, from an Edit tags dialog on the
+Observations tab. CP-06's zone is the location's name and its floor the
+location's `floor`, so no new field. The tab filters by category, severity,
+location and floor in the browser. Rejected: a zone field on locations, which
+the 2026-09-29 decision already turned down and which would usually repeat the
+name; leaving all editing to CP-08, which would keep an observation saved
+uncategorised out of drafting until Sprint 2; and filter parameters on the
+list route, since the tab already loads every observation and sample ones
+never reach the gateway. Reason: CP-06 asks for tags that persist and filter,
+and no draft cites an observation yet, so overwriting a tag loses nothing.
+Once drafts cite observations, CP-08 should keep the prior version (its AC5).
+Story: CP-06.
+
+## 2026-09-30 — Knowledge ingestion runs on a Redis/BullMQ queue
 Chose: the gateway stores each uploaded PDF in S3, records it in MongoDB
 and adds a job to a BullMQ queue in Redis; a separate Python worker
 (`ingestion-worker`, same image as the ingestion service) takes one job at
