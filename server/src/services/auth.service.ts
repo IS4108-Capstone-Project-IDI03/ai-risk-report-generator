@@ -18,8 +18,13 @@ export type SessionUser = { id: string; role: UserRole; name: string }
 // Verifies credentials and returns a signed session token plus the account.
 // Never distinguishes "no such email" from "wrong password" — both are the
 // same generic error, so a login attempt can't be used to enumerate accounts.
-export async function login(email: string, password: string): Promise<{ token: string; user: SessionUser }> {
-  const user = await UserModel.findOne({ email: email.toLowerCase().trim() }).select('+passwordHash')
+export async function login(
+  email: string,
+  password: string,
+): Promise<{ token: string; user: SessionUser }> {
+  const user = await UserModel.findOne({ email: email.toLowerCase().trim() }).select(
+    '+passwordHash',
+  )
   if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
     throw new InvalidCredentialsError()
   }
