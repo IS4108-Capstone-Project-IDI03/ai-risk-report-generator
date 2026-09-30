@@ -323,6 +323,108 @@ describe('POST /api/observations/:id/recordings/:recordingId/transcription/retry
   })
 })
 
+describe('PATCH /api/observations/:id', () => {
+  const retag = (id: unknown, tags: object) =>
+    request(app).patch(`/api/observations/${id}`).send(tags)
+
+  it('categorises an uncategorised observation, bringing it into drafting', async () => {
+    await assessmentWithSession()
+    const { id } = (await note({ copeDimension: null })).body
+
+    const response = await retag(id, { copeDimension: 'Exposure' })
+
+    expect(response.status).toBe(200)
+    expect(response.body.copeDimension).toBe('Exposure')
+    const inputs = await listCategoryObservations('RPT-2026-0411', 'Exposure')
+    expect(inputs.map((o) => o.id)).toEqual([id])
+  })
+
+  it('keeps the new tags when the observation is reopened, leaving everything else', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'Racking is new.' }))
+    await assessmentWithSession()
+    const saved = (await save({ note: 'Racking under heads.', standard: 'NFPA 13 – 2022 Edition' }))
+      .body
+    await settled(saved.id)
+
+    const response = await retag(saved.id, {
+      severity: 'critical',
+      locationId: String(PUMP_HOUSE),
+      standard: 'FM 2.0 – Last published April 2026',
+    })
+
+    expect(response.status).toBe(200)
+    const [reopened] = (await request(app).get('/api/assessments/RPT-2026-0411/observations')).body
+    expect(reopened).toMatchObject({
+      id: saved.id,
+      severity: 'critical',
+      location: { id: String(PUMP_HOUSE), name: 'Pump house', floor: null },
+      standard: 'FM 2.0 – Last published April 2026',
+      // Left out of the request, so unchanged.
+      copeDimension: 'Protection',
+      note: 'Racking under heads.',
+      engineer: 'A. Rowe',
+      recordedAt: saved.recordedAt,
+    })
+    expect(reopened.recordings).toEqual([
+      expect.objectContaining({
+        id: saved.recordings[0].id,
+        transcription: expect.objectContaining({ transcript: 'Racking is new.' }),
+      }),
+    ])
+  })
+
+  it('uncategorises an observation and removes its standard', async () => {
+    await assessmentWithSession()
+    const { id } = (await note({ standard: 'NFPA 25 – 2026 Edition' })).body
+
+    const response = await retag(id, { copeDimension: null, standard: '' })
+
+    expect(response.body).toMatchObject({ copeDimension: null, standard: null })
+    const stored = await ObservationModel.findById(id).lean()
+    // Present but null, as when it is saved uncategorised.
+    expect(stored?.metadata).toHaveProperty('COPE_dimension', null)
+    expect(stored).not.toHaveProperty('standard')
+    // Removing only the standard works too.
+    const other = (await note({ standard: 'NFPA 25 – 2026 Edition' })).body
+    expect((await retag(other.id, { standard: null })).body.standard).toBeNull()
+  })
+
+  it('accepts only the shared vocabulary and the assessment’s locations', async () => {
+    await assessmentWithSession()
+    const { id } = (await note()).body
+
+    const invalid = [
+      [{ copeDimension: 'Fire protection' }, 'copeDimension'],
+      [{ copeDimension: 'protection' }, 'copeDimension'],
+      [{ severity: 'urgent' }, 'severity'],
+      [{ severity: null }, 'severity'],
+      [{ locationId: 'Bay 3' }, 'locationId'],
+      [{ locationId: String(new Types.ObjectId()) }, 'locationId'],
+      [{ standard: 'x'.repeat(101) }, 'standard'],
+    ] as const
+    for (const [tags, field] of invalid) {
+      const response = await retag(id, tags)
+      expect(response.status).toBe(400)
+      expect(Object.keys(response.body.fields)).toEqual([field])
+    }
+    // Nothing to change is refused rather than silently accepted.
+    expect((await retag(id, {})).status).toBe(400)
+    expect((await retag(id, { note: 'Rewritten.' })).status).toBe(400)
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored).toMatchObject({
+      severity: 'high',
+      note: 'Hose reel H3 blocked by stacked pallets.',
+    })
+    expect(stored?.metadata.COPE_dimension).toBe('Protection')
+    expect(String(stored?.location)).toBe(String(BAY_3))
+  })
+
+  it('returns 404 for an unknown observation', async () => {
+    expect((await retag('nope', { severity: 'low' })).status).toBe(404)
+    expect((await retag(new Types.ObjectId(), { severity: 'low' })).status).toBe(404)
+  })
+})
+
 describe('observation list, audio and restarts', () => {
   it('lists the observations newest first, with each recording and its transcription', async () => {
     speech.mockReturnValue(s5(200, { transcript: 'Racking is new.' }))

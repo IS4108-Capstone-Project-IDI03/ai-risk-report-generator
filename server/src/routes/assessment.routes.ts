@@ -1,4 +1,3 @@
-import type { ZodError } from 'zod'
 import express, { Router, type ErrorRequestHandler } from 'express'
 import {
   createAssessment,
@@ -23,16 +22,9 @@ import {
   saveObservation,
   UnknownLocationError,
 } from '../services/observation.service'
+import { fieldErrors } from './field-errors'
 
 const router = Router()
-
-// The first problem with each invalid field, keyed by path, e.g.
-// { "site.name": "Site name is required." }.
-function fieldErrors(error: ZodError) {
-  const fields: Record<string, string> = {}
-  for (const issue of error.issues) fields[issue.path.map(String).join('.')] ??= issue.message
-  return fields
-}
 
 // The work list (RV-10). Filtering and search happen in the client for now.
 router.get('/', async (_req, res) => {
