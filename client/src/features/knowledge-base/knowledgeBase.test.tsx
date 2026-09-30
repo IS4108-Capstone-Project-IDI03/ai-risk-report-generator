@@ -22,6 +22,8 @@ const NFPA = {
   fileUrl: '/api/knowledge-documents/6abb28ae16068a0793e9962a/file',
 }
 
+const EDITION_RANGE = `Edition must be a year from 1900 to ${new Date().getFullYear() + 1}.`
+
 const json = (status: number, body: unknown) =>
   Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -136,6 +138,38 @@ describe('Knowledge base uploads (IN-01)', () => {
     expect(within(row).getByLabelText(/^Edition/)).toHaveValue(null)
   })
 
+  it("keeps a standard's edition to four digits and flags a year out of range as you type", async () => {
+    mockGateway([])
+    openKnowledgeBase()
+    choose(pdf('nfpa-13.pdf'))
+    const row = screen.getByRole('group', { name: 'nfpa-13.pdf' })
+    setField(row, /^Source type/, 'nfpa_standard')
+
+    setField(row, /^Edition/, '20225')
+    expect(within(row).getByLabelText(/^Edition/)).toHaveValue(2022)
+    expect(within(row).queryByText(EDITION_RANGE)).not.toBeInTheDocument()
+
+    setField(row, /^Edition/, '3000')
+    expect(within(row).getByText(EDITION_RANGE)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['missing', '', 'Edition is required.'],
+    ['out of range', '1850', EDITION_RANGE],
+  ])('does not upload a standard whose edition is %s', async (_case, edition, message) => {
+    const posted = mockGateway([])
+    openKnowledgeBase()
+    choose(pdf('nfpa-13.pdf'))
+    const row = fillDetails('nfpa-13.pdf')
+    setField(row, /^Edition/, edition)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload all' }))
+
+    expect(await within(row).findByText(message)).toBeInTheDocument()
+    expect(within(row).getByLabelText(/^Edition/)).toBeEnabled()
+    expect(posted).toEqual([])
+  })
+
   it("sends only a Marsh report's own details", async () => {
     const posted = mockGateway([])
     openKnowledgeBase()
@@ -205,11 +239,16 @@ describe('Knowledge base uploads (IN-01)', () => {
     ])
     openKnowledgeBase()
 
-    const table = await screen.findByRole('region', { name: 'Uploaded documents' })
+    const table = await screen.findByRole('region', { name: 'Recent uploads' })
     await within(table).findByText('Failed')
     expect(within(table).getByText('Failed')).toBeInTheDocument()
     expect(within(table).getByText('Docling could not parse nfpa-13.pdf')).toBeInTheDocument()
     expect(within(table).getByText('Complete')).toBeInTheDocument()
+    expect(
+      within(table).getByText(
+        'Complete uploads leave this list after 24 hours, failed ones after 7 days.',
+      ),
+    ).toBeInTheDocument()
     expect(within(table).getAllByRole('link', { name: /View original/ })[0]).toHaveAttribute(
       'href',
       NFPA.fileUrl,
@@ -232,7 +271,7 @@ describe('Knowledge base uploads (IN-01)', () => {
     ])
     openKnowledgeBase()
 
-    const table = await screen.findByRole('region', { name: 'Uploaded documents' })
+    const table = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(
       await within(table).findByText('NFPA · 2022 Edition · NFPA standard'),
     ).toBeInTheDocument()

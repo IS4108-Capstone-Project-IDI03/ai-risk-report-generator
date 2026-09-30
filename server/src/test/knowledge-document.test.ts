@@ -2,6 +2,7 @@ import { Readable } from 'stream'
 import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { useMemoryMongo } from './memory-mongo'
 
 // S3 stands in as a map, the queue as a spy, and the ingestion service's PDF
@@ -48,6 +49,9 @@ const DETAILS = {
   sourceType: 'nfpa_standard',
   jurisdiction: 'SG',
 }
+// An edition can be published ahead of the year it is named for.
+const NEXT_YEAR = new Date().getFullYear() + 1
+const EDITION_RANGE = `Edition must be a year from 1900 to ${NEXT_YEAR}.`
 const REPORT = {
   fileName: 'Cold store survey.pdf',
   title: 'Cold store risk survey',
@@ -181,7 +185,17 @@ describe('POST /api/knowledge-documents', () => {
     [
       "a standard's edition that is not a year",
       { ...DETAILS, edition: '2022 Edition' },
-      { edition: 'Edition must be a year, e.g. 2022.' },
+      { edition: EDITION_RANGE },
+    ],
+    [
+      "a standard's edition after next year",
+      { ...DETAILS, edition: String(NEXT_YEAR + 1) },
+      { edition: EDITION_RANGE },
+    ],
+    [
+      "a standard's edition before 1900",
+      { ...DETAILS, edition: '1899' },
+      { edition: EDITION_RANGE },
     ],
     [
       'a Marsh report without a facility type',
@@ -228,6 +242,34 @@ describe('POST /api/knowledge-documents', () => {
     expect(response.body.error).toBe('Ingestion could not be queued. Try uploading again shortly.')
     expect(s3.size).toBe(0)
     expect((await request(app).get('/api/knowledge-documents')).body).toEqual([])
+  })
+})
+
+describe('GET /api/knowledge-documents', () => {
+  it('lists recent uploads: in progress, complete for 24 hours, failed for 7 days', async () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000)
+    // The ingestion worker writes status and finishedAt; set them as it would.
+    const cases = [
+      ['queued', { status: 'queued' }],
+      ['processing', { status: 'processing' }],
+      ['complete 23 h ago', { status: 'complete', finishedAt: hoursAgo(23) }],
+      ['complete 25 h ago', { status: 'complete', finishedAt: hoursAgo(25) }],
+      ['failed 6 days ago', { status: 'failed', finishedAt: hoursAgo(6 * 24) }],
+      ['failed 8 days ago', { status: 'failed', finishedAt: hoursAgo(8 * 24) }],
+    ] as const
+    for (const [title, state] of cases) {
+      const { body } = await upload(PDF, { ...DETAILS, title })
+      await KnowledgeDocumentModel.updateOne({ _id: body.id }, state)
+    }
+
+    const { body } = await request(app).get('/api/knowledge-documents')
+
+    expect(body.map((d: { title: string }) => d.title).sort()).toEqual([
+      'complete 23 h ago',
+      'failed 6 days ago',
+      'processing',
+      'queued',
+    ])
   })
 })
 

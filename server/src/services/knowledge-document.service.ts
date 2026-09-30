@@ -20,6 +20,9 @@ const text = (label: string, max: number) =>
     .min(1, `${label} is required.`)
     .max(max, `${label} must be ${max} characters or fewer.`)
 
+// Worked out on each check, so a long-running gateway rolls over at New Year.
+const nextYear = () => new Date().getFullYear() + 1
+
 const country = (allowAll: boolean) =>
   z
     .string('Country is required.')
@@ -44,10 +47,13 @@ export const documentDetailsSchema = z.discriminatedUnion(
     z.object({
       ...common,
       sourceType: z.enum(['fm_standard', 'nfpa_standard']),
-      // A year, so IN-02 can compare editions reliably.
+      // A year, so IN-02 can compare editions reliably. Up to next year,
+      // since an edition can be published ahead of the year it is named for.
       edition: z
         .string('Edition is required.')
-        .regex(/^\d{4}$/, 'Edition must be a year, e.g. 2022.'),
+        .refine((value) => /^\d{4}$/.test(value) && +value >= 1900 && +value <= nextYear(), {
+          error: () => `Edition must be a year from 1900 to ${nextYear()}.`,
+        }),
       jurisdiction: country(true),
       facilityType: z
         .string()
@@ -216,8 +222,25 @@ export async function getKnowledgeDocumentFile(id: string) {
   }
 }
 
-// Newest first, so the admin sees their latest uploads at the top.
+const HOUR = 60 * 60 * 1000
+
+/**
+ * Returns the recent uploads, newest first: every document still queued or
+ * processing, plus those that finished recently. A success needs no follow-up,
+ * so it shows for 24 hours; a failure needs someone to act, so it shows for 7
+ * days. Older documents stay stored; they are just not listed here (the full
+ * knowledge base view is KB-01).
+ */
 export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> {
-  const documents = await KnowledgeDocumentModel.find().sort({ createdAt: -1 }).lean()
+  const since = (hours: number) => new Date(Date.now() - hours * HOUR)
+  const documents = await KnowledgeDocumentModel.find({
+    $or: [
+      { status: { $in: ['queued', 'processing'] } },
+      { status: 'complete', finishedAt: { $gte: since(24) } },
+      { status: 'failed', finishedAt: { $gte: since(7 * 24) } },
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .lean()
   return documents.map(toDto)
 }

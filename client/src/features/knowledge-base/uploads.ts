@@ -82,6 +82,21 @@ function withSourceType(details: DocumentDetails, sourceType: SourceType | ''): 
   }
 }
 
+/**
+ * Returns why a standard's edition is not acceptable, or null when it is.
+ * It must be a year from 1900 to next year (a new edition can come out ahead
+ * of the year it is named for); the gateway checks the same rule.
+ */
+export function editionProblem(details: DocumentDetails): string | null {
+  if (details.sourceType !== 'fm_standard' && details.sourceType !== 'nfpa_standard') return null
+  if (!details.edition) return 'Edition is required.'
+  const nextYear = new Date().getFullYear() + 1
+  const year = Number(details.edition)
+  return /^\d{4}$/.test(details.edition) && year >= 1900 && year <= nextYear
+    ? null
+    : `Edition must be a year from 1900 to ${nextYear}.`
+}
+
 export function editDetails(key: string, change: Partial<DocumentDetails>) {
   const upload = uploads.find((u) => u.key === key)
   if (!upload) return
@@ -89,7 +104,11 @@ export function editDetails(key: string, change: Partial<DocumentDetails>) {
     change.sourceType !== undefined && change.sourceType !== upload.details.sourceType
       ? withSourceType(upload.details, change.sourceType)
       : upload.details
-  patch(key, { details: { ...details, ...change } })
+  // An edited field's old error no longer applies.
+  const fieldErrors = Object.fromEntries(
+    Object.entries(upload.fieldErrors).filter(([field]) => !(field in change)),
+  )
+  patch(key, { details: { ...details, ...change }, fieldErrors })
 }
 
 export function removeUpload(key: string) {
@@ -106,6 +125,12 @@ export function clearFinished() {
 // details or retrying can help, back to draft; if only a different file can,
 // rejected.
 async function send(upload: Upload) {
+  // A bad edition is caught here, so the row never leaves the browser.
+  const edition = editionProblem(upload.details)
+  if (edition) {
+    patch(upload.key, { error: null, fieldErrors: { edition } })
+    return
+  }
   // Lock the row and clear any error from a previous attempt.
   patch(upload.key, { state: 'uploading', error: null, fieldErrors: {} })
   try {

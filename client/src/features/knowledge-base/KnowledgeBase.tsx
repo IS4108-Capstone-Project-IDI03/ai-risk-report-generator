@@ -1,6 +1,6 @@
 // The Knowledge base screen (IN-01), in three parts: KnowledgeBase (the "Add
 // documents" panel), UploadRow (one file's details form) and UploadedDocuments
-// (the server's list with ingestion status). Upload logic lives in uploads.ts;
+// (the server's recent uploads with ingestion status). Upload logic lives in uploads.ts;
 // this file only displays it.
 import { useEffect, useState } from 'react'
 import {
@@ -25,6 +25,7 @@ import {
   addFiles,
   clearFinished,
   editDetails,
+  editionProblem,
   removeUpload,
   uploadAll,
   useUploads,
@@ -69,13 +70,12 @@ function fileSize(bytes: number) {
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 // A calendar date as "12 Mar 2024". UTC, because the stored date has no time.
+// The month is cut to three letters, as in uploadedAt, since some browsers
+// write September as "Sept".
 function calendarDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  const date = new Date(iso)
+  const month = date.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }).slice(0, 3)
+  return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}`
 }
 // The design system's literal date form, e.g. "29 Sep 11:24".
 function uploadedAt(iso: string) {
@@ -213,15 +213,17 @@ function UploadRow({ upload }: { upload: Upload }) {
                   label="Edition"
                   required
                   type="number"
-                  // A year; up to next year, since a new edition can be
-                  // published ahead of the year it is named for.
+                  // min/max only steer the arrows; editionProblem does the
+                  // real check once four digits are in, and before upload.
                   min={1900}
                   max={new Date().getFullYear() + 1}
                   step={1}
                   placeholder="e.g. 2022"
                   value={details.edition}
-                  error={fieldErrors.edition}
-                  onChange={(e) => set({ edition: e.target.value })}
+                  error={
+                    (details.edition.length === 4 && editionProblem(details)) || fieldErrors.edition
+                  }
+                  onChange={(e) => set({ edition: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                 />
               )}
               <Input
@@ -256,10 +258,11 @@ function UploadRow({ upload }: { upload: Upload }) {
   )
 }
 
-// Accepted documents with their ingestion status, read from the gateway (the
-// server's record, not this browser's). Re-read every 3 seconds while any is
-// still queued or processing, and whenever a new upload is accepted. An
-// unreachable gateway leaves the last list showing.
+// Recent uploads with their ingestion status, read from the gateway (the
+// server's record, not this browser's): in progress, plus complete for 24
+// hours and failed for 7 days (the gateway decides). Re-read every 3 seconds
+// while any is still queued or processing, and whenever a new upload is
+// accepted. An unreachable gateway leaves the last list showing.
 function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey: number }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
@@ -318,11 +321,14 @@ function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey
 
   return (
     <section className="kb-uploaded" aria-labelledby="kb-uploaded-title">
-      <h2 id="kb-uploaded-title">Uploaded documents</h2>
+      <header className="kb-uploaded-head">
+        <h2 id="kb-uploaded-title">Recent uploads</h2>
+        <p>Complete uploads leave this list after 24 hours, failed ones after 7 days.</p>
+      </header>
       {unreachable && (
         <Callout
           tone="danger"
-          title="Uploaded documents not loaded"
+          title="Recent uploads not loaded"
           actions={
             <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
               Try again
@@ -336,17 +342,17 @@ function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey
       {documents === null ? (
         !unreachable && (
           <p className="kb-empty" role="status">
-            Loading uploaded documents…
+            Loading recent uploads…
           </p>
         )
       ) : documents.length === 0 ? (
         <EmptyState
           icon="library"
-          title="No documents uploaded yet"
+          title="No recent uploads"
           description="Documents appear here once an upload is accepted, with their ingestion status."
         />
       ) : narrow ? (
-        <ul className="kb-stack" aria-label="Uploaded documents">
+        <ul className="kb-stack" aria-label="Recent uploads">
           {documents.map((d) => (
             <li key={d.id}>
               {title(d)}

@@ -40,7 +40,8 @@
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-subtle);
 }
-.kb-panel-head p {
+.kb-panel-head p,
+.kb-uploaded-head p {
   margin: 2px 0 0;
   font-size: var(--text-small-size);
   line-height: var(--text-small-lh);
