@@ -203,6 +203,16 @@ describe('POST /api/knowledge-documents', () => {
       { facilityType: 'Facility type is required.' },
     ],
     [
+      'a facility type not on the list',
+      { ...REPORT, facilityType: 'Spaceport' },
+      { facilityType: 'Choose a facility type from the list.' },
+    ],
+    [
+      "a standard's facility type not on the list",
+      { ...DETAILS, facilityType: 'Spaceport' },
+      { facilityType: 'Choose a facility type from the list.' },
+    ],
+    [
       'a Marsh report for all countries',
       { ...REPORT, jurisdiction: 'all' },
       { jurisdiction: 'Country must be a two-letter code, e.g. SG.' },

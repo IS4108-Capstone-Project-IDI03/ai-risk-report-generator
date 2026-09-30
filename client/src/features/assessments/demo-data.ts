@@ -21,6 +21,8 @@ export const JURISDICTIONS = [
   { value: 'UK', label: 'United Kingdom' },
 ]
 
+// The gateway checks knowledge documents against a copy of this list: keep
+// FACILITY_TYPES in server/src/services/knowledge-document.service.ts matching.
 export const FACILITY_TYPES = [
   'Distribution warehouse',
   'Cold store',

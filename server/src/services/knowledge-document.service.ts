@@ -31,6 +31,23 @@ const country = (allowAll: boolean) =>
       'Country must be a two-letter code, e.g. SG.',
     )
 
+// The facility types a document may be labelled with (KB-01 AC7). Must match
+// FACILITY_TYPES in client/src/features/assessments/demo-data.ts, which the
+// forms offer.
+const FACILITY_TYPES = [
+  'Distribution warehouse',
+  'Cold store',
+  'Chemical plant',
+  'Paper mill',
+  'Port terminal',
+  'Data centre',
+  'Office',
+  'Shopping mall',
+  'Mixed-use development',
+]
+const onTheList = (allowed: string[]) =>
+  [(value: string) => allowed.includes(value), 'Choose a facility type from the list.'] as const
+
 // The details the admin enters for each file (IN-01 AC1), as Zod validation
 // rules. Which details are asked depends on the source type: a standard has an
 // edition and may apply in all countries; a past Marsh report has neither, but
@@ -58,15 +75,15 @@ export const documentDetailsSchema = z.discriminatedUnion(
       facilityType: z
         .string()
         .trim()
-        .max(100, 'Facility type must be 100 characters or fewer.')
         .optional()
-        .transform((value) => value || 'all'),
+        .transform((value) => value || 'all')
+        .refine(...onTheList([...FACILITY_TYPES, 'all'])),
     }),
     z.object({
       ...common,
       sourceType: z.literal('marsh_report'),
       jurisdiction: country(false),
-      facilityType: text('Facility type', 100),
+      facilityType: text('Facility type', 100).refine(...onTheList(FACILITY_TYPES)),
     }),
   ],
   'Choose a source type: FM standard, NFPA standard or Marsh report.',
