@@ -1,3 +1,5 @@
+// The gateway's /api/knowledge-documents URLs (IN-01). Each route checks the
+// request and picks the HTTP status; the work is in knowledge-document.service.ts.
 import express, { Router, type ErrorRequestHandler } from 'express'
 import { pipeline } from 'stream'
 import { IngestionUnavailableError } from '../services/ingestion.service'
@@ -19,6 +21,8 @@ router.get('/', async (_req, res) => {
 
 // Uploads one knowledge document (IN-01). The body is the PDF itself; its
 // details are in the query string because they are not plain ASCII.
+// Answers: 201 accepted · 400 bad details · 413 over 100 MB · 415 not a PDF ·
+// 422 a PDF that will not open · 503 ingestion down (retry later).
 router.post('/', express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
   const parsed = documentDetailsSchema.safeParse(req.query)
   if (!parsed.success) {

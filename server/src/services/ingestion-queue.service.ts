@@ -1,3 +1,6 @@
+// Puts one ingestion job on the Redis queue (IN-01). BullMQ is the queue
+// library; Redis is where the queue lives. The job only carries the document
+// ID; the Python worker (app/worker.py) reads the rest from MongoDB.
 import { Queue } from 'bullmq'
 import { setTimeout as sleep } from 'timers/promises'
 import { config } from '../config'

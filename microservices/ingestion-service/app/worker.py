@@ -5,6 +5,9 @@ The gateway stores each uploaded PDF in S3, records it in MongoDB's
 `ingestion` queue in Redis. This worker takes one job at a time, downloads the
 original, runs `app.pipeline.run` and records the outcome on the document.
 
+A separate long-running program, not a web server: it waits on the queue.
+Redis/BullMQ knows the jobs; MongoDB knows each document's status.
+
 Run with `python -m app.worker`. Needs REDIS_URL, MONGODB_URI, S3_BUCKET,
 AWS_REGION and the AWS credentials, plus everything `run()` needs.
 """
@@ -52,8 +55,10 @@ def ingest_document(document_id: str) -> None:
     """
     collection = documents()
     _id = ObjectId(document_id)
-    # `processing` is claimable too: BullMQ redelivers a job whose worker died
-    # mid-run. A finished document is never re-run.
+    # 1. Claim: one atomic find-and-set, so two workers cannot take the same
+    # document. `processing` is claimable too: if a worker crashes, its lock in
+    # Redis expires, BullMQ hands the job out again ("stalled"), and the new run
+    # starts the document over. A finished document is never re-run.
     doc = collection.find_one_and_update(
         {"_id": _id, "status": {"$in": ["queued", "processing"]}},
         {"$set": {"status": "processing", "startedAt": datetime.now(UTC)}},
@@ -63,12 +68,17 @@ def ingest_document(document_id: str) -> None:
         log.warning("Document %s is already finished or missing; skipping.", document_id)
         return
 
+    # 2. Download the original into a temporary folder that deletes itself, and
+    # 3. run PAR16's pipeline: parse → chunk → anonymise → index.
     try:
         with tempfile.TemporaryDirectory() as tmp:
             # Keep the original file name: the parser reports it as the doc name.
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
             summary = run(path, doc_id=document_id)
+    # 4. Record the outcome: failed here, complete below. The failure reason is
+    # what the admin sees; re-raising tells BullMQ the job failed (not retried:
+    # attempts is 1).
     except Exception as error:
         collection.update_one(
             {"_id": _id},
@@ -99,8 +109,9 @@ def ingest_document(document_id: str) -> None:
 
 
 async def process(job, _token):
-    # run() is CPU-bound for minutes; a thread keeps the event loop free to
-    # renew the job's lock, so BullMQ does not think the worker stalled.
+    # run() is CPU-bound for minutes; a thread keeps the event loop free for the
+    # BullMQ Worker to renew the job's lock in Redis (its "still alive" signal),
+    # so BullMQ does not think the worker stalled.
     await asyncio.to_thread(ingest_document, job.data["documentId"])
 
 

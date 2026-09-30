@@ -1,4 +1,7 @@
-// Gateway (S2) calls for knowledge base documents (IN-01).
+// Browser → gateway requests for knowledge base documents (IN-01).
+// uploads.ts uses the upload; KnowledgeBase.tsx uses the list. A failed request
+// throws a GatewayError carrying the HTTP status, which uploads.ts reads to
+// decide what happens to the row.
 import { request } from '../accounts/api'
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'marsh_report'
@@ -15,6 +18,8 @@ export type DocumentDetails = {
   facilityType: string
 }
 
+// One accepted document as the gateway sends it; matches toDto() in
+// server/src/services/knowledge-document.service.ts.
 export type KnowledgeDocument = {
   id: string
   title: string
@@ -37,8 +42,9 @@ export function listKnowledgeDocuments(signal?: AbortSignal): Promise<KnowledgeD
   return request<KnowledgeDocument[]>('/api/knowledge-documents', { signal })
 }
 
-// Sends one PDF with its details and returns the queued document. The details
-// travel in the query string because the body is the file itself.
+// Sends one PDF with its details and returns the queued document. The body is
+// the raw PDF and the details go in the URL's query string, so the gateway
+// needs no multipart-form library.
 export function uploadKnowledgeDocument(
   file: File,
   details: DocumentDetails,

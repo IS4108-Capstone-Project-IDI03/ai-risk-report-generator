@@ -1,3 +1,7 @@
+// The upload rows in the "Add documents" panel (IN-01). Browser only: the
+// server's list of accepted documents is separate (UploadedDocuments in
+// KnowledgeBase.tsx). A row goes draft → uploading → queued (accepted) or
+// rejected, or back to draft when fixing the details or retrying can help.
 import { useSyncExternalStore } from 'react'
 import { GatewayError } from '../assessments/api'
 import { uploadKnowledgeDocument, type DocumentDetails } from './api'
@@ -14,12 +18,15 @@ export type Upload = {
 }
 
 // Kept outside React so uploads keep going, and their outcomes stay visible,
-// while the admin works elsewhere in the app. A page reload clears them;
-// accepted documents are in the gateway's list anyway (IN-01 D9).
+// while the admin works elsewhere in the app: React state (useState) is thrown
+// away when you leave the screen, a module variable is not. A page reload
+// clears them; accepted documents are in the gateway's list anyway (IN-01 D9).
 let uploads: Upload[] = []
 const listeners = new Set<() => void>()
 let nextKey = 0
 
+// Every change goes through set, which swaps in a new list and tells React to
+// redraw. patch changes a few fields on one row.
 function set(next: Upload[]) {
   uploads = next
   listeners.forEach((listener) => listener())
@@ -71,14 +78,20 @@ export function removeUpload(key: string) {
   set(uploads.filter((u) => u.key !== key))
 }
 
-// Clears rows that are done with, so the next batch starts clean.
+// Clears accepted and rejected rows from this panel, so the next batch starts
+// clean. The uploaded documents list is untouched.
 export function clearFinished() {
   set(uploads.filter((u) => u.state === 'draft' || u.state === 'uploading'))
 }
 
+// Uploads one row and moves it to its next state. The rule: if fixing the
+// details or retrying can help, back to draft; if only a different file can,
+// rejected.
 async function send(upload: Upload) {
+  // Lock the row and clear any error from a previous attempt.
   patch(upload.key, { state: 'uploading', error: null, fieldErrors: {} })
   try {
+    // 201: accepted. Its ingestion progress now shows in the uploaded list.
     await uploadKnowledgeDocument(upload.file, upload.details)
     patch(upload.key, { state: 'queued' })
   } catch (error: unknown) {
@@ -99,6 +112,8 @@ async function send(upload: Upload) {
       })
       return
     }
+    // Anything else (413 too big, 415 not a PDF, 422 will not open): the file
+    // itself is the problem.
     patch(upload.key, {
       state: 'rejected',
       error: error instanceof Error ? error.message : 'The file was not uploaded.',
@@ -106,7 +121,10 @@ async function send(upload: Upload) {
   }
 }
 
-/** Uploads every draft row at once, each independently (IN-01 AC6). */
+/**
+ * Uploads every draft row at once, each independently (IN-01 AC6); returns nothing.
+ * Each send catches its own errors, so one failure never stops the others.
+ */
 export function uploadAll() {
   void Promise.all(uploads.filter((u) => u.state === 'draft').map(send))
 }

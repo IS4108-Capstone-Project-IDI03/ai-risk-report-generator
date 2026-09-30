@@ -1,3 +1,6 @@
+// Knowledge documents on the gateway (IN-01): check an upload, store it, record
+// it and queue its ingestion; list them; stream an original back.
+// Called by routes/knowledge-document.routes.ts.
 import { createHash } from 'crypto'
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
@@ -17,8 +20,9 @@ const text = (label: string, max: number) =>
     .min(1, `${label} is required.`)
     .max(max, `${label} must be ${max} characters or fewer.`)
 
-// The details the admin enters for each file (IN-01 AC1). They arrive in the
-// query string because the request body is the PDF itself.
+// The details the admin enters for each file (IN-01 AC1), as Zod validation
+// rules. They arrive in the query string because the request body is the PDF
+// itself. A broken rule becomes a 400 naming the field.
 export const documentDetailsSchema = z.object({
   fileName: text('File name', 255),
   title: text('Title', 200),
@@ -59,6 +63,7 @@ export type KnowledgeDocumentDto = {
   fileUrl: string
 }
 
+// Turns a database row into the shape the browser's api.ts expects.
 function toDto(d: IKnowledgeDocument & { _id: Types.ObjectId }): KnowledgeDocumentDto {
   return {
     id: String(d._id),
@@ -94,26 +99,32 @@ export class RejectedFileError extends Error {
 const PDF_MARKER = Buffer.from('%PDF-')
 
 // Stores the original PDF in S3, records it with its details and queues its
-// ingestion (AC1, AC2). Throws RejectedFileError before storing anything if
-// the file is not a PDF or cannot be opened (AC5).
+// ingestion (AC1, AC2), in steps a–e. Throws RejectedFileError before storing
+// anything if the file is not a PDF or cannot be opened (AC5), so a rejected
+// file leaves no trace.
 export async function uploadKnowledgeDocument(
   pdf: Buffer,
   contentType: string,
   details: DocumentDetails,
 ): Promise<KnowledgeDocumentDto> {
+  // a. Is it really a PDF? Cheap, so it runs first.
   if (
     contentType.split(';')[0].trim() !== 'application/pdf' ||
     !pdf.subarray(0, 5).equals(PDF_MARKER)
   ) {
     throw new RejectedFileError(415, 'Only PDF files can be uploaded.')
   }
+  // b. Does it open? Asks the ingestion service (see ingestion.service.ts).
   const cannotOpen = await whyPdfCannotOpen(pdf)
   if (cannotOpen) throw new RejectedFileError(422, cannotOpen)
 
+  // c. Store the unaltered original in S3 (AC4).
   const id = new Types.ObjectId()
   const key = `knowledge/${id}.pdf`
   await storage.putObject(key, pdf, 'application/pdf')
 
+  // d. Record it in MongoDB as `queued`. sha256 is a fingerprint that proves a
+  // copy retrieved later matches the upload.
   let document
   try {
     document = await KnowledgeDocumentModel.create({
@@ -142,6 +153,7 @@ export async function uploadKnowledgeDocument(
     await storage.deleteObject(key).catch(() => undefined)
     throw error
   }
+  // e. Queue its ingestion; the worker picks it up from there.
   try {
     await enqueueIngestion(String(id))
   } catch (error) {

@@ -1,3 +1,6 @@
+// The gateway's side of the PDF check (IN-01): sends the PDF to the ingestion
+// service's /inspect (app/api/routes.py), which opens it with PyMuPDF. Node has
+// no PDF library; Python already has one.
 import { config } from '../config'
 
 // Ingestion (its service or its queue) is down; the upload can be retried.
@@ -8,8 +11,9 @@ export class IngestionUnavailableError extends Error {
   }
 }
 
-// Asks the ingestion service to open the PDF (PyMuPDF), since the gateway
-// cannot. Returns why it cannot be opened, or null when it opens fine.
+// Asks the ingestion service to open the PDF. Returns why it cannot be opened
+// (its 422 reason), or null when it opens fine. Throws IngestionUnavailableError
+// if the service is down or answers anything else, which becomes a 503.
 export async function whyPdfCannotOpen(pdf: Buffer): Promise<string | null> {
   let response: Response
   try {

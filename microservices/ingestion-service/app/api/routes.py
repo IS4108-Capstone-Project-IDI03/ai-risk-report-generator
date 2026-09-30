@@ -65,6 +65,8 @@ async def inspect(request: Request) -> dict:
     """Open an uploaded PDF so the gateway can reject one that cannot be ingested.
 
     Returns the page count, or 422 with the reason shown to the admin (IN-01).
+    Called by the gateway (server/src/services/ingestion.service.ts) before it
+    stores anything; saves nothing itself.
     """
     try:
         doc = pymupdf.open(stream=await request.body(), filetype="pdf")

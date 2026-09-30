@@ -1,3 +1,7 @@
+// The Knowledge base screen (IN-01), in three parts: KnowledgeBase (the "Add
+// documents" panel), UploadRow (one file's details form) and UploadedDocuments
+// (the server's list with ingestion status). Upload logic lives in uploads.ts;
+// this file only displays it.
 import { useEffect, useState } from 'react'
 import {
   Badge,
@@ -67,7 +71,7 @@ function uploadedAt(iso: string) {
   return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' }).slice(0, 3)} ${time}`
 }
 
-// Knowledge admins upload standards and past reports for ingestion (IN-01).
+// The "Add documents" panel: file picker, one row per file, Upload all, counter.
 export function KnowledgeBase({ narrow }: { narrow: boolean }) {
   const uploads = useUploads()
   const drafts = uploads.filter((u) => u.state === 'draft').length
@@ -140,6 +144,8 @@ export function KnowledgeBase({ narrow }: { narrow: boolean }) {
   )
 }
 
+// One file's details form. Locked unless the row is a draft; the gateway's
+// field errors show under each input.
 function UploadRow({ upload }: { upload: Upload }) {
   const { key, file, details, state, error, fieldErrors } = upload
   const locked = state !== 'draft'
@@ -229,9 +235,10 @@ function UploadRow({ upload }: { upload: Upload }) {
   )
 }
 
-// Accepted documents with their ingestion status. Re-read every 3 seconds
-// while any is still queued or processing, and whenever a new upload is
-// accepted. An unreachable gateway leaves the last list showing.
+// Accepted documents with their ingestion status, read from the gateway (the
+// server's record, not this browser's). Re-read every 3 seconds while any is
+// still queued or processing, and whenever a new upload is accepted. An
+// unreachable gateway leaves the last list showing.
 function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey: number }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
@@ -253,6 +260,7 @@ function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey
         },
       )
     void load()
+    // Leaving the screen cancels the request in flight and the next re-read.
     return () => {
       controller.abort()
       clearTimeout(timer)
