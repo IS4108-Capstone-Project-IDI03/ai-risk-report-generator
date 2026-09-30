@@ -31,7 +31,8 @@ gateway creates assessments at `POST /api/assessments` and starts or resumes an
 assessment's capture session at `POST /api/assessments/:reference/capture-session`.
 It lists assessments with their status at `GET /api/assessments`, and records
 observations (a note, recordings or both) against the capture session in progress.
-Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
+An observation's tags (category, severity, location, standard) change at
+`PATCH /api/observations/:id`. Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
 forwarding remain placeholders.
 
 ### Frontend demo
@@ -53,7 +54,11 @@ choosing or adding the location on site. With a capture
 session live, an observation's note and recordings are saved through the
 gateway together: the note exactly as typed, and each recording stored in S3
 and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`). An
-observation may be left uncategorised. Photos are still memory-only.
+observation may be left uncategorised. Photos are still memory-only. On the
+Observations tab, the list filters by category, severity, location and floor,
+and Edit tags changes an observation's category, severity, location and
+standard: through the gateway for a saved observation, in the demo for a sample
+one.
 
 ## Running the stack locally
 

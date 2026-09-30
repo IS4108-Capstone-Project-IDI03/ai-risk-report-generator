@@ -92,8 +92,7 @@ taps from adding it twice. `GET` on the same path lists them in the order they
 were added. Adding one needs no capture session. `DELETE
 /api/assessments/:reference/locations/:id` removes one added by mistake: 204,
 404, or 409 while any observation is saved there, so no observation loses its
-location. Moving observations to another location arrives with editing
-(CP-06, CP-08). `npm --prefix server run seed`
+location; editing an observation's tags (CP-06) moves it elsewhere. `npm --prefix server run seed`
 gives `RPT-2026-0411` six sample locations when it has none.
 
 `GET /api/assessments` returns every assessment with its derived `status`, most
@@ -151,8 +150,16 @@ note counts as none. An observation may be saved uncategorised: its
 `COPE_dimension` is then `null`, present but null rather than left out.
 `listCategoryObservations` in `observation.service.ts`, the category-scoped
 drafting inputs for GN-01, matches on `COPE_dimension`, so an uncategorised
-observation stays out of drafting until it is categorised. Nothing can
-categorise a saved observation yet; editing arrives with CP-06 and CP-08.
+observation stays out of drafting until it is categorised by editing its tags.
+
+The category, severity, location and standard are the observation's tags
+(CP-06). `PATCH /api/observations/:id` changes any of them in place, validated
+against the same values as capture, and leaves the note, recordings and capture
+time as they are. Nothing keeps the previous tags: no draft cites an observation
+yet, and corrections that keep the prior version are CP-08. There is no zone
+field: the location's `name` is its zone and its `floor` the floor, so choosing
+a location tags both. The Observations tab filters by category, severity,
+location and floor in the browser, like the dashboard.
 
 Each recording has its own `_id`, a `name` ("Recording 2" or the uploaded
 file's name), and its original audio in S3 at
@@ -170,6 +177,7 @@ capture session `active`.
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `engineer`, `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
 | `GET /api/assessments/:reference/observations` | Every observation, newest first, with its `note` and `recordings`, each recording with its `url` and `transcription`. `copeDimension` is `null` for an uncategorised observation |
+| `PATCH /api/observations/:id` | Changes the tags: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations) and `standard` (100 characters; `null` or `''` removes it). A tag left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when no tag is sent) / 404 |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 

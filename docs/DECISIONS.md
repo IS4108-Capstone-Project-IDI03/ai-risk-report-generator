@@ -112,3 +112,19 @@ used and which usually repeats the name ("Stairwell B"); and storing the locatio
 which a later rename would split. Reason: engineers walk a site area by area on
 a phone, so switching location should take one tap.
 Stories: CP-02, CP-03.
+
+## 2026-09-30 — Tags are edited in place, and a location's name is its zone
+
+Chose: `PATCH /api/observations/:id` changes an observation's category,
+severity, location and standard in place, from an Edit tags dialog on the
+Observations tab. CP-06's zone is the location's name and its floor the
+location's `floor`, so no new field. The tab filters by category, severity,
+location and floor in the browser. Rejected: a zone field on locations, which
+the 2026-09-29 decision already turned down and which would usually repeat the
+name; leaving all editing to CP-08, which would keep an observation saved
+uncategorised out of drafting until Sprint 2; and filter parameters on the
+list route, since the tab already loads every observation and sample ones
+never reach the gateway. Reason: CP-06 asks for tags that persist and filter,
+and no draft cites an observation yet, so overwriting a tag loses nothing.
+Once drafts cite observations, CP-08 should keep the prior version (its AC5).
+Story: CP-06.
