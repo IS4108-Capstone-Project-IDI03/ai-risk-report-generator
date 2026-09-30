@@ -17,12 +17,7 @@ export type NewAssessment = {
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
 export type AssessmentStatus =
-  | 'not_started'
-  | 'capturing'
-  | 'ready_to_generate'
-  | 'draft'
-  | 'under_review'
-  | 'finalised'
+  'not_started' | 'capturing' | 'ready_to_generate' | 'draft' | 'under_review' | 'finalised'
 
 export type Assessment = {
   id: string
