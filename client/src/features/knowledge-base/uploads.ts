@@ -69,10 +69,14 @@ export function addFiles(files: File[]) {
   ])
 }
 
+// Returns the details with the new source type and that type's defaults.
 // Changing the source type starts that type's own fields afresh: a standard
 // applies in all countries unless narrowed; a past report is about one site,
 // most often in Singapore. Title and date suit both types, so they stay.
-function withSourceType(details: DocumentDetails, sourceType: SourceType | ''): DocumentDetails {
+export function withSourceType(
+  details: DocumentDetails,
+  sourceType: SourceType | '',
+): DocumentDetails {
   return {
     ...details,
     sourceType,

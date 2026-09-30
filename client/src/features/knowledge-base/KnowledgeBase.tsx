@@ -1,7 +1,9 @@
-// The Knowledge base screen (IN-01), in three parts: KnowledgeBase (the "Add
-// documents" panel), UploadRow (one file's details form) and UploadedDocuments
-// (the server's recent uploads with ingestion status). Upload logic lives in uploads.ts;
-// this file only displays it.
+// The Knowledge base screen, as two tabs: Documents (the knowledge base
+// itself, KB-01, in KnowledgeDocuments.tsx) and Add documents (IN-01). Add
+// documents has three parts: AddDocuments (the upload panel), UploadRow (one
+// file's details form) and UploadedDocuments (the server's recent uploads with
+// ingestion status). Upload logic lives in uploads.ts; this file only
+// displays it.
 import { useEffect, useState } from 'react'
 import {
   Badge,
@@ -10,45 +12,23 @@ import {
   EmptyState,
   Icon,
   IconButton,
-  Input,
-  Select,
   Table,
+  Tabs,
 } from '../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../assessments/demo-data'
-import {
-  listKnowledgeDocuments,
-  type IngestionStatus,
-  type KnowledgeDocument,
-  type SourceType,
-} from './api'
+import { listKnowledgeDocuments, type IngestionStatus, type KnowledgeDocument } from './api'
+import { DetailsFields } from './DetailsFields'
+import { calendarDate, SOURCE_LABELS } from './display'
+import { KnowledgeDocuments } from './KnowledgeDocuments'
 import {
   addFiles,
   clearFinished,
   editDetails,
-  editionProblem,
   removeUpload,
   uploadAll,
   useUploads,
   type Upload,
 } from './uploads'
 import './knowledge-base.css'
-
-const SOURCE_OPTIONS = [
-  { value: '', label: 'Choose a source type' },
-  { value: 'fm_standard', label: 'FM standard' },
-  { value: 'nfpa_standard', label: 'NFPA standard' },
-  { value: 'marsh_report', label: 'Marsh report' },
-]
-const SOURCE_LABELS: Record<SourceType, string> = {
-  fm_standard: 'FM standard',
-  nfpa_standard: 'NFPA standard',
-  marsh_report: 'Marsh report',
-}
-// A standard may apply everywhere; a past report is about one country and one
-// facility type, so it has no "all" choice.
-const STANDARD_COUNTRIES = [{ value: 'all', label: 'All countries' }, ...JURISDICTIONS]
-const STANDARD_FACILITIES = [{ value: '', label: 'All facility types' }, ...FACILITY_TYPES]
-const REPORT_FACILITIES = [{ value: '', label: 'Choose a facility type' }, ...FACILITY_TYPES]
 
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   queued: { label: 'Queued', tone: 'neutral' },
@@ -69,14 +49,6 @@ function fileSize(bytes: number) {
     ? `${Math.max(1, Math.round(bytes / 1024))} KB`
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
-// A calendar date as "12 Mar 2024". UTC, because the stored date has no time.
-// The month is cut to three letters, as in uploadedAt, since some browsers
-// write September as "Sept".
-function calendarDate(iso: string) {
-  const date = new Date(iso)
-  const month = date.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }).slice(0, 3)
-  return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}`
-}
 // The design system's literal date form, e.g. "29 Sep 11:24".
 function uploadedAt(iso: string) {
   const date = new Date(iso)
@@ -84,8 +56,41 @@ function uploadedAt(iso: string) {
   return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' }).slice(0, 3)} ${time}`
 }
 
+const TABS = [
+  { value: 'documents', label: 'Documents' },
+  { value: 'add', label: 'Add documents' },
+]
+// Kept outside React so coming back to the screen reopens the tab you left,
+// e.g. to see how an upload went (a module variable outlives the screen).
+let lastTab = 'documents'
+
+export function KnowledgeBase({
+  narrow,
+  notify,
+}: {
+  narrow: boolean
+  // Shows a toast, e.g. to confirm a saved correction.
+  notify: (message: string) => void
+}) {
+  const [tab, setTab] = useState(lastTab)
+  const open = (value: string) => {
+    lastTab = value
+    setTab(value)
+  }
+  return (
+    <div className="kb">
+      <Tabs items={TABS} value={tab} onChange={open} />
+      {tab === 'documents' ? (
+        <KnowledgeDocuments narrow={narrow} notify={notify} onAdd={() => open('add')} />
+      ) : (
+        <AddDocuments narrow={narrow} />
+      )}
+    </div>
+  )
+}
+
 // The "Add documents" panel: file picker, one row per file, Upload all, counter.
-export function KnowledgeBase({ narrow }: { narrow: boolean }) {
+function AddDocuments({ narrow }: { narrow: boolean }) {
   const uploads = useUploads()
   const drafts = uploads.filter((u) => u.state === 'draft').length
   const uploading = uploads.some((u) => u.state === 'uploading')
@@ -93,7 +98,7 @@ export function KnowledgeBase({ narrow }: { narrow: boolean }) {
   const acceptedCount = uploads.filter((u) => u.state === 'queued').length
 
   return (
-    <div className="kb">
+    <>
       <section className="kb-panel" aria-labelledby="kb-add-title">
         <header className="kb-panel-head">
           <div>
@@ -153,7 +158,7 @@ export function KnowledgeBase({ narrow }: { narrow: boolean }) {
       </section>
 
       <UploadedDocuments narrow={narrow} refreshKey={acceptedCount} />
-    </div>
+    </>
   )
 }
 
@@ -163,7 +168,6 @@ export function KnowledgeBase({ narrow }: { narrow: boolean }) {
 function UploadRow({ upload }: { upload: Upload }) {
   const { key, file, details, state, error, fieldErrors } = upload
   const locked = state !== 'draft'
-  const standard = details.sourceType === 'fm_standard' || details.sourceType === 'nfpa_standard'
   const badge = UPLOAD_STATE[state]
   const set = (change: Partial<typeof details>) => editDetails(key, change)
 
@@ -190,69 +194,7 @@ function UploadRow({ upload }: { upload: Upload }) {
         </p>
       )}
       {state !== 'rejected' && state !== 'queued' && (
-        <div className="kb-fields">
-          <Select
-            label="Source type"
-            required
-            options={SOURCE_OPTIONS}
-            value={details.sourceType}
-            error={fieldErrors.sourceType}
-            onChange={(e) => set({ sourceType: e.target.value as SourceType | '' })}
-          />
-          {details.sourceType && (
-            <>
-              <Input
-                label="Title"
-                required
-                value={details.title}
-                error={fieldErrors.title}
-                onChange={(e) => set({ title: e.target.value })}
-              />
-              {standard && (
-                <Input
-                  label="Edition"
-                  required
-                  type="number"
-                  // min/max only steer the arrows; editionProblem does the
-                  // real check once four digits are in, and before upload.
-                  min={1900}
-                  max={new Date().getFullYear() + 1}
-                  step={1}
-                  placeholder="e.g. 2022"
-                  value={details.edition}
-                  error={
-                    (details.edition.length === 4 && editionProblem(details)) || fieldErrors.edition
-                  }
-                  onChange={(e) => set({ edition: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                />
-              )}
-              <Input
-                label={standard ? 'Effective date' : 'Report date'}
-                type="date"
-                required
-                value={details.effectiveDate}
-                error={fieldErrors.effectiveDate}
-                onChange={(e) => set({ effectiveDate: e.target.value })}
-              />
-              <Select
-                label="Country"
-                required
-                options={standard ? STANDARD_COUNTRIES : JURISDICTIONS}
-                value={details.jurisdiction}
-                error={fieldErrors.jurisdiction}
-                onChange={(e) => set({ jurisdiction: e.target.value })}
-              />
-              <Select
-                label="Facility type"
-                required={!standard}
-                options={standard ? STANDARD_FACILITIES : REPORT_FACILITIES}
-                value={details.facilityType}
-                error={fieldErrors.facilityType}
-                onChange={(e) => set({ facilityType: e.target.value })}
-              />
-            </>
-          )}
-        </div>
+        <DetailsFields details={details} errors={fieldErrors} onChange={set} />
       )}
     </fieldset>
   )

@@ -1,5 +1,6 @@
-// Browser → gateway requests for knowledge base documents (IN-01).
-// uploads.ts uses the upload; KnowledgeBase.tsx uses the list. A failed request
+// Browser → gateway requests for knowledge base documents (IN-01, KB-01).
+// uploads.ts uses the upload; KnowledgeBase.tsx uses the recent uploads list;
+// KnowledgeDocuments.tsx uses the active list and corrections. A failed request
 // throws a GatewayError carrying the HTTP status, which uploads.ts reads to
 // decide what happens to the row.
 import { request } from '../accounts/api'
@@ -45,6 +46,29 @@ export function listKnowledgeDocuments(signal?: AbortSignal): Promise<KnowledgeD
   return request<KnowledgeDocument[]>('/api/knowledge-documents', { signal })
 }
 
+// Every active document (ingestion complete), sorted by title (KB-01).
+export function listActiveDocuments(signal?: AbortSignal): Promise<KnowledgeDocument[]> {
+  return request<KnowledgeDocument[]>('/api/knowledge-documents/active', { signal })
+}
+
+// Only the fields that apply: blank ones belong to the other source type, or
+// are optional and the gateway fills in its default (a standard's facility
+// type becomes "all").
+const filled = (details: DocumentDetails) =>
+  Object.entries(details).filter(([, value]) => value !== '')
+
+// Saves a document's corrected details and returns the stored document (KB-01).
+export function correctKnowledgeDocument(
+  id: string,
+  details: DocumentDetails,
+): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.fromEntries(filled(details))),
+  })
+}
+
 // Sends one PDF with its details and returns the queued document. The body is
 // the raw PDF and the details go in the URL's query string, so the gateway
 // needs no multipart-form library.
@@ -52,10 +76,7 @@ export function uploadKnowledgeDocument(
   file: File,
   details: DocumentDetails,
 ): Promise<KnowledgeDocument> {
-  // Blank fields are left out: they belong to the other source type, or are
-  // optional and the gateway fills in its default.
-  const filled = Object.entries(details).filter(([, value]) => value !== '')
-  const query = new URLSearchParams([['fileName', file.name], ...filled])
+  const query = new URLSearchParams([['fileName', file.name], ...filled(details)])
   return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/pdf' },

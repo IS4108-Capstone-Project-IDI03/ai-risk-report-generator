@@ -238,6 +238,104 @@
   color: var(--text-muted);
 }
 
+/* Documents tab (KB-01) */
+.kb-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.kb-docs-head p {
+  max-width: 68ch;
+  margin: 2px 0 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+/* Labels sit above the selects, so everything aligns on the controls' bottom
+   edge; the count stays on the right until the row wraps. */
+.kb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  padding: 14px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.kb-toolbar > label {
+  flex: 0 1 220px;
+  min-width: 160px;
+}
+.kb-toolbar .kb-count {
+  align-self: center;
+}
+/* On a phone (the app's 760px breakpoint) each filter takes the full width
+   and the count gets its own line, instead of dangling beside a select. */
+@media (max-width: 759px) {
+  .kb-toolbar > label,
+  .kb-toolbar .kb-count {
+    flex-basis: 100%;
+  }
+}
+.kb-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kb-group h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.kb-group-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-small-size);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+.kb-group > .kb-empty {
+  padding: 12px 14px;
+  font-size: var(--text-small-size);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.kb-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  white-space: nowrap;
+}
+.kb-stack .kb-actions {
+  justify-content: space-between;
+}
+.kb-labels span + span::before {
+  content: ' · ';
+}
+/* The dialog body is the fields' container, so they reflow to its width
+   (two columns in the dialog, one on a phone's sheet). */
+.kb-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  container-type: inline-size;
+}
+.kb-edit .kb-fields {
+  margin-top: 0;
+}
+.kb-edit-note {
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .kb,
   .kb-row {

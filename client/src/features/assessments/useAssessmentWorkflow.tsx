@@ -1284,7 +1284,7 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
               : sc === 'users'
                 ? 'View and update the account details of your team.'
                 : sc === 'knowledge'
-                  ? 'Upload standards and past reports. Each accepted PDF is stored unaltered and queued for ingestion.'
+                  ? 'The standards and past reports search can use. Correct their details, or upload new ones.'
                   : openRow
                     ? [
                         openRow.id,
@@ -1335,6 +1335,8 @@ export function useAssessmentWorkflow(onSignOut: () => void) {
         setState({
           toast: null,
         }),
+      // Lets a screen outside this hook confirm an action, e.g. KB-01's saves.
+      notify: (message: string) => toast(message),
       openEvidenceSource: () =>
         toast('Source files are not connected in this demo. Excerpts are sample evidence.', 'info'),
       playSampleAudio: () => toast('Audio playback is not connected in this demo.', 'info'),
