@@ -18,6 +18,8 @@ const registry = {
     expand: 'chevron-down',
     forward: 'chevron-right',
     openExternal: 'arrow-up-right',
+    withdraw: 'archive',
+    reinstate: 'archive-restore',
   },
   status: {
     notStarted: {

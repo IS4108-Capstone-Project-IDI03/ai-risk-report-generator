@@ -1353,7 +1353,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               : sc === 'users'
                 ? 'View and update your team’s account details and roles.'
                 : sc === 'knowledge'
-                  ? 'The standards and past reports search can use. Correct their details, or upload new ones.'
+                  ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
                   : openRow
                     ? [
                         openRow.id,

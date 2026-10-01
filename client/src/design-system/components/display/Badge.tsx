@@ -24,6 +24,12 @@ const TONES: Record<string, { fg: string; bg: string; bd?: string; icon?: string
     fg: 'var(--status-low-fg)',
     bg: 'var(--status-low-bg)',
   },
+  // A status that is out of use, e.g. a withdrawn knowledge document. Not a
+  // severity, so it doesn't borrow `critical`.
+  danger: {
+    fg: 'var(--action-danger)',
+    bg: 'var(--red-50)',
+  },
   neutral: {
     fg: 'var(--status-neutral-fg)',
     bg: 'var(--status-neutral-bg)',

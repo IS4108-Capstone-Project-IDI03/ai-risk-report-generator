@@ -61,16 +61,25 @@ const json = (status: number, body: unknown) =>
     }),
   )
 
-// Answers the active list with `active`, and each correction with `onPut`;
-// returns the corrections sent. Other requests fail, so screens fall back to
-// demo data.
+// Answers the active list with `active`, each correction with `onPut` and each
+// withdraw or reinstate with `onPost`; returns the corrections sent (the
+// withdraw and reinstate calls are in `posts`). Other requests fail, so
+// screens fall back to demo data.
+const posts: string[] = []
 function mockGateway(
   active: object[],
   onPut: (id: string, body: Record<string, string>) => Promise<Response> = () => json(500, {}),
+  onPost: (id: string, action: string) => Promise<Response> = () => json(500, {}),
 ) {
   const puts: { id: string; body: Record<string, string> }[] = []
+  posts.length = 0
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
-    if (url === '/api/knowledge-documents/active') return json(200, active)
+    if (url === '/api/knowledge-documents/ingested') return json(200, active)
+    const act = url.match(/^\/api\/knowledge-documents\/([^/]+)\/(withdraw|reinstate)$/)
+    if (act && init?.method === 'POST') {
+      posts.push(`${act[1]}/${act[2]}`)
+      return onPost(act[1], act[2])
+    }
     const id = url.match(/^\/api\/knowledge-documents\/([^/]+)$/)?.[1]
     if (id && init?.method === 'PUT') {
       const body = JSON.parse(String(init.body))
@@ -405,5 +414,171 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(puts).toEqual([])
     expect(within(await row(REPORT.title)).getByText('Malaysia')).toBeInTheDocument()
+  })
+
+  // KB-02: withdraw and reinstate.
+  const WITHDRAWN = {
+    ...REPORT,
+    withdrawn: { at: '2026-10-01T04:15:00.000Z', by: { id: 'u1', name: 'Sana Patel' } },
+  }
+  const open = async (title: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
+    return screen.getByRole('region', { name: `Details of ${title}` })
+  }
+
+  it('withdraws an active document after confirming, and shows it as Withdrawn (AC1)', async () => {
+    mockGateway([REPORT], undefined, (id) => json(200, { ...WITHDRAWN, id }))
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
+    const dialog = screen.getByRole('dialog', { name: `Withdraw ${REPORT.title}?` })
+    expect(dialog).toHaveTextContent('reinstate it at any time')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
+
+    expect(await within(await row(REPORT.title)).findByText('Withdrawn')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(posts).toEqual(['report/withdraw'])
+    expect(screen.getByText(`${REPORT.title} withdrawn.`)).toBeInTheDocument()
+  })
+
+  it('calls nothing when you cancel a withdrawal', async () => {
+    mockGateway([REPORT])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(posts).toEqual([])
+    expect(within(await row(REPORT.title)).getByText('Active')).toBeInTheDocument()
+  })
+
+  it('shows the reason in the dialog when a withdrawal fails, and keeps it open', async () => {
+    const reason = 'The knowledge base couldn’t be updated, so nothing changed. Try again shortly.'
+    mockGateway([REPORT], undefined, () => json(503, { error: reason }))
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+    fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
+    const dialog = screen.getByRole('dialog')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
+
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't withdraw this document")
+    expect(alert).toHaveTextContent(reason)
+    expect(within(await row(REPORT.title)).getByText('Active')).toBeInTheDocument()
+  })
+
+  it('says nothing changed when the gateway can’t be reached during a withdrawal', async () => {
+    mockGateway([REPORT], undefined, () => Promise.reject(new TypeError('Failed to fetch')))
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+    fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
+    const dialog = screen.getByRole('dialog')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'The gateway could not be reached, so nothing changed. Try again.',
+    )
+  })
+
+  it('shows who withdrew a document and when, with no Edit details (AC3, AC4)', async () => {
+    mockGateway([WITHDRAWN])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    expect(details).toHaveTextContent('Sana Patel')
+    expect(details).toHaveTextContent('1 Oct 12:15')
+    expect(within(details).queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
+    expect(within(details).queryByRole('button', { name: 'Withdraw' })).not.toBeInTheDocument()
+    expect(within(details).getByRole('button', { name: 'Reinstate' })).toBeInTheDocument()
+    expect(
+      within(await row(REPORT.title)).getByRole('link', {
+        name: `View original of ${REPORT.title}`,
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('hides Restore on a withdrawn document’s edit history', async () => {
+    mockGateway([{ ...WITHDRAWN, history: CORRECTED.history }])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Edit history' }))
+    const history = screen.getByRole('dialog', { name: 'Edit history' })
+
+    expect(within(history).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(history).queryByRole('button', { name: /^Restore/ })).not.toBeInTheDocument()
+  })
+
+  it('reinstates a withdrawn document after confirming, and shows it as Active (AC5)', async () => {
+    mockGateway([WITHDRAWN], undefined, (id) => json(200, { ...REPORT, id, withdrawn: null }))
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Reinstate' }))
+    const dialog = screen.getByRole('dialog', { name: `Reinstate ${REPORT.title}?` })
+    expect(dialog).toHaveTextContent('New reports will use this document again')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reinstate' }))
+
+    expect(await within(await row(REPORT.title)).findByText('Active')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(posts).toEqual(['report/reinstate'])
+    expect(screen.getByText(`${REPORT.title} reinstated.`)).toBeInTheDocument()
+  })
+
+  it('can withdraw and reinstate the same document again with its details open', async () => {
+    mockGateway([WITHDRAWN], undefined, (id, action) =>
+      json(200, action === 'withdraw' ? { ...WITHDRAWN, id } : { ...REPORT, id, withdrawn: null }),
+    )
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Reinstate' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reinstate' }))
+    fireEvent.click(await within(details).findByRole('button', { name: 'Withdraw' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
+
+    expect(await within(details).findByRole('button', { name: 'Reinstate' })).toBeEnabled()
+  })
+
+  it('shows the reason in the dialog when a reinstatement fails, and keeps it open', async () => {
+    const reason =
+      'This document is no longer withdrawn. Someone may have reinstated it already. Refresh the page to see its current status.'
+    mockGateway([WITHDRAWN], undefined, () => json(409, { error: reason }))
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Reinstate' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reinstate' }))
+
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't reinstate this document")
+    expect(alert).toHaveTextContent(reason)
+    expect(within(await row(REPORT.title)).getByText('Withdrawn')).toBeInTheDocument()
+  })
+
+  it('filters by status, and counts and clears it like the other filters', async () => {
+    mockGateway([FM, WITHDRAWN])
+    await openKnowledgeBase()
+    await group('FM standards')
+
+    filter('Status', 'withdrawn')
+    expect(screen.getByText(REPORT.title)).toBeInTheDocument()
+    expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
+    expect(count('Showing 1 of 2 documents')).toBeInTheDocument()
+
+    filter('Status', 'active')
+    expect(screen.getByText(FM.title)).toBeInTheDocument()
+    expect(screen.queryByText(REPORT.title)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.getByLabelText('Status')).toHaveValue('')
+    expect(screen.getByText(REPORT.title)).toBeInTheDocument()
   })
 })

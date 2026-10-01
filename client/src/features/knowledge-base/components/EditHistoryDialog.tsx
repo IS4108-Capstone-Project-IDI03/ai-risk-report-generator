@@ -52,14 +52,17 @@ export function EditHistoryDialog({
                   </p>
                 ))}
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label={`Restore the version from ${dateTime(version.replacedAt)}`}
-                onClick={() => onRestore(version)}
-              >
-                Restore
-              </Button>
+              {/* Restore opens Edit details, which a withdrawn document can't use (KB-02 AC4). */}
+              {!d.withdrawn && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label={`Restore the version from ${dateTime(version.replacedAt)}`}
+                  onClick={() => onRestore(version)}
+                >
+                  Restore
+                </Button>
+              )}
             </li>
           ))}
         </ul>
