@@ -13,7 +13,7 @@ export const PERMISSIONS = [
   'reports:generate',
   // List knowledge documents and open their original files, e.g. a citation.
   'knowledge:view',
-  // Upload knowledge documents.
+  // Upload knowledge documents and correct their details (KB-01).
   'knowledge:manage',
   // List and edit user accounts, including role assignment.
   'users:manage',

@@ -4,7 +4,7 @@ import pymupdf
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from app.pipeline.indexer import index_chunks
+from app.pipeline.indexer import index_chunks, relabel
 
 router = APIRouter()
 
@@ -16,13 +16,17 @@ class IngestRequest(BaseModel):
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
-class ChunkMetadata(BaseModel):
-    document_id: NonEmpty
+# The labels every passage carries, so search can filter on them (KB-01).
+class Labels(BaseModel):
     source_type: NonEmpty
     jurisdiction: NonEmpty
     facility_type: NonEmpty
     COPE_dimension: NonEmpty
     effective_date: NonEmpty
+
+
+class ChunkMetadata(Labels):
+    document_id: NonEmpty
     page: int = Field(ge=1)
 
 
@@ -85,3 +89,13 @@ def index(request: IndexRequest) -> dict:
     """Internal dev endpoint for pre-anonymised chunks, not raw documents."""
     count = index_chunks([chunk.model_dump() for chunk in request.chunks])
     return {"status": "indexed", "chunks_indexed": count}
+
+
+@router.put("/documents/{doc_id}/labels")
+def relabel_document(doc_id: str, labels: Labels) -> dict:
+    """Put a corrected document's labels on all its passages (KB-01).
+
+    Called by the gateway (server/src/services/knowledge-document.service.ts)
+    after the admin saves a correction; returns how many passages changed.
+    """
+    return {"passagesUpdated": relabel(doc_id, labels.model_dump())}

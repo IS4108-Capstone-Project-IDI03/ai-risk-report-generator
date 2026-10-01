@@ -1,6 +1,7 @@
-// The gateway's side of the PDF check (IN-01): sends the PDF to the ingestion
-// service's /inspect (app/api/routes.py), which opens it with PyMuPDF. Node has
-// no PDF library; Python already has one.
+// The gateway's calls to the ingestion service (app/api/routes.py): the PDF
+// check (IN-01), which opens the file with PyMuPDF because Node has no PDF
+// library, and relabelling a corrected document's passages (KB-01), because
+// only the Python services write to Chroma.
 import { config } from '../config'
 
 // Ingestion (its service or its queue) is down; the upload can be retried.
@@ -29,4 +30,21 @@ export async function whyPdfCannotOpen(pdf: Buffer): Promise<string | null> {
   const body = (await response.json().catch(() => ({}))) as { detail?: unknown }
   if (response.status === 422 && typeof body.detail === 'string') return body.detail
   throw new IngestionUnavailableError()
+}
+
+// Puts a corrected document's labels on all its passages in Chroma (KB-01).
+// Throws IngestionUnavailableError if the service is down or refuses, so the
+// caller can keep the old details.
+export async function relabelPassages(id: string, labels: object): Promise<void> {
+  const failed = new IngestionUnavailableError(
+    'Search could not be updated, so the correction was not saved. Try again shortly.',
+  )
+  const response = await fetch(`${config.ingestionServiceUrl}/documents/${id}/labels`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(labels),
+  }).catch(() => {
+    throw failed
+  })
+  if (!response.ok) throw failed
 }

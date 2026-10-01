@@ -277,7 +277,7 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
 
                     {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
 
-                    {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} />}
+                    {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
 
                     {v.isOverview && <Overview v={v} />}
 

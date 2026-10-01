@@ -28,7 +28,7 @@ def test_generate_returns_text_and_guardrail(monkeypatch):
 
 
 def test_retrieve_returns_results_list(monkeypatch):
-    monkeypatch.setattr("app.api.routes.retrieve", lambda query: [])
+    monkeypatch.setattr("app.api.routes.retrieve", lambda query, filters: [])
     response = client.post("/retrieve", json={"query": "flood risk"})
     assert response.status_code == 200
     assert isinstance(response.json()["results"], list)

@@ -40,6 +40,8 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/knowledge-documents', 'knowledge:view'],
   ['post', '/api/knowledge-documents', 'knowledge:manage'],
   ['get', `/api/knowledge-documents/${ID}/file`, 'knowledge:view'],
+  ['get', '/api/knowledge-documents/active', 'knowledge:view'],
+  ['put', `/api/knowledge-documents/${ID}`, 'knowledge:manage'],
   ['get', '/api/users', 'users:manage'],
   ['get', `/api/users/${ID}`, 'users:manage'],
   ['put', `/api/users/${ID}`, 'users:manage'],

@@ -13,7 +13,24 @@ from app.retrieval_config import (
 )
 
 
-def retrieve(query: str) -> list[dict]:
+def label_filter(filters: dict[str, str]) -> dict | None:
+    """Return the Chroma `where` clause (a metadata filter) for label filters.
+
+    Source type matches exactly. Country and facility type also match
+    passages labelled `all`, since such a document applies to every site.
+    Chroma needs `$and` to combine two or more conditions. Minimal on purpose:
+    RT-01 extends it for site applicability.
+    """
+    conditions = [
+        {key: value if key == "source_type" else {"$in": [value, "all"]}}
+        for key, value in filters.items()
+    ]
+    if len(conditions) > 1:
+        return {"$and": conditions}
+    return conditions[0] if conditions else None
+
+
+def retrieve(query: str, filters: dict[str, str] | None = None) -> list[dict]:
     if not query.strip():
         raise ValueError("Query must not be blank")
     try:
@@ -35,6 +52,7 @@ def retrieve(query: str) -> list[dict]:
     candidates = collection.query(
         query_embeddings=embedding.embeddings.float_,
         n_results=min(20, count),
+        where=label_filter(filters or {}),
         include=["documents", "metadatas", "distances"],
     )
     texts = candidates["documents"][0]

@@ -3,6 +3,7 @@
 MongoDB, S3 and the pipeline are faked, so no Redis, AWS or Docling is needed.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,13 @@ class FakeDocuments:
             "fileName": "NFPA 13 - 2022.pdf",
             "file": {"key": f"knowledge/{DOC_ID}.pdf"},
             "status": status,
+            "metadata": {
+                "source_type": "marsh_report",
+                "jurisdiction": "MY",
+                "facility_type": "Cold store",
+                "COPE_dimension": "all",
+                "effective_date": datetime(2024, 3, 12),
+            },
         }
 
     def find_one_and_update(self, query, update, **_):
@@ -47,7 +55,7 @@ def documents(monkeypatch):
 def test_a_processed_document_is_complete_with_its_counts(documents, monkeypatch):
     seen = {}
 
-    def fake_run(file_path, doc_id=None):
+    def fake_run(file_path, doc_id=None, labels=None):
         seen.update(bytes=Path(file_path).read_bytes(), doc_id=doc_id)
         return {"doc_name": "x", "chunks_indexed": 12, "tables_captured": 2, "images_captured": 1}
 
@@ -65,8 +73,29 @@ def test_a_processed_document_is_complete_with_its_counts(documents, monkeypatch
     assert documents.doc["startedAt"] <= documents.doc["finishedAt"]
 
 
+def test_the_documents_labels_go_to_every_passage(documents, monkeypatch):
+    # KB-01: passages carry the record's labels, the date as YYYY-MM-DD.
+    seen = {}
+
+    def fake_run(file_path, doc_id=None, labels=None):
+        seen["labels"] = labels
+        return {"chunks_indexed": 1, "tables_captured": 0, "images_captured": 0}
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    worker.ingest_document(DOC_ID)
+
+    assert seen["labels"] == {
+        "source_type": "marsh_report",
+        "jurisdiction": "MY",
+        "facility_type": "Cold store",
+        "COPE_dimension": "all",
+        "effective_date": "2024-03-12",
+    }
+
+
 def test_a_document_that_cannot_be_processed_is_failed_with_the_reason(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None):
+    def fake_run(file_path, doc_id=None, labels=None):
         raise RuntimeError("Docling could not parse NFPA 13 - 2022.pdf")
 
     monkeypatch.setattr(worker, "run", fake_run)

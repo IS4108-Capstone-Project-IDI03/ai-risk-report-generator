@@ -53,7 +53,10 @@ def __getattr__(name: str):
 
 
 def run(
-    file_path: str, page_range: tuple[int, int] | None = None, doc_id: str | None = None
+    file_path: str,
+    page_range: tuple[int, int] | None = None,
+    doc_id: str | None = None,
+    labels: dict | None = None,
 ) -> dict:
     """Ingest one document end to end and return a summary.
 
@@ -64,6 +67,9 @@ def run(
         doc_id: the document's permanent id, so chunk ids are
             ``f"{doc_id}:{n}"`` and never collide across documents.
             Defaults to the file name.
+        labels: the document's labels (source type, country, facility type,
+            COPE dimension, effective date), added to every chunk's metadata
+            so search can filter on them (KB-01).
 
     Returns:
         A summary dict::
@@ -91,6 +97,8 @@ def run(
 
     chunks = this.chunk(parsed, doc_path=file_path, doc_id=doc_id)
     chunks = anonymise(chunks)
+    for c in chunks:
+        c["metadata"].update(labels or {})
     chunks_indexed = index_chunks(chunks) if chunks else 0
 
     return {

@@ -128,3 +128,24 @@ def test_doc_id_forwarded_to_chunk_so_chunk_ids_name_the_document(monkeypatch):
     monkeypatch.setattr(pipeline, "chunk", fake_chunk)
     pipeline.run("some/report.pdf", doc_id="6abb28ae16068a0793e9962a")
     assert seen["doc_id"] == "6abb28ae16068a0793e9962a"
+
+
+LABELS = {
+    "source_type": "marsh_report",
+    "jurisdiction": "MY",
+    "facility_type": "Cold store",
+    "COPE_dimension": "all",
+    "effective_date": "2024-03-12",
+}
+
+
+def test_labels_are_added_to_every_passage_before_indexing(monkeypatch):
+    # KB-01: passages carry their document's labels so search can filter on them.
+    calls = []
+    _install_fakes(monkeypatch, _parsed(), calls)
+    pipeline.run("some/report.pdf", labels=LABELS)
+    indexed = next(c[1] for c in calls if c[0] == "index")
+    assert [chunk["metadata"] for chunk in indexed] == [
+        {"doc_name": "manual.pdf", **LABELS},
+        {"doc_name": "manual.pdf", **LABELS},
+    ]
