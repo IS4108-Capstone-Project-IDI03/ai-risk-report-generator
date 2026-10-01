@@ -15,7 +15,7 @@ const PUMP_HOUSE = { id: 'l3', name: 'Pump house', floor: null }
 function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
   return {
     id: 'o1',
-    engineer: 'A. Rowe',
+    engineer: 'Alex Rowe',
     copeDimension: 'Protection',
     standard: null,
     severity: 'high',

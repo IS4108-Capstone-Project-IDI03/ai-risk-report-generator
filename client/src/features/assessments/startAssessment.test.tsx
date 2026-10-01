@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -37,7 +37,18 @@ function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    init?.method === 'GET' ? listReply() : fetchMock(url, init),
+    url === '/api/assessments/engineers'
+      ? respond(200, [
+          {
+            id: '6ab39017e45cf009e4507731',
+            name: 'Alex Rowe',
+            staffId: 'MRE-0001',
+            jobTitle: null,
+          },
+        ])
+      : init?.method === 'GET'
+        ? listReply()
+        : fetchMock(url, init),
   )
   return fetchMock
 }
@@ -167,7 +178,8 @@ const CREATED = {
   siteVisitDate: '2026-04-21',
   reportDueDate: '2026-05-02',
   standards: ['FM Global 2-0', 'NFPA 13'],
-  engineers: ['A. Rowe'],
+  engineers: ['Alex Rowe'],
+  engineerIds: ['6ab39017e45cf009e4507731'],
   status: 'not_started',
   createdAt: '2026-09-23T09:00:00.000Z',
   site: {
@@ -250,7 +262,7 @@ describe('Create assessment (CP-01)', () => {
       siteVisitDate: '2026-04-21',
       reportDueDate: '2026-05-02',
       standards: ['FM Global 2-0', 'NFPA 13'],
-      engineers: ['A. Rowe'],
+      engineerIds: ['6ab39017e45cf009e4507731'],
     })
   })
 
@@ -377,13 +389,6 @@ describe('Work list (RV-10)', () => {
       status: 'under_review',
       site: { ...CREATED.site, code: 'SITE-0002', name: 'Harbourside Cold Store' },
     },
-    {
-      ...CREATED,
-      id: '6ab3a1c0e45cf009e4507900',
-      reference: 'RPT-2026-0003',
-      engineers: ['M. Haas'],
-      site: { ...CREATED.site, code: 'SITE-0003', name: 'Someone Else Depot' },
-    },
   ]
   const results = () => screen.getByText(/of \d+ assessments/)
   const search = (value: string) =>
@@ -439,6 +444,115 @@ describe('Work list (RV-10)', () => {
     await openApp()
 
     expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
-    expect(results()).toHaveTextContent('4 of 4 assessments')
+    expect(results()).toHaveTextContent('6 of 6 assessments')
   })
+})
+
+it('submits selected engineer IDs and keeps work assigned to someone else out of my list', async () => {
+  const me = '6ab39017e45cf009e4507731'
+  const other = '6ab39017e45cf009e4507732'
+  let submitted: { engineerIds: string[] } | undefined
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    if (url === '/api/assessments/engineers')
+      return respond(200, [
+        { id: me, name: 'Alex Rowe', staffId: 'MRE-0001', jobTitle: null },
+        { id: other, name: 'Jide Okafor', staffId: 'MRE-0002', jobTitle: null },
+      ])
+    if (init?.method === 'GET') return respond(200, [])
+    submitted = JSON.parse(String(init?.body))
+    return respond(201, { ...CREATED, engineers: ['Jide Okafor'], engineerIds: [other] })
+  })
+  await openApp()
+  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+  fireEvent.click(await screen.findByRole('checkbox', { name: /Alex Rowe/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: /Jide Okafor/ }))
+  fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: CREATED.site.name } })
+  fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
+    target: { value: CREATED.client },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
+  await screen.findByText(/It will appear in the assigned engineers’ work lists/)
+  expect(submitted?.engineerIds).toEqual([other])
+  expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
+})
+
+it('reloads the engineer directory after failure and preserves the selected engineer', async () => {
+  let reply: (response: Response) => void = () => {}
+  const directory = vi
+    .fn()
+    .mockImplementationOnce(() => respond(503, { error: 'Unavailable' }))
+    .mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          reply = resolve
+        }),
+    )
+  vi.stubGlobal('fetch', (url: string) =>
+    url === '/api/assessments/engineers' ? directory() : respond(200, []),
+  )
+  await openApp()
+  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+  await screen.findByText('Engineer list unavailable')
+  fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Retained site' } })
+
+  fireEvent.click(screen.getAllByRole('button', { name: /^Dashboard/ })[0])
+  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+  expect(screen.getByText('Loading engineers…')).toBeInTheDocument()
+  expect(screen.queryByText('Engineer list unavailable')).not.toBeInTheDocument()
+  reply(
+    await respond(200, [
+      { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe', staffId: 'MRE-0001', jobTitle: null },
+    ]),
+  )
+
+  expect(await screen.findByRole('checkbox', { name: /Alex Rowe/ })).toBeChecked()
+  expect(screen.getByLabelText(/Site name/)).toHaveValue('Retained site')
+  expect(screen.queryByText('Loading engineers…')).not.toBeInTheDocument()
+  expect(directory).toHaveBeenCalledTimes(2)
+})
+
+it('shows report deadlines, excludes today and finalised work from overdue, and sorts with filters', async () => {
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const deadlines = [null, '2099-12-31', today, '2000-01-01', '2001-01-01']
+  const names = ['Undated', 'Future', 'Today', 'Overdue', 'Finalised']
+  listReply = () =>
+    respond(
+      200,
+      deadlines.map((due, i) => ({
+        ...CREATED,
+        id: `deadline-${i}`,
+        reference: `RPT-DEADLINE-${i}`,
+        site: { ...CREATED.site, name: `Deadline ${names[i]}` },
+        reportDueDate: due,
+        status: i === 4 ? 'finalised' : 'capturing',
+      })),
+    )
+  mockGateway()
+  await openApp()
+  const undated = await screen.findByRole('button', { name: /Deadline Undated/ })
+  expect(undated).toHaveTextContent('Not set')
+  const overdue = screen.getByRole('button', { name: /Deadline Overdue/ })
+  expect(overdue).toHaveTextContent('01 Jan 2000')
+  expect(within(overdue).getByText('Overdue')).toBeInTheDocument()
+  for (const name of ['Undated', 'Future', 'Today', 'Finalised']) {
+    expect(
+      within(screen.getByRole('button', { name: new RegExp(`Deadline ${name}`) })).queryByText(
+        'Overdue',
+      ),
+    ).not.toBeInTheDocument()
+  }
+  const order = () =>
+    screen.getAllByRole('button', { name: /^Deadline/ }).map((row) => row.getAttribute('data-id'))
+  expect(order()).toEqual([0, 1, 2, 3, 4].map((i) => `RPT-DEADLINE-${i}`))
+  const sort = screen.getByLabelText('Sort assessments')
+  fireEvent.change(sort, { target: { value: 'Report due: earliest first' } })
+  expect(order()).toEqual([3, 4, 2, 1, 0].map((i) => `RPT-DEADLINE-${i}`))
+  fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'Capturing' } })
+  fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
+    target: { value: 'Deadline' },
+  })
+  expect(order()).toEqual([3, 2, 1, 0].map((i) => `RPT-DEADLINE-${i}`))
+  fireEvent.change(sort, { target: { value: 'Latest site visit' } })
+  expect(order()).toEqual([0, 1, 2, 3].map((i) => `RPT-DEADLINE-${i}`))
 })

@@ -39,7 +39,7 @@ function recording(id: string, transcription: Partial<SavedRecording['transcript
 function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
   return {
     id: 'o1',
-    engineer: 'A. Rowe',
+    engineer: 'Alex Rowe',
     copeDimension: 'Protection',
     standard: null,
     severity: 'high',
@@ -83,7 +83,14 @@ function mockGateway() {
     if (url === LOCATIONS_URL) return json(200, [BAY_3])
     if (url.endsWith('/transcription/retry')) {
       retries.push(url)
-      return json(202, listed[0])
+      listed = listed.map((item) => ({
+        ...item,
+        recordings: item.recordings.map((recording) => ({
+          ...recording,
+          transcription: { ...recording.transcription, status: 'transcribing', error: null },
+        })),
+      }))
+      return Promise.resolve(new Response(null, { status: 202 }))
     }
     return Promise.reject(new TypeError('Failed to fetch'))
   })
@@ -193,7 +200,6 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     // protection is filed as Protection.
     expect(saves[0].details).toEqual({
       note: text,
-      engineer: 'A. Rowe',
       copeDimension: 'Protection',
       severity: 'high',
       locationId: 'l1',
@@ -415,6 +421,8 @@ describe('Observations tab (CP-03)', () => {
     await vi.waitFor(() =>
       expect(retries).toEqual(['/api/observations/o1/recordings/r9/transcription/retry']),
     )
+    expect((await screen.findAllByText('Transcribing')).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Unexpected end of JSON/)).not.toBeInTheDocument()
   })
 
   it('shows the note, then each recording with its transcript and player', async () => {
@@ -436,6 +444,9 @@ describe('Observations tab (CP-03)', () => {
 
     const clip = screen.getByRole('region', { name: 'Recording 1' })
     expect(within(clip).getByText('Racking sits under two heads.')).toBeInTheDocument()
+    expect(within(clip).getByText('Voice')).toBeInTheDocument()
+    expect(within(clip).getByText('Transcribed')).toBeInTheDocument()
+    expect(screen.getByText('Text')).toBeInTheDocument()
     expect(within(clip).getByLabelText('Play Recording 1')).toHaveAttribute(
       'src',
       '/api/observations/o1/recordings/r1/audio',

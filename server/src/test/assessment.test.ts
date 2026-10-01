@@ -1,15 +1,37 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { Types } from 'mongoose'
+import { UserModel } from '../models/user.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
-import { signedInAsRole } from './auth-test-helpers'
+import { signedInAsRole, signedInAs } from './auth-test-helpers'
 
 useMemoryMongo()
 
 // A risk engineer is allowed everything below (F-05); role limits are in permissions.test.ts.
-const api = signedInAsRole(app, 'risk_engineer')
+const actor = {
+  _id: new Types.ObjectId(),
+  staffId: 'TEST-1',
+  name: 'Alex Rowe',
+  email: 'alex@example.com',
+  role: 'risk_engineer' as const,
+  active: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}
+const other = {
+  ...actor,
+  _id: new Types.ObjectId(),
+  staffId: 'TEST-2',
+  name: 'Jide Okafor',
+  email: 'jide@example.com',
+}
+const api = signedInAs(app, actor)
+beforeEach(async () => {
+  await UserModel.create([actor, other])
+})
 
 const YEAR = new Date().getUTCFullYear()
 const SITE = {
@@ -28,7 +50,7 @@ function body(overrides: Record<string, unknown> = {}) {
     siteVisitDate: '2026-10-05',
     reportDueDate: '2026-10-19',
     standards: ['FM Global 2-0', 'NFPA 13'],
-    engineers: ['A. Rowe', 'J. Okafor'],
+    engineerIds: [String(actor._id), String(other._id)],
     ...overrides,
   }
 }
@@ -50,12 +72,21 @@ describe('POST /api/assessments', () => {
       siteVisitDate: '2026-10-05',
       reportDueDate: '2026-10-19',
       standards: ['FM Global 2-0', 'NFPA 13'],
-      engineers: ['A. Rowe', 'J. Okafor'],
+      engineerIds: [String(actor._id), String(other._id)],
+      engineers: ['Alex Rowe', 'Jide Okafor'],
       site: { code: 'SITE-0001', ...SITE },
     })
     const stored = await AssessmentModel.findOne({ reference: response.body.reference }).lean()
     expect(String(stored?._id)).toBe(response.body.id)
     expect(await SiteModel.countDocuments({ code: 'SITE-0001' })).toBe(1)
+  })
+
+  it('normalises and deduplicates selected account IDs', async () => {
+    const reply = await create(
+      body({ engineerIds: [String(actor._id).toUpperCase(), String(actor._id)] }),
+    )
+    expect(reply.status).toBe(201)
+    expect(reply.body.engineerIds).toEqual([String(actor._id)])
   })
 
   it('numbers references in sequence', async () => {
@@ -99,7 +130,7 @@ describe('POST /api/assessments', () => {
         siteVisitDate: '',
         reportDueDate: '',
         standards: [],
-        engineers: [],
+        engineerIds: [],
       }),
     )
 
@@ -189,7 +220,8 @@ describe('GET /api/assessments', () => {
         client: `Client ${reference}`,
         surveyType: 'Property risk survey',
         siteVisitDate: new Date(siteVisitDate),
-        engineers: ['A. Rowe'],
+        engineers: ['Alex Rowe'],
+        engineerIds: [actor._id],
         ...extra,
       })
     await seed('RPT-A', '2026-01-01')
@@ -223,6 +255,7 @@ describe('GET /api/assessments', () => {
     const site = await SiteModel.create({ code: 'SITE-0001', ...SITE })
     const a = await AssessmentModel.create({
       reference: 'RPT-A',
+      engineerIds: [actor._id],
       site: site._id,
       client: 'Client',
       surveyType: 'Property risk survey',
@@ -233,5 +266,36 @@ describe('GET /api/assessments', () => {
     const response = await api.get('/api/assessments')
 
     expect(response.body[0].status).toBe('capturing')
+  })
+})
+
+describe('Assignment identity (RV-10)', () => {
+  it('scopes each engineer by ID, including secondary assignment, despite duplicate or changed names', async () => {
+    const first = await create(body({ engineerIds: [String(actor._id)] }))
+    const second = await create(body({ engineerIds: [String(other._id)] }))
+    const both = await create(body({ engineerIds: [String(other._id), String(actor._id)] }))
+    const renamed = signedInAs(app, { ...actor, name: other.name })
+    const otherApi = signedInAs(app, other)
+    const refs = (items: { reference: string }[]) => items.map((a) => a.reference).sort()
+    expect(refs((await renamed.get('/api/assessments')).body)).toEqual(
+      [first.body.reference, both.body.reference].sort(),
+    )
+    expect(refs((await otherApi.get('/api/assessments')).body)).toEqual(
+      [second.body.reference, both.body.reference].sort(),
+    )
+    const admin = signedInAsRole(app, 'knowledge_admin')
+    expect((await admin.get('/api/assessments')).body).toHaveLength(3)
+  })
+
+  it('lists only active risk engineers with minimal directory fields and rejects invalid assignments', async () => {
+    await UserModel.updateOne({ _id: other._id }, { $set: { active: false } })
+    const directory = await api.get('/api/assessments/engineers')
+    expect(directory.body).toEqual([
+      { id: String(actor._id), staffId: actor.staffId, name: actor.name, jobTitle: null },
+    ])
+    for (const id of [String(other._id), String(new Types.ObjectId()), 'A. Rowe']) {
+      expect((await create(body({ engineerIds: [id] }))).status).toBe(400)
+    }
+    expect(await AssessmentModel.countDocuments()).toBe(0)
   })
 })
