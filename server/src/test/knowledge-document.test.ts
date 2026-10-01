@@ -418,7 +418,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
     expect(await listed()).toMatchObject({ sourceType: 'nfpa_standard', edition: '2022' })
   })
 
-  // KB-01 AC9–AC11: the details a correction replaces are kept as a previous version.
+  // KB-01 AC9–AC10: the details a correction replaces are kept as a previous version.
   it('records the replaced details as a previous version, with who and when, newest first', async () => {
     const id = await stored(REPORT)
     const before = Date.now()
