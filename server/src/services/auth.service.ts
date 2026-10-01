@@ -10,8 +10,23 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+export class TooManyAttemptsError extends Error {
+  constructor() {
+    super('Too many failed attempts. Try again in a few minutes.')
+    this.name = 'TooManyAttemptsError'
+  }
+}
+
 // Session lifetime (F-04/F-07 share this — one expiry concept, not two).
 export const SESSION_TTL_SECONDS = 15 * 60
+
+const MAX_ATTEMPTS = 5
+const LOCKOUT_MS = 15 * 60 * 1000
+
+// ponytail: in-memory per-email lockout — fine for a single server instance;
+// move to Redis (shared with the rate-limit store) if this runs behind more
+// than one instance.
+const failedAttempts = new Map<string, { count: number; lockedUntil?: number }>()
 
 export type SessionUser = { id: string; role: UserRole; name: string }
 
@@ -22,13 +37,24 @@ export async function login(
   email: string,
   password: string,
 ): Promise<{ token: string; user: SessionUser }> {
-  const user = await UserModel.findOne({ email: email.toLowerCase().trim() }).select(
-    '+passwordHash',
-  )
+  const key = email.toLowerCase().trim()
+  const record = failedAttempts.get(key)
+  if (record?.lockedUntil && record.lockedUntil > Date.now()) {
+    throw new TooManyAttemptsError()
+  }
+
+  const user = await UserModel.findOne({ email: key }).select('+passwordHash')
   // A deactivated account (F-03) cannot sign in; same generic error.
   if (!user?.passwordHash || !user.active || !(await bcrypt.compare(password, user.passwordHash))) {
+    const attempts = (record?.count ?? 0) + 1
+    failedAttempts.set(key, {
+      count: attempts,
+      lockedUntil: attempts >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : undefined,
+    })
     throw new InvalidCredentialsError()
   }
+
+  failedAttempts.delete(key)
   return { token: signSession(user), user: toSessionUser(user) }
 }
 

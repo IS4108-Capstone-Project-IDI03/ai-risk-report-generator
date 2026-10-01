@@ -47,6 +47,19 @@ describe('POST /api/auth/login', () => {
   })
 })
 
+describe('POST /api/auth/login lockout (AC7)', () => {
+  it('locks out after 5 failed attempts, even with the correct password', async () => {
+    await seedUser({ email: 'lockout@example.com' })
+    const attempt = (password: string) =>
+      request(app).post('/api/auth/login').send({ email: 'lockout@example.com', password })
+    for (let i = 0; i < 5; i++) {
+      expect((await attempt('wrong')).status).toBe(401)
+    }
+    const res = await attempt('correct horse')
+    expect(res.status).toBe(429)
+  })
+})
+
 describe('POST /api/auth/login for a deactivated account', () => {
   it('refuses it with the same generic error', async () => {
     await seedUser({ active: false })
