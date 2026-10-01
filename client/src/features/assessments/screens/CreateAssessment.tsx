@@ -240,6 +240,15 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
             <div
               style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '2px' }}
             >
+              {v.directoryLoading && <p role="status">Loading engineers…</p>}
+              {!v.directoryLoading && !v.directoryError && v.engineers.length === 0 && (
+                <p>No active risk engineers are available.</p>
+              )}
+              {v.directoryError && (
+                <Callout tone="warning" title="Engineer list unavailable">
+                  Reopen this page to load the engineer list before creating the assessment.
+                </Callout>
+              )}
               {v.engineers.map((e, index) => (
                 <Fragment key={index}>
                   <div
@@ -276,7 +285,7 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                         label={e.name}
                         description={e.role}
                         checked={e.on}
-                        onChange={() => v.toggleEng(e.name)}
+                        onChange={() => v.toggleEng(e.id)}
                       ></Checkbox>
                     </span>
                     {!!e.isLead && (

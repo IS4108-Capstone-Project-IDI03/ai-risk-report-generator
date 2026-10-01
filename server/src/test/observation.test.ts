@@ -11,7 +11,7 @@ import {
   listCategoryObservations,
 } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
-import { signedInAsRole } from './auth-test-helpers'
+import { signedInAs } from './auth-test-helpers'
 
 // S3 stands in as a map; S5 as a stubbed fetch.
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
@@ -25,7 +25,17 @@ const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 useMemoryMongo()
 
 // A risk engineer is allowed everything below (F-05); role limits are in permissions.test.ts.
-const api = signedInAsRole(app, 'risk_engineer')
+const actor = {
+  _id: new Types.ObjectId(),
+  staffId: 'TEST-1',
+  name: 'Alex Rowe',
+  email: 'alex@example.com',
+  role: 'risk_engineer' as const,
+  active: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}
+const api = signedInAs(app, actor)
 
 beforeEach(() => {
   vi.stubGlobal('fetch', (_url: string, init: RequestInit) => speech(JSON.parse(String(init.body))))
@@ -85,7 +95,7 @@ function save(fields: object = {}, recordings: Recording[] = [{}], reference = '
   const req = api.post(`/api/assessments/${reference}/observations`).field(
     'details',
     JSON.stringify({
-      engineer: 'A. Rowe',
+      engineer: 'Alex Rowe',
       copeDimension: 'Protection',
       severity: 'high',
       locationId: String(BAY_3),
@@ -127,7 +137,13 @@ describe('POST /api/assessments/:reference/observations', () => {
     const stored = await ObservationModel.findById(response.body.id).lean()
     // The note is kept exactly as written.
     expect(stored?.note).toBe(text)
-    expect(stored?.engineer).toBe('A. Rowe')
+    expect(stored?.engineer).toBe('Alex Rowe')
+    expect(String(stored?.engineerId)).toBe(String(actor._id))
+    expect(response.body.engineerId).toBe(String(actor._id))
+    expect(response.body.recordings.map((r: { type: string }) => r.type)).toEqual([
+      'Voice',
+      'Voice',
+    ])
     expect(stored?.severity).toBe('high')
     expect(String(stored?.location)).toBe(String(PUMP_HOUSE))
     expect(response.body.location).toEqual({
@@ -256,7 +272,6 @@ describe('POST /api/assessments/:reference/observations', () => {
 
     const invalid = [
       [{ note: 'x'.repeat(5001) }, 'note'],
-      [{ engineer: ' ' }, 'engineer'],
       [{ copeDimension: 'Fire protection' }, 'copeDimension'],
       [{ copeDimension: undefined }, 'copeDimension'],
       [{ severity: 'urgent' }, 'severity'],
@@ -360,7 +375,7 @@ describe('PATCH /api/observations/:id', () => {
       // Left out of the request, so unchanged.
       copeDimension: 'Protection',
       note: 'Racking under heads.',
-      engineer: 'A. Rowe',
+      engineer: 'Alex Rowe',
       recordedAt: saved.recordedAt,
     })
     expect(reopened.recordings).toEqual([
@@ -424,6 +439,22 @@ describe('PATCH /api/observations/:id', () => {
 })
 
 describe('observation list, audio and restarts', () => {
+  it('shows a short storage failure reason while retaining technical details for diagnosis', async () => {
+    const detail =
+      'The recording could not be read from storage: SSL validation failed for https://example-bucket.s3.amazonaws.com/audio/private-recording.webm [Errno 2] No such file or directory'
+    speech.mockReturnValue(s5(502, { detail }))
+    await assessmentWithSession()
+    const saved = (await save()).body
+    const stored = await settled(saved.id)
+    expect(stored.recordings[0].transcription.error).toBe(detail)
+    expect(stored.recordings[0].transcription.attempts[0].error).toBe(detail)
+    const response = await api.get('/api/assessments/RPT-2026-0411/observations')
+    expect(response.body[0].recordings[0].transcription.error).toBe(
+      'Could not securely connect to audio storage.',
+    )
+    expect(JSON.stringify(response.body)).not.toContain('example-bucket')
+  })
+
   it('lists the observations newest first, with each recording and its transcription', async () => {
     speech.mockReturnValue(s5(200, { transcript: 'Racking is new.' }))
     await assessmentWithSession()
@@ -436,7 +467,7 @@ describe('observation list, audio and restarts', () => {
     expect(response.status).toBe(200)
     expect(response.body.map((o: { id: string }) => o.id)).toEqual([second.id, first.id])
     expect(response.body[1]).toMatchObject({
-      engineer: 'A. Rowe',
+      engineer: 'Alex Rowe',
       copeDimension: 'Protection',
       location: { id: String(BAY_3), name: 'Bay 3 — north aisle' },
       note: null,
@@ -483,4 +514,30 @@ describe('observation list, audio and restarts', () => {
       expect(r.transcription.error).toMatch(/interrupted by a gateway restart/)
     }
   })
+})
+
+it('uses each authenticated capturer ID and ignores forged attribution, while deriving text metadata', async () => {
+  await assessmentWithSession()
+  const another = { ...actor, _id: new Types.ObjectId(), name: 'Jide Okafor' }
+  for (const user of [actor, another]) {
+    const reply = await signedInAs(app, user)
+      .post('/api/assessments/RPT-2026-0411/observations')
+      .field(
+        'details',
+        JSON.stringify({
+          note: 'A note',
+          engineer: 'Impersonated user',
+          engineerId: String(new Types.ObjectId()),
+          copeDimension: null,
+          severity: 'low',
+          locationId: String(BAY_3),
+        }),
+      )
+    expect(reply.status).toBe(201)
+    expect(reply.body).toMatchObject({
+      engineer: user.name,
+      engineerId: String(user._id),
+      recordings: [],
+    })
+  }
 })

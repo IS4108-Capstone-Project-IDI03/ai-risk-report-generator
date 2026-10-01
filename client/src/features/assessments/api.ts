@@ -10,8 +10,8 @@ export type NewAssessment = {
   siteVisitDate?: string
   reportDueDate?: string
   standards: string[]
-  // The first engineer is the lead.
-  engineers: string[]
+  // User IDs; the first engineer is the lead.
+  engineerIds: string[]
 }
 
 // Capture statuses come from the assessment's capture session; report
@@ -29,6 +29,7 @@ export type Assessment = {
   reportDueDate: string | null
   standards: string[]
   engineers: string[]
+  engineerIds: string[]
   status: AssessmentStatus
   createdAt: string
   site: {
@@ -149,14 +150,27 @@ async function request<T>(
     }
     throw new GatewayError(response.status, problem.error, problem.fields)
   }
-  // 204 No Content has no body to read.
-  const data = response.status === 204 ? undefined : await response.json()
+  // Accepted operations can also return an empty body (e.g. transcription retry).
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : undefined
   return { status: response.status, data: data as T }
 }
 
 // Every assessment, most recent site visit first (RV-10).
 export async function listAssessments(signal?: AbortSignal): Promise<Assessment[]> {
   return (await request<Assessment[]>('GET', '/api/assessments', undefined, signal)).data
+}
+
+export type AssignableEngineer = {
+  id: string
+  name: string
+  staffId: string
+  jobTitle: string | null
+}
+export async function listAssignableEngineers(signal?: AbortSignal): Promise<AssignableEngineer[]> {
+  return (
+    await request<AssignableEngineer[]>('GET', '/api/assessments/engineers', undefined, signal)
+  ).data
 }
 
 // Creates the assessment and its site; the server allocates the reference.
@@ -183,12 +197,11 @@ const observationsPath = (reference: string) =>
 
 // Saves one observation, with its note and recordings, to the assessment's
 // active capture session. A null copeDimension leaves it uncategorised. The
-// server stores each recording and queues its transcription.
+// server stores each recording and starts its initial transcription.
 export async function saveObservation(
   reference: string,
   details: {
     note?: string
-    engineer: string
     copeDimension: string | null
     severity: string
     locationId: string

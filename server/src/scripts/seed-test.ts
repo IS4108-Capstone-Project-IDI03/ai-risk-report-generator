@@ -78,6 +78,39 @@ async function seedAndVerify(): Promise<void> {
 
   console.log('MongoDB test record read successfully:', record)
 
+  // F-05 keeps two roles. Accounts saved as the retired `reviewer` role
+  // become risk engineers, whose permissions covered everything it had.
+  // The raw collection, because the schema no longer admits `reviewer`.
+  const retired = await UserModel.collection.updateMany(
+    { role: 'reviewer' },
+    { $set: { role: 'risk_engineer' } },
+  )
+  if (retired.modifiedCount)
+    console.log(`${retired.modifiedCount} reviewer account(s) are now risk engineers.`)
+
+  // Inserted only when missing, so re-seeding keeps edits made on screen.
+  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10)
+  for (const user of SAMPLE_USERS) {
+    await UserModel.updateOne(
+      { staffId: user.staffId },
+      { $setOnInsert: { ...user, active: true, passwordHash } },
+      { upsert: true },
+    )
+    // Accounts seeded before sign-in existed (F-03) have no password yet;
+    // give them the dev one, without touching a password already set.
+    await UserModel.updateOne(
+      { staffId: user.staffId, passwordHash: { $exists: false } },
+      { $set: { passwordHash } },
+    )
+  }
+  console.log(`${SAMPLE_USERS.length} sample user accounts are available.`)
+
+  // Assigns a sample assessment to one account by its staff ID (RV-10).
+  async function assignedTo(staffId: string) {
+    const user = (await UserModel.findOne({ staffId }).lean())!
+    return { engineerIds: [user._id], engineers: [user.name] }
+  }
+
   // Sample assessment for the capture screen (CP-01). Matches the client's
   // demo assessment, so live and demo views name the same site.
   const tilbury = await SiteModel.findOneAndUpdate(
@@ -102,7 +135,7 @@ async function seedAndVerify(): Promise<void> {
         siteVisitDate: new Date('2026-04-11'),
         reportDueDate: new Date('2026-04-25'),
         standards: ['FM Global 2-0', 'NFPA 13'],
-        engineers: ['A. Rowe'],
+        ...(await assignedTo('MRE-0001')),
       },
     },
     { upsert: true },
@@ -133,7 +166,7 @@ async function seedAndVerify(): Promise<void> {
       site: { code: 'SYN-UK-LCS', name: 'Leeds Cold Store', facilityType: 'Cold store' },
       client: 'Fennick Foods',
       siteVisitDate: '2026-04-08',
-      engineers: ['A. Rowe'],
+      lead: 'MRE-0001',
       reportStatus: 'under_review',
     },
     {
@@ -141,11 +174,11 @@ async function seedAndVerify(): Promise<void> {
       site: { code: 'SYN-IE-DW4', name: 'Dublin Warehouse 4', facilityType: 'Warehouse' },
       client: 'Northgate Logistics',
       siteVisitDate: '2026-03-20',
-      engineers: ['J. Okafor'],
+      lead: 'MRE-0002',
       reportStatus: 'finalised',
     },
   ]
-  for (const { site, siteVisitDate, ...assessment } of extras) {
+  for (const { site, siteVisitDate, lead, ...assessment } of extras) {
     const stored = await SiteModel.findOneAndUpdate(
       { code: site.code },
       { $set: { ...site, jurisdiction: site.code.slice(4, 6) } },
@@ -159,39 +192,13 @@ async function seedAndVerify(): Promise<void> {
           site: stored._id,
           surveyType: 'Property risk survey',
           siteVisitDate: new Date(siteVisitDate),
+          ...(await assignedTo(lead)),
         },
       },
       { upsert: true },
     )
   }
   console.log('Work list assessments RPT-2026-0408 and RPT-2026-0327 are available.')
-
-  // F-05 keeps two roles. Accounts saved as the retired `reviewer` role
-  // become risk engineers, whose permissions covered everything it had.
-  // The raw collection, because the schema no longer admits `reviewer`.
-  const retired = await UserModel.collection.updateMany(
-    { role: 'reviewer' },
-    { $set: { role: 'risk_engineer' } },
-  )
-  if (retired.modifiedCount)
-    console.log(`${retired.modifiedCount} reviewer account(s) are now risk engineers.`)
-
-  // Inserted only when missing, so re-seeding keeps edits made on screen.
-  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10)
-  for (const user of SAMPLE_USERS) {
-    await UserModel.updateOne(
-      { staffId: user.staffId },
-      { $setOnInsert: { ...user, active: true, passwordHash } },
-      { upsert: true },
-    )
-    // Accounts seeded before sign-in existed (F-03) have no password yet;
-    // give them the dev one, without touching a password already set.
-    await UserModel.updateOne(
-      { staffId: user.staffId, passwordHash: { $exists: false } },
-      { $set: { passwordHash } },
-    )
-  }
-  console.log(`${SAMPLE_USERS.length} sample user accounts are available.`)
 }
 
 seedAndVerify()

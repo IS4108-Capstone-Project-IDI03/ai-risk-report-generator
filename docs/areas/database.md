@@ -46,7 +46,7 @@ Python service ports to loopback; do not expose them publicly as-is.
 `assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
 `RPT-2026-0411`), a `site` reference, `client`, optional `policyReference`,
 `surveyType`, optional `siteVisitDate` and `reportDueDate`, and the selected
-`standards` and `engineers` (names for now; the first engineer is the lead).
+`standards`, `engineers` (display-name snapshots), and `engineerIds` (user IDs; the first engineer is the lead).
 Extend it rather than creating a parallel assessment schema.
 
 `POST /api/assessments` creates an assessment and a new site for it (the site
@@ -69,7 +69,7 @@ sessions fall outside the index and are kept as history.
 (200) or starts one (201), together with the assessment's reference, client and
 site for the capture screen. Assessments are addressed by `reference`, the ID the
 client already holds, not by ObjectId. An unknown reference returns 404. The
-gateway does not authenticate this route yet (F-04).
+gateway requires authentication and the `assessments:edit` permission.
 
 An assessment's status is stored only once a report exists: `reportStatus` is
 `draft`, `under_review` or `finalised`, set by the generation and sign-off
@@ -98,11 +98,14 @@ were added. Adding one needs no capture session. `DELETE
 location; editing an observation's tags (CP-06) moves it elsewhere. `npm --prefix server run seed`
 gives `RPT-2026-0411` six sample locations when it has none.
 
-`GET /api/assessments` returns every assessment with its derived `status`, most
-recent site visit first, in two queries (assessments, then their sessions). The
-dashboard filters and searches it in the browser (RV-10) and shows only the
-assessments whose `engineers` include the signed-in user. That user is fixed
-until accounts exist (F-04); the gateway does not paginate or filter by user yet.
+`GET /api/assessments` returns assessments assigned to the authenticated risk
+engineer's user ID; knowledge admins receive all assessments. The derived status
+and sort order (most recent site visit first) are unchanged. Site/client/report-ID
+search and status filtering happen in the browser. `GET /api/assessments/engineers`
+requires `assessments:edit` and returns only active risk engineers' IDs, names,
+staff IDs and job titles for assignment. Creating an assessment accepts
+`engineerIds`, validates the active accounts, and derives display-name snapshots;
+legacy name-only `engineers` input is rejected. IDs survive display-name changes.
 
 ## User accounts
 
@@ -162,7 +165,7 @@ still browser-only placeholders; CP-04 should add a `photos` list to the same
 document rather than a new collection.
 
 Each document links to its `assessment` and the capture `session` it was
-recorded in, the `engineer` who captured it (a name until F-04), and `metadata`
+recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
 with the five required fields: `source_type` (`observation`), `jurisdiction`
 and `facility_type` copied from the site, `COPE_dimension` from the COPE
 category the engineer picked (`Construction`, `Occupancy`, `Protection` or
@@ -192,6 +195,11 @@ field: the location's `name` is its zone and its `floor` the floor, so choosing
 a location tags both. The Observations tab filters by category, severity,
 location and floor in the browser, like the dashboard.
 
+The API gives each recording `type: "Voice"`; the note is text by being the
+`note` field. The observation's `engineerId` is set from the signed session;
+client-supplied attribution is ignored. Observations saved before this change
+have a null `engineerId`.
+
 Each recording has its own `_id`, a `name` ("Recording 2" or the uploaded
 file's name), and its original audio in S3 at
 `audio/<reference>/<observation id>/<recording id>.<ext>`; the document keeps
@@ -206,7 +214,7 @@ capture session `active`.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `engineer`, `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
 | `GET /api/assessments/:reference/observations` | Every observation, newest first, with its `note` and `recordings`, each recording with its `url` and `transcription`. `copeDimension` is `null` for an uncategorised observation |
 | `PATCH /api/observations/:id` | Changes the tags: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations) and `standard` (100 characters; `null` or `''` removes it). A tag left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when no tag is sent) / 404 |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |

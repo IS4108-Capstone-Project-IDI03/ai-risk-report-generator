@@ -17,6 +17,8 @@ def transcribe(s3_key: str) -> dict:
         stored = boto3.client("s3", region_name=AWS_REGION).get_object(Bucket=S3_BUCKET, Key=s3_key)
         audio = stored["Body"].read()
     except Exception as error:
+        # The gateway maps these message prefixes to user-facing reasons
+        # (server/src/services/observation.service.ts); keep them in sync.
         reason = f"The recording could not be read from storage: {error}"
         raise TranscriptionError(reason) from error
 

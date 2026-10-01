@@ -5,6 +5,8 @@ import {
   createAssessment as requestCreateAssessment,
   GatewayError,
   listAssessments,
+  listAssignableEngineers,
+  type AssignableEngineer,
   retryTranscription,
   saveObservation,
   updateObservationTags,
@@ -38,7 +40,6 @@ import {
   STANDARD_REFERENCES,
   SEV,
   STANDARDS,
-  ENGINEERS,
   TITLES,
   PLAIN,
   EVIDENCE,
@@ -80,16 +81,16 @@ function toRow(a: Assessment): AssessmentRow {
     client: a.client,
     type: a.surveyType,
     date: formatDay(a.siteVisitDate),
+    siteVisitDate: a.siteVisitDate,
+    reportDueDate: a.reportDueDate,
     eng: a.engineers[0] ?? 'Unassigned',
-    engs: a.engineers,
+    engineerIds: a.engineerIds,
     status: STATUS_LABEL[a.status],
     sev: 'low',
     open: 0,
     persisted: true,
   }
 }
-// ponytail: the signed-in engineer is fixed until accounts exist (F-04).
-const ME = 'A. Rowe'
 
 const TRANSCRIPTION_TEXT = {
   transcribing: 'Transcribing the recording…',
@@ -178,6 +179,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // reopened after signing in; '/' opens the role's home screen.
   const [state, updateState] = useState<WorkflowState>(() => ({
     ...structuredClone(initialState),
+    cf: { ...structuredClone(initialState.cf), engs: [session.user.id] },
     screen: screenForPath(window.location.pathname, session),
   }))
   // The URL follows the screen. The first update replaces '/' (or the path
@@ -242,6 +244,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     )
     return () => controller.abort()
   }, [onDashboard])
+  const [directory, setDirectory] = useState<AssignableEngineer[]>([])
+  const [directoryStatus, setDirectoryStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const onCreate = state.screen === 'create' && canOpen('create', session)
+  useEffect(() => {
+    if (!onCreate) return
+    const controller = new AbortController()
+    listAssignableEngineers(controller.signal).then(
+      (users) => {
+        if (controller.signal.aborted) return
+        setDirectory(users)
+        setDirectoryStatus('ready')
+      },
+      () => {
+        if (!controller.signal.aborted) {
+          setDirectoryStatus('error')
+        }
+      },
+    )
+    return () => {
+      controller.abort()
+      setDirectoryStatus('loading')
+    }
+  }, [onCreate])
   function later(callback: () => void, delay: number) {
     const timer = setTimeout(() => {
       timeouts.delete(timer)
@@ -519,7 +544,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           reference,
           {
             note,
-            engineer: ME,
             copeDimension: s.fCat === UNCATEGORISED ? null : COPE_DIMENSION[s.fCat],
             severity: s.fSev,
             locationId: location.id,
@@ -699,15 +723,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }
 
     /* dashboard rows: demo rows until the gateway answers */
+    // The gateway scopes persisted rows to the signed-in engineer. Sample rows
+    // remain explicitly labelled demo data when the gateway is unavailable.
     const serverIds = new Set(serverRows?.map((r) => r.id))
-    // Engineers see only the assessments they are assigned to.
-    // ponytail: the signed-in user is fixed and filtered here until accounts exist (F-04);
-    // the gateway must scope the list once it knows who is asking.
-    const rows = (
-      serverRows
-        ? [...s.createdRows.filter((r) => !serverIds.has(r.id)), ...serverRows]
-        : [...s.createdRows, ...ROWS]
-    ).filter((r) => (r.engs ?? [r.eng]).includes(ME))
+    const visibleCreated = s.createdRows.filter(
+      (r) =>
+        !r.persisted ||
+        session.user.role === 'knowledge_admin' ||
+        r.engineerIds?.includes(session.user.id),
+    )
+    const rows = serverRows
+      ? [...visibleCreated.filter((r) => !serverIds.has(r.id)), ...serverRows]
+      : [...visibleCreated, ...ROWS]
     // Only the demo assessment has sample workspace content; others show their own details.
     const openRow = isDemoCapture ? null : rows.find((r) => r.id === s.captureTarget.reference)
 
@@ -774,16 +801,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
 
     const q = s.q.trim().toLowerCase()
     const openCount = (r: AssessmentRow) => (r.live ? open.length : r.open || 0)
+    // en-CA formats the local date as YYYY-MM-DD.
+    const today = new Date().toLocaleDateString('en-CA')
     const filtered = rows
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
         if (s.fStatus !== 'All statuses' && r.status !== s.fStatus) return false
         return true
       })
+      .sort((a, b) =>
+        s.workSort === 'Report due: earliest first'
+          ? (a.reportDueDate || '9999-12-31').localeCompare(b.reportDueDate || '9999-12-31')
+          : (b.siteVisitDate || '').localeCompare(a.siteVisitDate || ''),
+      )
       .map((r) => {
         const n = openCount(r)
         return {
           ...r,
+          dueLabel: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
+          overdue:
+            !!r.reportDueDate && r.reportDueDate < today && r.status !== STATUS_LABEL.finalised,
           sevIcon: SEV[r.sev].icon,
           sevColor: SEV[r.sev].color,
           stackMeta: r.client + ' · ' + r.type + ' · ' + r.eng,
@@ -977,10 +1014,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       ...t,
       on: s.cf.stds.includes(t.name),
     }))
-    const engineers = ENGINEERS.map((e) => ({
+    const engineers = directory.map((e) => ({
       ...e,
-      on: s.cf.engs.includes(e.name),
-      isLead: s.cf.engs[0] === e.name,
+      initials: e.name
+        .split(' ')
+        .map((part) => part[0])
+        .slice(0, 2)
+        .join(''),
+      role: [e.staffId, e.jobTitle].filter(Boolean).join(' · '),
+      on: s.cf.engs.includes(e.id),
+      isLead: s.cf.engs[0] === e.id,
     }))
 
     /* field */
@@ -1340,7 +1383,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   : s.captureTarget.site,
       meta:
         sc === 'dashboard'
-          ? rows.length + ' assessments · A. Rowe · Week of 11 Apr 2026'
+          ? rows.length + ' assessments · ' + session.user.name
           : sc === 'create'
             ? 'Opening an assessment creates the report record and its drafting set.'
             : sc === 'field'
@@ -1426,6 +1469,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fStatus: e.target.value,
         }),
       statusOptions: ['All statuses', ...Object.values(STATUS_LABEL)],
+      workSort: s.workSort,
+      sortOptions: ['Latest site visit', 'Report due: earliest first'],
+      setWorkSort: (
+        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
+      ) => setState({ workSort: e.target.value }),
       filteredRows: filtered,
       noResults: filtered.length === 0,
       resultLabel: filtered.length + ' of ' + rows.length + ' assessments',
@@ -1557,6 +1605,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       ],
       standards,
       engineers,
+      directoryError: directoryStatus === 'error',
+      directoryLoading: directoryStatus === 'loading',
       stdCountLabel: s.cf.stds.length + ' of 6 selected',
       toggleStd: (v: string) => {
         const has = s.cf.stds.includes(v)
@@ -1599,14 +1649,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             siteVisitDate: s.cf.date,
             reportDueDate: s.cf.due,
             standards: s.cf.stds,
-            engineers: s.cf.engs,
+            engineerIds: s.cf.engs,
           })
           addCreatedRow(toRow(created))
           toast(
             created.reference +
               ' created for ' +
               created.site.name +
-              '. Open it from the list to capture observations on site.',
+              (created.engineerIds.includes(session.user.id)
+                ? '. Open it from the list to capture observations on site.'
+                : '. It will appear in the assigned engineers’ work lists.'),
           )
         } catch (error: unknown) {
           if (error instanceof GatewayError && error.status === null) {
@@ -1618,7 +1670,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               client: s.cf.client,
               type: s.cf.survey,
               date: formatDay(s.cf.date || null),
-              eng: s.cf.engs[0] || 'Unassigned',
+              siteVisitDate: s.cf.date || null,
+              reportDueDate: s.cf.due || null,
+              eng: s.cf.engs.length
+                ? (directory.find((e) => e.id === s.cf.engs[0])?.name ??
+                  (s.cf.engs[0] === session.user.id ? session.user.name : 'Unassigned'))
+                : 'Unassigned',
               status: STATUS_LABEL.not_started,
               sev: 'low',
               open: 0,

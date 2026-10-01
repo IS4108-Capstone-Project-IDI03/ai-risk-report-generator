@@ -156,7 +156,7 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                       </button>
                     </>
                   )}
-                  <div style={{ minWidth: '0', flex: '1' }}>
+                  <div style={{ minWidth: '0', flex: v.showTopBar ? '1 0 100%' : '1' }}>
                     <div
                       style={{
                         display: 'flex',
