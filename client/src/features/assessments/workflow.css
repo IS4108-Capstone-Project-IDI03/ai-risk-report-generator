@@ -46,6 +46,8 @@
   font-size: 12px;
 }
 .user-footer button {
+  --surface-hover: rgba(255, 255, 255, 0.1);
+  --surface-active: rgba(255, 255, 255, 0.16);
   color: var(--text-inverse) !important;
 }
 .user-avatar {
