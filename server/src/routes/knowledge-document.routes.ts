@@ -8,13 +8,15 @@ import {
   correctKnowledgeDocument,
   documentDetailsSchema,
   getKnowledgeDocumentFile,
-  KnowledgeDocumentNotActiveError,
+  KnowledgeDocumentWrongStateError,
   KnowledgeDocumentNotFoundError,
-  listActiveDocuments,
+  listIngestedDocuments,
   listKnowledgeDocuments,
+  reinstateKnowledgeDocument,
   RejectedFileError,
   uploadDetailsSchema,
   uploadKnowledgeDocument,
+  withdrawKnowledgeDocument,
 } from '../services/knowledge-document.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
@@ -32,9 +34,9 @@ router.get('/', requirePermission('knowledge:view'), async (_req, res) => {
   res.json(await listKnowledgeDocuments())
 })
 
-// The knowledge base: every active document, by title (KB-01).
-router.get('/active', requirePermission('knowledge:view'), async (_req, res) => {
-  res.json(await listActiveDocuments())
+// The knowledge base: every ingested document, active or withdrawn, by title (KB-01, KB-02).
+router.get('/ingested', requirePermission('knowledge:view'), async (_req, res) => {
+  res.json(await listIngestedDocuments())
 })
 
 // Uploads one knowledge document (IN-01). The body is the PDF itself; its
@@ -85,13 +87,48 @@ router.put('/:id', requirePermission('knowledge:manage'), async (req, res) => {
     const status =
       error instanceof KnowledgeDocumentNotFoundError
         ? 404
-        : error instanceof KnowledgeDocumentNotActiveError
+        : error instanceof KnowledgeDocumentWrongStateError
           ? 409
           : error instanceof IngestionUnavailableError
             ? 503
             : null
     if (!status || !(error instanceof Error)) throw error
     res.status(status).json({ error: error.message })
+  }
+})
+
+// Maps a failed withdraw or reinstate to its HTTP status; rethrows the rest.
+function answerStateChange(error: unknown, res: express.Response) {
+  const status =
+    error instanceof KnowledgeDocumentNotFoundError
+      ? 404
+      : error instanceof KnowledgeDocumentWrongStateError
+        ? 409
+        : error instanceof IngestionUnavailableError
+          ? 503
+          : null
+  if (!status || !(error instanceof Error)) throw error
+  res.status(status).json({ error: error.message })
+}
+
+// Withdraws a document from use (KB-02). Answers: 200 withdrawn · 404 unknown
+// · 409 not active · 503 search could not be updated (still active).
+router.post('/:id/withdraw', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    const { id, name } = res.locals.user!
+    res.json(await withdrawKnowledgeDocument(req.params.id, { id, name }))
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// Reinstates a withdrawn document (KB-02). Answers: 200 reinstated · 404
+// unknown · 409 not withdrawn · 503 search could not be updated (still withdrawn).
+router.post('/:id/reinstate', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    res.json(await reinstateKnowledgeDocument(req.params.id))
+  } catch (error: unknown) {
+    answerStateChange(error, res)
   }
 })
 

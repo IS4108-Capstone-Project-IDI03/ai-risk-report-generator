@@ -52,7 +52,7 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
 ## Correcting a knowledge document (KB-01)
 
-1. The Documents tab lists `GET /api/knowledge-documents/active` and filters
+1. The Documents tab lists `GET /api/knowledge-documents/ingested` and filters
    by country and facility type in the browser.
 2. Edit details sends the full details to `PUT /api/knowledge-documents/:id`.
    The gateway validates them as at upload, refuses a document that is not
@@ -67,3 +67,18 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 5. Search sees the change at once: the RAG service's `POST /retrieve` takes
    optional `filters` on `source_type`, `jurisdiction` and `facility_type`;
    the last two also match passages labelled `all`.
+
+## Withdrawing and reinstating a knowledge document (KB-02)
+
+1. Withdraw sends `POST /api/knowledge-documents/:id/withdraw`; reinstate sends
+   `POST /api/knowledge-documents/:id/reinstate`. The gateway refuses a document
+   in the wrong state (409): withdraw needs a complete, not-withdrawn document,
+   reinstate needs a withdrawn one.
+2. The gateway saves or removes `withdrawn` (who and when), then calls the
+   ingestion service's `PUT /documents/{id}/labels` with the labels plus
+   `status` (`withdrawn` or `active`). No re-parsing or re-embedding.
+3. If that call fails, the gateway puts `withdrawn` back and answers 503, so
+   the document keeps its old state.
+4. Retrieval skips withdrawn passages: the RAG service's `retrieve()` always
+   excludes `status: withdrawn`, so `/retrieve` and `/generate` both skip them.
+   Reinstating brings them back without uploading again.
