@@ -386,7 +386,7 @@ export async function correctKnowledgeDocument(
   await document.save()
 
   // c. Put the new labels on its passages in Chroma. If that fails, write the
-  // old details and history back (AC11): without this, MongoDB would show the
+  // old details and history back: without this, MongoDB would show the
   // correction while search still used the old labels.
   try {
     await relabelPassages(id, labels(document.toObject().metadata))
