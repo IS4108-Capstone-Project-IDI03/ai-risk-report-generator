@@ -28,6 +28,18 @@ const LOCKOUT_MS = 15 * 60 * 1000
 // than one instance.
 const failedAttempts = new Map<string, { count: number; lockedUntil?: number }>()
 
+// ponytail: in-memory revoked-token set for logout (F-07 AC4) — a JWT is
+// otherwise self-validating and stays "logged in" until it naturally expires,
+// even after the browser drops its cookie. Each entry self-removes once the
+// token would have expired anyway, so this never grows unbounded. Move to
+// Redis if this runs behind more than one instance.
+const revokedTokens = new Set<string>()
+
+export function revokeSession(token: string): void {
+  revokedTokens.add(token)
+  setTimeout(() => revokedTokens.delete(token), SESSION_TTL_SECONDS * 1000).unref()
+}
+
 export type SessionUser = { id: string; role: UserRole; name: string }
 
 // Verifies credentials and returns a signed session token plus the account.
@@ -59,11 +71,23 @@ export async function login(
 }
 
 export function signSession(user: IUser & { _id: unknown }): string {
-  const sessionUser = toSessionUser(user)
+  return signPayload(toSessionUser(user))
+}
+
+// Re-signs an already-verified session with a fresh expiry (F-07's sliding
+// window) — no database lookup. Rebuilt as a clean payload: the decoded
+// `user` still carries the original token's `iat`/`exp`, and jwt.sign()
+// rejects a payload that already has `exp` when `expiresIn` is also given.
+export function refreshSession(user: SessionUser): string {
+  return signPayload({ id: user.id, role: user.role, name: user.name })
+}
+
+function signPayload(sessionUser: SessionUser): string {
   return jwt.sign(sessionUser, config.jwtSecret, { expiresIn: SESSION_TTL_SECONDS })
 }
 
 export function verifySession(token: string): SessionUser {
+  if (revokedTokens.has(token)) throw new Error('Session was signed out.')
   return jwt.verify(token, config.jwtSecret) as SessionUser
 }
 

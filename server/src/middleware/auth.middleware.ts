@@ -1,8 +1,19 @@
 import type { NextFunction, Request, Response } from 'express'
-import { verifySession, type SessionUser } from '../services/auth.service'
+import {
+  refreshSession,
+  SESSION_TTL_SECONDS,
+  verifySession,
+  type SessionUser,
+} from '../services/auth.service'
 import { hasPermission, type Permission } from '../services/permissions.service'
 
 export const SESSION_COOKIE = 'session'
+
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  maxAge: SESSION_TTL_SECONDS * 1000,
+}
 
 declare module 'express-serve-static-core' {
   interface Locals {
@@ -11,7 +22,9 @@ declare module 'express-serve-static-core' {
 }
 
 // Verifies the session cookie and sets res.locals.user. 401 if missing/invalid
-// — every protected route sits behind this first.
+// — every protected route sits behind this first. A valid session gets a
+// fresh cookie (F-07): 15 minutes resets on each request, so it's inactivity
+// that expires it, not a fixed time since login.
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.[SESSION_COOKIE]
   if (!token) {
@@ -19,7 +32,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return
   }
   try {
-    res.locals.user = verifySession(token)
+    const user = verifySession(token)
+    res.locals.user = user
+    res.cookie(SESSION_COOKIE, refreshSession(user), SESSION_COOKIE_OPTIONS)
     next()
   } catch {
     res.status(401).json({ error: 'Session expired or invalid.' })
