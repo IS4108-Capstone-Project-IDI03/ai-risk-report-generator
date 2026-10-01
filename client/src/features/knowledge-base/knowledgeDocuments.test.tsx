@@ -6,6 +6,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { dateTime } from './display'
 
 const doc = {
   issuingBody: 'NFPA',
@@ -491,7 +492,8 @@ describe('Knowledge base documents (KB-01)', () => {
     const details = await open(REPORT.title)
 
     expect(details).toHaveTextContent('Sana Patel')
-    expect(details).toHaveTextContent('1 Oct 12:15')
+    // Formatted in the runner's timezone; a fixed '1 Oct 12:15' only passed in Singapore time.
+    expect(details).toHaveTextContent(dateTime(WITHDRAWN.withdrawn.at))
     expect(within(details).queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
     expect(within(details).queryByRole('button', { name: 'Withdraw' })).not.toBeInTheDocument()
     expect(within(details).getByRole('button', { name: 'Reinstate' })).toBeInTheDocument()
