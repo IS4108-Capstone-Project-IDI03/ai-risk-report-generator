@@ -1,20 +1,9 @@
 import { Router } from 'express'
-import {
-  InvalidCredentialsError,
-  login,
-  SESSION_TTL_SECONDS,
-  TooManyAttemptsError,
-} from '../services/auth.service'
-import { requireAuth, SESSION_COOKIE } from '../middleware/auth.middleware'
+import { InvalidCredentialsError, login, TooManyAttemptsError } from '../services/auth.service'
+import { requireAuth, SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '../middleware/auth.middleware'
 import { permissionsFor } from '../services/permissions.service'
 
 const router = Router()
-
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: 'lax' as const,
-  maxAge: SESSION_TTL_SECONDS * 1000,
-}
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body ?? {}
@@ -24,7 +13,7 @@ router.post('/login', async (req, res) => {
   }
   try {
     const { token, user } = await login(email, password)
-    res.cookie(SESSION_COOKIE, token, cookieOptions)
+    res.cookie(SESSION_COOKIE, token, SESSION_COOKIE_OPTIONS)
     res.json({ user, permissions: permissionsFor(user.role) })
   } catch (error: unknown) {
     if (error instanceof InvalidCredentialsError) {

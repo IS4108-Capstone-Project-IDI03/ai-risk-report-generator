@@ -59,7 +59,18 @@ export async function login(
 }
 
 export function signSession(user: IUser & { _id: unknown }): string {
-  const sessionUser = toSessionUser(user)
+  return signPayload(toSessionUser(user))
+}
+
+// Re-signs an already-verified session with a fresh expiry (F-07's sliding
+// window) — no database lookup. Rebuilt as a clean payload: the decoded
+// `user` still carries the original token's `iat`/`exp`, and jwt.sign()
+// rejects a payload that already has `exp` when `expiresIn` is also given.
+export function refreshSession(user: SessionUser): string {
+  return signPayload({ id: user.id, role: user.role, name: user.name })
+}
+
+function signPayload(sessionUser: SessionUser): string {
   return jwt.sign(sessionUser, config.jwtSecret, { expiresIn: SESSION_TTL_SECONDS })
 }
 

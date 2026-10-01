@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt'
 import request from 'supertest'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { UserModel } from '../models/user.model'
 import { useMemoryMongo } from './memory-mongo'
@@ -69,6 +69,39 @@ describe('POST /api/auth/login for a deactivated account', () => {
     expect(res.status).toBe(401)
     expect(res.body.error).toBe('Incorrect email or password.')
     expect(res.headers['set-cookie']).toBeUndefined()
+  })
+})
+
+describe('Sliding session expiry (F-07)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('stays valid past the original TTL as long as there is activity', async () => {
+    await seedUser({ email: 'sliding@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'sliding@example.com', password: 'correct horse' })
+
+    vi.advanceTimersByTime(14 * 60 * 1000) // just before the 15-min TTL
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+
+    vi.advanceTimersByTime(10 * 60 * 1000) // 24 min since login, 10 since the last request
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+  })
+
+  it('expires after 15 minutes with no activity', async () => {
+    await seedUser({ email: 'idle@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'idle@example.com', password: 'correct horse' })
+
+    vi.advanceTimersByTime(16 * 60 * 1000)
+    expect((await agent.get('/api/auth/me')).status).toBe(401)
   })
 })
 
