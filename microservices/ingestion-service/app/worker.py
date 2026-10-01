@@ -81,7 +81,7 @@ def ingest_document(document_id: str) -> None:
         return
 
     # 2. Download the original into a temporary folder that deletes itself, and
-    # 3. run PAR16's pipeline: parse → chunk → anonymise → index, with the
+    # 3. run ingestion pipeline: parse → chunk → anonymise → index, with the
     # document's labels on every passage.
     try:
         with tempfile.TemporaryDirectory() as tmp:
