@@ -31,3 +31,17 @@ export function calendarDate(iso: string): string {
   const month = date.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }).slice(0, 3)
   return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}`
 }
+
+/** Returns a file size as "12 KB" or "1.4 MB". */
+export function fileSize(bytes: number): string {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** Returns a moment in the design system's literal form, e.g. "29 Sep 11:24". */
+export function dateTime(iso: string): string {
+  const date = new Date(iso)
+  const time = date.toTimeString().slice(0, 5)
+  return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' }).slice(0, 3)} ${time}`
+}

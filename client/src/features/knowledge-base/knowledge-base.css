@@ -238,86 +238,328 @@
   color: var(--text-muted);
 }
 
-/* Documents tab (KB-01) */
+/* Documents tab (KB-01): one card, like the Observations list: filters on
+   top, then a table with each source type under its own band. */
 .kb-docs {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
+/* No width cap: the line runs the width of the tab rather than wrapping
+   halfway across it. */
 .kb-docs-head p {
-  max-width: 68ch;
   margin: 2px 0 0;
   font-size: var(--text-small-size);
   line-height: var(--text-small-lh);
   color: var(--text-secondary);
 }
-/* Labels sit above the selects, so everything aligns on the controls' bottom
-   edge; the count stays on the right until the row wraps. */
-.kb-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px 16px;
-  padding: 14px 16px;
+.kb-list {
   background: var(--surface-card);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+/* Filters on the left, their result at the far right. */
+.kb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-default);
 }
 .kb-toolbar > label {
-  flex: 0 1 220px;
-  min-width: 160px;
+  flex: 0 1 190px;
+  min-width: 150px;
 }
 .kb-toolbar .kb-count {
-  align-self: center;
+  margin-left: auto;
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
 }
-/* On a phone (the app's 760px breakpoint) each filter takes the full width
-   and the count gets its own line, instead of dangling beside a select. */
-@media (max-width: 759px) {
-  .kb-toolbar > label,
-  .kb-toolbar .kb-count {
-    flex-basis: 100%;
-  }
-}
-.kb-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.kb-group h3 {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0;
-  font-size: var(--text-body-size);
-  line-height: var(--text-body-lh);
+.kb-count b {
+  font-family: var(--font-mono);
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
 }
-.kb-group-count {
-  font-family: var(--font-mono);
+@media (max-width: 759px) {
+  .kb-toolbar > label {
+    flex-basis: 100%;
+  }
+}
+.kb-list-note {
+  margin: 0;
+  padding: 14px 16px;
   font-size: var(--text-small-size);
-  font-weight: var(--weight-regular);
   color: var(--text-muted);
 }
-.kb-group > .kb-empty {
-  padding: 12px 14px;
-  font-size: var(--text-small-size);
-  border: 1px dashed var(--border-default);
-  border-radius: var(--radius-lg);
+
+/* The table: header cells as the design system's Table draws them. */
+.kb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body-size);
+  color: var(--text-body);
 }
-.kb-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
+.kb-table thead th {
+  padding: 8px 12px;
+  background: var(--surface-header);
+  border-bottom: 1px solid var(--border-default);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.kb-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+.kb-table .kb-col-toggle {
+  width: 40px;
+  padding: 0 0 0 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+/* line-height 0 drops the text baseline gap under the icon, so it centres. */
+.kb-table .kb-col-toggle {
+  line-height: 0;
+}
+.kb-table .kb-col-status {
+  width: 96px;
+}
+/* The last column only as wide as its link; its header starts where the
+   link does, as every other header does. */
+.kb-table thead th:last-child,
+.kb-table .kb-col-original {
+  width: 1%;
+  padding-right: 16px;
   white-space: nowrap;
 }
-.kb-stack .kb-actions {
+
+/* A source type's band: icon, name and its count. */
+.kb-band th {
+  padding: 9px 16px;
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-small-size);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  color: var(--text-primary);
+}
+.kb-band-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kb-band-inner > span:first-child {
+  color: var(--text-muted);
+}
+
+.kb-doc-row {
+  cursor: pointer;
+  transition: background 80ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.kb-doc-row + .kb-doc-row,
+.kb-details-row + .kb-doc-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.kb-doc-row:hover {
+  background: var(--surface-hover);
+}
+.kb-doc-row.is-open {
+  background: var(--surface-selected);
+}
+
+/* The title is the disclosure button: title, then edition or report date. */
+.kb-toggle {
+  display: block;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.kb-toggle strong,
+.kb-toggle small {
+  display: block;
+}
+.kb-toggle strong {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.kb-toggle:hover strong {
+  color: var(--text-link);
+}
+.kb-toggle small {
+  font-size: var(--text-small-size);
+  color: var(--text-muted);
+}
+.kb-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* An open document's details: the full table width, indented to the title,
+   on the sunken surface with the 2px ink rule the system uses for a selected
+   item. */
+.kb-table .kb-details-row > td {
+  padding: 0;
+}
+.kb-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 20px 50px;
+  background: var(--surface-sunken);
+  border-left: 2px solid var(--action-primary);
+  border-top: 1px solid var(--border-subtle);
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.kb-label {
+  margin: 0;
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.kb-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: 14px 24px;
+  margin: 0;
+}
+.kb-facts dd {
+  margin: 4px 0 0;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+.kb-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+/* Below the app's 1080px stacking width the table becomes a list: chevron
+   and title on top, labels and status on one line, actions under them. */
+@media (max-width: 1079px) {
+  .kb-table,
+  .kb-table tbody,
+  .kb-table tr,
+  .kb-table th,
+  .kb-table td {
+    display: block;
+  }
+  .kb-table thead {
+    display: none;
+  }
+  .kb-table .kb-doc-row {
+    display: grid;
+    grid-template-columns: 15px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      'chev doc doc doc'
+      '. country facility status'
+      '. actions actions actions';
+    align-items: center;
+    gap: 8px 10px;
+    padding: 12px 16px;
+  }
+  .kb-table .kb-doc-row > td {
+    width: auto;
+    padding: 0;
+  }
+  .kb-table .kb-col-toggle {
+    grid-area: chev;
+  }
+  .kb-col-doc {
+    grid-area: doc;
+  }
+  .kb-col-country,
+  .kb-col-facility {
+    font-size: var(--text-small-size);
+    color: var(--text-secondary);
+  }
+  .kb-col-country {
+    grid-area: country;
+  }
+  .kb-col-facility {
+    grid-area: facility;
+  }
+  .kb-col-status {
+    grid-area: status;
+  }
+  .kb-col-original {
+    grid-area: actions;
+  }
+  .kb-details {
+    padding-left: 41px;
+  }
+}
+
+/* Edit history dialog. */
+.kb-versions-none {
+  margin: 0;
+  color: var(--text-muted);
+}
+.kb-versions {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kb-versions > li {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
 }
-.kb-labels span + span::before {
-  content: ' · ';
+.kb-versions > li:first-child {
+  padding-top: 0;
 }
+.kb-versions > li + li {
+  border-top: 1px solid var(--border-subtle);
+}
+/* An entry leads with when (semibold, mono), then who; each change reads
+   field, old value, then the new value in semibold. */
+.kb-version-meta {
+  margin: 0 0 6px;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+.kb-version-meta time {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.kb-version-meta span:last-child {
+  font-weight: var(--weight-medium);
+}
+.kb-version-change {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+}
+.kb-change-field {
+  font-size: var(--text-small-size);
+  color: var(--text-muted);
+}
+.kb-change-new {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
 /* The dialog body is the fields' container, so they reflow to its width
    (two columns in the dialog, one on a phone's sheet). */
 .kb-edit {
@@ -338,7 +580,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .kb,
-  .kb-row {
+  .kb-row,
+  .kb-details {
     animation: none;
     transition: none;
   }

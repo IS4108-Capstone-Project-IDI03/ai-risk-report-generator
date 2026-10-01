@@ -2,10 +2,10 @@
 // details that type needs (IN-01 AC1). Shared by an upload row
 // (KnowledgeBase.tsx) and the Edit details dialog (KnowledgeDocuments.tsx,
 // KB-01), so both ask the same things in the same way.
-import { Input, Select } from '../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../assessments/demo-data'
-import type { DocumentDetails, SourceType } from './api'
-import { editionProblem } from './uploads'
+import { Input, Select } from '../../../design-system'
+import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import type { DocumentDetails, SourceType } from '../api'
+import { editionProblem } from '../uploads'
 
 const SOURCE_OPTIONS = [
   { value: '', label: 'Choose a source type' },

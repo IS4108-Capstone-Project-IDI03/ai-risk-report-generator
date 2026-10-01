@@ -39,7 +39,29 @@ export type KnowledgeDocument = {
   error: string | null
   uploadedAt: string
   fileUrl: string
+  // The details each correction replaced, newest first (KB-01 AC9).
+  history: DocumentVersion[]
 }
+
+// One previous version of a document's details: what a correction replaced,
+// when, and who saved that correction.
+export type DocumentVersion = {
+  sourceType: SourceType
+  title: string
+  edition: string | null
+  effectiveDate: string
+  jurisdiction: string
+  facilityType: string
+  replacedAt: string
+  replacedBy: { id: string; name: string }
+}
+
+// The details a correction can change, as stored: on a document, or on one
+// of its previous versions.
+export type StoredDetails = Pick<
+  KnowledgeDocument,
+  'sourceType' | 'title' | 'edition' | 'effectiveDate' | 'jurisdiction' | 'facilityType'
+>
 
 // Every accepted upload with its ingestion status, newest first.
 export function listKnowledgeDocuments(signal?: AbortSignal): Promise<KnowledgeDocument[]> {
