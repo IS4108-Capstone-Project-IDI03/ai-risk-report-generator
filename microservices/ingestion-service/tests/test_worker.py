@@ -10,6 +10,7 @@ import pytest
 from bson import ObjectId
 
 from app import worker
+from app.pipeline import UnparsableDocumentError
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
@@ -94,18 +95,37 @@ def test_the_documents_labels_go_to_every_passage(documents, monkeypatch):
     }
 
 
-def test_a_document_that_cannot_be_processed_is_failed_with_the_reason(documents, monkeypatch):
+def test_a_pdf_whose_text_cannot_be_read_is_failed_with_a_plain_reason(documents, monkeypatch):
     def fake_run(file_path, doc_id=None, labels=None):
-        raise RuntimeError("Docling could not parse NFPA 13 - 2022.pdf")
+        raise UnparsableDocumentError(file_path, "Docling produced no extractable content")
 
     monkeypatch.setattr(worker, "run", fake_run)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(UnparsableDocumentError):
         worker.ingest_document(DOC_ID)
 
     assert documents.doc["status"] == "failed"
-    assert documents.doc["error"] == "Docling could not parse NFPA 13 - 2022.pdf"
+    assert (
+        documents.doc["error"]
+        == "No text could be read from this PDF. Upload a copy with selectable text."
+    )
     assert "finishedAt" in documents.doc
+
+
+def test_a_system_error_is_failed_with_a_plain_reason_not_the_technical_one(documents, monkeypatch):
+    def fake_run(file_path, doc_id=None, labels=None):
+        raise OSError(-2, "Name or service not known")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(OSError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert (
+        documents.doc["error"]
+        == "Processing stopped on a system error, not a fault in the file. Upload it again."
+    )
 
 
 def test_a_finished_document_is_left_alone(documents, monkeypatch):

@@ -27,13 +27,18 @@ from bullmq import Worker
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 
-from app.pipeline import run
+from app.pipeline import UnparsableDocumentError, run
 
 load_dotenv(Path(__file__).resolve().parent / "../../../.env")
 
 QUEUE = "ingestion"  # must match server/src/services/ingestion-queue.service.ts
 
 log = logging.getLogger("ingestion-worker")
+
+# Failure reasons the admin sees in Recent uploads. Plain words, cause then next
+# step (docs/design-system.md "Errors"); the technical error goes to the log.
+UNREADABLE = "No text could be read from this PDF. Upload a copy with selectable text."
+SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. Upload it again."
 
 
 @cache  # one client (and its connection pool) for the life of the worker
@@ -89,16 +94,18 @@ def ingest_document(document_id: str) -> None:
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
             summary = run(path, doc_id=document_id, labels=labels(doc))
-    # 4. Record the outcome: failed here, complete below. The failure reason is
-    # what the admin sees; re-raising tells BullMQ the job failed (not retried:
-    # attempts is 1).
+    # 4. Record the outcome: failed here, complete below. The admin sees a plain
+    # reason; re-raising tells BullMQ the job failed (not retried: attempts is 1).
     except Exception as error:
+        log.exception("Ingesting document %s failed.", document_id)
         collection.update_one(
             {"_id": _id},
             {
                 "$set": {
                     "status": "failed",
-                    "error": str(error) or type(error).__name__,
+                    "error": UNREADABLE
+                    if isinstance(error, UnparsableDocumentError)
+                    else SYSTEM_ERROR,
                     "finishedAt": datetime.now(UTC),
                 }
             },
