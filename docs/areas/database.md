@@ -195,10 +195,10 @@ field: the location's `name` is its zone and its `floor` the floor, so choosing
 a location tags both. The Observations tab filters by category, severity,
 location and floor in the browser, like the dashboard.
 
-The API derives `noteType: "Text"` (or null when absent) and each recording's
-`type: "Voice"`. Both share the observation's `engineerId`, set from the signed
-session; client-supplied attribution is ignored. Legacy engineer IDs are null
-until explicitly mapped.
+The API gives each recording `type: "Voice"`; the note is text by being the
+`note` field. The observation's `engineerId` is set from the signed session;
+client-supplied attribution is ignored. Observations saved before this change
+have a null `engineerId`.
 
 Each recording has its own `_id`, a `name` ("Recording 2" or the uploaded
 file's name), and its original audio in S3 at

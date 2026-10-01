@@ -111,7 +111,6 @@ export type ObservationDto = {
   id: string
   engineer: string
   engineerId: string | null
-  noteType: 'Text' | null
   // null when not categorised yet.
   copeDimension: CopeDimension | null
   standard: string | null
@@ -159,7 +158,6 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     id: String(o._id),
     engineer: o.engineer,
     engineerId: o.engineerId ? String(o.engineerId) : null,
-    noteType: o.note ? 'Text' : null,
     copeDimension: o.metadata.COPE_dimension ?? null,
     standard: o.standard ?? null,
     severity: o.severity,

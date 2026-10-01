@@ -140,7 +140,6 @@ describe('POST /api/assessments/:reference/observations', () => {
     expect(stored?.engineer).toBe('Alex Rowe')
     expect(String(stored?.engineerId)).toBe(String(actor._id))
     expect(response.body.engineerId).toBe(String(actor._id))
-    expect(response.body.noteType).toBe('Text')
     expect(response.body.recordings.map((r: { type: string }) => r.type)).toEqual([
       'Voice',
       'Voice',
@@ -538,7 +537,6 @@ it('uses each authenticated capturer ID and ignores forged attribution, while de
     expect(reply.body).toMatchObject({
       engineer: user.name,
       engineerId: String(user._id),
-      noteType: 'Text',
       recordings: [],
     })
   }
