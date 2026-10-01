@@ -1,5 +1,10 @@
 import { Router } from 'express'
-import { InvalidCredentialsError, login, TooManyAttemptsError } from '../services/auth.service'
+import {
+  InvalidCredentialsError,
+  login,
+  revokeSession,
+  TooManyAttemptsError,
+} from '../services/auth.service'
 import { requireAuth, SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '../middleware/auth.middleware'
 import { permissionsFor } from '../services/permissions.service'
 
@@ -28,7 +33,9 @@ router.post('/login', async (req, res) => {
   }
 })
 
-router.post('/logout', (_req, res) => {
+router.post('/logout', (req, res) => {
+  const token = req.cookies?.[SESSION_COOKIE]
+  if (token) revokeSession(token)
   res.clearCookie(SESSION_COOKIE)
   res.status(204).end()
 })

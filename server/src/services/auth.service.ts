@@ -28,6 +28,18 @@ const LOCKOUT_MS = 15 * 60 * 1000
 // than one instance.
 const failedAttempts = new Map<string, { count: number; lockedUntil?: number }>()
 
+// ponytail: in-memory revoked-token set for logout (F-07 AC4) — a JWT is
+// otherwise self-validating and stays "logged in" until it naturally expires,
+// even after the browser drops its cookie. Each entry self-removes once the
+// token would have expired anyway, so this never grows unbounded. Move to
+// Redis if this runs behind more than one instance.
+const revokedTokens = new Set<string>()
+
+export function revokeSession(token: string): void {
+  revokedTokens.add(token)
+  setTimeout(() => revokedTokens.delete(token), SESSION_TTL_SECONDS * 1000).unref()
+}
+
 export type SessionUser = { id: string; role: UserRole; name: string }
 
 // Verifies credentials and returns a signed session token plus the account.
@@ -75,6 +87,7 @@ function signPayload(sessionUser: SessionUser): string {
 }
 
 export function verifySession(token: string): SessionUser {
+  if (revokedTokens.has(token)) throw new Error('Session was signed out.')
   return jwt.verify(token, config.jwtSecret) as SessionUser
 }
 

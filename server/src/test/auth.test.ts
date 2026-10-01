@@ -105,6 +105,25 @@ describe('Sliding session expiry (F-07)', () => {
   })
 })
 
+describe('POST /api/auth/logout (F-07 AC4)', () => {
+  it('invalidates the session, not just the browser cookie', async () => {
+    await seedUser({ email: 'logout@example.com' })
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'logout@example.com', password: 'correct horse' })
+    const cookie = loginRes.headers['set-cookie']![0].split(';')[0]
+
+    expect((await request(app).get('/api/auth/me').set('Cookie', cookie)).status).toBe(200)
+
+    await request(app).post('/api/auth/logout').set('Cookie', cookie)
+
+    // Re-send the exact same old cookie, as a copied/stolen one would — the
+    // server must reject it, not rely on the browser having dropped it.
+    const res = await request(app).get('/api/auth/me').set('Cookie', cookie)
+    expect(res.status).toBe(401)
+  })
+})
+
 describe('GET /api/auth/me', () => {
   it('401s without a session cookie', async () => {
     const res = await request(app).get('/api/auth/me')
