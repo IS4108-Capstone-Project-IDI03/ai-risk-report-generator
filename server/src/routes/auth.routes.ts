@@ -1,5 +1,10 @@
 import { Router } from 'express'
-import { InvalidCredentialsError, login, SESSION_TTL_SECONDS } from '../services/auth.service'
+import {
+  InvalidCredentialsError,
+  login,
+  SESSION_TTL_SECONDS,
+  TooManyAttemptsError,
+} from '../services/auth.service'
 import { requireAuth, SESSION_COOKIE } from '../middleware/auth.middleware'
 import { permissionsFor } from '../services/permissions.service'
 
@@ -24,6 +29,10 @@ router.post('/login', async (req, res) => {
   } catch (error: unknown) {
     if (error instanceof InvalidCredentialsError) {
       res.status(401).json({ error: error.message })
+      return
+    }
+    if (error instanceof TooManyAttemptsError) {
+      res.status(429).json({ error: error.message })
       return
     }
     throw error
