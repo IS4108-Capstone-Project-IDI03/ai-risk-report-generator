@@ -10,6 +10,13 @@ import {
 } from '../../../design-system'
 import { TagDialog } from '../components/TagDialog'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import type { TranscriptionStatus } from '../api'
+
+const STATUS_BADGE = {
+  transcribing: { tone: 'info', label: 'Transcribing' },
+  transcribed: { tone: 'low', label: 'Transcribed' },
+  failed: { tone: 'high', label: 'Failed' },
+} as const satisfies Record<TranscriptionStatus, { tone: string; label: string }>
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -298,6 +305,18 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                           }}
                         >
                           {'Detailed notes'}
+                          {!!o.detail && (
+                            <Badge
+                              tone="neutral"
+                              style={{
+                                marginLeft: 'var(--space-3)',
+                                textTransform: 'none',
+                                letterSpacing: 'normal',
+                              }}
+                            >
+                              Text
+                            </Badge>
+                          )}
                         </div>
                         {!!o.detail && (
                           <p
@@ -328,13 +347,20 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px',
+                                flexWrap: 'wrap',
                                 fontSize: '14px',
                                 fontWeight: '500',
                                 color: 'var(--text-primary)',
                               }}
                             >
                               <Icon name="mic" size={14} color="#8f7dff"></Icon>
-                              {r.name}
+                              <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                                {r.name}
+                              </span>
+                              <Badge tone="neutral">Voice</Badge>
+                              <Badge tone={STATUS_BADGE[r.status].tone}>
+                                {STATUS_BADGE[r.status].label}
+                              </Badge>
                             </div>
                             {r.status === 'failed' ? (
                               <div role="status" style={{ marginTop: '8px' }}>
@@ -455,6 +481,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   gap: '6px',
+                                  flexWrap: 'wrap',
                                   padding: '16px 8px',
                                 }}
                               >

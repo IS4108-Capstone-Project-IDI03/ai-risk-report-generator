@@ -1,5 +1,6 @@
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
+import type { SessionUser } from './auth.service'
 import { AssessmentModel, type ILocation } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import {
@@ -75,8 +76,7 @@ const standardField = z.string().trim().max(100, 'Standard must be 100 character
 
 // The fields of POST /api/assessments/:reference/observations, sent as the
 // form's `details` part alongside any recordings.
-// ponytail: the engineer's name comes in the body until sign-in (F-04)
-// identifies them on the server.
+// Attribution comes from the authenticated session, never from these fields.
 export const newObservationSchema = z.object({
   // Stored exactly as written (CP-02 AC1); a blank note counts as none.
   note: z
@@ -84,10 +84,7 @@ export const newObservationSchema = z.object({
     .max(5000, 'The note must be 5,000 characters or fewer.')
     .optional()
     .transform((note) => (note?.trim() ? note : undefined)),
-  engineer: z
-    .string('The engineer recording the observation is missing.')
-    .trim()
-    .min(1, 'The engineer recording the observation is missing.'),
+
   // Sent explicitly: null leaves the observation uncategorised (CP-02 AC4).
   copeDimension: copeDimensionField,
   severity: severityField,
@@ -113,6 +110,7 @@ export type NewRecording = { name: string; audio: Buffer; contentType: string }
 export type ObservationDto = {
   id: string
   engineer: string
+  engineerId: string | null
   // null when not categorised yet.
   copeDimension: CopeDimension | null
   standard: string | null
@@ -121,6 +119,7 @@ export type ObservationDto = {
   location: LocationDto | null
   note: string | null
   recordings: {
+    type: 'Voice'
     id: string
     name: string
     contentType: string
@@ -139,17 +138,33 @@ export type ObservationDto = {
 
 type StoredObservation = IObservation & { _id: Types.ObjectId }
 
+// Keep diagnostic detail in the saved attempt, but return a readable reason
+// to every observation view, including recordings saved before this change.
+function transcriptionFailureReason(error?: string): string | null {
+  if (!error) return null
+  if (error.startsWith('The recording could not be read from storage:')) {
+    return /SSL|certificate/i.test(error)
+      ? 'Could not securely connect to audio storage.'
+      : 'The recording could not be read from storage.'
+  }
+  if (error.startsWith('Whisper could not transcribe the recording:'))
+    return 'The speech service could not transcribe the recording.'
+  return error.length > 200 ? 'Transcription failed. Please retry or contact support.' : error
+}
+
 function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
   const location = locations.find((l) => l._id.equals(o.location))
   return {
     id: String(o._id),
     engineer: o.engineer,
+    engineerId: o.engineerId ? String(o.engineerId) : null,
     copeDimension: o.metadata.COPE_dimension ?? null,
     standard: o.standard ?? null,
     severity: o.severity,
     location: location ? toLocationDto(location) : null,
     note: o.note ?? null,
     recordings: o.recordings.map((r) => ({
+      type: 'Voice',
       id: String(r._id),
       name: r.name,
       contentType: r.contentType,
@@ -158,7 +173,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
       transcription: {
         status: r.transcription.status,
         transcript: r.transcription.transcript ?? null,
-        error: r.transcription.error ?? null,
+        error: transcriptionFailureReason(r.transcription.error),
         attempts: r.transcription.attempts.length,
       },
     })),
@@ -183,12 +198,13 @@ async function activeCapture(reference: string) {
 
 // Saves one observation with its note and recordings against the assessment's
 // active capture session. Each recording goes to S3 as raw evidence (CP-03
-// AC1) and queues its one transcription (AC3). The session stays active, so
+// AC1) and starts its initial transcription (AC3). The session stays active, so
 // the engineer can keep adding observations.
 export async function saveObservation(
   reference: string,
   details: ObservationDetails,
   recordings: NewRecording[],
+  user: SessionUser,
 ): Promise<ObservationDto> {
   const { assessment, session } = await activeCapture(reference)
   const locations = assessment.locations ?? []
@@ -219,7 +235,8 @@ export async function saveObservation(
       _id: id,
       assessment: assessment._id,
       session: session._id,
-      engineer: details.engineer,
+      engineer: user.name,
+      engineerId: user.id,
       note: details.note,
       recordings: stored,
       standard: details.standard,

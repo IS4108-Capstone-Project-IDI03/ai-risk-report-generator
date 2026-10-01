@@ -1,6 +1,6 @@
 import { Schema, Types, model } from 'mongoose'
 
-// A recording's transcription. Saving a recording queues exactly one attempt
+// A recording's transcription. Saving a recording starts exactly one attempt
 // (CP-03 AC3); a retry after a failure adds another for the same audio.
 export const TRANSCRIPTION_STATUSES = ['transcribing', 'transcribed', 'failed'] as const
 export type TranscriptionStatus = (typeof TRANSCRIPTION_STATUSES)[number]
@@ -36,8 +36,9 @@ export interface IRecording {
 export interface IObservation {
   assessment: Types.ObjectId
   session: Types.ObjectId
-  // A name until accounts (F-04) exist, like the assessment's engineers.
+  // Display name at capture time; legacy records may lack a verified engineerId.
   engineer: string
+  engineerId?: Types.ObjectId
   // Exactly as the engineer wrote it, never trimmed or reworded.
   note?: string
   recordings: IRecording[]
@@ -82,6 +83,7 @@ const observationSchema = new Schema<IObservation>(
     assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true, index: true },
     session: { type: Schema.Types.ObjectId, ref: 'CaptureSession', required: true },
     engineer: { type: String, required: true, trim: true },
+    engineerId: { type: Schema.Types.ObjectId, ref: 'User' },
     note: { type: String, maxlength: 5000 },
     recordings: [recordingSchema],
     standard: { type: String, trim: true, maxlength: 100 },

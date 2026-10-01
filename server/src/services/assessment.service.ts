@@ -1,9 +1,32 @@
 import { z } from 'zod'
+import { isValidObjectId } from 'mongoose'
+import { UserModel } from '../models/user.model'
+import type { SessionUser } from './auth.service'
 import { AssessmentModel, REPORT_STATUSES, type IAssessment } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { CounterModel } from '../models/counter.model'
 import { SiteModel, type ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
+
+export class InvalidEngineersError extends Error {
+  constructor() {
+    super('Choose active risk engineers from the list.')
+  }
+}
+
+// Minimal directory for assignment; account administration remains admin-only.
+export async function listAssignableEngineers() {
+  const users = await UserModel.find({ role: 'risk_engineer', active: true })
+    .select('name staffId jobTitle')
+    .sort({ name: 1 })
+    .lean()
+  return users.map((u) => ({
+    id: String(u._id),
+    name: u.name,
+    staffId: u.staffId,
+    jobTitle: u.jobTitle ?? null,
+  }))
+}
 
 const required = (label: string) =>
   z
@@ -46,7 +69,16 @@ export const newAssessmentSchema = z
     reportDueDate: optionalDate('Report due date'),
     standards: z.array(required('Standard')).max(50).default([]),
     // The first engineer is the lead.
-    engineers: z.array(required('Engineer')).max(20).default([]),
+    engineers: z.never().optional(),
+    engineerIds: z
+      .array(
+        z
+          .string()
+          .refine(isValidObjectId, 'Choose a listed engineer.')
+          .transform((id) => id.toLowerCase()),
+      )
+      .max(20)
+      .default([]),
   })
   .refine((a) => !a.siteVisitDate || !a.reportDueDate || a.reportDueDate >= a.siteVisitDate, {
     message: 'The report due date must be on or after the site visit date.',
@@ -80,6 +112,7 @@ export type AssessmentDto = {
   reportDueDate: string | null
   standards: string[]
   engineers: string[]
+  engineerIds: string[]
   status: AssessmentStatus
   createdAt: Date
   site: {
@@ -94,6 +127,14 @@ export type AssessmentDto = {
 // Creates the site and the assessment, allocating the site code and the
 // report reference (RPT-<year>-<nnnn>) on the server.
 export async function createAssessment(input: NewAssessment): Promise<AssessmentDto> {
+  const ids = [...new Set(input.engineerIds)]
+  const users = await UserModel.find({
+    _id: { $in: ids },
+    role: 'risk_engineer',
+    active: true,
+  }).lean()
+  if (users.length !== ids.length) throw new InvalidEngineersError()
+  const names = ids.map((id) => users.find((u) => String(u._id) === id)!.name)
   const year = new Date().getUTCFullYear()
   const site = await insertWithNextCode(
     'site',
@@ -115,7 +156,8 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
           siteVisitDate: input.siteVisitDate ? new Date(input.siteVisitDate) : undefined,
           reportDueDate: input.reportDueDate ? new Date(input.reportDueDate) : undefined,
           standards: input.standards,
-          engineers: input.engineers,
+          engineers: names,
+          engineerIds: ids,
         }),
     )
     return toDto(assessment, site)
@@ -129,12 +171,13 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
   }
 }
 
-// Every assessment, most recent site visit first. Two queries regardless of
-// list size: the assessments, then all their capture sessions.
-// ponytail: loads the whole collection; paginate and index engineers /
-// reportStatus once the list outgrows one response.
-export async function listAssessments(): Promise<AssessmentDto[]> {
-  const assessments = await AssessmentModel.find()
+// Assigned assessments for engineers, all assessments for knowledge admins.
+// Two queries: matching assessments, then their capture sessions.
+// ponytail: paginate once one engineer's work list outgrows one response.
+export async function listAssessments(user: SessionUser): Promise<AssessmentDto[]> {
+  const assessments = await AssessmentModel.find(
+    user.role === 'knowledge_admin' ? {} : { engineerIds: user.id },
+  )
     .sort({ siteVisitDate: -1, createdAt: -1 })
     .populate<{ site: ISite }>('site')
     .lean()
@@ -203,6 +246,7 @@ function toDto(
     reportDueDate: isoDay(assessment.reportDueDate),
     standards: [...assessment.standards],
     engineers: [...assessment.engineers],
+    engineerIds: (assessment.engineerIds ?? []).map(String),
     status,
     createdAt: assessment.createdAt,
     site: {

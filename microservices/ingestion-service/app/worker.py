@@ -27,13 +27,18 @@ from bullmq import Worker
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 
-from app.pipeline import run
+from app.pipeline import UnparsableDocumentError, run
 
 load_dotenv(Path(__file__).resolve().parent / "../../../.env")
 
 QUEUE = "ingestion"  # must match server/src/services/ingestion-queue.service.ts
 
 log = logging.getLogger("ingestion-worker")
+
+# Failure reasons the admin sees in Recent uploads. Plain words, cause then next
+# step (docs/design-system.md "Errors"); the technical error goes to the log.
+UNREADABLE = "No text could be read from this PDF. Upload a copy with selectable text."
+SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. Upload it again."
 
 
 @cache  # one client (and its connection pool) for the life of the worker
@@ -46,6 +51,18 @@ def download(key: str, dest: str) -> None:
     """Save the S3 object `key` to the local path `dest`."""
     s3 = boto3.client("s3", region_name=os.environ["AWS_REGION"])
     s3.download_file(os.environ["S3_BUCKET"], key, dest)
+
+
+def labels(doc: dict) -> dict:
+    """Return the document's labels as passage metadata: its five metadata fields.
+
+    Chroma metadata holds only strings and numbers, so the date becomes
+    YYYY-MM-DD. Must match `labels()` in
+    server/src/services/knowledge-document.service.ts, which relabels passages
+    after a correction (KB-01).
+    """
+    metadata = doc["metadata"]
+    return {**metadata, "effective_date": metadata["effective_date"].strftime("%Y-%m-%d")}
 
 
 def ingest_document(document_id: str) -> None:
@@ -69,23 +86,26 @@ def ingest_document(document_id: str) -> None:
         return
 
     # 2. Download the original into a temporary folder that deletes itself, and
-    # 3. run PAR16's pipeline: parse → chunk → anonymise → index.
+    # 3. run ingestion pipeline: parse → chunk → anonymise → index, with the
+    # document's labels on every passage.
     try:
         with tempfile.TemporaryDirectory() as tmp:
             # Keep the original file name: the parser reports it as the doc name.
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
-            summary = run(path, doc_id=document_id)
-    # 4. Record the outcome: failed here, complete below. The failure reason is
-    # what the admin sees; re-raising tells BullMQ the job failed (not retried:
-    # attempts is 1).
+            summary = run(path, doc_id=document_id, labels=labels(doc))
+    # 4. Record the outcome: failed here, complete below. The admin sees a plain
+    # reason; re-raising tells BullMQ the job failed (not retried: attempts is 1).
     except Exception as error:
+        log.exception("Ingesting document %s failed.", document_id)
         collection.update_one(
             {"_id": _id},
             {
                 "$set": {
                     "status": "failed",
-                    "error": str(error) or type(error).__name__,
+                    "error": UNREADABLE
+                    if isinstance(error, UnparsableDocumentError)
+                    else SYSTEM_ERROR,
                     "finishedAt": datetime.now(UTC),
                 }
             },

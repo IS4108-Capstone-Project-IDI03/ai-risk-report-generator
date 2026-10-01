@@ -10,7 +10,7 @@ import {
   type Permission,
 } from '../services/permissions.service'
 import { useMemoryMongo } from './memory-mongo'
-import { signedInAsRole } from './auth-test-helpers'
+import { signedInAsRole, signedInAs } from './auth-test-helpers'
 
 useMemoryMongo()
 
@@ -26,6 +26,7 @@ const ID = '6ab39017e45cf009e4507731'
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete'
 const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/assessments', 'assessments:view'],
+  ['get', '/api/assessments/engineers', 'assessments:edit'],
   ['post', '/api/assessments', 'assessments:edit'],
   ['post', '/api/assessments/RPT-2026-0411/capture-session', 'assessments:edit'],
   ['get', '/api/assessments/RPT-2026-0411/locations', 'assessments:view'],
@@ -40,6 +41,8 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/knowledge-documents', 'knowledge:view'],
   ['post', '/api/knowledge-documents', 'knowledge:manage'],
   ['get', `/api/knowledge-documents/${ID}/file`, 'knowledge:view'],
+  ['get', '/api/knowledge-documents/active', 'knowledge:view'],
+  ['put', `/api/knowledge-documents/${ID}`, 'knowledge:manage'],
   ['get', '/api/users', 'users:manage'],
   ['get', `/api/users/${ID}`, 'users:manage'],
   ['put', `/api/users/${ID}`, 'users:manage'],
@@ -87,16 +90,24 @@ describe('route permissions', () => {
 // AC2: an allowed operation succeeds for its permitted role.
 describe('allowed operations succeed', () => {
   it('lets a risk engineer create and list assessments', async () => {
-    const created = await engineer.post('/api/assessments').send({
+    const user = await UserModel.create({
+      staffId: 'TEST-1',
+      name: 'Jide Okafor',
+      email: 'jide@example.com',
+      role: 'risk_engineer',
+      active: true,
+    })
+    const assignedEngineer = signedInAs(app, user)
+    const created = await assignedEngineer.post('/api/assessments').send({
       site: { name: 'Jurong Hub', jurisdiction: 'SG', facilityType: 'Distribution warehouse' },
       client: 'Straits Logistics',
       surveyType: 'Property risk survey',
       standards: [],
-      engineers: ['J. Okafor'],
+      engineerIds: [String(user._id)],
     })
     expect(created.status).toBe(201)
 
-    const list = await engineer.get('/api/assessments')
+    const list = await assignedEngineer.get('/api/assessments')
     expect(list.status).toBe(200)
     expect(list.body).toHaveLength(1)
   })

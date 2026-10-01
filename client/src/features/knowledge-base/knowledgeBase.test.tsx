@@ -65,6 +65,12 @@ async function openKnowledgeBase() {
   fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
 }
 
+// The IN-01 upload panel sits on the Add documents tab (KB-01).
+async function openAddDocuments() {
+  await openKnowledgeBase()
+  fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
+}
+
 const pdf = (name: string) => new File(['%PDF-1.7'], name, { type: 'application/pdf' })
 
 function choose(...files: File[]) {
@@ -101,7 +107,7 @@ afterEach(() => {
 describe('Knowledge base uploads (IN-01)', () => {
   it('gives each selected PDF its own row, asking first for its source type', async () => {
     mockGateway([])
-    await openKnowledgeBase()
+    await openAddDocuments()
 
     choose(pdf('nfpa-13.pdf'), pdf('FM 2-0.pdf'))
 
@@ -116,7 +122,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it('asks a standard for its edition, and a Marsh report for its report date and facility type', async () => {
     mockGateway([])
-    await openKnowledgeBase()
+    await openAddDocuments()
     choose(pdf('survey.pdf'))
     const row = screen.getByRole('group', { name: 'survey.pdf' })
 
@@ -139,7 +145,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it("keeps a standard's edition to four digits and flags a year out of range as you type", async () => {
     mockGateway([])
-    await openKnowledgeBase()
+    await openAddDocuments()
     choose(pdf('nfpa-13.pdf'))
     const row = screen.getByRole('group', { name: 'nfpa-13.pdf' })
     setField(row, /^Source type/, 'nfpa_standard')
@@ -157,7 +163,7 @@ describe('Knowledge base uploads (IN-01)', () => {
     ['out of range', '1850', EDITION_RANGE],
   ])('does not upload a standard whose edition is %s', async (_case, edition, message) => {
     const posted = mockGateway([])
-    await openKnowledgeBase()
+    await openAddDocuments()
     choose(pdf('nfpa-13.pdf'))
     const row = fillDetails('nfpa-13.pdf')
     setField(row, /^Edition/, edition)
@@ -171,7 +177,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it("sends only a Marsh report's own details", async () => {
     const posted = mockGateway([])
-    await openKnowledgeBase()
+    await openAddDocuments()
     choose(pdf('survey.pdf'))
     const row = screen.getByRole('group', { name: 'survey.pdf' })
     setField(row, /^Source type/, 'nfpa_standard')
@@ -197,7 +203,7 @@ describe('Knowledge base uploads (IN-01)', () => {
     const posted = mockGateway([], {
       broken: () => json(422, { error: 'The PDF is password-protected.' }),
     })
-    await openKnowledgeBase()
+    await openAddDocuments()
     choose(pdf('nfpa-13.pdf'), pdf('broken.pdf'))
     const good = fillDetails('nfpa-13.pdf')
     const bad = fillDetails('broken.pdf')
@@ -222,7 +228,7 @@ describe('Knowledge base uploads (IN-01)', () => {
           fields: { edition: 'Edition is required.' },
         }),
     })
-    await openKnowledgeBase()
+    await openAddDocuments()
     choose(pdf('nfpa-13.pdf'))
     const row = fillDetails('nfpa-13.pdf')
 
@@ -236,7 +242,7 @@ describe('Knowledge base uploads (IN-01)', () => {
       { ...NFPA, status: 'failed', error: 'Docling could not parse nfpa-13.pdf' },
       { ...NFPA, id: 'b', title: 'FM Global 2-0', status: 'complete' },
     ])
-    await openKnowledgeBase()
+    await openAddDocuments()
 
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
     await within(table).findByText('Failed')
@@ -268,7 +274,7 @@ describe('Knowledge base uploads (IN-01)', () => {
         effectiveDate: '2024-03-12',
       },
     ])
-    await openKnowledgeBase()
+    await openAddDocuments()
 
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(
@@ -279,7 +285,7 @@ describe('Knowledge base uploads (IN-01)', () => {
 
   it('keeps upload outcomes when you leave the screen and come back', async () => {
     mockGateway([], { broken: () => json(415, { error: 'Only PDF files can be uploaded.' }) })
-    await openKnowledgeBase()
+    await openAddDocuments()
     choose(pdf('broken.pdf'))
     fillDetails('broken.pdf')
     fireEvent.click(screen.getByRole('button', { name: 'Upload all' }))

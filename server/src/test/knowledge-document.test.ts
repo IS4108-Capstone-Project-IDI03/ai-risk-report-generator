@@ -202,6 +202,16 @@ describe('POST /api/knowledge-documents', () => {
       { facilityType: 'Facility type is required.' },
     ],
     [
+      'a facility type not on the list',
+      { ...REPORT, facilityType: 'Spaceport' },
+      { facilityType: 'Choose a facility type from the list.' },
+    ],
+    [
+      "a standard's facility type not on the list",
+      { ...DETAILS, facilityType: 'Spaceport' },
+      { facilityType: 'Choose a facility type from the list.' },
+    ],
+    [
       'a Marsh report for all countries',
       { ...REPORT, jurisdiction: 'all' },
       { jurisdiction: 'Country must be a two-letter code, e.g. SG.' },
@@ -269,6 +279,213 @@ describe('GET /api/knowledge-documents', () => {
       'processing',
       'queued',
     ])
+  })
+})
+
+// Uploads a document and marks it as the ingestion worker would.
+async function stored(details: Record<string, string>, state: object = { status: 'complete' }) {
+  const { body } = await upload(PDF, details)
+  await KnowledgeDocumentModel.updateOne({ _id: body.id }, { finishedAt: new Date(), ...state })
+  return body.id as string
+}
+
+describe('GET /api/knowledge-documents/active', () => {
+  it('lists every active document, however old, by title, and nothing still ingesting or failed', async () => {
+    const longAgo = new Date('2025-01-01')
+    await stored({ ...DETAILS, title: 'Zinc storage' })
+    await stored(
+      { ...REPORT, title: 'Apple cold store' },
+      { status: 'complete', finishedAt: longAgo },
+    )
+    await stored({ ...DETAILS, title: 'Still queued' }, { status: 'queued' })
+    await stored({ ...DETAILS, title: 'Mid processing' }, { status: 'processing' })
+    await stored({ ...DETAILS, title: 'Broken' }, { status: 'failed' })
+
+    const { body } = await api.get('/api/knowledge-documents/active')
+
+    expect(body.map((d: { title: string }) => d.title)).toEqual([
+      'Apple cold store',
+      'Zinc storage',
+    ])
+  })
+
+  it('gives an uncorrected document an empty history', async () => {
+    await stored(DETAILS)
+
+    const [document] = (await api.get('/api/knowledge-documents/active')).body
+
+    expect(document.history).toEqual([])
+  })
+})
+
+describe('PUT /api/knowledge-documents/:id', () => {
+  // REPORT's details without the file name (a correction can't rename the PDF).
+  const CORRECTED = {
+    title: REPORT.title,
+    effectiveDate: REPORT.effectiveDate,
+    sourceType: REPORT.sourceType,
+    jurisdiction: 'SG',
+    facilityType: 'Data centre',
+  }
+  const correct = (id: string, details: Record<string, string> = CORRECTED) =>
+    api.put(`/api/knowledge-documents/${id}`).send(details)
+
+  it('saves the corrected details and puts the new labels on its passages', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const response = await correct(id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ id, jurisdiction: 'SG', facilityType: 'Data centre' })
+    const [url, init] = inspect.mock.lastCall as unknown as [string, RequestInit]
+    expect(url).toBe(`${process.env.INGESTION_SERVICE_URL}/documents/${id}/labels`)
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(String(init.body))).toEqual({
+      source_type: 'marsh_report',
+      jurisdiction: 'SG',
+      facility_type: 'Data centre',
+      COPE_dimension: 'all',
+      effective_date: '2024-03-12',
+    })
+    const [listed] = (await api.get('/api/knowledge-documents/active')).body
+    expect(listed).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
+  })
+
+  it('corrects the source type, which changes the issuing body and edition', async () => {
+    const id = await stored(DETAILS)
+
+    const response = await correct(id, CORRECTED)
+
+    expect(response.body).toMatchObject({
+      sourceType: 'marsh_report',
+      issuingBody: 'Marsh',
+      edition: null,
+      title: 'Cold store risk survey',
+      effectiveDate: '2024-03-12',
+    })
+  })
+
+  // The document as the knowledge base lists it, to show nothing changed.
+  const listed = async () => (await api.get('/api/knowledge-documents/active')).body[0]
+
+  it('refuses a value that is not allowed, with the reason, and keeps the old value', async () => {
+    const id = await stored(REPORT)
+    const before = await listed()
+
+    const response = await correct(id, { ...CORRECTED, facilityType: 'Spaceport' })
+
+    expect(response.status).toBe(400)
+    expect(response.body.fields).toEqual({ facilityType: 'Choose a facility type from the list.' })
+    expect(await listed()).toEqual(before)
+  })
+
+  it('returns 404 for an unknown or malformed ID', async () => {
+    expect((await correct('6abb28ae16068a0793e9962a')).status).toBe(404)
+    expect((await correct('not-an-id')).status).toBe(404)
+  })
+
+  it('refuses to correct a document that has not finished ingesting', async () => {
+    const id = await stored(REPORT, { status: 'processing' })
+
+    const response = await correct(id)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      'Only a document that has finished ingesting can be corrected.',
+    )
+  })
+
+  it('keeps the old details when search could not be updated', async () => {
+    const id = await stored(REPORT)
+    const before = await listed()
+    inspect.mockRejectedValue(new TypeError('fetch failed'))
+
+    const response = await correct(id)
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toBe(
+      'Search could not be updated, so the correction was not saved. Try again shortly.',
+    )
+    expect(await listed()).toEqual(before)
+  })
+
+  it("keeps a standard's edition when a failed correction would have removed it", async () => {
+    const id = await stored(DETAILS)
+    inspect.mockResolvedValue(Response.json({ detail: 'Chroma is down' }, { status: 500 }))
+
+    expect((await correct(id)).status).toBe(503)
+    expect(await listed()).toMatchObject({ sourceType: 'nfpa_standard', edition: '2022' })
+  })
+
+  // KB-01 AC9–AC10: the details a correction replaces are kept as a previous version.
+  it('records the replaced details as a previous version, with who and when, newest first', async () => {
+    const id = await stored(REPORT)
+    const before = Date.now()
+
+    await correct(id)
+    const { body } = await correct(id, { ...CORRECTED, title: 'Cold store survey 2' })
+
+    expect(body.title).toBe('Cold store survey 2')
+    expect(body.history).toHaveLength(2)
+    expect(body.history[0]).toMatchObject({
+      title: 'Cold store risk survey',
+      sourceType: 'marsh_report',
+      edition: null,
+      effectiveDate: '2024-03-12',
+      jurisdiction: 'SG',
+      facilityType: 'Data centre',
+      replacedBy: { name: 'Test User' },
+    })
+    expect(body.history[1]).toMatchObject({ jurisdiction: 'MY', facilityType: 'Cold store' })
+    expect(typeof body.history[0].replacedBy.id).toBe('string')
+    expect(new Date(body.history[0].replacedAt).getTime()).toBeGreaterThanOrEqual(before)
+    expect(new Date(body.history[0].replacedAt) >= new Date(body.history[1].replacedAt)).toBe(true)
+  })
+
+  it('restores a previous version by saving its details, which becomes a previous version itself', async () => {
+    const id = await stored(REPORT)
+    await correct(id)
+
+    const { body } = await correct(id, {
+      title: REPORT.title,
+      effectiveDate: REPORT.effectiveDate,
+      sourceType: REPORT.sourceType,
+      jurisdiction: REPORT.jurisdiction,
+      facilityType: REPORT.facilityType,
+    })
+
+    expect(body).toMatchObject({ jurisdiction: 'MY', facilityType: 'Cold store' })
+    expect(body.history[0]).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
+    expect(body.history).toHaveLength(2)
+  })
+
+  it('records no version when a save changes nothing', async () => {
+    const id = await stored(REPORT)
+    const same = {
+      title: REPORT.title,
+      effectiveDate: REPORT.effectiveDate,
+      sourceType: REPORT.sourceType,
+      jurisdiction: REPORT.jurisdiction,
+      facilityType: REPORT.facilityType,
+    }
+
+    const { body } = await correct(id, same)
+
+    expect(body.history).toEqual([])
+  })
+
+  it('records no version when search could not be updated', async () => {
+    const id = await stored(REPORT)
+    await correct(id)
+    const before = await listed()
+    inspect.mockRejectedValue(new TypeError('fetch failed'))
+
+    const response = await correct(id, { ...CORRECTED, title: 'Never saved' })
+
+    expect(response.status).toBe(503)
+    expect(await listed()).toEqual(before)
+    expect(before.history).toHaveLength(1)
   })
 })
 

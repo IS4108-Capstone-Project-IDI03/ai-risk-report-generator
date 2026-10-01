@@ -3,12 +3,14 @@
 MongoDB, S3 and the pipeline are faked, so no Redis, AWS or Docling is needed.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from bson import ObjectId
 
 from app import worker
+from app.pipeline import UnparsableDocumentError
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
@@ -23,6 +25,13 @@ class FakeDocuments:
             "fileName": "NFPA 13 - 2022.pdf",
             "file": {"key": f"knowledge/{DOC_ID}.pdf"},
             "status": status,
+            "metadata": {
+                "source_type": "marsh_report",
+                "jurisdiction": "MY",
+                "facility_type": "Cold store",
+                "COPE_dimension": "all",
+                "effective_date": datetime(2024, 3, 12),
+            },
         }
 
     def find_one_and_update(self, query, update, **_):
@@ -47,7 +56,7 @@ def documents(monkeypatch):
 def test_a_processed_document_is_complete_with_its_counts(documents, monkeypatch):
     seen = {}
 
-    def fake_run(file_path, doc_id=None):
+    def fake_run(file_path, doc_id=None, labels=None):
         seen.update(bytes=Path(file_path).read_bytes(), doc_id=doc_id)
         return {"doc_name": "x", "chunks_indexed": 12, "tables_captured": 2, "images_captured": 1}
 
@@ -65,18 +74,58 @@ def test_a_processed_document_is_complete_with_its_counts(documents, monkeypatch
     assert documents.doc["startedAt"] <= documents.doc["finishedAt"]
 
 
-def test_a_document_that_cannot_be_processed_is_failed_with_the_reason(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None):
-        raise RuntimeError("Docling could not parse NFPA 13 - 2022.pdf")
+def test_the_documents_labels_go_to_every_passage(documents, monkeypatch):
+    # KB-01: passages carry the record's labels, the date as YYYY-MM-DD.
+    seen = {}
+
+    def fake_run(file_path, doc_id=None, labels=None):
+        seen["labels"] = labels
+        return {"chunks_indexed": 1, "tables_captured": 0, "images_captured": 0}
 
     monkeypatch.setattr(worker, "run", fake_run)
 
-    with pytest.raises(RuntimeError):
+    worker.ingest_document(DOC_ID)
+
+    assert seen["labels"] == {
+        "source_type": "marsh_report",
+        "jurisdiction": "MY",
+        "facility_type": "Cold store",
+        "COPE_dimension": "all",
+        "effective_date": "2024-03-12",
+    }
+
+
+def test_a_pdf_whose_text_cannot_be_read_is_failed_with_a_plain_reason(documents, monkeypatch):
+    def fake_run(file_path, doc_id=None, labels=None):
+        raise UnparsableDocumentError(file_path, "Docling produced no extractable content")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(UnparsableDocumentError):
         worker.ingest_document(DOC_ID)
 
     assert documents.doc["status"] == "failed"
-    assert documents.doc["error"] == "Docling could not parse NFPA 13 - 2022.pdf"
+    assert (
+        documents.doc["error"]
+        == "No text could be read from this PDF. Upload a copy with selectable text."
+    )
     assert "finishedAt" in documents.doc
+
+
+def test_a_system_error_is_failed_with_a_plain_reason_not_the_technical_one(documents, monkeypatch):
+    def fake_run(file_path, doc_id=None, labels=None):
+        raise OSError(-2, "Name or service not known")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(OSError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert (
+        documents.doc["error"]
+        == "Processing stopped on a system error, not a fault in the file. Upload it again."
+    )
 
 
 def test_a_finished_document_is_left_alone(documents, monkeypatch):

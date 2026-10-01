@@ -1,14 +1,16 @@
 import type { TranscriptionStatus } from './api'
 
 export type AssessmentRow = {
+  engineerIds?: string[]
   id: string
   site: string
   client: string
   type: string
   date: string
-  // The lead engineer; engs lists everyone assigned when known.
+  siteVisitDate?: string | null
+  reportDueDate?: string | null
+  // The lead engineer.
   eng: string
-  engs?: string[]
   status: string
   sev: string
   live?: boolean
@@ -64,6 +66,7 @@ export type WorkflowState = {
   toastTone: string
   q: string
   fStatus: string
+  workSort: string
   createdRows: AssessmentRow[]
   cf: {
     site: string

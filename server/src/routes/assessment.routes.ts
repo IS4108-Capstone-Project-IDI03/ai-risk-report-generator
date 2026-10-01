@@ -1,6 +1,8 @@
 import express, { Router, type ErrorRequestHandler } from 'express'
 import {
   createAssessment,
+  InvalidEngineersError,
+  listAssignableEngineers,
   listAssessments,
   newAssessmentSchema,
 } from '../services/assessment.service'
@@ -29,7 +31,11 @@ const router = Router()
 
 // The work list (RV-10). Filtering and search happen in the client for now.
 router.get('/', requirePermission('assessments:view'), async (_req, res) => {
-  res.json(await listAssessments())
+  res.json(await listAssessments(res.locals.user!))
+})
+
+router.get('/engineers', requirePermission('assessments:edit'), async (_req, res) => {
+  res.json(await listAssignableEngineers())
 })
 
 // Creates an assessment (and its site). 400 lists the first problem with each
@@ -42,7 +48,15 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
       .json({ error: 'The assessment details are invalid.', fields: fieldErrors(parsed.error) })
     return
   }
-  res.status(201).json(await createAssessment(parsed.data))
+  try {
+    res.status(201).json(await createAssessment(parsed.data))
+  } catch (error) {
+    if (error instanceof InvalidEngineersError) {
+      res.status(400).json({ error: error.message, fields: { engineerIds: error.message } })
+      return
+    }
+    throw error
+  }
 })
 
 // Opens capture for an assessment: 201 when a new session was started, 200
@@ -185,7 +199,11 @@ router.post(
       })),
     )
     try {
-      res.status(201).json(await saveObservation(req.params.reference, parsed.data, recordings))
+      res
+        .status(201)
+        .json(
+          await saveObservation(req.params.reference, parsed.data, recordings, res.locals.user!),
+        )
     } catch (error: unknown) {
       if (error instanceof UnknownLocationError) {
         res.status(400).json({

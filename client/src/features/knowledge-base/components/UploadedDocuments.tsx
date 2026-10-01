@@ -1,0 +1,142 @@
+// Recent uploads with their ingestion status (IN-01), read from the gateway
+// (the server's record, not this browser's): in progress, plus complete for 24
+// hours and failed for 7 days (the gateway decides). Re-read every 3 seconds
+// while any is still queued or processing. Used by screens/AddDocuments.tsx.
+import { useEffect, useState } from 'react'
+import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
+import { listKnowledgeDocuments, type IngestionStatus, type KnowledgeDocument } from '../api'
+import { calendarDate, dateTime, SOURCE_LABELS } from '../display'
+
+const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
+  queued: { label: 'Queued', tone: 'neutral' },
+  processing: { label: 'Processing', tone: 'info' },
+  complete: { label: 'Complete', tone: 'low' },
+  failed: { label: 'Failed', tone: 'critical' },
+}
+
+// Re-read too whenever a new upload is accepted (refreshKey). An unreachable
+// gateway leaves the last list showing.
+/** Returns the Recent uploads section. */
+export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey: number }) {
+  const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
+  const [unreachable, setUnreachable] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const load = () =>
+      listKnowledgeDocuments(controller.signal).then(
+        (list) => {
+          setDocuments(list)
+          setUnreachable(false)
+          if (list.some((d) => d.status === 'queued' || d.status === 'processing'))
+            timer = setTimeout(load, 3000)
+        },
+        () => {
+          if (!controller.signal.aborted) setUnreachable(true)
+        },
+      )
+    void load()
+    // Leaving the screen cancels the request in flight and the next re-read.
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [refreshKey, attempt])
+
+  const title = (d: KnowledgeDocument) => (
+    <span className="kb-doc">
+      <strong>{d.title}</strong>
+      <small>
+        {d.sourceType === 'marsh_report'
+          ? `${SOURCE_LABELS[d.sourceType]} · ${d.facilityType} · ${calendarDate(d.effectiveDate)}`
+          : `${d.issuingBody} · ${d.edition} Edition · ${SOURCE_LABELS[d.sourceType]}`}
+      </small>
+    </span>
+  )
+  const status = (d: KnowledgeDocument) => (
+    <span className="kb-status">
+      <Badge tone={STATUS[d.status].tone}>{STATUS[d.status].label}</Badge>
+      {d.error && <span className="kb-status-reason">{d.error}</span>}
+    </span>
+  )
+  const original = (d: KnowledgeDocument) => (
+    <a
+      className="kb-link"
+      href={d.fileUrl}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`View original of ${d.title}`}
+    >
+      View original
+    </a>
+  )
+
+  return (
+    <section className="kb-uploaded" aria-labelledby="kb-uploaded-title">
+      <header className="kb-uploaded-head">
+        <h2 id="kb-uploaded-title">Recent uploads</h2>
+        <p>Complete uploads leave this list after 24 hours, failed ones after 7 days.</p>
+      </header>
+      {unreachable && (
+        <Callout
+          tone="danger"
+          title="Recent uploads not loaded"
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+              Try again
+            </Button>
+          }
+        >
+          The gateway could not be reached, so ingestion status is not up to date. Check that the
+          server is running, then try again.
+        </Callout>
+      )}
+      {documents === null ? (
+        !unreachable && (
+          <p className="kb-empty" role="status">
+            Loading recent uploads…
+          </p>
+        )
+      ) : documents.length === 0 ? (
+        <EmptyState
+          icon="library"
+          title="No recent uploads"
+          description="Documents appear here once an upload is accepted, with their ingestion status."
+        />
+      ) : narrow ? (
+        <ul className="kb-stack" aria-label="Recent uploads">
+          {documents.map((d) => (
+            <li key={d.id}>
+              {title(d)}
+              {status(d)}
+              <span className="kb-stack-meta">
+                <span className="kb-mono">{dateTime(d.uploadedAt)}</span>
+                {original(d)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Table
+          columns={[
+            { key: 'document', header: 'Document' },
+            { key: 'country', header: 'Country' },
+            { key: 'uploaded', header: 'Uploaded' },
+            { key: 'status', header: 'Status' },
+            { key: 'original', header: 'Original' },
+          ]}
+          rows={documents.map((d) => ({
+            id: d.id,
+            document: title(d),
+            country: d.jurisdiction === 'all' ? 'All countries' : d.jurisdiction,
+            uploaded: <span className="kb-mono">{dateTime(d.uploadedAt)}</span>,
+            status: status(d),
+            original: original(d),
+          }))}
+        />
+      )}
+    </section>
+  )
+}

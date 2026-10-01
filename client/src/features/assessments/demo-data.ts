@@ -21,6 +21,8 @@ export const JURISDICTIONS = [
   { value: 'UK', label: 'United Kingdom' },
 ]
 
+// The gateway checks knowledge documents against a copy of this list: keep
+// FACILITY_TYPES in server/src/services/knowledge-document.service.ts matching.
 export const FACILITY_TYPES = [
   'Distribution warehouse',
   'Cold store',
@@ -41,6 +43,7 @@ export const initialState: WorkflowState = {
   toastTone: 'success',
   q: '',
   fStatus: 'All statuses',
+  workSort: 'Latest site visit',
   createdRows: [],
   cf: {
     site: '',
@@ -52,7 +55,7 @@ export const initialState: WorkflowState = {
     date: '2026-04-21',
     due: '2026-05-02',
     stds: ['FM Global 2-0', 'NFPA 13'],
-    engs: ['A. Rowe'],
+    engs: [],
     jurisdiction: 'SG',
   },
   cfErr: false,
@@ -232,6 +235,7 @@ export const ROWS: AssessmentRow[] = [
     client: 'Northgate Logistics',
     type: 'Property risk survey',
     date: '11 Apr 2026',
+    siteVisitDate: '2026-04-11',
     eng: 'A. Rowe',
     status: 'Draft',
     sev: 'high',
@@ -243,6 +247,7 @@ export const ROWS: AssessmentRow[] = [
     client: 'Fennick Foods',
     type: 'Follow-up visit',
     date: '08 Apr 2026',
+    siteVisitDate: '2026-04-08',
     eng: 'A. Rowe',
     status: 'Under review',
     sev: 'critical',
@@ -254,6 +259,7 @@ export const ROWS: AssessmentRow[] = [
     client: 'Vanderlin Chemicals',
     type: 'Property risk survey',
     date: '02 Apr 2026',
+    siteVisitDate: '2026-04-02',
     eng: 'A. Rowe',
     status: 'Draft',
     sev: 'moderate',
@@ -265,6 +271,7 @@ export const ROWS: AssessmentRow[] = [
     client: 'Iberport',
     type: 'Business interruption',
     date: '27 Mar 2026',
+    siteVisitDate: '2026-03-27',
     eng: 'M. Haas',
     status: 'Draft',
     sev: 'low',
@@ -276,6 +283,7 @@ export const ROWS: AssessmentRow[] = [
     client: 'Northgate Logistics',
     type: 'Property risk survey',
     date: '20 Mar 2026',
+    siteVisitDate: '2026-03-20',
     eng: 'J. Okafor',
     status: 'Finalised',
     sev: 'moderate',
@@ -287,6 +295,7 @@ export const ROWS: AssessmentRow[] = [
     client: 'Severn Paper Group',
     type: 'Property risk survey',
     date: '19 Mar 2026',
+    siteVisitDate: '2026-03-19',
     eng: 'A. Rowe',
     status: 'Capturing',
     sev: 'high',
@@ -373,29 +382,6 @@ export const STANDARDS = [
   {
     name: 'Client standard NL-04',
     desc: 'Northgate Logistics internal fire strategy',
-  },
-]
-
-export const ENGINEERS = [
-  {
-    name: 'A. Rowe',
-    initials: 'AR',
-    role: 'Senior risk engineer · Property',
-  },
-  {
-    name: 'J. Okafor',
-    initials: 'JO',
-    role: 'Risk engineer · Property',
-  },
-  {
-    name: 'M. Haas',
-    initials: 'MH',
-    role: 'Risk engineer · Business interruption',
-  },
-  {
-    name: 'S. Patel',
-    initials: 'SP',
-    role: 'Consultant · Natural hazards',
   },
 ]
 

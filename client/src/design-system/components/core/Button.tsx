@@ -65,6 +65,14 @@ function palette(variant: string, hover: boolean, active: boolean) {
         color: 'var(--text-inverse)',
         border: '1px solid transparent',
       }
+    // A row-level action that should stand out without competing with the
+    // screen's one primary button, e.g. Edit details in the knowledge base.
+    case 'tonal':
+      return {
+        background: active ? 'var(--ink-200)' : hover ? 'var(--ink-100)' : 'var(--ink-50)',
+        color: 'var(--ink-700)',
+        border: '1px solid ' + (hover ? 'var(--ink-300)' : 'var(--ink-200)'),
+      }
     case 'ghost':
       return {
         background: active

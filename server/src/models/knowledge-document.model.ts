@@ -8,6 +8,17 @@ export type IngestionStatus = (typeof INGESTION_STATUSES)[number]
 export const SOURCE_TYPES = ['fm_standard', 'nfpa_standard', 'marsh_report'] as const
 export type SourceType = (typeof SOURCE_TYPES)[number]
 
+// One earlier version of a document's details (KB-01 AC9), kept when a
+// correction replaces them.
+export interface IDocumentVersion {
+  title: string
+  issuingBody: string
+  edition?: string
+  metadata: IKnowledgeDocument['metadata']
+  replacedAt: Date
+  replacedBy: { id: string; name: string }
+}
+
 export interface IKnowledgeDocument {
   title: string
   // Set from the source type (FM Global, NFPA or Marsh).
@@ -34,8 +45,18 @@ export interface IKnowledgeDocument {
     COPE_dimension: 'all'
     effective_date: Date
   }
+  // Earlier versions of the details above, oldest first.
+  history: IDocumentVersion[]
   createdAt: Date
   updatedAt: Date
+}
+
+const metadataSchema = {
+  source_type: { type: String, enum: SOURCE_TYPES, required: true },
+  jurisdiction: { type: String, required: true },
+  facility_type: { type: String, required: true },
+  COPE_dimension: { type: String, enum: ['all'], required: true },
+  effective_date: { type: Date, required: true },
 }
 
 const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
@@ -55,12 +76,25 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
     result: { chunksIndexed: Number, tablesCaptured: Number, imagesCaptured: Number },
     startedAt: Date,
     finishedAt: Date,
-    metadata: {
-      source_type: { type: String, enum: SOURCE_TYPES, required: true },
-      jurisdiction: { type: String, required: true },
-      facility_type: { type: String, required: true },
-      COPE_dimension: { type: String, enum: ['all'], required: true },
-      effective_date: { type: Date, required: true },
+    metadata: metadataSchema,
+    history: {
+      type: [
+        new Schema<IDocumentVersion>(
+          {
+            title: { type: String, required: true },
+            issuingBody: { type: String, required: true },
+            edition: String,
+            metadata: metadataSchema,
+            replacedAt: { type: Date, required: true },
+            replacedBy: {
+              id: { type: String, required: true },
+              name: { type: String, required: true },
+            },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
     },
   },
   { timestamps: true, collection: 'knowledge_documents' },

@@ -156,7 +156,7 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                       </button>
                     </>
                   )}
-                  <div style={{ minWidth: '0', flex: '1' }}>
+                  <div style={{ minWidth: '0', flex: v.showTopBar ? '1 0 100%' : '1' }}>
                     <div
                       style={{
                         display: 'flex',
@@ -277,7 +277,7 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
 
                     {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
 
-                    {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} />}
+                    {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
 
                     {v.isOverview && <Overview v={v} />}
 

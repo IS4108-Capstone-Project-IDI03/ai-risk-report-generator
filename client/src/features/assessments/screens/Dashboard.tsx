@@ -10,6 +10,16 @@ import {
 } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
+const COLUMNS =
+  'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,0.6fr)'
+const DATE_CELL = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '13px',
+  color: 'var(--text-secondary)',
+  paddingRight: '12px',
+  whiteSpace: 'nowrap',
+} as const
+
 export function Dashboard({ v }: { v: AssessmentWorkflow }) {
   return (
     <>
@@ -116,6 +126,15 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 onChange={v.setStatus}
               ></Select>
             </div>
+            <div style={{ flex: '0 1 220px', minWidth: '180px' }}>
+              <Select
+                size="sm"
+                aria-label="Sort assessments"
+                options={v.sortOptions}
+                value={v.workSort}
+                onChange={v.setWorkSort}
+              ></Select>
+            </div>
             <span style={{ flex: '1' }}></span>
             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{v.resultLabel}</span>
           </div>
@@ -124,8 +143,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns:
-                    'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,0.8fr)',
+                  gridTemplateColumns: COLUMNS,
                   alignItems: 'center',
                   gap: '0',
                   padding: '0 18px',
@@ -141,7 +159,8 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
               >
                 <span style={{ paddingRight: '12px' }}>{'Assessment'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Client'}</span>
-                <span style={{ paddingRight: '12px' }}>{'ASSESSED DATE'}</span>
+                <span style={{ paddingRight: '12px' }}>{'Site visit'}</span>
+                <span style={{ paddingRight: '12px' }}>{'Report due'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Engineer'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Status'}</span>
                 <span style={{ textAlign: 'right' }}>{'Items'}</span>
@@ -153,8 +172,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                     onClick={v.onRow}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns:
-                        'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,0.8fr)',
+                      gridTemplateColumns: COLUMNS,
                       alignItems: 'center',
                       padding: '10px 18px',
                       borderBottom: '1px solid var(--border-subtle)',
@@ -209,18 +227,18 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                     >
                       {r.client}
                     </span>
+                    <span style={DATE_CELL}>{r.date}</span>
                     <span
                       style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '13px',
-                        color: 'var(--text-secondary)',
-                        paddingRight: '12px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        ...DATE_CELL,
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '6px',
                       }}
                     >
-                      {r.date}
+                      {r.dueLabel}
+                      {r.overdue && <Badge tone="high">Overdue</Badge>}
                     </span>
                     <span
                       style={{
@@ -329,6 +347,19 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                       }}
                     >
                       {r.id}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-3)',
+                        flexWrap: 'wrap',
+                        fontSize: 'var(--text-caption-size)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      <span>Report due: {r.dueLabel}</span>
+                      {r.overdue && <Badge tone="high">Overdue</Badge>}
                     </div>
                     <div
                       style={{ fontSize: '15px', lineHeight: '22px', color: 'var(--text-body)' }}

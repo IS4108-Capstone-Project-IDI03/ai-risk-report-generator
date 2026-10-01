@@ -25,10 +25,10 @@ export interface IAssessment {
   surveyType: string
   siteVisitDate?: Date
   reportDueDate?: Date
-  // Names for now; these become user and document references once accounts
-  // (F-04) and the knowledge base exist. The first engineer is the lead.
+  // Display snapshots; engineerIds are the assignment identity, first is lead.
   standards: string[]
   engineers: string[]
+  engineerIds: Types.ObjectId[]
   reportStatus?: ReportStatus
   locations: ILocation[]
   createdAt: Date
@@ -72,6 +72,7 @@ const assessmentSchema = new Schema<IAssessment>(
       type: [String],
       default: [],
     },
+    engineerIds: { type: [Schema.Types.ObjectId], ref: 'User', default: undefined, index: true },
     reportStatus: {
       type: String,
       enum: REPORT_STATUSES,

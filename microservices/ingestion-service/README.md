@@ -64,8 +64,11 @@ Uploaded documents reach the pipeline through the worker, not this API (IN-01).
 The gateway checks each PDF with `POST /inspect`, stores it in S3, records it in
 MongoDB's `knowledge_documents` and queues a BullMQ job on the `ingestion` queue
 in Redis. The worker takes one job at a time, downloads the original, runs
-`app.pipeline.run(path, doc_id=<document id>)` and writes `processing`, then
-`complete` or `failed` with the reason, back to the document.
+`app.pipeline.run(path, doc_id=<document id>, labels=...)` and writes
+`processing`, then `complete` or `failed` with the reason, back to the document.
+Every passage carries the document's labels. When an admin corrects a
+document, the gateway calls `PUT /documents/{doc_id}/labels` to rewrite them
+in place, with no re-embedding (KB-01).
 
 To run the worker outside Docker, start Redis (`docker compose up -d redis`) and
 run, from this directory:
@@ -137,6 +140,13 @@ uv run pytest -m "not slow or slow" --real-ocr
 
 Real OCR requires Ollama to be running with the `glm-ocr` model. It can be slow
 on CPU.
+
+Tests marked `chroma` need the local Chroma server (`docker compose up -d
+chroma`, `CHROMA_MODE=local`):
+
+```powershell
+uv run pytest -m chroma
+```
 
 ### Inspect chunker output
 

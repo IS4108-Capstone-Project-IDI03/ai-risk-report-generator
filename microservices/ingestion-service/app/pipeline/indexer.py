@@ -2,6 +2,8 @@
 
 import os
 
+from chromadb.errors import NotFoundError
+
 from app.pipeline.embedder import embed
 from app.retrieval_config import COLLECTION, chroma_client
 
@@ -39,3 +41,24 @@ def index_chunks(chunks: list[dict]) -> int:
         metadatas=[chunk["metadata"] for chunk in chunks],
     )
     return len(chunks)
+
+
+def relabel(doc_id: str, labels: dict) -> int:
+    """Return how many of the document's passages got the new labels (KB-01).
+
+    Rewrites only metadata, so a corrected label reaches search without
+    re-embedding. The merge happens here rather than relying on Chroma's
+    update semantics, so headings, pages and bbox are always kept.
+    """
+    try:
+        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+    except NotFoundError:  # nothing indexed yet
+        return 0
+    found = collection.get(where={"doc_id": doc_id}, include=["metadatas"])
+    if not found["ids"]:
+        return 0
+    collection.update(
+        ids=found["ids"],
+        metadatas=[{**metadata, **labels} for metadata in found["metadatas"]],
+    )
+    return len(found["ids"])

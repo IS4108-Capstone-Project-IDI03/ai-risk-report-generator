@@ -30,8 +30,11 @@ must be implemented with the future raw-file ingestion lifecycle.
 `POST /retrieve` embeds the query, searches up to 20 candidates, and returns up
 to 5 Cohere-reranked results with ID, text, metadata, vector distance, and relevance
 score. An absent/empty collection returns no results; dependency failures propagate
-as errors rather than pretending retrieval succeeded. Metadata is stored for
-future filtering; the initial endpoint searches the whole collection.
+as errors rather than pretending retrieval succeeded. An optional `filters`
+object (`source_type`, `jurisdiction`, `facility_type`) narrows the search:
+`source_type` matches exactly, and `jurisdiction` and `facility_type` match the
+value or `all`. Without filters it searches the whole collection (KB-01; RT-01
+extends this for site applicability).
 
 The current direct endpoints are for local development with synthetic or already
 anonymised text. Raw-file parsing, automatic anonymisation, gateway auth, and
@@ -43,7 +46,7 @@ Python service ports to loopback; do not expose them publicly as-is.
 `assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
 `RPT-2026-0411`), a `site` reference, `client`, optional `policyReference`,
 `surveyType`, optional `siteVisitDate` and `reportDueDate`, and the selected
-`standards` and `engineers` (names for now; the first engineer is the lead).
+`standards`, `engineers` (display-name snapshots), and `engineerIds` (user IDs; the first engineer is the lead).
 Extend it rather than creating a parallel assessment schema.
 
 `POST /api/assessments` creates an assessment and a new site for it (the site
@@ -66,7 +69,7 @@ sessions fall outside the index and are kept as history.
 (200) or starts one (201), together with the assessment's reference, client and
 site for the capture screen. Assessments are addressed by `reference`, the ID the
 client already holds, not by ObjectId. An unknown reference returns 404. The
-gateway does not authenticate this route yet (F-04).
+gateway requires authentication and the `assessments:edit` permission.
 
 An assessment's status is stored only once a report exists: `reportStatus` is
 `draft`, `under_review` or `finalised`, set by the generation and sign-off
@@ -95,11 +98,14 @@ were added. Adding one needs no capture session. `DELETE
 location; editing an observation's tags (CP-06) moves it elsewhere. `npm --prefix server run seed`
 gives `RPT-2026-0411` six sample locations when it has none.
 
-`GET /api/assessments` returns every assessment with its derived `status`, most
-recent site visit first, in two queries (assessments, then their sessions). The
-dashboard filters and searches it in the browser (RV-10) and shows only the
-assessments whose `engineers` include the signed-in user. That user is fixed
-until accounts exist (F-04); the gateway does not paginate or filter by user yet.
+`GET /api/assessments` returns assessments assigned to the authenticated risk
+engineer's user ID; knowledge admins receive all assessments. The derived status
+and sort order (most recent site visit first) are unchanged. Site/client/report-ID
+search and status filtering happen in the browser. `GET /api/assessments/engineers`
+requires `assessments:edit` and returns only active risk engineers' IDs, names,
+staff IDs and job titles for assignment. Creating an assessment accepts
+`engineerIds`, validates the active accounts, and derives display-name snapshots;
+legacy name-only `engineers` input is rejected. IDs survive display-name changes.
 
 ## User accounts
 
@@ -136,7 +142,7 @@ with the same list.
 | `assessments:edit` | create assessments, capture sessions, locations, observations, tag edits, transcription retry | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
-| `knowledge:manage` | `POST /api/knowledge-documents` | no | yes |
+| `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
 
 The role is read from the signed session, so a role change takes effect at the
@@ -159,7 +165,7 @@ still browser-only placeholders; CP-04 should add a `photos` list to the same
 document rather than a new collection.
 
 Each document links to its `assessment` and the capture `session` it was
-recorded in, the `engineer` who captured it (a name until F-04), and `metadata`
+recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
 with the five required fields: `source_type` (`observation`), `jurisdiction`
 and `facility_type` copied from the site, `COPE_dimension` from the COPE
 category the engineer picked (`Construction`, `Occupancy`, `Protection` or
@@ -189,6 +195,11 @@ field: the location's `name` is its zone and its `floor` the floor, so choosing
 a location tags both. The Observations tab filters by category, severity,
 location and floor in the browser, like the dashboard.
 
+The API gives each recording `type: "Voice"`; the note is text by being the
+`note` field. The observation's `engineerId` is set from the signed session;
+client-supplied attribution is ignored. Observations saved before this change
+have a null `engineerId`.
+
 Each recording has its own `_id`, a `name` ("Recording 2" or the uploaded
 file's name), and its original audio in S3 at
 `audio/<reference>/<observation id>/<recording id>.<ext>`; the document keeps
@@ -203,13 +214,13 @@ capture session `active`.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `engineer`, `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
 | `GET /api/assessments/:reference/observations` | Every observation, newest first, with its `note` and `recordings`, each recording with its `url` and `transcription`. `copeDimension` is `null` for an uncategorised observation |
 | `PATCH /api/observations/:id` | Changes the tags: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations) and `standard` (100 characters; `null` or `''` removes it). A tag left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when no tag is sent) / 404 |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 
-## Knowledge documents (IN-01)
+## Knowledge documents (IN-01, KB-01)
 
 `knowledge_documents` holds one record per accepted upload. Its `_id` is the
 permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
@@ -231,10 +242,11 @@ The source type decides which details the admin gives:
 | `metadata.COPE_dimension` | `all` | `all` |
 
 `jurisdiction: 'all'` is the only value that isn't a two-letter code; like
-`facility_type: 'all'`, retrieval must treat it as matching any site. These
-fields live on the MongoDB record only: the ingestion pipeline's chunks carry
-`doc_id`, `headings`, pages and `bbox`, not the metadata above (see the `/index`
-contract earlier in this file).
+`facility_type: 'all'`, retrieval must treat it as matching any site. Every
+passage (chunk) in Chroma carries its document's five labels (`source_type`,
+`jurisdiction`, `facility_type`, `COPE_dimension`, `effective_date` as
+`YYYY-MM-DD`) next to the pipeline's `doc_id`, `headings`, pages and `bbox`: the
+worker adds them at ingest, and a correction rewrites them in place (KB-01).
 
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
@@ -242,10 +254,26 @@ contract earlier in this file).
 which also records `startedAt` and `finishedAt`. Rejected uploads are never
 stored.
 
+A `complete` document is **active**: it is what search can use, and the only
+kind the knowledge base lists or lets the admin correct (KB-01). A correction
+overwrites the details in place and keeps what it replaced in `history`; the
+last save wins. `history` is an embedded list, oldest first, of earlier
+versions: `{ title, issuingBody, edition?, metadata (all five labels),
+replacedAt, replacedBy: { id, name } }` (`replacedBy` is the signed-in user).
+A save that changes nothing adds no version. Restoring is an ordinary
+correction with an old version's details, so the details it replaces become a
+new version. The API returns `history` newest first. If the
+ingestion service cannot relabel the passages, the gateway writes the old
+details and history back (no transactions on standalone MongoDB), so a failed
+relabel leaves both on the old labels and records no version. Not covered: two admins saving the same
+document at once, or a relabel that succeeds but whose reply is lost.
+
 | Route | Does |
 | --- | --- |
 | `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
+| `GET /api/knowledge-documents/active` | Every active document, by title A–Z (KB-01) |
+| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with the same fields as upload, minus `fileName`. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
