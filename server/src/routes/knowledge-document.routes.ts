@@ -79,7 +79,8 @@ router.put('/:id', requirePermission('knowledge:manage'), async (req, res) => {
     return
   }
   try {
-    res.json(await correctKnowledgeDocument(req.params.id, parsed.data))
+    const { id, name } = res.locals.user!
+    res.json(await correctKnowledgeDocument(req.params.id, parsed.data, { id, name }))
   } catch (error: unknown) {
     const status =
       error instanceof KnowledgeDocumentNotFoundError

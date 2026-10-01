@@ -120,6 +120,17 @@ export type KnowledgeDocumentDto = {
   error: string | null
   uploadedAt: Date
   fileUrl: string
+  // Earlier versions of the details, newest first (KB-01 AC9).
+  history: {
+    sourceType: string
+    title: string
+    edition: string | null
+    effectiveDate: string
+    jurisdiction: string
+    facilityType: string
+    replacedAt: Date
+    replacedBy: { id: string; name: string }
+  }[]
 }
 
 // Turns a database row into the shape the browser's api.ts expects.
@@ -140,6 +151,17 @@ function toDto(d: IKnowledgeDocument & { _id: Types.ObjectId }): KnowledgeDocume
     error: d.error ?? null,
     uploadedAt: d.createdAt,
     fileUrl: `/api/knowledge-documents/${d._id}/file`,
+    // Records from before history existed have no field; `?? []` gives them none.
+    history: [...(d.history ?? [])].reverse().map((v) => ({
+      sourceType: v.metadata.source_type,
+      title: v.title,
+      edition: v.edition ?? null,
+      effectiveDate: v.metadata.effective_date.toISOString().slice(0, 10),
+      jurisdiction: v.metadata.jurisdiction,
+      facilityType: v.metadata.facility_type,
+      replacedAt: v.replacedAt,
+      replacedBy: v.replacedBy,
+    })),
   }
 }
 
@@ -158,6 +180,23 @@ function recordFields(details: DocumentDetails) {
       effective_date: new Date(details.effectiveDate),
     },
   }
+}
+
+// Whether a correction changes any detail the record holds. Dates compare by
+// time value, since two Date objects are never `===`.
+function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>) {
+  const a = old.metadata
+  const b = next.metadata
+  return (
+    old.title !== next.title ||
+    old.issuingBody !== next.issuingBody ||
+    old.edition !== next.edition ||
+    a.source_type !== b.source_type ||
+    a.jurisdiction !== b.jurisdiction ||
+    a.facility_type !== b.facility_type ||
+    a.COPE_dimension !== b.COPE_dimension ||
+    a.effective_date.getTime() !== b.effective_date.getTime()
+  )
 }
 
 /**
@@ -311,7 +350,8 @@ export class KnowledgeDocumentNotActiveError extends Error {
 
 /**
  * Returns the document with its corrected details (KB-01 AC6), in steps a–c.
- * Every detail can change, including the source type. Throws
+ * Every detail can change, including the source type. The details it
+ * replaces are kept as a previous version (AC9) when anything changed. Throws
  * KnowledgeDocumentNotFoundError, KnowledgeDocumentNotActiveError, or
  * IngestionUnavailableError when search could not be updated, in which case
  * the old details are kept.
@@ -319,6 +359,7 @@ export class KnowledgeDocumentNotActiveError extends Error {
 export async function correctKnowledgeDocument(
   id: string,
   details: DocumentDetails,
+  by: { id: string; name: string },
 ): Promise<KnowledgeDocumentDto> {
   // a. Find it, and check it is active.
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
@@ -326,18 +367,31 @@ export async function correctKnowledgeDocument(
   if (!document) throw new KnowledgeDocumentNotFoundError()
   if (document.status !== 'complete') throw new KnowledgeDocumentNotActiveError()
 
-  // b. Save the new details, keeping the old ones in case step c fails.
-  const { title, issuingBody, edition, metadata } = document.toObject()
-  document.set(recordFields(details))
+  // b. Save the new details, keeping the old ones in case step c fails. If
+  // anything changed, the old details also join the history (AC9).
+  const old = document.toObject()
+  const { title, issuingBody, edition, metadata, history } = old
+  const next = recordFields(details)
+  document.set(next)
+  if (differs(old, next)) {
+    document.history.push({
+      title,
+      issuingBody,
+      edition,
+      metadata,
+      replacedAt: new Date(),
+      replacedBy: by,
+    })
+  }
   await document.save()
 
   // c. Put the new labels on its passages in Chroma. If that fails, write the
-  // old details back: without this, MongoDB would show the correction while
-  // search still used the old labels.
+  // old details and history back (AC11): without this, MongoDB would show the
+  // correction while search still used the old labels.
   try {
     await relabelPassages(id, labels(document.toObject().metadata))
   } catch (error) {
-    document.set({ title, issuingBody, edition, metadata })
+    document.set({ title, issuingBody, edition, metadata, history })
     await document.save()
     throw error
   }

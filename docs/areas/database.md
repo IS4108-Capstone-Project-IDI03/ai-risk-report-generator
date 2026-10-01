@@ -248,10 +248,16 @@ stored.
 
 A `complete` document is **active**: it is what search can use, and the only
 kind the knowledge base lists or lets the admin correct (KB-01). A correction
-overwrites the details in place, with no history; the last save wins. If the
+overwrites the details in place and keeps what it replaced in `history`; the
+last save wins. `history` is an embedded list, oldest first, of earlier
+versions: `{ title, issuingBody, edition?, metadata (all five labels),
+replacedAt, replacedBy: { id, name } }` (`replacedBy` is the signed-in user).
+A save that changes nothing adds no version. Restoring is an ordinary
+correction with an old version's details, so the details it replaces become a
+new version. The API returns `history` newest first. If the
 ingestion service cannot relabel the passages, the gateway writes the old
-details back (no transactions on standalone MongoDB), so a failed relabel
-leaves both on the old labels. Not covered: two admins saving the same
+details and history back (no transactions on standalone MongoDB), so a failed
+relabel leaves both on the old labels and records no version. Not covered: two admins saving the same
 document at once, or a relabel that succeeds but whose reply is lost.
 
 | Route | Does |
@@ -259,7 +265,7 @@ document at once, or a relabel that succeeds but whose reply is lost.
 | `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/active` | Every active document, by title A–Z (KB-01) |
-| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with the same fields as upload, minus `fileName`. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document, or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details kept) |
+| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with the same fields as upload, minus `fileName`. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),

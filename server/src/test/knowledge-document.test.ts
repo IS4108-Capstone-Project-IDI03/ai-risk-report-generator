@@ -308,6 +308,14 @@ describe('GET /api/knowledge-documents/active', () => {
       'Zinc storage',
     ])
   })
+
+  it('gives an uncorrected document an empty history', async () => {
+    await stored(DETAILS)
+
+    const [document] = (await api.get('/api/knowledge-documents/active')).body
+
+    expect(document.history).toEqual([])
+  })
 })
 
 describe('PUT /api/knowledge-documents/:id', () => {
@@ -408,6 +416,76 @@ describe('PUT /api/knowledge-documents/:id', () => {
 
     expect((await correct(id)).status).toBe(503)
     expect(await listed()).toMatchObject({ sourceType: 'nfpa_standard', edition: '2022' })
+  })
+
+  // KB-01 AC9–AC11: the details a correction replaces are kept as a previous version.
+  it('records the replaced details as a previous version, with who and when, newest first', async () => {
+    const id = await stored(REPORT)
+    const before = Date.now()
+
+    await correct(id)
+    const { body } = await correct(id, { ...CORRECTED, title: 'Cold store survey 2' })
+
+    expect(body.title).toBe('Cold store survey 2')
+    expect(body.history).toHaveLength(2)
+    expect(body.history[0]).toMatchObject({
+      title: 'Cold store risk survey',
+      sourceType: 'marsh_report',
+      edition: null,
+      effectiveDate: '2024-03-12',
+      jurisdiction: 'SG',
+      facilityType: 'Data centre',
+      replacedBy: { name: 'Test User' },
+    })
+    expect(body.history[1]).toMatchObject({ jurisdiction: 'MY', facilityType: 'Cold store' })
+    expect(typeof body.history[0].replacedBy.id).toBe('string')
+    expect(new Date(body.history[0].replacedAt).getTime()).toBeGreaterThanOrEqual(before)
+    expect(new Date(body.history[0].replacedAt) >= new Date(body.history[1].replacedAt)).toBe(true)
+  })
+
+  it('restores a previous version by saving its details, which becomes a previous version itself', async () => {
+    const id = await stored(REPORT)
+    await correct(id)
+
+    const { body } = await correct(id, {
+      title: REPORT.title,
+      effectiveDate: REPORT.effectiveDate,
+      sourceType: REPORT.sourceType,
+      jurisdiction: REPORT.jurisdiction,
+      facilityType: REPORT.facilityType,
+    })
+
+    expect(body).toMatchObject({ jurisdiction: 'MY', facilityType: 'Cold store' })
+    expect(body.history[0]).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
+    expect(body.history).toHaveLength(2)
+  })
+
+  it('records no version when a save changes nothing', async () => {
+    const id = await stored(REPORT)
+    const same = {
+      title: REPORT.title,
+      effectiveDate: REPORT.effectiveDate,
+      sourceType: REPORT.sourceType,
+      jurisdiction: REPORT.jurisdiction,
+      facilityType: REPORT.facilityType,
+    }
+
+    const { body } = await correct(id, same)
+
+    expect(body.history).toEqual([])
+  })
+
+  it('records no version when search could not be updated', async () => {
+    const id = await stored(REPORT)
+    await correct(id)
+    const before = await listed()
+    inspect.mockRejectedValue(new TypeError('fetch failed'))
+
+    const response = await correct(id, { ...CORRECTED, title: 'Never saved' })
+
+    expect(response.status).toBe(503)
+    expect(await listed()).toEqual(before)
+    expect(before.history).toHaveLength(1)
   })
 })
 
