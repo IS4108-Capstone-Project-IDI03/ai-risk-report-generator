@@ -1,4 +1,4 @@
-"""POST /retrieve narrowed by label filters (KB-01 AC8), with Chroma and Cohere faked."""
+"""POST /retrieve: label filters (KB-01 AC8), no withdrawn passages (KB-02 AC2); Chroma faked."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -36,20 +36,28 @@ def where_for(collection, filters):
     return collection.query.call_args.kwargs["where"]
 
 
-def test_no_filters_searches_everything(collection):
-    assert where_for(collection, {}) is None
+ACTIVE_ONLY = {"status": {"$ne": "withdrawn"}}
+
+
+def test_no_filters_still_skips_withdrawn_passages(collection):
+    assert where_for(collection, {}) == ACTIVE_ONLY
 
 
 def test_source_type_matches_exactly(collection):
-    assert where_for(collection, {"source_type": "fm_standard"}) == {"source_type": "fm_standard"}
+    assert where_for(collection, {"source_type": "fm_standard"}) == {
+        "$and": [{"source_type": "fm_standard"}, ACTIVE_ONLY]
+    }
 
 
 def test_country_and_facility_type_also_match_documents_labelled_all(collection):
-    assert where_for(collection, {"jurisdiction": "SG"}) == {"jurisdiction": {"$in": ["SG", "all"]}}
+    assert where_for(collection, {"jurisdiction": "SG"}) == {
+        "$and": [{"jurisdiction": {"$in": ["SG", "all"]}}, ACTIVE_ONLY]
+    }
     assert where_for(collection, {"facility_type": "Cold store", "jurisdiction": "SG"}) == {
         "$and": [
             {"jurisdiction": {"$in": ["SG", "all"]}},
             {"facility_type": {"$in": ["Cold store", "all"]}},
+            ACTIVE_ONLY,
         ]
     }
 

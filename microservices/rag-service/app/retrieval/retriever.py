@@ -13,11 +13,14 @@ from app.retrieval_config import (
 )
 
 
-def label_filter(filters: dict[str, str]) -> dict | None:
+def label_filter(filters: dict[str, str]) -> dict:
     """Return the Chroma `where` clause (a metadata filter) for label filters.
 
     Source type matches exactly. Country and facility type also match
     passages labelled `all`, since such a document applies to every site.
+    Withdrawn passages are always excluded (KB-02 AC2). `$ne` also matches
+    passages with no status label, so passages indexed before KB-02 stay
+    retrievable (checked against Chroma 1.5.5 on 2026-10-01).
     Chroma needs `$and` to combine two or more conditions. Minimal on purpose:
     RT-01 extends it for site applicability.
     """
@@ -25,9 +28,8 @@ def label_filter(filters: dict[str, str]) -> dict | None:
         {key: value if key == "source_type" else {"$in": [value, "all"]}}
         for key, value in filters.items()
     ]
-    if len(conditions) > 1:
-        return {"$and": conditions}
-    return conditions[0] if conditions else None
+    conditions.append({"status": {"$ne": "withdrawn"}})
+    return {"$and": conditions} if len(conditions) > 1 else conditions[0]
 
 
 def retrieve(query: str, filters: dict[str, str] | None = None) -> list[dict]:

@@ -59,8 +59,14 @@ def test_relabels_only_that_documents_passages_and_keeps_their_other_metadata(mo
     assert response.status_code == 200
     assert response.json() == {"passagesUpdated": 2}
     assert collection.records == {
-        f"{DOC_ID}:0": {"doc_id": DOC_ID, "headings": ["Sprinklers"], "page_start": 2, **NEW},
-        f"{DOC_ID}:1": {"doc_id": DOC_ID, "page_start": 3, **NEW},
+        f"{DOC_ID}:0": {
+            "doc_id": DOC_ID,
+            "headings": ["Sprinklers"],
+            "page_start": 2,
+            **NEW,
+            "status": "active",
+        },
+        f"{DOC_ID}:1": {"doc_id": DOC_ID, "page_start": 3, **NEW, "status": "active"},
         "someone-else:0": other,
     }
 
@@ -91,3 +97,25 @@ def test_a_blank_or_missing_label_is_refused(monkeypatch):
     no_date = {k: v for k, v in NEW.items() if k != "effective_date"}
     assert client.put(f"/documents/{DOC_ID}/labels", json=no_date).status_code == 422
     assert collection.records[f"{DOC_ID}:0"]["jurisdiction"] == "MY"
+
+
+def test_status_withdrawn_lands_on_every_passage_and_omitted_means_active(monkeypatch):
+    # KB-02: withdrawing flips status; a relabel without status puts it back to active.
+    collection = FakeCollection({f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD}})
+    install(monkeypatch, collection)
+
+    client.put(f"/documents/{DOC_ID}/labels", json={**NEW, "status": "withdrawn"})
+    assert collection.records[f"{DOC_ID}:0"]["status"] == "withdrawn"
+
+    client.put(f"/documents/{DOC_ID}/labels", json=NEW)
+    assert collection.records[f"{DOC_ID}:0"]["status"] == "active"
+
+
+def test_an_unknown_status_is_refused(monkeypatch):
+    collection = FakeCollection({f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD}})
+    install(monkeypatch, collection)
+
+    response = client.put(f"/documents/{DOC_ID}/labels", json={**NEW, "status": "archived"})
+
+    assert response.status_code == 422
+    assert "status" not in collection.records[f"{DOC_ID}:0"]
