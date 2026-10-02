@@ -245,6 +245,7 @@ describe('GET /api/assessments', () => {
       ['RPT-A', 'not_started', '2026-01-01'],
     ])
     expect(response.body[0].site).toMatchObject({ code: 'SITE-0001', name: SITE.name })
+    expect(response.body[3].captureStartedAt).toBeNull()
   })
 
   it('uses the latest capture session', async () => {
@@ -257,11 +258,13 @@ describe('GET /api/assessments', () => {
       surveyType: 'Property risk survey',
     })
     await CaptureSessionModel.create({ assessment: a._id, status: 'ready_for_generation' })
-    await CaptureSessionModel.create({ assessment: a._id, status: 'active' })
+    const active = await CaptureSessionModel.create({ assessment: a._id, status: 'active' })
 
     const response = await api.get('/api/assessments')
 
     expect(response.body[0].status).toBe('capturing')
+    // Its start, so the dashboard can continue the most recently started capture.
+    expect(response.body[0].captureStartedAt).toBe(active.createdAt.toISOString())
   })
 })
 
