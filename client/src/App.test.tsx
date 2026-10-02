@@ -86,7 +86,13 @@ describe('Marsh prototype integration', () => {
     expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
     expect(screen.getByText(/exists only in this demo and is not saved/)).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+    // The next assessment starts from a blank form.
+    expect(screen.getByLabelText(/Site name/)).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
     fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Second Warehouse' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
+      target: { value: 'Second Client' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
     expect(await screen.findByText('Second Warehouse')).toBeInTheDocument()
     expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
