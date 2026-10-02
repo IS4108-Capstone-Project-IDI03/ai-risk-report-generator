@@ -68,7 +68,7 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
    optional `filters` on `source_type`, `jurisdiction` and `facility_type`;
    the last two also match passages labelled `all`.
 
-## Withdrawing and reinstating a knowledge document (KB-02)
+## Withdrawing and reinstating a knowledge document (KB-01)
 
 1. Withdraw sends `POST /api/knowledge-documents/:id/withdraw`; reinstate sends
    `POST /api/knowledge-documents/:id/reinstate`. The gateway refuses a document

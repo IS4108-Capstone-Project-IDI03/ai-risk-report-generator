@@ -490,7 +490,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
   })
 })
 
-// KB-02: withdraw a document from use, and reinstate it.
+// KB-01 AC12–16: withdraw a document from use, and reinstate it.
 describe('POST /api/knowledge-documents/:id/withdraw and /reinstate', () => {
   const withdraw = (id: string) => api.post(`/api/knowledge-documents/${id}/withdraw`)
   const reinstate = (id: string) => api.post(`/api/knowledge-documents/${id}/reinstate`)
@@ -587,7 +587,7 @@ describe('POST /api/knowledge-documents/:id/withdraw and /reinstate', () => {
     expect(after.withdrawn).toEqual(withdrawn.withdrawn)
   })
 
-  it('refuses to correct a withdrawn document (KB-02 AC4)', async () => {
+  it('refuses to correct a withdrawn document (KB-01 AC15)', async () => {
     const id = await stored(REPORT)
     inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
     await withdraw(id)

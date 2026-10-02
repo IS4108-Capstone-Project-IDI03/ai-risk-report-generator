@@ -34,7 +34,7 @@ router.get('/', requirePermission('knowledge:view'), async (_req, res) => {
   res.json(await listKnowledgeDocuments())
 })
 
-// The knowledge base: every ingested document, active or withdrawn, by title (KB-01, KB-02).
+// The knowledge base: every ingested document, active or withdrawn, by title (KB-01).
 router.get('/ingested', requirePermission('knowledge:view'), async (_req, res) => {
   res.json(await listIngestedDocuments())
 })
@@ -111,7 +111,7 @@ function answerStateChange(error: unknown, res: express.Response) {
   res.status(status).json({ error: error.message })
 }
 
-// Withdraws a document from use (KB-02). Answers: 200 withdrawn · 404 unknown
+// Withdraws a document from use (KB-01). Answers: 200 withdrawn · 404 unknown
 // · 409 not active · 503 search could not be updated (still active).
 router.post('/:id/withdraw', requirePermission('knowledge:manage'), async (req, res) => {
   try {
@@ -122,7 +122,7 @@ router.post('/:id/withdraw', requirePermission('knowledge:manage'), async (req, 
   }
 })
 
-// Reinstates a withdrawn document (KB-02). Answers: 200 reinstated · 404
+// Reinstates a withdrawn document (KB-01). Answers: 200 reinstated · 404
 // unknown · 409 not withdrawn · 503 search could not be updated (still withdrawn).
 router.post('/:id/reinstate', requirePermission('knowledge:manage'), async (req, res) => {
   try {

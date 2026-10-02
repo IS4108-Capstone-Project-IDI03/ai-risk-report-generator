@@ -240,8 +240,8 @@ passage (chunk) in Chroma carries its document's five labels (`source_type`,
 `YYYY-MM-DD`) next to the pipeline's `doc_id`, `headings`, pages and `bbox`: the
 worker adds them at ingest, and a correction rewrites them in place (KB-01).
 Each passage also carries a sixth label, `status` (`active` or `withdrawn`,
-KB-02): the worker always writes `active`, and withdraw and reinstate rewrite it
-in place. Passages indexed before KB-02 have no `status`; retrieval treats that
+KB-01): the worker always writes `active`, and withdraw and reinstate rewrite it
+in place. Passages indexed before the status label existed have no `status`; retrieval treats that
 as active.
 
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
@@ -264,7 +264,7 @@ details and history back (no transactions on standalone MongoDB), so a failed
 relabel leaves both on the old labels and records no version. Not covered: two admins saving the same
 document at once, or a relabel that succeeds but whose reply is lost.
 
-An active document can be **withdrawn** (KB-02): `withdrawn: { at, by: { id,
+An active document can be **withdrawn** (KB-01): `withdrawn: { at, by: { id,
 name } }` is set (`by` is the signed-in user), and it is absent while the
 document is active. `status` stays `complete`. The document is still listed, but
 shows as Withdrawn, its passages are skipped by search, and it can't be
@@ -276,10 +276,10 @@ as it was. The API returns `withdrawn` as `{ at, by } | null`.
 | --- | --- |
 | `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
-| `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01, KB-02) |
+| `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with the same fields as upload, minus `fileName`. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
-| `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-02), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
-| `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-02), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
+| `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
+| `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),

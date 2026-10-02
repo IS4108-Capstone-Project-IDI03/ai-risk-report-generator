@@ -1,4 +1,4 @@
-// One document's row in the Documents table (KB-01, KB-02) and, when open, its
+// One document's row in the Documents table (KB-01) and, when open, its
 // details row below. The title is the disclosure button; the rest of the row
 // also opens it, as an observation's row does, while its View original link
 // keeps its job. Used by components/DocumentGroup.tsx.

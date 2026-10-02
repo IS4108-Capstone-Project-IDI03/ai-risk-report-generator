@@ -1,4 +1,4 @@
-// The Withdraw or Reinstate confirmation (KB-02 AC1, AC5): says what the change
+// The Withdraw or Reinstate confirmation (KB-01 AC12, AC16): says what the change
 // does for new reports. An active document gets Withdraw, a withdrawn one
 // Reinstate. A failure shows why and keeps the dialog open. Opened by
 // screens/KnowledgeDocuments.tsx; calls api.ts.

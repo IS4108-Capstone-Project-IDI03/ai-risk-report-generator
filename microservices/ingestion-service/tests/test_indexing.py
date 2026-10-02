@@ -47,7 +47,7 @@ def test_index_preserves_ids_and_metadata_and_rejects_invalid_input(monkeypatch,
         "ids": [chunk["id"]],
         "documents": [chunk["text"]],
         "embeddings": [[0.1]],
-        # KB-02: /index fills status active when the caller omits it.
+        # KB-01: /index fills status active when the caller omits it.
         "metadatas": [{**chunk["metadata"], "status": "active"}],
     }
     assert client.post("/index", json={"chunks": [chunk, chunk]}).status_code == 422

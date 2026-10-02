@@ -23,7 +23,7 @@ class Labels(BaseModel):
     facility_type: NonEmpty
     COPE_dimension: NonEmpty
     effective_date: NonEmpty
-    # KB-02: retrieval skips withdrawn passages. The default keeps /index working without it.
+    # KB-01: retrieval skips withdrawn passages. The default keeps /index working without it.
     status: Literal["active", "withdrawn"] = "active"
 
 

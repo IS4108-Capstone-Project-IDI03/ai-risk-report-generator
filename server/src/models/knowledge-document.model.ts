@@ -47,7 +47,7 @@ export interface IKnowledgeDocument {
   }
   // Earlier versions of the details above, oldest first.
   history: IDocumentVersion[]
-  // Present only while the document is withdrawn (KB-02): when, and by whom.
+  // Present only while the document is withdrawn (KB-01): when, and by whom.
   // `status` stays `complete`; reinstating removes this.
   withdrawn?: { at: Date; by: { id: string; name: string } }
   createdAt: Date

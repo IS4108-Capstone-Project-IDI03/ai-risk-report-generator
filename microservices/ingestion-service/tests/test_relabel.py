@@ -100,7 +100,7 @@ def test_a_blank_or_missing_label_is_refused(monkeypatch):
 
 
 def test_status_withdrawn_lands_on_every_passage_and_omitted_means_active(monkeypatch):
-    # KB-02: withdrawing flips status; a relabel without status puts it back to active.
+    # KB-01: withdrawing flips status; a relabel without status puts it back to active.
     collection = FakeCollection({f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD}})
     install(monkeypatch, collection)
 

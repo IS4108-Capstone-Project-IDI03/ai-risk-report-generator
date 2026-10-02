@@ -52,7 +52,7 @@ export function EditHistoryDialog({
                   </p>
                 ))}
               </div>
-              {/* Restore opens Edit details, which a withdrawn document can't use (KB-02 AC4). */}
+              {/* Restore opens Edit details, which a withdrawn document can't use (KB-01 AC15). */}
               {!d.withdrawn && (
                 <Button
                   variant="secondary"

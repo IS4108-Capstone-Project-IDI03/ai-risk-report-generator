@@ -1,4 +1,4 @@
-// The knowledge base's Documents tab (KB-01, KB-02): every document in the
+// The knowledge base's Documents tab (KB-01): every document in the
 // knowledge base, grouped by source type, filtered by label, status or title.
 // Opening a document's title shows its details; Edit details and Restore open
 // one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
@@ -108,7 +108,7 @@ export function KnowledgeDocuments({
     // would just vanish, with no sign the save worked.
     notify(`Details saved for ${updated.title}.`)
   }
-  // Withdraw and reinstate (KB-02). The notice matters under a Status filter,
+  // Withdraw and reinstate (KB-01). The notice matters under a Status filter,
   // where the row leaves the list.
   const statusChanged = (updated: KnowledgeDocument) => {
     replaced(updated)

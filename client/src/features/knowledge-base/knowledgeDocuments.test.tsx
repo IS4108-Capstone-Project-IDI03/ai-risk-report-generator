@@ -417,7 +417,7 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(await row(REPORT.title)).getByText('Malaysia')).toBeInTheDocument()
   })
 
-  // KB-02: withdraw and reinstate.
+  // KB-01 AC12–16: withdraw and reinstate.
   const WITHDRAWN = {
     ...REPORT,
     withdrawn: { at: '2026-10-01T04:15:00.000Z', by: { id: 'u1', name: 'Sana Patel' } },
@@ -427,7 +427,7 @@ describe('Knowledge base documents (KB-01)', () => {
     return screen.getByRole('region', { name: `Details of ${title}` })
   }
 
-  it('withdraws an active document after confirming, and shows it as Withdrawn (AC1)', async () => {
+  it('withdraws an active document after confirming, and shows it as Withdrawn (AC12)', async () => {
     mockGateway([REPORT], undefined, (id) => json(200, { ...WITHDRAWN, id }))
     await openKnowledgeBase()
     const details = await open(REPORT.title)
@@ -486,7 +486,7 @@ describe('Knowledge base documents (KB-01)', () => {
     )
   })
 
-  it('shows who withdrew a document and when, with no Edit details (AC3, AC4)', async () => {
+  it('shows who withdrew a document and when, with no Edit details (AC14, AC15)', async () => {
     mockGateway([WITHDRAWN])
     await openKnowledgeBase()
     const details = await open(REPORT.title)
@@ -516,7 +516,7 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(history).queryByRole('button', { name: /^Restore/ })).not.toBeInTheDocument()
   })
 
-  it('reinstates a withdrawn document after confirming, and shows it as Active (AC5)', async () => {
+  it('reinstates a withdrawn document after confirming, and shows it as Active (AC16)', async () => {
     mockGateway([WITHDRAWN], undefined, (id) => json(200, { ...REPORT, id, withdrawn: null }))
     await openKnowledgeBase()
     const details = await open(REPORT.title)

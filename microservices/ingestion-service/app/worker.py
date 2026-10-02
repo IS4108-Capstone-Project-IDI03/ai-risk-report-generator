@@ -59,7 +59,7 @@ def labels(doc: dict) -> dict:
     Chroma metadata holds only strings and numbers, so the date becomes
     YYYY-MM-DD. Must match `labels()` in
     server/src/services/knowledge-document.service.ts, which relabels passages
-    after a correction (KB-01) and emits status active or withdrawn (KB-02).
+    after a correction (KB-01) and emits status active or withdrawn (KB-01 AC12–16).
     """
     metadata = doc["metadata"]
     date = metadata["effective_date"].strftime("%Y-%m-%d")

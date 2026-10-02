@@ -1,6 +1,6 @@
-// A document's details panel (KB-01, KB-02): every detail, then its actions.
+// A document's details panel (KB-01): every detail, then its actions.
 // Active: Edit details, Edit history (AC9) and Withdraw. Withdrawn: who and
-// when (AC3), Reinstate and Edit history, but no Edit details (AC4). Withdraw
+// when (AC14), Reinstate and Edit history, but no Edit details (AC15). Withdraw
 // and Reinstate both open components/StatusChangeDialog.tsx. Used by
 // components/DocumentRow.tsx.
 import type { ReactNode } from 'react'

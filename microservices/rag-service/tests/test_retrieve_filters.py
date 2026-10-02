@@ -1,4 +1,4 @@
-"""POST /retrieve: label filters (KB-01 AC8), no withdrawn passages (KB-02 AC2); Chroma faked."""
+"""POST /retrieve: label filters (KB-01 AC8), no withdrawn passages (KB-01 AC13); Chroma faked."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock

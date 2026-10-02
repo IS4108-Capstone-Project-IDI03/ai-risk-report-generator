@@ -1,6 +1,6 @@
 // The gateway's calls to the ingestion service (app/api/routes.py): the PDF
 // check (IN-01), which opens the file with PyMuPDF because Node has no PDF
-// library, and relabelling a document's passages (KB-01, KB-02), because
+// library, and relabelling a document's passages (KB-01), because
 // only the Python services write to Chroma.
 import { config } from '../config'
 
@@ -33,7 +33,7 @@ export async function whyPdfCannotOpen(pdf: Buffer): Promise<string | null> {
 }
 
 // Puts a document's labels on all its passages in Chroma (KB-01 corrections,
-// KB-02 withdraw and reinstate). Throws IngestionUnavailableError with
+// KB-01 withdraw and reinstate). Throws IngestionUnavailableError with
 // `failureMessage` if the service is down or refuses, so the caller can undo
 // its change.
 export async function relabelPassages(

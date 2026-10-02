@@ -1,4 +1,4 @@
-// Browser → gateway requests for knowledge base documents (IN-01, KB-01, KB-02).
+// Browser → gateway requests for knowledge base documents (IN-01, KB-01).
 // uploads.ts uses the upload; KnowledgeBase.tsx uses the recent uploads list;
 // KnowledgeDocuments.tsx uses the active list, corrections, withdraw and reinstate. A failed request
 // throws a GatewayError carrying the HTTP status, which uploads.ts reads to
@@ -41,7 +41,7 @@ export type KnowledgeDocument = {
   fileUrl: string
   // The details each correction replaced, newest first (KB-01 AC9).
   history: DocumentVersion[]
-  // Who took it out of use and when (KB-02 AC3); null while it is active.
+  // Who took it out of use and when (KB-01 AC14); null while it is active.
   withdrawn: { at: string; by: { id: string; name: string } } | null
 }
 
@@ -70,7 +70,7 @@ export function listKnowledgeDocuments(signal?: AbortSignal): Promise<KnowledgeD
   return request<KnowledgeDocument[]>('/api/knowledge-documents', { signal })
 }
 
-// Every ingested document, active or withdrawn, sorted by title (KB-01, KB-02).
+// Every ingested document, active or withdrawn, sorted by title (KB-01).
 export function listIngestedDocuments(signal?: AbortSignal): Promise<KnowledgeDocument[]> {
   return request<KnowledgeDocument[]>('/api/knowledge-documents/ingested', { signal })
 }
@@ -93,14 +93,14 @@ export function correctKnowledgeDocument(
   })
 }
 
-// Takes a document out of use and returns it with `withdrawn` set (KB-02).
+// Takes a document out of use and returns it with `withdrawn` set (KB-01).
 export function withdrawDocument(id: string): Promise<KnowledgeDocument> {
   return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}/withdraw`, {
     method: 'POST',
   })
 }
 
-// Puts a withdrawn document back in use and returns it, `withdrawn` null (KB-02).
+// Puts a withdrawn document back in use and returns it, `withdrawn` null (KB-01).
 export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
   return request<KnowledgeDocument>(
     `/api/knowledge-documents/${encodeURIComponent(id)}/reinstate`,

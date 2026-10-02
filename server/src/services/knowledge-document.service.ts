@@ -120,7 +120,7 @@ export type KnowledgeDocumentDto = {
   error: string | null
   uploadedAt: Date
   fileUrl: string
-  // Who withdrew the document and when (KB-02 AC3); null while it is active.
+  // Who withdrew the document and when (KB-01 AC14); null while it is active.
   withdrawn: { at: Date; by: { id: string; name: string } } | null
   // Earlier versions of the details, newest first (KB-01 AC9).
   history: {
@@ -204,7 +204,7 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
 
 /**
  * Returns the labels every passage of the document carries, so search can
- * filter on them: its metadata, the date as YYYY-MM-DD, and `status` (KB-02),
+ * filter on them: its metadata, the date as YYYY-MM-DD, and `status` (KB-01),
  * which search uses to skip withdrawn passages. Must match `labels()` in
  * microservices/ingestion-service/app/worker.py, which labels passages at
  * ingest (always `active`).
@@ -336,7 +336,7 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
 
 /**
  * Returns every ingested document (ingestion complete), active or withdrawn,
- * sorted by title A–Z (KB-01, KB-02). The collation sorts as a reader would:
+ * sorted by title A–Z (KB-01). The collation sorts as a reader would:
  * "apple" beside "Apple", not after every capital letter.
  */
 export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
@@ -349,7 +349,7 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
 
 // The document isn't in the state the change needs (a 409). KB-01: only an
 // active document can be corrected; one still ingesting would have some
-// passages indexed under the old labels. KB-02: withdraw needs an active
+// passages indexed under the old labels. KB-01: withdraw needs an active
 // document, reinstate a withdrawn one.
 export class KnowledgeDocumentWrongStateError extends Error {
   constructor(message = 'Only a document that has finished ingesting can be corrected.') {
@@ -363,7 +363,7 @@ export class KnowledgeDocumentWrongStateError extends Error {
  * Every detail can change, including the source type. The details it
  * replaces are kept as a previous version (AC9) when anything changed. Throws
  * KnowledgeDocumentNotFoundError, KnowledgeDocumentWrongStateError (also for a
- * withdrawn document, KB-02 AC4), or IngestionUnavailableError when search
+ * withdrawn document, KB-01 AC15), or IngestionUnavailableError when search
  * could not be updated, in which case the old details are kept.
  */
 export async function correctKnowledgeDocument(
@@ -417,7 +417,7 @@ export async function correctKnowledgeDocument(
   return toDto(document.toObject())
 }
 
-// Withdraws or reinstates a document (KB-02), in steps a–c. `by` is who
+// Withdraws or reinstates a document (KB-01), in steps a–c. `by` is who
 // withdrew it; reinstating records no one.
 async function setWithdrawn(
   id: string,
@@ -461,7 +461,7 @@ async function setWithdrawn(
 }
 
 /**
- * Returns the document, now withdrawn by `by` (KB-02 AC1, AC3). Throws
+ * Returns the document, now withdrawn by `by` (KB-01 AC12, AC14). Throws
  * KnowledgeDocumentNotFoundError, KnowledgeDocumentWrongStateError (not complete,
  * or already withdrawn), or IngestionUnavailableError, in which case the
  * document stays active.
@@ -470,7 +470,7 @@ export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: st
   setWithdrawn(id, by)
 
 /**
- * Returns the document, active again (KB-02 AC5). Throws
+ * Returns the document, active again (KB-01 AC16). Throws
  * KnowledgeDocumentNotFoundError, KnowledgeDocumentWrongStateError (not
  * withdrawn), or IngestionUnavailableError, in which case it stays withdrawn.
  */
