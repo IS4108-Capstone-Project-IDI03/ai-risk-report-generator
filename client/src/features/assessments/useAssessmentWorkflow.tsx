@@ -100,6 +100,7 @@ function toRow(a: Assessment): AssessmentRow {
     sev: 'low',
     open: 0,
     persisted: true,
+    captureStartedAt: a.captureStartedAt,
   }
 }
 
@@ -186,11 +187,13 @@ function microphoneProblem(error: unknown) {
 }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
+  // The create form as it first opens, assigned to the signed-in engineer.
+  const blankCreateForm = () => ({ ...structuredClone(initialState.cf), eng: session.user.id })
   // The screen comes from the URL (F-05), so a screen can be linked to and
   // reopened after signing in; '/' opens the role's home screen.
   const [state, updateState] = useState<WorkflowState>(() => ({
     ...structuredClone(initialState),
-    cf: { ...structuredClone(initialState.cf), eng: session.user.id },
+    cf: blankCreateForm(),
     screen: screenForPath(window.location.pathname, session),
   }))
   // The URL follows the screen. The first update replaces '/' (or the path
@@ -365,11 +368,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
   }
+  // A created assessment clears the form, so the next one starts blank. A form
+  // left without creating keeps its draft.
   function addCreatedRow(row: AssessmentRow) {
     updateState((previous) => ({
       ...previous,
       createdRows: [row, ...previous.createdRows],
       screen: 'dashboard',
+      cf: blankCreateForm(),
       cfBusy: false,
       cfErr: false,
     }))
@@ -759,12 +765,25 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const canEdit = can('assessments:edit', session)
     const tabBlocked = isAssessment && !canOpenTab(s.tab, session)
     const routeBlocked = !canOpen(sc, session) || tabBlocked
-    // An archived assessment takes no new captures, so nothing offers capture.
     // The saved assessment being worked on, the demo one included: archiving
     // goes by its record even where the workspace shows sample content.
+    // Capture is offered only for an assessment on the work list, which the
+    // gateway limits to the engineer's own, so the demo default never opens
+    // for an engineer it is not assigned to. An archived one takes no captures.
     const targetRow = rows.find((r) => r.id === s.captureTarget.reference)
-    const canCapture = targetRow?.status !== STATUS_LABEL.archived
+    const canCapture = !!targetRow && targetRow.status !== STATUS_LABEL.archived
     const isMine = !!targetRow?.persisted && targetRow.engineerId === session.user.id
+    // The dashboard's way back into capture, named on its button: the
+    // engineer's own capture in progress, the most recently started if there
+    // are several, or the demo assessment when the gateway cannot be reached.
+    const [latestCapture] = (serverRows ?? [])
+      .filter((r) => r.status === STATUS_LABEL.capturing && r.engineerId === session.user.id)
+      .sort((a, b) => (b.captureStartedAt ?? '').localeCompare(a.captureStartedAt ?? ''))
+    const continueTarget = latestCapture
+      ? { reference: latestCapture.id, site: latestCapture.site }
+      : listFailed && !serverRows
+        ? CAPTURE_ASSESSMENT
+        : null
     const navSections = [
       {
         label: 'Assessments',
@@ -791,13 +810,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
       {
         label: 'Open assessment',
-        items: [
-          {
-            value: 'assessment',
-            label: s.captureTarget.site,
-            icon: 'file-pen',
-          },
-        ],
+        // Only one on the work list, as for capture above.
+        items: targetRow
+          ? [
+              {
+                value: 'assessment',
+                label: s.captureTarget.site,
+                icon: 'file-pen',
+              },
+            ]
+          : [],
       },
       {
         label: 'Administration',
@@ -1213,6 +1235,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           screen: 'field',
         }),
+      continueCaptureLabel: continueTarget && 'Continue capture · ' + continueTarget.site,
+      continueCapture: () => {
+        if (continueTarget)
+          setState({
+            screen: 'field',
+            captureTarget: continueTarget,
+            // Filters name the previous assessment's locations and floors.
+            of: NO_FILTERS,
+            obsOpen: null,
+          })
+      },
       canCapture,
       canArchive: isMine && canCapture,
       canRestore: isMine && !canCapture,

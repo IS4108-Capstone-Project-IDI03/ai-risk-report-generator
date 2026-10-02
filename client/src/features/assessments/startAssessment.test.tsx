@@ -266,6 +266,12 @@ describe('Create assessment (CP-01)', () => {
       standards: ['FM Global 2-0', 'NFPA 13'],
       engineerId: '6ab39017e45cf009e4507731',
     })
+
+    // The next assessment starts from a blank form, not this one's details.
+    fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+    expect(screen.getByLabelText(/Site name/)).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
+    expect(screen.getByLabelText(/Jurisdiction/)).toHaveValue('SG')
   })
 
   it('opens a created assessment in its workspace, then captures against it', async () => {
@@ -410,7 +416,8 @@ describe('Work list (RV-10)', () => {
     mockGateway()
     await openApp()
 
-    const row = await screen.findByRole('button', { name: /Jurong Distribution Hub/ })
+    // A row's name starts with its site; Continue capture names it later on.
+    const row = await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
     expect(row).toHaveTextContent('RPT-2026-0001')
     expect(row).toHaveTextContent('21 Apr 2026')
     expect(row).toHaveTextContent('Capturing')
@@ -430,13 +437,13 @@ describe('Work list (RV-10)', () => {
     listReply = () => respond(200, LIST)
     mockGateway()
     await openApp()
-    await screen.findByRole('button', { name: /Jurong Distribution Hub/ })
+    await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
 
     fireEvent.change(screen.getByLabelText('Filter by status'), {
       target: { value: 'Under review' },
     })
     expect(results()).toHaveTextContent('1 of 2 assessments')
-    expect(screen.queryByRole('button', { name: /Jurong/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Jurong/ })).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Filter by status'), {
       target: { value: 'All statuses' },
@@ -454,6 +461,10 @@ describe('Work list (RV-10)', () => {
 
     expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
     expect(results()).toHaveTextContent('6 of 6 assessments')
+    // Without the gateway, capture continues on the demo assessment.
+    expect(
+      screen.getByRole('button', { name: 'Continue capture · Tilbury Distribution Centre' }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -540,12 +551,12 @@ it('shows report deadlines, excludes today and finalised work from overdue, and 
     )
   mockGateway()
   await openApp()
-  await screen.findByRole('button', { name: /Deadline Undated/ })
-  const overdue = screen.getByRole('button', { name: /Deadline Overdue/ })
+  await screen.findByRole('button', { name: /^Deadline Undated/ })
+  const overdue = screen.getByRole('button', { name: /^Deadline Overdue/ })
   expect(within(overdue).getByText('Overdue')).toBeInTheDocument()
   for (const name of ['Undated', 'Future', 'Today', 'Finalised']) {
     expect(
-      within(screen.getByRole('button', { name: new RegExp(`Deadline ${name}`) })).queryByText(
+      within(screen.getByRole('button', { name: new RegExp(`^Deadline ${name}`) })).queryByText(
         'Overdue',
       ),
     ).not.toBeInTheDocument()
@@ -578,7 +589,7 @@ it('archives my assessment from its workspace, then shows it only under Archived
         : fetchMock(url, init),
   )
   await openApp()
-  fireEvent.click(await screen.findByRole('button', { name: /Jurong Distribution Hub/ }))
+  fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
   expect(screen.getAllByRole('button', { name: /^Site observation/ })).toHaveLength(2)
 
   fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
@@ -732,4 +743,58 @@ it('shows a knowledge admin the same assessment record, read-only', async () => 
   } finally {
     window.history.pushState({}, '', '/')
   }
+})
+
+it('continues my most recently started capture from the dashboard, naming it', async () => {
+  const capture = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+    respond(201, CREATED_CAPTURE),
+  )
+  const capturing = (fields: object) => ({ ...CREATED, status: 'capturing', ...fields })
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+    url === '/api/assessments'
+      ? respond(200, [
+          // Listed first, but started earlier.
+          capturing({
+            reference: 'RPT-2026-0003',
+            site: { ...CREATED.site, name: 'Changi Airfreight Centre' },
+            captureStartedAt: '2026-09-20T08:00:00.000Z',
+          }),
+          capturing({ captureStartedAt: '2026-09-28T08:00:00.000Z' }),
+          // Someone else's is never offered, however recent.
+          capturing({
+            reference: 'RPT-2026-0004',
+            site: { ...CREATED.site, name: 'Pasir Panjang Terminal' },
+            engineer: { id: '6ab39017e45cf009e4507732', name: 'Jide Okafor' },
+            captureStartedAt: '2026-09-30T08:00:00.000Z',
+          }),
+        ])
+      : (init?.method ?? 'GET') === 'GET'
+        ? respond(200, [])
+        : capture(url, init),
+  )
+  await openApp()
+
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Continue capture · Jurong Distribution Hub' }),
+  )
+
+  expect(await screen.findByText('Capture session started')).toBeInTheDocument()
+  expect(capture).toHaveBeenCalledWith(
+    '/api/assessments/RPT-2026-0001/capture-session',
+    expect.objectContaining({ method: 'POST' }),
+  )
+})
+
+it('offers no capture when none of my assessments is capturing, not even the demo one', async () => {
+  vi.stubGlobal('fetch', (url: string) => respond(200, url === '/api/assessments' ? [CREATED] : []))
+  await openApp()
+  await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
+
+  expect(screen.queryByRole('button', { name: /^Continue capture/ })).not.toBeInTheDocument()
+  // Tilbury, the demo default, is not on this engineer's list, so the
+  // navigation neither captures for it nor opens it.
+  expect(screen.queryByRole('button', { name: /^Site observation/ })).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Tilbury Distribution Centre' }),
+  ).not.toBeInTheDocument()
 })

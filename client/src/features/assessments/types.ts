@@ -20,6 +20,8 @@ export type AssessmentRow = {
   open?: number
   // Created through the gateway, so it can be opened for capture.
   persisted?: boolean
+  // When its latest capture session started, from the gateway.
+  captureStartedAt?: string | null
 }
 export type Observation = {
   icon: string

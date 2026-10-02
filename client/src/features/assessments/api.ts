@@ -36,6 +36,8 @@ export type Assessment = {
   standards: string[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
+  // When its latest capture session started; null before capture starts.
+  captureStartedAt: string | null
   createdAt: string
   site: {
     code: string

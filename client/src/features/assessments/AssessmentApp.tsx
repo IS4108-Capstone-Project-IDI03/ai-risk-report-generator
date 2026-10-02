@@ -214,9 +214,23 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                   >
                     {v.isDashboard && !v.routeBlocked && v.canEdit && (
                       <>
-                        {v.canCapture && (
-                          <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
-                            Site observation
+                        {!!v.continueCaptureLabel && (
+                          <Button
+                            variant="secondary"
+                            iconLeft="camera"
+                            title={v.continueCaptureLabel}
+                            onClick={v.continueCapture}
+                          >
+                            {/* Shortened to fit a phone; the title keeps the full name. */}
+                            <span
+                              style={{
+                                maxWidth: 'min(22rem, calc(100vw - 6rem))',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {v.continueCaptureLabel}
+                            </span>
                           </Button>
                         )}
                         <Button variant="primary" iconLeft="plus" onClick={v.goCreate}>
