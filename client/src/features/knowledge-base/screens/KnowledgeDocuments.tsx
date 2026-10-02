@@ -1,14 +1,16 @@
-// The knowledge base's Documents tab (KB-01): every active document, grouped
-// by source type, filtered by label or title search. Opening a document's
-// title shows its details; Edit details and Restore open one dialog.
+// The knowledge base's Documents tab (KB-01): every document in the
+// knowledge base, grouped by source type, filtered by label, status or title.
+// Opening a document's title shows its details; Edit details and Restore open
+// one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
 // Shown by KnowledgeBase.tsx; talks to the gateway through api.ts.
 import { useEffect, useState } from 'react'
 import { Button, Callout, EmptyState, IconRegistry, Input, Select } from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
-import { listActiveDocuments, type DocumentVersion, type KnowledgeDocument } from '../api'
+import { listIngestedDocuments, type DocumentVersion, type KnowledgeDocument } from '../api'
 import { DocumentGroup, type Group } from '../components/DocumentGroup'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
+import { StatusChangeDialog } from '../components/StatusChangeDialog'
 
 const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
@@ -27,7 +29,12 @@ const FACILITY_FILTER = [
   { value: 'all', label: 'All facility types' },
   ...FACILITY_TYPES,
 ]
-const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '' }
+const STATUS_FILTER = [
+  { value: '', label: 'Any status' },
+  { value: 'active', label: 'Active' },
+  { value: 'withdrawn', label: 'Withdrawn' },
+]
+const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '', status: '' }
 
 // A fuzzy title match: the typed letters appear in the title in order, with
 // gaps allowed, ignoring case and spaces ("nfpa13" finds "NFPA 13 …").
@@ -46,7 +53,7 @@ function titleMatches(title: string, query: string) {
 // restored, if any (AC10).
 type Editing = { document: KnowledgeDocument; version?: DocumentVersion }
 
-/** Returns the Documents tab: active documents in groups, with filters and details. */
+/** Returns the Documents tab: every document in groups, with filters and details. */
 export function KnowledgeDocuments({
   notify,
   onAdd,
@@ -61,10 +68,11 @@ export function KnowledgeDocuments({
   const [openId, setOpenId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
   const [historyOf, setHistoryOf] = useState<KnowledgeDocument | null>(null)
+  const [changingStatus, setChangingStatus] = useState<KnowledgeDocument | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
-    listActiveDocuments(controller.signal).then(
+    listIngestedDocuments(controller.signal).then(
       (list) => {
         setDocuments(list)
         setUnreachable(false)
@@ -82,20 +90,30 @@ export function KnowledgeDocuments({
     (d) =>
       titleMatches(d.title, filters.title) &&
       (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
-      (!filters.facilityType || d.facilityType === filters.facilityType),
+      (!filters.facilityType || d.facilityType === filters.facilityType) &&
+      (!filters.status || (filters.status === 'withdrawn') === Boolean(d.withdrawn)),
   )
-  // A saved correction replaces the row in place; the gateway's list is
+  // A changed document replaces its row in place; the gateway's list is
   // sorted by title, which a corrected title may change, so re-sort.
-  const saved = (updated: KnowledgeDocument) => {
+  const replaced = (updated: KnowledgeDocument) =>
     setDocuments((list) =>
       (list ?? [])
         .map((d) => (d.id === updated.id ? updated : d))
         .sort((a, b) => a.title.localeCompare(b.title, 'en')),
     )
+  const saved = (updated: KnowledgeDocument) => {
+    replaced(updated)
     setEditing(null)
     // Without this, a corrected document that no longer matches the filters
     // would just vanish, with no sign the save worked.
     notify(`Details saved for ${updated.title}.`)
+  }
+  // Withdraw and reinstate (KB-01). The notice matters under a Status filter,
+  // where the row leaves the list.
+  const statusChanged = (updated: KnowledgeDocument) => {
+    replaced(updated)
+    setChangingStatus(null)
+    notify(`${updated.title} ${updated.withdrawn ? 'withdrawn' : 'reinstated'}.`)
   }
   const clearFilters = () => setFilters(NO_FILTERS)
   const toggle = (id: string) => setOpenId((current) => (current === id ? null : id))
@@ -103,10 +121,10 @@ export function KnowledgeDocuments({
   return (
     <section className="kb-docs" aria-labelledby="kb-docs-title">
       <header className="kb-docs-head">
-        <h2 id="kb-docs-title">Active documents</h2>
+        <h2 id="kb-docs-title">All documents</h2>
         <p>
-          Every document search can use. Uploads still ingesting, or that failed, are under Add
-          documents.
+          Every ingested document. New reports use active ones only. Uploads still ingesting, or
+          that failed, are under Add documents.
         </p>
       </header>
 
@@ -148,6 +166,13 @@ export function KnowledgeDocuments({
             options={FACILITY_FILTER}
             value={filters.facilityType}
             onChange={(e) => setFilters({ ...filters, facilityType: e.target.value })}
+          />
+          <Select
+            size="sm"
+            aria-label="Status"
+            options={STATUS_FILTER}
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           />
           {filtering && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -209,7 +234,7 @@ export function KnowledgeDocuments({
                 <th>Document</th>
                 <th>Country</th>
                 <th>Facility type</th>
-                <th>Status</th>
+                <th className="kb-col-status">Status</th>
                 <th>Original</th>
               </tr>
             </thead>
@@ -226,6 +251,7 @@ export function KnowledgeDocuments({
                   onToggle={toggle}
                   onEdit={(document) => setEditing({ document })}
                   onHistory={setHistoryOf}
+                  onChangeStatus={setChangingStatus}
                 />
               )
             })}
@@ -242,6 +268,14 @@ export function KnowledgeDocuments({
             setHistoryOf(null)
             setEditing({ document: historyOf, version })
           }}
+        />
+      )}
+
+      {changingStatus && (
+        <StatusChangeDialog
+          document={changingStatus}
+          onClose={() => setChangingStatus(null)}
+          onChanged={statusChanged}
         />
       )}
 

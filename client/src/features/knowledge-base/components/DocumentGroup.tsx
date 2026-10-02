@@ -16,6 +16,7 @@ export function DocumentGroup({
   onToggle,
   onEdit,
   onHistory,
+  onChangeStatus,
 }: {
   group: Group
   documents: KnowledgeDocument[]
@@ -23,6 +24,7 @@ export function DocumentGroup({
   onToggle: (id: string) => void
   onEdit: (document: KnowledgeDocument) => void
   onHistory: (document: KnowledgeDocument) => void
+  onChangeStatus: (document: KnowledgeDocument) => void
 }) {
   const id = `kb-group-${group.sourceType}`
   return (
@@ -51,6 +53,7 @@ export function DocumentGroup({
             onToggle={() => onToggle(d.id)}
             onEdit={() => onEdit(d)}
             onHistory={() => onHistory(d)}
+            onChangeStatus={() => onChangeStatus(d)}
           />
         ))
       )}

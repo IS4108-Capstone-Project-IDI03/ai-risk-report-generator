@@ -289,7 +289,7 @@ async function stored(details: Record<string, string>, state: object = { status:
   return body.id as string
 }
 
-describe('GET /api/knowledge-documents/active', () => {
+describe('GET /api/knowledge-documents/ingested', () => {
   it('lists every active document, however old, by title, and nothing still ingesting or failed', async () => {
     const longAgo = new Date('2025-01-01')
     await stored({ ...DETAILS, title: 'Zinc storage' })
@@ -301,7 +301,7 @@ describe('GET /api/knowledge-documents/active', () => {
     await stored({ ...DETAILS, title: 'Mid processing' }, { status: 'processing' })
     await stored({ ...DETAILS, title: 'Broken' }, { status: 'failed' })
 
-    const { body } = await api.get('/api/knowledge-documents/active')
+    const { body } = await api.get('/api/knowledge-documents/ingested')
 
     expect(body.map((d: { title: string }) => d.title)).toEqual([
       'Apple cold store',
@@ -312,7 +312,7 @@ describe('GET /api/knowledge-documents/active', () => {
   it('gives an uncorrected document an empty history', async () => {
     await stored(DETAILS)
 
-    const [document] = (await api.get('/api/knowledge-documents/active')).body
+    const [document] = (await api.get('/api/knowledge-documents/ingested')).body
 
     expect(document.history).toEqual([])
   })
@@ -347,8 +347,9 @@ describe('PUT /api/knowledge-documents/:id', () => {
       facility_type: 'Data centre',
       COPE_dimension: 'all',
       effective_date: '2024-03-12',
+      status: 'active',
     })
-    const [listed] = (await api.get('/api/knowledge-documents/active')).body
+    const [listed] = (await api.get('/api/knowledge-documents/ingested')).body
     expect(listed).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
   })
 
@@ -367,7 +368,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
   })
 
   // The document as the knowledge base lists it, to show nothing changed.
-  const listed = async () => (await api.get('/api/knowledge-documents/active')).body[0]
+  const listed = async () => (await api.get('/api/knowledge-documents/ingested')).body[0]
 
   it('refuses a value that is not allowed, with the reason, and keeps the old value', async () => {
     const id = await stored(REPORT)
@@ -486,6 +487,130 @@ describe('PUT /api/knowledge-documents/:id', () => {
     expect(response.status).toBe(503)
     expect(await listed()).toEqual(before)
     expect(before.history).toHaveLength(1)
+  })
+})
+
+// KB-01 AC12–16: withdraw a document from use, and reinstate it.
+describe('POST /api/knowledge-documents/:id/withdraw and /reinstate', () => {
+  const withdraw = (id: string) => api.post(`/api/knowledge-documents/${id}/withdraw`)
+  const reinstate = (id: string) => api.post(`/api/knowledge-documents/${id}/reinstate`)
+  const sentLabels = () => {
+    const [url, init] = inspect.mock.lastCall as unknown as [string, RequestInit]
+    return { url, body: JSON.parse(String(init.body)) }
+  }
+  const STILL_ACTIVE =
+    "The knowledge base couldn't be updated, so nothing changed. Try again shortly."
+  const STILL_WITHDRAWN =
+    "The knowledge base couldn't be updated, so nothing changed. Try again shortly."
+
+  it('withdraws an active document, recording who and when, and labels its passages withdrawn', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+    const before = Date.now()
+
+    const response = await withdraw(id)
+
+    expect(response.status).toBe(200)
+    expect(response.body.withdrawn).toMatchObject({ by: { name: 'Test User' } })
+    expect(typeof response.body.withdrawn.by.id).toBe('string')
+    expect(new Date(response.body.withdrawn.at).getTime()).toBeGreaterThanOrEqual(before)
+    expect(sentLabels().url).toBe(`${process.env.INGESTION_SERVICE_URL}/documents/${id}/labels`)
+    expect(sentLabels().body).toMatchObject({ source_type: 'marsh_report', status: 'withdrawn' })
+    expect((await api.get('/api/knowledge-documents/ingested')).body[0].withdrawn).toMatchObject({
+      by: { name: 'Test User' },
+    })
+  })
+
+  it('gives an active document no withdrawal', async () => {
+    await stored(REPORT)
+    expect((await api.get('/api/knowledge-documents/ingested')).body[0].withdrawn).toBeNull()
+  })
+
+  it('refuses to withdraw a document that is not complete, or is already withdrawn', async () => {
+    const processing = await stored(REPORT, { status: 'processing' })
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+    await withdraw(id)
+
+    for (const target of [processing, id]) {
+      const response = await withdraw(target)
+      expect(response.status).toBe(409)
+      expect(response.body.error).toBe(
+        'This document is no longer active. Someone may have withdrawn it already. Refresh the page to see its current status.',
+      )
+    }
+  })
+
+  it('keeps the document active when search could not be updated', async () => {
+    const id = await stored(REPORT)
+    inspect.mockRejectedValue(new TypeError('fetch failed'))
+
+    const response = await withdraw(id)
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toBe(STILL_ACTIVE)
+    expect((await api.get('/api/knowledge-documents/ingested')).body[0].withdrawn).toBeNull()
+  })
+
+  it('reinstates a withdrawn document and labels its passages active', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+    await withdraw(id)
+
+    const response = await reinstate(id)
+
+    expect(response.status).toBe(200)
+    expect(response.body.withdrawn).toBeNull()
+    expect(sentLabels().body).toMatchObject({ status: 'active' })
+  })
+
+  it('refuses to reinstate a document that is not withdrawn', async () => {
+    const response = await reinstate(await stored(REPORT))
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      'This document is no longer withdrawn. Someone may have reinstated it already. Refresh the page to see its current status.',
+    )
+  })
+
+  it('keeps the document withdrawn, with who and when, when search could not be updated', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+    const { body: withdrawn } = await withdraw(id)
+    inspect.mockRejectedValue(new TypeError('fetch failed'))
+
+    const response = await reinstate(id)
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toBe(STILL_WITHDRAWN)
+    const [after] = (await api.get('/api/knowledge-documents/ingested')).body
+    expect(after.withdrawn).toEqual(withdrawn.withdrawn)
+  })
+
+  it('refuses to correct a withdrawn document (KB-01 AC15)', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+    await withdraw(id)
+    inspect.mockClear()
+
+    const response = await api.put(`/api/knowledge-documents/${id}`).send({
+      title: REPORT.title,
+      effectiveDate: REPORT.effectiveDate,
+      sourceType: REPORT.sourceType,
+      jurisdiction: 'SG',
+      facilityType: 'Data centre',
+    })
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe("A withdrawn document can't be edited. Reinstate it first.")
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 for an unknown or malformed ID', async () => {
+    for (const action of [withdraw, reinstate]) {
+      expect((await action('6abb28ae16068a0793e9962a')).status).toBe(404)
+      expect((await action('not-an-id')).status).toBe(404)
+    }
   })
 })
 

@@ -54,15 +54,17 @@ def download(key: str, dest: str) -> None:
 
 
 def labels(doc: dict) -> dict:
-    """Return the document's labels as passage metadata: its five metadata fields.
+    """Return the document's labels as passage metadata: its five metadata fields and status.
 
     Chroma metadata holds only strings and numbers, so the date becomes
     YYYY-MM-DD. Must match `labels()` in
     server/src/services/knowledge-document.service.ts, which relabels passages
-    after a correction (KB-01).
+    after a correction (KB-01) and emits status active or withdrawn (KB-01 AC12–16).
     """
     metadata = doc["metadata"]
-    return {**metadata, "effective_date": metadata["effective_date"].strftime("%Y-%m-%d")}
+    date = metadata["effective_date"].strftime("%Y-%m-%d")
+    # Passages are active when first indexed.
+    return {**metadata, "effective_date": date, "status": "active"}
 
 
 def ingest_document(document_id: str) -> None:

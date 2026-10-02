@@ -47,6 +47,9 @@ export interface IKnowledgeDocument {
   }
   // Earlier versions of the details above, oldest first.
   history: IDocumentVersion[]
+  // Present only while the document is withdrawn (KB-01): when, and by whom.
+  // `status` stays `complete`; reinstating removes this.
+  withdrawn?: { at: Date; by: { id: string; name: string } }
   createdAt: Date
   updatedAt: Date
 }
@@ -95,6 +98,18 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
         ),
       ],
       default: [],
+    },
+    withdrawn: {
+      type: new Schema(
+        {
+          at: { type: Date, required: true },
+          by: {
+            id: { type: String, required: true },
+            name: { type: String, required: true },
+          },
+        },
+        { _id: false },
+      ),
     },
   },
   { timestamps: true, collection: 'knowledge_documents' },

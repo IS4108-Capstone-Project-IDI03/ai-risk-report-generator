@@ -92,6 +92,7 @@ def test_the_documents_labels_go_to_every_passage(documents, monkeypatch):
         "facility_type": "Cold store",
         "COPE_dimension": "all",
         "effective_date": "2024-03-12",
+        "status": "active",  # KB-01: passages start active
     }
 
 

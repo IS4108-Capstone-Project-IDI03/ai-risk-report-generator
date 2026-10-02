@@ -73,6 +73,15 @@ function palette(variant: string, hover: boolean, active: boolean) {
         color: 'var(--ink-700)',
         border: '1px solid ' + (hover ? 'var(--ink-300)' : 'var(--ink-200)'),
       }
+    // The soft red of `tonal`, for a row-level action that takes something out
+    // of use, e.g. Withdraw in the knowledge base. The colours match the
+    // danger Callout; solid `danger` stays for the confirm button.
+    case 'danger-tonal':
+      return {
+        background: 'var(--red-50)',
+        color: 'var(--action-danger)',
+        border: '1px solid ' + (hover || active ? 'var(--action-danger)' : '#f0d4d4'),
+      }
     case 'ghost':
       return {
         background: active

@@ -120,6 +120,8 @@ export type KnowledgeDocumentDto = {
   error: string | null
   uploadedAt: Date
   fileUrl: string
+  // Who withdrew the document and when (KB-01 AC14); null while it is active.
+  withdrawn: { at: Date; by: { id: string; name: string } } | null
   // Earlier versions of the details, newest first (KB-01 AC9).
   history: {
     sourceType: string
@@ -151,6 +153,7 @@ function toDto(d: IKnowledgeDocument & { _id: Types.ObjectId }): KnowledgeDocume
     error: d.error ?? null,
     uploadedAt: d.createdAt,
     fileUrl: `/api/knowledge-documents/${d._id}/file`,
+    withdrawn: d.withdrawn ? { at: d.withdrawn.at, by: d.withdrawn.by } : null,
     // Records from before history existed have no field; `?? []` gives them none.
     history: [...(d.history ?? [])].reverse().map((v) => ({
       sourceType: v.metadata.source_type,
@@ -201,12 +204,17 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
 
 /**
  * Returns the labels every passage of the document carries, so search can
- * filter on them: its metadata, the date as YYYY-MM-DD. Must match `labels()`
- * in microservices/ingestion-service/app/worker.py, which labels passages at
- * ingest.
+ * filter on them: its metadata, the date as YYYY-MM-DD, and `status` (KB-01),
+ * which search uses to skip withdrawn passages. Must match `labels()` in
+ * microservices/ingestion-service/app/worker.py, which labels passages at
+ * ingest (always `active`).
  */
-function labels(metadata: IKnowledgeDocument['metadata']) {
-  return { ...metadata, effective_date: metadata.effective_date.toISOString().slice(0, 10) }
+function labels({ metadata, withdrawn }: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn'>) {
+  return {
+    ...metadata,
+    effective_date: metadata.effective_date.toISOString().slice(0, 10),
+    status: withdrawn ? 'withdrawn' : 'active',
+  }
 }
 
 // A file IN-01 AC5 turns away. `status` is the HTTP status to answer with.
@@ -327,11 +335,11 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
 }
 
 /**
- * Returns every active document (ingestion complete), sorted by title A–Z
- * (KB-01). The collation sorts as a reader would: "apple" beside "Apple",
- * not after every capital letter.
+ * Returns every ingested document (ingestion complete), active or withdrawn,
+ * sorted by title A–Z (KB-01). The collation sorts as a reader would:
+ * "apple" beside "Apple", not after every capital letter.
  */
-export async function listActiveDocuments(): Promise<KnowledgeDocumentDto[]> {
+export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
   const documents = await KnowledgeDocumentModel.find({ status: 'complete' })
     .collation({ locale: 'en' })
     .sort({ title: 1 })
@@ -339,12 +347,14 @@ export async function listActiveDocuments(): Promise<KnowledgeDocumentDto[]> {
   return documents.map(toDto)
 }
 
-// KB-01: only an active document can be corrected. One still ingesting would
-// have some passages indexed under the old labels after the correction.
-export class KnowledgeDocumentNotActiveError extends Error {
-  constructor() {
-    super('Only a document that has finished ingesting can be corrected.')
-    this.name = 'KnowledgeDocumentNotActiveError'
+// The document isn't in the state the change needs (a 409). KB-01: only an
+// active document can be corrected; one still ingesting would have some
+// passages indexed under the old labels. KB-01: withdraw needs an active
+// document, reinstate a withdrawn one.
+export class KnowledgeDocumentWrongStateError extends Error {
+  constructor(message = 'Only a document that has finished ingesting can be corrected.') {
+    super(message)
+    this.name = 'KnowledgeDocumentWrongStateError'
   }
 }
 
@@ -352,9 +362,9 @@ export class KnowledgeDocumentNotActiveError extends Error {
  * Returns the document with its corrected details (KB-01 AC6), in steps a–c.
  * Every detail can change, including the source type. The details it
  * replaces are kept as a previous version (AC9) when anything changed. Throws
- * KnowledgeDocumentNotFoundError, KnowledgeDocumentNotActiveError, or
- * IngestionUnavailableError when search could not be updated, in which case
- * the old details are kept.
+ * KnowledgeDocumentNotFoundError, KnowledgeDocumentWrongStateError (also for a
+ * withdrawn document, KB-01 AC15), or IngestionUnavailableError when search
+ * could not be updated, in which case the old details are kept.
  */
 export async function correctKnowledgeDocument(
   id: string,
@@ -365,7 +375,12 @@ export async function correctKnowledgeDocument(
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
   const document = await KnowledgeDocumentModel.findById(id)
   if (!document) throw new KnowledgeDocumentNotFoundError()
-  if (document.status !== 'complete') throw new KnowledgeDocumentNotActiveError()
+  if (document.status !== 'complete') throw new KnowledgeDocumentWrongStateError()
+  if (document.withdrawn) {
+    throw new KnowledgeDocumentWrongStateError(
+      "A withdrawn document can't be edited. Reinstate it first.",
+    )
+  }
 
   // b. Save the new details, keeping the old ones in case step c fails. If
   // anything changed, the old details also join the history (AC9).
@@ -389,7 +404,11 @@ export async function correctKnowledgeDocument(
   // old details and history back: without this, MongoDB would show the
   // correction while search still used the old labels.
   try {
-    await relabelPassages(id, labels(document.toObject().metadata))
+    await relabelPassages(
+      id,
+      labels(document.toObject()),
+      'Search could not be updated, so the correction was not saved. Try again shortly.',
+    )
   } catch (error) {
     document.set({ title, issuingBody, edition, metadata, history })
     await document.save()
@@ -397,3 +416,62 @@ export async function correctKnowledgeDocument(
   }
   return toDto(document.toObject())
 }
+
+// Withdraws or reinstates a document (KB-01), in steps a–c. `by` is who
+// withdrew it; reinstating records no one.
+async function setWithdrawn(
+  id: string,
+  by: { id: string; name: string } | undefined,
+): Promise<KnowledgeDocumentDto> {
+  // What the admin reads if the change is refused or fails. Shown as-is by
+  // client/src/features/knowledge-base/components/StatusChangeDialog.tsx.
+  const wrongState = by
+    ? 'This document is no longer active. Someone may have withdrawn it already. Refresh the page to see its current status.'
+    : 'This document is no longer withdrawn. Someone may have reinstated it already. Refresh the page to see its current status.'
+
+  // a. Find it, and check it is in the state the change starts from.
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  const document = await KnowledgeDocumentModel.findById(id)
+  if (!document) throw new KnowledgeDocumentNotFoundError()
+  const alreadyThere = Boolean(document.withdrawn) === Boolean(by)
+  if (document.status !== 'complete' || alreadyThere) {
+    throw new KnowledgeDocumentWrongStateError(wrongState)
+  }
+
+  // b. Save the change, keeping the old value in case step c fails.
+  const previous = document.toObject().withdrawn
+  document.set('withdrawn', by && { at: new Date(), by })
+  await document.save()
+
+  // c. Put the new status on its passages in Chroma. If that fails, write the
+  // old value back: without this, MongoDB would show the change while search
+  // still used the old status.
+  try {
+    await relabelPassages(
+      id,
+      labels(document.toObject()),
+      "The knowledge base couldn't be updated, so nothing changed. Try again shortly.",
+    )
+  } catch (error) {
+    document.set('withdrawn', previous)
+    await document.save()
+    throw error
+  }
+  return toDto(document.toObject())
+}
+
+/**
+ * Returns the document, now withdrawn by `by` (KB-01 AC12, AC14). Throws
+ * KnowledgeDocumentNotFoundError, KnowledgeDocumentWrongStateError (not complete,
+ * or already withdrawn), or IngestionUnavailableError, in which case the
+ * document stays active.
+ */
+export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: string }) =>
+  setWithdrawn(id, by)
+
+/**
+ * Returns the document, active again (KB-01 AC16). Throws
+ * KnowledgeDocumentNotFoundError, KnowledgeDocumentWrongStateError (not
+ * withdrawn), or IngestionUnavailableError, in which case it stays withdrawn.
+ */
+export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undefined)

@@ -270,8 +270,8 @@
   border-bottom: 1px solid var(--border-default);
 }
 .kb-toolbar > label {
-  flex: 0 1 190px;
-  min-width: 150px;
+  flex: 0 1 148px;
+  min-width: 128px;
 }
 .kb-toolbar .kb-count {
   margin-left: auto;
@@ -328,8 +328,11 @@
 .kb-table .kb-col-toggle {
   line-height: 0;
 }
+/* Wide enough for the Withdrawn badge, so withdrawing a document doesn't
+   shift every column. The header and badge are centred in it. */
 .kb-table .kb-col-status {
-  width: 96px;
+  width: 112px;
+  text-align: center;
 }
 /* The last column only as wide as its link; its header starts where the
    link does, as every other header does. */

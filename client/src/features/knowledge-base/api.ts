@@ -1,6 +1,6 @@
 // Browser → gateway requests for knowledge base documents (IN-01, KB-01).
 // uploads.ts uses the upload; KnowledgeBase.tsx uses the recent uploads list;
-// KnowledgeDocuments.tsx uses the active list and corrections. A failed request
+// KnowledgeDocuments.tsx uses the active list, corrections, withdraw and reinstate. A failed request
 // throws a GatewayError carrying the HTTP status, which uploads.ts reads to
 // decide what happens to the row.
 import { request } from '../accounts/api'
@@ -41,6 +41,8 @@ export type KnowledgeDocument = {
   fileUrl: string
   // The details each correction replaced, newest first (KB-01 AC9).
   history: DocumentVersion[]
+  // Who took it out of use and when (KB-01 AC14); null while it is active.
+  withdrawn: { at: string; by: { id: string; name: string } } | null
 }
 
 // One previous version of a document's details: what a correction replaced,
@@ -68,9 +70,9 @@ export function listKnowledgeDocuments(signal?: AbortSignal): Promise<KnowledgeD
   return request<KnowledgeDocument[]>('/api/knowledge-documents', { signal })
 }
 
-// Every active document (ingestion complete), sorted by title (KB-01).
-export function listActiveDocuments(signal?: AbortSignal): Promise<KnowledgeDocument[]> {
-  return request<KnowledgeDocument[]>('/api/knowledge-documents/active', { signal })
+// Every ingested document, active or withdrawn, sorted by title (KB-01).
+export function listIngestedDocuments(signal?: AbortSignal): Promise<KnowledgeDocument[]> {
+  return request<KnowledgeDocument[]>('/api/knowledge-documents/ingested', { signal })
 }
 
 // Only the fields that apply: blank ones belong to the other source type, or
@@ -89,6 +91,21 @@ export function correctKnowledgeDocument(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(Object.fromEntries(filled(details))),
   })
+}
+
+// Takes a document out of use and returns it with `withdrawn` set (KB-01).
+export function withdrawDocument(id: string): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}/withdraw`, {
+    method: 'POST',
+  })
+}
+
+// Puts a withdrawn document back in use and returns it, `withdrawn` null (KB-01).
+export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(
+    `/api/knowledge-documents/${encodeURIComponent(id)}/reinstate`,
+    { method: 'POST' },
+  )
 }
 
 // Sends one PDF with its details and returns the queued document. The body is
