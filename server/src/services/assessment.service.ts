@@ -107,6 +107,9 @@ export type AssessmentDto = {
   standards: string[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
+  // When its latest capture session started; null before capture starts. The
+  // dashboard continues the engineer's most recently started capture.
+  captureStartedAt: Date | null
   createdAt: Date
   site: {
     code: string
@@ -178,13 +181,13 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
     .sort({ createdAt: 1 })
     .lean()
   // Later sessions overwrite earlier ones, so each assessment keeps its latest.
-  const latest = new Map(sessions.map((s) => [String(s.assessment), s.status]))
+  const latest = new Map(sessions.map((s) => [String(s.assessment), s]))
   return assessments.map((a) => {
     const session = latest.get(String(a._id))
     const status = a.archivedAt
       ? 'archived'
-      : (a.reportStatus ?? (session ? CAPTURE_STATUS[session] : 'not_started'))
-    return toDto(a, a.site, a.engineer, status)
+      : (a.reportStatus ?? (session ? CAPTURE_STATUS[session.status] : 'not_started'))
+    return toDto(a, a.site, a.engineer, status, session?.createdAt ?? null)
   })
 }
 
@@ -272,6 +275,7 @@ function toDto(
   site: ISite,
   engineer: AssignedEngineer | null | undefined,
   status: AssessmentStatus = 'not_started',
+  captureStartedAt: Date | null = null,
 ): AssessmentDto {
   return {
     id: String(assessment._id),
@@ -284,6 +288,7 @@ function toDto(
     standards: [...assessment.standards],
     engineer: engineer ? { id: String(engineer._id), name: engineer.name } : null,
     status,
+    captureStartedAt,
     createdAt: assessment.createdAt,
     site: {
       code: site.code,
