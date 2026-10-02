@@ -637,3 +637,55 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
   fireEvent.click(tilbury)
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
+
+it('edits my assessment details, keeping its engineer and policy reference (RV-10 AC10, AC11)', async () => {
+  let record = { ...CREATED, policyReference: 'POL-00012345' }
+  const saves: { body: Record<string, unknown>; reply: Response }[] = []
+  const rejection = new Response(
+    JSON.stringify({
+      error: 'The assessment details are invalid.',
+      fields: { reportDueDate: 'The report due date must be on or after the site visit date.' },
+    }),
+    { status: 400, headers: { 'Content-Type': 'application/json' } },
+  )
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    if (init?.method === 'PUT') {
+      const body = JSON.parse(String(init.body))
+      const reply = saves.length ? new Response(null, { status: 204 }) : rejection
+      saves.push({ body, reply })
+      if (reply.status === 204) record = { ...record, client: body.client }
+      return Promise.resolve(reply)
+    }
+    return respond(200, url === '/api/assessments' ? [record] : [])
+  })
+  await openApp()
+  const row = (await screen.findAllByRole('button', { name: /Jurong Distribution Hub/ })).find(
+    (b) => b.getAttribute('data-id') === 'RPT-2026-0001',
+  )!
+  fireEvent.click(row)
+  fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+
+  // The form starts from the saved details, without the engineer or policy reference.
+  expect(screen.getByRole('heading', { name: 'Edit assessment details' })).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('Straits Logistics')
+  expect(screen.queryByLabelText(/Policy reference/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('radio', { name: /Alex Rowe/ })).not.toBeInTheDocument()
+
+  fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
+    target: { value: 'Straits Freight' },
+  })
+  // A rejected save names the problem and keeps the changes (AC11).
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  expect(await screen.findByText(/Changes not saved/)).toBeInTheDocument()
+  expect(screen.getByText(/on or after the site visit date/)).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('Straits Freight')
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await screen.findByText('Details saved for RPT-2026-0001.')
+  expect(saves[1].body).toMatchObject({ client: 'Straits Freight' })
+  expect(saves[1].body).not.toHaveProperty('policyReference')
+  expect(saves[1].body).not.toHaveProperty('engineerId')
+  // Back in the workspace, the record shows the saved details (AC10).
+  expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
+  expect(screen.getAllByText('Straits Freight').length).toBeGreaterThan(0)
+})
