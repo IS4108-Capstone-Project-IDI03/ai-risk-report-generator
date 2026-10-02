@@ -160,3 +160,23 @@ matrix. Reason: F-05 asks for an agreed matrix enforced on both the browser
 route and the API, and one list keeps them from drifting. The role is read
 from the signed session, so a change applies at next sign-in.
 Stories: F-04, F-05.
+
+## 2026-10-02 — The dashboard continues the engineer's own capture, by name
+
+Chose: the dashboard's capture button reads "Continue capture · <site>" and
+opens the engineer's own assessment with a capture session in progress, the
+most recently started if there are several; the work list now carries each
+assessment's `captureStartedAt` for this. With none in progress the button is
+hidden. The side navigation offers Site observation and Open assessment only
+for an assessment on the work list, so the demo default (RPT-2026-0411) is no
+longer offered to an engineer it is not assigned to. Without the gateway the
+button opens the demo assessment, as before. Rejected: the unnamed Site
+observation button, which opened whichever assessment was last opened, or
+RPT-2026-0411 for everyone, so a note could be saved to the wrong site;
+removing it, which costs a tap on every site visit; and switching the side
+navigation to the capture in progress by itself, which would list under Open
+assessment one the engineer never opened. Reason: an observation's assessment
+is part of its evidence trail, so the engineer should see which one capture
+opens. This changes only what the browser offers: the gateway still accepts
+capture on any assessment from any risk engineer who knows its reference.
+Stories: CP-01, RV-10.

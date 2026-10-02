@@ -164,7 +164,7 @@ These notes preserve the original design intent. References to recording, attach
 
 The engineer's home. Every assessment assigned to them, with the work outstanding on each.
 
-- **1. Two entry points, one primary.** New assessment is the only primary button on the screen. Site observation sits beside it as a secondary action because engineers often open the phone companion before any desk work exists.
+- **1. Two entry points, one primary.** New assessment is the only primary button on the screen. Continue capture sits beside it as a secondary action, so an engineer back on site reaches capture in one tap. It names the site it opens: the engineer's own assessment with capture in progress, the most recently started if there are several, or the sample Tilbury assessment without the gateway. With no capture in progress it is hidden, and capture starts from the assessment's workspace.
 - **2. Filters narrow, they do not hide.** Search matches site, client and report ID as you type. The result count next to the filters always states what is being shown, so a filtered list is never mistaken for an empty queue.
 - **22. Outstanding items are the sort signal.** The last column counts unresolved uncertainties rather than progress. It is the number that decides which assessment an engineer opens next. Click any row to open RPT-2026-0411.
 
