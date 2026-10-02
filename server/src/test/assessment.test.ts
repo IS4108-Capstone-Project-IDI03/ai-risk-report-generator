@@ -50,7 +50,7 @@ function body(overrides: Record<string, unknown> = {}) {
     siteVisitDate: '2026-10-05',
     reportDueDate: '2026-10-19',
     standards: ['FM Global 2-0', 'NFPA 13'],
-    engineerIds: [String(actor._id), String(other._id)],
+    engineerId: String(actor._id),
     ...overrides,
   }
 }
@@ -72,8 +72,7 @@ describe('POST /api/assessments', () => {
       siteVisitDate: '2026-10-05',
       reportDueDate: '2026-10-19',
       standards: ['FM Global 2-0', 'NFPA 13'],
-      engineerIds: [String(actor._id), String(other._id)],
-      engineers: ['Alex Rowe', 'Jide Okafor'],
+      engineer: { id: String(actor._id), name: 'Alex Rowe' },
       site: { code: 'SITE-0001', ...SITE },
     })
     const stored = await AssessmentModel.findOne({ reference: response.body.reference }).lean()
@@ -81,12 +80,12 @@ describe('POST /api/assessments', () => {
     expect(await SiteModel.countDocuments({ code: 'SITE-0001' })).toBe(1)
   })
 
-  it('normalises and deduplicates selected account IDs', async () => {
-    const reply = await create(
-      body({ engineerIds: [String(actor._id).toUpperCase(), String(actor._id)] }),
-    )
-    expect(reply.status).toBe(201)
-    expect(reply.body.engineerIds).toEqual([String(actor._id)])
+  it('requires one engineer', async () => {
+    for (const engineerId of [undefined, '', [String(actor._id)]]) {
+      const rejected = await create(body({ engineerId }))
+      expect(rejected.status).toBe(400)
+      expect(rejected.body.fields.engineerId).toBe('Choose the engineer for this assessment.')
+    }
   })
 
   it('numbers references in sequence', async () => {
@@ -130,7 +129,6 @@ describe('POST /api/assessments', () => {
         siteVisitDate: '',
         reportDueDate: '',
         standards: [],
-        engineerIds: [],
       }),
     )
 
@@ -140,7 +138,6 @@ describe('POST /api/assessments', () => {
       siteVisitDate: null,
       reportDueDate: null,
       standards: [],
-      engineers: [],
       site: { address: null },
     })
   })
@@ -220,8 +217,7 @@ describe('GET /api/assessments', () => {
         client: `Client ${reference}`,
         surveyType: 'Property risk survey',
         siteVisitDate: new Date(siteVisitDate),
-        engineers: ['Alex Rowe'],
-        engineerIds: [actor._id],
+        engineer: actor._id,
         ...extra,
       })
     await seed('RPT-A', '2026-01-01')
@@ -255,7 +251,7 @@ describe('GET /api/assessments', () => {
     const site = await SiteModel.create({ code: 'SITE-0001', ...SITE })
     const a = await AssessmentModel.create({
       reference: 'RPT-A',
-      engineerIds: [actor._id],
+      engineer: actor._id,
       site: site._id,
       client: 'Client',
       surveyType: 'Property risk survey',
@@ -270,21 +266,20 @@ describe('GET /api/assessments', () => {
 })
 
 describe('Assignment identity (RV-10)', () => {
-  it('scopes each engineer by ID, including secondary assignment, despite duplicate or changed names', async () => {
-    const first = await create(body({ engineerIds: [String(actor._id)] }))
-    const second = await create(body({ engineerIds: [String(other._id)] }))
-    const both = await create(body({ engineerIds: [String(other._id), String(actor._id)] }))
+  it('scopes each engineer by ID despite duplicate or changed names', async () => {
+    const first = await create(body({ engineerId: String(actor._id) }))
+    const second = await create(body({ engineerId: String(other._id) }))
     const renamed = signedInAs(app, { ...actor, name: other.name })
     const otherApi = signedInAs(app, other)
     const refs = (items: { reference: string }[]) => items.map((a) => a.reference).sort()
-    expect(refs((await renamed.get('/api/assessments')).body)).toEqual(
-      [first.body.reference, both.body.reference].sort(),
-    )
-    expect(refs((await otherApi.get('/api/assessments')).body)).toEqual(
-      [second.body.reference, both.body.reference].sort(),
-    )
+    expect(refs((await renamed.get('/api/assessments')).body)).toEqual([first.body.reference])
+    expect(refs((await otherApi.get('/api/assessments')).body)).toEqual([second.body.reference])
     const admin = signedInAsRole(app, 'knowledge_admin')
-    expect((await admin.get('/api/assessments')).body).toHaveLength(3)
+    expect((await admin.get('/api/assessments')).body).toHaveLength(2)
+    // The engineer's name is read from their account, so a rename shows.
+    await UserModel.updateOne({ _id: other._id }, { $set: { name: 'Jidae Okafor' } })
+    const [listed] = (await otherApi.get('/api/assessments')).body
+    expect(listed.engineer).toEqual({ id: String(other._id), name: 'Jidae Okafor' })
   })
 
   it('lists only active risk engineers with minimal directory fields and rejects invalid assignments', async () => {
@@ -294,8 +289,48 @@ describe('Assignment identity (RV-10)', () => {
       { id: String(actor._id), staffId: actor.staffId, name: actor.name, jobTitle: null },
     ])
     for (const id of [String(other._id), String(new Types.ObjectId()), 'A. Rowe']) {
-      expect((await create(body({ engineerIds: [id] }))).status).toBe(400)
+      expect((await create(body({ engineerId: id }))).status).toBe(400)
     }
     expect(await AssessmentModel.countDocuments()).toBe(0)
+  })
+})
+
+describe('Archiving (RV-10 AC8)', () => {
+  it('lets the assigned engineer archive once, keeps it for admins and blocks capture', async () => {
+    const { reference } = (await create(body())).body
+
+    expect(
+      (await signedInAs(app, other).post(`/api/assessments/${reference}/archive`)).status,
+    ).toBe(403)
+    expect((await api.post(`/api/assessments/${reference}/archive`)).status).toBe(204)
+    expect((await api.post(`/api/assessments/${reference}/archive`)).status).toBe(409)
+    expect((await api.post('/api/assessments/RPT-NONE/archive')).status).toBe(404)
+
+    // Kept, not deleted: it still lists, with the archived status.
+    const [mine] = (await api.get('/api/assessments')).body
+    expect(mine).toMatchObject({ reference, status: 'archived' })
+    const admin = signedInAsRole(app, 'knowledge_admin')
+    expect((await admin.get('/api/assessments')).body[0].status).toBe('archived')
+
+    const capture = await api.post(`/api/assessments/${reference}/capture-session`)
+    expect(capture.status).toBe(409)
+    expect(await CaptureSessionModel.countDocuments()).toBe(0)
+  })
+
+  it('lets the assigned engineer restore it with the status it had (AC9)', async () => {
+    const { reference } = (await create(body())).body
+    await api.post(`/api/assessments/${reference}/capture-session`)
+    expect((await api.post(`/api/assessments/${reference}/restore`)).status).toBe(409)
+    await api.post(`/api/assessments/${reference}/archive`)
+
+    expect(
+      (await signedInAs(app, other).post(`/api/assessments/${reference}/restore`)).status,
+    ).toBe(403)
+    expect((await api.post(`/api/assessments/${reference}/restore`)).status).toBe(204)
+    expect((await api.get('/api/assessments')).body[0]).toMatchObject({
+      reference,
+      status: 'capturing',
+    })
+    expect((await api.post(`/api/assessments/${reference}/capture-session`)).status).toBe(200)
   })
 })

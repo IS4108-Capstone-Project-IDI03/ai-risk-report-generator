@@ -29,6 +29,8 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/assessments/engineers', 'assessments:edit'],
   ['post', '/api/assessments', 'assessments:edit'],
   ['post', '/api/assessments/RPT-2026-0411/capture-session', 'assessments:edit'],
+  ['post', '/api/assessments/RPT-2026-0411/archive', 'assessments:edit'],
+  ['post', '/api/assessments/RPT-2026-0411/restore', 'assessments:edit'],
   ['get', '/api/assessments/RPT-2026-0411/locations', 'assessments:view'],
   ['post', '/api/assessments/RPT-2026-0411/locations', 'assessments:edit'],
   ['delete', `/api/assessments/RPT-2026-0411/locations/${ID}`, 'assessments:edit'],
@@ -103,7 +105,7 @@ describe('allowed operations succeed', () => {
       client: 'Straits Logistics',
       surveyType: 'Property risk survey',
       standards: [],
-      engineerIds: [String(user._id)],
+      engineerId: String(user._id),
     })
     expect(created.status).toBe(201)
 
