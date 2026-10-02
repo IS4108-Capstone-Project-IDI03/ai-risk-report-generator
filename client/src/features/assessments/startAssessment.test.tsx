@@ -621,15 +621,15 @@ it('archives my assessment from its workspace, then shows it only under Archived
 })
 
 it('offers Archive on the demo assessment too, from its saved record', async () => {
-  listReply = () =>
-    respond(200, [
-      {
-        ...CREATED,
-        reference: 'RPT-2026-0411',
-        site: { ...CREATED.site, name: 'Tilbury Distribution Centre' },
-      },
-    ])
-  mockGateway()
+  const tilburyRecord = {
+    ...CREATED,
+    reference: 'RPT-2026-0411',
+    site: { ...CREATED.site, name: 'Tilbury Distribution Centre' },
+  }
+  // The work list gets Tilbury's saved record; its observations and locations are empty.
+  vi.stubGlobal('fetch', (url: string) =>
+    respond(200, url === '/api/assessments' ? [tilburyRecord] : []),
+  )
   await openApp()
   const tilbury = (
     await screen.findAllByRole('button', { name: /Tilbury Distribution Centre/ })
