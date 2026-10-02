@@ -183,14 +183,16 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
                           }
                         </p>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            iconLeft="camera"
-                            onClick={v.goField}
-                          >
-                            {'Capture evidence'}
-                          </Button>
+                          {v.canCapture && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              iconLeft="camera"
+                              onClick={v.goField}
+                            >
+                              {'Capture evidence'}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

@@ -62,6 +62,16 @@
   font-size: 13px;
   font-weight: 600;
 }
+/* A blinking light beside Site observation while a capture session is live. */
+.live-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--action-danger);
+  animation: omPulse 1.2s ease-in-out infinite;
+}
 @keyframes omPulse {
   0%,
   100% {

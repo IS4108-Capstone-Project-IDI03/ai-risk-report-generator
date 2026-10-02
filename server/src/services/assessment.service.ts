@@ -4,13 +4,14 @@ import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 import { AssessmentModel, REPORT_STATUSES, type IAssessment } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
+import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { CounterModel } from '../models/counter.model'
 import { SiteModel, type ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
 
 export class InvalidEngineersError extends Error {
   constructor() {
-    super('Choose active risk engineers from the list.')
+    super('Choose an active risk engineer from the list.')
   }
 }
 
@@ -68,17 +69,9 @@ export const newAssessmentSchema = z
     siteVisitDate: optionalDate('Site visit date'),
     reportDueDate: optionalDate('Report due date'),
     standards: z.array(required('Standard')).max(50).default([]),
-    // The first engineer is the lead.
-    engineers: z.never().optional(),
-    engineerIds: z
-      .array(
-        z
-          .string()
-          .refine(isValidObjectId, 'Choose a listed engineer.')
-          .transform((id) => id.toLowerCase()),
-      )
-      .max(20)
-      .default([]),
+    engineerId: z
+      .string('Choose the engineer for this assessment.')
+      .refine(isValidObjectId, 'Choose the engineer for this assessment.'),
   })
   .refine((a) => !a.siteVisitDate || !a.reportDueDate || a.reportDueDate >= a.siteVisitDate, {
     message: 'The report due date must be on or after the site visit date.',
@@ -94,6 +87,7 @@ export const ASSESSMENT_STATUSES = [
   'capturing',
   'ready_to_generate',
   ...REPORT_STATUSES,
+  'archived',
 ] as const
 export type AssessmentStatus = (typeof ASSESSMENT_STATUSES)[number]
 
@@ -111,8 +105,7 @@ export type AssessmentDto = {
   siteVisitDate: string | null
   reportDueDate: string | null
   standards: string[]
-  engineers: string[]
-  engineerIds: string[]
+  engineer: { id: string; name: string } | null
   status: AssessmentStatus
   createdAt: Date
   site: {
@@ -127,14 +120,12 @@ export type AssessmentDto = {
 // Creates the site and the assessment, allocating the site code and the
 // report reference (RPT-<year>-<nnnn>) on the server.
 export async function createAssessment(input: NewAssessment): Promise<AssessmentDto> {
-  const ids = [...new Set(input.engineerIds)]
-  const users = await UserModel.find({
-    _id: { $in: ids },
+  const engineer = await UserModel.findOne({
+    _id: input.engineerId,
     role: 'risk_engineer',
     active: true,
   }).lean()
-  if (users.length !== ids.length) throw new InvalidEngineersError()
-  const names = ids.map((id) => users.find((u) => String(u._id) === id)!.name)
+  if (!engineer) throw new InvalidEngineersError()
   const year = new Date().getUTCFullYear()
   const site = await insertWithNextCode(
     'site',
@@ -156,11 +147,10 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
           siteVisitDate: input.siteVisitDate ? new Date(input.siteVisitDate) : undefined,
           reportDueDate: input.reportDueDate ? new Date(input.reportDueDate) : undefined,
           standards: input.standards,
-          engineers: names,
-          engineerIds: ids,
+          engineer: engineer._id,
         }),
     )
-    return toDto(assessment, site)
+    return toDto(assessment, site, engineer)
   } catch (error: unknown) {
     // No transaction (dev and test MongoDB are standalone servers), so remove
     // the site by hand rather than leave it without an assessment.
@@ -176,10 +166,11 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
 // ponytail: paginate once one engineer's work list outgrows one response.
 export async function listAssessments(user: SessionUser): Promise<AssessmentDto[]> {
   const assessments = await AssessmentModel.find(
-    user.role === 'knowledge_admin' ? {} : { engineerIds: user.id },
+    user.role === 'knowledge_admin' ? {} : { engineer: user.id },
   )
     .sort({ siteVisitDate: -1, createdAt: -1 })
     .populate<{ site: ISite }>('site')
+    .populate<{ engineer: AssignedEngineer | null }>('engineer', 'name')
     .lean()
   const sessions = await CaptureSessionModel.find({
     assessment: { $in: assessments.map((a) => a._id) },
@@ -190,9 +181,52 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
   const latest = new Map(sessions.map((s) => [String(s.assessment), s.status]))
   return assessments.map((a) => {
     const session = latest.get(String(a._id))
-    const status = a.reportStatus ?? (session ? CAPTURE_STATUS[session] : 'not_started')
-    return toDto(a, a.site, status)
+    const status = a.archivedAt
+      ? 'archived'
+      : (a.reportStatus ?? (session ? CAPTURE_STATUS[session] : 'not_started'))
+    return toDto(a, a.site, a.engineer, status)
   })
+}
+
+export class NotAssignedError extends Error {
+  constructor() {
+    super('Only the assigned engineer can archive or restore this assessment.')
+  }
+}
+
+export class NotArchivedError extends Error {
+  constructor(reference: string) {
+    super(`Assessment ${reference} is not archived.`)
+  }
+}
+
+// The assessment's ID, when the user is its assigned engineer.
+async function assignedAssessment(reference: string, user: SessionUser) {
+  const assessment = await AssessmentModel.findOne({ reference }, 'engineer').lean()
+  if (!assessment) throw new AssessmentNotFoundError(reference)
+  if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
+  return assessment._id
+}
+
+// Archives an assessment (RV-10 AC8), a soft delete: only its assigned
+// engineer can, and only once. Matching on archivedAt makes it atomic, so a
+// double click cannot archive twice.
+export async function archiveAssessment(reference: string, user: SessionUser): Promise<void> {
+  const archived = await AssessmentModel.updateOne(
+    { _id: await assignedAssessment(reference, user), archivedAt: { $exists: false } },
+    { $set: { archivedAt: new Date() } },
+  )
+  if (!archived.modifiedCount) throw new AssessmentArchivedError(reference)
+}
+
+// Restores an archived assessment (RV-10 AC9). Its report status was kept, so
+// clearing archivedAt returns it with the status it had.
+export async function restoreAssessment(reference: string, user: SessionUser): Promise<void> {
+  const restored = await AssessmentModel.updateOne(
+    { _id: await assignedAssessment(reference, user), archivedAt: { $exists: true } },
+    { $unset: { archivedAt: 1 } },
+  )
+  if (!restored.modifiedCount) throw new NotArchivedError(reference)
 }
 
 // Takes the next number in a sequence and inserts with the code built from
@@ -231,9 +265,12 @@ function isoDay(date?: Date) {
   return date ? date.toISOString().slice(0, 10) : null
 }
 
+type AssignedEngineer = { _id: unknown; name: string }
+
 function toDto(
-  assessment: Omit<IAssessment, 'site'> & { _id: unknown },
+  assessment: Omit<IAssessment, 'site' | 'engineer'> & { _id: unknown },
   site: ISite,
+  engineer: AssignedEngineer | null | undefined,
   status: AssessmentStatus = 'not_started',
 ): AssessmentDto {
   return {
@@ -245,8 +282,7 @@ function toDto(
     siteVisitDate: isoDay(assessment.siteVisitDate),
     reportDueDate: isoDay(assessment.reportDueDate),
     standards: [...assessment.standards],
-    engineers: [...assessment.engineers],
-    engineerIds: (assessment.engineerIds ?? []).map(String),
+    engineer: engineer ? { id: String(engineer._id), name: engineer.name } : null,
     status,
     createdAt: assessment.createdAt,
     site: {

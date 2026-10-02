@@ -11,7 +11,7 @@ import {
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 const COLUMNS =
-  'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,0.6fr)'
+  'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.5fr) minmax(0,0.6fr)'
 const DATE_CELL = {
   fontFamily: 'var(--font-mono)',
   fontSize: '13px',
@@ -160,7 +160,6 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 <span style={{ paddingRight: '12px' }}>{'Assessment'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Client'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Site visit'}</span>
-                <span style={{ paddingRight: '12px' }}>{'Report due'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Engineer'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Status'}</span>
                 <span style={{ textAlign: 'right' }}>{'Items'}</span>
@@ -230,18 +229,6 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                     <span style={DATE_CELL}>{r.date}</span>
                     <span
                       style={{
-                        ...DATE_CELL,
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '6px',
-                      }}
-                    >
-                      {r.dueLabel}
-                      {r.overdue && <Badge tone="high">Overdue</Badge>}
-                    </span>
-                    <span
-                      style={{
                         fontSize: '15px',
                         color: 'var(--text-body)',
                         paddingRight: '12px',
@@ -252,8 +239,18 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                     >
                       {r.eng}
                     </span>
-                    <span style={{ minWidth: '0', paddingRight: '12px', overflow: 'hidden' }}>
+                    <span
+                      style={{
+                        minWidth: '0',
+                        paddingRight: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                      }}
+                    >
                       <StatusIcon status={r.status} showLabel={true} size={15}></StatusIcon>
+                      {r.overdue && <Badge tone="high">Overdue</Badge>}
                     </span>
                     <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       {!!r.hasOpen && (
@@ -349,19 +346,6 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                       {r.id}
                     </div>
                     <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-3)',
-                        flexWrap: 'wrap',
-                        fontSize: 'var(--text-caption-size)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      <span>Report due: {r.dueLabel}</span>
-                      {r.overdue && <Badge tone="high">Overdue</Badge>}
-                    </div>
-                    <div
                       style={{ fontSize: '15px', lineHeight: '22px', color: 'var(--text-body)' }}
                     >
                       {r.stackMeta}
@@ -376,6 +360,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                       }}
                     >
                       <StatusIcon status={r.status} showLabel={true} size={15}></StatusIcon>
+                      {r.overdue && <Badge tone="high">Overdue</Badge>}
                       {!!r.hasOpen && (
                         <>
                           <Badge tone="moderate" icon="triangle-alert">

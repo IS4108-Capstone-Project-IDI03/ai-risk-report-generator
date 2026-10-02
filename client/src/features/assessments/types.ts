@@ -1,7 +1,8 @@
 import type { TranscriptionStatus } from './api'
 
 export type AssessmentRow = {
-  engineerIds?: string[]
+  engineerId?: string | null
+  standards?: string[]
   id: string
   site: string
   client: string
@@ -78,7 +79,8 @@ export type WorkflowState = {
     date: string
     due: string
     stds: string[]
-    engs: string[]
+    // The assigned engineer's user ID.
+    eng: string
     jurisdiction: string
   }
   cfErr: boolean
@@ -120,8 +122,8 @@ export type WorkflowState = {
   fCat: string
   fSev: string
   fStd: string
-  fSaved: number
-  fToast: string | null
+  // warn: a prompt to do something first, shown in the warning tone.
+  fToast: { text: string; warn?: boolean } | null
   fRecent: Observation[]
   gsecs: GenerationSection[]
   running: boolean
@@ -151,6 +153,8 @@ export type WorkflowState = {
   // dialog's values; and why the last save failed.
   tagEdit: { key: string; cat: string; sev: string; locationId: string; std: string } | null
   tagBusy: boolean
+  archiveOpen: boolean
+  archiveBusy: boolean
   tagError: string | null
 }
 

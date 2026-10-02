@@ -46,7 +46,8 @@ Python service ports to loopback; do not expose them publicly as-is.
 `assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
 `RPT-2026-0411`), a `site` reference, `client`, optional `policyReference`,
 `surveyType`, optional `siteVisitDate` and `reportDueDate`, and the selected
-`standards`, `engineers` (display-name snapshots), and `engineerIds` (user IDs; the first engineer is the lead).
+`standards`, and `engineer`: the assigned engineer's user ID (one per assessment). The
+engineer's name is read from their account, so a rename shows everywhere.
 Extend it rather than creating a parallel assessment schema.
 
 `POST /api/assessments` creates an assessment and a new site for it (the site
@@ -103,9 +104,17 @@ engineer's user ID; knowledge admins receive all assessments. The derived status
 and sort order (most recent site visit first) are unchanged. Site/client/report-ID
 search and status filtering happen in the browser. `GET /api/assessments/engineers`
 requires `assessments:edit` and returns only active risk engineers' IDs, names,
-staff IDs and job titles for assignment. Creating an assessment accepts
-`engineerIds`, validates the active accounts, and derives display-name snapshots;
-legacy name-only `engineers` input is rejected. IDs survive display-name changes.
+staff IDs and job titles for assignment. Creating an assessment requires
+`engineerId`, the ID of one active risk engineer.
+
+`POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a
+soft delete: it sets `archivedAt`, and nothing the assessment holds is removed.
+Only its assigned engineer can archive it (403 otherwise), once (409 the second
+time). An archived assessment lists with status `archived`, which the work list
+shows only under the Archived filter, and refuses a new capture session (409).
+`POST /api/assessments/:reference/restore` (AC9) clears `archivedAt`, with the same
+rules (assigned engineer only; 409 when it is not archived). The `reportStatus` and
+capture sessions were kept, so the assessment returns with the status it had.
 
 ## User accounts
 

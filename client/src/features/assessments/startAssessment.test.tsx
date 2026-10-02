@@ -96,11 +96,13 @@ describe('Capture session (CP-01)', () => {
 
     const notice = await screen.findByRole('status')
     await screen.findByText('Capture session started')
+    // The live light sits beside Site observation in the navigation.
+    expect(screen.getByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
     expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
     expect(notice).toHaveTextContent('Notes and recordings are stored on the server')
     expect(
-      screen.getByText('Harbourside Cold Store · RPT-2026-0411 · 28 observations captured'),
+      screen.getByText('Harbourside Cold Store · RPT-2026-0411 · 3 observations captured'),
     ).toBeInTheDocument()
   })
 
@@ -132,11 +134,12 @@ describe('Capture session (CP-01)', () => {
 
     const notice = await screen.findByRole('status')
     await screen.findByText('Showing sample data')
+    expect(screen.queryByRole('img', { name: 'live' })).not.toBeInTheDocument()
     expect(notice).toHaveTextContent(
       'No capture session was started: the gateway could not be reached.',
     )
     expect(
-      screen.getByText('Tilbury Distribution Centre · RPT-2026-0411 · 28 observations captured'),
+      screen.getByText('Tilbury Distribution Centre · RPT-2026-0411 · 3 observations captured'),
     ).toBeInTheDocument()
     // Without the gateway, the sample assessment offers its sample locations.
     fireEvent.click(screen.getByRole('button', { name: /^Pump house/ }))
@@ -178,8 +181,7 @@ const CREATED = {
   siteVisitDate: '2026-04-21',
   reportDueDate: '2026-05-02',
   standards: ['FM Global 2-0', 'NFPA 13'],
-  engineers: ['Alex Rowe'],
-  engineerIds: ['6ab39017e45cf009e4507731'],
+  engineer: { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' },
   status: 'not_started',
   createdAt: '2026-09-23T09:00:00.000Z',
   site: {
@@ -262,7 +264,7 @@ describe('Create assessment (CP-01)', () => {
       siteVisitDate: '2026-04-21',
       reportDueDate: '2026-05-02',
       standards: ['FM Global 2-0', 'NFPA 13'],
-      engineerIds: ['6ab39017e45cf009e4507731'],
+      engineerId: '6ab39017e45cf009e4507731',
     })
   })
 
@@ -280,7 +282,14 @@ describe('Create assessment (CP-01)', () => {
     openRow()
 
     expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
-    expect(screen.getByText(/^RPT-2026-0001 · Property risk survey/)).toBeInTheDocument()
+    expect(screen.getByText(/^RPT-2026-0001 · Property risk survey/)).toHaveTextContent(
+      /Report due 02 May 2026/,
+    )
+    // The overview shows this assessment's own record, not the demo's samples.
+    expect(screen.getByText('Observations on file')).toBeInTheDocument()
+    expect(screen.getAllByText('FM Global 2-0').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Tilbury survey 2023')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sections drafted')).not.toBeInTheDocument()
 
     openCapture()
 
@@ -385,7 +394,7 @@ describe('Work list (RV-10)', () => {
       reference: 'RPT-2026-0002',
       client: 'Harbourside Foods',
       siteVisitDate: null,
-      engineers: ['J. Okafor', 'A. Rowe'],
+      engineer: { id: '6ab39017e45cf009e4507732', name: 'Jide Okafor' },
       status: 'under_review',
       site: { ...CREATED.site, code: 'SITE-0002', name: 'Harbourside Cold Store' },
     },
@@ -448,10 +457,10 @@ describe('Work list (RV-10)', () => {
   })
 })
 
-it('submits selected engineer IDs and keeps work assigned to someone else out of my list', async () => {
+it('assigns one engineer by ID and keeps work assigned to someone else out of my list', async () => {
   const me = '6ab39017e45cf009e4507731'
   const other = '6ab39017e45cf009e4507732'
-  let submitted: { engineerIds: string[] } | undefined
+  let submitted: { engineerId: string } | undefined
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (url === '/api/assessments/engineers')
       return respond(200, [
@@ -460,19 +469,20 @@ it('submits selected engineer IDs and keeps work assigned to someone else out of
       ])
     if (init?.method === 'GET') return respond(200, [])
     submitted = JSON.parse(String(init?.body))
-    return respond(201, { ...CREATED, engineers: ['Jide Okafor'], engineerIds: [other] })
+    return respond(201, { ...CREATED, engineer: { id: other, name: 'Jide Okafor' } })
   })
   await openApp()
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  fireEvent.click(await screen.findByRole('checkbox', { name: /Alex Rowe/ }))
-  fireEvent.click(screen.getByRole('checkbox', { name: /Jide Okafor/ }))
+  expect(await screen.findByRole('radio', { name: /Alex Rowe/ })).toBeChecked()
+  fireEvent.click(screen.getByRole('radio', { name: /Jide Okafor/ }))
+  expect(screen.getByRole('radio', { name: /Alex Rowe/ })).not.toBeChecked()
   fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: CREATED.site.name } })
   fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
     target: { value: CREATED.client },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-  await screen.findByText(/It will appear in the assigned engineers’ work lists/)
-  expect(submitted?.engineerIds).toEqual([other])
+  await screen.findByText(/It will appear in the assigned engineer’s work list/)
+  expect(submitted?.engineerId).toBe(other)
   expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
 })
 
@@ -505,7 +515,7 @@ it('reloads the engineer directory after failure and preserves the selected engi
     ]),
   )
 
-  expect(await screen.findByRole('checkbox', { name: /Alex Rowe/ })).toBeChecked()
+  expect(await screen.findByRole('radio', { name: /Alex Rowe/ })).toBeChecked()
   expect(screen.getByLabelText(/Site name/)).toHaveValue('Retained site')
   expect(screen.queryByText('Loading engineers…')).not.toBeInTheDocument()
   expect(directory).toHaveBeenCalledTimes(2)
@@ -530,10 +540,8 @@ it('shows report deadlines, excludes today and finalised work from overdue, and 
     )
   mockGateway()
   await openApp()
-  const undated = await screen.findByRole('button', { name: /Deadline Undated/ })
-  expect(undated).toHaveTextContent('Not set')
+  await screen.findByRole('button', { name: /Deadline Undated/ })
   const overdue = screen.getByRole('button', { name: /Deadline Overdue/ })
-  expect(overdue).toHaveTextContent('01 Jan 2000')
   expect(within(overdue).getByText('Overdue')).toBeInTheDocument()
   for (const name of ['Undated', 'Future', 'Today', 'Finalised']) {
     expect(
@@ -555,4 +563,77 @@ it('shows report deadlines, excludes today and finalised work from overdue, and 
   expect(order()).toEqual([3, 2, 1, 0].map((i) => `RPT-DEADLINE-${i}`))
   fireEvent.change(sort, { target: { value: 'Latest site visit' } })
   expect(order()).toEqual([0, 1, 2, 3].map((i) => `RPT-DEADLINE-${i}`))
+})
+
+it('archives my assessment from its workspace, then shows it only under Archived and restores it (RV-10 AC8, AC9)', async () => {
+  let status = 'capturing'
+  const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+    Promise.resolve(new Response(null, { status: 204 })),
+  )
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+    url === '/api/assessments'
+      ? respond(200, [{ ...CREATED, status }])
+      : (init?.method ?? 'GET') === 'GET'
+        ? respond(200, [])
+        : fetchMock(url, init),
+  )
+  await openApp()
+  fireEvent.click(await screen.findByRole('button', { name: /Jurong Distribution Hub/ }))
+  expect(screen.getAllByRole('button', { name: /^Site observation/ })).toHaveLength(2)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+  const dialog = screen.getByRole('dialog', { name: 'Archive this assessment?' })
+  status = 'archived'
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Archive' }))
+
+  await screen.findByText(/RPT-2026-0001 archived/)
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/assessments/RPT-2026-0001/archive',
+    expect.anything(),
+  )
+  // Hidden under All statuses, listed under Archived.
+  await screen.findByText(/0 of 1 assessments/)
+  expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'Archived' } })
+  fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
+
+  // An archived workspace offers neither capture nor another archive.
+  // Neither the header button nor the side navigation offers capture.
+  expect(screen.queryAllByRole('button', { name: /^Site observation/ })).toHaveLength(0)
+  expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
+
+  // Restore (AC9) returns it to the work list with the status it had.
+  status = 'capturing'
+  fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
+  await screen.findByText(/RPT-2026-0001 restored to your work list/)
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/assessments/RPT-2026-0001/restore',
+    expect.anything(),
+  )
+  fireEvent.change(screen.getByLabelText('Filter by status'), {
+    target: { value: 'All statuses' },
+  })
+  await screen.findByText(/1 of 1 assessments/)
+  const row = screen
+    .getAllByRole('button', { name: /Jurong Distribution Hub/ })
+    .find((b) => b.getAttribute('data-id') === 'RPT-2026-0001')
+  expect(row).toHaveTextContent('Capturing')
+})
+
+it('offers Archive on the demo assessment too, from its saved record', async () => {
+  const tilburyRecord = {
+    ...CREATED,
+    reference: 'RPT-2026-0411',
+    site: { ...CREATED.site, name: 'Tilbury Distribution Centre' },
+  }
+  // The work list gets Tilbury's saved record; its observations and locations are empty.
+  vi.stubGlobal('fetch', (url: string) =>
+    respond(200, url === '/api/assessments' ? [tilburyRecord] : []),
+  )
+  await openApp()
+  const tilbury = (
+    await screen.findAllByRole('button', { name: /Tilbury Distribution Centre/ })
+  ).find((b) => b.getAttribute('data-id') === 'RPT-2026-0411')!
+  fireEvent.click(tilbury)
+  expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })

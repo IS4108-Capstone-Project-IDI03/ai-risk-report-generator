@@ -1,12 +1,20 @@
 import express, { Router, type ErrorRequestHandler } from 'express'
 import {
+  archiveAssessment,
   createAssessment,
   InvalidEngineersError,
   listAssignableEngineers,
   listAssessments,
   newAssessmentSchema,
+  NotArchivedError,
+  NotAssignedError,
+  restoreAssessment,
 } from '../services/assessment.service'
-import { AssessmentNotFoundError, startCaptureSession } from '../services/capture-session.service'
+import {
+  AssessmentArchivedError,
+  AssessmentNotFoundError,
+  startCaptureSession,
+} from '../services/capture-session.service'
 import {
   addLocation,
   DuplicateLocationError,
@@ -52,7 +60,7 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
     res.status(201).json(await createAssessment(parsed.data))
   } catch (error) {
     if (error instanceof InvalidEngineersError) {
-      res.status(400).json({ error: error.message, fields: { engineerIds: error.message } })
+      res.status(400).json({ error: error.message, fields: { engineerId: error.message } })
       return
     }
     throw error
@@ -73,10 +81,42 @@ router.post(
         res.status(404).json({ error: error.message })
         return
       }
+      if (error instanceof AssessmentArchivedError) {
+        res.status(409).json({ error: error.message })
+        return
+      }
       throw error
     }
   },
 )
+
+// Archives (RV-10 AC8) or restores (AC9) an assessment: 204 when done, 403
+// for anyone but its assigned engineer, 409 when it is already in that state.
+for (const [action, change] of [
+  ['archive', archiveAssessment],
+  ['restore', restoreAssessment],
+] as const) {
+  router.post(`/:reference/${action}`, requirePermission('assessments:edit'), async (req, res) => {
+    try {
+      await change(req.params.reference, res.locals.user!)
+      res.status(204).end()
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+        return
+      }
+      if (error instanceof AssessmentArchivedError || error instanceof NotArchivedError) {
+        res.status(409).json({ error: error.message })
+        return
+      }
+      throw error
+    }
+  })
+}
 
 // The places on site the engineer records observations in.
 router.get('/:reference/locations', requirePermission('assessments:view'), async (req, res) => {

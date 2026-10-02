@@ -584,6 +584,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
               {!!v.fToast && (
                 <>
                   <div
+                    role="status"
                     style={{
                       marginBottom: '10px',
                       display: 'flex',
@@ -591,14 +592,16 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                       gap: '8px',
                       padding: '8px 10px',
                       borderRadius: '5px',
-                      background: 'var(--status-low-bg)',
-                      color: 'var(--status-low-fg)',
+                      background: v.fToast.warn
+                        ? 'var(--status-moderate-bg)'
+                        : 'var(--status-low-bg)',
+                      color: v.fToast.warn ? 'var(--status-moderate-fg)' : 'var(--status-low-fg)',
                       fontSize: '14px',
                       animation: 'omSlide 180ms cubic-bezier(.2,0,.2,1)',
                     }}
                   >
-                    <Icon name="circle-check" size={14}></Icon>
-                    <span>{v.fToast}</span>
+                    <Icon name={v.fToast.warn ? 'triangle-alert' : 'circle-check'} size={14}></Icon>
+                    <span>{v.fToast.text}</span>
                   </div>
                 </>
               )}

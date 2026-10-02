@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { Badge, Button, Callout, Checkbox, Input, Select } from '../../../design-system'
+import { Button, Callout, Checkbox, Input, Radio, Select } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
@@ -234,7 +234,7 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                   color: 'var(--text-primary)',
                 }}
               >
-                {'Assigned engineers'}
+                {'Assigned engineer'}
               </span>
             </div>
             <div
@@ -281,18 +281,14 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                       {e.initials}
                     </span>
                     <span style={{ flex: '1', minWidth: '0' }}>
-                      <Checkbox
+                      <Radio
+                        name="engineer"
                         label={e.name}
                         description={e.role}
                         checked={e.on}
-                        onChange={() => v.toggleEng(e.id)}
-                      ></Checkbox>
+                        onChange={() => v.selectEng(e.id)}
+                      ></Radio>
                     </span>
-                    {!!e.isLead && (
-                      <>
-                        <Badge tone="info">{'Lead engineer'}</Badge>
-                      </>
-                    )}
                   </div>
                 </Fragment>
               ))}

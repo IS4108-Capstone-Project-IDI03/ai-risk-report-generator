@@ -10,6 +10,14 @@ export class AssessmentNotFoundError extends Error {
   }
 }
 
+// An archived assessment is kept read-only, so it takes no new captures.
+export class AssessmentArchivedError extends Error {
+  constructor(reference: string) {
+    super(`Assessment ${reference} is archived.`)
+    this.name = 'AssessmentArchivedError'
+  }
+}
+
 export type CaptureSessionResult = {
   created: boolean
   session: { id: string; status: CaptureSessionStatus; startedAt: Date }
@@ -31,6 +39,7 @@ export async function startCaptureSession(reference: string): Promise<CaptureSes
     .populate<{ site: Pick<ISite, 'code' | 'name'> | null }>('site', 'code name')
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
+  if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
 
   const active = { assessment: assessment._id, status: 'active' as const }
   let created = false

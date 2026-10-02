@@ -108,7 +108,7 @@ async function seedAndVerify(): Promise<void> {
   // Assigns a sample assessment to one account by its staff ID (RV-10).
   async function assignedTo(staffId: string) {
     const user = (await UserModel.findOne({ staffId }).lean())!
-    return { engineerIds: [user._id], engineers: [user.name] }
+    return { engineer: user._id }
   }
 
   // Sample assessment for the capture screen (CP-01). Matches the client's

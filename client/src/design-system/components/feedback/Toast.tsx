@@ -35,6 +35,12 @@ function Toast({ tone = 'info', message, action, onDismiss, style = {} }: ToastP
         fontFamily: 'var(--font-sans)',
         fontSize: 'var(--text-body-size)',
         maxWidth: 460,
+        // The toast is dark, so its close button needs a hover meant for dark
+        // backgrounds; the default one turns it white.
+        ...({
+          '--surface-hover': 'rgba(255, 255, 255, 0.1)',
+          '--surface-active': 'rgba(255, 255, 255, 0.16)',
+        } as React.CSSProperties),
         ...style,
       }}
     >

@@ -10,14 +10,20 @@ export type NewAssessment = {
   siteVisitDate?: string
   reportDueDate?: string
   standards: string[]
-  // User IDs; the first engineer is the lead.
-  engineerIds: string[]
+  // The assigned engineer's user ID.
+  engineerId: string
 }
 
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
 export type AssessmentStatus =
-  'not_started' | 'capturing' | 'ready_to_generate' | 'draft' | 'under_review' | 'finalised'
+  | 'not_started'
+  | 'capturing'
+  | 'ready_to_generate'
+  | 'draft'
+  | 'under_review'
+  | 'finalised'
+  | 'archived'
 
 export type Assessment = {
   id: string
@@ -28,8 +34,7 @@ export type Assessment = {
   siteVisitDate: string | null
   reportDueDate: string | null
   standards: string[]
-  engineers: string[]
-  engineerIds: string[]
+  engineer: { id: string; name: string } | null
   status: AssessmentStatus
   createdAt: string
   site: {
@@ -179,6 +184,16 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
 }
 
 // Starts the assessment's capture session, or returns the one in progress.
+// Archives an assessment (RV-10 AC8): a soft delete, open to its assigned engineer.
+export async function archiveAssessment(reference: string): Promise<void> {
+  await request<void>('POST', `/api/assessments/${encodeURIComponent(reference)}/archive`)
+}
+
+// Restores an archived assessment (RV-10 AC9) with the status it had.
+export async function restoreAssessment(reference: string): Promise<void> {
+  await request<void>('POST', `/api/assessments/${encodeURIComponent(reference)}/restore`)
+}
+
 export async function startCaptureSession(
   reference: string,
   signal?: AbortSignal,

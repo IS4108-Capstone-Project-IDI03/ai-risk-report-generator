@@ -55,7 +55,7 @@ export const initialState: WorkflowState = {
     date: '2026-04-21',
     due: '2026-05-02',
     stds: ['FM Global 2-0', 'NFPA 13'],
-    engs: [],
+    eng: '',
     jurisdiction: 'SG',
   },
   cfErr: false,
@@ -87,7 +87,6 @@ export const initialState: WorkflowState = {
   fCat: 'Fire protection',
   fSev: 'high',
   fStd: '',
-  fSaved: 28,
   fToast: null,
   fRecent: [
     {
@@ -225,6 +224,8 @@ export const initialState: WorkflowState = {
   of: NO_FILTERS,
   tagEdit: null,
   tagBusy: false,
+  archiveOpen: false,
+  archiveBusy: false,
   tagError: null,
 }
 
