@@ -29,6 +29,7 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/assessments/engineers', 'assessments:edit'],
   ['post', '/api/assessments', 'assessments:edit'],
   ['post', '/api/assessments/RPT-2026-0411/capture-session', 'assessments:edit'],
+  ['put', '/api/assessments/RPT-2026-0411', 'assessments:edit'],
   ['post', '/api/assessments/RPT-2026-0411/archive', 'assessments:edit'],
   ['post', '/api/assessments/RPT-2026-0411/restore', 'assessments:edit'],
   ['get', '/api/assessments/RPT-2026-0411/locations', 'assessments:view'],

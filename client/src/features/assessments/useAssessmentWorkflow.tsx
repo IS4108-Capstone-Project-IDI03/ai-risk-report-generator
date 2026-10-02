@@ -5,6 +5,7 @@ import {
   archiveAssessment as requestArchive,
   restoreAssessment as requestRestore,
   createAssessment as requestCreateAssessment,
+  updateAssessment as requestUpdateAssessment,
   GatewayError,
   listAssessments,
   listAssignableEngineers,
@@ -94,6 +95,7 @@ function toRow(a: Assessment): AssessmentRow {
     eng: a.engineer?.name ?? 'Unassigned',
     engineerId: a.engineer?.id ?? null,
     standards: a.standards,
+    record: a,
     status: STATUS_LABEL[a.status],
     sev: 'low',
     open: 0,
@@ -359,6 +361,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     })
   }
   // The workspace and capture both act on the assessment last opened from the list.
+  // A blank create form, preselecting the signed-in engineer.
+  function blankForm(): Partial<WorkflowState> {
+    return { cfEdit: null, cf: { ...structuredClone(initialState.cf), eng: session.user.id } }
+  }
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
   }
@@ -1187,7 +1193,44 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           screen: 'create',
           cfErr: false,
           cfServerError: null,
+          // Coming from an edit, start a new assessment from a blank form.
+          ...(s.cfEdit && blankForm()),
         }),
+      // Cancel leaves an edit for the workspace it came from, and a new
+      // assessment for the work list.
+      cancelForm: () =>
+        setState(
+          s.cfEdit
+            ? { ...blankForm(), screen: 'assessment', tab: 'overview', cfServerError: null }
+            : { screen: 'dashboard' },
+        ),
+      // Opens the form on this assessment's saved details (RV-10 AC10).
+      canEditDetails: isMine && canCapture && !!targetRow?.record,
+      goEditDetails: () => {
+        const a = targetRow?.record
+        if (!a) return
+        setState({
+          screen: 'create',
+          cfEdit: a.reference,
+          cfErr: false,
+          cfServerError: null,
+          cf: {
+            ...s.cf,
+            site: a.site.name,
+            addr: a.site.address ?? '',
+            jurisdiction: a.site.jurisdiction,
+            type: a.site.facilityType,
+            client: a.client,
+            ref: a.policyReference ?? '',
+            survey: a.surveyType,
+            date: a.siteVisitDate ?? '',
+            due: a.reportDueDate ?? '',
+            stds: [...a.standards],
+            eng: a.engineer?.id ?? '',
+          },
+        })
+      },
+      isEditing: !!s.cfEdit,
       goField: () =>
         setState({
           screen: 'field',
@@ -1296,6 +1339,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ? [
             { label: 'Report', value: openRow.id },
             { label: 'Site', value: openRow.site },
+            { label: 'Site address', value: openRow.record?.site.address ?? 'Not recorded' },
+            {
+              label: 'Jurisdiction',
+              value:
+                JURISDICTIONS.find((j) => j.value === openRow.record?.site.jurisdiction)?.label ??
+                openRow.record?.site.jurisdiction ??
+                'Not recorded',
+            },
             { label: 'Client', value: openRow.client },
             { label: 'Assessment type', value: openRow.type },
             { label: 'Status', value: openRow.status },
@@ -1492,7 +1543,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         sc === 'dashboard'
           ? 'Risk engineering'
           : sc === 'create'
-            ? 'New assessment'
+            ? s.cfEdit
+              ? 'Assessment workspace'
+              : 'New assessment'
             : sc === 'field'
               ? 'On site'
               : sc === 'users' || sc === 'knowledge'
@@ -1502,7 +1555,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         sc === 'dashboard'
           ? 'Your assessments'
           : sc === 'create'
-            ? 'Create assessment'
+            ? s.cfEdit
+              ? 'Edit assessment details'
+              : 'Create assessment'
             : sc === 'field'
               ? 'Site observation'
               : sc === 'users'
@@ -1726,7 +1781,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       jurisdictionOptions: JURISDICTIONS,
       cfBusy: s.cfBusy,
       cfServerError: s.cfServerError,
-      createLabel: s.cfBusy ? 'Creating assessment…' : 'Create assessment',
+      createLabel: s.cfEdit
+        ? s.cfBusy
+          ? 'Saving changes…'
+          : 'Save changes'
+        : s.cfBusy
+          ? 'Creating assessment…'
+          : 'Create assessment',
+      cfErrorTitle: s.cfEdit ? 'Changes not saved' : 'Assessment not created',
       facilityOptions: FACILITY_TYPES,
       surveyOptions: [
         'Property risk survey',
@@ -1758,6 +1820,39 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           return
         }
         setState({ cfBusy: true, cfErr: false, cfServerError: null })
+        if (s.cfEdit) {
+          const reference = s.cfEdit
+          try {
+            await requestUpdateAssessment(reference, {
+              site: {
+                name: s.cf.site,
+                address: s.cf.addr,
+                jurisdiction: s.cf.jurisdiction,
+                facilityType: s.cf.type,
+              },
+              client: s.cf.client,
+              surveyType: s.cf.survey,
+              siteVisitDate: s.cf.date,
+              reportDueDate: s.cf.due,
+            })
+            // The work list reloads only on the dashboard, so reload it here.
+            const list = await listAssessments().catch(() => null)
+            if (list) setServerRows(list.map(toRow))
+            setState({ ...blankForm(), cfBusy: false, screen: 'assessment', tab: 'overview' })
+            toast('Details saved for ' + reference + '.')
+          } catch (error: unknown) {
+            const problems = error instanceof GatewayError ? Object.values(error.fields) : []
+            setState({
+              cfBusy: false,
+              cfServerError: problems.length
+                ? problems.join(' ') + ' Correct the details above, then save again.'
+                : error instanceof GatewayError && error.status !== null
+                  ? error.message
+                  : 'The gateway could not be reached. Your changes are still here; save again.',
+            })
+          }
+          return
+        }
         try {
           const created = await requestCreateAssessment({
             site: {

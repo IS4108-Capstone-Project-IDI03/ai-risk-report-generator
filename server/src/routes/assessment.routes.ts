@@ -1,6 +1,7 @@
 import express, { Router, type ErrorRequestHandler } from 'express'
 import {
   archiveAssessment,
+  assessmentDetailsSchema,
   createAssessment,
   InvalidEngineersError,
   listAssignableEngineers,
@@ -9,6 +10,7 @@ import {
   NotArchivedError,
   NotAssignedError,
   restoreAssessment,
+  updateAssessment,
 } from '../services/assessment.service'
 import {
   AssessmentArchivedError,
@@ -89,6 +91,37 @@ router.post(
     }
   },
 )
+
+// Corrects an assessment's details (RV-10 AC10): 204 when saved, 400 naming
+// each invalid field (AC11), 403 for anyone but its assigned engineer, 409
+// once it is archived.
+router.put('/:reference', requirePermission('assessments:edit'), async (req, res) => {
+  const parsed = assessmentDetailsSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ error: 'The assessment details are invalid.', fields: fieldErrors(parsed.error) })
+    return
+  }
+  try {
+    await updateAssessment(req.params.reference, parsed.data, res.locals.user!)
+    res.status(204).end()
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof NotAssignedError) {
+      res.status(403).json({ error: error.message })
+      return
+    }
+    if (error instanceof AssessmentArchivedError) {
+      res.status(409).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
 
 // Archives (RV-10 AC8) or restores (AC9) an assessment: 204 when done, 403
 // for anyone but its assigned engineer, 409 when it is already in that state.

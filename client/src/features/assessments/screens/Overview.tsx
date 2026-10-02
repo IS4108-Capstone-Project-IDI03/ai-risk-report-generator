@@ -53,6 +53,10 @@ export function Overview({ v }: { v: AssessmentWorkflow }) {
             >
               <div
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
                   padding: '14px 20px',
                   borderBottom: '1px solid var(--border-subtle)',
                   background: 'var(--surface-sunken)',
@@ -63,6 +67,18 @@ export function Overview({ v }: { v: AssessmentWorkflow }) {
                 }}
               >
                 {'Assessment record'}
+                {/* Edits the details this card shows (RV-10 AC10). */}
+                {v.canEditDetails && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconLeft="pencil"
+                    aria-label="Edit details"
+                    onClick={v.goEditDetails}
+                  >
+                    {'Edit'}
+                  </Button>
+                )}
               </div>
               <div style={{ padding: '6px 20px 14px' }}>
                 {v.ovFacts.map((ff, index) => (

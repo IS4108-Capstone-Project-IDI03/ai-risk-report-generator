@@ -1,8 +1,10 @@
-import type { TranscriptionStatus } from './api'
+import type { Assessment, TranscriptionStatus } from './api'
 
 export type AssessmentRow = {
   engineerId?: string | null
   standards?: string[]
+  // The saved assessment the row came from, which the edit form starts from.
+  record?: Assessment
   id: string
   site: string
   client: string
@@ -85,6 +87,8 @@ export type WorkflowState = {
     eng: string
     jurisdiction: string
   }
+  // The assessment whose details the form is editing, or null when creating.
+  cfEdit: string | null
   cfErr: boolean
   cfBusy: boolean
   cfServerError: string | null

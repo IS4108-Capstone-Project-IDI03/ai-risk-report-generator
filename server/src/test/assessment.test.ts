@@ -337,3 +337,60 @@ describe('Archiving (RV-10 AC8)', () => {
     expect((await api.post(`/api/assessments/${reference}/capture-session`)).status).toBe(200)
   })
 })
+
+describe('Editing details (RV-10 AC10, AC11)', () => {
+  const edit = (reference: string, changes: Record<string, unknown>, as = api) =>
+    as.put(`/api/assessments/${reference}`).send({ ...body(), ...changes })
+
+  it('lets the assigned engineer correct the details, keeping policy reference and standards', async () => {
+    const { reference } = (await create(body())).body
+
+    const saved = await edit(reference, {
+      site: { ...SITE, name: 'Jurong Hub East', address: '' },
+      client: 'Straits Freight',
+      policyReference: 'POL-CHANGED',
+      siteVisitDate: '',
+      reportDueDate: '2026-10-30',
+      standards: ['NFPA 13'],
+    })
+    expect(saved.status).toBe(204)
+
+    const [listed] = (await api.get('/api/assessments')).body
+    expect(listed).toMatchObject({
+      reference,
+      client: 'Straits Freight',
+      // Not editable: an edit leaves the policy reference as it was created.
+      policyReference: 'POL-00012345',
+      siteVisitDate: null,
+      reportDueDate: '2026-10-30',
+      // Not editable: standards stay as chosen at creation.
+      standards: ['FM Global 2-0', 'NFPA 13'],
+      // The engineer stays the one the assessment was created for.
+      engineer: { id: String(actor._id), name: 'Alex Rowe' },
+      site: { name: 'Jurong Hub East', address: null },
+    })
+  })
+
+  it('names each invalid field and changes nothing', async () => {
+    const { reference } = (await create(body())).body
+
+    const rejected = await edit(reference, { client: '', reportDueDate: '2026-10-01' })
+    expect(rejected.status).toBe(400)
+    expect(rejected.body.fields).toEqual({
+      client: 'Client is required.',
+      reportDueDate: 'The report due date must be on or after the site visit date.',
+    })
+    const [listed] = (await api.get('/api/assessments')).body
+    expect(listed).toMatchObject({ client: 'Straits Logistics', reportDueDate: '2026-10-19' })
+  })
+
+  it('refuses anyone but the assigned engineer, and an archived assessment', async () => {
+    const { reference } = (await create(body())).body
+
+    expect((await edit(reference, { client: 'X' }, signedInAs(app, other))).status).toBe(403)
+    expect((await edit('RPT-NONE', { client: 'X' })).status).toBe(404)
+    await api.post(`/api/assessments/${reference}/archive`)
+    expect((await edit(reference, { client: 'X' })).status).toBe(409)
+    expect((await AssessmentModel.findOne({ reference }).lean())?.client).toBe('Straits Logistics')
+  })
+})

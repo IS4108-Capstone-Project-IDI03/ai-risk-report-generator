@@ -58,6 +58,7 @@ export const initialState: WorkflowState = {
     eng: '',
     jurisdiction: 'SG',
   },
+  cfEdit: null,
   cfErr: false,
   cfBusy: false,
   cfServerError: null,
