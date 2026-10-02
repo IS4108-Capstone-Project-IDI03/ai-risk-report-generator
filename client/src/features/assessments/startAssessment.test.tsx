@@ -567,7 +567,7 @@ it('shows report deadlines, excludes today and finalised work from overdue, and 
 
 it('archives my assessment from its workspace, then shows it only under Archived and restores it (RV-10 AC8, AC9)', async () => {
   let status = 'capturing'
-  const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+  const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
     Promise.resolve(new Response(null, { status: 204 })),
   )
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
