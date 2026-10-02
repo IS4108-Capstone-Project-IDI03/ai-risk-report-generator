@@ -638,7 +638,7 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
 
-it('edits my assessment details, keeping its engineer and policy reference (RV-10 AC10, AC11)', async () => {
+it('edits my assessment details, keeping its engineer, policy reference and standards (RV-10 AC10, AC11)', async () => {
   let record = { ...CREATED, policyReference: 'POL-00012345' }
   const saves: { body: Record<string, unknown>; reply: Response }[] = []
   const rejection = new Response(
@@ -663,13 +663,25 @@ it('edits my assessment details, keeping its engineer and policy reference (RV-1
     (b) => b.getAttribute('data-id') === 'RPT-2026-0001',
   )!
   fireEvent.click(row)
-  fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+  // The record shows the site's address and jurisdiction.
+  expect(screen.getByText('Site address')).toBeInTheDocument()
+  expect(screen.getByText('Not recorded')).toBeInTheDocument()
+  expect(screen.getByText('Malaysia')).toBeInTheDocument()
 
-  // The form starts from the saved details, without the engineer or policy reference.
+  // Cancel returns to the workspace's Overview.
+  fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+  // The form starts from the saved details, without the engineer, policy
+  // reference or standards.
   expect(screen.getByRole('heading', { name: 'Edit assessment details' })).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('Straits Logistics')
   expect(screen.queryByLabelText(/Policy reference/)).not.toBeInTheDocument()
   expect(screen.queryByRole('radio', { name: /Alex Rowe/ })).not.toBeInTheDocument()
+  expect(screen.queryByText('Applicable standards')).not.toBeInTheDocument()
 
   fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
     target: { value: 'Straits Freight' },
@@ -685,7 +697,39 @@ it('edits my assessment details, keeping its engineer and policy reference (RV-1
   expect(saves[1].body).toMatchObject({ client: 'Straits Freight' })
   expect(saves[1].body).not.toHaveProperty('policyReference')
   expect(saves[1].body).not.toHaveProperty('engineerId')
+  expect(saves[1].body).not.toHaveProperty('standards')
   // Back in the workspace, the record shows the saved details (AC10).
   expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
   expect(screen.getAllByText('Straits Freight').length).toBeGreaterThan(0)
+
+  // A new assessment then starts from a blank form, not the edited details.
+  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+  expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
+  expect(screen.getByText('Applicable standards')).toBeInTheDocument()
+})
+
+it('shows a knowledge admin the same assessment record, read-only', async () => {
+  vi.stubGlobal('fetch', (url: string) =>
+    respond(200, url === '/api/assessments' ? [{ ...CREATED, status: 'capturing' }] : []),
+  )
+  // A knowledge admin starts on the knowledge base; open the work list instead.
+  window.history.pushState({}, '', '/assessments')
+  try {
+    render(<App />)
+    await signIn('knowledge_admin')
+    const row = (await screen.findAllByRole('button', { name: /Jurong Distribution Hub/ })).find(
+      (b) => b.getAttribute('data-id') === 'RPT-2026-0001',
+    )!
+    fireEvent.click(row)
+
+    expect(screen.getByText('Site address')).toBeInTheDocument()
+    expect(screen.getByText('Malaysia')).toBeInTheDocument()
+    expect(screen.getByText('Alex Rowe')).toBeInTheDocument()
+    // Only the assigned engineer edits, archives or captures.
+    expect(screen.queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
+  } finally {
+    window.history.pushState({}, '', '/')
+  }
 })

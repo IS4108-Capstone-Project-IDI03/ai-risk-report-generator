@@ -339,7 +339,7 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
   const edit = (reference: string, changes: Record<string, unknown>, as = api) =>
     as.put(`/api/assessments/${reference}`).send({ ...body(), ...changes })
 
-  it('lets the assigned engineer correct the details, keeping the policy reference', async () => {
+  it('lets the assigned engineer correct the details, keeping policy reference and standards', async () => {
     const { reference } = (await create(body())).body
 
     const saved = await edit(reference, {
@@ -360,7 +360,8 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
       policyReference: 'POL-00012345',
       siteVisitDate: null,
       reportDueDate: '2026-10-30',
-      standards: ['NFPA 13'],
+      // Not editable: standards stay as chosen at creation.
+      standards: ['FM Global 2-0', 'NFPA 13'],
       // The engineer stays the one the assessment was created for.
       engineer: { id: String(actor._id), name: 'Alex Rowe' },
       site: { name: 'Jurong Hub East', address: null },
