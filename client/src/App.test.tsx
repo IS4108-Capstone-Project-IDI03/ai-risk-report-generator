@@ -48,12 +48,14 @@ describe('Marsh prototype integration', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
-  it('keeps SSO, reset, and access requests explicitly simulated', () => {
+  it('keeps SSO and access requests explicitly simulated, and opens the real reset flow', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: /single sign-on/ }))
     expect(screen.getByRole('status')).toHaveTextContent('not connected')
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
-    expect(screen.getByRole('status')).toHaveTextContent('No email was sent')
+    expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     tab(/Request access/)
     fireEvent.change(screen.getByLabelText(/Full name/), { target: { value: 'Demo Engineer' } })
     fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })

@@ -1,5 +1,7 @@
 import bcrypt from 'bcrypt'
+import { randomBytes, createHash } from 'crypto'
 import jwt from 'jsonwebtoken'
+import nodemailer from 'nodemailer'
 import { config } from '../config'
 import { UserModel, type IUser, type UserRole } from '../models/user.model'
 
@@ -14,6 +16,13 @@ export class TooManyAttemptsError extends Error {
   constructor() {
     super('Too many failed attempts. Try again in a few minutes.')
     this.name = 'TooManyAttemptsError'
+  }
+}
+
+export class InvalidResetTokenError extends Error {
+  constructor() {
+    super('This reset link is invalid or has expired.')
+    this.name = 'InvalidResetTokenError'
   }
 }
 
@@ -93,4 +102,60 @@ export function verifySession(token: string): SessionUser {
 
 function toSessionUser(user: IUser & { _id: unknown }): SessionUser {
   return { id: String(user._id), role: user.role, name: user.name }
+}
+
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000
+
+// jsonTransport never leaves the server — it hands back the composed message
+// instead of delivering it, which is exactly what a console-only dev/CI setup
+// needs (F-06). Swapping to real SMTP later is a transport change only; none
+// of the token logic below moves.
+const mailer = nodemailer.createTransport({ jsonTransport: true })
+
+async function sendResetEmail(email: string, token: string): Promise<void> {
+  await mailer.sendMail({
+    from: 'no-reply@marsh-risk-report.example',
+    to: email,
+    subject: 'Reset your password',
+    text: `Reset token: ${token} (expires in 30 minutes)`,
+  })
+  // eslint-disable-next-line no-console -- this *is* the "email", for now.
+  console.log(`[password reset] ${email} -> token: ${token} (expires in 30 min)`)
+}
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+// Always resolves the same way whether or not the email is registered (AC6)
+// — only the internal branch (send or don't) differs, never the response.
+export async function requestPasswordReset(email: string): Promise<void> {
+  const user = await UserModel.findOne({ email: email.toLowerCase().trim(), active: true })
+  if (!user) return
+
+  const token = randomBytes(32).toString('hex')
+  user.set({
+    resetTokenHash: hashToken(token),
+    resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+  })
+  await user.save()
+  await sendResetEmail(user.email, token)
+}
+
+// Single-use: the matching token is cleared whether or not this call
+// succeeds past the lookup, so a token can't be retried after a failure.
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const user = await UserModel.findOne({ resetTokenHash: hashToken(token) }).select(
+    '+resetTokenHash +resetTokenExpiresAt',
+  )
+  if (!user?.resetTokenExpiresAt || user.resetTokenExpiresAt.getTime() < Date.now()) {
+    throw new InvalidResetTokenError()
+  }
+
+  user.set({
+    passwordHash: await bcrypt.hash(newPassword, 10),
+    resetTokenHash: undefined,
+    resetTokenExpiresAt: undefined,
+  })
+  await user.save()
 }

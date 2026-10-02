@@ -61,3 +61,24 @@ export async function signOut(): Promise<void> {
   const response = await send('/api/auth/logout', { method: 'POST' })
   if (!response.ok) throw await problem(response)
 }
+
+// Always resolves — the gateway answers identically whether or not the email
+// is registered (F-06 AC6), so there's nothing to distinguish here.
+export async function requestPasswordReset(email: string): Promise<void> {
+  const response = await send('/api/auth/request-reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim() }),
+  })
+  if (!response.ok) throw await problem(response)
+}
+
+// Rejects (400) for an invalid, expired or already-used token.
+export async function resetPassword(token: string, password: string): Promise<void> {
+  const response = await send('/api/auth/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token.trim(), password }),
+  })
+  if (!response.ok) throw await problem(response)
+}
