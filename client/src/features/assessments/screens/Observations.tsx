@@ -47,7 +47,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
             {'Observations on file'}
           </span>
           <span style={{ flex: '1' }}></span>
-          {v.canEdit && (
+          {v.canEdit && v.canCapture && (
             <Button variant="secondary" size="sm" iconLeft="camera" onClick={v.goField}>
               {'New observation'}
             </Button>
@@ -498,7 +498,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               </div>
                             </Fragment>
                           ))}
-                          {v.canEdit && (
+                          {v.canEdit && v.canCapture && (
                             <button
                               type="button"
                               onClick={v.goField}

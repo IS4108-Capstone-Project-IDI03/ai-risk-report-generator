@@ -52,6 +52,11 @@ const registry = {
       color: 'var(--icon-final)',
       label: 'Finalised',
     },
+    archived: {
+      icon: 'archive',
+      color: 'var(--text-muted)',
+      label: 'Archived',
+    },
     edited: {
       icon: 'pencil',
       color: 'var(--text-secondary)',

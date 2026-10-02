@@ -214,9 +214,11 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                   >
                     {v.isDashboard && !v.routeBlocked && v.canEdit && (
                       <>
-                        <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
-                          Site observation
-                        </Button>
+                        {v.canCapture && (
+                          <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
+                            Site observation
+                          </Button>
+                        )}
                         <Button variant="primary" iconLeft="plus" onClick={v.goCreate}>
                           New assessment
                         </Button>
@@ -228,7 +230,22 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                           <Button variant="ghost" iconLeft="history" onClick={v.showVersionHistory}>
                             {'Version history'}
                           </Button>
-                          {v.canEdit && (
+                          {v.canRestore && (
+                            <Button
+                              variant="secondary"
+                              iconLeft="refresh-cw"
+                              onClick={v.restoreAssessment}
+                              disabled={v.archiveBusy}
+                            >
+                              {'Restore'}
+                            </Button>
+                          )}
+                          {v.canArchive && (
+                            <Button variant="ghost" iconLeft="archive" onClick={v.openArchive}>
+                              {'Archive'}
+                            </Button>
+                          )}
+                          {v.canEdit && v.canCapture && (
                             <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
                               {'Site observation'}
                             </Button>
@@ -309,6 +326,28 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
             footer={v.exportFooter}
             onClose={v.closeExport}
             width={520}
+          ></Dialog>
+          <Dialog
+            open={v.archiveOpen}
+            title="Archive this assessment?"
+            description="It leaves your work list and takes no new observations. Everything it holds is kept, and you can still find it by filtering by Archived."
+            footer={
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <Button variant="secondary" onClick={v.closeArchive} disabled={v.archiveBusy}>
+                  {'Cancel'}
+                </Button>
+                <Button
+                  variant="primary"
+                  iconLeft="archive"
+                  onClick={v.confirmArchive}
+                  disabled={v.archiveBusy}
+                >
+                  {'Archive'}
+                </Button>
+              </div>
+            }
+            onClose={v.closeArchive}
+            width={480}
           ></Dialog>
           {!!v.toast && (
             <>

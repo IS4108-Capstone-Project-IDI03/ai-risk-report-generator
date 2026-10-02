@@ -6,7 +6,8 @@ export type SideNavProps = {
   brand?: string
   sections?: {
     label: string
-    items: { value: string; label: string; icon?: string; count?: number }[]
+    // live: shows a blinking light (the .live-dot style) beside the label.
+    items: { value: string; label: string; icon?: string; count?: number; live?: boolean }[]
   }[]
   value?: string | number
   onChange?: (value: string) => void
@@ -149,6 +150,9 @@ function SideNav({
                     >
                       {it.label}
                     </span>
+                    {it.live ? (
+                      <span className="live-dot" role="img" aria-label="live"></span>
+                    ) : null}
                     {it.count != null ? (
                       <span
                         style={{

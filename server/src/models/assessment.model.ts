@@ -25,11 +25,14 @@ export interface IAssessment {
   surveyType: string
   siteVisitDate?: Date
   reportDueDate?: Date
-  // Display snapshots; engineerIds are the assignment identity, first is lead.
   standards: string[]
-  engineers: string[]
-  engineerIds: Types.ObjectId[]
+  // The one assigned engineer's account; their name is read from it, so a
+  // rename shows everywhere. The work list matches on it (RV-10).
+  engineer?: Types.ObjectId
   reportStatus?: ReportStatus
+  // Set when the engineer archives the assessment (RV-10 AC8): a soft delete
+  // that hides it from the work list and keeps everything it holds.
+  archivedAt?: Date
   locations: ILocation[]
   createdAt: Date
   updatedAt: Date
@@ -68,15 +71,12 @@ const assessmentSchema = new Schema<IAssessment>(
       type: [String],
       default: [],
     },
-    engineers: {
-      type: [String],
-      default: [],
-    },
-    engineerIds: { type: [Schema.Types.ObjectId], ref: 'User', default: undefined, index: true },
+    engineer: { type: Schema.Types.ObjectId, ref: 'User', index: true },
     reportStatus: {
       type: String,
       enum: REPORT_STATUSES,
     },
+    archivedAt: Date,
     // Embedded: a short list, always read with its assessment.
     locations: [
       {

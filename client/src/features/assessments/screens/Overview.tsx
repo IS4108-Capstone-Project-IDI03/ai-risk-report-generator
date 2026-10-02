@@ -19,50 +19,20 @@ export function Overview({ v }: { v: AssessmentWorkflow }) {
               gap: '16px',
             }}
           >
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                padding: '16px 18px',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              <MetricStat label="Sections drafted" value={v.ovDrafted} size="lg"></MetricStat>
-            </div>
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                padding: '16px 18px',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              <MetricStat label="Open review items" value={v.openTotal} size="lg"></MetricStat>
-            </div>
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                padding: '16px 18px',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              <MetricStat label="Observations on file" value={v.fSaved} size="lg"></MetricStat>
-            </div>
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                padding: '16px 18px',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              <MetricStat label="Evidence sources" value="24" size="lg"></MetricStat>
-            </div>
+            {v.ovMetrics.map((m) => (
+              <div
+                key={m.label}
+                style={{
+                  background: 'var(--surface-card)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '8px',
+                  padding: '16px 18px',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <MetricStat label={m.label} value={m.value} note={m.note} size="lg"></MetricStat>
+              </div>
+            ))}
           </div>
           <div
             style={{
@@ -164,6 +134,11 @@ export function Overview({ v }: { v: AssessmentWorkflow }) {
                     gap: '10px',
                   }}
                 >
+                  {v.ovStandards.length === 0 && (
+                    <span style={{ fontSize: '15px', color: 'var(--text-muted)' }}>
+                      {'No standards selected for this assessment.'}
+                    </span>
+                  )}
                   {v.ovStandards.map((st, index) => (
                     <Fragment key={index}>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
@@ -195,34 +170,38 @@ export function Overview({ v }: { v: AssessmentWorkflow }) {
                   ))}
                 </div>
               </div>
-              <div
-                style={{
-                  background: 'var(--surface-card)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: '8px',
-                  boxShadow: 'var(--shadow-sm)',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                }}
-              >
-                <ProgressBar
-                  value={v.reviewPercent}
-                  label={v.reviewLabel}
-                  tone="primary"
-                ></ProgressBar>
-                {v.canDraft && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    <Button variant="primary" iconLeft="sparkles" onClick={v.goGenerate}>
-                      {'Report generation'}
-                    </Button>
-                    <Button variant="secondary" iconLeft="user-round-search" onClick={v.goReview}>
-                      {'Review'}
-                    </Button>
-                  </div>
-                )}
-              </div>
+              {(v.showReviewProgress || v.canDraft) && (
+                <div
+                  style={{
+                    background: 'var(--surface-card)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    boxShadow: 'var(--shadow-sm)',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  {v.showReviewProgress && (
+                    <ProgressBar
+                      value={v.reviewPercent}
+                      label={v.reviewLabel}
+                      tone="primary"
+                    ></ProgressBar>
+                  )}
+                  {v.canDraft && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      <Button variant="primary" iconLeft="sparkles" onClick={v.goGenerate}>
+                        {'Report generation'}
+                      </Button>
+                      <Button variant="secondary" iconLeft="user-round-search" onClick={v.goReview}>
+                        {'Review'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
