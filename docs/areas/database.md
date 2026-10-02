@@ -107,6 +107,13 @@ requires `assessments:edit` and returns only active risk engineers' IDs, names,
 staff IDs and job titles for assignment. Creating an assessment requires
 `engineerId`, the ID of one active risk engineer.
 
+`PUT /api/assessments/:reference` corrects an assessment's details (RV-10 AC10):
+its site's name, address, jurisdiction and facility type, and its client,
+assessment type, dates and standards, with the same validation as creating one
+(AC11). The engineer and policy reference are not editable: both stay as the
+assessment was created. A date left empty is cleared. Only the assigned engineer
+can edit (403 otherwise), and not once it is archived (409).
+
 `POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a
 soft delete: it sets `archivedAt`, and nothing the assessment holds is removed.
 Only its assigned engineer can archive it (403 otherwise), once (409 the second
