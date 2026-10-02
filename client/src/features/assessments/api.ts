@@ -122,7 +122,7 @@ export function reportSessionEnded() {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   signal?: AbortSignal,
@@ -179,6 +179,16 @@ export async function listAssignableEngineers(signal?: AbortSignal): Promise<Ass
 }
 
 // Creates the assessment and its site; the server allocates the reference.
+// Corrects an assessment's details (RV-10 AC10). The engineer and policy
+// reference are not part of it: both stay as the assessment was created.
+export type AssessmentDetails = Omit<NewAssessment, 'engineerId' | 'policyReference'>
+export async function updateAssessment(
+  reference: string,
+  details: AssessmentDetails,
+): Promise<void> {
+  await request<void>('PUT', `/api/assessments/${encodeURIComponent(reference)}`, details)
+}
+
 export async function createAssessment(input: NewAssessment): Promise<Assessment> {
   return (await request<Assessment>('POST', '/api/assessments', input)).data
 }

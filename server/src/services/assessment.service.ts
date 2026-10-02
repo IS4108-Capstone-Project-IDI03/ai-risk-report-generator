@@ -49,36 +49,51 @@ const optionalDate = (label: string) =>
     z.iso.date(`${label} must be a valid date (YYYY-MM-DD).`).optional(),
   )
 
+// An assessment's details: what POST /api/assessments creates and
+// PUT /api/assessments/:reference corrects (RV-10 AC10).
+const assessmentDetails = z.object({
+  site: z.object(
+    {
+      name: required('Site name'),
+      address: optional('Site address'),
+      jurisdiction: z
+        .string('Jurisdiction is required.')
+        .regex(/^[A-Z]{2}$/, 'Jurisdiction must be a two-letter code, e.g. SG.'),
+      facilityType: required('Facility type'),
+    },
+    'Site details are required.',
+  ),
+  client: required('Client'),
+  policyReference: optional('Policy reference'),
+  surveyType: required('Assessment type'),
+  siteVisitDate: optionalDate('Site visit date'),
+  reportDueDate: optionalDate('Report due date'),
+  standards: z.array(required('Standard')).max(50).default([]),
+})
+const dueOnOrAfterVisit = (a: { siteVisitDate?: string; reportDueDate?: string }) =>
+  !a.siteVisitDate || !a.reportDueDate || a.reportDueDate >= a.siteVisitDate
+const dueDateRule = {
+  message: 'The report due date must be on or after the site visit date.',
+  path: ['reportDueDate'],
+}
+
 // Request body for POST /api/assessments.
-export const newAssessmentSchema = z
-  .object({
-    site: z.object(
-      {
-        name: required('Site name'),
-        address: optional('Site address'),
-        jurisdiction: z
-          .string('Jurisdiction is required.')
-          .regex(/^[A-Z]{2}$/, 'Jurisdiction must be a two-letter code, e.g. SG.'),
-        facilityType: required('Facility type'),
-      },
-      'Site details are required.',
-    ),
-    client: required('Client'),
-    policyReference: optional('Policy reference'),
-    surveyType: required('Assessment type'),
-    siteVisitDate: optionalDate('Site visit date'),
-    reportDueDate: optionalDate('Report due date'),
-    standards: z.array(required('Standard')).max(50).default([]),
+export const newAssessmentSchema = assessmentDetails
+  .extend({
     engineerId: z
       .string('Choose the engineer for this assessment.')
       .refine(isValidObjectId, 'Choose the engineer for this assessment.'),
   })
-  .refine((a) => !a.siteVisitDate || !a.reportDueDate || a.reportDueDate >= a.siteVisitDate, {
-    message: 'The report due date must be on or after the site visit date.',
-    path: ['reportDueDate'],
-  })
+  .refine(dueOnOrAfterVisit, dueDateRule)
+
+// Request body for PUT /api/assessments/:reference. The engineer and the
+// policy reference are not part of it: both stay as the assessment was created.
+export const assessmentDetailsSchema = assessmentDetails
+  .omit({ policyReference: true })
+  .refine(dueOnOrAfterVisit, dueDateRule)
 
 export type NewAssessment = z.infer<typeof newAssessmentSchema>
+export type AssessmentDetails = z.infer<typeof assessmentDetailsSchema>
 
 // Where an assessment stands: the capture statuses are derived from its latest
 // capture session, the report statuses are stored on the assessment.
@@ -190,7 +205,7 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
 
 export class NotAssignedError extends Error {
   constructor() {
-    super('Only the assigned engineer can archive or restore this assessment.')
+    super('Only the assigned engineer can change this assessment.')
   }
 }
 
@@ -206,6 +221,44 @@ async function assignedAssessment(reference: string, user: SessionUser) {
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
   return assessment._id
+}
+
+// Corrects an assessment's details and its site's (RV-10 AC10): only its
+// assigned engineer can, and not once it is archived, which keeps it read-only.
+// A date left empty is cleared. The engineer, policy reference and report
+// reference never change.
+export async function updateAssessment(
+  reference: string,
+  input: AssessmentDetails,
+  user: SessionUser,
+): Promise<void> {
+  const assessment = await AssessmentModel.findOne({ reference }, 'site engineer archivedAt').lean()
+  if (!assessment) throw new AssessmentNotFoundError(reference)
+  if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
+  if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
+  const { address, ...site } = input.site
+  await SiteModel.updateOne(
+    { _id: assessment.site },
+    { $set: { ...site, ...(address && { address }) }, ...(!address && { $unset: { address: 1 } }) },
+  )
+  // 'YYYY-MM-DD' parses as UTC midnight, so the calendar day is kept.
+  const optional = {
+    siteVisitDate: input.siteVisitDate && new Date(input.siteVisitDate),
+    reportDueDate: input.reportDueDate && new Date(input.reportDueDate),
+  }
+  const cleared = Object.keys(optional).filter((key) => !optional[key as keyof typeof optional])
+  await AssessmentModel.updateOne(
+    { _id: assessment._id },
+    {
+      $set: {
+        client: input.client,
+        surveyType: input.surveyType,
+        standards: input.standards,
+        ...Object.fromEntries(Object.entries(optional).filter(([, value]) => value)),
+      },
+      ...(cleared.length && { $unset: Object.fromEntries(cleared.map((key) => [key, 1])) }),
+    },
+  )
 }
 
 // Archives an assessment (RV-10 AC8), a soft delete: only its assigned

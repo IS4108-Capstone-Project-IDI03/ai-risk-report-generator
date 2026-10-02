@@ -71,13 +71,16 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                 value={v.cfJurisdiction}
                 onChange={v.setCfJurisdiction}
               ></Select>
-              <Input
-                label="Policy reference"
-                hint="Optional \u2014 links the report to the placement file"
-                placeholder="POL-00000000"
-                value={v.cfRef}
-                onChange={v.setCfRef}
-              ></Input>
+              {/* The policy reference is set once, when the assessment is created. */}
+              {!v.isEditing && (
+                <Input
+                  label="Policy reference"
+                  hint="Optional \u2014 links the report to the placement file"
+                  placeholder="POL-00000000"
+                  value={v.cfRef}
+                  onChange={v.setCfRef}
+                ></Input>
+              )}
             </div>
           </div>
           <div
@@ -208,95 +211,103 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
               </div>
             </div>
           </div>
-          <div
-            style={{
-              background: 'var(--surface-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '8px',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
+          {/* An assessment keeps the engineer it was created for. */}
+          {!v.isEditing && (
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '14px 20px',
-                borderBottom: '1px solid var(--border-subtle)',
-                background: 'var(--surface-sunken)',
+                background: 'var(--surface-card)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '8px',
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
-              <span
+              <div
                 style={{
-                  fontSize: '19px',
-                  lineHeight: '28px',
-                  fontWeight: '600',
-                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '14px 20px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  background: 'var(--surface-sunken)',
                 }}
               >
-                {'Assigned engineer'}
-              </span>
-            </div>
-            <div
-              style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '2px' }}
-            >
-              {v.directoryLoading && <p role="status">Loading engineers…</p>}
-              {!v.directoryLoading && !v.directoryError && v.engineers.length === 0 && (
-                <p>No active risk engineers are available.</p>
-              )}
-              {v.directoryError && (
-                <Callout tone="warning" title="Engineer list unavailable">
-                  Reopen this page to load the engineer list before creating the assessment.
-                </Callout>
-              )}
-              {v.engineers.map((e, index) => (
-                <Fragment key={index}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '8px 10px',
-                      borderRadius: '5px',
-                      cursor: 'pointer',
-                      transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-                    }}
-                    data-hoverable="true"
-                  >
-                    <span
+                <span
+                  style={{
+                    fontSize: '19px',
+                    lineHeight: '28px',
+                    fontWeight: '600',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {'Assigned engineer'}
+                </span>
+              </div>
+              <div
+                style={{
+                  padding: '16px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+              >
+                {v.directoryLoading && <p role="status">Loading engineers…</p>}
+                {!v.directoryLoading && !v.directoryError && v.engineers.length === 0 && (
+                  <p>No active risk engineers are available.</p>
+                )}
+                {v.directoryError && (
+                  <Callout tone="warning" title="Engineer list unavailable">
+                    Reopen this page to load the engineer list before creating the assessment.
+                  </Callout>
+                )}
+                {v.engineers.map((e, index) => (
+                  <Fragment key={index}>
+                    <div
                       style={{
-                        display: 'inline-flex',
+                        display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '30px',
-                        height: '30px',
-                        flex: '0 0 auto',
-                        borderRadius: '99px',
-                        background: 'var(--ink-50)',
-                        color: 'var(--ink-700)',
-                        fontSize: '13px',
-                        fontWeight: '600',
+                        gap: '12px',
+                        padding: '8px 10px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
                       }}
+                      data-hoverable="true"
                     >
-                      {e.initials}
-                    </span>
-                    <span style={{ flex: '1', minWidth: '0' }}>
-                      <Radio
-                        name="engineer"
-                        label={e.name}
-                        description={e.role}
-                        checked={e.on}
-                        onChange={() => v.selectEng(e.id)}
-                      ></Radio>
-                    </span>
-                  </div>
-                </Fragment>
-              ))}
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '30px',
+                          height: '30px',
+                          flex: '0 0 auto',
+                          borderRadius: '99px',
+                          background: 'var(--ink-50)',
+                          color: 'var(--ink-700)',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                        }}
+                      >
+                        {e.initials}
+                      </span>
+                      <span style={{ flex: '1', minWidth: '0' }}>
+                        <Radio
+                          name="engineer"
+                          label={e.name}
+                          description={e.role}
+                          checked={e.on}
+                          onChange={() => v.selectEng(e.id)}
+                        ></Radio>
+                      </span>
+                    </div>
+                  </Fragment>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           {!!v.hasCfError && (
             <>
-              <Callout tone="danger" title="Assessment not created">
+              <Callout tone="danger" title={v.cfErrorTitle}>
                 {
                   'Site name and client are required before an assessment can be opened. Correct the two fields above, then create the assessment.'
                 }
@@ -304,7 +315,7 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
             </>
           )}
           {!!v.cfServerError && (
-            <Callout tone="danger" title="Assessment not created">
+            <Callout tone="danger" title={v.cfErrorTitle}>
               {v.cfServerError}
             </Callout>
           )}
