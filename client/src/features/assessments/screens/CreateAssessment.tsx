@@ -133,84 +133,87 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
               <Input label="Report due" type="date" value={v.cfDue} onChange={v.setCfDue}></Input>
             </div>
           </div>
-          <div
-            style={{
-              background: 'var(--surface-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '8px',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
+          {/* Standards are chosen when the assessment is created. */}
+          {!v.isEditing && (
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '14px 20px',
-                borderBottom: '1px solid var(--border-subtle)',
-                background: 'var(--surface-sunken)',
+                background: 'var(--surface-card)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '8px',
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
-              <span
-                style={{
-                  fontSize: '19px',
-                  lineHeight: '28px',
-                  fontWeight: '600',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                {'Applicable standards'}
-              </span>
-              <span style={{ flex: '1' }}></span>
-              <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                {v.stdCountLabel}
-              </span>
-            </div>
-            <div style={{ padding: '16px 20px' }}>
-              <p
-                style={{
-                  margin: '0 0 14px',
-                  fontSize: '15px',
-                  lineHeight: '22px',
-                  color: 'var(--text-secondary)',
-                  maxWidth: '68ch',
-                }}
-              >
-                {
-                  'Selected standards are loaded into the drafting set for this assessment. Only clauses from these documents can be cited in the generated report.'
-                }
-              </p>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px),1fr))',
-                  gap: '10px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '14px 20px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  background: 'var(--surface-sunken)',
                 }}
               >
-                {v.standards.map((s, index) => (
-                  <Fragment key={index}>
-                    <div
-                      style={{
-                        cursor: 'pointer',
-                        padding: '8px 10px',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '5px',
-                        transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-                      }}
-                      data-hoverable="true"
-                    >
-                      <Checkbox
-                        label={s.name}
-                        description={s.desc}
-                        checked={s.on}
-                        onChange={() => v.toggleStd(s.name)}
-                      ></Checkbox>
-                    </div>
-                  </Fragment>
-                ))}
+                <span
+                  style={{
+                    fontSize: '19px',
+                    lineHeight: '28px',
+                    fontWeight: '600',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {'Applicable standards'}
+                </span>
+                <span style={{ flex: '1' }}></span>
+                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                  {v.stdCountLabel}
+                </span>
+              </div>
+              <div style={{ padding: '16px 20px' }}>
+                <p
+                  style={{
+                    margin: '0 0 14px',
+                    fontSize: '15px',
+                    lineHeight: '22px',
+                    color: 'var(--text-secondary)',
+                    maxWidth: '68ch',
+                  }}
+                >
+                  {
+                    'Selected standards are loaded into the drafting set for this assessment. Only clauses from these documents can be cited in the generated report.'
+                  }
+                </p>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px),1fr))',
+                    gap: '10px 20px',
+                  }}
+                >
+                  {v.standards.map((s, index) => (
+                    <Fragment key={index}>
+                      <div
+                        style={{
+                          cursor: 'pointer',
+                          padding: '8px 10px',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '5px',
+                          transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
+                        }}
+                        data-hoverable="true"
+                      >
+                        <Checkbox
+                          label={s.name}
+                          description={s.desc}
+                          checked={s.on}
+                          onChange={() => v.toggleStd(s.name)}
+                        ></Checkbox>
+                      </div>
+                    </Fragment>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
           {/* An assessment keeps the engineer it was created for. */}
           {!v.isEditing && (
             <div
@@ -328,7 +331,7 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
             >
               {v.createLabel}
             </Button>
-            <Button variant="ghost" onClick={v.goDash}>
+            <Button variant="ghost" onClick={v.cancelForm}>
               {'Cancel'}
             </Button>
           </div>

@@ -179,9 +179,9 @@ export async function listAssignableEngineers(signal?: AbortSignal): Promise<Ass
 }
 
 // Creates the assessment and its site; the server allocates the reference.
-// Corrects an assessment's details (RV-10 AC10). The engineer and policy
-// reference are not part of it: both stay as the assessment was created.
-export type AssessmentDetails = Omit<NewAssessment, 'engineerId' | 'policyReference'>
+// Corrects an assessment's details (RV-10 AC10). The engineer, policy
+// reference and standards are not part of it: they stay as created.
+export type AssessmentDetails = Omit<NewAssessment, 'engineerId' | 'policyReference' | 'standards'>
 export async function updateAssessment(
   reference: string,
   details: AssessmentDetails,

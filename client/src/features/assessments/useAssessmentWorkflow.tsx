@@ -358,6 +358,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     })
   }
   // The workspace and capture both act on the assessment last opened from the list.
+  // A blank create form, preselecting the signed-in engineer.
+  function blankForm(): Partial<WorkflowState> {
+    return { cfEdit: null, cf: { ...structuredClone(initialState.cf), eng: session.user.id } }
+  }
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
   }
@@ -1168,11 +1172,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cfErr: false,
           cfServerError: null,
           // Coming from an edit, start a new assessment from a blank form.
-          ...(s.cfEdit && {
-            cfEdit: null,
-            cf: { ...structuredClone(initialState.cf), eng: session.user.id },
-          }),
+          ...(s.cfEdit && blankForm()),
         }),
+      // Cancel leaves an edit for the workspace it came from, and a new
+      // assessment for the work list.
+      cancelForm: () =>
+        setState(
+          s.cfEdit
+            ? { ...blankForm(), screen: 'assessment', tab: 'overview', cfServerError: null }
+            : { screen: 'dashboard' },
+        ),
       // Opens the form on this assessment's saved details (RV-10 AC10).
       canEditDetails: isMine && canCapture && !!targetRow?.record,
       goEditDetails: () => {
@@ -1297,6 +1306,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ? [
             { label: 'Report', value: openRow.id },
             { label: 'Site', value: openRow.site },
+            { label: 'Site address', value: openRow.record?.site.address ?? 'Not recorded' },
+            {
+              label: 'Jurisdiction',
+              value:
+                JURISDICTIONS.find((j) => j.value === openRow.record?.site.jurisdiction)?.label ??
+                openRow.record?.site.jurisdiction ??
+                'Not recorded',
+            },
             { label: 'Client', value: openRow.client },
             { label: 'Assessment type', value: openRow.type },
             { label: 'Status', value: openRow.status },
@@ -1784,12 +1801,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               surveyType: s.cf.survey,
               siteVisitDate: s.cf.date,
               reportDueDate: s.cf.due,
-              standards: s.cf.stds,
             })
             // The work list reloads only on the dashboard, so reload it here.
             const list = await listAssessments().catch(() => null)
             if (list) setServerRows(list.map(toRow))
-            setState({ cfBusy: false, cfEdit: null, screen: 'assessment' })
+            setState({ ...blankForm(), cfBusy: false, screen: 'assessment', tab: 'overview' })
             toast('Details saved for ' + reference + '.')
           } catch (error: unknown) {
             const problems = error instanceof GatewayError ? Object.values(error.fields) : []

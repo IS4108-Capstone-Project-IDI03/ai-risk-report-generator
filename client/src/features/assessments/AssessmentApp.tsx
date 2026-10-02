@@ -240,11 +240,6 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                               {'Restore'}
                             </Button>
                           )}
-                          {v.canEditDetails && (
-                            <Button variant="ghost" iconLeft="pencil" onClick={v.goEditDetails}>
-                              {'Edit details'}
-                            </Button>
-                          )}
                           {v.canArchive && (
                             <Button variant="ghost" iconLeft="archive" onClick={v.openArchive}>
                               {'Archive'}

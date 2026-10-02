@@ -86,10 +86,10 @@ export const newAssessmentSchema = assessmentDetails
   })
   .refine(dueOnOrAfterVisit, dueDateRule)
 
-// Request body for PUT /api/assessments/:reference. The engineer and the
-// policy reference are not part of it: both stay as the assessment was created.
+// Request body for PUT /api/assessments/:reference. The engineer, policy
+// reference and standards are not part of it: they stay as created.
 export const assessmentDetailsSchema = assessmentDetails
-  .omit({ policyReference: true })
+  .omit({ policyReference: true, standards: true })
   .refine(dueOnOrAfterVisit, dueDateRule)
 
 export type NewAssessment = z.infer<typeof newAssessmentSchema>
@@ -225,8 +225,8 @@ async function assignedAssessment(reference: string, user: SessionUser) {
 
 // Corrects an assessment's details and its site's (RV-10 AC10): only its
 // assigned engineer can, and not once it is archived, which keeps it read-only.
-// A date left empty is cleared. The engineer, policy reference and report
-// reference never change.
+// A date left empty is cleared. The engineer, policy reference, standards
+// and report reference never change.
 export async function updateAssessment(
   reference: string,
   input: AssessmentDetails,
@@ -253,7 +253,6 @@ export async function updateAssessment(
       $set: {
         client: input.client,
         surveyType: input.surveyType,
-        standards: input.standards,
         ...Object.fromEntries(Object.entries(optional).filter(([, value]) => value)),
       },
       ...(cleared.length && { $unset: Object.fromEntries(cleared.map((key) => [key, 1])) }),
