@@ -1,7 +1,10 @@
 import { Router } from 'express'
 import {
   InvalidCredentialsError,
+  InvalidResetTokenError,
   login,
+  requestPasswordReset,
+  resetPassword,
   revokeSession,
   TooManyAttemptsError,
 } from '../services/auth.service'
@@ -38,6 +41,36 @@ router.post('/logout', (req, res) => {
   if (token) revokeSession(token)
   res.clearCookie(SESSION_COOKIE)
   res.status(204).end()
+})
+
+// Always 200 regardless of whether the email is registered (AC6) — an
+// enumeration check can't tell the two cases apart from the response.
+router.post('/request-reset', async (req, res) => {
+  const { email } = req.body ?? {}
+  if (typeof email !== 'string') {
+    res.status(400).json({ error: 'Email is required.' })
+    return
+  }
+  await requestPasswordReset(email)
+  res.status(200).json({ message: 'If that email has an account, a reset link has been sent.' })
+})
+
+router.post('/reset', async (req, res) => {
+  const { token, password } = req.body ?? {}
+  if (typeof token !== 'string' || typeof password !== 'string') {
+    res.status(400).json({ error: 'Token and new password are required.' })
+    return
+  }
+  try {
+    await resetPassword(token, password)
+    res.status(200).json({ message: 'Password updated. Sign in with your new password.' })
+  } catch (error: unknown) {
+    if (error instanceof InvalidResetTokenError) {
+      res.status(400).json({ error: error.message })
+      return
+    }
+    throw error
+  }
 })
 
 // The signed-in user and what their role allows (F-05), so the client can

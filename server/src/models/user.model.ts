@@ -21,6 +21,10 @@ export interface IUser {
   active: boolean
   // bcrypt hash (F-04). Absent for accounts that predate sign-in.
   passwordHash?: string
+  // Password reset (F-06): sha256 of the raw token emailed to the user, plus
+  // its expiry. Cleared after use (single-use) or once it expires.
+  resetTokenHash?: string
+  resetTokenExpiresAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -36,6 +40,8 @@ const userSchema = new Schema<IUser>(
     office: { type: String, trim: true },
     active: { type: Boolean, required: true, default: true },
     passwordHash: { type: String, select: false },
+    resetTokenHash: { type: String, select: false },
+    resetTokenExpiresAt: { type: Date, select: false },
   },
   {
     timestamps: true,

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Button, Callout, Checkbox, Input, Tabs } from '../../design-system'
 import { GatewayError } from '../assessments/api'
-import { signIn as requestSignIn, type Session } from './api'
+import { signIn as requestSignIn, requestPasswordReset, resetPassword, type Session } from './api'
 import './sign-in.css'
 
 // Why a sign-in attempt failed. Wrong credentials always read the same, so the
@@ -25,6 +25,9 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetToken, setResetToken] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const requestAccess = mode === 'signup'
   function changeMode(value: string) {
     setMode(value)
@@ -75,6 +78,127 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
     setError('')
     setNotice(message)
   }
+
+  async function submitResetRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy || !resetEmail.trim()) return
+    setBusy(true)
+    setError('')
+    try {
+      await requestPasswordReset(resetEmail)
+      setMode('reset-confirm')
+      setNotice(
+        'If that email has an account, a reset link has been sent. Check the server logs for the token (this demo has no real email delivery yet).',
+      )
+    } catch {
+      setError('Something went wrong. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitResetConfirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy || !resetToken.trim() || !newPassword.trim()) return
+    setBusy(true)
+    setError('')
+    try {
+      await resetPassword(resetToken, newPassword)
+      setMode('signin')
+      setResetToken('')
+      setNewPassword('')
+      setNotice('Password updated. Sign in with your new password.')
+    } catch (failure: unknown) {
+      setError(
+        failure instanceof GatewayError ? failure.message : 'Something went wrong. Try again.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (mode === 'reset-request' || mode === 'reset-confirm') {
+    return (
+      <main className="sign-in">
+        <div className="sign-in-brand">
+          <strong>Marsh</strong>
+          <span>Risk Report Generator</span>
+        </div>
+        <section className="sign-in-card" aria-labelledby="sign-in-title">
+          <header>
+            <h1 id="sign-in-title">Reset your password</h1>
+            <p>
+              {mode === 'reset-request'
+                ? "Enter your work email and we'll send you a reset link."
+                : 'Enter the token from your reset email and choose a new password.'}
+            </p>
+          </header>
+          {error && (
+            <div role="alert">
+              <Callout tone="danger" title={error} />
+            </div>
+          )}
+          {notice && (
+            <div role="status">
+              <Callout tone="info" title={notice} />
+            </div>
+          )}
+          {mode === 'reset-request' ? (
+            <form noValidate onSubmit={submitResetRequest} className="sign-in-form">
+              <Input
+                label="Work email"
+                type="email"
+                placeholder="name@marsh.com"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                required
+                autoComplete="username"
+              />
+              <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+                {busy ? 'Sending…' : 'Send reset link'}
+              </Button>
+            </form>
+          ) : (
+            <form noValidate onSubmit={submitResetConfirm} className="sign-in-form">
+              <Input
+                label="Reset token"
+                placeholder="Paste the token from the email"
+                value={resetToken}
+                onChange={(e) => setResetToken(e.target.value)}
+                required
+              />
+              <Input
+                label="New password"
+                type="password"
+                placeholder="Enter a new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+              />
+              <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+                {busy ? 'Updating…' : 'Set new password'}
+              </Button>
+            </form>
+          )}
+          <p className="sign-in-switch">
+            <button
+              className="text-link"
+              type="button"
+              onClick={() => {
+                setMode('signin')
+                setError('')
+                setNotice('')
+              }}
+            >
+              Back to sign in
+            </button>
+          </p>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="sign-in">
       <div className="sign-in-brand">
@@ -178,9 +302,11 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
               <button
                 className="text-link"
                 type="button"
-                onClick={() =>
-                  unavailable('Password reset is not connected in this demo. No email was sent.')
-                }
+                onClick={() => {
+                  setError('')
+                  setNotice('')
+                  setMode('reset-request')
+                }}
               >
                 Reset password
               </button>

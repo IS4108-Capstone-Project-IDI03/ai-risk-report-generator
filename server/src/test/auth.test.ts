@@ -138,3 +138,93 @@ describe('GET /api/auth/me', () => {
     expect(res.body.user).toMatchObject({ role: 'risk_engineer', name: 'Jide Okafor' })
   })
 })
+
+// Captures the token the same way a real reset is read: off the console log
+// line, not an internal export — proves the thing you'll actually demo.
+async function requestResetAndCaptureToken(email: string) {
+  const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+  await request(app).post('/api/auth/request-reset').send({ email })
+  const line = spy.mock.calls
+    .map((call) => String(call[0]))
+    .find((l) => l.includes('[password reset]'))
+  spy.mockRestore()
+  return line?.match(/token: ([a-f0-9]+)/)?.[1]
+}
+
+describe('POST /api/auth/request-reset (F-06 AC6)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('responds identically whether or not the email is registered', async () => {
+    await seedUser({ email: 'reset@example.com' })
+    const known = await request(app)
+      .post('/api/auth/request-reset')
+      .send({ email: 'reset@example.com' })
+    const unknown = await request(app)
+      .post('/api/auth/request-reset')
+      .send({ email: 'nobody@example.com' })
+    expect(known.status).toBe(unknown.status)
+    expect(known.body).toEqual(unknown.body)
+  })
+
+  it('only actually logs/sends a token for a registered email', async () => {
+    await seedUser({ email: 'reset2@example.com' })
+    expect(await requestResetAndCaptureToken('reset2@example.com')).toBeTruthy()
+    expect(await requestResetAndCaptureToken('nobody2@example.com')).toBeUndefined()
+  })
+})
+
+describe('POST /api/auth/reset (F-06)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('changes the password; old password fails, new one works', async () => {
+    await seedUser({ email: 'reset3@example.com' })
+    const token = await requestResetAndCaptureToken('reset3@example.com')
+
+    const resetRes = await request(app)
+      .post('/api/auth/reset')
+      .send({ token, password: 'a whole new password' })
+    expect(resetRes.status).toBe(200)
+
+    const oldLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'reset3@example.com', password: 'correct horse' })
+    expect(oldLogin.status).toBe(401)
+
+    const newLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'reset3@example.com', password: 'a whole new password' })
+    expect(newLogin.status).toBe(200)
+  })
+
+  it('rejects an unknown or already-used token', async () => {
+    const res = await request(app)
+      .post('/api/auth/reset')
+      .send({ token: 'not-a-real-token', password: 'whatever12345' })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects a token twice (single-use)', async () => {
+    await seedUser({ email: 'reset4@example.com' })
+    const token = await requestResetAndCaptureToken('reset4@example.com')
+
+    const first = await request(app)
+      .post('/api/auth/reset')
+      .send({ token, password: 'first new password' })
+    expect(first.status).toBe(200)
+
+    const second = await request(app)
+      .post('/api/auth/reset')
+      .send({ token, password: 'second new password' })
+    expect(second.status).toBe(400)
+  })
+
+  it('rejects an expired token', async () => {
+    await seedUser({ email: 'reset5@example.com' })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const token = await requestResetAndCaptureToken('reset5@example.com')
+
+    vi.advanceTimersByTime(31 * 60 * 1000) // past the 30-minute expiry
+    const res = await request(app).post('/api/auth/reset').send({ token, password: 'too late now' })
+    expect(res.status).toBe(400)
+  })
+})
