@@ -1,0 +1,24 @@
+services: 
+# To enable GPU support, need to have a GPU and add to devices, then run 
+# docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# if no GPU, just run docker compose up -d
+
+# To check local GLM-OCR's gpu usage (Or other models as more is added), run 
+# docker compose exec ollama ollama ps
+# If nothing is shown, run an ingestion job that requires OCR, then run the command again to see the GPU usage.
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  ingestion-worker:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
