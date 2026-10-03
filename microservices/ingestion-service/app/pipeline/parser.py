@@ -221,7 +221,7 @@ def _converter() -> DocumentConverter:
     """
     pipeline_options = PdfPipelineOptions(
         do_ocr=False,
-        do_table_structure=True,
+        do_table_structure=False,
         document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
         do_formula_enrichment=False,  # Time taken significantly increases. page 47, 52s -> 10min
     )
