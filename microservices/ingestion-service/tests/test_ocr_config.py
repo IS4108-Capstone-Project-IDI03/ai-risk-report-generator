@@ -24,7 +24,7 @@ verify every branch of ``get_ocr_options()`` without touching real hardware:
 
 Integration test
 ----------------
-Parses ``tests/test_files/unextractable/ttt.pdf`` using the OCR engine that
+Parses ``tests/test_files/unextractable/NFPA_2001.pdf`` using the OCR engine that
 ``get_ocr_options()`` selects for the *current* environment. The file is
 intentionally unparsable, so the goal is not to get text out — it is to confirm
 that the wiring is correct: ``parse()`` initialises without error and raises
@@ -54,7 +54,7 @@ from app.pipeline.parser import parse as _real_parse
 # purpose of this test is specifically to exercise OCR config wiring against a
 # file that triggers UnparsableDocumentError.
 _UNEXTRACTABLE_FIXTURE = (
-    Path(__file__).parent / "test_files" / "unextractable" / "ttt.pdf"
+    Path(__file__).parent / "test_files" / "unextractable" / "NFPA_2001.pdf"
 )
 
 

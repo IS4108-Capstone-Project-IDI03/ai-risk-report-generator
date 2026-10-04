@@ -33,7 +33,7 @@ from docling_core.types.doc import (
 )
 
 from app.pipeline.errors import UnparsableDocumentError
-from app.pipeline.ocr_config import get_ocr_options, is_gpu_enabled
+from app.pipeline.ocr_config import get_ocr_options
 
 # Labels whose text is body content we want to keep and chunk. Page
 # headers/footers and captions are deliberately excluded from body text.
@@ -220,10 +220,9 @@ def _converter() -> DocumentConverter:
     overlay is active (``GPU_ENABLED=true``). See ``ocr_config.py``.
     """
     ocr_options, do_formula_enrichment = get_ocr_options()
-    gpu_enabled = is_gpu_enabled()
 
     pipeline_options = PdfPipelineOptions(
-        do_ocr=gpu_enabled,
+        do_ocr=True,
         do_table_structure=False,
         document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
         do_formula_enrichment=do_formula_enrichment,
