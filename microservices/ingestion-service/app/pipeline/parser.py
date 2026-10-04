@@ -6,7 +6,6 @@ whose items we iterate in reading order, splitting them by type:
 - text  -> `TextBlock`s that continue through the pipeline (anonymise -> chunk
   -> embed). Each block keeps its heading `section_path` and PDF `page`
   (IN-02: section structure + source page location).
-- tables -> captured with page/section and passed through unprocessed (Todo for later stories).
 - images -> captured with page/section and passed through unprocessed (Todo for later stories).
 
 If Docling cannot parse the document we raise `UnparsableDocumentError`, which a
@@ -221,7 +220,7 @@ def _converter() -> DocumentConverter:
     """
     pipeline_options = PdfPipelineOptions(
         do_ocr=False,
-        do_table_structure=True,
+        do_table_structure=False,
         document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
         do_formula_enrichment=False,  # Time taken significantly increases. page 47, 52s -> 10min
     )
