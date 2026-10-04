@@ -142,6 +142,16 @@ admins have (403 otherwise). An admin cannot change their own role or
 deactivate themselves (400 against `fields.role` or `fields.active`), so the
 last admin cannot lock everyone out.
 
+`POST /api/users` creates an account (F-08) from `name`, `email` and `role`,
+with optional `jobTitle`, `phone` and `office`, validated as for `PUT`. It is
+always saved active, and the gateway assigns the next unused `staffId` from
+the `staff` counter (one already in use, e.g. a seeded `MRE-0001`, is skipped);
+any `staffId` or `active` in the body is ignored. 201 returns the account;
+invalid input is 400 `{ error, fields }` and an email another account uses is
+409 with `fields.email`, and neither saves anything. A new account has no
+`passwordHash`: its owner sets one through the password reset (F-06), then
+signs in.
+
 ## Role permissions (F-05)
 
 Every `/api` route except `/api/health` and `/api/auth/login|logout` needs a

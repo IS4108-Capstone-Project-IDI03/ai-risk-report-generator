@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { USER_ROLES, UserModel, type IUser } from '../models/user.model'
-import { isDuplicateKeyError } from './mongo-errors'
+import { duplicateKeyField, isDuplicateKeyError } from './mongo-errors'
+import { nextInSequence } from './sequence.service'
 
 export class UserNotFoundError extends Error {
   constructor() {
@@ -71,6 +72,12 @@ export const userProfileSchema = z.object({
 
 export type UserProfile = z.infer<typeof userProfileSchema>
 
+// Request body for POST /api/users (F-08): the same fields, less `active`,
+// since a new account always starts active. The staff ID is assigned.
+export const newUserSchema = userProfileSchema.omit({ active: true })
+
+export type NewUser = z.infer<typeof newUserSchema>
+
 export type UserDto = {
   id: string
   staffId: string
@@ -94,6 +101,24 @@ export async function getUser(id: string): Promise<UserDto> {
   const user = isObjectId(id) ? await UserModel.findById(id).lean() : null
   if (!user) throw new UserNotFoundError()
   return toDto(user)
+}
+
+// Creates an active account with the next free staff ID, e.g. MRE-0005, and
+// returns it. It has no password yet: its owner sets one with the reset
+// link on the sign-in screen (F-06), then signs in to their role's screens.
+export async function createUser(input: NewUser): Promise<UserDto> {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const staffId = `MRE-${String(await nextInSequence('staff')).padStart(4, '0')}`
+    try {
+      const user = await UserModel.create({ ...input, staffId, active: true })
+      return toDto(user.toObject())
+    } catch (error: unknown) {
+      if (duplicateKeyField(error) === 'email') throw new UserEmailTakenError()
+      // A staff ID already in use, e.g. a seeded account: take the next one.
+      if (!isDuplicateKeyError(error)) throw error
+    }
+  }
+  throw new Error('No unused staff ID found.')
 }
 
 // Replaces the editable profile fields and returns the saved account.

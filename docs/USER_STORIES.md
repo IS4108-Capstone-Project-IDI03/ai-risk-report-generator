@@ -93,6 +93,17 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given an authenticated session, when the user selects the logout option, then the session is terminated and the user is redirected to the login screen.
   </details>
 
+- [ ] **F-08** — Create new employee accounts (knowledge admin, deps: F-03, F-05)
+  <details><summary>Goal / AC</summary>
+
+  Goal: add a team member's account (name, work email, role and optional profile details) from the User accounts screen, so account records stay clean and unique and assessments and other records can reliably refer to them.
+
+  1. Given a knowledge admin on the User accounts screen, when they submit a new account with a name, work email and role, then the account is saved as active in the account list. Job title, phone and office are optional.
+  2. Given a required field is missing or invalid (e.g. a malformed email or an unknown role), when the account is submitted, then each invalid field shows its own error and no account is created.
+  3. Given another account already uses the email, when the account is submitted, then the email field reports the conflict and no account is created.
+  4. Given a new account has been created, when the employee signs in with that email, then they land on the screens their assigned role permits.
+  </details>
+
 ## E2 — Ingestion & Processing
 
 - [x] **IN-01** — Upload knowledge base document(s) (knowledge admin, Must, 5 pts, deps: none, Sprint 1)
