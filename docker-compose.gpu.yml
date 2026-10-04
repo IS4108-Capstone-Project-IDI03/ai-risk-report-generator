@@ -14,7 +14,25 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+
+  ingestion-service:
+    environment:
+      # Signals to the ingestion pipeline that GPU support is active.
+      # ocr_config.py reads this to select NemotronOcrOptions (fastest with GPU)
+      # instead of the CPU fallback (RapidOCR).
+      GPU_ENABLED: "true"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
   ingestion-worker:
+    environment:
+      # Same signal for the background worker process.
+      GPU_ENABLED: "true"
     deploy:
       resources:
         reservations:
