@@ -170,3 +170,13 @@
   gap: 10px;
   padding: 20px;
 }
+.accounts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+.accounts-toolbar .accounts-intro {
+  flex: 1 1 320px;
+}

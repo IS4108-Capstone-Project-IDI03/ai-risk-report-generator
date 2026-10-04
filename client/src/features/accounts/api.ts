@@ -1,4 +1,4 @@
-// Gateway (S2) calls for user account profiles (F-03).
+// Gateway (S2) calls for user account profiles (F-03) and new accounts (F-08).
 import { GatewayError, reportSessionEnded } from '../assessments/api'
 
 // The two agreed roles (F-05). What each may do comes from the gateway with
@@ -40,6 +40,11 @@ export type UserProfile = {
   active: boolean
 }
 
+// A new account (F-08): no staff ID (the gateway assigns one) and no active
+// flag (it starts active). Role is '' until one is chosen; optional fields
+// are sent as '' when left empty.
+export type NewUserAccount = Omit<UserProfile, 'role' | 'active'> & { role: UserRole | '' }
+
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
@@ -75,5 +80,15 @@ export function updateUser(id: string, profile: UserProfile): Promise<UserAccoun
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profile),
+  })
+}
+
+// Creates an active account and returns it with its staff ID. Rejects with
+// the gateway's per-field problems (400), or an email already in use (409).
+export function createUser(account: NewUserAccount): Promise<UserAccount> {
+  return request<UserAccount>('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(account),
   })
 }
