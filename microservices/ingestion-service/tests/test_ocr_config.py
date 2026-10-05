@@ -195,7 +195,7 @@ def test_ocr_mode_is_full_page_on_all_engines(monkeypatch):
         _patch(monkeypatch, system, gpu)
         ocr_options, _ = get_ocr_options()
         assert ocr_options.mode == OcrMode.FULL_PAGE, (
-            f"Expected FULL_PAGE for system={system}, GPU_ENABLED={gpu}, " f"got {ocr_options.mode}"
+            f"Expected FULL_PAGE for system={system}, GPU_ENABLED={gpu}, got {ocr_options.mode}"
         )
 
 
