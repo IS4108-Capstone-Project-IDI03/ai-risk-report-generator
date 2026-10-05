@@ -2,6 +2,7 @@ import { Readable } from 'stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
+import { IngestionJobModel } from '../models/ingestion-job.model'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole } from './auth-test-helpers'
 
@@ -279,6 +280,76 @@ describe('GET /api/knowledge-documents', () => {
       'processing',
       'queued',
     ])
+  })
+
+  // Seeds an ingestion_jobs row for a document, as the worker's reporter would.
+  async function seedJob(documentId: string, overrides: Record<string, unknown> = {}) {
+    await IngestionJobModel.create({
+      documentId,
+      currentStage: 'chunking',
+      isOcr: true,
+      chunksCompleted: 42,
+      chunksTotal: null,
+      stageLog: [{ stage: 'parsing', startedAt: new Date(Date.now() - 5000), durationMs: 2000 }],
+      currentStageStartedAt: new Date(Date.now() - 1000),
+      startedAt: new Date(Date.now() - 5000),
+      updatedAt: new Date(),
+      ...overrides,
+    })
+  }
+
+  // Finds one listed document by title.
+  const find = (body: { title: string }[], title: string) => body.find((d) => d.title === title)
+
+  it('includes progress for a processing document with a seeded ingestion job', async () => {
+    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'With progress' })
+    await KnowledgeDocumentModel.updateOne({ _id: doc.id }, { status: 'processing' })
+    await seedJob(doc.id)
+
+    const { body } = await api.get('/api/knowledge-documents')
+    const listed = find(body, 'With progress')
+
+    expect(listed.progress).toMatchObject({
+      currentStage: 'chunking',
+      isOcr: true,
+      chunksCompleted: 42,
+      chunksTotal: null,
+    })
+    expect(listed.progress.elapsedMs).toBeGreaterThan(0)
+    expect(listed.progress.currentStageElapsedMs).toBeGreaterThan(0)
+    expect(listed.progress.stageLog[0]).toMatchObject({ stage: 'parsing', durationMs: 2000 })
+    // stageLog dates are serialised as ISO strings.
+    expect(typeof listed.progress.stageLog[0].startedAt).toBe('string')
+  })
+
+  it('gives a queued document no progress field', async () => {
+    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'Queued doc' })
+    // Left as 'queued'; a job could exist, but progress is only read for processing.
+    await seedJob(doc.id)
+
+    const { body } = await api.get('/api/knowledge-documents')
+    expect(find(body, 'Queued doc').progress).toBeUndefined()
+  })
+
+  it('gives a complete document no progress field', async () => {
+    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'Complete doc' })
+    await KnowledgeDocumentModel.updateOne(
+      { _id: doc.id },
+      { status: 'complete', finishedAt: new Date() },
+    )
+    await seedJob(doc.id, { currentStage: 'complete' })
+
+    const { body } = await api.get('/api/knowledge-documents')
+    expect(find(body, 'Complete doc').progress).toBeUndefined()
+  })
+
+  it('gives a processing document with no matching job no progress field', async () => {
+    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'No job yet' })
+    await KnowledgeDocumentModel.updateOne({ _id: doc.id }, { status: 'processing' })
+    // No seedJob: the worker has not written its first stage yet.
+
+    const { body } = await api.get('/api/knowledge-documents')
+    expect(find(body, 'No job yet').progress).toBeUndefined()
   })
 })
 
