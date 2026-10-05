@@ -1095,6 +1095,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       routeBlocked,
       canEdit,
       canDraft: can('reports:generate', session),
+      // A saved assessment opens its real sections 7-12 on the Generate tab;
+      // the demo assessment keeps the sample generation run (GN-01).
+      liveReference: openRow?.persisted ? openRow.id : null,
+      canDraftSections: isMine && canCapture && can('reports:generate', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
       // Leaves a blocked screen for the role's home, or a blocked tab for the
@@ -1347,6 +1351,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 openRow.record?.site.jurisdiction ??
                 'Not recorded',
             },
+            { label: 'Facility type', value: openRow.record?.site.facilityType ?? 'Not recorded' },
             { label: 'Client', value: openRow.client },
             { label: 'Assessment type', value: openRow.type },
             { label: 'Status', value: openRow.status },

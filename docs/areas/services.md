@@ -82,3 +82,52 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 4. Retrieval skips withdrawn passages: the RAG service's `retrieve()` always
    excludes `status: withdrawn`, so `/retrieve` and `/generate` both skip them.
    Reinstating brings them back without uploading again.
+
+## Report section drafting (S4, GN-01)
+
+1. The client asks the gateway to draft one of sections 7-12:
+   `POST /api/assessments/:reference/sections/:sectionId/draft`.
+2. The gateway checks the request:
+   - the user is the assigned engineer;
+   - the assessment is not archived.
+
+   Capture need not be complete: a section can be drafted, and drafted again,
+   whenever it has enough evidence.
+3. The gateway gets the section's COPE categories and minimum count from S4's
+   `GET /sections`. It loads the assessment's categorised observations
+   (uncategorised ones stay out, CP-02 AC4) and refuses (409) while any of
+   their recordings is still transcribing.
+4. It sends the usable ones to S4's `POST /sections/draft`. An observation is
+   usable when it has a note or a finished transcript. Only those filed under
+   the section's own categories count towards the minimum; with too few, it
+   refuses with 422 and gives the count.
+   - S4 puts the section's own observations in `<observations>` as the main
+     evidence and the rest in `<other_observations>` as backup, used only
+     where they concern the section.
+   - Only the section's own observations steer the standards search.
+5. S4's orchestrator (`orchestrator.draft`) retrieves passages in one batched
+   Cohere call:
+   - for each of the section's own observations, searched by its own words,
+     up to 4 standard passages (`fm_standard` or `nfpa_standard`) within cosine
+     distance 0.60, filtered to the site's jurisdiction and facility type; at
+     most 12 per section, each observation's nearest first;
+   - once per section, past-report passages (`marsh_report`), filtered by
+     country only, keeping up to 4 whose `headings` trail contains the section
+     title.
+6. `generator.draft_section` builds the prompt from the section's subsections
+   (`sections.json`), the drafting guide (`drafting-skill.md`: voice, house
+   conventions, evidence rules), and the evidence labelled `O1`, `C1`, `P1`,
+   which are mapped back to full IDs afterwards.
+7. `llm.complete` calls the provider named by `LLM_PROVIDER`. Only Anthropic
+   is implemented. It uses structured output, the server-side refusal
+   fallback, and `LLM_EFFORT`.
+8. S4 lays the draft out in the template's order and leaves tables empty.
+   `checker.check_citations` marks each statement `supported` only if its
+   citations are all IDs it was given and none is `P:`.
+9. S4 returns the draft, up to three questions for the engineer, the cited
+   standard passages (with pages and headings), the guardrail result and the
+   provenance. A refusal or a
+   cut-off answer is a 502 with `detail`.
+10. The gateway saves the draft in `report_sections` (see
+    [database](database.md#report-sections-gn-01)). Any S4 failure reaches
+    the client as a 503 with the reason.

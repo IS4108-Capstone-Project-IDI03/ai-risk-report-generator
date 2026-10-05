@@ -1,9 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from app.orchestrator.orchestrator import run
+from app.generation.generator import TEMPLATE
+from app.generation.llm import GenerationFailed
+from app.orchestrator.orchestrator import draft, run
 from app.retrieval.retriever import retrieve
 
 router = APIRouter()
@@ -27,6 +29,33 @@ class RetrieveRequest(BaseModel):
     filters: Filters = Filters()
 
 
+class Assessment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reference: str
+    jurisdiction: str
+    facility_type: str
+    standards: list[str] = []
+
+
+# One site observation as the gateway sends it, with only its finished voice transcripts.
+class Observation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    COPE_dimension: str
+    note: str | None = None
+    transcripts: list[str] = []
+    severity: str | None = None
+    location: str | None = None
+    standard: str | None = None
+
+
+class DraftSectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    section_id: str
+    assessment: Assessment
+    observations: list[Observation] = Field(min_length=1)
+
+
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "rag"}
@@ -41,3 +70,29 @@ def generate_report(request: GenerateRequest) -> dict:
 def retrieve_chunks(request: RetrieveRequest) -> dict:
     # Calls the retriever directly — used by the evaluation harness.
     return {"results": retrieve(request.query, request.filters.model_dump(exclude_none=True))}
+
+
+@router.get("/sections")
+def list_sections() -> dict:
+    # The template's sections and what each needs, so the gateway doesn't keep its own copy.
+    return {
+        "sections": [
+            {
+                "id": section_id,
+                "title": section["title"],
+                "cope_dimensions": section["cope_dimensions"],
+                "min_observations": section["min_observations"],
+            }
+            for section_id, section in TEMPLATE["sections"].items()
+        ],
+    }
+
+
+@router.post("/sections/draft")
+def draft_section(request: DraftSectionRequest) -> dict:
+    if request.section_id not in TEMPLATE["sections"]:
+        raise HTTPException(404, f"Section {request.section_id} is not in the report template")
+    try:
+        return draft(request.section_id, request.assessment, request.observations)
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error

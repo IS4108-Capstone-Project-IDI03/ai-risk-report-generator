@@ -298,3 +298,66 @@ export async function addLocation(
 export async function removeLocation(reference: string, id: string): Promise<void> {
   await request<void>('DELETE', `${locationsPath(reference)}/${encodeURIComponent(id)}`)
 }
+
+// One generated draft of a report section (GN-01). A statement cites
+// observations (`O:<id>`) and standard passages (`C:<chunk id>`); `supported`
+// is false when one of its citations does not resolve.
+export type SectionDraft = {
+  id: string
+  sectionId: string
+  title: string
+  subsections: {
+    heading: string
+    kind: 'narrative' | 'fields' | 'table'
+    statements: { text: string; citations: string[]; supported: boolean }[]
+  }[]
+  // The cited standard passages, by citation ID.
+  sources: Record<
+    string,
+    { text: string; doc_id?: string; headings?: string[]; page_start?: number; page_end?: number }
+  >
+  // Up to three questions for the engineer about gaps the evidence leaves.
+  questions: string[]
+  guardrail: { passed: boolean; unsupported_count: number }
+  provenance: {
+    provider: string
+    model: string
+    effort: string
+    prompt_version: string
+    template_version: string
+    generated_at: string
+  }
+  createdAt: string
+}
+
+export type ReportSection = {
+  id: string
+  title: string
+  copeDimensions: string[]
+  minObservations: number
+  usableObservations: number
+  latestDraft: SectionDraft | null
+  // Observations added or changed since the newest draft; redrafting takes them in.
+  changesSinceDraft: number
+}
+
+const sectionsPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/sections`
+
+// Sections 7-12, each with its usable evidence and newest draft.
+export async function listSections(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<ReportSection[]> {
+  return (await request<ReportSection[]>('GET', sectionsPath(reference), undefined, signal)).data
+}
+
+// Drafts one section from the assessment's observations; the gateway saves it.
+export async function draftSection(reference: string, sectionId: string): Promise<SectionDraft> {
+  return (
+    await request<SectionDraft>(
+      'POST',
+      `${sectionsPath(reference)}/${encodeURIComponent(sectionId)}/draft`,
+    )
+  ).data
+}

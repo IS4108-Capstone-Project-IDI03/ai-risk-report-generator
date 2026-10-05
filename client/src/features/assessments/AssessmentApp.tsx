@@ -7,6 +7,8 @@ import { SiteObservation } from './screens/SiteObservation'
 import { Overview } from './screens/Overview'
 import { Observations } from './screens/Observations'
 import { Generation } from './screens/Generation'
+import { SectionDrafts } from './screens/SectionDrafts'
+import { ReviewDrafts } from './screens/ReviewDrafts'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
 import { UserAccounts } from '../accounts/UserAccounts'
@@ -314,9 +316,29 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
 
                     {v.isObservations && <Observations v={v} />}
 
-                    {v.isGenerate && <Generation v={v} />}
+                    {v.isGenerate &&
+                      (v.liveReference ? (
+                        <SectionDrafts
+                          reference={v.liveReference}
+                          canDraft={v.canDraftSections}
+                          onCapture={v.canCapture ? v.goField : undefined}
+                          onReview={v.goReview}
+                        />
+                      ) : (
+                        <Generation v={v} />
+                      ))}
 
-                    {v.isReview && <Review v={v} />}
+                    {v.isReview &&
+                      (v.liveReference ? (
+                        <ReviewDrafts
+                          reference={v.liveReference}
+                          wrapStyle={v.reviewWrapStyle}
+                          railStyle={v.reviewRailStyle}
+                          onGenerate={() => v.setTab('generate')}
+                        />
+                      ) : (
+                        <Review v={v} />
+                      ))}
 
                     {v.isExport && <ValidationExport v={v} />}
                   </>

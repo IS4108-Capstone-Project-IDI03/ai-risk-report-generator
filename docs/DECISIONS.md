@@ -181,6 +181,123 @@ opens. This changes only what the browser offers: the gateway still accepts
 capture on any assessment from any risk engineer who knows its reference.
 Stories: CP-01, RV-10.
 
+## 2026-10-03 — Report sections 7-12 are drafted from a versioned template, with checked citations
+
+Chose: Marsh's Global PRE Report Template v2.0 (Feb 2026) is read once into
+`rag-service/app/generation/sections.json`. It lists the technical sections
+by their template numbers, 7 (Construction) to 12 (Business Interruption),
+which GN-01 calls sections 6-12. Section 6 in v2.0, Management Programs, is
+left out. Each entry has its subsections in order, the COPE categories it
+draws observations from, and the minimum usable observations. Its `version`
+is saved with every draft. The writing conventions come from
+`drafting-skill.md`, our version of Marsh's PRE drafting skill, loaded into
+the prompt (prompt `gn01-v2`). It sets the voice (engineering before
+compliance, no recommendations), the house conventions (Singapore English,
+observed versus reported, units), and up to three questions for the engineer
+returned with each draft. Sections 7-12 state findings only, as Marsh's own
+reports do: what a control does or is for, and classifications that follow
+directly from the evidence, are allowed; sentences on what a condition may
+lead to are not. Drafts that were allowed such sentences when a standard
+supported them wrote them without one (prompt gn01-v2, 4 Oct 2026), and the
+citation check cannot tell them from findings. Judgement on significance
+belongs in Sections 3 and 4.
+The gateway loads the assessment's observations and sends every categorised
+one with a note or a finished transcript. Observations filed under the
+section's own categories are its main evidence: they alone decide whether
+there is enough to draft, and they alone steer the standards search. Those
+under other categories go into the prompt as backup, for the model to use
+only where they directly concern the section, since one finding can belong
+in several sections. Uncategorised observations stay out (CP-02 AC4). S4 then:
+1. retrieves standard passages (`fm_standard`, `nfpa_standard`) for each
+   subsection, and past-report passages under the same section heading;
+2. has the LLM return structured JSON, each statement listing the IDs it
+   cites: `O:<observation id>`, `C:<chunk id>`, or `P:<chunk id>`;
+3. lays the draft out in the template's order, whatever order the model used;
+4. marks a statement unsupported if it cites nothing, or cites an ID it was
+   not given.
+
+Past-report passages (`P:`) are wording and precedent only, never citable,
+since they describe other sites. Table subsections (measured values) are not
+drafted; GN-03 fills them. The gateway saves each draft as a new
+`report_sections` document with its provider, model, effort, prompt version
+and template version. S4 stores nothing. The model is Claude Opus 5.5 at `high` effort
+(`LLM_MODEL`, `LLM_EFFORT`), to be raised to `xhigh` only if comparing drafts
+of every section shows it is better.
+
+Rejected:
+- Free-text generation with citations parsed out of prose: the IDs would have
+  to be found in the text, and a missing one would go unnoticed.
+- Building the template from retrieved past-report headings at request time:
+  it depends on Chroma's contents, and the past reports number their sections
+  differently from v2.0.
+- Letting the model decide the section's structure: AC5 needs it fixed.
+- Sending only the section's own category: a finding filed under Protection
+  could never reach Occupancy.
+- Sending every observation with no main evidence: the engineer's category
+  would stop meaning anything, and a per-section evidence check would be
+  impossible.
+- Multi-category tags on observations: these would change CP-02 and CP-06,
+  which other teammates own.
+
+Reason: GN-01 needs every statement traceable to an observation or a source
+passage (AC3, AC4), the template's structure (AC5), and a record of the
+configuration that wrote it (AC7). Checking whether a cited source actually
+supports its statement is GN-02.
+
+Stories: GN-01.
+
+## 2026-10-03 — CP-14 dropped: drafting needs no completed capture, and each draft keeps its evidence
+
+Chose: the team dropped CP-14 (complete a site assessment) as redundant. GN-01
+therefore no longer requires a `ready_for_generation` capture session. A
+section can be drafted, and drafted again, whenever it has enough evidence, as
+long as the assessment is not archived and no recording is still being
+transcribed. The two things CP-14 gave that still matter now live with each
+draft:
+- `report_sections.evidence` keeps the observations as the draft was given
+  them, the snapshot CP-14 AC2 and AC4 asked for, scoped to what that draft
+  used.
+- `GET /sections` counts `changesSinceDraft`: observations added or changed
+  since the newest draft. The screen asks the engineer to redraft to include
+  them.
+
+Rejected:
+- Keeping the session gate. Nothing sets `ready_for_generation` without
+  CP-14, and simply opening Site observation starts a new active session,
+  which blocked drafting again.
+- A separate assessment-wide snapshot. Each draft holding its own evidence is
+  smaller, and it is the evidence a reviewer checks citations against.
+
+Reason: an engineer should be able to draft early and redraft as evidence
+comes in, while every draft stays traceable to what it was written from.
+`ready_for_generation` and the "Ready to generate" status are now unused.
+
+Stories: GN-01, CP-14 (dropped).
+
+## 2026-10-05 — The LLM judge's pass mark is weighted by the cost of each error
+
+Chose: a draft passes AC13 when its scores, averaged over two judge runs, are
+at least 4.0 for groundedness and no invention, 3.5 for structure and
+coverage, and 3.0 for conventions, with a mean of at least 4.0
+(`eval/judge_sections.py`, `PASS_FLOORS`). Each criterion starts at 5 and
+loses 1 per major issue and 0.5 per minor one, so 4.0 allows one major issue.
+
+Rejected:
+- A flat 4.0. Marsh's own report text scores 1.0-3.0 on conventions against
+  our drafting guide, so the bar would fail Marsh's real reports and measure
+  how our style list differs from Marsh's, not draft quality.
+- A flat 3.0. It allows two major issues per criterion, so a section with two
+  fabricated facts would pass.
+
+Reason: unsupported or invented statements mislead an insurer and read
+plausibly in review, so they get the strictest floor. Misplaced or missed
+points are visible to the reviewing engineer. Style slips are cosmetic, and
+the judge is least consistent on them (the same draft got 4 and then 2
+convention issues). Two runs are averaged because scores vary by about 0.5
+between runs. Move to a flat 4.0 once Marsh confirms the drafting guide's
+conventions.
+
+Stories: GN-01 (AC13).
 ## 2026-10-04 — A new account sets its first password through the reset
 
 Chose: a knowledge admin creates an account with no password, and its owner

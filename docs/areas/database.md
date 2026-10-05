@@ -1,6 +1,6 @@
 # Storage and retrieval
 
-- MongoDB stores application records: sites, assessments, capture sessions, observations and user accounts today; document/report records are planned.
+- MongoDB stores application records: sites, assessments, capture sessions, observations, report section drafts and user accounts.
 - AWS S3 stores original uploaded files.
 - Chroma stores anonymised chunk text, vectors, and citation/filter metadata. Chroma replaces the planned Atlas Vector Search role.
 
@@ -215,8 +215,10 @@ observation stays out of drafting until it is categorised by editing its tags.
 The category, severity, location and standard are the observation's tags
 (CP-06). `PATCH /api/observations/:id` changes any of them in place, validated
 against the same values as capture, and leaves the note, recordings and capture
-time as they are. Nothing keeps the previous tags: no draft cites an observation
-yet, and corrections that keep the prior version are CP-08. There is no zone
+time as they are. Nothing keeps the previous tags, and corrections that keep the
+prior version are CP-08. Report section drafts now cite observations by `_id`,
+so a citation still resolves after a tag edit, and each draft keeps the
+observations as it was given them in its `evidence`. There is no zone
 field: the location's `name` is its zone and its `floor` the floor, so choosing
 a location tags both. The Observations tab filters by category, severity,
 location and floor in the browser, like the dashboard.
@@ -245,6 +247,45 @@ capture session `active`.
 | `PATCH /api/observations/:id` | Changes the tags: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations) and `standard` (100 characters; `null` or `''` removes it). A tag left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when no tag is sent) / 404 |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
+
+## Report sections (GN-01)
+
+`report_sections` holds one document per generated draft of a report section
+(7-12). Drafting the same section again adds a new document, so earlier drafts
+are kept; the newest is current. Each document has:
+
+- `assessment` and `sectionId` (`'7'`), and the template's `title`.
+- `subsections`, in the template's order. Each has a `heading` and a `kind`
+  (`narrative`, `fields` or `table`). Tables are left empty for GN-03 to fill.
+- `statements`, each with its `text`, `citations` and `supported`. A citation
+  is `O:<observation _id>` or `C:<chunk id>`. `supported` is false when a
+  citation does not resolve to evidence the draft was given.
+- `sources`: the cited standard passages by citation ID, with their text,
+  `doc_id`, `headings` and `page_start`/`page_end`.
+- `questions`: up to three questions for the engineer about gaps the evidence
+  leaves. They are not part of the report.
+- `evidence`: the observations the draft was given, as they were then (`id`,
+  `COPE_dimension`, `note`, `transcripts`, `severity`, `location`,
+  `standard`). A later edit to an observation does not change it, so a
+  citation can always be checked against what was drafted from. This stands in
+  for CP-14's snapshot, which the team dropped.
+- `guardrail`: `{ passed, unsupported_count }`.
+- `provenance`: `provider`, `model`, `effort`, `prompt_version`,
+  `template_version`, `generated_at` (AC7).
+- `createdBy`, the engineer's user `_id`.
+- `metadata` with the five required fields:
+  - `source_type: 'report_section'`;
+  - `jurisdiction` and `facility_type` from the site;
+  - `COPE_dimension`: the section's one category, or `all` when it draws on
+    several (section 12);
+  - `effective_date`: when it was drafted.
+
+The first draft sets the assessment's `reportStatus` to `draft`.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (or `null`) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks or holds in an older form, which a redraft would take in. 404, or 503 when S4 cannot be reached. |
+| `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
 
 ## Knowledge documents (IN-01, KB-01)
 

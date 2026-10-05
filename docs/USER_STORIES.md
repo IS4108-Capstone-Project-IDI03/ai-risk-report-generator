@@ -470,18 +470,26 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E6 — Report Generation & Guardrails
 
-- [ ] **GN-01** — Generate cited technical report section (section 6-12) (risk engineer, Must, 8 pts, deps: CP-14, RT-01, Sprint 3)
+- [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: generate a selected technical section from captured site evidence, so a useful first draft in Marsh's report format can be reviewed.
 
-  1. Given a selected section within Sections 6–12 has sufficient captured evidence, when I request its first draft, then that section's draft is created.
-  2. Given site observations belong to a specific assessment, when the section context is assembled, then observations are loaded by that assessment identifier.
-  3. Given a technical draft is produced, when each statement is checked, then its content is supported by the assessment observations or retrieved evidence.
-  4. Given a generated statement is displayed, when I inspect its citation, then at least one reference resolves to a supporting source chunk or observation.
-  5. Given a section draft is produced, when it is compared with Marsh's configured template, then it follows that section's structure.
-  6. Given a section draft is produced, when it is reviewed against the configured writing conventions, then its wording follows those conventions.
-  7. Given a section draft is saved, when its generation provenance is inspected, then the prompt-version/model record identifies the configuration used.
+  Sections 7–12 are Construction to Business Interruption in Marsh's Global PRE Report Template v2.0 (originally written as 6–12). CP-14 was dropped, so drafting does not wait for capture to be completed. Sections 7–12 state findings only, as Marsh's reports do.
+
+  1. Given a selected section within Sections 7–12 has sufficient captured evidence, When I request its first draft, Then that section's draft is created.
+  2. Given several sections have sufficient captured evidence, When I draft the whole report, Then each of those sections is drafted in turn and each section without sufficient evidence shows what it needs.
+  3. Given site observations belong to a specific assessment, When the section context is assembled, Then observations are loaded by that assessment identifier, those filed under the section's COPE categories are its main evidence, and uncategorised observations are left out.
+  4. Given a technical draft is produced, When each statement is checked, Then its content is supported by the assessment observations or retrieved standards and it states a finding rather than an opinion on what the finding may lead to.
+  5. Given a generated statement is displayed, When I inspect its citation, Then at least one reference resolves to a supporting source chunk or observation, with the standard's heading and page.
+  6. Given a retrieved standard passage covers a finding, When the draft is produced, Then the finding cites that passage alongside the observation.
+  7. Given a section draft is produced, When it is compared with Marsh's configured template, Then it follows that section's structure.
+  8. Given a section draft is produced, When it is reviewed against the configured writing conventions, Then its wording follows those conventions.
+  9. Given the evidence leaves something an insurer would care about missing or unclear, When the draft is produced, Then up to three questions for the engineer are shown with it.
+  10. Given a section draft is saved, When its generation provenance is inspected, Then the prompt-version/model record identifies the configuration used.
+  11. Given a section draft is saved, When the evidence it was drafted from is inspected, Then the observations are shown as they were at drafting time, even if they were edited afterwards.
+  12. Given a section has a draft, When observations are added or changed afterwards, Then the section shows its draft is out of date and redrafting includes them.
+  13. Given a set of evaluation sections with reference observations, When each generated draft is scored by an LLM judge against a fixed rubric, averaged over two runs, Then every draft scores at least 4.0 for groundedness and no invention, at least 3.5 for structure and coverage, at least 3.0 for conventions, and at least 4.0 on average, and the scores, judge model and rubric version are recorded.
   </details>
 
 - [ ] **GN-02** — Flag claims that lack supporting evidence (risk engineer, Must, 5 pts, deps: GN-01, Sprint 4)

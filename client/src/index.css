@@ -42,6 +42,12 @@ button:disabled {
 [data-hoverable]:hover {
   background-color: var(--surface-hover) !important;
 }
+/* The spinner inside a loading Button. */
+@keyframes dsSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
