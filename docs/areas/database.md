@@ -357,5 +357,22 @@ as it was. The API returns `withdrawn` as `{ at, by } | null`.
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
+### Ingestion jobs (`ingestion_jobs`)
+
+One document per ingestion run, written by the ingestion worker and read by the
+gateway to enrich the `KnowledgeDocument` DTO (E2). Keyed by `documentId` (unique
+index → `knowledge_documents._id`), so the gateway finds a run with one query and
+no `$lookup`. Fields: `currentStage` (one of `parsing`, `ocr`, `anonymising`,
+`chunking`, `indexing`, `complete`, `failed`), `isOcr`, `chunksCompleted`,
+`chunksTotal`, `stageLog` (completed stages, each with `stage`, `startedAt`,
+`durationMs`), `currentStageStartedAt`, `startedAt`, and `updatedAt` (the worker
+sets `updatedAt` itself; the schema has no `timestamps`). Every write is an upsert
+on `documentId`, so a worker that crashes and is handed the job again resumes
+cleanly. The gateway folds this into the DTO as `progress` only while a document
+is `processing`: the worker's final write moves the current stage into `stageLog`
+and clears `currentStage`, so a `complete` or `failed` document carries no
+`progress`. Elapsed times (`elapsedMs`, `currentStageElapsedMs`) are computed on
+read, never stored.
+
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
