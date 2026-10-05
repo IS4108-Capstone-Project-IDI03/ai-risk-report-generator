@@ -5,7 +5,7 @@ import type { SessionUser } from './auth.service'
 import { AssessmentModel, REPORT_STATUSES, type IAssessment } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
-import { CounterModel } from '../models/counter.model'
+import { nextInSequence } from './sequence.service'
 import { SiteModel, type ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
 
@@ -300,16 +300,6 @@ async function insertWithNextCode<T>(
     }
   }
   throw new Error(`No unused code found in sequence ${sequence}.`)
-}
-
-async function nextInSequence(sequence: string): Promise<number> {
-  const counter = await CounterModel.findOneAndUpdate(
-    { _id: sequence },
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: 'after' },
-  ).lean()
-  if (!counter) throw new Error(`Sequence ${sequence} could not be incremented.`)
-  return counter.seq
 }
 
 function pad(n: number) {

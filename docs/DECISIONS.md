@@ -298,3 +298,17 @@ between runs. Move to a flat 4.0 once Marsh confirms the drafting guide's
 conventions.
 
 Stories: GN-01 (AC13).
+## 2026-10-04 — A new account sets its first password through the reset
+
+Chose: a knowledge admin creates an account with no password, and its owner
+sets one with Reset password on the sign-in screen (F-06), which already
+works for any active account. The gateway assigns the staff ID from a
+counter, and the new account always starts active. Rejected: the admin
+typing a first password, which means one person knowing another's password
+and sending it outside the app; and emailing a separate set-password link on
+creation, which the sign-in screen has no way to redeem without first
+requesting a reset. Reason: F-08 needs the new employee to sign in to their
+role's screens, and the reset flow gets them there with no new password
+handling. A real welcome email can reuse the same token once email delivery
+exists.
+Story: F-08.

@@ -1583,7 +1583,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 fieldSaved +
                 (fieldSaved === 1 ? ' observation captured' : ' observations captured')
               : sc === 'users'
-                ? 'View and update your team’s account details and roles.'
+                ? 'Add your team’s accounts, and keep their details and roles up to date.'
                 : sc === 'knowledge'
                   ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
                   : openRow

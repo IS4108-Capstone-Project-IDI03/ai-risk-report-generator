@@ -13,11 +13,13 @@ import {
 import { GatewayError } from '../assessments/api'
 import { JURISDICTIONS } from '../assessments/demo-data'
 import {
+  createUser,
   getUser,
   listUsers,
   ROLE_LABELS,
   roleLabel,
   updateUser,
+  type NewUserAccount,
   type UserAccount,
   type UserProfile,
   type UserRole,
@@ -30,7 +32,17 @@ const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as UserRole[]).map((value) => ({
   value,
   label: ROLE_LABELS[value],
 }))
+// A new account has no role until the admin picks one (F-08).
+const NEW_ROLE_OPTIONS = [{ value: '', label: 'Choose a role' }, ...ROLE_OPTIONS]
 const OFFICE_OPTIONS = [{ value: '', label: 'Not set' }, ...JURISDICTIONS]
+const EMPTY_ACCOUNT: NewUserAccount = {
+  name: '',
+  email: '',
+  role: '',
+  jobTitle: '',
+  phone: '',
+  office: '',
+}
 
 function officeLabel(code: string | null) {
   if (!code) return 'Not set'
@@ -63,10 +75,11 @@ function toProfile(user: UserAccount): UserProfile {
   }
 }
 
-// Knowledge admins view and update team members' account details (F-03) and
-// assign each one's role (F-05). Every open reads the account from the
-// gateway, so saved changes show on reopening. currentUserId is the signed-in
-// admin, who cannot change their own role or deactivate themselves.
+// Knowledge admins add team members' accounts (F-08), view and update their
+// details (F-03) and assign each one's role (F-05). Every open reads the
+// account from the gateway, so saved changes show on reopening. currentUserId
+// is the signed-in admin, who cannot change their own role or deactivate
+// themselves.
 export function UserAccounts({
   narrow,
   currentUserId,
@@ -78,6 +91,8 @@ export function UserAccounts({
   const [list, setList] = useState<Loaded<UserAccount[]> | null>(null)
   const [selected, setSelected] = useState<{ id: string; version: number } | null>(null)
   const [profile, setProfile] = useState<Loaded<UserAccount> | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [created, setCreated] = useState<UserAccount | null>(null)
 
   const listKey = String(listVersion)
   useEffect(() => {
@@ -106,10 +121,36 @@ export function UserAccounts({
     return () => controller.abort()
   }, [selected, profileKey])
 
-  const open = (id: string) => setSelected((s) => ({ id, version: (s?.version ?? 0) + 1 }))
+  const open = (id: string) => {
+    setCreated(null)
+    setSelected((s) => ({ id, version: (s?.version ?? 0) + 1 }))
+  }
   const back = () => {
     setSelected(null)
     setListVersion((v) => v + 1)
+  }
+  const startCreating = () => {
+    setCreated(null)
+    setCreating(true)
+  }
+  // Back to the list, reloaded so it includes the new account.
+  const finishCreating = (user: UserAccount | null) => {
+    setCreating(false)
+    setCreated(user)
+    if (user) setListVersion((v) => v + 1)
+  }
+
+  if (creating) {
+    return (
+      <div className="accounts">
+        <div>
+          <Button variant="ghost" iconLeft="arrow-left" onClick={() => finishCreating(null)}>
+            Back to accounts
+          </Button>
+        </div>
+        <NewAccountPanel onCreated={finishCreating} onCancel={() => finishCreating(null)} />
+      </div>
+    )
   }
 
   if (selected) {
@@ -150,13 +191,28 @@ export function UserAccounts({
   }
 
   const currentList = list?.key === listKey ? list : null
+  const addButton = (
+    <Button variant="primary" iconLeft="plus" onClick={startCreating}>
+      Add account
+    </Button>
+  )
   return (
     <div className="accounts">
-      <p className="accounts-intro">
-        {
-          'A role decides what each person can open: risk engineers run assessments; knowledge admins manage the knowledge base and these accounts.'
-        }
-      </p>
+      <div className="accounts-toolbar">
+        <p className="accounts-intro">
+          {
+            'A role decides what each person can open: risk engineers run assessments; knowledge admins manage the knowledge base and these accounts.'
+          }
+        </p>
+        {addButton}
+      </div>
+      {created && (
+        <div role="status">
+          <Callout tone="success" title={`Account created for ${created.name}`}>
+            {`${created.staffId} is active as a ${roleLabel(created.role).toLowerCase()}. To sign in, they set a password with Reset password on the sign-in screen, using ${created.email}.`}
+          </Callout>
+        </div>
+      )}
       {!currentList ? (
         <p className="accounts-loading" role="status">
           Loading accounts…
@@ -177,7 +233,8 @@ export function UserAccounts({
         <EmptyState
           icon="users"
           title="No accounts yet"
-          description="Run the server seed script to add the sample accounts."
+          description="Add your team's accounts, or run the server seed script for the sample ones."
+          action={addButton}
         />
       ) : narrow ? (
         <ul className="accounts-stack" aria-label="User accounts">
@@ -267,9 +324,6 @@ function ProfilePanel({
     formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
   }, [fieldErrors])
 
-  function set<K extends keyof UserProfile>(key: K, value: UserProfile[K]) {
-    setDraft((d) => ({ ...d, [key]: value }))
-  }
   function startEditing() {
     setDraft(toProfile(user))
     setFieldErrors({})
@@ -364,60 +418,18 @@ function ProfilePanel({
     <section className="accounts-card" aria-label={`Edit profile for ${user.name}`}>
       {header}
       <form ref={formRef} noValidate onSubmit={save}>
-        <div className="accounts-form">
-          <Input
-            label="Name"
-            required
-            value={draft.name}
-            error={fieldErrors.name}
-            onChange={(e) => set('name', e.target.value)}
-          />
-          <Input
-            label="Email"
-            type="email"
-            required
-            value={draft.email}
-            error={fieldErrors.email}
-            onChange={(e) => set('email', e.target.value)}
-          />
-          <Select
-            label="Role"
-            options={ROLE_OPTIONS}
-            value={draft.role}
-            error={fieldErrors.role}
-            disabled={isSelf}
-            hint={isSelf ? 'Another knowledge admin must change your role.' : undefined}
-            onChange={(e) => set('role', e.target.value as UserRole)}
-          />
-          <Input
-            label="Job title"
-            hint="Optional"
-            value={draft.jobTitle}
-            error={fieldErrors.jobTitle}
-            onChange={(e) => set('jobTitle', e.target.value)}
-          />
-          <Input
-            label="Phone"
-            type="tel"
-            hint="Optional, e.g. +65 6123 4567"
-            value={draft.phone}
-            error={fieldErrors.phone}
-            onChange={(e) => set('phone', e.target.value)}
-          />
-          <Select
-            label="Office"
-            options={OFFICE_OPTIONS}
-            value={draft.office}
-            error={fieldErrors.office}
-            onChange={(e) => set('office', e.target.value)}
-          />
-        </div>
+        <AccountFields
+          values={draft}
+          errors={fieldErrors}
+          roleLocked={isSelf}
+          onChange={(key, value) => setDraft((d) => ({ ...d, [key]: value }))}
+        />
         <div className="accounts-body-note">
           <Switch
             label="Account active"
             checked={draft.active}
             disabled={isSelf}
-            onChange={(checked) => set('active', checked)}
+            onChange={(checked) => setDraft((d) => ({ ...d, active: checked }))}
           />
           {fieldErrors.active && <p className="accounts-field-error">{fieldErrors.active}</p>}
         </div>
@@ -433,6 +445,154 @@ function ProfilePanel({
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
           <Button variant="ghost" disabled={saving} onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+type AccountFieldValues = Pick<UserProfile, 'name' | 'email' | 'jobTitle' | 'phone' | 'office'> & {
+  role: UserRole | ''
+}
+
+// The account fields shared by adding (F-08) and editing (F-03) an account.
+// Each shows the gateway's problem with it, if any.
+function AccountFields({
+  values,
+  errors,
+  onChange,
+  roleOptions = ROLE_OPTIONS,
+  roleLocked = false,
+}: {
+  values: AccountFieldValues
+  errors: Record<string, string>
+  onChange: (key: keyof AccountFieldValues, value: string) => void
+  roleOptions?: { value: string; label: string }[]
+  roleLocked?: boolean
+}) {
+  return (
+    <div className="accounts-form">
+      <Input
+        label="Name"
+        required
+        value={values.name}
+        error={errors.name}
+        autoComplete="off"
+        onChange={(e) => onChange('name', e.target.value)}
+      />
+      <Input
+        label="Email"
+        type="email"
+        required
+        value={values.email}
+        error={errors.email}
+        autoComplete="off"
+        onChange={(e) => onChange('email', e.target.value)}
+      />
+      <Select
+        label="Role"
+        required
+        options={roleOptions}
+        value={values.role}
+        error={errors.role}
+        disabled={roleLocked}
+        hint={roleLocked ? 'Another knowledge admin must change your role.' : undefined}
+        onChange={(e) => onChange('role', e.target.value)}
+      />
+      <Input
+        label="Job title"
+        hint="Optional"
+        value={values.jobTitle}
+        error={errors.jobTitle}
+        onChange={(e) => onChange('jobTitle', e.target.value)}
+      />
+      <Input
+        label="Phone"
+        type="tel"
+        hint="Optional, e.g. +65 6123 4567"
+        value={values.phone}
+        error={errors.phone}
+        onChange={(e) => onChange('phone', e.target.value)}
+      />
+      <Select
+        label="Office"
+        options={OFFICE_OPTIONS}
+        value={values.office}
+        error={errors.office}
+        onChange={(e) => onChange('office', e.target.value)}
+      />
+    </div>
+  )
+}
+
+// Adds a team member's account (F-08). Nothing is saved until the gateway
+// accepts every field; each field it rejects shows its own problem.
+function NewAccountPanel({
+  onCreated,
+  onCancel,
+}: {
+  onCreated: (user: UserAccount) => void
+  onCancel: () => void
+}) {
+  const [draft, setDraft] = useState<NewUserAccount>(EMPTY_ACCOUNT)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // Move focus to the first field the gateway rejected.
+  useEffect(() => {
+    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  }, [fieldErrors])
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault()
+    if (saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      onCreated(await createUser(draft))
+    } catch (error: unknown) {
+      if (error instanceof GatewayError && Object.keys(error.fields).length > 0) {
+        setFieldErrors(error.fields)
+        setSaveError('Correct the highlighted fields, then add the account again.')
+      } else {
+        setFieldErrors({})
+        setSaveError(problem(error, 'the account was not added'))
+      }
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="accounts-card" aria-label="Add account">
+      <div className="accounts-profile-head">
+        <div className="accounts-profile-title">
+          <h2>Add account</h2>
+          <span>The account is active once added, and its staff ID is assigned for you.</span>
+        </div>
+      </div>
+      <form ref={formRef} noValidate onSubmit={save}>
+        <AccountFields
+          values={draft}
+          errors={fieldErrors}
+          roleOptions={NEW_ROLE_OPTIONS}
+          onChange={(key, value) => setDraft((d) => ({ ...d, [key]: value }))}
+        />
+        {saveError && (
+          <div className="accounts-body-note">
+            <Callout tone="danger" title="Account not added">
+              {saveError}
+            </Callout>
+          </div>
+        )}
+        <div className="accounts-actions">
+          <Button type="submit" variant="primary" iconLeft="plus" disabled={saving}>
+            {saving ? 'Adding…' : 'Add account'}
+          </Button>
+          <Button variant="ghost" disabled={saving} onClick={onCancel}>
             Cancel
           </Button>
         </div>

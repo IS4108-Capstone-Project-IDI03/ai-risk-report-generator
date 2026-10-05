@@ -1,8 +1,11 @@
 import { Router } from 'express'
 import { requirePermission } from '../middleware/auth.middleware'
+import { fieldErrors } from './field-errors'
 import {
+  createUser,
   getUser,
   listUsers,
+  newUserSchema,
   OwnAccessChangeError,
   updateUser,
   userProfileSchema,
@@ -12,12 +15,39 @@ import {
 
 const router = Router()
 
-// Account profiles (F-03) and role assignment (F-05): knowledge admins only.
+// Account profiles (F-03), role assignment (F-05) and new accounts (F-08):
+// knowledge admins only.
 // Anyone else signed in gets 403 on every route here.
 router.use(requirePermission('users:manage'))
 
 router.get('/', async (_req, res) => {
   res.json(await listUsers())
+})
+
+// Creates an active account (F-08) and returns it with its staff ID (201).
+// 400 lists the first problem with each invalid field; an email another
+// account uses is 409 against the email field. Nothing is saved on either.
+router.post('/', async (req, res) => {
+  const parsed = newUserSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({
+      error: 'The account details are invalid.',
+      fields: fieldErrors(parsed.error),
+    })
+    return
+  }
+  try {
+    res.status(201).json(await createUser(parsed.data))
+  } catch (error: unknown) {
+    if (error instanceof UserEmailTakenError) {
+      res.status(409).json({
+        error: 'The account details are invalid.',
+        fields: { email: error.message },
+      })
+      return
+    }
+    throw error
+  }
 })
 
 router.get('/:id', async (req, res) => {
@@ -37,12 +67,10 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const parsed = userProfileSchema.safeParse(req.body)
   if (!parsed.success) {
-    const fields: Record<string, string> = {}
-    for (const issue of parsed.error.issues) {
-      const path = issue.path.map(String).join('.')
-      fields[path] ??= issue.message
-    }
-    res.status(400).json({ error: 'The profile details are invalid.', fields })
+    res.status(400).json({
+      error: 'The profile details are invalid.',
+      fields: fieldErrors(parsed.error),
+    })
     return
   }
   try {
