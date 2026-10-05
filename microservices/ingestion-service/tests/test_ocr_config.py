@@ -34,11 +34,10 @@ that the wiring is correct: ``parse()`` initialises without error and raises
 from pathlib import Path
 
 import pytest
-
 from docling.datamodel.pipeline_options import (
     NemotronOcrOptions,
+    OcrMacOptions,
     RapidOcrOptions,
-    TesseractCliOcrOptions,
 )
 
 from app.pipeline.errors import UnparsableDocumentError
@@ -53,9 +52,7 @@ from app.pipeline.parser import parse as _real_parse
 # directly here rather than going through test_file_option.py because the
 # purpose of this test is specifically to exercise OCR config wiring against a
 # file that triggers UnparsableDocumentError.
-_UNEXTRACTABLE_FIXTURE = (
-    Path(__file__).parent / "test_files" / "unextractable" / "NFPA_2001.pdf"
-)
+_UNEXTRACTABLE_FIXTURE = Path(__file__).parent / "test_files" / "unextractable" / "NFPA_2001.pdf"
 
 
 # ---------------------------------------------------------------------------
@@ -104,18 +101,18 @@ def test_gpu_enabled_case_insensitive(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_macos_no_gpu_returns_tesseract(monkeypatch):
+def test_macos_no_gpu_returns_ocrmac(monkeypatch):
     _patch(monkeypatch, "Darwin", "false")
     ocr_options, formula_enrichment = get_ocr_options()
-    assert isinstance(ocr_options, TesseractCliOcrOptions)
+    assert isinstance(ocr_options, OcrMacOptions)
     assert formula_enrichment is False
 
 
-def test_macos_gpu_flag_ignored_returns_tesseract(monkeypatch):
-    """GPU_ENABLED=true on macOS must still select TesseractCli, not Nemotron."""
+def test_macos_gpu_flag_ignored_returns_ocrmac(monkeypatch):
+    """GPU_ENABLED=true on macOS must still select OcrMac, not Nemotron."""
     _patch(monkeypatch, "Darwin", "true")
     ocr_options, formula_enrichment = get_ocr_options()
-    assert isinstance(ocr_options, TesseractCliOcrOptions)
+    assert isinstance(ocr_options, OcrMacOptions)
     assert formula_enrichment is False
 
 
@@ -131,11 +128,13 @@ def test_windows_no_gpu_returns_rapidocr(monkeypatch):
     assert formula_enrichment is False
 
 
-def test_windows_with_gpu_returns_nemotron(monkeypatch):
+def test_windows_with_gpu_returns_nemotron_or_rapidocr_fallback(monkeypatch):
+    """With GPU enabled, Nemotron is preferred but RapidOCR is the fallback
+    when docling[feat-ocr-nemotron] is not installed (Linux x86_64 + CUDA only)."""
     _patch(monkeypatch, "Windows", "true")
     ocr_options, formula_enrichment = get_ocr_options()
-    assert isinstance(ocr_options, NemotronOcrOptions)
-    assert formula_enrichment is True
+    assert isinstance(ocr_options, (NemotronOcrOptions, RapidOcrOptions))
+    assert formula_enrichment is False
 
 
 # ---------------------------------------------------------------------------
@@ -150,11 +149,37 @@ def test_linux_no_gpu_returns_rapidocr(monkeypatch):
     assert formula_enrichment is False
 
 
-def test_linux_with_gpu_returns_nemotron(monkeypatch):
+def test_linux_with_gpu_returns_nemotron_or_rapidocr_fallback(monkeypatch):
+    """With GPU enabled, Nemotron is preferred but RapidOCR is the fallback
+    when docling[feat-ocr-nemotron] is not installed (Linux x86_64 + CUDA only)."""
     _patch(monkeypatch, "Linux", "true")
     ocr_options, formula_enrichment = get_ocr_options()
-    assert isinstance(ocr_options, NemotronOcrOptions)
-    assert formula_enrichment is True
+    assert isinstance(ocr_options, (NemotronOcrOptions, RapidOcrOptions))
+    assert formula_enrichment is False
+
+
+def test_gpu_falls_back_to_rapidocr_when_nemotron_import_fails(monkeypatch):
+    """When Nemotron's optional dependency is missing, GPU path uses RapidOCR."""
+    _patch(monkeypatch, "Linux", "true")
+    monkeypatch.setattr(
+        "docling.models.stages.ocr.nemotron_ocr_model.NemotronOcrModel",
+        property(lambda self: (_ for _ in ()).throw(ImportError("nemotron not installed"))),
+        raising=False,
+    )
+    # Simulate the ImportError that ocr_config catches by patching the import itself.
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _import_raising_for_nemotron(name, *args, **kwargs):
+        if name == "docling.models.stages.ocr.nemotron_ocr_model":
+            raise ImportError("nemotron not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _import_raising_for_nemotron)
+    ocr_options, formula_enrichment = get_ocr_options()
+    assert isinstance(ocr_options, RapidOcrOptions)
+    assert formula_enrichment is False
 
 
 # ---------------------------------------------------------------------------
@@ -170,8 +195,7 @@ def test_ocr_mode_is_full_page_on_all_engines(monkeypatch):
         _patch(monkeypatch, system, gpu)
         ocr_options, _ = get_ocr_options()
         assert ocr_options.mode == OcrMode.FULL_PAGE, (
-            f"Expected FULL_PAGE for system={system}, GPU_ENABLED={gpu}, "
-            f"got {ocr_options.mode}"
+            f"Expected FULL_PAGE for system={system}, GPU_ENABLED={gpu}, " f"got {ocr_options.mode}"
         )
 
 

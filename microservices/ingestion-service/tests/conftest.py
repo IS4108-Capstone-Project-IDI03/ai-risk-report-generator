@@ -43,7 +43,7 @@ Document OCR stub
 -----------------
 ``stub_document_ocr`` wraps ``parse()`` that intercepts
 ``UnparsableDocumentError`` and returns a minimal ``ParsedDocument`` containing
-a single ``TextBlock`` with ``STUBBED_OCR_TEXT`` so downstream tests can 
+a single ``TextBlock`` with ``STUBBED_OCR_TEXT`` so downstream tests can
 run without a real OCR service
 
 Converter cache
