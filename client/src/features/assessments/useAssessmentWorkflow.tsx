@@ -1351,6 +1351,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 openRow.record?.site.jurisdiction ??
                 'Not recorded',
             },
+            { label: 'Facility type', value: openRow.record?.site.facilityType ?? 'Not recorded' },
             { label: 'Client', value: openRow.client },
             { label: 'Assessment type', value: openRow.type },
             { label: 'Status', value: openRow.status },
