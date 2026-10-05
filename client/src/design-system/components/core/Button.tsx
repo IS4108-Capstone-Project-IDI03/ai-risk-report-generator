@@ -164,7 +164,11 @@ function Button({
       {...rest}
     >
       {loading ? (
-        <Icon name={'loader-circle'} size={s.icon} />
+        <Icon
+          name={'loader-circle'}
+          size={s.icon}
+          style={{ animation: 'dsSpin 0.9s linear infinite' }}
+        />
       ) : iconLeft ? (
         <Icon name={iconLeft} size={s.icon} />
       ) : null}
