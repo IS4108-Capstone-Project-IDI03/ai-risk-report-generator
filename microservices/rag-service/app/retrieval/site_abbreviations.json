@@ -1,0 +1,22 @@
+{
+  "_about": "Common site-note abbreviations spelt out in standards search queries only; drafts still see the note as written. Keys are lower case and match whole words. Keep this to abbreviations every engineer uses, and leave out anything ambiguous (e.g. 'FM' could be FM Global or facility management; 'perm' could be permit or permanently).",
+  "spk": "sprinkler",
+  "spks": "sprinklers",
+  "srv rm": "server room",
+  "rm": "room",
+  "rms": "rooms",
+  "pens": "penetrations",
+  "cv": "control valve",
+  "cyl": "cylinder",
+  "cyls": "cylinders",
+  "fa": "fire alarm",
+  "fcc": "fire command centre",
+  "bsmt": "basement",
+  "bsmts": "basements",
+  "svc": "service",
+  "elec": "electrical",
+  "rc": "reinforced concrete",
+  "flr": "floor",
+  "flrs": "floors",
+  "thru": "through"
+}

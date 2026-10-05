@@ -16,6 +16,7 @@ dependencies = [
     "chromadb-client==1.5.5",
     "ruff>=0.16.9",
     "black>=26.5.1",
+    "anthropic>=1,<2",
 ]
 
 [project.optional-dependencies]
@@ -24,11 +25,16 @@ dev = [
     "black>=24.10",
     "pytest>=8.3",
     "httpx>=0.28",   # required by fastapi.testclient.TestClient
+    "openai>=2",
 ]
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+# Only `app` is the service; eval/ and tests/ are tools run from this folder.
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.ruff]
 line-length = 100
@@ -40,3 +46,7 @@ select = ["E", "F", "I", "UP"]
 [tool.black]
 line-length = 100
 target-version = ["py311"]
+
+[tool.pytest.ini_options]
+# Tests import `app` from this folder, however the project itself is installed.
+pythonpath = ["."]

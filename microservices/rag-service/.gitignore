@@ -1,0 +1,2 @@
+# Eval runs (GN-01 AC11) are generated output; rerun eval/judge_sections.py to reproduce.
+eval/results/

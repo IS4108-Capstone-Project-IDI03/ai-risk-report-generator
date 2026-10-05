@@ -1,0 +1,246 @@
+{
+  "version": "global-pre-v2.0-2026-02",
+  "source": "Global PRE Report Template_v2.0_Feb 2026_BLANK.pdf. Writing conventions live in drafting-skill.md.",
+  "sections": {
+    "7": {
+      "title": "Construction",
+      "cope_dimensions": ["Construction"],
+      "min_observations": 1,
+      "subsections": [
+        { "heading": "Construction Narrative", "kind": "narrative" },
+        { "heading": "Construction Table", "kind": "table" },
+        { "heading": "Compartmentalization and Fire Divisions", "kind": "narrative" },
+        { "heading": "Details on Combustible Construction", "kind": "narrative" }
+      ]
+    },
+    "8": {
+      "title": "Occupancy, Hazards, and Utilities",
+      "cope_dimensions": ["Occupancy"],
+      "min_observations": 1,
+      "subsections": [
+        { "heading": "Occupancy", "kind": "fields", "fields": ["Ownership", "Number of Employees"] },
+        { "heading": "Overview", "kind": "narrative" },
+        { "heading": "Key Processes", "kind": "narrative" },
+        { "heading": "Key Machinery", "kind": "narrative" },
+        {
+          "heading": "Special Hazards",
+          "kind": "fields",
+          "fields": [
+            "Hazard Title",
+            "Hazard Type",
+            "Location",
+            "Description",
+            "Active Protection Features",
+            "Passive Protection Features"
+          ]
+        },
+        {
+          "heading": "Power",
+          "kind": "fields",
+          "fields": [
+            "Primary Supply to Site",
+            "Site Feed",
+            "Incoming Voltage",
+            "Distribution on Site",
+            "Details"
+          ]
+        },
+        { "heading": "Back-up Power", "kind": "narrative" },
+        { "heading": "Transformer details", "kind": "table" },
+        { "heading": "Boilers", "kind": "narrative" },
+        { "heading": "Refrigeration / Chillers / Cooling towers", "kind": "narrative" },
+        { "heading": "Fuels and energy supplies", "kind": "narrative" },
+        { "heading": "Process water", "kind": "narrative" },
+        { "heading": "Compressed air", "kind": "narrative" },
+        { "heading": "Compressed gases", "kind": "narrative" },
+        { "heading": "Waste and effluent treatment", "kind": "narrative" },
+        { "heading": "Other site services", "kind": "narrative" }
+      ]
+    },
+    "9": {
+      "title": "Fire Protection",
+      "cope_dimensions": ["Protection"],
+      "min_observations": 1,
+      "subsections": [
+        { "heading": "Automatic Sprinkler Protection", "kind": "table" },
+        { "heading": "Automatic Sprinkler Protection Comments", "kind": "narrative" },
+        { "heading": "Special Extinguishing Systems", "kind": "narrative" },
+        { "heading": "Water Supply Details", "kind": "narrative" },
+        { "heading": "Water Supply Test Results", "kind": "table" },
+        { "heading": "Water Supply Test Comments", "kind": "narrative" },
+        { "heading": "Fire / Booster Pump Details", "kind": "table" },
+        { "heading": "Fire / Booster Pump Comments", "kind": "narrative" },
+        { "heading": "Pump Flow Test Data", "kind": "table" },
+        { "heading": "Pump Flow Test Comments", "kind": "narrative" },
+        {
+          "heading": "Manual Firefighting Features",
+          "kind": "fields",
+          "fields": [
+            "Distance to Fire Department",
+            "Fire Department Type",
+            "Response Time (minutes)",
+            "Hydrant Coverage",
+            "Fire Hydrant Type",
+            "Industrial Fire Brigade",
+            "Portable Extinguishers",
+            "Hose Stations / Reels"
+          ]
+        },
+        { "heading": "Other Manual Firefighting Comments", "kind": "narrative" },
+        { "heading": "Fire Alarm Monitoring", "kind": "narrative" },
+        {
+          "heading": "Fire Alarm Details",
+          "kind": "fields",
+          "fields": [
+            "Alarm Signaling Services",
+            "Fire Panel Model / Manufacturer",
+            "Alarm Signals Monitored"
+          ]
+        }
+      ]
+    },
+    "10": {
+      "title": "External Exposures",
+      "cope_dimensions": ["Exposure"],
+      "min_observations": 1,
+      "subsections": [
+        { "heading": "Location Details", "kind": "table" },
+        {
+          "heading": "Boundary Exposures",
+          "kind": "fields",
+          "fields": ["North", "East", "South", "West"]
+        },
+        {
+          "heading": "Natural Catastrophe Exposures",
+          "kind": "fields",
+          "fields": [
+            "Pluvial Flood (Heavy Rain / Flash Flood)",
+            "Hail",
+            "Tornado",
+            "Tropical Cyclone",
+            "Extra-Tropical Storm",
+            "River (Inland) Flood",
+            "Storm Surge / Coastal Flooding",
+            "Tsunami",
+            "Lightning",
+            "Earthquake",
+            "Volcanic",
+            "Wild Fire",
+            "Other"
+          ]
+        }
+      ]
+    },
+    "11": {
+      "title": "Security",
+      "cope_dimensions": ["Protection"],
+      "min_observations": 1,
+      "subsections": [
+        {
+          "heading": "Site Perimeter",
+          "kind": "fields",
+          "fields": [
+            "Vehicle Access",
+            "Perimeter Fencing",
+            "Entry Provisions Posted",
+            "No Trespassing Signage",
+            "Fencing Height",
+            "Exterior Lighting"
+          ]
+        },
+        {
+          "heading": "Building Physical Features",
+          "kind": "fields",
+          "fields": ["Ground Level Windows Secure", "Lock and Key Control"]
+        },
+        {
+          "heading": "Security Staff / Guards",
+          "kind": "fields",
+          "fields": [
+            "On-Site Guards",
+            "Visiting Patrols",
+            "Police Surveillance",
+            "Recorded Rounds",
+            "Rounds Frequency"
+          ]
+        },
+        { "heading": "CCTV", "kind": "narrative" },
+        {
+          "heading": "Intruder Detection",
+          "kind": "fields",
+          "fields": ["Motion Sensors", "Beams", "Door Contacts"]
+        },
+        {
+          "heading": "Access Monitored",
+          "kind": "fields",
+          "fields": ["ID Cards / Badges", "Visitors Monitored"]
+        },
+        {
+          "heading": "Other Security Programs / Controls",
+          "kind": "fields",
+          "fields": [
+            "Emergency Response",
+            "Employee Screening",
+            "Safe / Vaults",
+            "Mobile Equipment Storage",
+            "Bomb Threat",
+            "Cash / Check Management",
+            "Parking"
+          ]
+        }
+      ]
+    },
+    "12": {
+      "title": "Business Interruption",
+      "cope_dimensions": ["Exposure", "Occupancy"],
+      "min_observations": 1,
+      "subsections": [
+        {
+          "heading": "Site",
+          "kind": "fields",
+          "fields": [
+            "Business Features",
+            "Rebuilding Time",
+            "Available Alternatives",
+            "Denial of Access"
+          ]
+        },
+        {
+          "heading": "Operations, Plant & Processes",
+          "kind": "fields",
+          "fields": [
+            "Operational Features",
+            "Seasonality of Operations",
+            "Bottlenecks",
+            "Available Alternatives",
+            "Critical Spares",
+            "Subcontracting Options",
+            "Special Licensing Issues",
+            "Research & Development"
+          ]
+        },
+        {
+          "heading": "Utilities, Infrastructure & Services",
+          "kind": "fields",
+          "fields": [
+            "IT / Communications Systems",
+            "Critical Suppliers",
+            "Key Customers",
+            "Contractual Penalties"
+          ]
+        },
+        {
+          "heading": "Business Continuity / Disaster Recovery Planning",
+          "kind": "fields",
+          "fields": [
+            "Emergency Response Procedures",
+            "Business Continuity Plans available?",
+            "Scope / Strategy / Scenarios Covered",
+            "Last Reviewed / Updated",
+            "Last Tested / Exercised"
+          ]
+        }
+      ]
+    }
+  }
+}
