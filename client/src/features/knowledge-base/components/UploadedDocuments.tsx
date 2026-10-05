@@ -3,15 +3,32 @@
 // hours and failed for 7 days (the gateway decides). Re-read every 3 seconds
 // while any is still queued or processing. Used by screens/AddDocuments.tsx.
 import { useEffect, useState } from 'react'
-import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
-import { listKnowledgeDocuments, type IngestionStatus, type KnowledgeDocument } from '../api'
-import { calendarDate, dateTime, SOURCE_LABELS } from '../display'
+import { Badge, Button, Callout, EmptyState, ProgressBar, Table } from '../../../design-system'
+import {
+  listKnowledgeDocuments,
+  type IngestionStage,
+  type IngestionStatus,
+  type KnowledgeDocument,
+} from '../api'
+import { calendarDate, dateTime, formatDuration, SOURCE_LABELS } from '../display'
 
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   queued: { label: 'Queued', tone: 'neutral' },
   processing: { label: 'Processing', tone: 'info' },
   complete: { label: 'Complete', tone: 'low' },
   failed: { label: 'Failed', tone: 'critical' },
+}
+
+// What each stage reads as in the status badge (E2). OCR shares the parsing
+// label with an added marker, since Docling always runs OCR within parsing.
+const STAGE_LABELS: Record<IngestionStage, string> = {
+  parsing: 'Parsing',
+  ocr: 'Parsing · OCR',
+  anonymising: 'Anonymising',
+  chunking: 'Chunking',
+  indexing: 'Indexing',
+  complete: 'Complete',
+  failed: 'Failed',
 }
 
 // Re-read too whenever a new upload is accepted (refreshKey). An unreachable
@@ -55,12 +72,42 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
       </small>
     </span>
   )
-  const status = (d: KnowledgeDocument) => (
-    <span className="kb-status">
-      <Badge tone={STATUS[d.status].tone}>{STATUS[d.status].label}</Badge>
-      {d.error && <span className="kb-status-reason">{d.error}</span>}
-    </span>
-  )
+  const status = (d: KnowledgeDocument) => {
+    const badge = STATUS[d.status]
+    // Progress is only shown for a processing document the worker has started.
+    const p = d.status === 'processing' ? d.progress : undefined
+    // During parsing Docling always runs OCR, so show the OCR marker then.
+    const stage =
+      p && p.currentStage === 'parsing' && p.isOcr ? STAGE_LABELS.ocr : p && STAGE_LABELS[p.currentStage]
+
+    // "42 chunks" or "42 / 100 chunks" while chunking, once any chunk is done.
+    const chunkLabel =
+      p && p.currentStage === 'chunking' && p.chunksCompleted > 0
+        ? p.chunksTotal
+          ? `${p.chunksCompleted} / ${p.chunksTotal} chunks`
+          : `${p.chunksCompleted} chunks`
+        : null
+    // Percentage when the total is known, otherwise an indeterminate bar.
+    const barValue = p?.chunksTotal ? (p.chunksCompleted / p.chunksTotal) * 100 : 0
+
+    return (
+      <span className="kb-status">
+        <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
+        {p && (
+          <span className="kb-stage-detail">
+            <span className="kb-elapsed">{formatDuration(p.elapsedMs)}</span>
+            {chunkLabel && (
+              <>
+                <span className="kb-chunk-count">{chunkLabel}</span>
+                <ProgressBar value={barValue} showValue={false} label="" style={{ width: 80 }} />
+              </>
+            )}
+          </span>
+        )}
+        {d.error && <span className="kb-status-reason">{d.error}</span>}
+      </span>
+    )
+  }
   const original = (d: KnowledgeDocument) => (
     <a
       className="kb-link"

@@ -8,6 +8,33 @@ import { request } from '../accounts/api'
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'marsh_report'
 export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed'
 
+// The stages a document moves through while processing (E2). Mirrors
+// INGESTION_STAGES in server/src/models/ingestion-job.model.ts.
+export const INGESTION_STAGES = [
+  'parsing',
+  'ocr',
+  'anonymising',
+  'chunking',
+  'indexing',
+  'complete',
+  'failed',
+] as const
+export type IngestionStage = (typeof INGESTION_STAGES)[number]
+
+// Live ingestion progress for a processing document (E2). Present on a
+// KnowledgeDocument only while `status` is `processing` and the worker has
+// written its first stage; matches ProgressDto in
+// server/src/services/knowledge-document.service.ts.
+export type IngestionProgress = {
+  currentStage: IngestionStage
+  isOcr: boolean
+  chunksCompleted: number
+  chunksTotal: number | null
+  elapsedMs: number
+  currentStageElapsedMs: number
+  stageLog: { stage: string; startedAt: string; durationMs: number }[]
+}
+
 // What the admin enters for each file. Which fields apply depends on the
 // source type (see uploads.ts); unused ones stay ''. effectiveDate is
 // YYYY-MM-DD (a standard's effective date, or a report's report date); edition
@@ -43,6 +70,8 @@ export type KnowledgeDocument = {
   history: DocumentVersion[]
   // Who took it out of use and when (KB-01 AC14); null while it is active.
   withdrawn: { at: string; by: { id: string; name: string } } | null
+  // Live ingestion progress (E2); present only while `status` is `processing`.
+  progress?: IngestionProgress
 }
 
 // One previous version of a document's details: what a correction replaced,
