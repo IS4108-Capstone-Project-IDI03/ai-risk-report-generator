@@ -34,11 +34,11 @@ from app.pipeline.errors import UnparsableDocumentError
 # Labels whose text is body content we want to keep and chunk. Page
 # headers/footers and captions are deliberately excluded from body text.
 _BODY_TEXT_LABELS = {
-    DocItemLabel.TEXT,
-    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TEXT,      # Done
+    DocItemLabel.PARAGRAPH, # Done
     DocItemLabel.LIST_ITEM,
-    DocItemLabel.CODE,
-    DocItemLabel.FORMULA,
+    DocItemLabel.CODE,      
+    DocItemLabel.FORMULA,   # Done
 }
 
 

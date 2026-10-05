@@ -13,7 +13,8 @@ Chunk (as produced by chunker.chunk and consumed here):
     "id":   str,              # stable unique id; also the Chroma record id
     "text": str,              # chunk text; embedded via Cohere and stored as the document
     "metadata": {             # forwarded to Chroma verbatim; scalars or a
-                              # non-empty homogeneous list of scalars
+    # non-empty homogeneous list of scalars
+        "COPE_dimension":str,# "NA" | "all" | "......" 
         "doc_id":       str,  # foreign key back to the source document
         "headings": list[str],# heading trail; key omitted when the chunk has none
         "page_start":   int,  # present only when known
