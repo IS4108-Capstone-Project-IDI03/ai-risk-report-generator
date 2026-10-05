@@ -43,12 +43,15 @@ class ProgressReporter:
     def _enabled(self) -> bool:
         return self._doc_id is not None
 
-    def _write(self, extra: dict) -> None:
+    def _write(self, extra: dict, *, unset: dict | None = None) -> None:
         """Upsert the job document with `extra` merged into the common fields."""
         now = datetime.now(UTC)
+        update: dict = {"$set": {"updatedAt": now, **extra}}
+        if unset:
+            update["$unset"] = unset
         self._collection.find_one_and_update(
             {"documentId": ObjectId(self._doc_id)},
-            {"$set": {"updatedAt": now, **extra}},
+            update,
             upsert=True,
         )
 
@@ -97,14 +100,21 @@ class ProgressReporter:
         self._write({"chunksCompleted": completed, "chunksTotal": total})
 
     def finish(self) -> None:
-        """Move the current stage to the stage log and clear it."""
+        """Move the current stage to the stage log and clear it.
+
+        Unsets `currentStage`/`currentStageStartedAt` on the stored document so
+        the gateway stops reporting progress once a run is finished.
+        """
         if not self._enabled():
             return
         now = datetime.now(UTC)
         self._close_current_stage(now)
         self._current_stage = None
         self._stage_started_at = None
-        self._write({"stageLog": list(self._stage_log)})
+        self._write(
+            {"stageLog": list(self._stage_log)},
+            unset={"currentStage": "", "currentStageStartedAt": ""},
+        )
 
 
 class NoOpReporter:

@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 
 from app.pipeline import UnparsableDocumentError, run
+from app.pipeline.progress import ProgressReporter
 
 load_dotenv(Path(__file__).resolve().parent / "../../../.env")
 
@@ -45,6 +46,12 @@ SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. U
 def documents():
     """Return the `knowledge_documents` collection in MONGODB_URI's database."""
     return MongoClient(os.environ["MONGODB_URI"]).get_default_database()["knowledge_documents"]
+
+
+@cache  # shares the same client pool as documents(); cached for the worker's life
+def jobs():
+    """Return the `ingestion_jobs` collection the ProgressReporter writes to (E2)."""
+    return MongoClient(os.environ["MONGODB_URI"]).get_default_database()["ingestion_jobs"]
 
 
 def download(key: str, dest: str) -> None:
@@ -87,19 +94,27 @@ def ingest_document(document_id: str) -> None:
         log.warning("Document %s is already finished or missing; skipping.", document_id)
         return
 
+    # One progress reporter per job (E2): records each stage transition to
+    # ingestion_jobs, which the gateway reads while the document is processing.
+    reporter = ProgressReporter(jobs(), document_id)
+
     # 2. Download the original into a temporary folder that deletes itself, and
     # 3. run ingestion pipeline: parse → chunk → anonymise → index, with the
-    # document's labels on every passage.
+    # document's labels on every passage. run() reports its own stages and calls
+    # finish() on success.
     try:
         with tempfile.TemporaryDirectory() as tmp:
             # Keep the original file name: the parser reports it as the doc name.
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
-            summary = run(path, doc_id=document_id, labels=labels(doc))
+            summary = run(path, doc_id=document_id, labels=labels(doc), reporter=reporter)
     # 4. Record the outcome: failed here, complete below. The admin sees a plain
     # reason; re-raising tells BullMQ the job failed (not retried: attempts is 1).
     except Exception as error:
         log.exception("Ingesting document %s failed.", document_id)
+        # Record the failed stage so the gateway shows "Failed" (E2).
+        reporter.start_stage("failed")
+        reporter.finish()
         collection.update_one(
             {"_id": _id},
             {
