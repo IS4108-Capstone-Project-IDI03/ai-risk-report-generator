@@ -37,21 +37,25 @@ describe('ingestion_jobs model', () => {
   })
 
   it('rejects a document missing required fields', async () => {
-    const { documentId: _d, currentStage: _c, ...rest } = validJob()
+    const { documentId: id, currentStage: currStage, ...rest } = validJob()
+    void id
+    void currStage
     await expect(IngestionJobModel.create(rest)).rejects.toThrow(/validation/i)
   })
 
   it('rejects an unknown stage value', async () => {
     await expect(
-      IngestionJobModel.create({ ...validJob(), currentStage: 'bogus' }),
+      // Deliberately invalid stage: cast past the enum type to test the
+      // schema's runtime enum validation.
+      IngestionJobModel.create({ ...validJob(), currentStage: 'bogus' as never }),
     ).rejects.toThrow(/validation/i)
   })
 
   it('rejects two documents sharing one documentId', async () => {
     const documentId = new Types.ObjectId()
     await IngestionJobModel.create({ ...validJob(), documentId })
-    await expect(
-      IngestionJobModel.create({ ...validJob(), documentId }),
-    ).rejects.toThrow(/duplicate key/i)
+    await expect(IngestionJobModel.create({ ...validJob(), documentId })).rejects.toThrow(
+      /duplicate key/i,
+    )
   })
 })

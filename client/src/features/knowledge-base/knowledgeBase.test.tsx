@@ -314,7 +314,6 @@ describe('Knowledge base uploads (IN-01)', () => {
   })
 })
 
-
 describe('Ingestion stage tracking (E2)', () => {
   it('shows the stage and the page reached for a chunking document', async () => {
     mockGateway([processing({ currentStage: 'chunking', pageCurrent: 12, pageTotal: 45 })])

@@ -10,8 +10,8 @@ import { IngestionJobModel, type IIngestionJob } from '../models/ingestion-job.m
  * document carries.
  */
 export async function getJobProgress(documentId: string): Promise<IIngestionJob | null> {
-    if (!isValidObjectId(documentId)) return null
-    return IngestionJobModel.findOne({ documentId }).lean()
+  if (!isValidObjectId(documentId)) return null
+  return IngestionJobModel.findOne({ documentId }).lean()
 }
 
 /**
@@ -20,12 +20,12 @@ export async function getJobProgress(documentId: string): Promise<IIngestionJob 
  * skipped. Used by listKnowledgeDocuments to avoid one query per document.
  */
 export async function getJobProgressBatch(
-    documentIds: string[],
+  documentIds: string[],
 ): Promise<Map<string, IIngestionJob>> {
-    const ids = documentIds.filter(isValidObjectId)
-    if (ids.length === 0) {
-        return new Map()
-    }
-    const jobs = await IngestionJobModel.find({ documentId: { $in: ids } }).lean()
-    return new Map(jobs.map((job) => [String(job.documentId), job]))
+  const ids = documentIds.filter(isValidObjectId)
+  if (ids.length === 0) {
+    return new Map()
+  }
+  const jobs = await IngestionJobModel.find({ documentId: { $in: ids } }).lean()
+  return new Map(jobs.map((job) => [String(job.documentId), job]))
 }

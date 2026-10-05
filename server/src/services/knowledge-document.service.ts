@@ -378,9 +378,7 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
 
   // Enrich processing documents with their ingestion progress (E2) in a single
   // batch read. Documents without a job (worker not started) keep no progress.
-  const processingIds = documents
-    .filter((d) => d.status === 'processing')
-    .map((d) => String(d._id))
+  const processingIds = documents.filter((d) => d.status === 'processing').map((d) => String(d._id))
   const jobs = await getJobProgressBatch(processingIds)
 
   return documents.map((d) => toDto(d, jobs.get(String(d._id))))
@@ -396,7 +394,8 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
     .collation({ locale: 'en' })
     .sort({ title: 1 })
     .lean()
-  return documents.map(toDto)
+  // Complete documents carry no progress, so no job is passed to toDto.
+  return documents.map((d) => toDto(d))
 }
 
 // The document isn't in the state the change needs (a 409). KB-01: only an

@@ -298,7 +298,9 @@ describe('GET /api/knowledge-documents', () => {
   }
 
   // Finds one listed document by title.
-  const find = (body: { title: string }[], title: string) => body.find((d) => d.title === title)
+  type Listed = { title: string; progress?: Record<string, unknown> }
+  const find = (body: Listed[], title: string): Listed =>
+    body.find((d) => d.title === title) as Listed
 
   it('includes progress for a processing document with a seeded ingestion job', async () => {
     const { body: doc } = await upload(PDF, { ...DETAILS, title: 'With progress' })
@@ -306,18 +308,25 @@ describe('GET /api/knowledge-documents', () => {
     await seedJob(doc.id)
 
     const { body } = await api.get('/api/knowledge-documents')
-    const listed = find(body, 'With progress')
+    const progress = find(body, 'With progress').progress as {
+      currentStage: string
+      pageCurrent: number
+      pageTotal: number
+      elapsedMs: number
+      currentStageElapsedMs: number
+      stageLog: { stage: string; startedAt: string; durationMs: number }[]
+    }
 
-    expect(listed.progress).toMatchObject({
+    expect(progress).toMatchObject({
       currentStage: 'chunking',
       pageCurrent: 12,
       pageTotal: 45,
     })
-    expect(listed.progress.elapsedMs).toBeGreaterThan(0)
-    expect(listed.progress.currentStageElapsedMs).toBeGreaterThan(0)
-    expect(listed.progress.stageLog[0]).toMatchObject({ stage: 'parsing', durationMs: 2000 })
+    expect(progress.elapsedMs).toBeGreaterThan(0)
+    expect(progress.currentStageElapsedMs).toBeGreaterThan(0)
+    expect(progress.stageLog[0]).toMatchObject({ stage: 'parsing', durationMs: 2000 })
     // stageLog dates are serialised as ISO strings.
-    expect(typeof listed.progress.stageLog[0].startedAt).toBe('string')
+    expect(typeof progress.stageLog[0].startedAt).toBe('string')
   })
 
   it('gives a queued document no progress field', async () => {
