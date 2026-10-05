@@ -34,6 +34,14 @@ import {
   saveObservation,
   UnknownLocationError,
 } from '../services/observation.service'
+import { RagServiceError } from '../services/rag.service'
+import {
+  draftSection,
+  InsufficientEvidenceError,
+  listSections,
+  TranscriptionInProgressError,
+  UnknownSectionError,
+} from '../services/section.service'
 import { fieldErrors } from './field-errors'
 import { requirePermission } from '../middleware/auth.middleware'
 
@@ -309,6 +317,66 @@ router.get('/:reference/observations', requirePermission('assessments:view'), as
     throw error
   }
 })
+
+// Sections 7-12 of the report, each with its usable evidence count and newest
+// draft (GN-01).
+router.get('/:reference/sections', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await listSections(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof RagServiceError) {
+      res.status(503).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Drafts one section from the assessment's observations and saves it (GN-01):
+// 201 with the draft, 403 for anyone but the assigned engineer, 404, 409 while
+// a transcription is unfinished or once archived, 422 when the
+// section lacks evidence, 503 when the drafting service fails (not 502, which
+// the client reads as the gateway itself being down).
+router.post(
+  '/:reference/sections/:sectionId/draft',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    try {
+      res
+        .status(201)
+        .json(await draftSection(req.params.reference, req.params.sectionId, res.locals.user!))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError || error instanceof UnknownSectionError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+        return
+      }
+      if (
+        error instanceof TranscriptionInProgressError ||
+        error instanceof AssessmentArchivedError
+      ) {
+        res.status(409).json({ error: error.message })
+        return
+      }
+      if (error instanceof InsufficientEvidenceError) {
+        res.status(422).json({ error: error.message, found: error.found, needed: error.needed })
+        return
+      }
+      if (error instanceof RagServiceError) {
+        res.status(503).json({ error: error.message })
+        return
+      }
+      throw error
+    }
+  },
+)
 
 // express.raw rejects a body over the limit before the handler runs.
 const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
