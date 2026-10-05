@@ -173,6 +173,12 @@ jobs:
         run: uv run pytest -q --tb=short -m "not model and not e2e"
         working-directory: microservices/${{ matrix.service }}
 
+      - name: Pytest (rag-service)
+        # Retrieval and the LLM are mocked, so no API keys are needed.
+        if: matrix.service == 'rag-service'
+        run: uv run --frozen --extra dev pytest -q --tb=short
+        working-directory: microservices/${{ matrix.service }}
+
   # ── Docker images build ────────────────────────────────────────────────
   docker:
     runs-on: ubuntu-latest
