@@ -19,6 +19,7 @@ We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
+import os
 import re
 from functools import lru_cache
 
@@ -420,7 +421,11 @@ def _chunker():
 
 
 def chunk(
-    parsed: ParsedDocument, doc_path: str | None = None, doc_id: str | None = None
+    parsed: ParsedDocument,
+    doc_path: str | None = None,
+    doc_id: str | None = None,
+    reporter=None,
+    chunk_progress_interval: int = 10,
 ) -> list[dict]:
     """Chunk a parsed document into index-ready chunk dicts.
 
@@ -428,6 +433,9 @@ def chunk(
         parsed: result of `parser.parse`, carrying the `DoclingDocument`.
         doc_id: stable identifier for the source document; defaults to the
             document name. Used to build unique chunk ids (``f"{doc_id}:{n}"``).
+        reporter: an optional ProgressReporter (E2). When given, the running
+            chunk count is reported every `chunk_progress_interval` chunks.
+        chunk_progress_interval: how many chunks between progress updates. 
 
     Returns:
         A list of ``{"id", "text", "metadata"}`` dicts ready for `index_chunks`.
@@ -435,6 +443,8 @@ def chunk(
     """
     if doc_path is None:
         return []
+
+    interval = chunk_progress_interval
 
     doc = parsed.docling_document
     if doc is None:
@@ -478,6 +488,8 @@ def chunk(
                 if table_chunk is not None:
                     chunks.append(table_chunk)
                     seen_chunk_bboxes.extend(table_bboxes)
+                    if reporter and len(chunks) % interval == 0:
+                        reporter.update_chunks(len(chunks), None)
                 continue
 
             chunk_bboxes = _chunk_bbox(dl_chunk)
@@ -504,6 +516,8 @@ def chunk(
                     ),
                 }
             )
+            if reporter and len(chunks) % interval == 0:
+                reporter.update_chunks(len(chunks), None)
     finally:
         # Release the PDF handle even if a region blows up mid-document.
         close_document()

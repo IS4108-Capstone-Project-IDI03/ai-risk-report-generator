@@ -25,6 +25,7 @@ import sys
 from app.pipeline.anonymiser import anonymise
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
+from app.pipeline.progress import NoOpReporter
 
 __all__ = [
     "run",
@@ -33,6 +34,7 @@ __all__ = [
     "anonymise",
     "index_chunks",
     "UnparsableDocumentError",
+    "NoOpReporter",
 ]
 
 
@@ -57,6 +59,7 @@ def run(
     page_range: tuple[int, int] | None = None,
     doc_id: str | None = None,
     labels: dict | None = None,
+    reporter=None,
 ) -> dict:
     """Ingest one document end to end and return a summary.
 
@@ -70,6 +73,11 @@ def run(
         labels: the document's labels (source type, country, facility type,
             COPE dimension, effective date), added to every chunk's metadata
             so search can filter on them (KB-01).
+        reporter: an optional ProgressReporter (E2) that records each stage
+            transition to MongoDB. When omitted, a NoOpReporter is used so the
+            stage calls below need no guards. On failure, run() re-raises
+            without calling finish(); the worker's except block records the
+            failed stage.
 
     Returns:
         A summary dict::
@@ -90,16 +98,28 @@ def run(
     # Allow module object to act as a class
     this = sys.modules[__name__]
 
+    # A no-op sentinel so stage calls need no `if reporter:` guards. Docling
+    # always runs OCR (do_ocr=True), so parsing is reported with is_ocr=True.
+    _reporter = reporter or NoOpReporter()
+
+    _reporter.start_stage("parsing", is_ocr=True)
     parsed = this.parse(file_path, page_range=page_range)
 
     tables_captured = len(parsed.tables)
     images_captured = len(parsed.images)
 
-    chunks = this.chunk(parsed, doc_path=file_path, doc_id=doc_id)
+    _reporter.start_stage("chunking")
+    chunks = this.chunk(parsed, doc_path=file_path, doc_id=doc_id, reporter=_reporter)
+
+    _reporter.start_stage("anonymising")
     chunks = anonymise(chunks)
     for c in chunks:
         c["metadata"].update(labels or {})
+
+    _reporter.start_stage("indexing")
     chunks_indexed = index_chunks(chunks) if chunks else 0
+
+    _reporter.finish()
 
     return {
         "doc_name": parsed.doc_name,

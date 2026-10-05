@@ -45,7 +45,7 @@ def _install_fakes(monkeypatch, parsed, calls, *, chunks=None):
         calls.append(("parse", file_path, page_range))
         return parsed
 
-    def fake_chunk(parsed_arg, doc_path=None, doc_id=None):
+    def fake_chunk(parsed_arg, doc_path=None, doc_id=None, **_):
         calls.append(("chunk", parsed_arg))
         return chunks
 
@@ -121,7 +121,7 @@ def test_doc_id_forwarded_to_chunk_so_chunk_ids_name_the_document(monkeypatch):
     seen = {}
     _install_fakes(monkeypatch, _parsed(), [])
 
-    def fake_chunk(parsed_arg, doc_path=None, doc_id=None):
+    def fake_chunk(parsed_arg, doc_path=None, doc_id=None, **_):
         seen["doc_id"] = doc_id
         return []
 
@@ -149,3 +149,65 @@ def test_labels_are_added_to_every_passage_before_indexing(monkeypatch):
         {"doc_name": "manual.pdf", **LABELS},
         {"doc_name": "manual.pdf", **LABELS},
     ]
+
+
+# --- Progress reporting (E2): the reporter is driven through the stage boundaries.
+
+
+class RecordingReporter:
+    """Captures the reporter calls run() makes, in order."""
+
+    def __init__(self):
+        self.calls = []
+
+    def start_stage(self, stage, *, is_ocr=False):
+        self.calls.append(("start_stage", stage, is_ocr))
+
+    def update_chunks(self, completed, total):
+        self.calls.append(("update_chunks", completed, total))
+
+    def finish(self):
+        self.calls.append(("finish",))
+
+
+def test_reporter_sees_each_stage_in_order(monkeypatch):
+    _install_fakes(monkeypatch, _parsed(), [])
+    reporter = RecordingReporter()
+
+    pipeline.run("some/report.pdf", reporter=reporter)
+
+    stages = [c[1] for c in reporter.calls if c[0] == "start_stage"]
+    assert stages == ["parsing", "chunking", "anonymising", "indexing"]
+
+
+def test_reporter_finishes_after_indexing(monkeypatch):
+    _install_fakes(monkeypatch, _parsed(), [])
+    reporter = RecordingReporter()
+
+    pipeline.run("some/report.pdf", reporter=reporter)
+
+    # finish() is the final call, after the indexing stage has started.
+    assert reporter.calls[-1] == ("finish",)
+    kinds = [c[0] for c in reporter.calls]
+    assert kinds.index("finish") > kinds.index("start_stage")
+
+
+def test_reporter_does_not_finish_when_parsing_fails(monkeypatch):
+    def boom(file_path, page_range=None):
+        raise UnparsableDocumentError(file_path, "corrupt")
+
+    monkeypatch.setattr(pipeline, "parse", boom)
+    reporter = RecordingReporter()
+
+    with pytest.raises(UnparsableDocumentError):
+        pipeline.run("bad.pdf", reporter=reporter)
+
+    # The worker's except block reports failure; run() must not call finish().
+    assert ("finish",) not in reporter.calls
+
+
+def test_a_none_reporter_does_not_raise(monkeypatch):
+    _install_fakes(monkeypatch, _parsed(), [])
+    # No reporter supplied: the no-op path must work without error.
+    summary = pipeline.run("some/report.pdf")
+    assert summary["chunks_indexed"] == 2
