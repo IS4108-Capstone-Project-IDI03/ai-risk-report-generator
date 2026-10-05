@@ -11,7 +11,6 @@ from bson import ObjectId
 
 from app import worker
 from app.pipeline import UnparsableDocumentError
-from app.pipeline.progress import ProgressReporter
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
@@ -181,7 +180,7 @@ def test_a_document_interrupted_mid_processing_is_processed_again(documents, mon
     assert documents.doc["status"] == "complete"
 
 
-def test_jobs_share_one_database_client(monkeypatch):
+def test_documents_share_one_database_client(monkeypatch):
     # MongoClient connects lazily, so no database is needed here.
     monkeypatch.setenv("MONGODB_URI", "mongodb://127.0.0.1:1/in01-test")
     worker.documents.cache_clear()

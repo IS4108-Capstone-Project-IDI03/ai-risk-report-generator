@@ -19,10 +19,9 @@ We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
-from typing import Any
-import os
 import re
 from functools import lru_cache
+from typing import Any
 
 from docling_core.transforms.chunker import HybridChunker
 from docling_core.types.doc import (
@@ -433,7 +432,7 @@ def chunk(
         parsed: result of `parser.parse`, carrying the `DoclingDocument`.
         doc_id: stable identifier for the source document; defaults to the
             document name. Used to build unique chunk ids (``f"{doc_id}:{n}"``).
-        reporter: an optional ProgressReporter (E2). Updates for each page. 
+        reporter: an optional ProgressReporter (E2). Updates for each page.
 
     Returns:
         A list of ``{"id", "text", "metadata"}`` dicts ready for `index_chunks`.
@@ -456,7 +455,6 @@ def chunk(
 
     total_pages = parsed.page_count
     page_reached = 0
-
 
     chunks: list[dict] = []
     seen_chunk_bboxes: list[dict] = []

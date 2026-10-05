@@ -98,4 +98,3 @@ def test_every_method_is_a_no_op_without_a_document_id():
     reporter.finish()
 
     collection.find_one_and_update.assert_not_called()
-
