@@ -14,7 +14,12 @@ dependencies = [
     "python-dotenv>=1.0",
     "cohere>=5.20,<6",
     "chromadb-client==1.5.5",
-    "docling>=2.0,<3",
+    "docling[ocrmac,rapidocr]>=2.0,<3",
+    # nemotron-ocr is declared directly (not via docling's feat-ocr-nemotron extra)
+    # because older docling releases don't forward that extra name. The platform
+    # marker ensures it only resolves on Linux x86_64 Python 3.12 where it's available.
+    # Requires torch~=2.11.0 — ensure the base image provides a compatible torch.
+    "nemotron-ocr>=2.0.0; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
     "pymupdf>=1.28.2",
     "glmocr>=0.1.5",
     "opencv-python-headless>=5.0.0.93",
@@ -47,6 +52,16 @@ dev = [
     # Lets Python verify TLS against the OS trust store, so Hugging Face model
     # downloads work behind a TLS-inspecting proxy. See tests/conftest.py.
     "truststore==0.10.4",
+]
+
+[tool.uv]
+# Resolve dependencies for both the local dev platform (Windows) and the
+# production container platform (Linux x86_64) so that platform-restricted
+# packages like nemotron_ocr (Linux + CUDA only) are included in the lockfile
+# even when the lock is generated on Windows.
+environments = [
+    "sys_platform == 'win32'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
 [tool.ruff]

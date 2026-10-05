@@ -105,9 +105,9 @@ def ingest_document(document_id: str) -> None:
             {
                 "$set": {
                     "status": "failed",
-                    "error": UNREADABLE
-                    if isinstance(error, UnparsableDocumentError)
-                    else SYSTEM_ERROR,
+                    "error": (
+                        UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
+                    ),
                     "finishedAt": datetime.now(UTC),
                 }
             },
