@@ -215,7 +215,7 @@
   font-family: var(--font-mono);
   color: var(--text-muted);
 }
-.kb-chunk-count {
+.kb-page-count {
   font-family: var(--font-mono);
 }
 .kb-link {

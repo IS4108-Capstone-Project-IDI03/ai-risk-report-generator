@@ -78,6 +78,10 @@ class ParsedDocument:
     text_blocks: list[TextBlock] = field(default_factory=list)
     tables: list[CapturedItem] = field(default_factory=list)
     images: list[CapturedItem] = field(default_factory=list)
+    # The document's total page count (E2b), read cheaply via PyMuPDF, so
+    # chunking can report page progress against a known total. None if the
+    # count can't be read.
+    page_count: int | None = None
 
 
 def _page_count(source: Path) -> int | None:
@@ -256,6 +260,10 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
     """
     source = Path(file_path)
 
+    # Read the total page count once (E2b): used to validate a page_range and
+    # carried on the result so chunking can report page progress.
+    page_count = _page_count(source)
+
     convert_kwargs: dict = {"raises_on_error": False}
     if page_range is not None:
         start, end = page_range
@@ -263,7 +271,6 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
             raise ValueError(
                 f"page_range must satisfy start >= 1 and end > start, got {page_range}"
             )
-        page_count = _page_count(source)
         if page_count is not None and end > page_count:
             raise ValueError(f"page_range end {end} exceeds document page count {page_count}")
         convert_kwargs["page_range"] = (start, end)
@@ -293,4 +300,5 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
         text_blocks=text_blocks,
         tables=tables,
         images=images,
+        page_count=page_count,
     )

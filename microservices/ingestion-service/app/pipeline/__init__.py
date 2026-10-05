@@ -98,11 +98,10 @@ def run(
     # Allow module object to act as a class
     this = sys.modules[__name__]
 
-    # A no-op sentinel so stage calls need no `if reporter:` guards. Docling
-    # always runs OCR (do_ocr=True), so parsing is reported with is_ocr=True.
+    # A no-op sentinel so stage calls need no `if reporter:` guards.
     _reporter = reporter or NoOpReporter()
 
-    _reporter.start_stage("parsing", is_ocr=True)
+    _reporter.start_stage("parsing")
     parsed = this.parse(file_path, page_range=page_range)
 
     tables_captured = len(parsed.tables)

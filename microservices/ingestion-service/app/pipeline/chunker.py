@@ -19,6 +19,7 @@ We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
+from typing import Any
 import os
 import re
 from functools import lru_cache
@@ -425,7 +426,6 @@ def chunk(
     doc_path: str | None = None,
     doc_id: str | None = None,
     reporter=None,
-    chunk_progress_interval: int = 10,
 ) -> list[dict]:
     """Chunk a parsed document into index-ready chunk dicts.
 
@@ -433,9 +433,7 @@ def chunk(
         parsed: result of `parser.parse`, carrying the `DoclingDocument`.
         doc_id: stable identifier for the source document; defaults to the
             document name. Used to build unique chunk ids (``f"{doc_id}:{n}"``).
-        reporter: an optional ProgressReporter (E2). When given, the running
-            chunk count is reported every `chunk_progress_interval` chunks.
-        chunk_progress_interval: how many chunks between progress updates. 
+        reporter: an optional ProgressReporter (E2). Updates for each page. 
 
     Returns:
         A list of ``{"id", "text", "metadata"}`` dicts ready for `index_chunks`.
@@ -443,8 +441,6 @@ def chunk(
     """
     if doc_path is None:
         return []
-
-    interval = chunk_progress_interval
 
     doc = parsed.docling_document
     if doc is None:
@@ -458,6 +454,10 @@ def chunk(
     # since a chunk's own meta.headings is flat.
     section_trails = _build_section_trails(doc)
 
+    total_pages = parsed.page_count
+    page_reached = 0
+
+
     chunks: list[dict] = []
     seen_chunk_bboxes: list[dict] = []
     try:
@@ -465,6 +465,12 @@ def chunk(
             text = (dl_chunk.text or "").strip()
             if not text:
                 continue
+
+            pages = _pages_of(dl_chunk.meta)
+            if pages and len(pages) > 0 and pages[-1] > page_reached:
+                page_reached = pages[-1]
+                if reporter:
+                    reporter.update_pages(page_reached, total_pages)
 
             trail = _chunk_trail(dl_chunk, section_trails)
 
@@ -488,11 +494,9 @@ def chunk(
                 if table_chunk is not None:
                     chunks.append(table_chunk)
                     seen_chunk_bboxes.extend(table_bboxes)
-                    if reporter and len(chunks) % interval == 0:
-                        reporter.update_chunks(len(chunks), None)
                 continue
 
-            chunk_bboxes = _chunk_bbox(dl_chunk)
+            chunk_bboxes: list[dict[Any, Any]] = _chunk_bbox(dl_chunk)
             has_formula = _has_formula_chunk(dl_chunk)
             if has_formula:
                 # With formula enrichment OFF, formula text gets replaced with
@@ -516,8 +520,6 @@ def chunk(
                     ),
                 }
             )
-            if reporter and len(chunks) % interval == 0:
-                reporter.update_chunks(len(chunks), None)
     finally:
         # Release the PDF handle even if a region blows up mid-document.
         close_document()

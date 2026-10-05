@@ -2,7 +2,6 @@ import { Schema, Types, model } from 'mongoose'
 
 export const INGESTION_STAGES = [
     'parsing',
-    'ocr',
     'anonymising',
     'chunking',
     'indexing',
@@ -21,11 +20,11 @@ export interface IStageLogEntry {
 export interface IIngestionJob {
     documentId: Types.ObjectId
     currentStage: IngestionStage
-    // Docling always runs OCR, so this is true in practice;
-    isOcr: boolean
-    chunksCompleted: number
-    // Null until chunking starts and a total is known.
-    chunksTotal: number | null
+    // The page being chunked, and the document's total page count (E2b). The
+    // chunk count has no knowable total up front, so progress is tracked by
+    // page instead. Both null until chunking reaches a page with provenance.
+    pageCurrent: number | null
+    pageTotal: number | null
     // Completed stages only, oldest first.
     stageLog: IStageLogEntry[]
     currentStageStartedAt: Date
@@ -48,9 +47,8 @@ const ingestionJobSchema = new Schema<IIngestionJob>(
     {
         documentId: { type: Schema.Types.ObjectId, required: true, unique: true },
         currentStage: { type: String, enum: INGESTION_STAGES, required: true },
-        isOcr: { type: Boolean, required: true, default: false },
-        chunksCompleted: { type: Number, required: true, default: 0 },
-        chunksTotal: { type: Number, default: null },
+        pageCurrent: { type: Number, default: null },
+        pageTotal: { type: Number, default: null },
         stageLog: { type: [stageLogEntrySchema], default: [] },
         currentStageStartedAt: { type: Date, required: true },
         startedAt: { type: Date, required: true },

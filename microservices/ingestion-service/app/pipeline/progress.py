@@ -68,7 +68,7 @@ class ProgressReporter:
             }
         )
 
-    def start_stage(self, stage: str, *, is_ocr: bool = False) -> None:
+    def start_stage(self, stage: str) -> None:
         """Transition to a new stage.
 
         Appends the previous stage (with its duration) to the stage log, sets
@@ -86,18 +86,22 @@ class ProgressReporter:
         self._write(
             {
                 "currentStage": stage,
-                "isOcr": is_ocr,
                 "currentStageStartedAt": now,
                 "startedAt": self._started_at,
                 "stageLog": list(self._stage_log),
             }
         )
 
-    def update_chunks(self, completed: int, total: int | None) -> None:
-        """Update the chunk counter only, with no stage transition."""
+    def update_pages(self, current: int, total: int | None) -> None:
+        """Update the page counter only, with no stage transition (E2b).
+
+        `current` is the page being chunked; `total` is the document's page
+        count (known up front from the parser). The chunk count has no knowable
+        total, so progress is tracked by page instead.
+        """
         if not self._enabled():
             return
-        self._write({"chunksCompleted": completed, "chunksTotal": total})
+        self._write({"pageCurrent": current, "pageTotal": total})
 
     def finish(self) -> None:
         """Move the current stage to the stage log and clear it.
@@ -124,10 +128,10 @@ class NoOpReporter:
     supplied (CLI/batch/test), avoiding `if reporter:` guards throughout.
     """
 
-    def start_stage(self, stage: str, *, is_ocr: bool = False) -> None:
+    def start_stage(self, stage: str) -> None:
         pass
 
-    def update_chunks(self, completed: int, total: int | None) -> None:
+    def update_pages(self, current: int, total: int | None) -> None:
         pass
 
     def finish(self) -> None:

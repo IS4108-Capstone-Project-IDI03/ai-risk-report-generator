@@ -3,7 +3,7 @@
 // hours and failed for 7 days (the gateway decides). Re-read every 3 seconds
 // while any is still queued or processing. Used by screens/AddDocuments.tsx.
 import { useEffect, useState } from 'react'
-import { Badge, Button, Callout, EmptyState, ProgressBar, Table } from '../../../design-system'
+import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
 import {
   listKnowledgeDocuments,
   type IngestionStage,
@@ -19,11 +19,9 @@ const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   failed: { label: 'Failed', tone: 'critical' },
 }
 
-// What each stage reads as in the status badge (E2). OCR shares the parsing
-// label with an added marker, since Docling always runs OCR within parsing.
+// What each stage reads as in the status badge (E2).
 const STAGE_LABELS: Record<IngestionStage, string> = {
   parsing: 'Parsing',
-  ocr: 'Parsing · OCR',
   anonymising: 'Anonymising',
   chunking: 'Chunking',
   indexing: 'Indexing',
@@ -76,19 +74,17 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
     const badge = STATUS[d.status]
     // Progress is only shown for a processing document the worker has started.
     const p = d.status === 'processing' ? d.progress : undefined
-    // During parsing Docling always runs OCR, so show the OCR marker then.
-    const stage =
-      p && p.currentStage === 'parsing' && p.isOcr ? STAGE_LABELS.ocr : p && STAGE_LABELS[p.currentStage]
+    const stage = p && STAGE_LABELS[p.currentStage]
 
-    // "42 chunks" or "42 / 100 chunks" while chunking, once any chunk is done.
-    const chunkLabel =
-      p && p.currentStage === 'chunking' && p.chunksCompleted > 0
-        ? p.chunksTotal
-          ? `${p.chunksCompleted} / ${p.chunksTotal} chunks`
-          : `${p.chunksCompleted} chunks`
+    // "Pg 12 / 45", or "Pg 12" if the total couldn't be read, while
+    // chunking once a page with provenance is reached (E2b). The chunk count
+    // has no knowable total, so pages are shown instead of a progress bar.
+    const pageLabel =
+      p && p.currentStage === 'chunking' && p.pageCurrent
+        ? p.pageTotal
+          ? `| Pg ${p.pageCurrent} / ${p.pageTotal}`
+          : `| Pg ${p.pageCurrent}`
         : null
-    // Percentage when the total is known, otherwise an indeterminate bar.
-    const barValue = p?.chunksTotal ? (p.chunksCompleted / p.chunksTotal) * 100 : 0
 
     return (
       <span className="kb-status">
@@ -96,12 +92,7 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
         {p && (
           <span className="kb-stage-detail">
             <span className="kb-elapsed">{formatDuration(p.elapsedMs)}</span>
-            {chunkLabel && (
-              <>
-                <span className="kb-chunk-count">{chunkLabel}</span>
-                <ProgressBar value={barValue} showValue={false} label="" style={{ width: 80 }} />
-              </>
-            )}
+            {pageLabel && <span className="kb-page-count">{pageLabel}</span>}
           </span>
         )}
         {d.error && <span className="kb-status-reason">{d.error}</span>}

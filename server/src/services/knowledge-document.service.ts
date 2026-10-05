@@ -110,9 +110,11 @@ const ISSUING_BODY: Record<SourceType, string> = {
 // Elapsed times are computed on read so they are never stale.
 type ProgressDto = {
   currentStage: IngestionStage
-  isOcr: boolean
-  chunksCompleted: number
-  chunksTotal: number | null
+  // The page being chunked and the document's page total (E2b). The chunk
+  // count has no knowable total up front, so progress is tracked by page.
+  // Both null until chunking reaches a page with provenance.
+  pageCurrent: number | null
+  pageTotal: number | null
   elapsedMs: number
   currentStageElapsedMs: number
   stageLog: { stage: string; startedAt: string; durationMs: number }[]
@@ -158,9 +160,8 @@ function toProgressDto(job: IIngestionJob): ProgressDto {
   const now = Date.now()
   return {
     currentStage: job.currentStage,
-    isOcr: job.isOcr,
-    chunksCompleted: job.chunksCompleted,
-    chunksTotal: job.chunksTotal,
+    pageCurrent: job.pageCurrent,
+    pageTotal: job.pageTotal,
     elapsedMs: now - job.startedAt.getTime(),
     currentStageElapsedMs: now - job.currentStageStartedAt.getTime(),
     stageLog: job.stageLog.map((entry) => ({
