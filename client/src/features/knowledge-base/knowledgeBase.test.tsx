@@ -32,9 +32,8 @@ const processing = (overrides: Record<string, unknown> = {}) => ({
   status: 'processing',
   progress: {
     currentStage: 'chunking',
-    isOcr: false,
-    chunksCompleted: 42,
-    chunksTotal: null,
+    pageCurrent: 12,
+    pageTotal: 45,
     elapsedMs: 90_000,
     currentStageElapsedMs: 20_000,
     stageLog: [],
@@ -317,21 +316,21 @@ describe('Knowledge base uploads (IN-01)', () => {
 
 
 describe('Ingestion stage tracking (E2)', () => {
-  it('shows the stage and a running chunk count for a chunking document', async () => {
-    mockGateway([processing({ currentStage: 'chunking', chunksCompleted: 42 })])
+  it('shows the stage and the page reached for a chunking document', async () => {
+    mockGateway([processing({ currentStage: 'chunking', pageCurrent: 12, pageTotal: 45 })])
     await openAddDocuments()
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(await within(region).findByText('Chunking')).toBeInTheDocument()
-    expect(within(region).getByText('42 chunks')).toBeInTheDocument()
+    expect(within(region).getByText('| Pg 12 / 45')).toBeInTheDocument()
   })
 
-  it('marks an OCR-heavy parse as "Parsing · OCR"', async () => {
-    mockGateway([processing({ currentStage: 'parsing', isOcr: true })])
+  it('shows the page without a total when the page count is unknown', async () => {
+    mockGateway([processing({ currentStage: 'chunking', pageCurrent: 12, pageTotal: null })])
     await openAddDocuments()
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
-    expect(await within(region).findByText('Parsing · OCR')).toBeInTheDocument()
+    expect(await within(region).findByText('| Pg 12')).toBeInTheDocument()
   })
 
   it('falls back to the Processing badge when a processing document has no progress yet', async () => {
@@ -341,7 +340,7 @@ describe('Ingestion stage tracking (E2)', () => {
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(await within(region).findByText('Processing')).toBeInTheDocument()
-    expect(within(region).queryByText(/chunks/)).not.toBeInTheDocument()
+    expect(within(region).queryByText(/Pg/)).not.toBeInTheDocument()
   })
 
   it('shows no stage detail for a queued document', async () => {
@@ -350,7 +349,7 @@ describe('Ingestion stage tracking (E2)', () => {
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(await within(region).findByText('Queued')).toBeInTheDocument()
-    expect(within(region).queryByText(/chunks/)).not.toBeInTheDocument()
+    expect(within(region).queryByText(/Pg/)).not.toBeInTheDocument()
   })
 
   it('formats a processing duration as minutes and seconds', () => {

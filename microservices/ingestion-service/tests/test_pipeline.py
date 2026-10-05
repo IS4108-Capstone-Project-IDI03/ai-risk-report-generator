@@ -160,11 +160,11 @@ class RecordingReporter:
     def __init__(self):
         self.calls = []
 
-    def start_stage(self, stage, *, is_ocr=False):
-        self.calls.append(("start_stage", stage, is_ocr))
+    def start_stage(self, stage):
+        self.calls.append(("start_stage", stage))
 
-    def update_chunks(self, completed, total):
-        self.calls.append(("update_chunks", completed, total))
+    def update_pages(self, current, total):
+        self.calls.append(("update_pages", current, total))
 
     def finish(self):
         self.calls.append(("finish",))

@@ -12,9 +12,8 @@ async function seedJob(overrides: Record<string, unknown> = {}): Promise<string>
   await IngestionJobModel.create({
     documentId,
     currentStage: 'chunking',
-    isOcr: true,
-    chunksCompleted: 20,
-    chunksTotal: null,
+    pageCurrent: 20,
+    pageTotal: null,
     stageLog: [{ stage: 'parsing', startedAt: new Date(), durationMs: 900 }],
     currentStageStartedAt: new Date(),
     startedAt: new Date(),
@@ -39,7 +38,7 @@ describe('getJobProgress', () => {
     expect(job).not.toBeNull()
     expect(String(job!.documentId)).toBe(documentId)
     expect(job!.currentStage).toBe('chunking')
-    expect(job!.chunksCompleted).toBe(20)
+    expect(job!.pageCurrent).toBe(20)
   })
 })
 

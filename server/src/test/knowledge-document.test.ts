@@ -287,9 +287,8 @@ describe('GET /api/knowledge-documents', () => {
     await IngestionJobModel.create({
       documentId,
       currentStage: 'chunking',
-      isOcr: true,
-      chunksCompleted: 42,
-      chunksTotal: null,
+      pageCurrent: 12,
+      pageTotal: 45,
       stageLog: [{ stage: 'parsing', startedAt: new Date(Date.now() - 5000), durationMs: 2000 }],
       currentStageStartedAt: new Date(Date.now() - 1000),
       startedAt: new Date(Date.now() - 5000),
@@ -311,9 +310,8 @@ describe('GET /api/knowledge-documents', () => {
 
     expect(listed.progress).toMatchObject({
       currentStage: 'chunking',
-      isOcr: true,
-      chunksCompleted: 42,
-      chunksTotal: null,
+      pageCurrent: 12,
+      pageTotal: 45,
     })
     expect(listed.progress.elapsedMs).toBeGreaterThan(0)
     expect(listed.progress.currentStageElapsedMs).toBeGreaterThan(0)

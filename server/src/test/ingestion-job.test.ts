@@ -8,10 +8,9 @@ useMemoryMongo()
 // A complete, valid job document. Individual tests override fields as needed.
 const validJob = () => ({
   documentId: new Types.ObjectId(),
-  currentStage: 'parsing' as const,
-  isOcr: true,
-  chunksCompleted: 0,
-  chunksTotal: null,
+  currentStage: 'chunking' as const,
+  pageCurrent: 12,
+  pageTotal: 45,
   stageLog: [{ stage: 'parsing', startedAt: new Date(), durationMs: 1200 }],
   currentStageStartedAt: new Date(),
   startedAt: new Date(),
@@ -26,10 +25,9 @@ describe('ingestion_jobs model', () => {
     const found = await IngestionJobModel.findById(created._id).lean()
     expect(found).not.toBeNull()
     expect(String(found!.documentId)).toBe(String(input.documentId))
-    expect(found!.currentStage).toBe('parsing')
-    expect(found!.isOcr).toBe(true)
-    expect(found!.chunksCompleted).toBe(0)
-    expect(found!.chunksTotal).toBeNull()
+    expect(found!.currentStage).toBe('chunking')
+    expect(found!.pageCurrent).toBe(12)
+    expect(found!.pageTotal).toBe(45)
     expect(found!.stageLog).toHaveLength(1)
     expect(found!.stageLog[0].stage).toBe('parsing')
     expect(found!.stageLog[0].durationMs).toBe(1200)

@@ -82,7 +82,7 @@ def test_a_processed_document_is_complete_with_its_counts(documents, monkeypatch
 
     def fake_run(file_path, doc_id=None, labels=None, reporter=None):
         seen.update(bytes=Path(file_path).read_bytes(), doc_id=doc_id)
-        reporter.start_stage("parsing", is_ocr=True)
+        reporter.start_stage("parsing")
         reporter.start_stage("chunking")
         reporter.start_stage("anonymising")
         reporter.start_stage("indexing")
@@ -198,7 +198,7 @@ def _logged_stages(job_doc: dict) -> list[str]:
 
 def test_a_successful_run_leaves_a_finished_job_with_every_stage_logged(documents, monkeypatch):
     def fake_run(file_path, doc_id=None, labels=None, reporter=None):
-        reporter.start_stage("parsing", is_ocr=True)
+        reporter.start_stage("parsing")
         reporter.start_stage("chunking")
         reporter.start_stage("anonymising")
         reporter.start_stage("indexing")
@@ -218,7 +218,7 @@ def test_a_successful_run_leaves_a_finished_job_with_every_stage_logged(document
 
 def test_a_failed_run_records_the_failed_stage_in_the_log(documents, monkeypatch):
     def fake_run(file_path, doc_id=None, labels=None, reporter=None):
-        reporter.start_stage("parsing", is_ocr=True)
+        reporter.start_stage("parsing")
         raise UnparsableDocumentError(file_path, "Docling produced no extractable content")
 
     monkeypatch.setattr(worker, "run", fake_run)

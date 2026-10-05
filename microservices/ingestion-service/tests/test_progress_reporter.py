@@ -61,17 +61,17 @@ def test_second_start_stage_appends_the_first_to_the_log_with_a_duration():
     assert "startedAt" in logged
 
 
-def test_update_chunks_sets_only_chunk_fields():
+def test_update_pages_sets_only_page_fields():
     collection = MagicMock()
     reporter = ProgressReporter(collection, DOC_ID)
     reporter.start_stage("chunking")
     collection.find_one_and_update.reset_mock()
 
-    reporter.update_chunks(20, None)
+    reporter.update_pages(12, 45)
 
     update = last_set(collection)
-    assert update["chunksCompleted"] == 20
-    assert update["chunksTotal"] is None
+    assert update["pageCurrent"] == 12
+    assert update["pageTotal"] == 45
     assert "currentStage" not in update
 
 
@@ -94,16 +94,8 @@ def test_every_method_is_a_no_op_without_a_document_id():
     reporter = ProgressReporter(collection, None)
 
     reporter.start_stage("parsing")
-    reporter.update_chunks(5, None)
+    reporter.update_pages(12, 45)
     reporter.finish()
 
     collection.find_one_and_update.assert_not_called()
 
-
-def test_is_ocr_is_recorded_on_the_job():
-    collection = MagicMock()
-    reporter = ProgressReporter(collection, DOC_ID)
-
-    reporter.start_stage("parsing", is_ocr=True)
-
-    assert last_set(collection)["isOcr"] is True
