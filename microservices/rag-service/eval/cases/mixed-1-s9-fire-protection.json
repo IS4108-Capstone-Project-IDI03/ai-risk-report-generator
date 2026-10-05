@@ -1,0 +1,68 @@
+{
+  "name": "Mixed Use Dev Sample 1, section 9 Fire Protection",
+  "source": "Mixed Use Dev Sample 1 - Reduced.pdf, Section 9",
+  "exclude_doc_id": "6ac0b457a99acf65e6f594e6",
+  "section_id": "9",
+  "assessment": {
+    "reference": "EVAL-MIXED-1",
+    "jurisdiction": "SG",
+    "facility_type": "Mixed-use development",
+    "standards": [
+      "CP52:2004"
+    ]
+  },
+  "observations": [
+    {
+      "id": "mix1-1",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Office tower",
+      "standard": "CP52:2004",
+      "note": "wet spk thruout office tower, CP52:2004. OH2 B3-L10, OH1 L10-roof. pumps in B1 + L32 pump rms"
+    },
+    {
+      "id": "mix1-2",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Residences L23-L47",
+      "note": "no spk in residences L23-31, L33-47 - site says local code doesnt need it. sky gardens L22, L32 are spk. elec rms, lift shafts, risers not spk"
+    },
+    {
+      "id": "mix1-3",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "IT server rooms",
+      "note": "FM200 in L3 IT srv rm + B1 srv rm. B1 one cross-zoned smoke dets in rm + ceiling void, nozzles in rm + void. FM team maintains"
+    },
+    {
+      "id": "mix1-4",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Tenant areas",
+      "note": "some tenants have own gas suppression, their contractors maintain. signals supposedly linked to main FA panel. couldnt get list of which tenant areas"
+    },
+    {
+      "id": "mix1-5",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "F&B and hotel kitchens",
+      "note": "Ansul wet chem on all F&B + hotel kitchen hoods, tenancy agreement requires it b4 opening. tenants/hotel maintain"
+    },
+    {
+      "id": "mix1-6",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Open podium",
+      "note": "6 auto water monitors on podium roofs, IR/UV detection, 32m radius, 5 L/s @ 600 Pa"
+    },
+    {
+      "id": "mix1-7",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "B1 fire pump room",
+      "note": "so the sprinkler supply is transfer pumps, gravity feed and booster pumps, one duty one standby three jockey, all electric with the generator as backup, low mid and high zone each have their own jockey, pumps are FM approved and UL listed, and there's another set up at L32 with one duty one standby one jockey"
+    }
+  ],
+  "reference": "Automatic Sprinkler Protection Comments\nAutomatic sprinkler systems are provided for the whole tower with the exception of the Residences (Level 23 to 31 and Level 33 to 47). Sprinkler protection is not required in the condominium area as per local code. Sky Garden on Level 32 and Level 22 are covered by sprinklers. Electrical equipment rooms, lift shafts and riser compartments are also not sprinklered. The primary system is designed and installed to local code, CP52: 2004 (Code of Practice for Automatic Fire Sprinkler System). The office towers from Basement 3 to Level 10 is designed to OH2 while Level 10 to roof is designed to OH1.\n\nSpecial Extinguishing Systems\nFM200 gaseous protection system is installed at the Level 3 IT Server Room. FM200 gaseous protection system is also installed at the Basement 1 server room and is activated via cross zone smoke detectors installed within the room and in the false ceiling. The discharge nozzle is also installed within the room and in the false ceiling. The maintenance for the above systems are maintained by the respective facility management team. Additionally, gaseous protection system is installed within some tenant's area and is maintained by the tenants' appointed contractor. The signals from the gaseous suppression system are reportedly required to be linked to the main fire alarm panel. Information regarding office areas which are protected by the gaseous protection system was not available at the time of the visit. Ansul's Wet Chemical Suppression System is installed for the kitchen hoods of the retail F&Bs and hotel kitchen throughout the complex. It is outlined in the tenancy agreement that all F&B establishments will have to install the wet chemical suppression system before starting operation. The open podium area is protected by 6 automatic water monitor systems. The water monitor devices are activated by IR/UV sensors. The monitor has a protection radius of 32m, flowrate of 5 litres/sec, at 600 Pa.\n\nWater Supply Details\nSprinkler system is supplied by a combination of fire sprinkler transfer pumps, gravity feed pumps and booster pumps set. The booster pumps and gravity feed pumps comprise of 1 duty, 1 standby and 3 jockey pumps, all of which are electric motor driven and provided with emergency backup power via the building generator set. The sprinkler system is split into low zone, mid zone and high zone where each zone has a dedicated jockey pump. Both sprinkler pumps are FM approved and UL listed. There is also another set of sprinkler pumps at the L32 which comprises of 1 duty, 1 standby and 1 jockey pump.",
+  "notes_style": "As written on site: terse and abbreviated, some dictated (rough since 4 Oct 2026)."
+}

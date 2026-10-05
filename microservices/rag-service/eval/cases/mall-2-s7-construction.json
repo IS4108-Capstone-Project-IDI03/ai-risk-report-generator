@@ -1,0 +1,65 @@
+{
+  "name": "Shopping Mall Sample 2, section 7 Construction",
+  "source": "Shopping Mall Sample 2 - Reduced.pdf, Section 7",
+  "exclude_doc_id": "6ac0b458a99acf65e6f594e8",
+  "section_id": "7",
+  "assessment": {
+    "reference": "EVAL-MALL-2",
+    "jurisdiction": "SG",
+    "facility_type": "Shopping mall",
+    "standards": []
+  },
+  "observations": [
+    {
+      "id": "mall2-1",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole site",
+      "note": "mall opened 2009. bsmt link to MRT + links to nbr malls. site 21,731m2, GFA 125,621m2, NLA 58,340m2. residences ~35,000m2 GFA"
+    },
+    {
+      "id": "mall2-2",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole site",
+      "note": "mostly RC cols/beams/slabs, some steel w sprayed fireproofing. RC flat roof. partitions drywall or lightweight conc panels"
+    },
+    {
+      "id": "mall2-3",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Facade",
+      "note": "mall ext RC or glass on steel frame, freeform curved glass + metal facade. residences RC / curtain glass on steel. nothing combustible seen"
+    },
+    {
+      "id": "mall2-4",
+      "COPE_dimension": "Construction",
+      "severity": "moderate",
+      "location": "Retail L1-L5",
+      "note": "retail L1-L5 all open to each other thru the voids - basically 1 compartment"
+    },
+    {
+      "id": "mall2-5",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Retail basements",
+      "note": "ok so in the basements the atriums and the escalator voids have the two hour fabric shutters, they drop on fire alarm, so each basement level is its own compartment except the utility rooms"
+    },
+    {
+      "id": "mall2-6",
+      "COPE_dimension": "Construction",
+      "severity": "moderate",
+      "location": "Connections",
+      "note": "4hr roller shutters at all MRT entrances + links to nbr malls. residences access separated from retail by brick wall - site team not sure if fire rated"
+    },
+    {
+      "id": "mall2-7",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Electrical rooms",
+      "note": "HT/LT sw rms + tx rms - 2hr rated doors"
+    }
+  ],
+  "reference": "Construction Narrative\n[PROPERTY] which was opened in 2009, is connected to the [AREA] MRT station via a basement connection and to other surrounding shopping malls via the [PROPERTY]. The building has a site area of 21,731 m2, gross floor area (GFA) of 125,621 m2 and net lettable area (NLA) of 58,340 m2. [AREA] Residences has GFA of about 35,000 m2. The buildings are generally constructed from reinforced concrete structures (columns, beams and floor plates), steel structures with fireproofing spray coating (column and beams) and reinforced concrete flat roof. Internal partition walls are constructed of either dry wall partition or light weight concrete panels. The retail mall exterior wall is mainly constructed of reinforced concrete or glass panels mounted on a steel frame with a fully three-dimensional free form curvilinear glass and metal facade. The residences areas have exterior wall constructed of reinforced concrete or curtain glass mounted on a steel frame. Therefore, the whole building is considered to be of non-combustible construction.\n\nCompartmentalization and Fire Divisions\nThere is vertical communication throughout Level 1 to Level 5 of the retail mall, thus, Level 1 to 5 can be considered as one fire compartment. The basement levels of the retail mall have 2-hour fire rated fabric fire shutters, which are activated by the fire alarm system, at all the void areas such as the basement atriums and escalators. This makes each basement level of the retail mall one fire compartment, except for the utility rooms. There are 4-hour fire rated roller shutters at all the entrances to the MRT station as well as at all the connections between the neighbouring malls. Access to the residences is separated from the retail area with a brick wall, however, it is unknown if that separation is fire rated. Electrical equipment rooms (high-tension switchgear, low-tension switchgear, transformer, etc.) are fire compartmented via 2-hour fire-rated access doors.",
+  "notes_style": "As written on site: terse and abbreviated, some dictated (rough since 4 Oct 2026)."
+}

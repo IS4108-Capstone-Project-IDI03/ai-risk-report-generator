@@ -1,0 +1,72 @@
+{
+  "name": "Office Sample 5, section 7 Construction",
+  "source": "Office Sample 5 - Reduced.pdf, Section 7",
+  "exclude_doc_id": "6ac0b458a99acf65e6f594e7",
+  "section_id": "7",
+  "assessment": {
+    "reference": "EVAL-OFFICE-5",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "standards": []
+  },
+  "observations": [
+    {
+      "id": "off5-1",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "46 storeys + 3 bsmts. RC cols/beams, RC slabs, flat conc roof. internal walls masonry, core RC."
+    },
+    {
+      "id": "off5-2",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Facade",
+      "note": "facade - unitised alu curtain wall, dbl glazed low-E / toughened. alu spandrels w 50mm rockwool. slab edge gap filled 135mm rockwool, 2hr. no combustible insulation on facade"
+    },
+    {
+      "id": "off5-3",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Office floors",
+      "note": "office partitions drywall - gypsum, alu studs, rockwool infill"
+    },
+    {
+      "id": "off5-4",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Basement 2 car park",
+      "note": "link to next bldg at B2 carpark, 2hr fire shutter. link not used, shutter perm shut"
+    },
+    {
+      "id": "off5-5",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Electrical rooms",
+      "note": "so the office floors are open plan, no separation within a floor except the utility rooms. elec rooms are 2 hour walls and floors with 2 hour doors, and every elec room we went into had the cable penetrations sealed"
+    },
+    {
+      "id": "off5-6",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Risers",
+      "note": "telecom risers triple vol, fire stopped every 3 flrs - the ones we saw ok. riser doors 1hr"
+    },
+    {
+      "id": "off5-7",
+      "COPE_dimension": "Construction",
+      "severity": "moderate",
+      "location": "Tenant floors",
+      "note": "internal stairs L27-29, L34-35, L40-41, L45-46. smoke det activated 2hr roller shutters round each stair"
+    },
+    {
+      "id": "off5-8",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Basements",
+      "note": "carpark all 3 bsmts, 351 lots + 6 accessible"
+    }
+  ],
+  "reference": "Construction Narrative\n[PROPERTY] is a 46-storey building with 3 basement levels. The building is of fire-resistive construction with reinforced concrete load-bearing columns/beams, reinforced concrete floor slabs and a concrete flat roof. Internal walls are of masonry construction except for the reinforced concrete core structure. Partition walls within the office spaces comprise of drywall constructed from gypsum boards, aluminium stiffeners and rock wool insulation in between. The building has a unitized aluminium glass curtain wall facade with double glazed low E-solar tinted or single thermal toughened glass. Aluminium spandrel panels have been fitted between the glass curtain wall panels (level with the building floor plates) and these are bonded with 50mm thick rock wool insulation. The gaps between the curtain wall/spandrel system and concrete floor slabs are filled with 135mm thick rock wool (2 hours fire rated). There is no combustible insulation utilized on the facade of [PROPERTY]. The [PROPERTY] car park occupies the 3 basement levels and has a total of 351 parking lots in addition to 6 handicap lots.\n\nCompartmentalization and Fire Divisions\n[PROPERTY] and [PROPERTY] is connected at basement 2 carpark area. There is a 2 hours rated fire shutter installed at the interconnection area. The connection is not in use, and the fire shutter is permanently shut. The building's office floor plates adopt an open-plan concept with no horizontal fire separation within floors (with exception of utility rooms/compartments). Electrical equipment rooms throughout the development are constructed of compartment walls and floors having a fire resistance of at least 2 hours, with fire doors leading into electrical rooms rated to 2 hours. Cable penetrations were noted to be adequately sealed in all visited electrical equipment rooms. Telecommunication risers are triple volume (1=3 storey) compartments and fire-stopped on every 3 floors. Visited riser compartments were noted to be adequately fire-stopped. Currently, there are internal staircases connecting the following floors: L27 to L29, L34 to L35, L40 to L41 and L45 to L46. Smoke detector-actuated 2-hour fire-rated roller shutters have been installed around all internal staircase enclosures at the above locations, serving as vertical fire compartmentation between floors.\n\nDetails on Combustible Construction\nBased on site observation and information provided there are no combustible material used for construction.",
+  "notes_style": "As written on site: terse and abbreviated, some dictated (rough since 4 Oct 2026)."
+}
