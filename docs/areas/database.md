@@ -362,10 +362,13 @@ as it was. The API returns `withdrawn` as `{ at, by } | null`.
 One document per ingestion run, written by the ingestion worker and read by the
 gateway to enrich the `KnowledgeDocument` DTO (E2). Keyed by `documentId` (unique
 index → `knowledge_documents._id`), so the gateway finds a run with one query and
-no `$lookup`. Fields: `currentStage` (one of `parsing`, `ocr`, `anonymising`,
-`chunking`, `indexing`, `complete`, `failed`), `isOcr`, `chunksCompleted`,
-`chunksTotal`, `stageLog` (completed stages, each with `stage`, `startedAt`,
-`durationMs`), `currentStageStartedAt`, `startedAt`, and `updatedAt` (the worker
+no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
+`chunking`, `indexing`, `complete`, `failed`), `pageCurrent` and
+`pageTotal` (the page being chunked and the document's page count — progress is
+tracked by page because the chunk total is not knowable up front; both null until
+chunking reaches a page with provenance), `stageLog` (completed stages, each with
+`stage`, `startedAt`, `durationMs`), `currentStageStartedAt`, `startedAt`, and
+`updatedAt` (the worker
 sets `updatedAt` itself; the schema has no `timestamps`). Every write is an upsert
 on `documentId`, so a worker that crashes and is handed the job again resumes
 cleanly. The gateway folds this into the DTO as `progress` only while a document

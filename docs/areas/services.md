@@ -51,7 +51,9 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    redelivered by BullMQ and processed again.
 5. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
    document is queued or processing, showing each processing document's stage,
-   elapsed time and chunk count from `progress` (E2).
+   elapsed time and, while chunking, the page reached out of the document's page
+   total from `progress` (E2). Pages are shown rather than a chunk count because
+   the chunk total is not knowable up front.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
