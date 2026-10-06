@@ -7,13 +7,15 @@
 // dismissed it lives on the one document as lists of user ids, and nothing is
 // ever deleted on a user's behalf.
 import { isValidObjectId, Types } from 'mongoose'
+import { z } from 'zod'
 import {
   AUDIENCE_ALL,
+  NOTIFICATION_PURPOSES,
   NotificationModel,
   type INotification,
   type NotificationPurpose,
 } from '../models/notification.model'
-import type { UserRole } from '../models/user.model'
+import { USER_ROLES, type UserRole } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 
 export class NotificationNotFoundError extends Error {
@@ -33,6 +35,26 @@ export type NewNotification = {
   createdBy?: Types.ObjectId | string | null
   createdByService?: string | null
 }
+
+// The body another service may post to create a notification (Task 4). An
+// unknown purpose or role is a 400 naming the field, so a typo in a calling
+// service fails loudly rather than creating a notification nobody can see.
+// `createdByService` is required here — a service-made notification should say
+// which service made it; `createdBy` (a user) is never accepted over this path.
+export const externalNotificationSchema = z.object({
+  purpose: z.enum(NOTIFICATION_PURPOSES, 'Choose a known notification purpose.'),
+  message: z.string('A message is required.').trim().min(1, 'A message is required.').max(500),
+  details: z.string().trim().max(2000).optional(),
+  targetRole: z.enum(USER_ROLES, 'Choose a known role.'),
+  targetUserIds: z.array(z.string().min(1)).min(1, 'Name at least one target user id, or ["all"].'),
+  context: z.record(z.string(), z.string()).optional(),
+  createdByService: z
+    .string('A creating service is required.')
+    .trim()
+    .min(1, 'A creating service is required.'),
+})
+
+export type ExternalNotification = z.infer<typeof externalNotificationSchema>
 
 /**
  * One notification as the dropdown reads it. `read` is this caller's state,

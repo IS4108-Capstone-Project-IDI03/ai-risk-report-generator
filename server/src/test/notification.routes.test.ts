@@ -98,9 +98,7 @@ describe('GET /api/notifications', () => {
 
 describe('PATCH /api/notifications/:id/read', () => {
   it('needs a session', async () => {
-    await request(app)
-      .patch('/api/notifications/6ab39017e45cf009e4507731/read')
-      .expect(401)
+    await request(app).patch('/api/notifications/6ab39017e45cf009e4507731/read').expect(401)
   })
 
   it('marks one read and drops the unread count', async () => {
