@@ -5,6 +5,7 @@ import app from '../index'
 import { UserModel } from '../models/user.model'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs } from './auth-test-helpers'
+import { createNotification } from '../services/notification.service'
 
 useMemoryMongo()
 
@@ -136,6 +137,68 @@ describe('GET /api/auth/me', () => {
     const res = await agent.get('/api/auth/me')
     expect(res.status).toBe(200)
     expect(res.body.user).toMatchObject({ role: 'risk_engineer', name: 'Jide Okafor' })
+  })
+})
+
+// The session carries the user's notification counts, so the header can show
+// the unread badge and decide whether to offer Load more without a separate
+// fetch on sign-in (Task 5).
+describe('session notification counts', () => {
+  it('includes zero counts for a user with no notifications on login', async () => {
+    await seedUser()
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+    expect(res.status).toBe(200)
+    expect(res.body.notifications).toEqual({ total: 0, unread: 0 })
+  })
+
+  it('counts the login user\u2019s role notifications', async () => {
+    await seedUser() // a risk_engineer
+    await createNotification({
+      purpose: 'assessment_status',
+      message: 'A report is ready for review.',
+      targetRole: 'risk_engineer',
+      targetUserIds: ['all'],
+    })
+    // A knowledge-admin notification the engineer must not be counted.
+    await createNotification({
+      purpose: 'ingestion_status',
+      message: 'A document failed to ingest.',
+      targetRole: 'knowledge_admin',
+      targetUserIds: ['all'],
+    })
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+
+    expect(res.body.notifications).toEqual({ total: 1, unread: 1 })
+  })
+
+  it('includes the counts on /api/auth/me too', async () => {
+    const user = await seedUser()
+    await createNotification({
+      purpose: 'assessment_status',
+      message: 'A report is ready for review.',
+      targetRole: 'risk_engineer',
+      targetUserIds: ['all'],
+    })
+    const agent = signedInAs(app, user)
+
+    const res = await agent.get('/api/auth/me')
+
+    expect(res.body.notifications).toEqual({ total: 1, unread: 1 })
+  })
+
+  it('leaves the existing user and permissions fields intact', async () => {
+    await seedUser()
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+
+    expect(res.body.user).toMatchObject({ role: 'risk_engineer', name: 'Jide Okafor' })
+    expect(res.body.permissions).toContain('assessments:view')
   })
 })
 

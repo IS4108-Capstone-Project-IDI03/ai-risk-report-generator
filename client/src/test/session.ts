@@ -9,10 +9,12 @@ export const SESSIONS: Record<UserRole, Session> = {
   risk_engineer: {
     user: { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe', role: 'risk_engineer' },
     permissions: ['assessments:view', 'assessments:edit', 'reports:generate', 'knowledge:view'],
+    notifications: { total: 0, unread: 0 },
   },
   knowledge_admin: {
     user: { id: '6ab39017e45cf009e4507734', name: 'Sana Patel', role: 'knowledge_admin' },
     permissions: ['assessments:view', 'knowledge:view', 'knowledge:manage', 'users:manage'],
+    notifications: { total: 0, unread: 0 },
   },
 }
 
