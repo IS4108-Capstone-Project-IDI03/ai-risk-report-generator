@@ -367,7 +367,10 @@ no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
 `pageTotal` (the page being chunked and the document's page count — progress is
 tracked by page because the chunk total is not knowable up front; both null until
 chunking reaches a page with provenance), `stageLog` (completed stages, each with
-`stage`, `startedAt`, `durationMs`), `currentStageStartedAt`, `startedAt`, and
+`stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
+progress when ingestion failed, written on failure so it need not be inferred
+from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),
+`currentStageStartedAt`, `startedAt`, and
 `updatedAt` (the worker
 sets `updatedAt` itself; the schema has no `timestamps`). Every write is an upsert
 on `documentId`, so a worker that crashes and is handed the job again resumes
