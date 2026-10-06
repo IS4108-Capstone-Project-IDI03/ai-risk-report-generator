@@ -334,3 +334,40 @@ puts candidates forward; only the final pick is section-wide. Drafts are not
 blocked by a rate limit on an optional step.
 
 Stories: GN-01 (AC14).
+## 2026-10-05 — The review workspace reads one gateway route, and a section's review state comes from its draft's checks
+
+Chose: the Review tab of a saved assessment reads
+`GET /api/assessments/:reference/review`, which returns every section 7-12
+with its completion and review states, its newest draft, the passages it
+cites and the observations it was drafted from. Rail, draft and source panel
+on one screen: sections left, draft centre, provenance right, as the design's
+review workspace lays out.
+- A cited passage shows its text, headings and pages as the draft saved them,
+  and its document's title, edition, effective date and withdrawal as
+  `knowledge_documents` holds them now, looked up in one query.
+- Completion counts the template's prose and field subsections the draft
+  writes; tables are left out, since GN-03 fills them.
+- Review state is `not_drafted`, `ai_draft`, or `needs_review` when a
+  statement is unsupported, a cited document has been withdrawn, or
+  observations changed since drafting. RV-02 adds the engineer's decisions.
+- S4 now keeps a cited past-report passage (`P:`) in the draft's `sources`, so
+  it can be opened like a standard. It still cannot support its statement.
+- The observations shown are the draft's own `evidence`, filed under the
+  section's categories or cited by it, not the observations as they are now.
+
+Rejected:
+- Reading the document details from the passage's Chroma labels: they hold no
+  title or edition, and a withdrawal after drafting would never show.
+- Joining `GET /api/knowledge-documents/ingested` in the browser: it lists the
+  whole knowledge base, and RV-04 needs the withdrawn-source check on the
+  gateway anyway.
+- One request per opened citation: every passage a section cites is already
+  in its draft, and the reviewer opens most of them.
+- Adding a stored review status now: nothing sets one until RV-02 records
+  decisions, so a derived state is the only honest one.
+
+Reason: RV-01 asks for each claim to be checked against the exact passage,
+its page and its document's current standing, which needs both what the draft
+was given and what the knowledge base says now.
+
+Stories: RV-01.

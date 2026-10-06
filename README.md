@@ -67,7 +67,11 @@ observation may be left uncategorised. Photos are still memory-only. On the
 Observations tab, the list filters by category, severity, location and floor,
 and Edit tags changes an observation's category, severity, location and
 standard: through the gateway for a saved observation, in the demo for a sample
-one.
+one. A saved assessment drafts sections 7-12 on Report generation (GN-01), and
+its Review tab is the review workspace (RV-01): each section's completion and
+review state, its draft, and beside it each cited passage with its page,
+document title, edition, effective date and any withdrawal, the original
+observations and every claim.
 
 ## Running the stack locally
 

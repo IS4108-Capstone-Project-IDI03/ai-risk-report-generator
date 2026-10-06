@@ -10,6 +10,8 @@ import {
   type IKnowledgeDocument,
   type SourceType,
 } from '../models/knowledge-document.model'
+import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
+import { getJobProgressBatch } from './ingestion-job.service'
 import { enqueueIngestion } from './ingestion-queue.service'
 import { IngestionUnavailableError, relabelPassages, whyPdfCannotOpen } from './ingestion.service'
 import * as storage from './storage.service'
@@ -104,6 +106,20 @@ const ISSUING_BODY: Record<SourceType, string> = {
   marsh_report: 'Marsh',
 }
 
+// Ingestion progress folded into the DTO while a document is `processing` (E2).
+// Elapsed times are computed on read so they are never stale.
+type ProgressDto = {
+  currentStage: IngestionStage
+  // The page being chunked and the document's page total (E2b). The chunk
+  // count has no knowable total up front, so progress is tracked by page.
+  // Both null until chunking reaches a page with provenance.
+  pageCurrent: number | null
+  pageTotal: number | null
+  elapsedMs: number
+  currentStageElapsedMs: number
+  stageLog: { stage: string; startedAt: string; durationMs: number }[]
+}
+
 export type KnowledgeDocumentDto = {
   id: string
   title: string
@@ -133,10 +149,35 @@ export type KnowledgeDocumentDto = {
     replacedAt: Date
     replacedBy: { id: string; name: string }
   }[]
+  // Live ingestion progress; present only while `status` is `processing` and a
+  // matching ingestion_jobs row exists (E2).
+  progress?: ProgressDto
 }
 
-// Turns a database row into the shape the browser's api.ts expects.
-function toDto(d: IKnowledgeDocument & { _id: Types.ObjectId }): KnowledgeDocumentDto {
+// Builds the progress field from an ingestion job, computing elapsed times on
+// read and serialising stageLog dates to ISO strings.
+function toProgressDto(job: IIngestionJob): ProgressDto {
+  const now = Date.now()
+  return {
+    currentStage: job.currentStage,
+    pageCurrent: job.pageCurrent,
+    pageTotal: job.pageTotal,
+    elapsedMs: now - job.startedAt.getTime(),
+    currentStageElapsedMs: now - job.currentStageStartedAt.getTime(),
+    stageLog: job.stageLog.map((entry) => ({
+      stage: entry.stage,
+      startedAt: entry.startedAt.toISOString(),
+      durationMs: entry.durationMs,
+    })),
+  }
+}
+
+// Turns a database row into the shape the browser's api.ts expects. When a
+// processing document has an ingestion job, its progress is folded in (E2).
+function toDto(
+  d: IKnowledgeDocument & { _id: Types.ObjectId },
+  job?: IIngestionJob,
+): KnowledgeDocumentDto {
   return {
     id: String(d._id),
     title: d.title,
@@ -165,6 +206,9 @@ function toDto(d: IKnowledgeDocument & { _id: Types.ObjectId }): KnowledgeDocume
       replacedAt: v.replacedAt,
       replacedBy: v.replacedBy,
     })),
+    // Only processing documents carry progress; the caller passes a job only
+    // for those (see listKnowledgeDocuments).
+    ...(job && d.status === 'processing' ? { progress: toProgressDto(job) } : {}),
   }
 }
 
@@ -331,7 +375,13 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
   })
     .sort({ createdAt: -1 })
     .lean()
-  return documents.map(toDto)
+
+  // Enrich processing documents with their ingestion progress (E2) in a single
+  // batch read. Documents without a job (worker not started) keep no progress.
+  const processingIds = documents.filter((d) => d.status === 'processing').map((d) => String(d._id))
+  const jobs = await getJobProgressBatch(processingIds)
+
+  return documents.map((d) => toDto(d, jobs.get(String(d._id))))
 }
 
 /**
@@ -344,7 +394,21 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
     .collation({ locale: 'en' })
     .sort({ title: 1 })
     .lean()
-  return documents.map(toDto)
+  // Complete documents carry no progress, so no job is passed to toDto.
+  return documents.map((d) => toDto(d))
+}
+
+/**
+ * Returns the documents with these ids, in no particular order. An id that is
+ * no document's is skipped. The review workspace shows a cited passage's
+ * title, edition, effective date and withdrawal from them (RV-01).
+ */
+export async function findKnowledgeDocuments(ids: string[]): Promise<KnowledgeDocumentDto[]> {
+  const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))
+  if (!valid.length) return []
+  const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
+  // A cited document has finished ingestion, so it carries no progress.
+  return documents.map((d) => toDto(d))
 }
 
 // The document isn't in the state the change needs (a 409). KB-01: only an

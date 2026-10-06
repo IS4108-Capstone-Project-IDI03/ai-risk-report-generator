@@ -21,6 +21,7 @@ Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 
 import re
 from functools import lru_cache
+from typing import Any
 
 from docling_core.transforms.chunker import HybridChunker
 from docling_core.types.doc import (
@@ -420,7 +421,10 @@ def _chunker():
 
 
 def chunk(
-    parsed: ParsedDocument, doc_path: str | None = None, doc_id: str | None = None
+    parsed: ParsedDocument,
+    doc_path: str | None = None,
+    doc_id: str | None = None,
+    reporter=None,
 ) -> list[dict]:
     """Chunk a parsed document into index-ready chunk dicts.
 
@@ -428,6 +432,7 @@ def chunk(
         parsed: result of `parser.parse`, carrying the `DoclingDocument`.
         doc_id: stable identifier for the source document; defaults to the
             document name. Used to build unique chunk ids (``f"{doc_id}:{n}"``).
+        reporter: an optional ProgressReporter (E2). Updates for each page.
 
     Returns:
         A list of ``{"id", "text", "metadata"}`` dicts ready for `index_chunks`.
@@ -448,6 +453,9 @@ def chunk(
     # since a chunk's own meta.headings is flat.
     section_trails = _build_section_trails(doc)
 
+    total_pages = parsed.page_count
+    page_reached = 0
+
     chunks: list[dict] = []
     seen_chunk_bboxes: list[dict] = []
     try:
@@ -455,6 +463,12 @@ def chunk(
             text = (dl_chunk.text or "").strip()
             if not text:
                 continue
+
+            pages = _pages_of(dl_chunk.meta)
+            if pages and len(pages) > 0 and pages[-1] > page_reached:
+                page_reached = pages[-1]
+                if reporter:
+                    reporter.update_pages(page_reached, total_pages)
 
             trail = _chunk_trail(dl_chunk, section_trails)
 
@@ -480,7 +494,7 @@ def chunk(
                     seen_chunk_bboxes.extend(table_bboxes)
                 continue
 
-            chunk_bboxes = _chunk_bbox(dl_chunk)
+            chunk_bboxes: list[dict[Any, Any]] = _chunk_bbox(dl_chunk)
             has_formula = _has_formula_chunk(dl_chunk)
             if has_formula:
                 # With formula enrichment OFF, formula text gets replaced with

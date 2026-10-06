@@ -41,12 +41,19 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    record and the file and answers 503.
 4. `ingestion-worker` (same image as the ingestion service, `python -m
    app.worker`, concurrency 1) claims the document, downloads the original,
-   runs `app.pipeline.run(path, doc_id=<id>, labels=...)` so chunk ids are
-   `<id>:<n>` and every passage carries the document's five labels (KB-01), and
-   records `complete` with counts or `failed` with the reason. A job whose
-   worker died mid-run is redelivered by BullMQ and processed again.
+   runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`
+   so chunk ids are `<id>:<n>` and every passage carries the document's five
+   labels (KB-01). The `ProgressReporter` writes each stage transition to the
+   `ingestion_jobs` collection in MongoDB (E2), and the gateway merges this into
+   the `KnowledgeDocument` DTO as `progress` while the document is `processing`.
+   The worker records `complete` with counts or `failed` with the reason on
+   `knowledge_documents` as before. A job whose worker died mid-run is
+   redelivered by BullMQ and processed again.
 5. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
-   document is queued or processing.
+   document is queued or processing, showing each processing document's stage,
+   elapsed time and, while chunking, the page reached out of the document's page
+   total from `progress` (E2). Pages are shown rather than a chunk count because
+   the chunk total is not knowable up front.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
@@ -129,9 +136,45 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
    `checker.check_citations` marks each statement `supported` only if its
    citations are all IDs it was given and none is `P:`.
 9. S4 returns the draft, up to three questions for the engineer, the cited
-   standard passages (with pages and headings), the guardrail result and the
-   provenance. A refusal or a
+   passages (with pages and headings), the guardrail result and the
+   provenance. The cited passages are the standards (`C:`) and any past-report
+   passage (`P:`) a statement cites, so the reviewer can open it (RV-01); a
+   `P:` citation still leaves its statement unsupported. A refusal or a
    cut-off answer is a 502 with `detail`.
 10. The gateway saves the draft in `report_sections` (see
     [database](database.md#report-sections-gn-01)). Any S4 failure reaches
     the client as a 503 with the reason.
+
+## Report review workspace (RV-01)
+
+1. The Review tab of a saved assessment asks the gateway for
+   `GET /api/assessments/:reference/review` (`assessments:view`, so a
+   knowledge admin can read it too).
+2. The gateway loads sections 7-12 as the Report generation tab does (S4's
+   `GET /sections`, the assessment's observations, each section's newest
+   draft), so `changesSinceDraft` is counted the same way.
+3. It looks up every document the drafts cite in `knowledge_documents`, in one
+   query, by each passage's `doc_id` (or the `<document id>` part of its chunk
+   ID). The passage text, headings and pages come from the draft, exactly as
+   the draft was given them; the title, issuing body, edition, effective date
+   and withdrawal come from the knowledge base now, so a correction or a
+   withdrawal since drafting shows (KB-01).
+4. For each section it works out:
+   - completion: how many of the template's prose and field subsections the
+     draft writes (`not_started`, `partial`, `complete`). Tables are counted
+     apart, since GN-03 fills them.
+   - review state: `not_drafted`, `ai_draft`, or `needs_review` when a
+     statement is unsupported, a cited document is withdrawn, or observations
+     changed since drafting. The engineer's own decisions (accept, edit,
+     reject) are RV-02.
+   - the observations to show: the draft's own `evidence` (GN-01 AC11),
+     limited to those filed under the section's categories plus any other it
+     cites.
+5. The client numbers citations across the section in the order each is first
+   cited. Selecting one opens the passage beside the draft with its page,
+   heading trail, document title, edition, effective date (a past report's
+   date), and a Withdrawn label, plus a link to the original PDF at that page
+   (`/api/knowledge-documents/:id/file#page=n`, `knowledge:view`).
+
+Nothing is written: the workspace only reads. A 503 means S4 could not be
+reached for the template's sections.

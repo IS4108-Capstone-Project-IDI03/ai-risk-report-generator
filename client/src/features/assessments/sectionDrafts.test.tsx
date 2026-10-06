@@ -226,25 +226,3 @@ it('says when a draft is missing newer evidence', async () => {
   expect(screen.getByText(/2 observations added or changed since this draft/)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Redraft section' })).toBeEnabled()
 })
-
-it('says when there is nothing to review yet', async () => {
-  mockGateway(() => json(201, DRAFT))
-  await openGenerateTab()
-  fireEvent.click(screen.getByRole('tab', { name: /Review/ }))
-  expect(await screen.findByText('No sections drafted yet')).toBeInTheDocument()
-  // Its button leads back to drafting.
-  fireEvent.click(screen.getByRole('button', { name: 'Go to Report generation' }))
-  await screen.findByText('Draft sections 7 to 12')
-}, 15_000)
-
-it('reviews each drafted section, and shows an empty one as not drafted', async () => {
-  mockGateway(() => json(201, DRAFT), [section({ latestDraft: DRAFT }), EXPOSURES])
-  await openGenerateTab()
-  fireEvent.click(screen.getByRole('tab', { name: /Review/ }))
-  // The drafted section opens first, with its draft and evidence.
-  expect(await screen.findByRole('heading', { name: '7. Construction' })).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: '7. Construction draft' })).toBeInTheDocument()
-  // A section without a draft shows as empty.
-  fireEvent.click(screen.getByRole('button', { name: /External Exposures/ }))
-  expect(screen.getByText('Not drafted yet')).toBeInTheDocument()
-}, 15_000)
