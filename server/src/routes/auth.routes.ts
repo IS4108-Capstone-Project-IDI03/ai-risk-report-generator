@@ -10,6 +10,7 @@ import {
 } from '../services/auth.service'
 import { requireAuth, SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '../middleware/auth.middleware'
 import { permissionsFor } from '../services/permissions.service'
+import { countsForUser } from '../services/notification.service'
 
 const router = Router()
 
@@ -22,7 +23,13 @@ router.post('/login', async (req, res) => {
   try {
     const { token, user } = await login(email, password)
     res.cookie(SESSION_COOKIE, token, SESSION_COOKIE_OPTIONS)
-    res.json({ user, permissions: permissionsFor(user.role) })
+    // The header seeds its unread badge and Load more from these, so it needs
+    // no separate fetch on sign-in.
+    res.json({
+      user,
+      permissions: permissionsFor(user.role),
+      notifications: await countsForUser(user),
+    })
   } catch (error: unknown) {
     if (error instanceof InvalidCredentialsError) {
       res.status(401).json({ error: error.message })
@@ -75,9 +82,14 @@ router.post('/reset', async (req, res) => {
 
 // The signed-in user and what their role allows (F-05), so the client can
 // guard its screens with the same matrix the API enforces.
-router.get('/me', requireAuth, (_req, res) => {
-  const { id, role, name } = res.locals.user!
-  res.json({ user: { id, role, name }, permissions: permissionsFor(role) })
+router.get('/me', requireAuth, async (_req, res) => {
+  const user = res.locals.user!
+  const { id, role, name } = user
+  res.json({
+    user: { id, role, name },
+    permissions: permissionsFor(role),
+    notifications: await countsForUser(user),
+  })
 })
 
 export default router
