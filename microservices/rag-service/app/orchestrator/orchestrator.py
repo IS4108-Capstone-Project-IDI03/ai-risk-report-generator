@@ -7,6 +7,7 @@ always be traced end to end (needed by the eval harness).
 """
 
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,12 +15,16 @@ from pathlib import Path
 from app import config
 from app.generation.generator import PROMPT_VERSION, TEMPLATE, draft_section, generate
 from app.guardrails.checker import check, check_citations
-from app.retrieval.retriever import retrieve, search
+from app.retrieval.retriever import rerank, retrieve, search
+
+# uvicorn's own logger, as in generation/llm.py, so warnings show in the service logs.
+log = logging.getLogger("uvicorn.error")
 
 # Citable standards. Past reports (`marsh_report`) are fetched separately as precedent.
 STANDARD_SOURCES = ["fm_standard", "nfpa_standard"]
-# Every passage sent is paid for as input tokens, so each search is kept small.
-STANDARDS_PER_OBSERVATION = 4
+# Candidates per observation for the reranker to choose from (AC14). Only the top
+# MAX_STANDARDS are sent, since every passage sent is paid for as input tokens.
+STANDARDS_PER_OBSERVATION = 8
 # Cosine distance beyond which a passage is off-topic. ponytail: set from one
 # assessment (relevant FM-200 passages <= 0.60, unrelated ones 0.61-0.63); recheck it
 # with the eval once more standards are ingested.
@@ -115,7 +120,8 @@ def draft(section_id: str, assessment, observations) -> dict:
         ]
     )
 
-    # Each observation's nearest passage first, then the next nearest, up to the cap.
+    # Each observation's nearest passage first, then the next nearest, so if rerank
+    # fails the cap below still keeps every observation's nearest.
     standards: dict[str, dict] = {}
     per_observation = [
         [h for h in hits if h.get("distance", 0) <= MAX_STANDARD_DISTANCE]
@@ -123,7 +129,7 @@ def draft(section_id: str, assessment, observations) -> dict:
     ]
     for rank in range(STANDARDS_PER_OBSERVATION):
         for hits in per_observation:
-            if rank < len(hits) and len(standards) < MAX_STANDARDS:
+            if rank < len(hits):
                 standards.setdefault(hits[rank]["id"], hits[rank])
 
     # Past reports' passages under the same section heading, as wording and precedent.
@@ -131,7 +137,20 @@ def draft(section_id: str, assessment, observations) -> dict:
         chunk
         for chunk in past
         if any(title.lower() in h.lower() for h in (chunk["metadata"] or {}).get("headings") or [])
-    ][:MAX_PRECEDENTS]
+    ]
+
+    # One rerank call for both kinds (AC14), against the section's own observations.
+    # A failed rerank (e.g. the trial key's 10 calls a minute) keeps the order above
+    # rather than failing the draft.
+    candidates = [*standards.values(), *precedents]
+    try:
+        candidates = rerank(spell_out(f"{title}: {evidence}"), candidates)
+    except Exception:
+        log.warning("Rerank failed for section %s; using vector order", section_id, exc_info=True)
+    standard_ids = set(standards)
+    standards = {c["id"]: c for c in candidates if c["id"] in standard_ids}
+    standards = dict(list(standards.items())[:MAX_STANDARDS])
+    precedents = [c for c in candidates if c["id"] not in standard_ids][:MAX_PRECEDENTS]
 
     result, model = draft_section(
         section_id,

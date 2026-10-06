@@ -108,12 +108,16 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 5. S4's orchestrator (`orchestrator.draft`) retrieves passages in one batched
    Cohere call:
    - for each of the section's own observations, searched by its own words,
-     up to 4 standard passages (`fm_standard` or `nfpa_standard`) within cosine
-     distance 0.60, filtered to the site's jurisdiction and facility type; at
-     most 12 per section, each observation's nearest first;
+     up to 8 standard passages (`fm_standard` or `nfpa_standard`) within cosine
+     distance 0.60, filtered to the site's jurisdiction and facility type;
    - once per section, past-report passages (`marsh_report`), filtered by
-     country only, keeping up to 4 whose `headings` trail contains the section
-     title.
+     country only, keeping those whose `headings` trail contains the section
+     title;
+   - then one Cohere Rerank call (`retriever.rerank`, model `RERANK_MODEL`)
+     orders both kinds against the section's own observations, and the top 12
+     standards and top 4 past-report passages go to the draft (AC14). If
+     rerank fails, the draft goes ahead in vector order (each observation's
+     nearest first), and S4 logs a warning.
 6. `generator.draft_section` builds the prompt from the section's subsections
    (`sections.json`), the drafting guide (`drafting-skill.md`: voice, house
    conventions, evidence rules), and the evidence labelled `O1`, `C1`, `P1`,

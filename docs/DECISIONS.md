@@ -312,3 +312,25 @@ role's screens, and the reset flow gets them there with no new password
 handling. A real welcome email can reuse the same token once email delivery
 exists.
 Story: F-08.
+
+## 2026-10-06 — Retrieved passages are reranked once per section
+
+Chose: after the per-observation vector search, one Cohere Rerank call per
+section orders all candidate standard and past-report passages against the
+section's own observations, and only the top 12 and top 4 are sent
+(`orchestrator.draft`). If rerank fails, the draft goes ahead in vector order.
+
+Rejected:
+- One rerank call per observation. It ranks each finding's passages best, but
+  the Cohere trial key allows 10 rerank calls a minute, and drafting the whole
+  report would make dozens.
+- A minimum relevance score. With only the FM-200 manual ingested, there is no
+  data to set one; the 0.60 distance cut stays as the off-topic filter.
+
+Reason: vector distance finds passages on the same topic; a reranker reads the
+query and passage together, so it is better at picking the passage that bears
+on a finding (AC6). The search stays per observation, so each finding still
+puts candidates forward; only the final pick is section-wide. Drafts are not
+blocked by a rate limit on an optional step.
+
+Stories: GN-01 (AC14).

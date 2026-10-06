@@ -490,6 +490,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   11. Given a section draft is saved, When the evidence it was drafted from is inspected, Then the observations are shown as they were at drafting time, even if they were edited afterwards.
   12. Given a section has a draft, When observations are added or changed afterwards, Then the section shows its draft is out of date and redrafting includes them.
   13. Given a set of evaluation sections with reference observations, When each generated draft is scored by an LLM judge against a fixed rubric, averaged over two runs, Then every draft scores at least 4.0 for groundedness and no invention, at least 3.5 for structure and coverage, at least 3.0 for conventions, and at least 4.0 on average, and the scores, judge model and rubric version are recorded.
+  14. Given candidate standard and past-report passages are retrieved for a section, When they are prepared for the draft, Then they are reranked against the section's observations with Cohere Rerank in one call and only the most relevant are given to the draft; if reranking fails, the draft still goes ahead with the nearest passages.
   </details>
 
 - [ ] **GN-02** — Flag claims that lack supporting evidence (risk engineer, Must, 5 pts, deps: GN-01, Sprint 4)
