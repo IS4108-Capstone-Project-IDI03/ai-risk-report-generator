@@ -125,9 +125,7 @@ def ingest_document(document_id: str) -> None:
         reporter.start_stage("failed")
         reporter.finish()
         if failed_stage:
-            jobs().update_one(
-                {"documentId": _id}, {"$set": {"failedStage": failed_stage}}
-            )
+            jobs().update_one({"documentId": _id}, {"$set": {"failedStage": failed_stage}})
         reason = UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
         failed = collection.find_one_and_update(
             {"_id": _id},
