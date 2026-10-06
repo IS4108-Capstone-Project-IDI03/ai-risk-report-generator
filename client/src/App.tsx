@@ -7,7 +7,7 @@ import { useAssessmentWorkflow } from './features/assessments/useAssessmentWorkf
 
 function Workspace({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const workflow = useAssessmentWorkflow(onSignOut, session)
-  return <AssessmentApp v={workflow} />
+  return <AssessmentApp v={workflow} session={session} />
 }
 
 // Every workspace URL needs a session (F-04): without one the sign-in screen
