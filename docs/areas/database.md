@@ -464,5 +464,53 @@ and clears `currentStage`, so a `complete` or `failed` document carries no
 `progress`. Elapsed times (`elapsedMs`, `currentStageElapsedMs`) are computed on
 read, never stored.
 
+## Notifications
+
+`notifications` holds one document per event a user is told about, read by the
+header dropdown. A notification is **shared** by the users it targets rather than
+copied per user, so the plan is one document per event and per-user state held on
+it as lists of user ids.
+
+Fields: `purpose` (one of `ingestion_status`, `transcription_status`,
+`drafting_status`, `knowledge_document_status`, `account_status`,
+`assessment_status`), `message` (the line shown in the dropdown), `details` (the
+longer text behind the row's expand control, e.g. a failure reason),
+`targetRole` (a `USER_ROLES` value), `targetUserIds`, `readBy`, `dismissedBy`,
+`createdBy` and `createdByService`, and `context`.
+
+`targetUserIds` names who within the role sees it: user ids, or `['all']` for
+every user holding the role. It is required and must be non-empty — Mongoose
+treats `[]` as present, so the schema adds its own non-empty validator; without
+it a notification would save and then be shown to nobody.
+
+Read paths match `targetRole` against the **session's current role**, never a
+copy stored per recipient. That is what makes a role change take effect at once:
+a user moved from `knowledge_admin` to `risk_engineer` stops seeing the admin
+notifications on their next request, with no migration of existing documents.
+
+`readBy` and `dismissedBy` exist because the document is shared. Marking as read
+adds the caller to `readBy`; "mark all as read" adds them to `readBy` across
+everything they can see; "dismiss all" adds them to `dismissedBy`. None delete,
+since deleting a shared document would clear it for everyone else too — so one
+user reading or dismissing never changes what another user in the role sees.
+
+`createdBy` (a user) and `createdByService` (a service name) are both nullable,
+and normally exactly one is set: a notification raised by the ingestion worker
+has no user behind it, and there is no system or service role to point at.
+
+`context` is the purpose-specific payload, e.g. `{ documentId, stage }` for
+`ingestion_status`. It is deliberately **not** called `metadata`: in this
+codebase that name means the five mandatory label fields (see CLAUDE.md), and
+notifications carry none of them — they are not retrieval evidence.
+
+Indexes: `{ targetRole: 1, createdAt: -1 }` for the dropdown's query, and a TTL
+index on `createdAt` expiring documents after 90 days. The TTL is load-bearing:
+nothing else ever deletes a notification, because dismissing is per user.
+
+Purposes are a closed set so every notification has a known audience and a known
+screen to open. Only `ingestion_status` has a producer today. Deadline and
+reminder purposes are absent on purpose: nothing in the repo schedules work, so
+nothing could fire them.
+
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
