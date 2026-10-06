@@ -311,7 +311,7 @@ export type SectionDraft = {
     kind: 'narrative' | 'fields' | 'table'
     statements: { text: string; citations: string[]; supported: boolean }[]
   }[]
-  // The cited standard passages, by citation ID.
+  // The cited passages by citation ID: standards (`C:`) and any past report (`P:`).
   sources: Record<
     string,
     { text: string; doc_id?: string; headings?: string[]; page_start?: number; page_end?: number }
@@ -360,4 +360,79 @@ export async function draftSection(reference: string, sectionId: string): Promis
       `${sectionsPath(reference)}/${encodeURIComponent(sectionId)}/draft`,
     )
   ).data
+}
+
+// The review workspace (RV-01). Completion counts the subsections a draft
+// writes (tables are filled from measured values, GN-03); the review state
+// comes from the draft's own checks until the engineer's decisions (RV-02).
+export type CompletionState = 'not_started' | 'partial' | 'complete'
+export type ReviewState = 'not_drafted' | 'ai_draft' | 'needs_review'
+
+// A passage a draft cites, exactly as the draft was given it, with its
+// document's details as the knowledge base holds them now.
+export type SourcePassage = {
+  // `C:<chunk id>` for a standard, `P:<chunk id>` for a past report.
+  id: string
+  kind: 'standard' | 'precedent'
+  text: string
+  // The heading trail above the passage, outermost first.
+  headings: string[]
+  pageStart: number | null
+  pageEnd: number | null
+  documentId: string | null
+  // null when the document has no record in the knowledge base.
+  document: {
+    title: string
+    issuingBody: string
+    sourceType: string
+    edition: string | null
+    // YYYY-MM-DD: a standard's effective date, or a past report's date.
+    effectiveDate: string
+    withdrawnAt: string | null
+    fileUrl: string
+  } | null
+}
+
+// An observation as the draft was given it, even if edited since.
+export type FieldObservation = {
+  id: string
+  copeDimension: string
+  note: string | null
+  transcripts: string[]
+  severity: string
+  location: string | null
+  standard: string | null
+}
+
+export type ReviewSection = {
+  id: string
+  title: string
+  copeDimensions: string[]
+  completion: { state: CompletionState; written: number; total: number; tables: number }
+  review: {
+    state: ReviewState
+    unsupportedStatements: number
+    withdrawnSources: number
+    changesSinceDraft: number
+  }
+  draft: Omit<SectionDraft, 'sources'> | null
+  // The draft's cited passages, by citation ID.
+  sources: Record<string, SourcePassage>
+  // The section's own observations and any other the draft cites.
+  observations: FieldObservation[]
+}
+
+// Sections 7-12 for reviewing, each newest draft beside its evidence.
+export async function getReviewWorkspace(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<ReviewSection[]> {
+  return (
+    await request<{ sections: ReviewSection[] }>(
+      'GET',
+      `/api/assessments/${encodeURIComponent(reference)}/review`,
+      undefined,
+      signal,
+    )
+  ).data.sections
 }

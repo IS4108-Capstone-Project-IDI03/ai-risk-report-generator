@@ -146,6 +146,28 @@ def test_unresolvable_and_past_report_citations_are_unsupported(monkeypatch):
     assert body["sources"]["C:fm:4"]["headings"] == ["Fire Stopping"]
 
 
+def test_cited_passages_are_kept_for_the_reviewer_to_open(monkeypatch):
+    response, _, _ = draft(
+        monkeypatch,
+        [
+            Subsection(
+                heading="Construction Narrative",
+                statements=[
+                    Statement(text="Backed by a standard.", citations=["O:obs1", "C:fm:4"]),
+                    Statement(text="Only a past report.", citations=["P:rep:9"]),
+                ],
+            )
+        ],
+    )
+    sources = response.json()["sources"]
+    # The past-report passage a statement cites is kept, so RV-01 can open it, though it
+    # still cannot support the statement. Passages nobody cites are not kept.
+    assert set(sources) == {"C:fm:4", "P:rep:9"}
+    assert sources["P:rep:9"]["text"] == PRECEDENT["text"]
+    assert sources["P:rep:9"]["doc_id"] == "rep"
+    assert response.json()["subsections"][0]["statements"][1]["supported"] is False
+
+
 def test_retrieval_filters_and_prompt_evidence(monkeypatch):
     _, calls, prompts = draft(monkeypatch, [])
     *standard_calls, past_reports = calls

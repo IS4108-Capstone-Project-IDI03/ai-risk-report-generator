@@ -55,7 +55,7 @@ export type SectionSummaryDto = {
   changesSinceDraft: number
 }
 
-function toDto(s: IReportSection & { _id: unknown }): SectionDraftDto {
+export function toDraftDto(s: IReportSection & { _id: unknown }): SectionDraftDto {
   return {
     id: String(s._id),
     sectionId: s.sectionId,
@@ -114,8 +114,17 @@ function changesSince(evidence: Evidence[] | undefined, now: Evidence[]): number
   return now.filter((e) => then.get(e.id) !== JSON.stringify(e)).length
 }
 
+// One template section with its newest draft as saved, evidence included.
+export type LoadedSection = {
+  section: TemplateSection
+  usableObservations: number
+  latest: (IReportSection & { _id: unknown }) | null
+  changesSinceDraft: number
+}
+
 // Sections 7-12 with how much usable evidence each has and its newest draft.
-export async function listSections(reference: string): Promise<SectionSummaryDto[]> {
+// The section list and the review workspace (RV-01) both read it.
+export async function loadSections(reference: string): Promise<LoadedSection[]> {
   const assessment = await AssessmentModel.findOne({ reference }, '_id').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   const [sections, observations, drafts] = await Promise.all([
@@ -126,17 +135,28 @@ export async function listSections(reference: string): Promise<SectionSummaryDto
   const usable = categorised(observations).filter(isUsable)
   const evidence = usable.map(toEvidence)
   return sections.map((section) => {
-    const latest = drafts.find((d) => d.sectionId === section.id)
+    const latest = drafts.find((d) => d.sectionId === section.id) ?? null
     return {
+      section,
+      usableObservations: usable.filter(isFiledUnder(section)).length,
+      latest,
+      changesSinceDraft: latest ? changesSince(latest.evidence, evidence) : 0,
+    }
+  })
+}
+
+export async function listSections(reference: string): Promise<SectionSummaryDto[]> {
+  return (await loadSections(reference)).map(
+    ({ section, usableObservations, latest, changesSinceDraft }) => ({
       id: section.id,
       title: section.title,
       copeDimensions: section.cope_dimensions,
       minObservations: section.min_observations,
-      usableObservations: usable.filter(isFiledUnder(section)).length,
-      latestDraft: latest ? toDto(latest) : null,
-      changesSinceDraft: latest ? changesSince(latest.evidence, evidence) : 0,
-    }
-  })
+      usableObservations,
+      latestDraft: latest ? toDraftDto(latest) : null,
+      changesSinceDraft,
+    }),
+  )
 }
 
 // Drafts one of sections 7-12 from the assessment's observations (GN-01) and
@@ -210,5 +230,5 @@ export async function draftSection(
     { _id: assessment._id, reportStatus: { $exists: false } },
     { $set: { reportStatus: 'draft' } },
   )
-  return toDto(saved.toObject())
+  return toDraftDto(saved.toObject())
 }

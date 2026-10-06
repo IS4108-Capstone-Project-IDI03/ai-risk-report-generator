@@ -398,6 +398,19 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
   return documents.map((d) => toDto(d))
 }
 
+/**
+ * Returns the documents with these ids, in no particular order. An id that is
+ * no document's is skipped. The review workspace shows a cited passage's
+ * title, edition, effective date and withdrawal from them (RV-01).
+ */
+export async function findKnowledgeDocuments(ids: string[]): Promise<KnowledgeDocumentDto[]> {
+  const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))
+  if (!valid.length) return []
+  const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
+  // A cited document has finished ingestion, so it carries no progress.
+  return documents.map((d) => toDto(d))
+}
+
 // The document isn't in the state the change needs (a 409). KB-01: only an
 // active document can be corrected; one still ingesting would have some
 // passages indexed under the old labels. KB-01: withdraw needs an active

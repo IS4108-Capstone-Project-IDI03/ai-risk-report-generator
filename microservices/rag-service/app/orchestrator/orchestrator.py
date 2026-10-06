@@ -157,11 +157,16 @@ def draft(section_id: str, assessment, observations) -> dict:
     citable = {f"O:{o.id}" for o in observations} | {f"C:{cid}" for cid in standards}
     guardrail = check_citations(subsections, citable)
 
+    # The cited passages, so the reviewer can open each one (RV-01 AC7). A cited past-report
+    # passage is kept too, although it cannot support the statement that cites it.
     cited = {c for sub in subsections for s in sub["statements"] for c in s["citations"]}
+    passages = {f"C:{cid}": chunk for cid, chunk in standards.items()} | {
+        f"P:{chunk['id']}": chunk for chunk in precedents
+    }
     sources = {
-        f"C:{cid}": {"text": chunk["text"], **(chunk["metadata"] or {})}
-        for cid, chunk in standards.items()
-        if f"C:{cid}" in cited
+        ref: {"text": chunk["text"], **(chunk["metadata"] or {})}
+        for ref, chunk in passages.items()
+        if ref in cited
     }
     return {
         "section_id": section_id,

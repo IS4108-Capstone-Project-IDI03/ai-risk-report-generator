@@ -164,7 +164,7 @@ with the same list.
 
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
-| `assessments:view` | `GET` assessments, their locations and observations, recording audio | yes | yes |
+| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio | yes | yes |
 | `assessments:edit` | create assessments, capture sessions, locations, observations, tag edits, transcription retry | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
@@ -260,8 +260,10 @@ are kept; the newest is current. Each document has:
 - `statements`, each with its `text`, `citations` and `supported`. A citation
   is `O:<observation _id>` or `C:<chunk id>`. `supported` is false when a
   citation does not resolve to evidence the draft was given.
-- `sources`: the cited standard passages by citation ID, with their text,
-  `doc_id`, `headings` and `page_start`/`page_end`.
+- `sources`: the cited passages by citation ID, with their text, `doc_id`,
+  `headings` and `page_start`/`page_end`: every cited standard (`C:`), and any
+  past-report passage (`P:`) a statement cites, kept so the review workspace
+  can open it (RV-01). Drafts saved before RV-01 hold standards only.
 - `questions`: up to three questions for the engineer about gaps the evidence
   leaves. They are not part of the report.
 - `evidence`: the observations the draft was given, as they were then (`id`,
@@ -286,6 +288,7 @@ The first draft sets the assessment's `reportStatus` to `draft`.
 | --- | --- |
 | `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (or `null`) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks or holds in an older form, which a redraft would take in. 404, or 503 when S4 cannot be reached. |
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
+| `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources` and `changesSinceDraft`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under the section's categories, plus any other it cites). Read-only. 404, or 503 when S4 cannot be reached. |
 
 ## Knowledge documents (IN-01, KB-01)
 

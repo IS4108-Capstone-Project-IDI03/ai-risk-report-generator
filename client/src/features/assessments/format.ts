@@ -6,3 +6,8 @@ export function formatDayTime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(date.getDate())} ${MONTHS[date.getMonth()]} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
+
+// `4 Oct 2026`, a day in local time.
+export function formatDay(date: Date) {
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`
+}
