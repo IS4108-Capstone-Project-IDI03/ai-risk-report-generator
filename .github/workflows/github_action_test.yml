@@ -50,6 +50,10 @@ jobs:
       AWS_REGION: ap-southeast-1
       S3_BUCKET: ci-test-bucket
       REDIS_URL: redis://localhost:6379
+      # The internal notification endpoint's shared secret (IN-10). The
+      # service-auth tests send this value and expect it to match; without it
+      # requireServiceKey fails closed and those posts 401. Dummy, like the rest.
+      SERVICE_API_KEY: ci-test-service-key
 
     steps:
       - name: Checkout

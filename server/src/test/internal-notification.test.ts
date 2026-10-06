@@ -8,9 +8,11 @@ import { signedInAsRole } from './auth-test-helpers'
 
 useMemoryMongo()
 
-// The configured service key, loaded the same way the middleware reads it, so
-// the test stays correct whatever the environment sets it to.
-const KEY = config.serviceApiKey ?? ''
+// The configured service key, loaded the same way the middleware reads it. The
+// endpoint fails closed without one, so fail loudly here rather than let every
+// post below 401 (as happens in CI if SERVICE_API_KEY is not set).
+const KEY = config.serviceApiKey
+if (!KEY) throw new Error('SERVICE_API_KEY must be set for the notification tests.')
 const admin = signedInAsRole(app, 'knowledge_admin', 'Sana Patel')
 
 const validBody = () => ({
