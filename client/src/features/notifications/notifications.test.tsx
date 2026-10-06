@@ -93,9 +93,7 @@ describe('NotificationBell', () => {
 
   it('renders exactly pageSize rows, and a different pageSize changes that', async () => {
     stubGateway(makeItems(10))
-    const { unmount } = render(
-      <NotificationBell counts={{ total: 10, unread: 10 }} pageSize={3} />,
-    )
+    const { unmount } = render(<NotificationBell counts={{ total: 10, unread: 10 }} pageSize={3} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
