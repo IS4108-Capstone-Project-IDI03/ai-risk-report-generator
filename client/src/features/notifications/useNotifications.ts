@@ -1,14 +1,22 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   dismissAllNotifications,
+  getNotificationCount,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   type Notification,
+  type NotificationCounts,
   type NotificationPage,
 } from './api'
 
-export type NotificationCounts = { total: number; unread: number }
+export type { NotificationCounts }
+
+// How often the badge is refreshed from the gateway while the tab is visible.
+// Chosen so a finished job surfaces within a reasonable wait without hammering
+// the gateway; the count route does not extend the session, so this does not
+// keep an idle tab signed in.
+const POLL_MS = 30_000
 
 export type UseNotifications = {
   items: Notification[]
@@ -106,6 +114,57 @@ export function useNotifications(
     setTotal(0)
     setUnread(0)
     dismissAllNotifications().catch(() => {})
+  }, [])
+
+  // Poll the counts on a timer so the badge updates on its own when a job
+  // finishes, without the user reloading. Only the counts are refreshed, never
+  // the open list (which would fight what the user is reading). Polling pauses
+  // while the tab is hidden, and resumes — with an immediate refresh — when it
+  // becomes visible again, so a backgrounded tab is quiet. A failed poll is
+  // ignored; the next one corrects the badge.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined
+    let controller: AbortController | undefined
+
+    const refresh = () => {
+      controller?.abort()
+      controller = new AbortController()
+      getNotificationCount(controller.signal).then(
+        (counts) => {
+          setTotal(counts.total)
+          setUnread(counts.unread)
+        },
+        () => {
+          // Ignore: a dropped poll just means the badge waits for the next one.
+        },
+      )
+    }
+
+    const start = () => {
+      if (timer) return
+      timer = setInterval(refresh, POLL_MS)
+    }
+    const stop = () => {
+      clearInterval(timer)
+      timer = undefined
+      controller?.abort()
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh()
+        start()
+      } else {
+        stop()
+      }
+    }
+
+    if (document.visibilityState === 'visible') start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [])
 
   return {
