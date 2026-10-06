@@ -11,6 +11,7 @@ import ragRoutes from './routes/rag.routes'
 import observationRoutes from './routes/observation.routes'
 import { failInterruptedTranscriptions } from './services/observation.service'
 import userRoutes from './routes/user.routes'
+import notificationRoutes from './routes/notification.routes'
 import { requireAuth } from './middleware/auth.middleware'
 
 const app = express()
@@ -29,6 +30,8 @@ app.use('/api/knowledge-documents', requireAuth, knowledgeDocumentRoutes)
 app.use('/api/rag', requireAuth, ragRoutes)
 app.use('/api/observations', requireAuth, observationRoutes)
 app.use('/api/users', requireAuth, userRoutes)
+// Scoped to the caller's own session, not a role capability (no permission).
+app.use('/api/notifications', requireAuth, notificationRoutes)
 
 async function start() {
   await connectDb()
