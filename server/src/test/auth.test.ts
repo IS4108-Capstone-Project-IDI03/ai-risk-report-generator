@@ -106,6 +106,56 @@ describe('Sliding session expiry (F-07)', () => {
   })
 })
 
+// Polling the notification count must not keep an idle session alive — the
+// whole point of the no-refresh gate on that route (F-07 still holds).
+describe('Notification count polling and session expiry', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not extend the session when only the count is polled', async () => {
+    await seedUser({ email: 'poller@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'poller@example.com', password: 'correct horse' })
+
+    // Poll the count within the 15-minute window. A refreshing route would
+    // reset the clock on each poll and keep the session alive indefinitely;
+    // the count route must not, so these polls succeed but do not extend it.
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000) // 10 min since login
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+
+    // Cross 15 minutes since login with no refreshing request. Had the polls
+    // refreshed the session it would still be valid; because they did not, it
+    // has expired — the next poll is rejected, and so is a real route.
+    vi.advanceTimersByTime(6 * 60 * 1000) // 16 min since login
+    expect((await agent.get('/api/notifications/count')).status).toBe(401)
+    expect((await agent.get('/api/auth/me')).status).toBe(401)
+  })
+
+  it('still lets real activity keep the session alive while polling', async () => {
+    await seedUser({ email: 'active-poller@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'active-poller@example.com', password: 'correct horse' })
+
+    // A refreshing request (/me) at 14 min resets the clock; a later poll does
+    // not undo that, so the session is still valid 10 min after the refresh.
+    vi.advanceTimersByTime(14 * 60 * 1000)
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+  })
+})
+
 describe('POST /api/auth/logout (F-07 AC4)', () => {
   it('invalidates the session, not just the browser cookie', async () => {
     await seedUser({ email: 'logout@example.com' })

@@ -41,6 +41,25 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+// Like requireAuth, but does NOT re-issue the session cookie. For routes the
+// client polls on a timer — the notification count — so that polling cannot
+// keep an idle session alive and defeat the F-07 inactivity logout. The
+// session is still verified: an expired or missing cookie is 401 exactly as
+// above; this simply does not extend it.
+export function requireAuthNoRefresh(req: Request, res: Response, next: NextFunction) {
+  const token = req.cookies?.[SESSION_COOKIE]
+  if (!token) {
+    res.status(401).json({ error: 'Sign in required.' })
+    return
+  }
+  try {
+    res.locals.user = verifySession(token)
+    next()
+  } catch {
+    res.status(401).json({ error: 'Session expired or invalid.' })
+  }
+}
+
 // Per-route permission gate from the agreed matrix (F-05), placed after
 // requireAuth, e.g. router.post('/', requirePermission('assessments:edit'), handler).
 // A signed-in user whose role lacks the permission gets 403, never the data.

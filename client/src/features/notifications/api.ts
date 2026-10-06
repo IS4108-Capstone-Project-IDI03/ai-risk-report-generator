@@ -55,6 +55,16 @@ export type NotificationPage = {
   unread: number
 }
 
+// Just the counts for the header badge, cheap enough to poll on a timer.
+// Matches GET /api/notifications/count, which the gateway serves WITHOUT
+// refreshing the session, so polling it cannot keep an idle tab signed in.
+export function getNotificationCount(signal?: AbortSignal): Promise<NotificationCounts> {
+  return request<NotificationCounts>('/api/notifications/count', { signal })
+}
+
+// Totals only, as the count route returns them.
+export type NotificationCounts = { total: number; unread: number }
+
 // One page, newest first. `limit` is clamped server-side; `offset` is how many
 // to skip. Matches GET /api/notifications.
 export function listNotifications(
