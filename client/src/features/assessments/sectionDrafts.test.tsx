@@ -35,7 +35,21 @@ const RISER: SavedObservation = {
   severity: 'high',
   location: { id: 'l1', name: 'Riser B', floor: 'Level 3' },
   note: 'Riser shaft not fire-stopped at L3.',
-  recordings: [],
+  recordings: [
+    {
+      id: 'r1',
+      name: 'Recording 1',
+      contentType: 'audio/x-m4a',
+      size: 1000,
+      url: '/api/observations/o1/recordings/r1/audio',
+      transcription: {
+        status: 'transcribed',
+        transcript: 'the gap is around the cable tray',
+        error: null,
+        attempts: 1,
+      },
+    },
+  ],
   recordedAt: '2026-09-23T09:10:00.000Z',
 }
 const section = (fields: Partial<ReportSection>): ReportSection => ({
@@ -176,6 +190,10 @@ it("drafts a section of a saved assessment and shows each statement's evidence (
     .getByText('Riser shaft not fire-stopped at L3.')
     .closest('div')!.parentElement!
   expect(within(evidence).getByText('Riser B, Level 3')).toBeInTheDocument()
+  // A note and a voice transcript are both shown, since the draft may cite either.
+  expect(within(evidence).getByText('Note')).toBeInTheDocument()
+  expect(within(evidence).getByText('Voice transcript · Recording 1')).toBeInTheDocument()
+  expect(within(evidence).getByText('the gap is around the cable tray')).toBeInTheDocument()
   expect(screen.getByText('FM 1-21 › Fire stopping')).toBeInTheDocument()
   expect(screen.getByText('p. 4–5')).toBeInTheDocument()
   expect(screen.getByText('This citation could not be found')).toBeInTheDocument()

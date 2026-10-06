@@ -93,6 +93,7 @@ const registry = {
     observation: 'camera',
     photo: 'image',
     note: 'sticky-note',
+    recording: 'mic',
     insight: 'sparkles',
     uncertainty: 'triangle-alert',
     finding: 'shield-alert',
