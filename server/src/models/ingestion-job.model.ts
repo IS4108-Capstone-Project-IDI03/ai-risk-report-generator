@@ -30,6 +30,10 @@ export interface IIngestionJob {
   currentStageStartedAt: Date
   // Overall job start (= first start_stage call).
   startedAt: Date
+  // The stage that was in progress when ingestion failed (IN-10). Written by
+  // the worker on failure, so the stage need not be inferred from stageLog.
+  // Absent on a running or complete job.
+  failedStage?: IngestionStage
   // Set on every write by the worker; not managed by Mongoose timestamps.
   updatedAt: Date
 }
@@ -52,6 +56,7 @@ const ingestionJobSchema = new Schema<IIngestionJob>(
     stageLog: { type: [stageLogEntrySchema], default: [] },
     currentStageStartedAt: { type: Date, required: true },
     startedAt: { type: Date, required: true },
+    failedStage: { type: String, enum: INGESTION_STAGES },
     updatedAt: { type: Date, required: true },
   },
   // No `timestamps: true`: the worker controls `updatedAt` explicitly.

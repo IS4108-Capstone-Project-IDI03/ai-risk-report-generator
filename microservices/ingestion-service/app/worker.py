@@ -27,6 +27,7 @@ from bullmq import Worker
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 
+from app.notifications import notify_ingestion
 from app.pipeline import UnparsableDocumentError, run
 from app.pipeline.progress import ProgressReporter
 
@@ -115,24 +116,30 @@ def ingest_document(document_id: str) -> None:
     # reason; re-raising tells BullMQ the job failed (not retried: attempts is 1).
     except Exception as error:
         log.exception("Ingesting document %s failed.", document_id)
-        # Record the failed stage so the gateway shows "Failed" (E2).
+        # The stage that was running when it broke, read before the 'failed'
+        # sentinel is appended, so the notification can name it (IN-10).
+        failed_stage = reporter.current_stage
+        # Record the failed stage so the gateway shows "Failed" (E2), and keep
+        # the real stage as a field so the gateway/notification need not infer
+        # it from the stage log.
         reporter.start_stage("failed")
         reporter.finish()
-        collection.update_one(
+        if failed_stage:
+            jobs().update_one(
+                {"documentId": _id}, {"$set": {"failedStage": failed_stage}}
+            )
+        reason = UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
+        failed = collection.find_one_and_update(
             {"_id": _id},
-            {
-                "$set": {
-                    "status": "failed",
-                    "error": (
-                        UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
-                    ),
-                    "finishedAt": datetime.now(UTC),
-                }
-            },
+            {"$set": {"status": "failed", "error": reason, "finishedAt": datetime.now(UTC)}},
+            return_document=ReturnDocument.AFTER,
         )
+        # Tell the gateway after the status is safely recorded; never let a
+        # notification failure undo the status write or mask the ingestion error.
+        notify_ingestion(failed or doc, status="failed", failed_stage=failed_stage)
         raise
 
-    collection.update_one(
+    completed = collection.find_one_and_update(
         {"_id": _id},
         {
             "$set": {
@@ -145,7 +152,9 @@ def ingest_document(document_id: str) -> None:
                 "finishedAt": datetime.now(UTC),
             }
         },
+        return_document=ReturnDocument.AFTER,
     )
+    notify_ingestion(completed or doc, status="complete")
 
 
 async def process(job, _token):
