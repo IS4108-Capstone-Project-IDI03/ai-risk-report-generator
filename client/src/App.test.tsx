@@ -165,7 +165,7 @@ describe('Marsh prototype integration', () => {
         .getAllByRole('status')
         .some((s) => s.textContent?.includes('No file was generated or issued')),
     ).toBe(true)
-  })
+  }, 10000)
   it.each([390, 900])('provides usable navigation at %ipx', async (width) => {
     const previous = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })

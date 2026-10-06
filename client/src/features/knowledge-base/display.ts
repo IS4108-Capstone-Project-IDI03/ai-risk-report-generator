@@ -39,6 +39,13 @@ export function fileSize(bytes: number): string {
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** Formats a processing duration as "1m 23s" or "45s" (E2). */
+export function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s`
+  return `${Math.floor(s / 60)}m ${s % 60}s`
+}
+
 /** Returns a moment in the design system's literal form, e.g. "29 Sep 11:24". */
 export function dateTime(iso: string): string {
   const date = new Date(iso)

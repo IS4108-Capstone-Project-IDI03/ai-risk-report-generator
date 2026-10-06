@@ -119,7 +119,6 @@ async function sendResetEmail(email: string, token: string): Promise<void> {
     subject: 'Reset your password',
     text: `Reset token: ${token} (expires in 30 minutes)`,
   })
-  // eslint-disable-next-line no-console -- this *is* the "email", for now.
   console.log(`[password reset] ${email} -> token: ${token} (expires in 30 min)`)
 }
 

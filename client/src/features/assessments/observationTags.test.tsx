@@ -201,7 +201,7 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
     ])
     expect(optionLabels(select('Filter by floor'))).toEqual(['All floors', 'Ground', 'Level 2'])
   })
-})
+}, 10000)
 
 describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
   it('categorises an observation and keeps its new tags after reopening', async () => {

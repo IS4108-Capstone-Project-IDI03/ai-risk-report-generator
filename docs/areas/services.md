@@ -41,12 +41,19 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    record and the file and answers 503.
 4. `ingestion-worker` (same image as the ingestion service, `python -m
    app.worker`, concurrency 1) claims the document, downloads the original,
-   runs `app.pipeline.run(path, doc_id=<id>, labels=...)` so chunk ids are
-   `<id>:<n>` and every passage carries the document's five labels (KB-01), and
-   records `complete` with counts or `failed` with the reason. A job whose
-   worker died mid-run is redelivered by BullMQ and processed again.
+   runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`
+   so chunk ids are `<id>:<n>` and every passage carries the document's five
+   labels (KB-01). The `ProgressReporter` writes each stage transition to the
+   `ingestion_jobs` collection in MongoDB (E2), and the gateway merges this into
+   the `KnowledgeDocument` DTO as `progress` while the document is `processing`.
+   The worker records `complete` with counts or `failed` with the reason on
+   `knowledge_documents` as before. A job whose worker died mid-run is
+   redelivered by BullMQ and processed again.
 5. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
-   document is queued or processing.
+   document is queued or processing, showing each processing document's stage,
+   elapsed time and, while chunking, the page reached out of the document's page
+   total from `progress` (E2). Pages are shown rather than a chunk count because
+   the chunk total is not knowable up front.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 

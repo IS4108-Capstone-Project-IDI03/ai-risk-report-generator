@@ -201,6 +201,23 @@
   line-height: var(--text-small-lh);
   color: var(--status-critical-fg);
 }
+
+/* Live ingestion detail under the stage badge (E2): elapsed time, and while
+   chunking, a running chunk count with a thin progress bar. */
+.kb-stage-detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+}
+.kb-elapsed {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.kb-page-count {
+  font-family: var(--font-mono);
+}
 .kb-link {
   color: var(--text-link);
   font-weight: var(--weight-medium);

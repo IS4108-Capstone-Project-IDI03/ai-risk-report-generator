@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { formatDuration } from './display'
 import { resetUploads } from './uploads'
 
 const NFPA = {
@@ -24,6 +25,21 @@ const NFPA = {
 }
 
 const EDITION_RANGE = `Edition must be a year from 1900 to ${new Date().getFullYear() + 1}.`
+
+// A processing document with ingestion progress (E2); overrides tune the stage.
+const processing = (overrides: Record<string, unknown> = {}) => ({
+  ...NFPA,
+  status: 'processing',
+  progress: {
+    currentStage: 'chunking',
+    pageCurrent: 12,
+    pageTotal: 45,
+    elapsedMs: 90_000,
+    currentStageElapsedMs: 20_000,
+    stageLog: [],
+    ...overrides,
+  },
+})
 
 const json = (status: number, body: unknown) =>
   Promise.resolve(
@@ -295,5 +311,48 @@ describe('Knowledge base uploads (IN-01)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
 
     expect(await screen.findByText('Only PDF files can be uploaded.')).toBeInTheDocument()
+  })
+})
+
+describe('Ingestion stage tracking (E2)', () => {
+  it('shows the stage and the page reached for a chunking document', async () => {
+    mockGateway([processing({ currentStage: 'chunking', pageCurrent: 12, pageTotal: 45 })])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Chunking')).toBeInTheDocument()
+    expect(within(region).getByText('| Pg 12 / 45')).toBeInTheDocument()
+  })
+
+  it('shows the page without a total when the page count is unknown', async () => {
+    mockGateway([processing({ currentStage: 'chunking', pageCurrent: 12, pageTotal: null })])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('| Pg 12')).toBeInTheDocument()
+  })
+
+  it('falls back to the Processing badge when a processing document has no progress yet', async () => {
+    // The worker has not written its first stage: no progress field at all.
+    mockGateway([{ ...NFPA, status: 'processing' }])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Processing')).toBeInTheDocument()
+    expect(within(region).queryByText(/Pg/)).not.toBeInTheDocument()
+  })
+
+  it('shows no stage detail for a queued document', async () => {
+    mockGateway([{ ...NFPA, status: 'queued' }])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Queued')).toBeInTheDocument()
+    expect(within(region).queryByText(/Pg/)).not.toBeInTheDocument()
+  })
+
+  it('formats a processing duration as minutes and seconds', () => {
+    expect(formatDuration(90_000)).toBe('1m 30s')
+    expect(formatDuration(45_000)).toBe('45s')
   })
 })

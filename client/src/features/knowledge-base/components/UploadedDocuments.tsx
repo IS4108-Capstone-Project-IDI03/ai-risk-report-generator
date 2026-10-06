@@ -4,14 +4,29 @@
 // while any is still queued or processing. Used by screens/AddDocuments.tsx.
 import { useEffect, useState } from 'react'
 import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
-import { listKnowledgeDocuments, type IngestionStatus, type KnowledgeDocument } from '../api'
-import { calendarDate, dateTime, SOURCE_LABELS } from '../display'
+import {
+  listKnowledgeDocuments,
+  type IngestionStage,
+  type IngestionStatus,
+  type KnowledgeDocument,
+} from '../api'
+import { calendarDate, dateTime, formatDuration, SOURCE_LABELS } from '../display'
 
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   queued: { label: 'Queued', tone: 'neutral' },
   processing: { label: 'Processing', tone: 'info' },
   complete: { label: 'Complete', tone: 'low' },
   failed: { label: 'Failed', tone: 'critical' },
+}
+
+// What each stage reads as in the status badge (E2).
+const STAGE_LABELS: Record<IngestionStage, string> = {
+  parsing: 'Parsing',
+  anonymising: 'Anonymising',
+  chunking: 'Chunking',
+  indexing: 'Indexing',
+  complete: 'Complete',
+  failed: 'Failed',
 }
 
 // Re-read too whenever a new upload is accepted (refreshKey). An unreachable
@@ -55,12 +70,35 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
       </small>
     </span>
   )
-  const status = (d: KnowledgeDocument) => (
-    <span className="kb-status">
-      <Badge tone={STATUS[d.status].tone}>{STATUS[d.status].label}</Badge>
-      {d.error && <span className="kb-status-reason">{d.error}</span>}
-    </span>
-  )
+  const status = (d: KnowledgeDocument) => {
+    const badge = STATUS[d.status]
+    // Progress is only shown for a processing document the worker has started.
+    const p = d.status === 'processing' ? d.progress : undefined
+    const stage = p && STAGE_LABELS[p.currentStage]
+
+    // "Pg 12 / 45", or "Pg 12" if the total couldn't be read, while
+    // chunking once a page with provenance is reached (E2b). The chunk count
+    // has no knowable total, so pages are shown instead of a progress bar.
+    const pageLabel =
+      p && p.currentStage === 'chunking' && p.pageCurrent
+        ? p.pageTotal
+          ? `| Pg ${p.pageCurrent} / ${p.pageTotal}`
+          : `| Pg ${p.pageCurrent}`
+        : null
+
+    return (
+      <span className="kb-status">
+        <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
+        {p && (
+          <span className="kb-stage-detail">
+            <span className="kb-elapsed">{formatDuration(p.elapsedMs)}</span>
+            {pageLabel && <span className="kb-page-count">{pageLabel}</span>}
+          </span>
+        )}
+        {d.error && <span className="kb-status-reason">{d.error}</span>}
+      </span>
+    )
+  }
   const original = (d: KnowledgeDocument) => (
     <a
       className="kb-link"
