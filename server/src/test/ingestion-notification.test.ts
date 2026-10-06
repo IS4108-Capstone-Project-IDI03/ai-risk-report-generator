@@ -11,7 +11,11 @@ import { signedInAsRole } from './auth-test-helpers'
 
 useMemoryMongo()
 
-const KEY = config.serviceApiKey ?? ''
+// The internal endpoint fails closed without a configured key, which would
+// turn every post below into a 401. Fail loudly here instead, so a missing
+// SERVICE_API_KEY (e.g. in CI) is obvious rather than 14 mysterious 401s.
+const KEY = config.serviceApiKey
+if (!KEY) throw new Error('SERVICE_API_KEY must be set for the notification tests.')
 const admin = signedInAsRole(app, 'knowledge_admin', 'Sana Patel')
 const engineer = signedInAsRole(app, 'risk_engineer', 'Jide Okafor')
 
