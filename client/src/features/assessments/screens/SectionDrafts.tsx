@@ -14,6 +14,7 @@ import {
   type SavedObservation,
   type SectionDraft,
 } from '../api'
+import { ObservationExcerpt } from '../components/ObservationExcerpt'
 import { useObservations } from '../useObservations'
 import { useSections } from '../useSections'
 
@@ -33,14 +34,13 @@ function resolve(id: string, draft: SectionDraft, observations: SavedObservation
   if (id.startsWith('O:')) {
     const o = observations.find((x) => x.id === id.slice(2))
     if (o) {
-      const transcript = o.recordings.find((r) => r.transcription.transcript)?.transcription
       return {
         kind: 'observation',
         source: o.location
           ? [o.location.name, o.location.floor].filter(Boolean).join(', ')
           : 'Site observation',
         locator: o.copeDimension ?? undefined,
-        excerpt: o.note ?? transcript?.transcript ?? undefined,
+        excerpt: <ObservationExcerpt observation={o} />,
       }
     }
   }

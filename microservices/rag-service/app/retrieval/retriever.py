@@ -62,24 +62,38 @@ def retrieve(query: str, filters: dict[str, str | list[str]] | None = None) -> l
         where=label_filter(filters or {}),
         include=["documents", "metadatas", "distances"],
     )
-    texts = candidates["documents"][0]
-    if not texts:
+    return rerank(
+        query,
+        [
+            {"id": id_, "text": text, "metadata": metadata, "distance": distance}
+            for id_, text, metadata, distance in zip(
+                candidates["ids"][0],
+                candidates["documents"][0],
+                candidates["metadatas"][0],
+                candidates["distances"][0],
+            )
+        ],
+        top_n=5,
+    )
+
+
+def rerank(query: str, passages: list[dict], top_n: int | None = None) -> list[dict]:
+    """Reorder passages by Cohere Rerank, most relevant first, keeping the top `top_n`.
+
+    A reranker reads the query and each passage together, so it judges whether a
+    passage answers the query better than vector distance does. One Cohere call; the
+    trial key allows 10 a minute. Each passage gains its `relevance_score`.
+    """
+    if not passages:
         return []
-    ranked = cohere.rerank(
+    ranked = cohere_client().rerank(
         model=os.getenv("RERANK_MODEL", "rerank-v3.5"),
         query=query,
-        documents=texts,
-        top_n=min(5, len(texts)),
+        documents=[p["text"] for p in passages],
+        top_n=min(top_n or len(passages), len(passages)),
     )
     return [
-        {
-            "id": candidates["ids"][0][hit.index],
-            "text": texts[hit.index],
-            "metadata": candidates["metadatas"][0][hit.index],
-            "distance": candidates["distances"][0][hit.index],
-            "relevance_score": hit.relevance_score,
-        }
-        for hit in ranked.results
+        {**passages[hit.index], "relevance_score": hit.relevance_score} for hit in ranked.results
     ]
 
 
@@ -90,8 +104,7 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
     first. All queries are embedded in one call, and requests sharing filters and `k`
     share one Chroma query. A Cohere trial key allows 10 calls a minute, so one search
     per subsection with `retrieve()` (embed and rerank each) would hit the limit on a
-    large section. ponytail: no rerank, so nearest by vector only; rerank the
-    combined hits once if drafts cite weak passages.
+    large section, so callers rerank the combined hits once with `rerank()` (GN-01 AC14).
     """
     empty = [[] for _ in requests]
     if not requests:

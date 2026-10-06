@@ -1,13 +1,21 @@
 import 'dotenv/config'
-import mongoose from 'mongoose'
+import { readFileSync } from 'fs'
+import mongoose, { Types } from 'mongoose'
+import { join } from 'path'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { connectDb } from '../models/db'
-import { ObservationModel, type CopeDimension, type Severity } from '../models/observation.model'
+import {
+  ObservationModel,
+  type CopeDimension,
+  type IRecording,
+  type Severity,
+} from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { locationKey } from '../services/location.service'
+import { putObject } from '../services/storage.service'
 
 // Sample data for trying report section drafting (GN-01): a Singapore office
 // whose observations exercise sections 7-12. The notes are written as they are
@@ -18,6 +26,9 @@ import { locationKey } from '../services/location.service'
 // Sign in as alex.rowe@example.com and open RPT-2026-0901 > Report generation.
 // Section 9 Fire Protection is the richest: its FM-200 observations match the
 // FM-200 manual in the knowledge base. Section 10 has no evidence on purpose.
+// Some observations carry voice recordings (spoken audio in `seed-audio/`,
+// made with macOS `say`), uploaded to S3 with their transcript already filled
+// in, so no Whisper call is made. One shows a failed transcription.
 const REFERENCE = 'RPT-2026-0901'
 
 const LOCATIONS = {
@@ -31,8 +42,10 @@ const OBSERVATIONS: {
   at: keyof typeof LOCATIONS
   cope: CopeDimension | null
   severity: Severity
-  note: string
+  note?: string
   standard?: string
+  // A file in seed-audio/, with its transcript, or the error a failed attempt left.
+  recording?: { file: string; transcript?: string; error?: string }
 }[] = [
   {
     at: 'server',
@@ -52,13 +65,22 @@ const OBSERVATIONS: {
     at: 'server',
     cope: 'Protection',
     severity: 'moderate',
-    note: "ok so at the server room exit door there's the manual release and the abort switch, signs are up, and the discharge delay is set to thirty seconds",
+    recording: {
+      file: 'exit-door',
+      transcript:
+        "ok so at the server room exit door there's the manual release and the abort switch, signs are up, and the discharge delay is set to thirty seconds",
+    },
   },
   {
     at: 'pumps',
     cope: 'Protection',
     severity: 'critical',
     note: 'wet pipe spk all office flrs + bsmt carpark. B1 spk CV found SHUT!! not chained, no tamper switch.',
+    recording: {
+      file: 'b1-valve',
+      transcript:
+        "just to add on the B1 valve, the facilities manager said it was shut two weeks ago for a pipe repair and nobody opened it back up. they've opened it now while I was there",
+    },
   },
   {
     at: 'pumps',
@@ -71,6 +93,10 @@ const OBSERVATIONS: {
     cope: 'Protection',
     severity: 'low',
     note: 'FCC - addressable FA panel, monitored by central stn co.',
+    recording: {
+      file: 'fcc-panel',
+      error: 'Whisper could not transcribe the recording: the audio was cut off.',
+    },
   },
   {
     at: 'riser',
@@ -82,7 +108,11 @@ const OBSERVATIONS: {
     at: 'server',
     cope: 'Occupancy',
     severity: 'moderate',
-    note: "so the UPS is lithium ion, it's in the room right next to the server room, only a drywall partition between them and nobody could tell me the fire rating",
+    recording: {
+      file: 'ups-room',
+      transcript:
+        "so the UPS is lithium ion, it's in the room right next to the server room, only a drywall partition between them and nobody could tell me the fire rating",
+    },
   },
   // Uncategorised, so drafting must leave it out (CP-02 AC4).
   {
@@ -139,13 +169,39 @@ async function seed() {
   const locationId = (at: keyof typeof LOCATIONS) =>
     assessment.locations.find((l) => l.name === LOCATIONS[at].name)!._id
   for (const [i, o] of OBSERVATIONS.entries()) {
+    const effectiveDate = new Date(Date.UTC(2026, 8, 28, 9, i))
+    const id = new Types.ObjectId()
+    const recordings: IRecording[] = []
+    if (o.recording) {
+      // Same key shape as a real capture (observation.service.ts), so the
+      // audio route streams it back from S3.
+      const recordingId = new Types.ObjectId()
+      const key = `audio/${REFERENCE}/${id}/${recordingId}.m4a`
+      const audio = readFileSync(join(__dirname, 'seed-audio', `${o.recording.file}.m4a`))
+      await putObject(key, audio, 'audio/x-m4a')
+      const { transcript, error } = o.recording
+      recordings.push({
+        _id: recordingId,
+        name: 'Recording 1',
+        key,
+        contentType: 'audio/x-m4a',
+        size: audio.length,
+        transcription: {
+          status: error ? ('failed' as const) : ('transcribed' as const),
+          transcript,
+          error,
+          attempts: [{ startedAt: effectiveDate, finishedAt: effectiveDate, error }],
+        },
+      })
+    }
     await ObservationModel.create({
+      _id: id,
       assessment: assessment._id,
       session: session._id,
       engineer: alex.name,
       engineerId: alex._id,
       note: o.note,
-      recordings: [],
+      recordings,
       standard: o.standard,
       severity: o.severity,
       location: locationId(o.at),
@@ -155,7 +211,7 @@ async function seed() {
         facility_type: site.facilityType,
         COPE_dimension: o.cope,
         // The site visit, a minute apart in the order they are listed here.
-        effective_date: new Date(Date.UTC(2026, 8, 28, 9, i)),
+        effective_date: effectiveDate,
       },
     })
   }

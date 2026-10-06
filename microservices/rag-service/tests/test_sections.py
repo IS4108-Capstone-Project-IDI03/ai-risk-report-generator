@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.generation.generator import SectionDraft, Statement, Subsection
@@ -12,6 +13,16 @@ from app.retrieval import retriever
 from app.retrieval.retriever import label_filter
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def keep_vector_order(monkeypatch):
+    # Rerank is a paid Cohere call: every test keeps the vector order unless it
+    # replaces this.
+    monkeypatch.setattr(
+        "app.orchestrator.orchestrator.rerank", lambda query, passages, top_n=None: passages
+    )
+
 
 REQUEST = {
     "section_id": "7",
@@ -184,7 +195,7 @@ def test_retrieval_filters_and_prompt_evidence(monkeypatch):
             "facility_type": "Office",
             "source_type": ["fm_standard", "nfpa_standard"],
         },
-        4,
+        8,
     )
     assert past_reports[1] == {"jurisdiction": "Singapore", "source_type": "marsh_report"}
     system, user, effort = prompts[0]
@@ -449,3 +460,92 @@ def test_site_note_abbreviations_are_spelt_out_in_standard_queries():
     assert standard_queries(TEMPLATE["sections"]["9"], [note]) == [
         "Fire Protection: fire command centre - addressable fire alarm panel"
     ]
+
+
+def many_passages(requests):
+    # Two standard passages per observation, and six past-report passages under the
+    # section heading.
+    *observations, _ = requests
+    return [
+        [
+            {"id": f"s{i}:{rank}", "text": f"passage s{i}:{rank}", "metadata": {}}
+            for rank in range(2)
+        ]
+        for i, _ in enumerate(observations)
+    ] + [
+        [
+            {"id": f"p{n}", "text": f"passage p{n}", "metadata": {"headings": ["Construction"]}}
+            for n in range(6)
+        ]
+    ]
+
+
+def sent(prompt, block):
+    passages = prompt.split(f"<{block}>")[1].split(f"</{block}>")[0]
+    return [line.split()[1] for line in passages.splitlines() if line.startswith("passage ")]
+
+
+MANY = {
+    **REQUEST,
+    "observations": [
+        {"id": f"obs{n}", "COPE_dimension": "Construction", "note": f"Finding {n} rm."}
+        for n in range(14)
+    ],
+}
+
+
+def test_passages_reach_the_draft_in_rerank_order(monkeypatch):
+    calls = []
+
+    def rerank(query, passages, top_n=None):
+        calls.append((query, [p["id"] for p in passages]))
+        # Like Cohere, each passage comes back with a score.
+        return [{**p, "relevance_score": 0.5} for p in passages[::-1]]
+
+    prompts = []
+    monkeypatch.setattr("app.orchestrator.orchestrator.search", many_passages)
+    monkeypatch.setattr("app.orchestrator.orchestrator.rerank", rerank)
+    monkeypatch.setattr("app.generation.generator.complete", fake_complete(prompts, []))
+    client.post("/sections/draft", json=MANY)
+
+    # One call per section, standards and past reports together, against the
+    # section's own observations with abbreviations spelt out.
+    [(query, ids)] = calls
+    assert query.startswith("Construction: Finding 0 room.")
+    assert len(ids) == 28 + 6
+    # Reranked, then capped at 12 standards and 4 past-report passages.
+    standards = [i for i in ids if i.startswith("s")]
+    assert sent(prompts[0][1], "standards") == standards[::-1][:12]
+    assert sent(prompts[0][1], "past_reports") == ["p5", "p4", "p3", "p2"]
+
+
+def test_a_failed_rerank_keeps_the_vector_order(monkeypatch):
+    def rerank(query, passages, top_n=None):
+        raise RuntimeError("429 Too Many Requests")
+
+    prompts = []
+    monkeypatch.setattr("app.orchestrator.orchestrator.search", many_passages)
+    monkeypatch.setattr("app.orchestrator.orchestrator.rerank", rerank)
+    monkeypatch.setattr("app.generation.generator.complete", fake_complete(prompts, []))
+    assert client.post("/sections/draft", json=MANY).status_code == 200
+
+    assert sent(prompts[0][1], "standards") == [f"s{i}:0" for i in range(12)]
+    assert sent(prompts[0][1], "past_reports") == ["p0", "p1", "p2", "p3"]
+
+
+def test_rerank_maps_cohere_results_back_to_passages(monkeypatch):
+    cohere = Mock()
+    cohere.rerank.return_value = SimpleNamespace(
+        results=[
+            SimpleNamespace(index=2, relevance_score=0.9),
+            SimpleNamespace(index=0, relevance_score=0.4),
+        ]
+    )
+    monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
+    passages = [{"id": n, "text": f"text {n}"} for n in "abc"]
+
+    ranked = retriever.rerank("query", passages, top_n=2)
+
+    assert [(p["id"], p["relevance_score"]) for p in ranked] == [("c", 0.9), ("a", 0.4)]
+    assert cohere.rerank.call_args.kwargs["documents"] == ["text a", "text b", "text c"]
+    assert retriever.rerank("query", []) == []
