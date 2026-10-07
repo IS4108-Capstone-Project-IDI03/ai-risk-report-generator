@@ -32,7 +32,9 @@ export type Observation = {
   area: string
   sev: string
   std: string
-  media: string[]
+  // Its photographs (CP-04): url opens the original, or is null for a sample
+  // one, which has only a name.
+  media: { name: string; url: string | null }[]
   detail: string
   audio?: string
   // Where it was captured, when known by id rather than only by name, and the
@@ -45,7 +47,8 @@ export type Observation = {
   attached?: string
   // Shown while a recording is transcribing or after one failed.
   badge?: { tone: 'info' | 'high'; label: string } | null
-  // What it holds, 'Note' and/or 'Voice' (CP-08); worked out for sample ones.
+  // What it holds: any of 'Note', 'Voice' and 'Photo' (CP-08); worked out for
+  // sample ones.
   types?: string[]
   // Transcribing, Transcription failed or Complete (CP-08).
   status?: string
@@ -121,10 +124,9 @@ export type WorkflowState = {
   fVoiceError: { title: string; message: string } | null
   // Recordings and files waiting for Save observation, all saved with the one observation.
   fClips: VoiceClip[]
-  fPhotos: { name: string }[]
-  // ponytail: photos are placeholders kept in the browser until CP-04 stores
-  // them; these are the ones attached to observations saved on the server, by id.
-  savedPhotos: Record<string, string[]>
+  fPhotos: PhotoFile[]
+  // Why a chosen file was not added as a photo (CP-04 AC4).
+  fPhotoError: string | null
   // The location the engineer is capturing in, and the location sheet.
   fLocationId: string | null
   locOpen: boolean
@@ -201,5 +203,13 @@ export type VoiceClip = {
   name: string
   length: string | null
   audio: Blob
+  url: string
+}
+
+// A photograph held in the browser until Save observation uploads it (CP-04).
+export type PhotoFile = {
+  id: number
+  name: string
+  image: Blob
   url: string
 }
