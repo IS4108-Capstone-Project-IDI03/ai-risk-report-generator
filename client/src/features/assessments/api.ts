@@ -417,20 +417,13 @@ export async function draftSection(reference: string, sectionId: string): Promis
   ).data
 }
 
-// The review workspace (RV-01). Completion counts the subsections a draft
-// writes (tables are filled from measured values, GN-03); the review state
-// comes from the draft's own checks until the engineer's decisions (RV-02).
 export type CompletionState = 'not_started' | 'partial' | 'complete'
 export type ReviewState = 'not_drafted' | 'ai_draft' | 'needs_review'
 
-// A passage a draft cites, exactly as the draft was given it, with its
-// document's details as the knowledge base holds them now.
 export type SourcePassage = {
-  // `C:<chunk id>` for a standard, `P:<chunk id>` for a past report.
   id: string
   kind: 'standard' | 'precedent'
   text: string
-  // The heading trail above the passage, outermost first.
   headings: string[]
   pageStart: number | null
   pageEnd: number | null
@@ -441,14 +434,12 @@ export type SourcePassage = {
     issuingBody: string
     sourceType: string
     edition: string | null
-    // YYYY-MM-DD: a standard's effective date, or a past report's date.
     effectiveDate: string
     withdrawnAt: string | null
     fileUrl: string
   } | null
 }
 
-// An observation as the draft was given it, even if edited since.
 export type FieldObservation = {
   id: string
   copeDimension: string
@@ -469,16 +460,12 @@ export type ReviewSection = {
     unsupportedStatements: number
     withdrawnSources: number
     changesSinceDraft: number
-    changeCounts: ChangeCounts
   }
   draft: Omit<SectionDraft, 'sources'> | null
-  // The draft's cited passages, by citation ID.
   sources: Record<string, SourcePassage>
-  // The section's own observations and any other the draft cites.
   observations: FieldObservation[]
 }
 
-// Sections 7-12 for reviewing, each newest draft beside its evidence.
 export async function getReviewWorkspace(
   reference: string,
   signal?: AbortSignal,

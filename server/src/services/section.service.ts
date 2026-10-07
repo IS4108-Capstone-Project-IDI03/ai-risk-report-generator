@@ -135,8 +135,13 @@ export type LoadedSection = {
   changeCounts: ChangeCounts
 }
 
-// Sections 7-12 with how much usable evidence each has and its newest draft.
-// The section list and the review workspace (RV-01) both read it.
+export type LoadedSection = {
+  section: TemplateSection
+  usableObservations: number
+  latest: (IReportSection & { _id: unknown }) | null
+  changesSinceDraft: number
+}
+
 export async function loadSections(reference: string): Promise<LoadedSection[]> {
   const assessment = await AssessmentModel.findOne({ reference }, '_id').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)

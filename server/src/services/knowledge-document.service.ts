@@ -534,16 +534,11 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
   return documents.map((d) => toDto(d))
 }
 
-/**
- * Returns the documents with these ids, in no particular order. An id that is
- * no document's is skipped. The review workspace shows a cited passage's
- * title, edition, effective date and withdrawal from them (RV-01).
- */
+// The review workspace resolves only the documents cited by a draft.
 export async function findKnowledgeDocuments(ids: string[]): Promise<KnowledgeDocumentDto[]> {
   const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))
   if (!valid.length) return []
   const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
-  // A cited document has finished ingestion, so it carries no progress.
   return documents.map((d) => toDto(d))
 }
 
