@@ -50,6 +50,11 @@ export interface IKnowledgeDocument {
   // Present only while the document is withdrawn (KB-01): when, and by whom.
   // `status` stays `complete`; reinstating removes this.
   withdrawn?: { at: Date; by: { id: string; name: string } }
+  // Times an admin has pressed Retry on a failed ingestion. Only ever bumped by
+  // retryIngestion, so it counts human retries, not automatic worker re-runs.
+  // Not shown anywhere; its sole use is to make each retry's ingestion
+  // notification distinct (so a repeat failure notifies again, IN-10).
+  retryCount: number
   createdAt: Date
   updatedAt: Date
 }
@@ -111,6 +116,7 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
         { _id: false },
       ),
     },
+    retryCount: { type: Number, required: true, default: 0 },
   },
   { timestamps: true, collection: 'knowledge_documents' },
 )

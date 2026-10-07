@@ -38,3 +38,12 @@ export async function enqueueIngestion(documentId: string): Promise<void> {
     timedOut,
   ])
 }
+
+// Re-queues a document whose previous ingestion job finished (failed). BullMQ
+// keeps the old job under jobId=documentId, and add() ignores a duplicate id,
+// so the stale job is removed first; removing a job that is already gone is a
+// no-op. The add then behaves exactly like a first upload.
+export async function requeueIngestion(documentId: string): Promise<void> {
+  await ingestionQueue().remove(documentId)
+  await enqueueIngestion(documentId)
+}
