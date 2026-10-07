@@ -404,6 +404,11 @@ Chose: on upload, ingestion-service's `POST /label` reads the first
   LLM's own answers (stored model = the LLM). Reason: one failed cheap call
   should not turn a whole upload into manual work. If the LLM fails, every
   detail except the date is still Unconfirmed.
+- The Documents tab counts the documents needing review, and the banner names
+  them (at most three, then "and N more", with a button to filter to them).
+  Withdrawn documents are left out: they can't be edited. Reason: until the
+  app-wide notifications story lands, this is how an admin learns that an
+  upload needs them.
 
 Rejected:
 - Reading only the first 5 pages. Golden evidence showed reports state the

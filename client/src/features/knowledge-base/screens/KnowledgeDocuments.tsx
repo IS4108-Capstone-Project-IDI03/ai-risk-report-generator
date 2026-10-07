@@ -7,9 +7,11 @@ import { useEffect, useState } from 'react'
 import { Button, Callout, EmptyState, IconRegistry, Input, Select } from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
 import { listIngestedDocuments, type DocumentVersion, type KnowledgeDocument } from '../api'
+import { needsReview } from '../display'
 import { DocumentGroup, type Group } from '../components/DocumentGroup'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
+import { ReviewBanner } from '../components/ReviewBanner'
 import { StatusChangeDialog } from '../components/StatusChangeDialog'
 
 const GROUPS: Group[] = [
@@ -43,7 +45,7 @@ const hasStatus = (d: KnowledgeDocument, status: string) =>
   status === 'withdrawn'
     ? Boolean(d.withdrawn)
     : status === 'needs_review'
-      ? d.unconfirmed.length > 0
+      ? needsReview(d)
       : !d.withdrawn && d.unconfirmed.length === 0
 const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '', status: '' }
 
@@ -68,9 +70,12 @@ type Editing = { document: KnowledgeDocument; version?: DocumentVersion }
 export function KnowledgeDocuments({
   notify,
   onAdd,
+  onNeedReview,
 }: {
   notify: (message: string) => void
   onAdd: () => void
+  // Reports how many documents need review, for the Documents tab's count.
+  onNeedReview: (count: number) => void
 }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
@@ -96,7 +101,11 @@ export function KnowledgeDocuments({
     return () => controller.abort()
   }, [attempt])
 
-  const needReview = (documents ?? []).filter((d) => d.unconfirmed.length > 0).length
+  const needReview = (documents ?? []).filter(needsReview)
+  // Loads and saves both change the list, so the tab's count follows it.
+  useEffect(() => {
+    if (documents) onNeedReview(needReview.length)
+  }, [documents, needReview.length, onNeedReview])
   const filtering = Object.values(filters).some((value) => value.trim() !== '')
   const shown = (documents ?? []).filter(
     (d) =>
@@ -134,10 +143,7 @@ export function KnowledgeDocuments({
     <section className="kb-docs" aria-labelledby="kb-docs-title">
       <header className="kb-docs-head">
         <h2 id="kb-docs-title">All documents</h2>
-        <p>
-          Every ingested document. New reports use active ones only. Uploads still ingesting, or
-          that failed, are under Add documents.
-        </p>
+        <p>Browse every document in the knowledge base and fix their details.</p>
       </header>
 
       {unreachable && (
@@ -155,14 +161,14 @@ export function KnowledgeDocuments({
       )}
 
       {/* Placeholder for the app-wide notification feature (IN-05). */}
-      {needReview > 0 && (
-        <Callout
-          tone="warning"
-          title={`${needReview} ${needReview === 1 ? 'document needs' : 'documents need'} review`}
-        >
-          Open one and choose Edit details to fill in what is Unconfirmed. Until then, new reports
-          do not use it.
-        </Callout>
+      {needReview.length > 0 && (
+        <div role="status" aria-label="Documents to review">
+          <ReviewBanner
+            documents={needReview}
+            onEdit={(document) => setEditing({ document })}
+            onShow={() => setFilters({ ...NO_FILTERS, status: 'needs_review' })}
+          />
+        </div>
       )}
 
       <div className="kb-list">

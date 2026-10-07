@@ -2,11 +2,15 @@
 // recent uploads list (KnowledgeBase.tsx) and the documents list
 // (KnowledgeDocuments.tsx).
 import { JURISDICTIONS } from '../assessments/demo-data'
-import type { SourceType } from './api'
+import type { KnowledgeDocument, SourceType } from './api'
 
 // What an Unconfirmed detail (null, IN-05) reads as; components/DetailText.tsx
 // shows it in muted text.
 export const UNCONFIRMED = 'Unconfirmed'
+
+/** Returns whether a document needs review: an Unconfirmed detail, and not withdrawn (IN-05). */
+// A withdrawn document can't be edited, so it is not asked to be reviewed.
+export const needsReview = (d: KnowledgeDocument) => !d.withdrawn && d.unconfirmed.length > 0
 
 export const SOURCE_LABELS: Record<SourceType, string> = {
   fm_standard: 'FM standard',

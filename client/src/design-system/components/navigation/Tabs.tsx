@@ -1,7 +1,9 @@
 import type * as React from 'react'
 import { Icon } from '../core/Icon'
 export type TabsProps = {
-  items?: { value: string; label: string; icon?: string; count?: number }[]
+  // `alert` turns the count into an amber pill that asks for attention, and is
+  // read out after the label (e.g. "1 needs review").
+  items?: { value: string; label: string; icon?: string; count?: number; alert?: string }[]
   value?: string | number
   onChange?: (value: string) => void
   style?: React.CSSProperties
@@ -28,6 +30,7 @@ function Tabs({ items = [], value, onChange, style = {} }: TabsProps) {
             key={t.value}
             role="tab"
             aria-selected={active}
+            aria-label={t.alert ? `${t.label}, ${t.alert}` : undefined}
             tabIndex={active ? 0 : -1}
             onKeyDown={(event) => {
               if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -66,11 +69,25 @@ function Tabs({ items = [], value, onChange, style = {} }: TabsProps) {
             {t.label}
             {t.count != null ? (
               <span
-                style={{
-                  fontSize: 'var(--text-caption-size)',
-                  color: 'var(--text-muted)',
-                  fontWeight: 'var(--weight-regular)',
-                }}
+                style={
+                  t.alert
+                    ? {
+                        minWidth: 20,
+                        padding: '1px var(--space-3)',
+                        borderRadius: 'var(--radius-pill)',
+                        background: 'var(--amber-100)',
+                        color: 'var(--amber-700)',
+                        fontSize: 'var(--text-caption-size)',
+                        fontWeight: 'var(--weight-semibold)',
+                        fontVariantNumeric: 'tabular-nums',
+                        textAlign: 'center',
+                      }
+                    : {
+                        fontSize: 'var(--text-caption-size)',
+                        color: 'var(--text-muted)',
+                        fontWeight: 'var(--weight-regular)',
+                      }
+                }
               >
                 {t.count}
               </span>

@@ -54,15 +54,6 @@ export function DocumentDetails({
         <Fact label="Facility type">
           <DetailText text={facilityName(d.facilityType)} />
         </Fact>
-        <Fact label="File" mono>
-          {d.fileName}
-        </Fact>
-        <Fact label="Size" mono>
-          {fileSize(d.size)}
-        </Fact>
-        <Fact label="Uploaded" mono>
-          {dateTime(d.uploadedAt)}
-        </Fact>
         {d.withdrawn && (
           <>
             <Fact label="Withdrawn" mono>
@@ -105,6 +96,11 @@ export function DocumentDetails({
             Withdraw
           </Button>
         )}
+        {/* The file's facts are secondary, so they share the actions' row
+            instead of adding a second, half-empty row of details. */}
+        <span className="kb-file-line">
+          {d.fileName} · {fileSize(d.size)} · Uploaded {dateTime(d.uploadedAt)}
+        </span>
       </div>
     </section>
   )

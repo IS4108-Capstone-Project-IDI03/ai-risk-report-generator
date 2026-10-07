@@ -10,7 +10,13 @@ import { UploadRow } from '../components/UploadRow'
 import { addFiles, clearFinished, useUploads } from '../uploads'
 
 /** Returns the Add documents tab: the upload panel, then recent uploads. */
-export function AddDocuments({ narrow }: { narrow: boolean }) {
+export function AddDocuments({
+  narrow,
+  onCompleted,
+}: {
+  narrow: boolean
+  onCompleted: (count: number) => void
+}) {
   const uploads = useUploads()
   const [dragging, setDragging] = useState(false)
   const uploading = uploads.some((u) => u.state === 'uploading')
@@ -86,7 +92,7 @@ export function AddDocuments({ narrow }: { narrow: boolean }) {
         )}
       </section>
 
-      <UploadedDocuments narrow={narrow} refreshKey={acceptedCount} />
+      <UploadedDocuments narrow={narrow} refreshKey={acceptedCount} onCompleted={onCompleted} />
     </>
   )
 }

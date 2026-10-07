@@ -459,8 +459,10 @@
 }
 .kb-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
-  gap: 14px 24px;
+  /* 130px fits a date or "Unconfirmed": one row on desktop, two facts a line
+     on a phone. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr));
+  gap: 14px 20px;
   margin: 0;
 }
 .kb-facts dd {
@@ -473,6 +475,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 16px;
+}
+/* File name, size and upload time, pushed to the end of the actions' row. */
+.kb-file-line {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
 }
 
 /* Below the app's 1080px stacking width the table becomes a list: chevron
@@ -490,10 +500,13 @@
   }
   .kb-table .kb-doc-row {
     display: grid;
-    grid-template-columns: 15px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: 15px max-content minmax(0, 1fr) auto;
+    /* Status sits beside the title, so country and facility type share a
+       line of their own, the country at its full width: a flagged
+       Unconfirmed (IN-05) no longer runs into its neighbour. */
     grid-template-areas:
-      'chev doc doc doc'
-      '. country facility status'
+      'chev doc doc status'
+      '. country facility facility'
       '. actions actions actions';
     align-items: center;
     gap: 8px 10px;
@@ -612,10 +625,10 @@
   }
 }
 
-/* A detail labelling could not confirm (IN-05): muted in lists, amber under
-   its field in Edit details (the design system's warning text colour). */
-.kb-unconfirmed {
-  color: var(--text-muted);
+/* A detail labelling could not confirm (IN-05): amber text under its field
+   in Edit details (in lists it is a Needs review-style badge, DetailText.tsx). */
+.kb-review-line {
+  margin: 0;
 }
 .kb-unconfirmed-hint {
   color: var(--status-moderate-fg);

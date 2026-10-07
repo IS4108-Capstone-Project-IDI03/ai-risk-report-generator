@@ -115,6 +115,11 @@ async function edit(title: string) {
 // A document's row in the table (its open details repeat the same values).
 const row = async (title: string) =>
   (await screen.findByRole('button', { name: new RegExp(`^${title}`) })).closest('tr')!
+// Matches one line of the banner as a whole, bold names included.
+const line = (text: string) => (_: string, el: Element | null) =>
+  el?.tagName === 'P' && el.textContent === text
+// The Needs review banner (IN-05).
+const reviewBanner = () => screen.findByRole('status', { name: 'Documents to review' })
 // The toolbar's count, whose numbers are set apart from its words.
 const count = (text: string) =>
   screen.getByText((_, el) => el?.getAttribute('role') === 'status' && el.textContent === text)
@@ -333,7 +338,10 @@ describe('Knowledge base documents (KB-01)', () => {
 
     const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
     expect(within(details).getByText('Marsh report')).toBeInTheDocument()
-    expect(within(details).getByText('x.pdf')).toBeInTheDocument()
+    // The file's facts are one line beside the actions, not three more details.
+    expect(
+      within(details).getByText(`x.pdf · 2 KB · Uploaded ${dateTime(REPORT.uploadedAt)}`),
+    ).toBeInTheDocument()
     fireEvent.click(within(details).getByRole('button', { name: 'Edit details' }))
     expect(screen.getByRole('dialog', { name: 'Edit details' })).toBeInTheDocument()
   })
@@ -611,11 +619,21 @@ const PARTLY = {
 }
 
 describe('Knowledge base needs review (IN-05)', () => {
-  it('marks documents with Unconfirmed details Needs review and counts them in a banner', async () => {
+  it('marks documents with Unconfirmed details Needs review and names them in a banner', async () => {
     mockGateway([FM, PARTLY, UNREAD])
     await openKnowledgeBase()
 
-    expect(await screen.findByText('2 documents need review')).toBeInTheDocument()
+    const banner = await reviewBanner()
+    expect(within(banner).getByText('2 documents need review')).toBeInTheDocument()
+    // The names, then the action on a line of its own.
+    expect(
+      within(banner).getByText(line(`${PARTLY.title} and ${UNREAD.title}`)),
+    ).toBeInTheDocument()
+    expect(
+      within(banner).getByText(
+        'Fill in their unconfirmed details, so new reports can refer to them.',
+      ),
+    ).toBeInTheDocument()
     expect(within(await row(PARTLY.title)).getByText('Needs review')).toBeInTheDocument()
     expect(within(await row(UNREAD.title)).getByText('Needs review')).toBeInTheDocument()
     const fm = await row(FM.title)
@@ -637,10 +655,16 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
   })
 
-  it('says "1 document needs review" for one, and shows no banner for none', async () => {
+  it('titles the banner with the one document, whose Edit details opens it, and shows none for none', async () => {
     mockGateway([FM, PARTLY])
     await openKnowledgeBase()
-    expect(await screen.findByText('1 document needs review')).toBeInTheDocument()
+    const banner = await reviewBanner()
+    expect(within(banner).getByText(`${PARTLY.title} needs review`)).toBeInTheDocument()
+    expect(
+      within(banner).getByText('Fill in its unconfirmed details, so new reports can refer to it.'),
+    ).toBeInTheDocument()
+    fireEvent.click(within(banner).getByRole('button', { name: 'Edit details' }))
+    expect(screen.getByRole('dialog', { name: 'Edit details' })).toBeInTheDocument()
     cleanup()
 
     mockGateway([FM, NFPA])
@@ -650,12 +674,76 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(screen.queryByText('Needs review', { ignore: 'option' })).not.toBeInTheDocument()
   })
 
-  it('shows Unconfirmed details as muted text and groups an Unconfirmed source type apart', async () => {
+  it('names at most three documents, and Show them filters the list to those needing review', async () => {
+    const many = [1, 2, 3, 4, 5].map((n) => ({ ...PARTLY, id: `p${n}`, title: `Standard ${n}` }))
+    mockGateway([FM, ...many])
+    await openKnowledgeBase()
+
+    const banner = await reviewBanner()
+    expect(within(banner).getByText('5 documents need review')).toBeInTheDocument()
+    expect(
+      within(banner).getByText(line('Standard 1, Standard 2, Standard 3 and 2 more')),
+    ).toBeInTheDocument()
+    expect(banner).not.toHaveTextContent('Standard 4')
+
+    fireEvent.click(within(banner).getByRole('button', { name: 'Show them' }))
+    expect(screen.getByLabelText('Status')).toHaveValue('needs_review')
+    expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
+  })
+
+  it('counts documents needing review on the Documents tab, leaving out withdrawn ones', async () => {
+    const withdrawn = { ...PARTLY, id: 'gone', title: 'Withdrawn standard', withdrawn: true }
+    mockGateway([FM, PARTLY, UNREAD, withdrawn])
+    await openKnowledgeBase()
+
+    expect(await screen.findByRole('tab', { name: 'Documents, 2 need review' })).toBeInTheDocument()
+    expect(await reviewBanner()).not.toHaveTextContent(withdrawn.title)
+    // A withdrawn document can't be edited, so it isn't asked to be reviewed.
+    expect(within(await row(withdrawn.title)).queryByText('Needs review')).not.toBeInTheDocument()
+  })
+
+  it('keeps the count on Add documents, and updates it when an upload finishes', async () => {
+    // The knowledge base already has two documents needing review; the
+    // recent uploads list starts with one still ingesting.
+    const ingested: object[] = [PARTLY, UNREAD]
+    let recent: object[] = [{ ...REPORT, id: 'new', status: 'processing' }]
+    mockGateway([])
+    const fetchOthers = globalThis.fetch
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+      url === '/api/knowledge-documents/ingested'
+        ? json(200, ingested)
+        : url === '/api/knowledge-documents'
+          ? json(200, recent)
+          : fetchOthers(url, init),
+    )
+    await openKnowledgeBase()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Documents, 2 need review' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
+    expect(await screen.findByText('Recent uploads')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Documents, 2 need review' })).toBeInTheDocument()
+
+    // The upload finishes with an Unconfirmed country; the next re-read of
+    // recent uploads (every 3 s) brings the count up to date.
+    const done = { ...REPORT, id: 'new', jurisdiction: null, unconfirmed: ['jurisdiction'] }
+    recent = [done]
+    ingested.push(done)
+    const documentsTab = await screen.findByRole(
+      'tab',
+      { name: 'Documents, 3 need review' },
+      { timeout: 5000 },
+    )
+    // The screen reopens the last tab, so later tests need Documents back.
+    fireEvent.click(documentsTab)
+  })
+
+  it('flags Unconfirmed details with a warning icon and groups an Unconfirmed source type apart', async () => {
     mockGateway([FM, UNREAD])
     await openKnowledgeBase()
 
     const unread = await row(UNREAD.title)
-    expect(within(unread).getAllByText('Unconfirmed')).toHaveLength(2)
+    const flags = within(unread).getAllByText('Unconfirmed')
+    expect(flags).toHaveLength(2)
+    for (const flag of flags) expect(flag.querySelector('[role="presentation"]')).toBeTruthy()
     expect(within(unread).queryByText(/null/)).not.toBeInTheDocument()
     const grouped = await group('Source type unconfirmed')
     expect(within(grouped).getByText(UNREAD.title)).toBeInTheDocument()

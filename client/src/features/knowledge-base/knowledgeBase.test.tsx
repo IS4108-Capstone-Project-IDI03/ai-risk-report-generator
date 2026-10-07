@@ -211,6 +211,28 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     )
   })
 
+  it('marks a finished upload with an Unconfirmed detail Needs review', async () => {
+    mockGateway([
+      { ...NFPA, status: 'complete', jurisdiction: null, unconfirmed: ['jurisdiction'] },
+      {
+        ...NFPA,
+        id: 'q',
+        title: 'Still ingesting',
+        jurisdiction: null,
+        unconfirmed: ['jurisdiction'],
+      },
+    ])
+    await openAddDocuments()
+
+    const table = await screen.findByRole('region', { name: 'Recent uploads' })
+    const done = (await within(table).findByText(NFPA.title)).closest('tr, li') as HTMLElement
+    expect(within(done).getByText('Complete')).toBeInTheDocument()
+    expect(within(done).getByText('Needs review')).toBeInTheDocument()
+    // Until it finishes ingesting it is not in the knowledge base, so nothing to review yet.
+    const queued = within(table).getByText('Still ingesting').closest('tr, li') as HTMLElement
+    expect(within(queued).queryByText('Needs review')).not.toBeInTheDocument()
+  })
+
   it('describes a standard by its edition and a Marsh report by its facility type and date', async () => {
     mockGateway([
       NFPA,

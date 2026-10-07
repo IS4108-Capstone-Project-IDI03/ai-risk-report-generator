@@ -4,7 +4,7 @@
 // keeps its job. Used by components/DocumentGroup.tsx.
 import { Badge, Icon, IconRegistry } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
-import { calendarDate, countryName, facilityName } from '../display'
+import { calendarDate, countryName, facilityName, needsReview } from '../display'
 import { DetailText } from './DetailText'
 import { DocumentDetails } from './DocumentDetails'
 
@@ -65,7 +65,7 @@ export function DocumentRow({
               never shown as Active (IN-05). */}
           <span className="kb-badges">
             {d.withdrawn && <Badge tone="danger">Withdrawn</Badge>}
-            {d.unconfirmed.length > 0 && (
+            {needsReview(d) && (
               <Badge tone="moderate" icon={IconRegistry.status.flagged.icon}>
                 Needs review
               </Badge>
