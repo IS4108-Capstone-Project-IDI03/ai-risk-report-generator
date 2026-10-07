@@ -1,4 +1,4 @@
-import type { Assessment, TranscriptionStatus } from './api'
+import type { Assessment, Stamp, TranscriptionStatus } from './api'
 
 export type AssessmentRow = {
   engineerId?: string | null
@@ -45,12 +45,22 @@ export type Observation = {
   attached?: string
   // Shown while a recording is transcribing or after one failed.
   badge?: { tone: 'info' | 'high'; label: string } | null
+  // What it holds, 'Note' and/or 'Voice' (CP-08); worked out for sample ones.
+  types?: string[]
+  // Transcribing, Transcription failed or Complete (CP-08).
+  status?: string
+  // The latest change to it, and its deletion (CP-08).
+  edited?: Stamp | null
+  deleted?: Stamp | null
   recordings?: {
     id: string
     name: string
     status: TranscriptionStatus
-    // The transcript, or where the transcription stands.
+    // The transcript as corrected, or where the transcription stands.
     text: string
+    // What Whisper wrote, when the engineer has corrected it (CP-08).
+    original: string | null
+    correction: Stamp | null
     error: string | null
     audioUrl: string
   }[]
@@ -123,8 +133,8 @@ export type WorkflowState = {
   lf: { name: string; floor: string }
   lfBusy: boolean
   lfError: string | null
-  // Why the last location could not be removed.
-  locError: string | null
+  // The location waiting for the engineer to confirm removing it, by id.
+  locRemove: string | null
   fCat: string
   fSev: string
   fStd: string
@@ -153,18 +163,37 @@ export type WorkflowState = {
   navCollapsed?: boolean
   // The expanded row on the Observations tab, by its key.
   obsOpen?: string | null
-  // Observations tab filters (CP-06); '' shows every value.
+  // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
-  // The observation whose tags are being edited, by row key, with the
-  // dialog's values; and why the last save failed.
-  tagEdit: { key: string; cat: string; sev: string; locationId: string; std: string } | null
+  // The Observations tab lists the deleted observations instead (CP-08).
+  obsShowDeleted: boolean
+  // The observation being changed on the Observations tab, by row key: a
+  // recording's transcript, or its deletion (CP-08).
+  obsDialog: { kind: 'transcript' | 'delete'; key: string; recordingId?: string } | null
+  // The observation in the Edit dialog, by row key, with the dialog's values:
+  // its tags (CP-06) and note (CP-08); and why the last save failed.
+  tagEdit: {
+    key: string
+    cat: string
+    sev: string
+    locationId: string
+    std: string
+    note: string
+  } | null
   tagBusy: boolean
   archiveOpen: boolean
   archiveBusy: boolean
   tagError: string | null
 }
 
-export type ObservationFilters = { cat: string; sev: string; loc: string; floor: string }
+export type ObservationFilters = {
+  type: string
+  cat: string
+  sev: string
+  loc: string
+  floor: string
+  status: string
+}
 
 // A recording or audio file held in the browser until Save observation uploads it.
 export type VoiceClip = {
