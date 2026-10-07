@@ -17,7 +17,10 @@ from functools import lru_cache
 from pathlib import Path
 
 from docling.datamodel.base_models import ConversionStatus, InputFormat
-from docling.datamodel.pipeline_options import HeadingHierarchyOptions, PdfPipelineOptions
+from docling.datamodel.pipeline_options import (
+    HeadingHierarchyOptions,
+    PdfPipelineOptions,
+)
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc import (
     DocItemLabel,
@@ -30,6 +33,7 @@ from docling_core.types.doc import (
 )
 
 from app.pipeline.errors import UnparsableDocumentError
+from app.pipeline.ocr_config import get_ocr_options
 
 # Labels whose text is body content we want to keep and chunk. Page
 # headers/footers and captions are deliberately excluded from body text.
@@ -206,7 +210,7 @@ _DOCUMENT_TIMEOUT_SECONDS = 600.0
 
 @lru_cache(maxsize=1)
 def _converter() -> DocumentConverter:
-    """Build (once) the Docling converter with a text-layer-first PDF pipeline.
+    """Build (once) the Docling converter with a dynamically selected OCR engine.
 
     Cached so the layout/table models are loaded a single time per process and
     reused across documents, instead of being reloaded on every parse. Building
@@ -215,18 +219,18 @@ def _converter() -> DocumentConverter:
     document — only failures while processing a specific document become
     `UnparsableDocumentError`.
 
-    OCR is disabled on purpose: engineered reports/standards ship with a real
-    text layer, and OCR is by far the most expensive stage (it can turn a parse
-    into tens of minutes on CPU). A page with no extractable text simply yields
-    no text here — that is exactly the "needs OCR later" case that is out of
-    scope for now. Table-structure detection stays on so tables are still
-    separated out (IN-02), and a per-document timeout bounds the worst case.
+    The OCR engine is chosen by ``get_ocr_options()`` based on the current
+    platform (macOS / Windows / Linux) and whether the GPU Docker Compose
+    overlay is active (``GPU_ENABLED=true``). See ``ocr_config.py``.
     """
+    ocr_options, do_formula_enrichment = get_ocr_options()
+
     pipeline_options = PdfPipelineOptions(
-        do_ocr=False,
+        do_ocr=True,
         do_table_structure=False,
         document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
-        do_formula_enrichment=False,  # Time taken significantly increases. page 47, 52s -> 10min
+        do_formula_enrichment=do_formula_enrichment,
+        ocr_options=ocr_options,
     )
     pipeline_options.heading_hierarchy_options = HeadingHierarchyOptions(
         enabled=True, max_level=6, use_numbering=False

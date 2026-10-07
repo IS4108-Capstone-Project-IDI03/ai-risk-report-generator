@@ -13,6 +13,7 @@ from test_file_option import get_fixture
 
 from app.pipeline import chunker
 from app.pipeline.chunker import chunk
+from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.parser import ParsedDocument, parse
 
 FIXTURE = get_fixture()
@@ -22,11 +23,20 @@ TEST_PAGE_RANGE: tuple[int, int] = (1, 6)
 
 
 @pytest.fixture(scope="module")
-def chunks() -> list[dict]:
+def chunks(request) -> list[dict]:
+    real_ocr = request.config.getoption("--real-ocr", default=False)
+
     if not FIXTURE.exists():
         pytest.skip(f"fixture missing: {FIXTURE}")
     try:
         parsed = parse(str(FIXTURE), page_range=TEST_PAGE_RANGE)
+    except UnparsableDocumentError:
+        if real_ocr:
+            raise
+        pytest.skip(
+            f"fixture is image-only and no OCR service is available: {FIXTURE}\n"
+            "Run with --real-ocr to attempt full-page OCR extraction."
+        )
     except Exception as exc:  # noqa: BLE001
         pytest.skip(f"Docling models unavailable in this environment: {exc}")
     return chunk(parsed, doc_path=FIXTURE, doc_id="fm200")

@@ -103,6 +103,8 @@ services:
       GLMOCR_OCR_API_PATH: /api/generate
       GLMOCR_OCR_API_MODE: ollama_generate
       GLMOCR_OCR_MODEL: glm-ocr:latest
+      # To enable GPU support, use the GPU overlay:
+      #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
     depends_on:
       chroma:
         condition: service_started
@@ -127,6 +129,8 @@ services:
       GLMOCR_OCR_API_PATH: /api/generate
       GLMOCR_OCR_API_MODE: ollama_generate
       GLMOCR_OCR_MODEL: glm-ocr:latest
+      # To enable GPU support, use the GPU overlay:
+      #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
     depends_on:
       redis:
         condition: service_started
