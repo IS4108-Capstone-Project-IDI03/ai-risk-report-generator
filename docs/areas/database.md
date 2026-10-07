@@ -412,6 +412,17 @@ uncategorised observations. The title falls back to the file name, and
 which also records `startedAt` and `finishedAt`. Rejected uploads are never
 stored.
 
+`retryCount` tracks how many times a knowledge admin has pressed Retry on a
+failed document. It is incremented atomically — inside the same
+`failed → queued` status flip in `retryIngestion` — so it counts human retries
+only, never automatic BullMQ re-runs of a stalled job. Its value is never
+shown to the user; its sole purpose is to make each retry's ingestion
+notification distinct: `retryCount` is carried in `context.attempt` of the
+notification payload, which `createNotification`'s dedupe key includes, so a
+document that fails, is retried, and fails again produces a second notification
+rather than being deduped into silence. Starts at 0; the `knowledge_documents`
+schema enforces that with `default: 0`.
+
 A `complete` document is **active**: it is what search can use, and the only
 kind the knowledge base lists or lets the admin correct (KB-01). A correction
 overwrites the details in place and keeps what it replaced in `history`; the
@@ -442,6 +453,7 @@ as it was. The API returns `withdrawn` as `{ at, by } | null`.
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
+| `POST /api/knowledge-documents/:id/retry` | Retries a failed ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears `error`/`finishedAt`, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not failed (someone already retried it), 503 queue unreachable (document left failed, counter rolled back). `knowledge:manage` only |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 ### Ingestion jobs (`ingestion_jobs`)
