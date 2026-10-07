@@ -206,7 +206,12 @@ def test_classifier_failure_falls_back_to_llm_fixed_list(fake, monkeypatch):
 
 def test_only_first_label_pages_are_sent(fake, monkeypatch):
     monkeypatch.setenv("LABEL_PAGES", "2")
-    label("page one text", "page two text", "page three text", "page four text")
+    # Each page needs MIN_TEXT_CHARS of text; shorter pages count as scans and go
+    # to real OCR, which made this test depend on the OCR engine's output.
+    monkeypatch.setattr(pages, "ocr_page", lambda pdf, n: pytest.fail("OCR should not run"))
+    label(
+        *[f"page {n} text, long enough for a text layer" for n in ("one", "two", "three", "four")]
+    )
     sent = fake["sent"][0]
     assert 'n="2"' in sent and "page two" in sent
     assert 'n="3"' not in sent and "page three" not in sent
