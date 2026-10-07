@@ -200,6 +200,7 @@ describe('Choosing where observations are captured', () => {
         location: stored[1],
         note: 'Pump test certificate missing.',
         recordings: [],
+        photos: [],
         recordedAt: '2026-09-29T08:10:00.000Z',
       },
     ]
