@@ -128,6 +128,15 @@
     overflow-x: hidden !important;
   }
 }
+/* Take photograph opens the camera on a phone or tablet (CP-04 AC6). A desktop
+   browser ignores `capture` and would open the same file picker as Choose
+   photographs, so it is hidden where the main pointer is a mouse. Important
+   to beat the picker's inline display. */
+@media (hover: hover) and (pointer: fine) {
+  .photo-take {
+    display: none !important;
+  }
+}
 .navigation-drawer {
   margin: 0;
   height: 100svh;

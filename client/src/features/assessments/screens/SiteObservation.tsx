@@ -1,8 +1,26 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { Badge, Button, Callout, Icon, Select, Textarea } from '../../../design-system'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
 import { LocationSheet, RemoveLocationDialog } from '../components/LocationSheet'
+
+// A dashed, gloved-hand-sized photo picker; its hidden file input (ds-choice)
+// is the real control. Two side by side share the row, and wrap on a phone.
+const photoPicker = (busy: boolean): CSSProperties => ({
+  flex: '1 1 200px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '8px',
+  height: '48px',
+  border: '1px dashed var(--border-strong)',
+  borderRadius: '8px',
+  background: 'var(--surface-card)',
+  color: busy ? 'var(--text-muted)' : 'var(--text-link)',
+  fontSize: '16px',
+  fontWeight: '500',
+  cursor: busy ? 'not-allowed' : 'pointer',
+})
 
 // One entry in the Ready to save list: a note, a recording or a photograph.
 function ReadyItem({
@@ -383,33 +401,46 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
               {!!v.isPhotoMode && (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <button
-                      type="button"
-                      onClick={v.takePhoto}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        width: '100%',
-                        height: '48px',
-                        border: '1px dashed var(--border-strong)',
-                        borderRadius: '8px',
-                        background: 'var(--surface-card)',
-                        color: 'var(--text-link)',
-                        fontFamily: 'inherit',
-                        fontSize: '16px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {'Add photograph'}
-                    </button>
+                    {/* Two pickers (AC6): Chrome on Android 14+ offers no camera in its
+                        photo picker, so taking one needs `capture`, which in turn
+                        leaves out the library. Take photograph is hidden on a desktop,
+                        which ignores `capture` (workflow.css). */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                      <label className="ds-choice photo-take" style={photoPicker(v.fSaving)}>
+                        <Icon name="camera" size={16} />
+                        {'Take photograph'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png"
+                          capture="environment"
+                          onChange={v.addPhotos}
+                          disabled={v.fSaving}
+                        />
+                      </label>
+                      <label className="ds-choice" style={photoPicker(v.fSaving)}>
+                        <Icon name="image" size={16} />
+                        {'Choose photographs'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png"
+                          multiple
+                          onChange={v.addPhotos}
+                          disabled={v.fSaving}
+                        />
+                      </label>
+                    </div>
                     <span
                       style={{ fontSize: '14px', lineHeight: '20px', color: 'var(--text-muted)' }}
                     >
                       {v.photoHint}
                     </span>
+                    {!!v.fPhotoError && (
+                      <div role="alert">
+                        <Callout tone="warning" title="Not a JPG or PNG">
+                          {v.fPhotoError}
+                        </Callout>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -474,7 +505,20 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     </ReadyItem>
                   ))}
                   {v.fPhotos.map((photo) => (
-                    <ReadyItem key={photo.name} icon="image" title={photo.name}>
+                    <ReadyItem key={photo.id} icon="image" title={photo.name}>
+                      {/* Shown whole, never cropped: contained in a fixed box. */}
+                      <img
+                        src={photo.url}
+                        alt=""
+                        style={{
+                          width: '64px',
+                          height: '48px',
+                          objectFit: 'contain',
+                          background: 'var(--surface-sunken)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '3px',
+                        }}
+                      />
                       <Button
                         variant="ghost"
                         size="sm"

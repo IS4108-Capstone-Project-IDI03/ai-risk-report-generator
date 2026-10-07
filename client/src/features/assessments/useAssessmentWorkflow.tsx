@@ -37,6 +37,7 @@ import type {
   AssessmentRow,
   Observation,
   ObservationFilters,
+  PhotoFile,
   VoiceClip,
   WorkflowState,
 } from './types'
@@ -136,7 +137,7 @@ const locationLabel = (l: { name: string; floor?: string | null }) =>
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
 // "Alex Rowe · 07 Oct 2026 14:02", who changed something and when (CP-08).
 const stampLabel = (stamp: Stamp) => stamp.by.name + ' · ' + formatDayYearTime(new Date(stamp.at))
-function toEntry(o: SavedObservation, photos: string[] = []): Observation {
+function toEntry(o: SavedObservation): Observation {
   const recordings = o.recordings.map((r) => {
     const { status, transcript, correction, error } = r.transcription
     return {
@@ -155,12 +156,14 @@ function toEntry(o: SavedObservation, photos: string[] = []): Observation {
     }
   })
   const statuses = recordings.map((r) => r.status)
-  // The row reads as the note, or the first recording when there is no note.
-  const text = o.note ?? recordings[0]?.text ?? ''
+  const photos = o.photos
+  // The row reads as the note, the first recording when there is no note, or
+  // how many photos it holds when it is only photos.
+  const text = o.note ?? recordings[0]?.text ?? plural(photos.length, 'photograph')
   return {
     id: o.id,
-    icon: o.note ? 'sticky-note' : 'mic',
-    color: o.note ? '#f9ac10' : '#8f7dff',
+    icon: o.note ? 'sticky-note' : recordings.length ? 'mic' : 'camera',
+    color: o.note ? '#f9ac10' : recordings.length ? '#8f7dff' : '#4f9aee',
     cat: o.copeDimension ?? UNCATEGORISED,
     time: formatDayYearTime(new Date(o.recordedAt)),
     text,
@@ -169,7 +172,7 @@ function toEntry(o: SavedObservation, photos: string[] = []): Observation {
     floor: o.location?.floor ?? null,
     sev: o.severity,
     std: o.standard ?? '',
-    media: photos,
+    media: photos.map((p) => ({ name: p.name, url: p.url })),
     detail: o.note ?? '',
     attached: [
       o.note ? 'Note' : '',
@@ -185,7 +188,11 @@ function toEntry(o: SavedObservation, photos: string[] = []): Observation {
       : statuses.includes('failed')
         ? { tone: 'high', label: 'Transcription failed' }
         : null,
-    types: [...(o.note ? ['Note'] : []), ...(recordings.length ? ['Voice'] : [])],
+    types: [
+      ...(o.note ? ['Note'] : []),
+      ...(recordings.length ? ['Voice'] : []),
+      ...(photos.length ? ['Photo'] : []),
+    ],
     status: statuses.includes('transcribing')
       ? 'Transcribing'
       : statuses.includes('failed')
@@ -195,6 +202,20 @@ function toEntry(o: SavedObservation, photos: string[] = []): Observation {
     deleted: o.deleted,
     recordings,
   }
+}
+
+// The photo formats the gateway stores (CP-04 AC4); image/jpg is an old alias.
+const PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png']
+// Why chosen files were not added as photos, worded as the gateway words it.
+function unsupportedPhotos(names: string[]) {
+  const one = names.length === 1
+  return (
+    names.join(', ') +
+    (one ? ' is not a JPG or PNG image.' : ' are not JPG or PNG images.') +
+    (one
+      ? ' Save it as JPG or PNG and add it again.'
+      : ' Save them as JPG or PNG and add them again.')
+  )
 }
 
 // Why the microphone could not start (CP-03 AC8), then what to do instead.
@@ -541,7 +562,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // observation's id, or local-<n> for the nth kept in this browser.
     const allRows = [
       ...[...captured.observations, ...captured.deleted].map((o) => ({
-        o: toEntry(o, s.savedPhotos[o.id]),
+        o: toEntry(o),
         key: o.id,
       })),
       ...localRecent.map((o, i) => ({ o, key: 'local-' + i })),
@@ -550,6 +571,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // AC13); Show deleted lists only them (AC14).
     const fieldRecent = allRows.filter(({ o }) => !o.deleted).map(({ o }) => o)
     const fieldSaved = fieldRecent.length
+    // The assessment's photo collection (CP-04 AC3): every photo of an
+    // observation not deleted, newest first, each with the observation it
+    // belongs to. The report's photo appendix (EX-01) is to draw on it.
+    const photoCollection = allRows
+      .filter(({ o }) => !o.deleted)
+      .flatMap(({ o, key }) =>
+        o.media.map((photo, i) => ({
+          key: key + '/' + i,
+          name: photo.name,
+          url: photo.url,
+          where: locationLabel({ name: o.area, floor: o.floor }),
+          cat: o.cat,
+          time: o.time,
+          openObservation: () =>
+            setState({ tab: 'observations', obsOpen: key, obsShowDeleted: false, of: NO_FILTERS }),
+        })),
+      )
     const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
     const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
     const tagRow = s.tagEdit && allRows.find((r) => r.key === s.tagEdit!.key)
@@ -588,14 +626,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       }))
     }
     // Everything in the Ready to save list becomes one observation, filed under
-    // what the form shows: the note exactly as typed (CP-02) and each recording
-    // with its one transcription (CP-03 AC3). If it fails, everything stays
-    // listed for another try.
+    // what the form shows: the note exactly as typed (CP-02), each recording
+    // with its one transcription (CP-03 AC3) and each photo (CP-04). If it
+    // fails, everything stays listed for another try.
     async function saveToGateway(
       location: SiteLocation,
       note: string | undefined,
       clips: VoiceClip[],
-      photos: { name: string }[],
+      photos: PhotoFile[],
     ) {
       const reference = s.captureTarget.reference
       setState({ fSaving: true, fSaveError: null })
@@ -611,6 +649,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             standard: s.fStd,
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
+          photos.map((p) => ({ name: p.name, image: p.image })),
         )
       } catch (error: unknown) {
         const problems = error instanceof GatewayError ? Object.values(error.fields) : []
@@ -631,8 +670,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       captured.add(observation)
       // Re-reading the list keeps it refreshing until the transcriptions finish.
       if (clips.length) captured.reload()
-      clips.forEach((c) => URL.revokeObjectURL(c.url))
-      const saved = observation
+      // The gateway now serves them; the previews in this browser are done.
+      for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
       // Keep anything added while the observation was saving.
       updateState((previous) => ({
         ...previous,
@@ -641,9 +680,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fNoteListed: previous.fNote === note ? false : previous.fNoteListed,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
-        savedPhotos: photos.length
-          ? { ...previous.savedPhotos, [saved.id]: photos.map((p) => p.name) }
-          : previous.savedPhotos,
         fToast: {
           text:
             'Observation saved to ' +
@@ -692,10 +728,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const noteChanged = edit.note !== (o.detail ?? '')
       const retry = ' Your changes are still here; press Save changes to try again.'
       if (!o.id) {
-        if (noteChanged && !edit.note.trim() && !o.audio)
+        if (noteChanged && !edit.note.trim() && !o.audio && !o.media.length)
           return setState({
             tagError:
-              'An observation needs a note or a recording, so this note can’t be removed.' + retry,
+              'An observation needs a note, a recording or a photo, so this note can’t be removed.' +
+              retry,
           })
         setState({
           ...changeLocal(edit.key, (x) => ({
@@ -1449,6 +1486,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
+      isPhotos: isAssessment && s.tab === 'photos',
+      photoCollection,
       goGenerate: () =>
         setState({
           tab: 'generate',
@@ -1585,9 +1624,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })),
           // A saved observation's recordings carry their own text below its note.
           detail: o.recordings ? o.detail : o.detail || o.text,
-          media: (o.media || []).map((n) => ({
-            name: n,
-          })),
           hasAudio: !!o.audio,
           audioLabel: 'Audio note (' + (o.audio || '') + ')',
           hasStd: !!o.std,
@@ -1789,6 +1825,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           label: 'Observations',
           icon: 'camera',
           count: fieldSaved,
+        },
+        {
+          value: 'photos',
+          label: 'Photos',
+          icon: 'image',
+          count: photoCollection.length,
         },
         {
           value: 'generate',
@@ -2227,22 +2269,42 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.',
         }),
       fPhotos: s.fPhotos,
-      photoHint:
-        'Photographs are simulated in this prototype and captioned with the location below.',
-      removePhoto: (photo: { name: string }) =>
+      fPhotoError: s.fPhotoError,
+      photoHint: liveCapture
+        ? 'Take a photograph or choose ones already on this device, as JPG or PNG. Each is stored exactly as taken.'
+        : 'No capture session, so photographs stay in this browser and are not uploaded.',
+      // Photos taken on the device or chosen from it (CP-04 AC6). Anything
+      // but a JPG or PNG is refused here with the gateway's reason (AC4); the
+      // gateway checks the image itself too, as a browser can report no type.
+      addPhotos: (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = [...(e.target.files ?? [])]
+        e.target.value = ''
+        const refused = files.filter((f) => f.type && !PHOTO_TYPES.includes(f.type))
+        const added = files
+          .filter((f) => !refused.includes(f))
+          .map((file) => {
+            const id = ++media.photos
+            return {
+              id,
+              name: file.name || 'Photo ' + id,
+              image: file,
+              url: URL.createObjectURL(file),
+            }
+          })
         updateState((previous) => ({
           ...previous,
-          fPhotos: previous.fPhotos.filter((p) => p !== photo),
-        })),
+          fPhotos: [...previous.fPhotos, ...added],
+          fPhotoError: refused.length ? unsupportedPhotos(refused.map((f) => f.name)) : null,
+        }))
+      },
+      removePhoto: (photo: PhotoFile) => {
+        URL.revokeObjectURL(photo.url)
+        updateState((previous) => ({
+          ...previous,
+          fPhotos: previous.fPhotos.filter((p) => p.id !== photo.id),
+        }))
+      },
       readyCount: (s.fNoteListed ? 1 : 0) + s.fClips.length + s.fPhotos.length,
-      takePhoto: () =>
-        setState({
-          fPhotos: s.fPhotos.concat([
-            {
-              name: 'IMG_0' + (459 + ++media.photos) + '.jpg',
-            },
-          ]),
-        }),
       /* location */
       locationLabel: currentLocation ? locationLabel(currentLocation) : null,
       locSheetOpen,
@@ -2327,10 +2389,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           setState({ fToast: { text: 'Choose a location first.', warn: true }, locOpen: true })
           return
         }
-        // With a capture session live, the note and recordings are saved on the
-        // server as one observation. Photos alone stay in the demo until CP-04.
+        // With a capture session live, the note, recordings and photos are
+        // saved on the server as one observation.
         const note = s.fNote.trim() ? s.fNote : undefined
-        if (liveCapture && (note || s.fClips.length)) {
+        if (liveCapture && (note || s.fClips.length || s.fPhotos.length)) {
           void saveToGateway(currentLocation, note, s.fClips, s.fPhotos)
           return
         }
@@ -2340,7 +2402,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ? 'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.'
             : '') ||
           (s.fPhotos.length
-            ? s.fPhotos.length + ' photograph(s) captured at ' + currentLocation.name + '.'
+            ? plural(s.fPhotos.length, 'photograph') + ' captured at ' + currentLocation.name + '.'
             : '')
         if (!text) {
           setState({
@@ -2359,7 +2421,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           floor: currentLocation.floor,
           sev: s.fSev,
           std: s.fStd,
-          media: s.fPhotos.map((p) => p.name),
+          // Kept in this browser: the preview stays, as the demo never uploads it.
+          media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
           detail: text,
         }
         const reference = s.captureTarget.reference
