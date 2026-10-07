@@ -70,11 +70,40 @@ describe('ingestion failure → notification', () => {
     expect(res.body.items[0].message).toContain('chunking')
   })
 
-  // A stalled BullMQ job can re-run a document and reach a terminal state
-  // twice; the same terminal event must not pile up duplicate rows.
+  // A stalled BullMQ job can re-run a document and reach the same terminal
+  // state twice (same attempt); that must not pile up duplicate rows.
   it('creates one notification when the same terminal event is posted twice', async () => {
     await postFailure().expect(201)
     await postFailure().expect(201)
+
+    const res = await admin.get('/api/notifications').expect(200)
+    expect(res.body.items).toHaveLength(1)
+  })
+
+  // The retry counter rides in context.attempt. A document that fails, is
+  // retried, and fails again is a distinct event, so it notifies again rather
+  // than being deduped into silence.
+  it('notifies again when a retry of the same document fails again', async () => {
+    // First failure: no attempt (upload).
+    await postFailure().expect(201)
+    // Retry #1 fails: attempt "1" — a new notification.
+    await postFailure({
+      ...failurePayload(),
+      message: '"NFPA 13 sprinkler standard" failed to ingest during chunking.',
+      context: { documentId: DOC_ID, status: 'failed', stage: 'chunking', attempt: '1' },
+    }).expect(201)
+
+    const res = await admin.get('/api/notifications').expect(200)
+    expect(res.body.items).toHaveLength(2)
+  })
+
+  it('still dedupes a re-delivery of the same attempt', async () => {
+    const retryOne = {
+      ...failurePayload(),
+      context: { documentId: DOC_ID, status: 'failed', stage: 'chunking', attempt: '1' },
+    }
+    await postFailure(retryOne).expect(201)
+    await postFailure(retryOne).expect(201)
 
     const res = await admin.get('/api/notifications').expect(200)
     expect(res.body.items).toHaveLength(1)

@@ -4,6 +4,26 @@
 // throws a GatewayError carrying the HTTP status, which uploads.ts reads to
 // decide what happens to the row.
 import { request } from '../accounts/api'
+import { GatewayError, reportSessionEnded } from '../assessments/api'
+
+// A gateway call that returns no body (e.g. the 202 from retry). The shared
+// `request` always parses JSON, which an empty 202 cannot provide, so these
+// mirror its error and 401 handling without the parse.
+async function send(path: string, init: RequestInit): Promise<void> {
+  let response: Response
+  try {
+    response = await fetch(path, init)
+  } catch (error: unknown) {
+    if (init.signal?.aborted) throw error
+    throw new GatewayError(null)
+  }
+  if (response.status === 502 || response.status === 504) throw new GatewayError(null)
+  if (response.status === 401) reportSessionEnded()
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new GatewayError(response.status, problem.error)
+  }
+}
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'marsh_report'
 export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed'
@@ -136,6 +156,14 @@ export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
     `/api/knowledge-documents/${encodeURIComponent(id)}/reinstate`,
     { method: 'POST' },
   )
+}
+
+// Retries a failed ingestion without re-uploading (the gateway reuses the
+// stored PDF and details). 202 on accept; the document returns to the list as
+// queued. Rejects with the gateway's status: 409 if it is no longer failed
+// (someone retried it already), 404 if gone, 503 if the queue is unreachable.
+export function retryIngestion(id: string): Promise<void> {
+  return send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' })
 }
 
 // Sends one PDF with its details and returns the queued document. The body is

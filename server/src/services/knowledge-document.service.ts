@@ -587,8 +587,6 @@ export async function retryIngestion(id: string): Promise<void> {
         $inc: { retryCount: -1 },
       },
     )
-    throw new IngestionUnavailableError(
-      'Ingestion could not be re-queued. Try again shortly.',
-    )
+    throw new IngestionUnavailableError('Ingestion could not be re-queued. Try again shortly.')
   }
 }

@@ -120,11 +120,13 @@ function visibleTo(user: SessionUser) {
  * Returns the notification just created, which nobody has read yet.
  *
  * When the context identifies a terminal event — both a `documentId` and a
- * `status` — creation is idempotent on `purpose + documentId + status`: posting
- * the same event again returns the existing notification rather than a second
- * row. This matters because a stalled BullMQ job can re-run a document and
- * reach a terminal state twice (see worker.py), which would otherwise show the
- * admin the same failure twice.
+ * `status` — creation is idempotent on `purpose + documentId + status +
+ * attempt`: posting the same event again returns the existing notification
+ * rather than a second row. This matters because a stalled BullMQ job can
+ * re-run a document and reach a terminal state twice (see worker.py), which
+ * would otherwise show the admin the same failure twice. The `attempt` (the
+ * retry number) keeps a genuine retry distinct: a document that fails, is
+ * retried, and fails again notifies afresh rather than deduping into silence.
  */
 export async function createNotification(input: NewNotification): Promise<NotificationDto> {
   const doc = {
@@ -169,6 +171,10 @@ function dedupeKey(input: NewNotification): Record<string, unknown> | null {
     purpose: input.purpose,
     'context.documentId': documentId,
     'context.status': status,
+    // The retry number, or absent for the first attempt. A missing field and
+    // "1" are different keys, so the original failure and retry #1 are distinct
+    // notifications, while a re-delivery of the same attempt still dedupes.
+    'context.attempt': input.context?.attempt ?? { $exists: false },
   }
 }
 

@@ -817,9 +817,7 @@ describe('retryIngestion', () => {
   })
 
   it('rejects a malformed id without reaching the database', async () => {
-    await expect(retryIngestion('not-an-id')).rejects.toBeInstanceOf(
-      KnowledgeDocumentNotFoundError,
-    )
+    await expect(retryIngestion('not-an-id')).rejects.toBeInstanceOf(KnowledgeDocumentNotFoundError)
   })
 
   it('rolls status and counter back if re-queueing fails', async () => {
@@ -847,7 +845,12 @@ describe('POST /api/knowledge-documents/:id/retry', () => {
       issuingBody: 'NFPA',
       edition: '2022',
       fileName: 'nfpa-13.pdf',
-      file: { key: `knowledge/${RETRY_ID}.pdf`, contentType: 'application/pdf', size: 2048, sha256: 'abc' },
+      file: {
+        key: `knowledge/${RETRY_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'abc',
+      },
       status: 'failed',
       error: 'Processing stopped on a system error, not a fault in the file. Upload it again.',
       finishedAt: new Date(),
