@@ -12,14 +12,27 @@ import {
   type AssignableEngineer,
   retryTranscription,
   saveObservation,
-  updateObservationTags,
+  updateObservation,
+  correctTranscript,
+  deleteObservation,
+  restoreObservation,
   type Assessment,
   type AssessmentStatus,
   type SavedObservation,
   type SiteLocation,
+  type Stamp,
 } from './api'
-import { formatDayTime } from './format'
-import { filtersActive, labelValues, matchesFilters, NO_FILTERS } from './observationFilters'
+import { formatDayYearTime } from './format'
+import {
+  filtersActive,
+  labelValues,
+  matchesFilters,
+  NO_FILTERS,
+  OBSERVATION_STATUSES,
+  OBSERVATION_TYPES,
+  statusOf,
+  typeLabel,
+} from './observationFilters'
 import type {
   AssessmentRow,
   Observation,
@@ -37,7 +50,6 @@ import {
   JURISDICTIONS,
   ROWS,
   CAT_ICON,
-  COPE_DIMENSION,
   UNCATEGORISED,
   DEMO_LOCATIONS,
   STANDARD_REFERENCES,
@@ -108,14 +120,11 @@ const TRANSCRIPTION_TEXT = {
   transcribing: 'Transcribing the recording…',
   failed: 'The recording could not be transcribed.',
 }
-// Shown under the category the engineer picked when capturing.
-function categoryLabel(copeDimension: string | null) {
-  if (copeDimension === null) return UNCATEGORISED
-  return Object.keys(COPE_DIMENSION).find((c) => COPE_DIMENSION[c] === copeDimension)
-}
 // The categories an observation can be filed under: the shared COPE vocabulary
-// (CP-06 AC3), or not categorised yet.
+// (CP-08 AC7), shown as the values they are stored as, or Uncategorised.
 const CATEGORY_OPTIONS = [...Object.keys(CAT_ICON), UNCATEGORISED]
+// The category to store for one chosen on screen: Uncategorised is null.
+const copeDimensionOf = (category: string) => (category === UNCATEGORISED ? null : category)
 const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),
@@ -125,17 +134,22 @@ const NO_LOCATIONS: SiteLocation[] = []
 const locationLabel = (l: { name: string; floor?: string | null }) =>
   [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
+// "Alex Rowe · 07 Oct 2026 14:02", who changed something and when (CP-08).
+const stampLabel = (stamp: Stamp) => stamp.by.name + ' · ' + formatDayYearTime(new Date(stamp.at))
 function toEntry(o: SavedObservation, photos: string[] = []): Observation {
   const recordings = o.recordings.map((r) => {
-    const { status, transcript, error } = r.transcription
+    const { status, transcript, correction, error } = r.transcription
     return {
       id: r.id,
       name: r.name,
       status,
+      // The engineer's correction stands in for what Whisper wrote (CP-08).
       text:
         status === 'transcribed'
-          ? transcript || '(No speech was detected.)'
+          ? (correction?.text ?? transcript) || '(No speech was detected.)'
           : TRANSCRIPTION_TEXT[status],
+      original: correction ? transcript : null,
+      correction: correction && { at: correction.at, by: correction.by },
       error,
       audioUrl: r.url,
     }
@@ -147,8 +161,8 @@ function toEntry(o: SavedObservation, photos: string[] = []): Observation {
     id: o.id,
     icon: o.note ? 'sticky-note' : 'mic',
     color: o.note ? '#f9ac10' : '#8f7dff',
-    cat: categoryLabel(o.copeDimension) ?? 'Observation',
-    time: formatDayTime(new Date(o.recordedAt)),
+    cat: o.copeDimension ?? UNCATEGORISED,
+    time: formatDayYearTime(new Date(o.recordedAt)),
     text,
     area: o.location?.name ?? '',
     locationId: o.location?.id,
@@ -171,6 +185,14 @@ function toEntry(o: SavedObservation, photos: string[] = []): Observation {
       : statuses.includes('failed')
         ? { tone: 'high', label: 'Transcription failed' }
         : null,
+    types: [...(o.note ? ['Note'] : []), ...(recordings.length ? ['Voice'] : [])],
+    status: statuses.includes('transcribing')
+      ? 'Transcribing'
+      : statuses.includes('failed')
+        ? 'Transcription failed'
+        : 'Complete',
+    edited: o.edited,
+    deleted: o.deleted,
     recordings,
   }
 }
@@ -225,7 +247,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const onField = state.screen === 'field' && canOpen('field', session)
   const onWorkspace = state.screen === 'assessment' && canOpen('assessment', session)
   const capture = useCaptureSession(state.captureTarget.reference, onField)
-  const captured = useObservations(state.captureTarget.reference, onField || onWorkspace)
+  const captured = useObservations(
+    state.captureTarget.reference,
+    onField || onWorkspace,
+    // Show deleted on the Observations tab reads the deleted ones too (CP-08).
+    onWorkspace && state.obsShowDeleted,
+  )
   // The Observations tab needs them too, to move an observation (CP-06).
   const places = useLocations(
     state.captureTarget.reference,
@@ -510,17 +537,30 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const localRecent = isDemoCapture ? s.fRecent : (s.captureObs[s.captureTarget.reference] ?? [])
     // Observations saved on the server come first, then this browser's ones,
     // kept in the demo when no capture session is live.
-    const serverEntries = captured.observations.map((o) => toEntry(o, s.savedPhotos[o.id]))
-    const fieldRecent = [...serverEntries, ...localRecent]
-    const fieldSaved = fieldRecent.length
     // Observations tab rows keep one key whatever the filters: a saved
     // observation's id, or local-<n> for the nth kept in this browser.
-    const obsRows = fieldRecent.map((o, i) => ({
-      o,
-      key: o.id ?? 'local-' + (i - serverEntries.length),
-    }))
+    const allRows = [
+      ...[...captured.observations, ...captured.deleted].map((o) => ({
+        o: toEntry(o, s.savedPhotos[o.id]),
+        key: o.id,
+      })),
+      ...localRecent.map((o, i) => ({ o, key: 'local-' + i })),
+    ]
+    // Deleted observations stay out of capture and the default list (CP-08
+    // AC13); Show deleted lists only them (AC14).
+    const fieldRecent = allRows.filter(({ o }) => !o.deleted).map(({ o }) => o)
+    const fieldSaved = fieldRecent.length
+    const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
     const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
-    const tagRow = s.tagEdit && obsRows.find((r) => r.key === s.tagEdit!.key)
+    const tagRow = s.tagEdit && allRows.find((r) => r.key === s.tagEdit!.key)
+    const dialogRow = s.obsDialog && allRows.find((r) => r.key === s.obsDialog!.key)
+    const obsNoun = s.obsShowDeleted ? 'deleted observation' : 'observation'
+    // Shared by the Observations tab's header and rows: category and type,
+    // location, summary, severity, status, and when it was captured (CP-08 AC2).
+    // The capture time wraps after its year: "11 Apr 2026" over "09:22".
+    const obsCols = narrow
+      ? '36px minmax(0,1fr) 90px'
+      : '40px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.8fr) 110px 150px 96px'
     // Real recording needs a capture session on the server; without one, voice stays simulated.
     const liveVoice = !!liveCapture
     // Capture starts from a location; the sheet stays open until one is chosen.
@@ -565,7 +605,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           reference,
           {
             note,
-            copeDimension: s.fCat === UNCATEGORISED ? null : COPE_DIMENSION[s.fCat],
+            copeDimension: copeDimensionOf(s.fCat),
             severity: s.fSev,
             locationId: location.id,
             standard: s.fStd,
@@ -614,62 +654,148 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       }))
       later(() => setState({ fToast: null }), 3200)
     }
-    // Saves the tags in the Edit tags dialog (CP-06): on the gateway for a
-    // saved observation, sending only what changed, or in this browser for one
-    // kept in the demo. On failure the dialog stays open with the changes.
+    // Changes the observation kept in this browser under a local-<n> row key,
+    // a sample one: the demo keeps the change in memory only.
+    function changeLocal(key: string, change: (o: Observation) => Observation) {
+      const n = Number(key.slice('local-'.length))
+      const list = localRecent.map((x, i) => (i === n ? change(x) : x))
+      return isDemoCapture
+        ? { fRecent: list }
+        : { captureObs: { ...s.captureObs, [s.captureTarget.reference]: list } }
+    }
+    // Why the gateway refused a change to an observation, to show the engineer.
+    function refusal(error: unknown) {
+      const problems = error instanceof GatewayError ? Object.values(error.fields) : []
+      return problems.length
+        ? problems.join(' ')
+        : error instanceof GatewayError && error.status !== null
+          ? error.message
+          : 'The gateway could not be reached.'
+    }
+    // The signed-in engineer, now, for a change kept in this browser (CP-08).
+    const stampNow = (): Stamp => ({
+      at: new Date().toISOString(),
+      by: { id: session.user.id, name: session.user.name },
+    })
+    // Saves the Edit dialog: the tags (CP-06) and the note (CP-08 AC8), in one
+    // request on the gateway for a saved observation, sending only what
+    // changed, or in this browser for one kept in the demo. The note is saved
+    // exactly as typed, and a blank one removes it, which an observation with
+    // no recording can't do (AC9). On failure the dialog stays open with the
+    // changes (AC18).
     async function saveTags() {
       const edit = s.tagEdit
       if (!edit || !tagRow || s.tagBusy) return
       const { o } = tagRow
       // Unlisted (e.g. a sample observation on a live assessment): left as it is.
       const location = places.locations.find((l) => l.id === edit.locationId)
+      const noteChanged = edit.note !== (o.detail ?? '')
+      const retry = ' Your changes are still here; press Save changes to try again.'
       if (!o.id) {
-        const n = Number(edit.key.slice('local-'.length))
-        const retagged: Observation = {
-          ...o,
-          cat: edit.cat,
-          sev: edit.sev,
-          std: edit.std,
-          ...(location && { area: location.name, floor: location.floor, locationId: location.id }),
-        }
-        const list = localRecent.map((x, i) => (i === n ? retagged : x))
+        if (noteChanged && !edit.note.trim() && !o.audio)
+          return setState({
+            tagError:
+              'An observation needs a note or a recording, so this note can’t be removed.' + retry,
+          })
         setState({
-          ...(isDemoCapture
-            ? { fRecent: list }
-            : { captureObs: { ...s.captureObs, [s.captureTarget.reference]: list } }),
+          ...changeLocal(edit.key, (x) => ({
+            ...x,
+            cat: edit.cat,
+            sev: edit.sev,
+            std: edit.std,
+            ...(location && {
+              area: location.name,
+              floor: location.floor,
+              locationId: location.id,
+            }),
+            ...(noteChanged && {
+              detail: edit.note,
+              text: edit.note.trim() ? edit.note : x.text,
+            }),
+            edited: stampNow(),
+          })),
           tagEdit: null,
         })
-        toast('Tags updated. They are kept in this demo only.')
+        toast('Changes saved. They are kept in this demo only.')
         return
       }
-      const tags = {
+      const changes = {
         ...(edit.cat !== o.cat && {
-          copeDimension: edit.cat === UNCATEGORISED ? null : COPE_DIMENSION[edit.cat],
+          copeDimension: copeDimensionOf(edit.cat),
         }),
         ...(edit.sev !== o.sev && { severity: edit.sev }),
         ...(location && location.id !== o.locationId && { locationId: location.id }),
         ...(edit.std !== o.std && { standard: edit.std || null }),
+        ...(noteChanged && { note: edit.note.trim() ? edit.note : null }),
       }
-      if (!Object.keys(tags).length) return setState({ tagEdit: null })
+      if (!Object.keys(changes).length) return setState({ tagEdit: null })
       setState({ tagBusy: true, tagError: null })
       let saved
       try {
-        saved = await updateObservationTags(o.id, tags)
+        saved = await updateObservation(o.id, changes)
       } catch (error: unknown) {
-        const problems = error instanceof GatewayError ? Object.values(error.fields) : []
-        const cause = problems.length
-          ? problems.join(' ')
-          : error instanceof GatewayError && error.status !== null
-            ? error.message
-            : 'The gateway could not be reached.'
-        return setState({
-          tagBusy: false,
-          tagError: cause + ' Your changes are still here; press Save tags to try again.',
-        })
+        return setState({ tagBusy: false, tagError: refusal(error) + retry })
       }
       captured.replace(saved)
       setState({ tagBusy: false, tagEdit: null })
-      toast('Tags updated.')
+      toast('Changes saved.')
+    }
+    // The CP-08 dialogs below each throw the reason a change failed, so the
+    // dialog shows it and keeps what was typed for another try (AC18).
+    // Saves a corrected transcript (AC10). The gateway keeps Whisper's words
+    // beside it, and drafting uses the correction.
+    async function saveTranscript(text: string) {
+      const recording = dialogRow?.o.recordings?.find((r) => r.id === s.obsDialog?.recordingId)
+      if (!dialogRow?.o.id || !recording) return
+      if (text === recording.text) return setState({ obsDialog: null })
+      let saved
+      try {
+        saved = await correctTranscript(dialogRow.o.id, recording.id, text)
+      } catch (error: unknown) {
+        throw new Error(refusal(error), { cause: error })
+      }
+      captured.replace(saved)
+      setState({ obsDialog: null })
+      toast('Transcript corrected. Report drafting uses your wording.')
+    }
+    // Deletes the observation once confirmed (AC12), a soft delete that Show
+    // deleted can undo. Drafting leaves it out from then on (AC13).
+    async function confirmDelete() {
+      if (!dialogRow) return
+      const { o, key } = dialogRow
+      if (!o.id) {
+        setState({
+          ...changeLocal(key, (x) => ({ ...x, deleted: stampNow() })),
+          obsDialog: null,
+          obsOpen: null,
+        })
+        return toast('Observation deleted in this demo only. Choose Show deleted to restore it.')
+      }
+      let saved
+      try {
+        saved = await deleteObservation(o.id)
+      } catch (error: unknown) {
+        throw new Error(refusal(error), { cause: error })
+      }
+      captured.replace(saved)
+      setState({ obsDialog: null, obsOpen: null })
+      toast('Observation deleted. Report drafting leaves it out; Show deleted can restore it.')
+    }
+    // Restores a deleted observation to the list and drafting (AC14).
+    async function restoreRow(key: string, o: Observation) {
+      if (!o.id) {
+        setState({ ...changeLocal(key, (x) => ({ ...x, deleted: null })), obsOpen: null })
+        return toast('Observation restored in this demo only.')
+      }
+      let saved
+      try {
+        saved = await restoreObservation(o.id)
+      } catch (error: unknown) {
+        return toast(refusal(error) + ' Try again.', 'warning')
+      }
+      captured.replace(saved)
+      setState({ obsOpen: null })
+      toast('Observation restored. Report drafting uses it again.')
     }
     // Adds the location typed into the sheet and captures in it straight away.
     async function submitLocation() {
@@ -696,16 +822,20 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fLocationId: location.id,
       })
     }
+    // Removes the location the Remove this location? dialog confirms. The
+    // gateway refuses one with observations, and the dialog shows its reason.
     // Removing the location in use leaves none chosen, so the sheet stays open.
-    async function removeLocation(id: string) {
+    async function removeLocation() {
+      if (!s.locRemove) return
       try {
-        await places.remove(id)
-        setState({ locError: null })
+        await places.remove(s.locRemove)
       } catch (error: unknown) {
-        setState({
-          locError: error instanceof Error ? error.message : 'The location could not be removed.',
-        })
+        throw new Error(
+          error instanceof Error ? error.message : 'The location could not be removed.',
+          { cause: error },
+        )
       }
+      setState({ locRemove: null })
     }
     async function retryVoice(id: string, recordingId: string) {
       try {
@@ -773,6 +903,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const targetRow = rows.find((r) => r.id === s.captureTarget.reference)
     const canCapture = !!targetRow && targetRow.status !== STATUS_LABEL.archived
     const isMine = !!targetRow?.persisted && targetRow.engineerId === session.user.id
+    // Changing an observation takes the assessment's assigned engineer, and
+    // not once it is archived (CP-08 AC17). The gateway decides; the browser
+    // hides the actions once the work list shows they'd be refused, for the
+    // sample observations too, which change in this browser only.
+    const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
     // The dashboard's way back into capture, named on its button: the
     // engineer's own capture in progress, the most recently started if there
     // are several, or the demo assessment when the gateway cannot be reached.
@@ -1247,6 +1382,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             captureTarget: continueTarget,
             // Filters name the previous assessment's locations and floors.
             of: NO_FILTERS,
+            obsShowDeleted: false,
             obsOpen: null,
           })
       },
@@ -1394,18 +1530,31 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ],
       obsWide: !narrow,
       obsStack: narrow,
+      obsCols,
       obsList: shownRows.map(({ o, key }) => {
         const open = s.obsOpen === key
         const sev = o.sev || 'low'
-        const cols = narrow
-          ? '36px minmax(0,1fr) 72px'
-          : '40px minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,2fr) 120px 84px'
+        const status = statusOf(o)
+        // A deleted observation changes only by being restored.
+        const canChange = canChangeObs
         return {
           ...o,
           key,
           open,
           // The zone and floor, e.g. "Bay 3 — north aisle · Ground".
           where: locationLabel({ name: o.area, floor: o.floor }),
+          // What it holds and where its recordings stand (CP-08 AC2).
+          typeLabel: typeLabel(o),
+          status,
+          statusTone:
+            status === 'Transcribing' ? 'info' : status === 'Transcription failed' ? 'high' : null,
+          canChange: canChange && !o.deleted,
+          canRestore: canChange && !!o.deleted,
+          editedLabel: o.edited ? 'Edited by ' + stampLabel(o.edited) : null,
+          deletedLabel: o.deleted ? 'Deleted by ' + stampLabel(o.deleted) : null,
+          deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
+          restoreObs: () => void restoreRow(key, o),
+          // Opens the Edit dialog on its tags and note as they are now.
           editTags: () =>
             setState({
               tagEdit: {
@@ -1414,19 +1563,25 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 sev,
                 locationId: o.locationId ?? '',
                 std: o.std,
+                note: o.detail ?? '',
               },
               tagError: null,
             }),
           icon: CAT_ICON[o.cat] || 'circle-dot',
           color: 'var(--text-secondary)',
           chevron: open ? 'chevron-down' : 'chevron-right',
-          clock: (o.time || '').split(' ').slice(-1)[0],
+          // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
+          clock: o.time || '',
           sev,
           sevLabel: sev.charAt(0).toUpperCase() + sev.slice(1),
-          // Each recording shows its transcript, or where its transcription stands.
+          // Each recording shows its transcript, as corrected, or where its
+          // transcription stands. Only a finished one can be corrected (AC10).
           recordings: (o.recordings ?? []).map((r) => ({
             ...r,
             retry: () => void retryVoice(o.id!, r.id),
+            canCorrect: canChange && !o.deleted && r.status === 'transcribed',
+            correct: () => setState({ obsDialog: { kind: 'transcript', key, recordingId: r.id } }),
+            correctedLabel: r.correction ? 'Corrected by ' + stampLabel(r.correction) : null,
           })),
           // A saved observation's recordings carry their own text below its note.
           detail: o.recordings ? o.detail : o.detail || o.text,
@@ -1438,7 +1593,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           hasStd: !!o.std,
           rowStyle: {
             display: 'grid',
-            gridTemplateColumns: cols,
+            gridTemplateColumns: obsCols,
             alignItems: narrow ? 'flex-start' : 'center',
             gap: '12px',
             padding: '12px 16px',
@@ -1455,34 +1610,55 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           obsOpen: s.obsOpen === k ? null : k,
         })
       },
-      obsCountLabel: filtersActive(s.of)
-        ? 'Showing ' + shownRows.length + ' of ' + plural(fieldRecent.length, 'observation')
-        : 'Showing 1–' + fieldRecent.length + ' of ' + fieldSaved + ' observations',
+      obsCountLabel: obsRows.length
+        ? filtersActive(s.of)
+          ? 'Showing ' + shownRows.length + ' of ' + plural(obsRows.length, obsNoun)
+          : 'Showing 1–' + obsRows.length + ' of ' + plural(obsRows.length, obsNoun)
+        : plural(0, obsNoun),
       obsNext: () => toast('Later observations are not loaded in this prototype.', 'info'),
-      /* observation filters (CP-06 AC2): any one label returns what carries it */
+      /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
       obsFilters: s.of,
       obsFiltering: filtersActive(s.of),
-      obsNoMatch: filtersActive(s.of) && shownRows.length === 0,
+      obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
       setObsFilter: (key: keyof ObservationFilters) => (e: React.ChangeEvent<HTMLSelectElement>) =>
         setState({ of: { ...s.of, [key]: e.target.value } }),
       clearObsFilters: () => setState({ of: NO_FILTERS }),
+      obsTypeFilterOptions: [{ value: '', label: 'All types' }, ...OBSERVATION_TYPES],
       obsCatFilterOptions: [{ value: '', label: 'All categories' }, ...CATEGORY_OPTIONS],
       obsSevFilterOptions: [{ value: '', label: 'All severities' }, ...SEVERITY_OPTIONS],
       obsLocFilterOptions: [
         { value: '', label: 'All locations' },
         ...labelValues(
-          fieldRecent.map((o) => o.area),
+          obsRows.map(({ o }) => o.area),
           s.of.loc,
         ),
       ],
       obsFloorFilterOptions: [
         { value: '', label: 'All floors' },
         ...labelValues(
-          fieldRecent.map((o) => o.floor),
+          obsRows.map(({ o }) => o.floor),
           s.of.floor,
         ),
       ],
-      /* tag editing (CP-06) */
+      obsStatusFilterOptions: [{ value: '', label: 'All statuses' }, ...OBSERVATION_STATUSES],
+      /* Show deleted (CP-08 AC14): the deleted observations instead */
+      obsShowDeleted: s.obsShowDeleted,
+      setObsShowDeleted: (on: boolean) => setState({ obsShowDeleted: on, obsOpen: null }),
+      obsNoDeleted: s.obsShowDeleted && obsRows.length === 0,
+      /* transcript and delete dialogs (CP-08) */
+      obsDialog:
+        s.obsDialog && dialogRow
+          ? {
+              kind: s.obsDialog.kind,
+              key: s.obsDialog.key,
+              summary: dialogRow.o.text,
+              recording: dialogRow.o.recordings?.find((r) => r.id === s.obsDialog!.recordingId),
+            }
+          : null,
+      closeObsDialog: () => setState({ obsDialog: null }),
+      saveTranscript,
+      confirmDelete,
+      /* the Edit dialog: tags (CP-06) and note (CP-08) */
       tagOpen: !!tagRow,
       tagEdit: s.tagEdit,
       tagBusy: s.tagBusy,
@@ -1513,8 +1689,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })),
       ],
       setTag:
-        (field: 'cat' | 'sev' | 'locationId' | 'std') =>
-        (e: React.ChangeEvent<HTMLSelectElement>) =>
+        (field: 'cat' | 'sev' | 'locationId' | 'std' | 'note') =>
+        (e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement>) =>
           s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
       closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
       saveTags: () => void saveTags(),
@@ -1686,6 +1862,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             captureTarget: { reference: row.id, site: row.site },
             // Filters name this assessment's locations and floors.
             of: NO_FILTERS,
+            obsShowDeleted: false,
             obsOpen: null,
           })
       },
@@ -2073,7 +2250,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       canCloseLocations: !!currentLocation,
       openLocations: () => setState({ locOpen: true }),
       closeLocations: () =>
-        setState({ locOpen: false, locQuery: '', lfError: null, locError: null }),
+        setState({ locOpen: false, locQuery: '', lfError: null, locRemove: null }),
       locQuery: s.locQuery,
       setLocQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
         setState({ locQuery: e.target.value }),
@@ -2088,13 +2265,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             label: locationLabel(l),
             detail: count ? plural(count, 'observation') : '',
             selected: l.id === s.fLocationId,
-            // Only a location with nothing saved in it can be removed.
-            remove: count
-              ? undefined
-              : () => {
-                  if (window.confirm('Remove ' + locationLabel(l) + ' from the list?'))
-                    void removeLocation(l.id)
-                },
+            // Only a location with nothing saved in it can be removed, once confirmed.
+            remove: count ? undefined : () => setState({ locRemove: l.id }),
           }
         }),
       noLocations: places.locations.length === 0,
@@ -2112,7 +2284,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({ lf: { ...s.lf, [field]: e.target.value }, lfError: null }),
       lfBusy: s.lfBusy,
       lfError: s.lfError,
-      locError: s.locError,
+      /* the Remove this location? dialog */
+      locRemoveLabel: (() => {
+        const l = places.locations.find((x) => x.id === s.locRemove)
+        return l ? locationLabel(l) : null
+      })(),
+      closeLocRemove: () => setState({ locRemove: null }),
+      confirmLocRemove: removeLocation,
       submitLocation: () => void submitLocation(),
       fCat: s.fCat,
       setFCat: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
@@ -2174,7 +2352,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           icon: s.fMode === 'photo' ? 'camera' : s.fMode === 'voice' ? 'mic' : 'sticky-note',
           color: s.fMode === 'photo' ? '#4f9aee' : s.fMode === 'voice' ? '#8f7dff' : '#f9ac10',
           cat: s.fCat,
-          time: formatDayTime(new Date()),
+          time: formatDayYearTime(new Date()),
           text,
           area: currentLocation.name,
           locationId: currentLocation.id,

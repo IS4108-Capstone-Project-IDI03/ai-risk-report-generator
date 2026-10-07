@@ -84,8 +84,8 @@ export const initialState: WorkflowState = {
   lf: { name: '', floor: '' },
   lfBusy: false,
   lfError: null,
-  locError: null,
-  fCat: 'Fire protection',
+  locRemove: null,
+  fCat: 'Protection',
   fSev: 'high',
   fStd: '',
   fToast: null,
@@ -93,8 +93,8 @@ export const initialState: WorkflowState = {
     {
       icon: 'camera',
       color: '#4f9aee',
-      cat: 'Fire protection',
-      time: '11 Apr 09:22',
+      cat: 'Protection',
+      time: '11 Apr 2026 09:22',
       text: 'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.',
       area: 'Bay 3 — north aisle',
       locationId: 'demo-bay-3',
@@ -108,8 +108,8 @@ export const initialState: WorkflowState = {
     {
       icon: 'mic',
       color: '#8f7dff',
-      cat: 'Fire protection',
-      time: '11 Apr 11:05',
+      cat: 'Protection',
+      time: '11 Apr 2026 11:05',
       text: 'Pump test certificate not produced on request. Site engineer believes it is held by the contractor.',
       area: 'Pump house',
       locationId: 'demo-pump-house',
@@ -124,8 +124,8 @@ export const initialState: WorkflowState = {
     {
       icon: 'sticky-note',
       color: '#f9ac10',
-      cat: 'Occupancy, hazards and utilities',
-      time: '11 Apr 13:40',
+      cat: 'Occupancy',
+      time: '11 Apr 2026 13:40',
       text: 'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.',
       area: 'Bay 1 — despatch',
       locationId: 'demo-bay-1',
@@ -223,6 +223,8 @@ export const initialState: WorkflowState = {
   exportOpen: false,
   obsOpen: null,
   of: NO_FILTERS,
+  obsShowDeleted: false,
+  obsDialog: null,
   tagEdit: null,
   tagBusy: false,
   archiveOpen: false,
@@ -305,13 +307,13 @@ export const ROWS: AssessmentRow[] = [
   },
 ]
 
-// The COPE categories an observation is filed under, named after the report
-// sections they feed (Construction, Occupancy, Protection, Exposure).
+// The COPE categories an observation is filed under, by the value each is
+// stored as: the same values the knowledge base tags its chunks with.
 export const CAT_ICON: Record<string, string> = {
   Construction: 'hard-hat',
-  'Occupancy, hazards and utilities': 'factory',
-  'Fire protection': 'flame',
-  'External exposures': 'cloud-lightning',
+  Occupancy: 'factory',
+  Protection: 'flame',
+  Exposure: 'cloud-lightning',
 }
 // The sample assessment's places on site, used when the gateway is not live.
 export const DEMO_LOCATIONS: SiteLocation[] = [
@@ -324,7 +326,7 @@ export const DEMO_LOCATIONS: SiteLocation[] = [
 ]
 // An observation may be saved before it is categorised (CP-02) and categorised
 // later by editing its tags (CP-06); report drafting leaves it out until then.
-export const UNCATEGORISED = 'Not categorised yet'
+export const UNCATEGORISED = 'Uncategorised'
 // Standards an observation can be tied to. The draft finds the clause itself.
 export const STANDARD_REFERENCES = [
   'NFPA 25 – 2026 Edition',
@@ -332,14 +334,6 @@ export const STANDARD_REFERENCES = [
   'FM 2.0 – Last published April 2026',
   'FM 2.81 – Last published April 2026',
 ]
-
-// The COPE_dimension each category is stored under, matching the knowledge base.
-export const COPE_DIMENSION: Record<string, string> = {
-  Construction: 'Construction',
-  'Occupancy, hazards and utilities': 'Occupancy',
-  'Fire protection': 'Protection',
-  'External exposures': 'Exposure',
-}
 
 export const SEV: Record<string, { icon: string; color: string }> = {
   critical: {

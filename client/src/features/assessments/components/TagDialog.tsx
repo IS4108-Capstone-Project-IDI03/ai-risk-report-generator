@@ -1,17 +1,18 @@
-import { Button, Callout, Dialog, Select } from '../../../design-system'
+import { Button, Callout, Dialog, Select, Textarea } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
-// Changes an observation's tags (CP-06): its COPE category, severity, location
-// and standard. A bottom sheet on phones, a dialog on wider screens.
+// Edits an observation: its tags (CP-06), the COPE category, severity,
+// location and standard, and its note (CP-08), saved together. A bottom sheet
+// on phones, a dialog on wider screens.
 export function TagDialog({ v }: { v: AssessmentWorkflow }) {
   if (!v.tagEdit) return null
   return (
     <Dialog
       className="ds-dialog-sheet"
       open={v.tagOpen}
-      title="Edit tags"
-      description="Tags cover everything captured in this observation."
-      width={440}
+      title="Edit observation"
+      description="Tags cover everything captured in this observation. The note is saved exactly as you type it."
+      width={520}
       onClose={v.closeTags}
       footer={
         <>
@@ -19,7 +20,7 @@ export function TagDialog({ v }: { v: AssessmentWorkflow }) {
             {'Cancel'}
           </Button>
           <Button variant="primary" loading={v.tagBusy} onClick={v.saveTags}>
-            {'Save tags'}
+            {'Save changes'}
           </Button>
         </>
       }
@@ -27,7 +28,7 @@ export function TagDialog({ v }: { v: AssessmentWorkflow }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {!!v.tagError && (
           <div role="alert">
-            <Callout tone="warning" title="Tags not saved">
+            <Callout tone="warning" title="Changes not saved">
               {v.tagError}
             </Callout>
           </div>
@@ -57,6 +58,13 @@ export function TagDialog({ v }: { v: AssessmentWorkflow }) {
           options={v.tagStdOptions}
           value={v.tagEdit.std}
           onChange={v.setTag('std')}
+        />
+        <Textarea
+          label="Note"
+          rows={5}
+          maxLength={5000}
+          value={v.tagEdit.note}
+          onChange={v.setTag('note')}
         />
       </div>
     </Dialog>
