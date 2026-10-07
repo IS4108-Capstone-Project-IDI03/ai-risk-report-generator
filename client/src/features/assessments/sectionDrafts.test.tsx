@@ -262,6 +262,30 @@ it('says when a draft is missing newer evidence, by kind, leaving out kinds with
   expect(screen.getByRole('button', { name: 'Redraft section' })).toBeEnabled()
 })
 
+it('says a section was just redrafted, instead of out of date, once it is redrafted', async () => {
+  const drafted = mockGateway(
+    () => json(201, DRAFT),
+    [
+      section({
+        latestDraft: DRAFT,
+        changesSinceDraft: 1,
+        changeCounts: { added: 0, changed: 0, removed: 1 },
+      }),
+      EXPOSURES,
+    ],
+  )
+  await openGenerateTab()
+  expect(screen.getByText(/1 observation removed since this draft/)).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Redraft section' }))
+
+  expect(
+    await screen.findByText('Redrafted just now with the latest observations.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByText(/since this draft/)).toBeNull()
+  expect(drafted).toEqual(['7'])
+})
+
 it('describes each kind of change and never mentions a kind with none (CP-08)', () => {
   const cases = [
     [{ added: 1, changed: 0, removed: 0 }, '1 observation added'],

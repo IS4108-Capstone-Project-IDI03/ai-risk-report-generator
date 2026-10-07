@@ -226,6 +226,8 @@ export function SectionDrafts({
   const [stopping, setStopping] = useState(false)
   const [failures, setFailures] = useState<Record<string, string>>({})
   const [selected, setSelected] = useState<string | null>(null)
+  // Sections redrafted while this tab is open, so their row says so (CP-08).
+  const [redrafted, setRedrafted] = useState<Record<string, boolean>>({})
   const stop = useRef(false)
   const { observations } = useObservations(reference, true)
 
@@ -240,6 +242,8 @@ export function SectionDrafts({
   const run = async (ids: string[]) => {
     stop.current = false
     setStopping(false)
+    // The sections that already had a draft, so a new one is a redraft.
+    const hadDraft = new Set((sections ?? []).filter((s) => s.latestDraft).map((s) => s.id))
     for (const [i, id] of ids.entries()) {
       if (stop.current) break
       setQueue(ids.slice(i + 1))
@@ -247,9 +251,21 @@ export function SectionDrafts({
       setFailures((f) => Object.fromEntries(Object.entries(f).filter(([key]) => key !== id)))
       try {
         const saved = await draftSection(reference, id)
+        // A new draft is given every observation on file, so nothing has
+        // changed since it: its out-of-date warning goes (CP-08).
         setSections((list) =>
-          (list ?? []).map((s) => (s.id === id ? { ...s, latestDraft: saved } : s)),
+          (list ?? []).map((s) =>
+            s.id === id
+              ? {
+                  ...s,
+                  latestDraft: saved,
+                  changesSinceDraft: 0,
+                  changeCounts: { added: 0, changed: 0, removed: 0 },
+                }
+              : s,
+          ),
         )
+        if (hadDraft.has(id)) setRedrafted((r) => ({ ...r, [id]: true }))
         // A section drafted on its own opens straight away.
         if (ids.length === 1) setSelected(id)
       } catch (error: unknown) {
@@ -406,6 +422,21 @@ export function SectionDrafts({
                             up to date.
                           </span>
                         )}
+                        {redrafted[s.id] &&
+                          s.changesSinceDraft === 0 &&
+                          state === STATE.drafted && (
+                            <span
+                              role="status"
+                              style={{
+                                display: 'block',
+                                marginTop: '4px',
+                                fontSize: '14px',
+                                color: 'var(--status-low-fg)',
+                              }}
+                            >
+                              Redrafted just now with the latest observations.
+                            </span>
+                          )}
                         {state === STATE.insufficient && (
                           <span
                             style={{
