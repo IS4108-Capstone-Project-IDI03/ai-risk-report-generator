@@ -207,8 +207,8 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
 }
 
 export class NotAssignedError extends Error {
-  constructor() {
-    super('Only the assigned engineer can change this assessment.')
+  constructor(message = 'Only the assigned engineer can change this assessment.') {
+    super(message)
   }
 }
 

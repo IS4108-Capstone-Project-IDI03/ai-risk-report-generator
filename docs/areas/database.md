@@ -165,7 +165,7 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, tag edits, transcription retry | yes | no |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry; tag and note edits, transcript corrections, deletes and restores (the assessment's assigned engineer only, CP-08) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction) | no | yes |
@@ -213,15 +213,41 @@ drafting inputs for GN-01, matches on `COPE_dimension`, so an uncategorised
 observation stays out of drafting until it is categorised by editing its tags.
 
 The category, severity, location and standard are the observation's tags
-(CP-06). `PATCH /api/observations/:id` changes any of them in place, validated
-against the same values as capture, and leaves the note, recordings and capture
-time as they are. Nothing keeps the previous tags, and corrections that keep the
-prior version are CP-08. Report section drafts now cite observations by `_id`,
-so a citation still resolves after a tag edit, and each draft keeps the
-observations as it was given them in its `evidence`. There is no zone
-field: the location's `name` is its zone and its `floor` the floor, so choosing
-a location tags both. The Observations tab filters by category, severity,
-location and floor in the browser, like the dashboard.
+(CP-06). `PATCH /api/observations/:id` changes any of them, and the note
+(CP-08), in place, validated against the same values as capture; the
+recordings and capture time never change. The note is stored exactly as typed,
+and a blank one removes it, which an observation without a recording can't do.
+Only what differs is saved, with `edited: { at, by: { id, name } }` naming who
+made the latest change; a save that changes nothing records nothing. The
+observation keeps no history of its own: report section drafts cite
+observations by `_id`, and each draft keeps the observations as it was given
+them in its `evidence`, so a draft can always be checked against what it was
+drafted from. There is no zone field: the location's `name` is its zone and
+its `floor` the floor, so choosing a location tags both. The Observations tab
+filters by type (Note, Voice), category, severity, location, floor and status
+(Transcribing, Transcription failed, Complete) in the browser, like the
+dashboard.
+
+A finished transcript can be corrected (CP-08): the recording's
+`transcription.correction` holds `{ text, at, by }`, and `transcript` stays as
+Whisper wrote it, as evidence of what was said. Drafting uses the correction.
+Writing Whisper's words back removes it. Only a `transcribed` recording can be
+corrected; one still transcribing, or failed, is refused (409).
+
+Deleting is a soft delete (CP-08): `deleted: { at, by }` is set, present only
+while deleted, and nothing is removed, the recordings in S3 included.
+`listObservations`, which the Observations tab, the section evidence counts and
+drafting all read, leaves deleted observations out, so drafting never uses
+them; `?include=deleted` lists them too, for the tab's Show deleted. Restoring
+removes `deleted`. A deleted observation can't be changed until it is
+restored, and its location can't be removed while it is saved there, so a
+restored one keeps its location. A draft that was given an observation since
+deleted, or uncategorised, counts it in `changesSinceDraft`.
+
+Only the assessment's assigned engineer can change, delete or restore its
+observations (403 otherwise), and not once the assessment is archived (409),
+as for its other details (RV-10). Capturing observations and retrying a failed
+transcription stay open to any risk engineer.
 
 The API gives each recording `type: "Voice"`; the note is text by being the
 `note` field. The observation's `engineerId` is set from the signed session;
@@ -243,8 +269,11 @@ capture session `active`.
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
-| `GET /api/assessments/:reference/observations` | Every observation, newest first, with its `note` and `recordings`, each recording with its `url` and `transcription`. `copeDimension` is `null` for an uncategorised observation |
-| `PATCH /api/observations/:id` | Changes the tags: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations) and `standard` (100 characters; `null` or `''` removes it). A tag left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when no tag is sent) / 404 |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note` and `recordings`, each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
+| `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, deleted or archived) |
+| `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
+| `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 
@@ -286,7 +315,7 @@ The first draft sets the assessment's `reportStatus` to `draft`.
 
 | Route | Does |
 | --- | --- |
-| `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (or `null`) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks or holds in an older form, which a redraft would take in. 404, or 503 when S4 cannot be reached. |
+| `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (or `null`) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks, holds in an older form, or holds that are no longer evidence (deleted or uncategorised, CP-08), which a redraft would bring up to date. 404, or 503 when S4 cannot be reached. |
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
 | `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources` and `changesSinceDraft`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under the section's categories, plus any other it cites). Read-only. 404, or 503 when S4 cannot be reached. |
 

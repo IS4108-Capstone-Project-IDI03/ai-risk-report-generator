@@ -401,8 +401,8 @@ export function SectionDrafts({
                               color: 'var(--status-moderate-fg)',
                             }}
                           >
-                            {plural(s.changesSinceDraft, 'observation')} added or changed since this
-                            draft. Redraft to include {s.changesSinceDraft === 1 ? 'it' : 'them'}.
+                            {plural(s.changesSinceDraft, 'observation')} added, changed or removed
+                            since this draft. Redraft to bring it up to date.
                           </span>
                         )}
                         {state === STATE.insufficient && (

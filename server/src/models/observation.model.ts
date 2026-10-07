@@ -13,6 +13,13 @@ export type CopeDimension = (typeof COPE_DIMENSIONS)[number]
 export const SEVERITIES = ['critical', 'high', 'moderate', 'low'] as const
 export type Severity = (typeof SEVERITIES)[number]
 
+// Who changed or deleted an observation, and when (CP-08). `by` is the
+// signed-in user as they were then, so a later rename doesn't rewrite it.
+export interface IStamp {
+  at: Date
+  by: { id: string; name: string }
+}
+
 export interface IRecording {
   _id: Types.ObjectId
   // "Recording 2", or the uploaded file's own name.
@@ -27,6 +34,9 @@ export interface IRecording {
     // Why the latest attempt failed, shown to the engineer.
     error?: string
     attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
+    // The engineer's correction of `transcript` (CP-08). `transcript` stays as
+    // Whisper wrote it, as evidence of what was said; drafting uses this.
+    correction?: IStamp & { text: string }
   }
 }
 
@@ -59,9 +69,23 @@ export interface IObservation {
     COPE_dimension: CopeDimension | null
     effective_date: Date
   }
+  // The latest change to its tags, note or a transcript (CP-08).
+  edited?: IStamp
+  // Present only while it is deleted (CP-08), a soft delete: nothing is
+  // removed, so drafts that cite it stay traceable, and restoring removes this.
+  deleted?: IStamp
   createdAt: Date
   updatedAt: Date
 }
+
+const stampFields = {
+  at: { type: Date, required: true },
+  by: {
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+  },
+}
+const stampSchema = new Schema<IStamp>(stampFields, { _id: false })
 
 const recordingSchema = new Schema<IRecording>({
   name: { type: String, required: true },
@@ -75,6 +99,9 @@ const recordingSchema = new Schema<IRecording>({
     attempts: [
       { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
     ],
+    correction: {
+      type: new Schema({ text: { type: String, required: true }, ...stampFields }, { _id: false }),
+    },
   },
 })
 
@@ -97,6 +124,8 @@ const observationSchema = new Schema<IObservation>(
       COPE_dimension: { type: String, enum: COPE_DIMENSIONS, default: null },
       effective_date: { type: Date, required: true },
     },
+    edited: { type: stampSchema },
+    deleted: { type: stampSchema },
   },
   { timestamps: true, collection: 'observations' },
 )

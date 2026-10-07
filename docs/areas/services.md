@@ -102,10 +102,11 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
    whenever it has enough evidence.
 3. The gateway gets the section's COPE categories and minimum count from S4's
    `GET /sections`. It loads the assessment's categorised observations
-   (uncategorised ones stay out, CP-02 AC4) and refuses (409) while any of
-   their recordings is still transcribing.
+   (uncategorised ones stay out, CP-02 AC4, and so do deleted ones, CP-08) and
+   refuses (409) while any of their recordings is still transcribing.
 4. It sends the usable ones to S4's `POST /sections/draft`. An observation is
-   usable when it has a note or a finished transcript. Only those filed under
+   usable when it has a note or a finished transcript; a transcript the
+   engineer corrected is sent as corrected (CP-08). Only those filed under
    the section's own categories count towards the minimum; with too few, it
    refuses with 422 and gives the count.
    - S4 puts the section's own observations in `<observations>` as the main

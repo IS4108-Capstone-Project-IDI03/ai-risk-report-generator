@@ -7,7 +7,8 @@ export const PERMISSIONS = [
   // List assessments and read their locations, observations and recordings.
   'assessments:view',
   // Create assessments, capture on site (sessions, locations, observations)
-  // and change observation tags.
+  // and change, delete or restore observations. Changing an assessment's own
+  // observations also needs its assigned engineer (RV-10, CP-08).
   'assessments:edit',
   // Draft report sections (RAG).
   'reports:generate',

@@ -160,9 +160,8 @@ export function DraftEditor({
             {review.changesSinceDraft > 0 && (
               <Callout tone="warning" title="This draft is out of date">
                 {plural(review.changesSinceDraft, 'observation')}{' '}
-                {review.changesSinceDraft === 1 ? 'was' : 'were'} added or changed after it was
-                drafted. Redraft it on the Report generation tab to include{' '}
-                {review.changesSinceDraft === 1 ? 'it' : 'them'}.
+                {review.changesSinceDraft === 1 ? 'was' : 'were'} added, changed or removed after it
+                was drafted. Redraft it on the Report generation tab to bring it up to date.
               </Callout>
             )}
             {review.withdrawnSources > 0 && (

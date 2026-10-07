@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import { Badge, Button, Callout, Icon, Select, Textarea } from '../../../design-system'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
-import { LocationSheet } from '../components/LocationSheet'
+import { LocationSheet, RemoveLocationDialog } from '../components/LocationSheet'
 
 // One entry in the Ready to save list: a note, a recording or a photograph.
 function ReadyItem({
@@ -773,6 +773,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         </div>
       </div>
       <LocationSheet v={v} />
+      {/* Above the sheet, so it opens fresh for each location. */}
+      {!!v.locRemoveLabel && <RemoveLocationDialog key={v.locRemoveLabel} v={v} />}
     </>
   )
 }

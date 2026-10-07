@@ -371,3 +371,54 @@ its page and its document's current standing, which needs both what the draft
 was given and what the knowledge base says now.
 
 Stories: RV-01.
+
+## 2026-10-07 — CP-06 merges into CP-08, and observations are corrected in place, soft-deleted and changed only by the assigned engineer
+
+Chose: CP-06 (tag an observation) is merged into a new CP-08 (manage
+captured observations), since both change the same document on the same tab
+through the same route. KB-02 into KB-01 was the precedent. The merged ACs
+read "name" as the location and floor (as CP-06 did), define status as
+Transcribing, Transcription failed or Complete, and list the whole assessment
+rather than one capture session, which the engineer never sees.
+- A note edit or tag edit overwrites the observation in place, with
+  `edited: { at, by }` naming who made the latest change. The traceable
+  record of what a draft cited is the draft's own `evidence`, which already
+  holds each observation as it was drafted from.
+- A transcript correction is stored beside Whisper's words, never over them:
+  `transcription.correction` is what drafting uses, `transcript` is evidence
+  of what was said. Only a finished transcription can be corrected.
+- Deleting sets `deleted: { at, by }` and removes nothing, as RV-10's archive
+  and KB-01's withdraw do. `listObservations` leaves deleted observations out,
+  so the list, section counts and drafting all drop them in one place; Show
+  deleted lists them, and restoring removes the mark.
+- `changesSinceDraft` now also counts observations a draft was given that are
+  no longer evidence (deleted or uncategorised), so the draft shows as out of
+  date.
+- Only the assessment's assigned engineer can change, delete or restore its
+  observations, and not once it is archived, as for its other details
+  (RV-10). This tightens CP-06, which let any risk engineer retag. Capturing
+  and retrying a transcription stay open to any risk engineer.
+- Categories are shown as the values they are stored as (Construction,
+  Occupancy, Protection, Exposure, Uncategorised), as AC7 names them, rather
+  than as report section names ("Fire protection"). The client no longer maps
+  labels to stored values.
+
+Rejected:
+- An edit history on each observation, as KB-01 keeps for documents: no AC
+  asks to browse earlier wording, and the version that matters, the one a
+  draft cited, is already in that draft's `evidence`.
+- Copying a transcript into the note to edit it ("Edit as text note", design
+  annotation 23): drafting would then read the same words twice, as both
+  transcript and note.
+- Removing a recording from an observation, or deleting an observation for
+  good: either would remove raw evidence.
+- Owner as the engineer who captured the observation: observations saved
+  before CP-02's revision have no capturer ID, and every other change to an
+  assessment already goes by its assigned engineer.
+
+Reason: CP-08 asks for observations to be corrected and removed while every
+draft that cites one stays traceable, and the merged ACs keep CP-06's
+behaviour while closing its overwrite-in-place gap now that drafts cite
+observations (the CP-06 entry above anticipated this).
+
+Stories: CP-08 (with CP-06 merged in), CP-02, GN-01.

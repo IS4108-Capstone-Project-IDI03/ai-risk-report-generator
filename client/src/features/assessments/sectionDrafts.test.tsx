@@ -45,12 +45,15 @@ const RISER: SavedObservation = {
       transcription: {
         status: 'transcribed',
         transcript: 'the gap is around the cable tray',
+        correction: null,
         error: null,
         attempts: 1,
       },
     },
   ],
   recordedAt: '2026-09-23T09:10:00.000Z',
+  edited: null,
+  deleted: null,
 }
 const section = (fields: Partial<ReportSection>): ReportSection => ({
   id: '7',
@@ -241,6 +244,8 @@ it('says when a draft is missing newer evidence', async () => {
   )
   await openGenerateTab()
 
-  expect(screen.getByText(/2 observations added or changed since this draft/)).toBeInTheDocument()
+  expect(
+    screen.getByText(/2 observations added, changed or removed since this draft/),
+  ).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Redraft section' })).toBeEnabled()
 })
