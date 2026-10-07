@@ -68,6 +68,16 @@ class ProgressReporter:
             }
         )
 
+    @property
+    def current_stage(self) -> str | None:
+        """The stage in progress, or None once finished / not yet started.
+
+        The worker reads this in its failure handler — before it appends the
+        'failed' sentinel — to learn which real stage broke, for the admin's
+        notification (IN-10).
+        """
+        return self._current_stage
+
     def start_stage(self, stage: str) -> None:
         """Transition to a new stage.
 

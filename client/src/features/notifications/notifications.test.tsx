@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotificationBell } from './NotificationBell'
@@ -37,6 +37,9 @@ function stubGateway(all: Notification[], unread = all.length) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
+    if (url.includes('/api/notifications/count')) {
+      return json({ total: all.length, unread })
+    }
     if (url.includes('/api/notifications?')) {
       const params = new URLSearchParams(url.split('?')[1])
       const limit = Number(params.get('limit'))
@@ -224,5 +227,27 @@ describe('NotificationBell', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.queryByText('Document 1 failed to ingest.')).not.toBeInTheDocument()
+  })
+
+  it('updates the badge from the count poll without a reload', async () => {
+    vi.useFakeTimers()
+    try {
+      // Start with nothing unread, then the gateway reports two.
+      stubGateway(makeItems(2), 2)
+      render(<NotificationBell counts={{ total: 0, unread: 0 }} pageSize={5} />)
+      expect(screen.queryByText('2')).not.toBeInTheDocument()
+
+      // One poll interval later, the badge reflects the gateway's count — the
+      // dropdown was never opened. Advancing inside act() lets the state update
+      // from the resolved count fetch flush before the assertion.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
+
+      expect(screen.getByRole('button', { name: 'Notifications, 2 unread' })).toBeInTheDocument()
+      expect(screen.getByText('2')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

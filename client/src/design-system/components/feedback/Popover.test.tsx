@@ -28,10 +28,7 @@ function Harness({ onClose }: { onClose?: () => void } = {}) {
 describe('Popover', () => {
   it('is closed by default and marks the trigger not expanded', () => {
     render(<Harness />)
-    expect(screen.getByRole('button', { name: 'Open' })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    )
+    expect(screen.getByRole('button', { name: 'Open' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Inside action')).not.toBeInTheDocument()
   })
 
@@ -39,10 +36,7 @@ describe('Popover', () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
     expect(screen.getByText('Inside action')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
+    expect(screen.getByRole('button', { name: 'Open' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('marks the trigger as a popup control for assistive tech', () => {

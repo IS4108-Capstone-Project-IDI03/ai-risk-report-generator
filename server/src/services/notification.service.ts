@@ -116,9 +116,18 @@ function visibleTo(user: SessionUser) {
   }
 }
 
-/** Returns the notification just created, which nobody has read yet. */
+/**
+ * Returns the notification just created, which nobody has read yet.
+ *
+ * When the context identifies a terminal event — both a `documentId` and a
+ * `status` — creation is idempotent on `purpose + documentId + status`: posting
+ * the same event again returns the existing notification rather than a second
+ * row. This matters because a stalled BullMQ job can re-run a document and
+ * reach a terminal state twice (see worker.py), which would otherwise show the
+ * admin the same failure twice.
+ */
 export async function createNotification(input: NewNotification): Promise<NotificationDto> {
-  const created = await NotificationModel.create({
+  const doc = {
     purpose: input.purpose,
     message: input.message,
     details: input.details,
@@ -127,11 +136,40 @@ export async function createNotification(input: NewNotification): Promise<Notifi
     context: input.context,
     createdBy: input.createdBy ?? null,
     createdByService: input.createdByService ?? null,
-  })
+  }
+
+  const key = dedupeKey(input)
+  if (key) {
+    // Upsert on the natural key: insert on first sight, no-op on a repeat. The
+    // $setOnInsert keeps the first notification's content (and its readBy /
+    // dismissedBy) untouched when the event is re-posted.
+    const existing = await NotificationModel.findOneAndUpdate(
+      key,
+      { $setOnInsert: doc },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+    ).lean<StoredNotification>()
+    return toDto(existing, '')
+  }
+
+  const created = await NotificationModel.create(doc)
   // flattenMaps so `context` is a plain object here as it is from a lean read;
   // without it a hydrated document hands back a Map and the two paths disagree.
   // Nobody has read it yet, hence no reader.
   return toDto(created.toObject({ flattenMaps: true }) as StoredNotification, '')
+}
+
+// The natural key for a terminal event, or null when the context does not name
+// one (so those notifications are never deduped). Matched on the stored Map
+// fields with dotted paths.
+function dedupeKey(input: NewNotification): Record<string, unknown> | null {
+  const documentId = input.context?.documentId
+  const status = input.context?.status
+  if (!documentId || !status) return null
+  return {
+    purpose: input.purpose,
+    'context.documentId': documentId,
+    'context.status': status,
+  }
 }
 
 /**

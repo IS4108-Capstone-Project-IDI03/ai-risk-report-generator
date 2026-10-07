@@ -96,6 +96,37 @@ describe('GET /api/notifications', () => {
   })
 })
 
+describe('GET /api/notifications/count', () => {
+  it('needs a session', async () => {
+    await request(app).get('/api/notifications/count').expect(401)
+  })
+
+  it('returns the signed-in role\u2019s totals', async () => {
+    await seedAdminSeries(3)
+
+    const res = await admin.get('/api/notifications/count').expect(200)
+
+    expect(res.body).toEqual({ total: 3, unread: 3 })
+  })
+
+  it('reflects a read, so the poller can track the badge', async () => {
+    const created = await createNotification(forAllAdmins('Document 1 finished ingesting.'))
+
+    await admin.patch(`/api/notifications/${created.id}/read`).expect(204)
+
+    const res = await admin.get('/api/notifications/count').expect(200)
+    expect(res.body).toEqual({ total: 1, unread: 0 })
+  })
+
+  it('does not return the list, only the counts', async () => {
+    await seedAdminSeries(2)
+
+    const res = await admin.get('/api/notifications/count').expect(200)
+
+    expect(res.body).not.toHaveProperty('items')
+  })
+})
+
 describe('PATCH /api/notifications/:id/read', () => {
   it('needs a session', async () => {
     await request(app).patch('/api/notifications/6ab39017e45cf009e4507731/read').expect(401)
