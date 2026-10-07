@@ -393,6 +393,10 @@ Chose: on upload, ingestion-service's `POST /label` reads the first
   Section titles are found by font size (lines set like the mapped titles,
   28 pt), with Docling's heading trail as a fallback when no mapped title is
   found.
+- If the classifier fails but the LLM answers, the fixed-list details use the
+  LLM's own answers (stored model = the LLM). Reason: one failed cheap call
+  should not turn a whole upload into manual work. If the LLM fails, every
+  detail is still Unconfirmed.
 
 Rejected:
 - Reading only the first 5 pages. Golden evidence showed reports state the

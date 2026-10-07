@@ -88,7 +88,8 @@ type. Code: `microservices/ingestion-service/app/labelling/`.
    in the pages (dates in any common written form). A report has no edition;
    only a standard may apply to `all` countries or facility types, and a
    standard that names none gets `all`. Anything else is Unconfirmed (`null`).
-4. **Failure.** A model error or timeout makes every detail Unconfirmed; the
+4. **Failure.** If only the classifier fails, the fixed-list details use the
+   LLM's own answers. If the LLM call fails, every detail is Unconfirmed. The
    endpoint still answers 200. Only a PDF that will not open gets 422.
 
 The gateway checks each value again before storing it (see

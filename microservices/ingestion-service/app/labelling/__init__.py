@@ -24,7 +24,7 @@ def label_pdf(pdf: bytes) -> dict:
     names = {"fixed": classifier if classifier != "none" else config.llm_model(),
              "free": config.llm_model()}  # fmt: skip
     usage: list[dict] = []
-    results, failed = {}, False
+    results, failed = {}, set()
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = {"extract": pool.submit(models.extract_details, wrapped)}
         if classifier != "none":
@@ -34,11 +34,19 @@ def label_pdf(pdf: bytes) -> dict:
                 results[name], used = future.result()
                 usage.append(used)
             except Exception:
-                # Without this, a model outage would block uploads. Everything becomes
-                # Unconfirmed instead.
+                # Without this, a model outage would block uploads. The details it
+                # would have given become Unconfirmed instead (see below).
                 logger.exception("Labelling call %s failed", name)
-                failed = True
-    classified, extracted = (None, {}) if failed else (results.get("classify"), results["extract"])
+                failed.add(name)
+    if "extract" in failed:
+        classified, extracted = None, {}
+    elif "classify" in failed:
+        # Classifier down but the LLM answered: use the LLM's fixed-list answers, and
+        # name the LLM so the stored model is truthful.
+        classified, extracted = None, results["extract"]
+        names["fixed"] = config.llm_model()
+    else:
+        classified, extracted = results.get("classify"), results["extract"]
 
     # 3. Apply the rules and return the contract shape.
     details = decide.decide(classified, extracted, page_text, names)

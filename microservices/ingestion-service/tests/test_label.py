@@ -8,7 +8,7 @@ import pymupdf
 import pytest
 from starlette.testclient import TestClient
 
-from app.labelling import models, pages
+from app.labelling import config, models, pages
 from app.main import app
 
 client = TestClient(app)
@@ -153,6 +153,17 @@ def test_model_error_makes_everything_unconfirmed(fake, monkeypatch, error):
     body = label(TEXT)
     assert len(body["unconfirmed"]) == 6
     assert all(d["value"] is None for d in body["details"].values())
+
+
+def test_classifier_failure_falls_back_to_llm_fixed_list(fake, monkeypatch):
+    def boom(text):
+        raise httpx.TimeoutException("slow")
+
+    monkeypatch.setattr(models, "classify_details", boom)
+    body = label(TEXT)
+    assert body["details"]["source_type"]["value"] == "fm_standard"
+    assert body["details"]["source_type"]["model"] == config.llm_model()
+    assert body["unconfirmed"] == []
 
 
 def test_only_first_label_pages_are_sent(fake, monkeypatch):
