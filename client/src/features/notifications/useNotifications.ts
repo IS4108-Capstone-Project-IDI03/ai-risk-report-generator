@@ -9,7 +9,6 @@ import {
   type NotificationPage,
 } from './api'
 
-
 export type NotificationCounts = { total: number; unread: number }
 
 // How often the badge is refreshed from the gateway while the tab is visible.
@@ -43,10 +42,7 @@ export type UseNotifications = {
 // State and gateway calls for the header dropdown. `pageSize` is how many rows
 // a page holds (a component concern, so it is passed in). `initial` seeds the
 // counts from the session so the bell badge is correct on first paint.
-export function useNotifications(
-  pageSize: number,
-  initial: NotificationCounts,
-): UseNotifications {
+export function useNotifications(pageSize: number, initial: NotificationCounts): UseNotifications {
   const [items, setItems] = useState<Notification[]>([])
   const [total, setTotal] = useState(initial.total)
   const [unread, setUnread] = useState(initial.unread)
@@ -93,9 +89,7 @@ export function useNotifications(
   // Mark one read: reflect it locally and drop the unread count, then tell the
   // gateway. The list keeps the row (read, not removed).
   const markRead = useCallback((id: string) => {
-    setItems((current) =>
-      current.map((n) => (n.id === id && !n.read ? { ...n, read: true } : n)),
-    )
+    setItems((current) => current.map((n) => (n.id === id && !n.read ? { ...n, read: true } : n)))
     setUnread((current) => Math.max(0, current - 1))
     markNotificationRead(id).catch(() => {
       // The badge self-corrects on the next open; nothing to undo here.
