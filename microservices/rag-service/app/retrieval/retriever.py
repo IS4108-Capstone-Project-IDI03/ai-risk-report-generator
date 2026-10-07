@@ -26,14 +26,15 @@ def label_filter(filters: dict[str, str | list[str]]) -> dict:
     Source type matches exactly, or any one of a list of source types. Country and
     facility type also match passages labelled `all`, since such a document applies to
     every site.
-    Withdrawn passages are always excluded (KB-01 AC13). `$ne` also matches
-    passages with no status label, so passages indexed before the status label existed stay
-    retrievable (checked against Chroma 1.5.5 on 2026-10-01).
+    Withdrawn passages (KB-01 AC13) and passages of a document with Unconfirmed details
+    (`needs_review`, IN-05 AC5) are always excluded. `$nin` also matches passages with no
+    status label (checked against Chroma 1.5.5), so passages indexed before the status label
+    existed stay retrievable.
     Chroma needs `$and` to combine two or more conditions. Minimal on purpose:
     RT-01 extends it for site applicability.
     """
     conditions = [{key: _match(key, value)} for key, value in filters.items()]
-    conditions.append({"status": {"$ne": "withdrawn"}})
+    conditions.append({"status": {"$nin": ["withdrawn", "needs_review"]}})
     return {"$and": conditions} if len(conditions) > 1 else conditions[0]
 
 
