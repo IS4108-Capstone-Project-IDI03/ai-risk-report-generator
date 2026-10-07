@@ -30,6 +30,7 @@ function recording(id: string, transcription: Partial<SavedRecording['transcript
     transcription: {
       status: 'transcribing',
       transcript: null,
+      correction: null,
       error: null,
       attempts: 1,
       ...transcription,
@@ -47,6 +48,8 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
     note: null,
     recordings: [],
     recordedAt: '2026-09-29T08:10:00.000Z',
+    edited: null,
+    deleted: null,
     ...fields,
   }
 }
@@ -265,7 +268,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     allowMicrophone()
     await openCapture()
     fireEvent.change(screen.getByLabelText(/COPE category/), {
-      target: { value: 'Not categorised yet' },
+      target: { value: 'Uncategorised' },
     })
     expect(
       screen.getByText('Report drafting leaves this observation out until it is categorised.'),
@@ -276,7 +279,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     await screen.findByText(/Observation saved/)
     expect(saves[0].details.copeDimension).toBeNull()
-    expect(screen.getByText('Not categorised yet', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('Uncategorised', { selector: 'span' })).toBeInTheDocument()
   })
 
   it('keeps everything listed when the save fails, then saves it on retry', async () => {
@@ -373,29 +376,19 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
       within(category())
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual([
-      'Construction',
-      'Occupancy, hazards and utilities',
-      'Fire protection',
-      'External exposures',
-      'Not categorised yet',
-    ])
+    ).toEqual(['Construction', 'Occupancy', 'Protection', 'Exposure', 'Uncategorised'])
 
-    // Each category is stored as the value the knowledge base tags its chunks with.
-    const shared = {
-      Construction: 'Construction',
-      'Occupancy, hazards and utilities': 'Occupancy',
-      'Fire protection': 'Protection',
-      'External exposures': 'Exposure',
-    }
-    for (const label of Object.keys(shared)) {
+    // Each category is shown and stored as the value the knowledge base tags
+    // its chunks with.
+    const shared = ['Construction', 'Occupancy', 'Protection', 'Exposure']
+    for (const label of shared) {
       fireEvent.change(category(), { target: { value: label } })
       write('Hose reel H3 blocked by pallets.')
       save()
       // A saved note clears the box, so the next one starts after this save.
       await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(''))
     }
-    expect(saves.map((s) => s.details.copeDimension)).toEqual(Object.values(shared))
+    expect(saves.map((s) => s.details.copeDimension)).toEqual(shared)
   })
 })
 
