@@ -11,7 +11,7 @@ import {
   listCategoryObservations,
 } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
-import { signedInAs } from './auth-test-helpers'
+import { signedInAs, signedInAsRole } from './auth-test-helpers'
 
 // S3 stands in as a map; S5 as a stubbed fetch.
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
@@ -73,6 +73,8 @@ async function assessmentWithSession(
     site: site._id,
     client: 'Northgate Logistics',
     surveyType: 'Property risk survey',
+    // Only the assigned engineer can change its observations (CP-08).
+    engineer: actor._id,
     locations: [
       {
         _id: BAY_3,
@@ -422,7 +424,7 @@ describe('PATCH /api/observations/:id', () => {
     }
     // Nothing to change is refused rather than silently accepted.
     expect((await retag(id, {})).status).toBe(400)
-    expect((await retag(id, { note: 'Rewritten.' })).status).toBe(400)
+    expect((await retag(id, { recordings: [] })).status).toBe(400)
     const stored = await ObservationModel.findById(id).lean()
     expect(stored).toMatchObject({
       severity: 'high',
@@ -435,6 +437,215 @@ describe('PATCH /api/observations/:id', () => {
   it('returns 404 for an unknown observation', async () => {
     expect((await retag('nope', { severity: 'low' })).status).toBe(404)
     expect((await retag(new Types.ObjectId(), { severity: 'low' })).status).toBe(404)
+  })
+})
+
+const by = { id: String(actor._id), name: 'Alex Rowe' }
+const edit = (id: unknown, changes: object) => api.patch(`/api/observations/${id}`).send(changes)
+const correct = (id: unknown, recordingId: unknown, text: unknown) =>
+  api.put(`/api/observations/${id}/recordings/${recordingId}/transcript`).send({ text })
+const remove = (id: unknown) => api.delete(`/api/observations/${id}`)
+const restore = (id: unknown) => api.post(`/api/observations/${id}/restore`)
+const listed = async (query = '') =>
+  (await api.get(`/api/assessments/RPT-2026-0411/observations${query}`)).body.map(
+    (o: { id: string }) => o.id,
+  )
+
+describe('correcting an observation (CP-08)', () => {
+  it('stores an edited note exactly as typed, with who edited it and when (AC8, AC11)', async () => {
+    await assessmentWithSession()
+    const { id } = (await note()).body
+    const text = '  Hose reel H3 cleared after the visit.\nRecheck at close.  '
+
+    const response = await edit(id, { note: text })
+
+    expect(response.status).toBe(200)
+    expect(response.body.note).toBe(text)
+    expect(response.body.edited).toEqual({ at: expect.any(String), by })
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored?.note).toBe(text)
+    expect(stored?.edited?.by).toEqual(by)
+    // Saving the same note again changes nothing, so it records nothing.
+    const again = await edit(id, { note: text })
+    expect(again.body.edited.at).toBe(response.body.edited.at)
+  })
+
+  it('removes a note only when the observation has a recording (AC9)', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'Valve chained open.' }))
+    await assessmentWithSession()
+    const noteOnly = (await note()).body
+    const both = (await save({ note: 'Valve V-12.' })).body
+    await settled(both.id)
+
+    const refused = await edit(noteOnly.id, { note: '  ' })
+    expect(refused.status).toBe(400)
+    expect(Object.keys(refused.body.fields)).toEqual(['note'])
+    expect((await ObservationModel.findById(noteOnly.id).lean())?.note).toBe(
+      'Hose reel H3 blocked by stacked pallets.',
+    )
+
+    const removed = await edit(both.id, { note: null })
+    expect(removed.status).toBe(200)
+    expect(removed.body.note).toBeNull()
+    expect(await ObservationModel.findById(both.id).lean()).not.toHaveProperty('note')
+  })
+
+  it('corrects a finished transcript, keeping what Whisper wrote (AC10, AC11)', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'FM 200 cylinders in the store next door.' }))
+    await assessmentWithSession()
+    const saved = (await save()).body
+    await settled(saved.id)
+    const recordingId = saved.recordings[0].id
+
+    const response = await correct(
+      saved.id,
+      recordingId,
+      'FM-200 cylinders in the store next door.',
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.body.recordings[0].transcription).toMatchObject({
+      transcript: 'FM 200 cylinders in the store next door.',
+      correction: { text: 'FM-200 cylinders in the store next door.', at: expect.any(String), by },
+    })
+    expect(response.body.edited.by).toEqual(by)
+    const stored = (await ObservationModel.findById(saved.id).lean())!.recordings[0]
+    expect(stored.transcription.transcript).toBe('FM 200 cylinders in the store next door.')
+
+    // Writing Whisper's words back removes the correction.
+    const reverted = await correct(
+      saved.id,
+      recordingId,
+      'FM 200 cylinders in the store next door.',
+    )
+    expect(reverted.body.recordings[0].transcription.correction).toBeNull()
+  })
+
+  it('corrects only a transcript that has finished (AC10)', async () => {
+    speech.mockReturnValueOnce(s5(502, { detail: 'Whisper timed out.' }))
+    await assessmentWithSession()
+    const failed = (await save()).body
+    await settled(failed.id)
+    speech.mockReturnValue(new Promise<Response>(() => {}))
+    const transcribing = (await save()).body
+
+    expect((await correct(failed.id, failed.recordings[0].id, 'Text.')).status).toBe(409)
+    expect((await correct(transcribing.id, transcribing.recordings[0].id, 'Text.')).status).toBe(
+      409,
+    )
+    const blank = await correct(failed.id, failed.recordings[0].id, '   ')
+    expect(blank.status).toBe(400)
+    expect(Object.keys(blank.body.fields)).toEqual(['text'])
+    expect((await correct(failed.id, new Types.ObjectId(), 'Text.')).status).toBe(404)
+  })
+})
+
+describe('deleting and restoring an observation (CP-08)', () => {
+  it('marks it deleted without removing anything (AC11, AC12)', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'Valve chained open.' }))
+    await assessmentWithSession()
+    const saved = (await save({ note: 'Valve V-12.' })).body
+    await settled(saved.id)
+
+    const response = await remove(saved.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body.deleted).toEqual({ at: expect.any(String), by })
+    const stored = await ObservationModel.findById(saved.id).lean()
+    expect(stored).toMatchObject({ note: 'Valve V-12.', deleted: { by } })
+    // The raw evidence stays in storage.
+    expect(s3.get(stored!.recordings[0].key)).toEqual(AUDIO)
+    // Deleting twice is refused.
+    expect((await remove(saved.id)).status).toBe(409)
+  })
+
+  it('leaves a deleted observation out of the list and drafting, unless asked (AC13)', async () => {
+    await assessmentWithSession()
+    const kept = (await note({ copeDimension: 'Exposure' })).body
+    const deleted = (await note({ copeDimension: 'Exposure' })).body
+
+    await remove(deleted.id)
+
+    expect(await listed()).toEqual([kept.id])
+    expect((await listed('?include=deleted')).sort()).toEqual([deleted.id, kept.id].sort())
+    const inputs = await listCategoryObservations('RPT-2026-0411', 'Exposure')
+    expect(inputs.map((o) => o.id)).toEqual([kept.id])
+  })
+
+  it('restores a deleted observation to the list and drafting (AC14)', async () => {
+    await assessmentWithSession()
+    const { id } = (await note({ copeDimension: 'Exposure' })).body
+    await remove(id)
+
+    const response = await restore(id)
+
+    expect(response.status).toBe(200)
+    expect(response.body.deleted).toBeNull()
+    expect(await listed()).toEqual([id])
+    expect(await ObservationModel.findById(id).lean()).not.toHaveProperty('deleted')
+    // Restoring one that is not deleted is refused.
+    expect((await restore(id)).status).toBe(409)
+  })
+
+  it('refuses to change a deleted observation until it is restored', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'Valve chained open.' }))
+    await assessmentWithSession()
+    const saved = (await save({ note: 'Valve V-12.' })).body
+    await settled(saved.id)
+    await remove(saved.id)
+
+    expect((await edit(saved.id, { severity: 'low' })).status).toBe(409)
+    expect((await correct(saved.id, saved.recordings[0].id, 'Text.')).status).toBe(409)
+    expect((await ObservationModel.findById(saved.id).lean())?.severity).toBe('high')
+  })
+
+  it('keeps a location while a deleted observation is saved there', async () => {
+    await assessmentWithSession()
+    const { id } = (await note({ locationId: String(PUMP_HOUSE) })).body
+    await remove(id)
+
+    const response = await api.delete(`/api/assessments/RPT-2026-0411/locations/${PUMP_HOUSE}`)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      "Pump house has 1 observation, 1 of them deleted. It can't be removed while they are saved there.",
+    )
+  })
+})
+
+describe('who can change an observation (CP-08 AC17)', () => {
+  it('lets only the assigned engineer change it, and no one once archived', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'Valve chained open.' }))
+    const assessment = await assessmentWithSession()
+    const saved = (await save({ note: 'Valve V-12.' })).body
+    await settled(saved.id)
+    const recordingId = saved.recordings[0].id
+    const attempts = (as: ReturnType<typeof signedInAs>) => [
+      as.patch(`/api/observations/${saved.id}`).send({ severity: 'low' }),
+      as.patch(`/api/observations/${saved.id}`).send({ note: 'Rewritten.' }),
+      as.put(`/api/observations/${saved.id}/recordings/${recordingId}/transcript`).send({
+        text: 'Rewritten.',
+      }),
+      as.delete(`/api/observations/${saved.id}`),
+      as.post(`/api/observations/${saved.id}/restore`),
+    ]
+
+    const otherEngineer = signedInAsRole(app, 'risk_engineer', 'Jide Okafor')
+    const admin = signedInAsRole(app, 'knowledge_admin')
+    for (const as of [otherEngineer, admin]) {
+      for (const response of await Promise.all(attempts(as))) expect(response.status).toBe(403)
+    }
+    // A knowledge admin can still read them.
+    expect((await admin.get('/api/assessments/RPT-2026-0411/observations')).status).toBe(200)
+
+    await AssessmentModel.updateOne({ _id: assessment._id }, { archivedAt: new Date() })
+    for (const response of await Promise.all(attempts(api))) expect(response.status).toBe(409)
+
+    const stored = await ObservationModel.findById(saved.id).lean()
+    expect(stored).toMatchObject({ severity: 'high', note: 'Valve V-12.' })
+    expect(stored?.recordings[0].transcription.correction).toBeUndefined()
+    expect(stored).not.toHaveProperty('deleted')
+    expect(stored).not.toHaveProperty('edited')
   })
 })
 

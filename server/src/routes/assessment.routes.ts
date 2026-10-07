@@ -307,9 +307,15 @@ router.post(
   },
 )
 
+// The assessment's observations, newest first. Deleted ones are left out
+// unless `?include=deleted` asks for them too (CP-08 AC14).
 router.get('/:reference/observations', requirePermission('assessments:view'), async (req, res) => {
   try {
-    res.json(await listObservations(req.params.reference))
+    res.json(
+      await listObservations(req.params.reference, {
+        includeDeleted: req.query.include === 'deleted',
+      }),
+    )
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })

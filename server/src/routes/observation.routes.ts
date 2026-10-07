@@ -1,48 +1,120 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
+import { NotAssignedError } from '../services/assessment.service'
+import { AssessmentArchivedError } from '../services/capture-session.service'
 import {
+  correctTranscript,
+  deleteObservation,
+  EmptyObservationError,
   getRecordingAudio,
   NotRetryableError,
+  observationChangesSchema,
   ObservationNotFoundError,
-  observationTagsSchema,
+  ObservationStateError,
+  restoreObservation,
   retryTranscription,
+  transcriptCorrectionSchema,
   UnknownLocationError,
-  updateObservationTags,
+  updateObservation,
 } from '../services/observation.service'
 import { fieldErrors } from './field-errors'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
 
-// Changes an observation's tags (CP-06): JSON with any of copeDimension (null
-// to uncategorise), severity, locationId and standard (null or '' to remove).
-// 400 lists the first problem with each invalid field, as for capture.
+// Answers a refused change with its status: 404 unknown, 403 not the
+// assessment's assigned engineer, 409 archived or in the wrong state (CP-08).
+// Rethrows anything else.
+function refuse(error: unknown, res: Response) {
+  const status =
+    error instanceof ObservationNotFoundError
+      ? 404
+      : error instanceof NotAssignedError
+        ? 403
+        : error instanceof AssessmentArchivedError ||
+            error instanceof ObservationStateError ||
+            error instanceof NotRetryableError
+          ? 409
+          : null
+  if (!status || !(error instanceof Error)) throw error
+  res.status(status).json({ error: error.message })
+}
+
+// Changes an observation's tags (CP-06) and note (CP-08): JSON with any of
+// copeDimension (null to uncategorise), severity, locationId, standard and
+// note (null or '' to remove either). 400 lists the first problem with each
+// invalid field, as for capture.
 router.patch('/:id', requirePermission('assessments:edit'), async (req, res) => {
-  const parsed = observationTagsSchema.safeParse(req.body ?? {})
+  const parsed = observationChangesSchema.safeParse(req.body ?? {})
   if (!parsed.success) {
     res
       .status(400)
-      .json({ error: 'The observation tags are invalid.', fields: fieldErrors(parsed.error) })
+      .json({ error: 'The observation details are invalid.', fields: fieldErrors(parsed.error) })
     return
   }
   if (Object.values(parsed.data).every((value) => value === undefined)) {
-    res.status(400).json({ error: 'Send a category, severity, location or standard to change.' })
+    res
+      .status(400)
+      .json({ error: 'Send a category, severity, location, standard or note to change.' })
     return
   }
   try {
-    res.json(await updateObservationTags(req.params.id, parsed.data))
+    res.json(await updateObservation(req.params.id, parsed.data, res.locals.user!))
   } catch (error: unknown) {
-    if (error instanceof ObservationNotFoundError) {
-      res.status(404).json({ error: error.message })
-      return
-    }
-    if (error instanceof UnknownLocationError) {
+    if (error instanceof UnknownLocationError || error instanceof EmptyObservationError) {
+      const field = error instanceof UnknownLocationError ? 'locationId' : 'note'
       res.status(400).json({
-        error: 'The observation tags are invalid.',
-        fields: { locationId: error.message },
+        error: 'The observation details are invalid.',
+        fields: { [field]: error.message },
       })
       return
     }
-    throw error
+    refuse(error, res)
+  }
+})
+
+// Corrects a finished transcript (CP-08 AC10), keeping Whisper's original.
+router.put(
+  '/:id/recordings/:recordingId/transcript',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = transcriptCorrectionSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'The transcript is invalid.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res.json(
+        await correctTranscript(
+          req.params.id,
+          req.params.recordingId,
+          parsed.data.text,
+          res.locals.user!,
+        ),
+      )
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
+// Deletes an observation (CP-08 AC12), a soft delete. 200 with the
+// observation, now carrying who deleted it and when.
+router.delete('/:id', requirePermission('assessments:edit'), async (req, res) => {
+  try {
+    res.json(await deleteObservation(req.params.id, res.locals.user!))
+  } catch (error: unknown) {
+    refuse(error, res)
+  }
+})
+
+// Restores a deleted observation (CP-08 AC14).
+router.post('/:id/restore', requirePermission('assessments:edit'), async (req, res) => {
+  try {
+    res.json(await restoreObservation(req.params.id, res.locals.user!))
+  } catch (error: unknown) {
+    refuse(error, res)
   }
 })
 
@@ -55,15 +127,7 @@ router.post(
       await retryTranscription(req.params.id, req.params.recordingId)
       res.status(202).end()
     } catch (error: unknown) {
-      if (error instanceof ObservationNotFoundError) {
-        res.status(404).json({ error: error.message })
-        return
-      }
-      if (error instanceof NotRetryableError) {
-        res.status(409).json({ error: error.message })
-        return
-      }
-      throw error
+      refuse(error, res)
     }
   },
 )
@@ -78,11 +142,7 @@ router.get(
       res.set({ 'Content-Type': audio.contentType, 'Content-Length': String(audio.size) })
       audio.stream.pipe(res)
     } catch (error: unknown) {
-      if (error instanceof ObservationNotFoundError) {
-        res.status(404).json({ error: error.message })
-        return
-      }
-      throw error
+      refuse(error, res)
     }
   },
 )
