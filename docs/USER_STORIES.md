@@ -334,7 +334,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   1. Given an active session, when a JPG or PNG photograph is saved, then the original image is stored as raw evidence.
   2. Given a saved photograph, when its photo observation is opened, then the original image is linked to that observation.
-  3. Given a saved photograph, when the assessment photo collection is opened, then the image is available for the report photo appendix.
+  3. Given saved photographs, when the assessment photo collection is opened, then every photo saved with the assessment's observations is listed, except those of deleted observations. (Reworded 7 Oct 2026: including the photos in the report's appendix is EX-01 AC3.)
   4. Given an unsupported file type, when photo upload is attempted, then the file is rejected with a format message.
   5. Given a photo capture is created, when it is saved, then the capture is tagged with the engineer's id.
   6. Given a photo is taken on the device, when the engineer uploads it to the application, then it uploads as normal.
