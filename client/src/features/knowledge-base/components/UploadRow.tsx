@@ -1,35 +1,47 @@
-// One file's upload form on the Add documents tab (IN-01). It asks for the
-// source type first, then only the details that type needs (AC1). Locked
-// unless the row is a draft; the gateway's field errors show under each
-// input. Used by screens/AddDocuments.tsx.
-import { Badge, Icon, IconButton } from '../../../design-system'
+// One file's row on the Add documents tab (IN-01, IN-05): its name, size and
+// where its upload stands. While the gateway reads the document's details it
+// shows a spinner and "Reading document details…". Used by
+// screens/AddDocuments.tsx.
+import { Badge, Button, Icon, IconButton } from '../../../design-system'
 import { fileSize } from '../display'
-import { editDetails, removeUpload, type Upload } from '../uploads'
-import { DetailsFields } from './DetailsFields'
+import { removeUpload, retryUpload, type Upload } from '../uploads'
 
 const UPLOAD_STATE: Record<Upload['state'], { label: string; tone: string } | null> = {
-  draft: null,
-  uploading: { label: 'Uploading', tone: 'info' },
+  uploading: null,
   // Accepted and queued; its live status is in the uploaded documents list.
   queued: { label: 'Uploaded', tone: 'low' },
   rejected: { label: 'Rejected', tone: 'critical' },
+  failed: { label: 'Not uploaded', tone: 'high' },
 }
 
-/** Returns one file's row: its name, state and details form. */
+/** Returns one file's row: its name and upload state. */
 export function UploadRow({ upload }: { upload: Upload }) {
-  const { key, file, details, state, error, fieldErrors } = upload
-  const locked = state !== 'draft'
+  const { key, file, state, error } = upload
   const badge = UPLOAD_STATE[state]
-  const set = (change: Partial<typeof details>) => editDetails(key, change)
 
   return (
-    <fieldset className="kb-row" aria-label={file.name} disabled={locked} data-state={state}>
+    <div className="kb-row" role="group" aria-label={file.name} data-state={state}>
       <div className="kb-row-head">
         <Icon name="file-text" size={16} />
         <span className="kb-file">{file.name}</span>
         <span className="kb-size">{fileSize(file.size)}</span>
+        {state === 'uploading' && (
+          <span className="kb-reading" role="status">
+            <Icon
+              name="loader-circle"
+              size={14}
+              style={{ animation: 'dsSpin 0.9s linear infinite' }}
+            />
+            Reading document details…
+          </span>
+        )}
         {badge && <Badge tone={badge.tone}>{badge.label}</Badge>}
-        {state === 'draft' && (
+        {state === 'failed' && (
+          <Button variant="secondary" size="sm" onClick={() => retryUpload(key)}>
+            Try again
+          </Button>
+        )}
+        {state === 'failed' && (
           <IconButton
             icon="x"
             label={`Remove ${file.name}`}
@@ -44,9 +56,6 @@ export function UploadRow({ upload }: { upload: Upload }) {
           {error}
         </p>
       )}
-      {state !== 'rejected' && state !== 'queued' && (
-        <DetailsFields details={details} errors={fieldErrors} onChange={set} />
-      )}
-    </fieldset>
+    </div>
   )
 }

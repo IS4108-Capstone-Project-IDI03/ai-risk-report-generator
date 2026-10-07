@@ -6,14 +6,24 @@ import { createHash } from 'crypto'
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import {
+  DETAIL_NAMES,
   KnowledgeDocumentModel,
+  SOURCE_TYPES,
+  type DetailName,
   type IKnowledgeDocument,
+  type ILabelledDetail,
   type SourceType,
 } from '../models/knowledge-document.model'
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
 import { enqueueIngestion } from './ingestion-queue.service'
-import { IngestionUnavailableError, relabelPassages, whyPdfCannotOpen } from './ingestion.service'
+import {
+  IngestionUnavailableError,
+  labelDocument,
+  relabelPassages,
+  whyPdfCannotOpen,
+  type LabelAnswer,
+} from './ingestion.service'
 import * as storage from './storage.service'
 
 const text = (label: string, max: number) =>
@@ -25,6 +35,15 @@ const text = (label: string, max: number) =>
 
 // Worked out on each check, so a long-running gateway rolls over at New Year.
 const nextYear = () => new Date().getFullYear() + 1
+
+// A year, so IN-02 can compare editions reliably. Up to next year, since an
+// edition can be published ahead of the year it is named for.
+const edition = () =>
+  z
+    .string('Edition is required.')
+    .refine((value) => /^\d{4}$/.test(value) && +value >= 1900 && +value <= nextYear(), {
+      error: () => `Edition must be a year from 1900 to ${nextYear()}.`,
+    })
 
 const country = (allowAll: boolean) =>
   z
@@ -51,8 +70,8 @@ const FACILITY_TYPES = [
 const onTheList = (allowed: string[]) =>
   [(value: string) => allowed.includes(value), 'Choose a facility type from the list.'] as const
 
-// The details the admin enters for each file (IN-01 AC1) or corrects later
-// (KB-01), as Zod validation rules. Which details are asked depends on the
+// The details an admin corrects (KB-01) or auto-labelling reads (IN-05), as
+// Zod validation rules. Which details are asked depends on the
 // source type: a standard has an edition and may apply in all countries; a past
 // Marsh report has neither, but is about one facility type. A broken rule
 // becomes a 400 naming the field.
@@ -66,13 +85,7 @@ export const documentDetailsSchema = z.discriminatedUnion(
     z.object({
       ...common,
       sourceType: z.enum(['fm_standard', 'nfpa_standard']),
-      // A year, so IN-02 can compare editions reliably. Up to next year,
-      // since an edition can be published ahead of the year it is named for.
-      edition: z
-        .string('Edition is required.')
-        .refine((value) => /^\d{4}$/.test(value) && +value >= 1900 && +value <= nextYear(), {
-          error: () => `Edition must be a year from 1900 to ${nextYear()}.`,
-        }),
+      edition: edition(),
       jurisdiction: country(true),
       facilityType: z
         .string()
@@ -92,12 +105,9 @@ export const documentDetailsSchema = z.discriminatedUnion(
 )
 export type DocumentDetails = z.infer<typeof documentDetailsSchema>
 
-// An upload's details also carry the file's name. They arrive in the query
-// string because the request body is the PDF itself.
-export const uploadDetailsSchema = documentDetailsSchema.and(
-  z.object({ fileName: text('File name', 255) }),
-)
-export type UploadDetails = z.infer<typeof uploadDetailsSchema>
+// An upload asks for nothing but the file's name (IN-05 replaces IN-01 AC1).
+// It arrives in the query string because the request body is the PDF itself.
+export const uploadQuerySchema = z.object({ fileName: text('File name', 255) })
 
 // Who publishes each source type; the admin never types it.
 const ISSUING_BODY: Record<SourceType, string> = {
@@ -120,16 +130,32 @@ type ProgressDto = {
   stageLog: { stage: string; startedAt: string; durationMs: number }[]
 }
 
+// The detail names as the browser spells them (camelCase of DETAIL_NAMES).
+const DETAIL_DTO_NAME = {
+  source_type: 'sourceType',
+  title: 'title',
+  edition: 'edition',
+  effective_date: 'effectiveDate',
+  jurisdiction: 'jurisdiction',
+  facility_type: 'facilityType',
+} as const
+export type DetailDtoName = (typeof DETAIL_DTO_NAME)[DetailName]
+
+const isoDay = (date: Date | null | undefined) => date?.toISOString().slice(0, 10) ?? null
+
 export type KnowledgeDocumentDto = {
   id: string
   title: string
-  issuingBody: string
+  issuingBody: string | null
   edition: string | null
   fileName: string
-  sourceType: string
-  jurisdiction: string
-  facilityType: string
-  effectiveDate: string
+  // A detail labelling could not confirm is null (IN-05).
+  sourceType: string | null
+  jurisdiction: string | null
+  facilityType: string | null
+  effectiveDate: string | null
+  // The details still Unconfirmed; non-empty = "needs review" (IN-05).
+  unconfirmed: DetailDtoName[]
   size: number
   sha256: string
   status: IKnowledgeDocument['status']
@@ -140,12 +166,12 @@ export type KnowledgeDocumentDto = {
   withdrawn: { at: Date; by: { id: string; name: string } } | null
   // Earlier versions of the details, newest first (KB-01 AC9).
   history: {
-    sourceType: string
+    sourceType: string | null
     title: string
     edition: string | null
-    effectiveDate: string
-    jurisdiction: string
-    facilityType: string
+    effectiveDate: string | null
+    jurisdiction: string | null
+    facilityType: string | null
     replacedAt: Date
     replacedBy: { id: string; name: string }
   }[]
@@ -181,13 +207,15 @@ function toDto(
   return {
     id: String(d._id),
     title: d.title,
-    issuingBody: d.issuingBody,
+    issuingBody: d.issuingBody ?? null,
     edition: d.edition ?? null,
     fileName: d.fileName,
     sourceType: d.metadata.source_type,
     jurisdiction: d.metadata.jurisdiction,
     facilityType: d.metadata.facility_type,
-    effectiveDate: d.metadata.effective_date.toISOString().slice(0, 10),
+    effectiveDate: isoDay(d.metadata.effective_date),
+    // Records from before IN-05 have no field.
+    unconfirmed: (d.unconfirmed ?? []).map((name) => DETAIL_DTO_NAME[name]),
     size: d.file.size,
     sha256: d.file.sha256,
     status: d.status,
@@ -200,7 +228,7 @@ function toDto(
       sourceType: v.metadata.source_type,
       title: v.title,
       edition: v.edition ?? null,
-      effectiveDate: v.metadata.effective_date.toISOString().slice(0, 10),
+      effectiveDate: isoDay(v.metadata.effective_date),
       jurisdiction: v.metadata.jurisdiction,
       facilityType: v.metadata.facility_type,
       replacedAt: v.replacedAt,
@@ -209,6 +237,32 @@ function toDto(
     // Only processing documents carry progress; the caller passes a job only
     // for those (see listKnowledgeDocuments).
     ...(job && d.status === 'processing' ? { progress: toProgressDto(job) } : {}),
+  }
+}
+
+// The labelling record after a correction: every detail now holds the saved
+// value with `source: 'admin'`. The auto label's confidence, evidence and model
+// are kept as history of what the model saw (absent if labelling had failed).
+function adminLabelling(
+  old: IKnowledgeDocument['labelling'],
+  next: ReturnType<typeof recordFields>,
+): NonNullable<IKnowledgeDocument['labelling']> {
+  const saved = {
+    source_type: next.metadata.source_type,
+    title: next.title,
+    edition: next.edition ?? null,
+    effective_date: isoDay(next.metadata.effective_date),
+    jurisdiction: next.metadata.jurisdiction,
+    facility_type: next.metadata.facility_type,
+  }
+  return {
+    labelledAt: old?.labelledAt ?? new Date(),
+    details: Object.fromEntries(
+      DETAIL_NAMES.map((name) => [
+        name,
+        { ...old?.details[name], value: saved[name], source: 'admin' },
+      ]),
+    ),
   }
 }
 
@@ -230,7 +284,8 @@ function recordFields(details: DocumentDetails) {
 }
 
 // Whether a correction changes any detail the record holds. Dates compare by
-// time value, since two Date objects are never `===`.
+// time value, since two Date objects are never `===`. Old details may be
+// null (Unconfirmed), which always differs from a saved value.
 function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>) {
   const a = old.metadata
   const b = next.metadata
@@ -242,22 +297,34 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
     a.jurisdiction !== b.jurisdiction ||
     a.facility_type !== b.facility_type ||
     a.COPE_dimension !== b.COPE_dimension ||
-    a.effective_date.getTime() !== b.effective_date.getTime()
+    a.effective_date?.getTime() !== b.effective_date.getTime()
   )
 }
 
 /**
  * Returns the labels every passage of the document carries, so search can
- * filter on them: its metadata, the date as YYYY-MM-DD, and `status` (KB-01),
- * which search uses to skip withdrawn passages. Must match `labels()` in
- * microservices/ingestion-service/app/worker.py, which labels passages at
- * ingest (always `active`).
+ * filter on them: its metadata, the date as YYYY-MM-DD, and `status`, which
+ * search uses to skip passages that are not `active`: `withdrawn` (KB-01) or
+ * `needs_review` (IN-05, some detail Unconfirmed). Null details are left out
+ * (Chroma can't store null, and no filter should match them), and
+ * COPE_dimension is never sent, so a relabel can't overwrite per-passage COPE.
+ * Must match `labels()` in microservices/ingestion-service/app/worker.py,
+ * which labels passages at ingest.
  */
-function labels({ metadata, withdrawn }: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn'>) {
+function labels({
+  metadata,
+  withdrawn,
+  unconfirmed,
+}: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn' | 'unconfirmed'>) {
+  const details = {
+    source_type: metadata.source_type,
+    jurisdiction: metadata.jurisdiction,
+    facility_type: metadata.facility_type,
+    effective_date: isoDay(metadata.effective_date),
+  }
   return {
-    ...metadata,
-    effective_date: metadata.effective_date.toISOString().slice(0, 10),
-    status: withdrawn ? 'withdrawn' : 'active',
+    ...Object.fromEntries(Object.entries(details).filter(([, value]) => value != null)),
+    status: withdrawn ? 'withdrawn' : unconfirmed?.length ? 'needs_review' : 'active',
   }
 }
 
@@ -275,14 +342,79 @@ export class RejectedFileError extends Error {
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
 const PDF_MARKER = Buffer.from('%PDF-')
 
-// Stores the original PDF in S3, records it with its details and queues its
-// ingestion (AC1, AC2), in steps a–e. Throws RejectedFileError before storing
-// anything if the file is not a PDF or cannot be opened (AC5), so a rejected
-// file leaves no trace.
+// Today's date in Singapore (UTC+8, no daylight saving) as YYYY-MM-DD: the
+// upload date a document is effective from when /label gives no date (IN-05).
+// Must match microservices/ingestion-service/app/labelling/__init__.py.
+const uploadDay = () => new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10)
+
+// Turns the /label answer (or null when labelling failed) into the record
+// fields: the six details, `unconfirmed` and `labelling`. Each value is checked
+// again here, so a model slip (e.g. a report for "all" facilities) becomes
+// Unconfirmed (null) instead of reaching the database. The title falls back to
+// the file name, but stays Unconfirmed.
+function labelledRecord(answer: LabelAnswer | null, fileName: string) {
+  const raw = (name: DetailName) => answer?.details[name]?.value
+  const valid = <T>(schema: z.ZodType<T>, name: DetailName): T | null => {
+    const parsed = schema.safeParse(raw(name))
+    return parsed.success ? parsed.data : null
+  }
+  const sourceType = SOURCE_TYPES.find((type) => type === raw('source_type')) ?? null
+  // Only a standard may apply to "all"; an unknown source type can't tell.
+  const allowAll = sourceType !== null && sourceType !== 'marsh_report'
+  const values = {
+    source_type: sourceType,
+    title: valid(text('Title', 200), 'title'),
+    edition: sourceType === 'marsh_report' ? null : valid(edition(), 'edition'),
+    // Never Unconfirmed: without a date, every upload would need review.
+    effective_date: valid(common.effectiveDate, 'effective_date') ?? uploadDay(),
+    jurisdiction: valid(country(allowAll), 'jurisdiction'),
+    facility_type: valid(
+      z.string().refine(...onTheList(allowAll ? [...FACILITY_TYPES, 'all'] : FACILITY_TYPES)),
+      'facility_type',
+    ),
+  }
+  // A report has no edition, so it is never "missing".
+  const unconfirmed = DETAIL_NAMES.filter(
+    (name) => values[name] === null && !(name === 'edition' && sourceType === 'marsh_report'),
+  )
+  const details = Object.fromEntries(
+    DETAIL_NAMES.flatMap((name) => {
+      const found = answer?.details[name]
+      if (!found) return []
+      const kept: ILabelledDetail = {
+        value: values[name],
+        confidence: found.confidence,
+        evidence: found.evidence,
+        model: found.model,
+        source: 'auto',
+      }
+      return [[name, kept]]
+    }),
+  )
+  return {
+    title: values.title ?? fileName,
+    issuingBody: sourceType ? ISSUING_BODY[sourceType] : null,
+    edition: values.edition ?? undefined,
+    metadata: {
+      source_type: sourceType,
+      jurisdiction: values.jurisdiction,
+      facility_type: values.facility_type,
+      COPE_dimension: 'all' as const,
+      effective_date: values.effective_date ? new Date(values.effective_date) : null,
+    },
+    unconfirmed,
+    labelling: answer ? { labelledAt: new Date(), details } : undefined,
+  }
+}
+
+// Stores the original PDF in S3, records it with the details auto-labelling
+// reads from it and queues its ingestion (IN-01, IN-05), in steps a–f. Throws
+// RejectedFileError before labelling or storing anything if the file is not a
+// PDF or cannot be opened (IN-01 AC5), so a rejected file leaves no trace.
 export async function uploadKnowledgeDocument(
   pdf: Buffer,
   contentType: string,
-  details: UploadDetails,
+  fileName: string,
 ): Promise<KnowledgeDocumentDto> {
   // a. Is it really a PDF? Cheap, so it runs first.
   if (
@@ -295,19 +427,23 @@ export async function uploadKnowledgeDocument(
   const cannotOpen = await whyPdfCannotOpen(pdf)
   if (cannotOpen) throw new RejectedFileError(422, cannotOpen)
 
-  // c. Store the unaltered original in S3 (AC4).
+  // c. Read its details. Never fails the upload: no answer means every
+  // detail is Unconfirmed and an admin fills them in.
+  const record = labelledRecord(await labelDocument(pdf), fileName)
+
+  // d. Store the unaltered original in S3 (IN-01 AC4).
   const id = new Types.ObjectId()
   const key = `knowledge/${id}.pdf`
   await storage.putObject(key, pdf, 'application/pdf')
 
-  // d. Record it in MongoDB as `queued`. sha256 is a fingerprint that proves a
+  // e. Record it in MongoDB as `queued`. sha256 is a fingerprint that proves a
   // copy retrieved later matches the upload.
   let document
   try {
     document = await KnowledgeDocumentModel.create({
       _id: id,
-      ...recordFields(details),
-      fileName: details.fileName,
+      ...record,
+      fileName,
       file: {
         key,
         contentType: 'application/pdf',
@@ -321,7 +457,7 @@ export async function uploadKnowledgeDocument(
     await storage.deleteObject(key).catch(() => undefined)
     throw error
   }
-  // e. Queue its ingestion; the worker picks it up from there.
+  // f. Queue its ingestion; the worker picks it up from there.
   try {
     await enqueueIngestion(String(id))
   } catch (error) {
@@ -449,9 +585,9 @@ export async function correctKnowledgeDocument(
   // b. Save the new details, keeping the old ones in case step c fails. If
   // anything changed, the old details also join the history (AC9).
   const old = document.toObject()
-  const { title, issuingBody, edition, metadata, history } = old
+  const { title, issuingBody, edition, metadata, history, unconfirmed, labelling } = old
   const next = recordFields(details)
-  document.set(next)
+  document.set({ ...next, unconfirmed: [], labelling: adminLabelling(labelling, next) })
   if (differs(old, next)) {
     document.history.push({
       title,
@@ -474,7 +610,7 @@ export async function correctKnowledgeDocument(
       'Search could not be updated, so the correction was not saved. Try again shortly.',
     )
   } catch (error) {
-    document.set({ title, issuingBody, edition, metadata, history })
+    document.set({ title, issuingBody, edition, metadata, history, unconfirmed, labelling })
     await document.save()
     throw error
   }

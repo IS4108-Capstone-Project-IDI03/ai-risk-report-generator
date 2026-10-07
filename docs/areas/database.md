@@ -343,7 +343,8 @@ permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
 source type would leave the file in the wrong folder); the record keeps `file`
 (`key`, `contentType`, `size`, `sha256`).
 
-The source type decides which details the admin gives:
+The details are read from the PDF at upload (IN-05, see "Automatic labelling"
+below) and corrected by the admin (KB-01). The source type decides which apply:
 
 | Field | Standard (`fm_standard`, `nfpa_standard`) | Past report (`marsh_report`) |
 | --- | --- | --- |
@@ -353,18 +354,57 @@ The source type decides which details the admin gives:
 | `metadata.effective_date` | the edition's effective date | the report date |
 | `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
 | `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
-| `metadata.COPE_dimension` | `all` | `all` |
+| `metadata.COPE_dimension` | `all` | `all` (each passage carries its own, see below) |
 
 `jurisdiction: 'all'` is the only value that isn't a two-letter code; like
 `facility_type: 'all'`, retrieval must treat it as matching any site. Every
-passage (chunk) in Chroma carries its document's five labels (`source_type`,
-`jurisdiction`, `facility_type`, `COPE_dimension`, `effective_date` as
-`YYYY-MM-DD`) next to the pipeline's `doc_id`, `headings`, pages and `bbox`: the
-worker adds them at ingest, and a correction rewrites them in place (KB-01).
-Each passage also carries a sixth label, `status` (`active` or `withdrawn`,
-KB-01): the worker always writes `active`, and withdraw and reinstate rewrite it
-in place. Passages indexed before the status label existed have no `status`; retrieval treats that
-as active.
+passage (chunk) in Chroma carries its document's labels (`source_type`,
+`jurisdiction`, `facility_type`, `effective_date` as `YYYY-MM-DD`) next to the
+pipeline's `doc_id`, `headings`, pages and `bbox`: the worker adds them at
+ingest, and a correction rewrites them in place (KB-01). An Unconfirmed detail
+(IN-05) is left out of the passage, since Chroma can't store null, so no filter
+can match it.
+
+Each passage's `COPE_dimension` is its own (IN-05): during ingestion, a past
+report's passage gets the COPE category of the report section it sits under,
+from the outermost heading in its `headings` that names a mapped section
+(`Construction` → Construction; `Occupancy, Hazards, and Utilities` →
+Occupancy; `Fire Protection` and `Security` → Protection; `External Exposures`
+→ Exposure; titles only, never section numbers). Every other passage, and
+every passage of a standard or of a document whose source type is Unconfirmed,
+is `all`. The map is in `microservices/ingestion-service/app/pipeline/cope.py`.
+A relabel never sends `COPE_dimension`, so a correction keeps each passage's
+own.
+
+Each passage also carries `status`: `active`, `withdrawn` (KB-01) or
+`needs_review` (IN-05: the document has an Unconfirmed detail). The worker
+writes `needs_review` or `active` at ingest; a correction, withdraw and reinstate
+rewrite it in place (reinstating a document that still has Unconfirmed details
+gives `needs_review`). Retrieval returns only passages that are neither
+`withdrawn` nor `needs_review`. Passages indexed before the status label
+existed have no `status`; retrieval treats that as active.
+
+#### Automatic labelling (IN-05)
+
+At upload the gateway asks the ingestion service's `POST /label` to read the
+PDF's first `LABEL_PAGES` pages (default 20; pages without a text layer in the
+first 5 are OCR'd) and fill in the six details. A detail the models are not
+confident about is **Unconfirmed**: stored as `null` in `metadata` (or no
+`edition`), the one exception to the CLAUDE.md metadata rule besides
+uncategorised observations. The title falls back to the file name, and
+`issuingBody` is `null` while the source type is Unconfirmed. Extra fields:
+
+- `unconfirmed`: the Unconfirmed detail names (`source_type`, `title`,
+  `edition`, `effective_date`, `jurisdiction`, `facility_type`); a report never
+  lists `edition`. Non-empty means the document **needs review**. Written by the
+  gateway at upload and emptied by a correction (which must give every
+  detail); the worker reads it to choose the passages' `status`. The API returns
+  it in camelCase.
+- `labelling`: `{ labelledAt, details: { <detail>: { value, confidence,
+  evidence: { page, quote } | null, model, source } } }`, what labelling found
+  (`source: 'auto'`). A correction sets each detail's `value` and `source:
+  'admin'`. Absent when labelling failed, in which case every detail is
+  Unconfirmed.
 
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
@@ -396,10 +436,10 @@ as it was. The API returns `withdrawn` as `{ at, by } | null`.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
-| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with the same fields as upload, minus `fileName`. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
+| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |

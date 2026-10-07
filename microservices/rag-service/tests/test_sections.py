@@ -255,7 +255,7 @@ def test_a_list_of_source_types_matches_any_of_them():
     assert label_filter({"source_type": ["fm_standard", "nfpa_standard"]}) == {
         "$and": [
             {"source_type": {"$in": ["fm_standard", "nfpa_standard"]}},
-            {"status": {"$ne": "withdrawn"}},
+            {"status": {"$nin": ["withdrawn", "needs_review"]}},
         ]
     }
 

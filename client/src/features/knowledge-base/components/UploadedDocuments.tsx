@@ -3,14 +3,23 @@
 // hours and failed for 7 days (the gateway decides). Re-read every 3 seconds
 // while any is still queued or processing. Used by screens/AddDocuments.tsx.
 import { useEffect, useState } from 'react'
-import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
+import { Badge, Button, Callout, EmptyState, IconRegistry, Table } from '../../../design-system'
 import {
   listKnowledgeDocuments,
   type IngestionStage,
   type IngestionStatus,
   type KnowledgeDocument,
 } from '../api'
-import { calendarDate, dateTime, formatDuration, SOURCE_LABELS } from '../display'
+import {
+  calendarDate,
+  countryName,
+  dateTime,
+  facilityName,
+  formatDuration,
+  needsReview,
+  SOURCE_LABELS,
+} from '../display'
+import { DetailText } from './DetailText'
 
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   queued: { label: 'Queued', tone: 'neutral' },
@@ -32,7 +41,16 @@ const STAGE_LABELS: Record<IngestionStage, string> = {
 // Re-read too whenever a new upload is accepted (refreshKey). An unreachable
 // gateway leaves the last list showing.
 /** Returns the Recent uploads section. */
-export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; refreshKey: number }) {
+export function UploadedDocuments({
+  narrow,
+  refreshKey,
+  onCompleted,
+}: {
+  narrow: boolean
+  refreshKey: number
+  // Reports how many recent uploads finished ingesting.
+  onCompleted: (count: number) => void
+}) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -45,6 +63,9 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
         (list) => {
           setDocuments(list)
           setUnreachable(false)
+          // An upload finishing changes what the knowledge base holds, so the
+          // Documents tab's count is re-read from it (IN-05).
+          onCompleted(list.filter((d) => d.status === 'complete').length)
           if (list.some((d) => d.status === 'queued' || d.status === 'processing'))
             timer = setTimeout(load, 3000)
         },
@@ -58,15 +79,21 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
       controller.abort()
       clearTimeout(timer)
     }
-  }, [refreshKey, attempt])
+  }, [refreshKey, attempt, onCompleted])
 
   const title = (d: KnowledgeDocument) => (
     <span className="kb-doc">
       <strong>{d.title}</strong>
       <small>
         {d.sourceType === 'marsh_report'
-          ? `${SOURCE_LABELS[d.sourceType]} · ${d.facilityType} · ${calendarDate(d.effectiveDate)}`
-          : `${d.issuingBody} · ${d.edition} Edition · ${SOURCE_LABELS[d.sourceType]}`}
+          ? `${SOURCE_LABELS[d.sourceType]} · ${facilityName(d.facilityType)} · ${calendarDate(d.effectiveDate)}`
+          : [
+              d.issuingBody,
+              d.edition && `${d.edition} Edition`,
+              d.sourceType ? SOURCE_LABELS[d.sourceType] : 'Source type unconfirmed',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
       </small>
     </span>
   )
@@ -89,6 +116,13 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
     return (
       <span className="kb-status">
         <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
+        {/* Same badge as the Documents list (components/DocumentRow.tsx), so an
+            upload that needs review is visible where it was added (IN-05). */}
+        {d.status === 'complete' && needsReview(d) && (
+          <Badge tone="moderate" icon={IconRegistry.status.flagged.icon}>
+            Needs review
+          </Badge>
+        )}
         {p && (
           <span className="kb-stage-detail">
             <span className="kb-elapsed">{formatDuration(p.elapsedMs)}</span>
@@ -168,7 +202,7 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
           rows={documents.map((d) => ({
             id: d.id,
             document: title(d),
-            country: d.jurisdiction === 'all' ? 'All countries' : d.jurisdiction,
+            country: <DetailText text={countryName(d.jurisdiction)} />,
             uploaded: <span className="kb-mono">{dateTime(d.uploadedAt)}</span>,
             status: status(d),
             original: original(d),

@@ -372,6 +372,78 @@ was given and what the knowledge base says now.
 
 Stories: RV-01.
 
+## 2026-10-07 — Documents are labelled automatically by a cheap classifier plus a cheap LLM, chosen by measurement
+
+Chose: on upload, ingestion-service's `POST /label` reads the first
+`LABEL_PAGES` (20) pages of the PDF and fills its details.
+- Fixed-list details (source type, country, facility type) come from the Jev
+  classifier. A detail below the `LABEL_MIN_CONFIDENCE` cutoff (0.70) is left
+  Unconfirmed.
+- Free-text details (title, edition, effective date) come from GPT-6 Luna
+  (~$0.001 a document). A value is kept only if its quote is found on the page
+  the model names (grounding).
+- Scanned pages are OCR'd with the IN-06 engine selection, capped at the first
+  5 pages.
+- A document with any Unconfirmed detail is `needs_review`. Its passages stay
+  out of search until an admin fills the details in.
+- Labelling has its own `LABEL_LLM_PROVIDER`/`LABEL_LLM_MODEL`, separate from
+  rag-service's `LLM_PROVIDER`. Labelling is a small extraction task where a
+  model 12× cheaper scores the same, while drafting needs the strongest model.
+- A passage's COPE category comes from the Marsh report section it sits in.
+  Section titles are found by font size (lines set like the mapped titles,
+  28 pt), with Docling's heading trail as a fallback when no mapped title is
+  found.
+- Effective date is never Unconfirmed. A standard gets the upload date, since
+  its effective date is when the admin makes it the current copy, not a date
+  printed in it. A report keeps its grounded date, else gets the upload date.
+  The upload date is Singapore's (UTC+8), and the gateway applies the same
+  default when /label fails, so no upload ever waits on its date.
+  Reason: the date is not something a model can reliably find, and a missing
+  one would hold every dateless upload in review.
+- If the classifier fails but the LLM answers, the fixed-list details use the
+  LLM's own answers (stored model = the LLM). Reason: one failed cheap call
+  should not turn a whole upload into manual work. If the LLM fails, every
+  detail except the date is still Unconfirmed.
+- The Documents tab counts the documents needing review, and the banner names
+  them (at most three, then "and N more", with a button to filter to them).
+  Withdrawn documents are left out: they can't be edited. Reason: until the
+  app-wide notifications story lands, this is how an admin learns that an
+  upload needs them.
+
+Rejected:
+- Reading only the first 5 pages. Golden evidence showed reports state the
+  country only through "Currency: SGD" on pp. 12–20, and the facility type on
+  p. 6.
+- COPE from Docling heading trails alone. Docling mis-nests Marsh section
+  headings: 391/661 passages (59%) were correct on the golden reports, against
+  661/661 (100%) with font sizes.
+- Claude Haiku 4.5 for free text: 93% correct on the tuning split against
+  Luna's 100%, at about 12× the cost.
+- The OpenAI Decisions classifier: as accurate as Jev on the tuning split, at
+  about twice the cost.
+- Picking the lowest cutoff that reaches 90%. It chose a less accurate point
+  with the same auto-fill rate. The rule is: among cutoffs reaching 90% on the
+  tuning split, take the most auto-fill, then the higher accuracy, then the
+  lower cutoff.
+- A 30 s or 90 s gateway timeout for labelling. In Docker, OCR of a scanned
+  file's first 5 pages takes about 30 s alone, but about 100 s while the
+  worker is OCR-ing another scan, which is the usual case when several are
+  dropped at once. So the gateway waits 180 s. On failure, every detail is
+  left Unconfirmed.
+
+Reason: AC11 asks for ≥ 90% of auto-filled details to be correct. The models,
+cutoff and prompt hints were tuned on the tuning split only, then scored once
+on the test split (95% of auto-filled details correct; 87% auto-filled). See
+`microservices/ingestion-service/eval/labelling/results/2026-10-07.md`.
+Anthropic structured output allows at most 16 nullable fields, so evidence
+uses `0` and `""` for "none" instead of null.
+
+Known coverage gap: the golden reports are all Singapore and cover three
+facility types (office, mall, mixed-use). Other countries and facility types
+are untested.
+
+Stories: IN-05.
+
 ## 2026-10-07 — CP-06 merges into CP-08, and observations are corrected in place, soft-deleted and changed only by the assigned engineer
 
 Chose: CP-06 (tag an observation) is merged into a new CP-08 (manage

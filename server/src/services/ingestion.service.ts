@@ -1,6 +1,6 @@
 // The gateway's calls to the ingestion service (app/api/routes.py): the PDF
 // check (IN-01), which opens the file with PyMuPDF because Node has no PDF
-// library, and relabelling a document's passages (KB-01), because
+// library, reading a file's details (IN-05 /label), and relabelling a document's passages (KB-01), because
 // only the Python services write to Chroma.
 import { config } from '../config'
 
@@ -30,6 +30,43 @@ export async function whyPdfCannotOpen(pdf: Buffer): Promise<string | null> {
   const body = (await response.json().catch(() => ({}))) as { detail?: unknown }
   if (response.status === 422 && typeof body.detail === 'string') return body.detail
   throw new IngestionUnavailableError()
+}
+
+// One detail in the /label answer. `value` is null when Unconfirmed.
+export type LabelledDetailAnswer = {
+  value: unknown
+  confidence: number
+  evidence: { page: number; quote: string } | null
+  model: string
+}
+export type LabelAnswer = { details: Record<string, LabelledDetailAnswer> }
+
+// Scanned PDFs are OCR'd first: ~30 s alone in Docker, ~100 s while the worker
+// OCRs another scan (measured 2026-10-07). Past this, every detail is Unconfirmed.
+const LABEL_TIMEOUT_MS = 180_000
+
+// Asks the ingestion service to read the PDF's details (IN-05). Returns its
+// answer, or null on any failure (down, timeout, non-2xx, bad JSON): without
+// this, a model outage would block every upload, and a null just leaves every
+// detail Unconfirmed.
+export async function labelDocument(pdf: Buffer): Promise<LabelAnswer | null> {
+  try {
+    const response = await fetch(`${config.ingestionServiceUrl}/label`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: new Uint8Array(pdf),
+      signal: AbortSignal.timeout(LABEL_TIMEOUT_MS),
+    })
+    if (!response.ok) throw new Error(`/label answered ${response.status}`)
+    const answer = (await response.json()) as LabelAnswer
+    if (typeof answer?.details !== 'object' || answer.details === null) {
+      throw new Error('/label answered without details')
+    }
+    return answer
+  } catch (error) {
+    console.error('Labelling failed; details left Unconfirmed:', error)
+    return null
+  }
 }
 
 // Puts a document's labels on all its passages in Chroma (KB-01 corrections,

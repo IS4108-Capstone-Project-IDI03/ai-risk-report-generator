@@ -14,7 +14,7 @@ import {
   listKnowledgeDocuments,
   reinstateKnowledgeDocument,
   RejectedFileError,
-  uploadDetailsSchema,
+  uploadQuerySchema,
   uploadKnowledgeDocument,
   withdrawKnowledgeDocument,
 } from '../services/knowledge-document.service'
@@ -39,16 +39,16 @@ router.get('/ingested', requirePermission('knowledge:view'), async (_req, res) =
   res.json(await listIngestedDocuments())
 })
 
-// Uploads one knowledge document (IN-01). The body is the PDF itself; its
-// details are in the query string because they are not plain ASCII.
-// Answers: 201 accepted · 400 bad details · 413 over 100 MB · 415 not a PDF ·
+// Uploads one knowledge document (IN-01, IN-05). The body is the PDF itself;
+// its name is in the query string because it is not plain ASCII; every other
+// detail is read from the file. Answers: 201 accepted · 400 no file name · 413 over 100 MB · 415 not a PDF ·
 // 422 a PDF that will not open · 503 ingestion down (retry later).
 router.post(
   '/',
   requirePermission('knowledge:manage'),
   express.raw({ type: '*/*', limit: '100mb' }),
   async (req, res) => {
-    const parsed = uploadDetailsSchema.safeParse(req.query)
+    const parsed = uploadQuerySchema.safeParse(req.query)
     if (!parsed.success) {
       res.status(400).json(invalidDetails(parsed.error))
       return
@@ -56,7 +56,13 @@ router.post(
     try {
       res
         .status(201)
-        .json(await uploadKnowledgeDocument(req.body, req.get('Content-Type') ?? '', parsed.data))
+        .json(
+          await uploadKnowledgeDocument(
+            req.body,
+            req.get('Content-Type') ?? '',
+            parsed.data.fileName,
+          ),
+        )
     } catch (error: unknown) {
       if (error instanceof RejectedFileError) {
         res.status(error.status).json({ error: error.message })

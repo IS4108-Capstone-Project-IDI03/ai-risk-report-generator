@@ -7,7 +7,7 @@ import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole } from './auth-test-helpers'
 
 // S3 stands in as a map, the queue as a spy, and the ingestion service's PDF
-// check as a stubbed fetch.
+// check and /label as one stubbed fetch, routed by URL.
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
 vi.mock('../services/storage.service', () => ({
   putObject: async (key: string, body: Buffer) => void s3.set(key, body),
@@ -25,23 +25,33 @@ vi.mock('../services/storage.service', () => ({
 }))
 const queued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
 vi.mock('../services/ingestion-queue.service', () => ({ enqueueIngestion: queued }))
-const inspect = vi.fn<() => Promise<Response>>()
+const inspect = vi.fn<(url?: string, init?: RequestInit) => Promise<Response>>()
+const labelling = vi.fn<() => Promise<Response>>()
 
 useMemoryMongo()
 
 // A knowledge admin is allowed everything below (F-05); role limits are in permissions.test.ts.
 const api = signedInAsRole(app, 'knowledge_admin')
 
+// 20:00 UTC on 6 Oct is 04:00 on 7 Oct in Singapore: the upload date a
+// document gets when /label finds no effective date (IN-05).
+const UPLOAD_DAY = '2026-10-07'
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-06T20:00:00Z'))
   queued.mockResolvedValue(undefined)
   inspect.mockResolvedValue(Response.json({ pages: 3 }))
-  vi.stubGlobal('fetch', inspect)
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+    String(url).endsWith('/label') ? labelling() : inspect(url, init),
+  )
 })
 afterEach(() => {
   s3.clear()
   queued.mockReset()
   inspect.mockReset()
+  labelling.mockReset()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 const PDF = Buffer.from('%PDF-1.7\nfake but well-formed enough\n%%EOF')
@@ -52,10 +62,11 @@ const DETAILS = {
   effectiveDate: '2022-01-01',
   sourceType: 'nfpa_standard',
   jurisdiction: 'SG',
+  // A standard's /label answer defaults to all facility types.
+  facilityType: 'all',
 }
 // An edition can be published ahead of the year it is named for.
 const NEXT_YEAR = new Date().getFullYear() + 1
-const EDITION_RANGE = `Edition must be a year from 1900 to ${NEXT_YEAR}.`
 const REPORT = {
   fileName: 'Cold store survey.pdf',
   title: 'Cold store risk survey',
@@ -65,13 +76,39 @@ const REPORT = {
   facilityType: 'Cold store',
 }
 
+// What the ingestion service's /label would answer for these details
+// (camelCase, as above): every detail given is confident, the rest are null.
+function labelAnswer(details: Record<string, string>) {
+  const snake = (name: string) => name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+  const names = ['sourceType', 'title', 'edition', 'effectiveDate', 'jurisdiction', 'facilityType']
+  return {
+    details: Object.fromEntries(
+      names.map((name) => [
+        snake(name),
+        {
+          value: details[name] ?? null,
+          confidence: details[name] ? 0.95 : 0,
+          evidence: details[name] ? { page: 1, quote: details[name] } : null,
+          model: 'test-model',
+        },
+      ]),
+    ),
+  }
+}
+
+// Uploads with only the file name; /label answers with `details`.
 function upload(body = PDF, details: Record<string, string> = DETAILS, type = 'application/pdf') {
-  return api.post('/api/knowledge-documents').query(details).set('Content-Type', type).send(body)
+  labelling.mockResolvedValue(Response.json(labelAnswer(details)))
+  return api
+    .post('/api/knowledge-documents')
+    .query({ fileName: details.fileName ?? 'file.pdf' })
+    .set('Content-Type', type)
+    .send(body)
 }
 
 describe('POST /api/knowledge-documents', () => {
   it("saves a standard's details, with the issuing body set from its source type", async () => {
-    const response = await upload(PDF, { ...DETAILS, issuingBody: 'Typed by hand' })
+    const response = await upload()
 
     expect(response.status).toBe(201)
     const list = await api.get('/api/knowledge-documents')
@@ -146,7 +183,7 @@ describe('POST /api/knowledge-documents', () => {
   it('rejects an empty file as not a PDF', async () => {
     const response = await api
       .post('/api/knowledge-documents')
-      .query(DETAILS)
+      .query({ fileName: DETAILS.fileName })
       .set('Content-Type', 'application/pdf')
 
     expect(response.status).toBe(415)
@@ -165,64 +202,116 @@ describe('POST /api/knowledge-documents', () => {
     await expectNothingKept()
   })
 
-  it('refuses missing or invalid details, naming each field to fix', async () => {
-    const response = await upload(PDF, { ...DETAILS, title: ' ', jurisdiction: 'Singapore' })
+  it('asks for nothing but the file name', async () => {
+    const response = await api
+      .post('/api/knowledge-documents')
+      .query({ fileName: ' ' })
+      .set('Content-Type', 'application/pdf')
+      .send(PDF)
 
     expect(response.status).toBe(400)
-    expect(response.body.fields).toEqual({
-      title: 'Title is required.',
-      jurisdiction: 'Country must be a two-letter code, e.g. SG.',
-    })
+    expect(response.body.fields).toEqual({ fileName: 'File name is required.' })
     await expectNothingKept()
   })
 
+  it('reads the details with /label, and stores them with the evidence, Unconfirmed nulls and the upload date', async () => {
+    const response = await upload(PDF, { fileName: 'scan.pdf', sourceType: 'fm_standard' })
+
+    expect(response.status).toBe(201)
+    expect(labelling).toHaveBeenCalledOnce()
+    expect(response.body).toMatchObject({
+      sourceType: 'fm_standard',
+      issuingBody: 'FM Global',
+      title: 'scan.pdf',
+      edition: null,
+      effectiveDate: UPLOAD_DAY,
+      jurisdiction: null,
+      facilityType: null,
+      unconfirmed: ['title', 'edition', 'jurisdiction', 'facilityType'],
+    })
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved?.metadata).toMatchObject({
+      source_type: 'fm_standard',
+      effective_date: new Date(UPLOAD_DAY),
+    })
+    expect(saved?.unconfirmed).toEqual(['title', 'edition', 'jurisdiction', 'facility_type'])
+    expect(saved?.labelling?.details.source_type).toEqual({
+      value: 'fm_standard',
+      confidence: 0.95,
+      evidence: { page: 1, quote: 'fm_standard' },
+      model: 'test-model',
+      source: 'auto',
+    })
+  })
+
+  it('maps a fully labelled Marsh report with no Unconfirmed details and no edition', async () => {
+    const response = await upload(PDF, REPORT)
+
+    expect(response.body).toMatchObject({ edition: null, unconfirmed: [] })
+  })
+
   it.each([
-    [
-      'no source type',
-      { ...DETAILS, sourceType: '' },
-      { sourceType: 'Choose a source type: FM standard, NFPA standard or Marsh report.' },
-    ],
-    [
-      "a standard's edition that is not a year",
-      { ...DETAILS, edition: '2022 Edition' },
-      { edition: EDITION_RANGE },
-    ],
-    [
-      "a standard's edition after next year",
-      { ...DETAILS, edition: String(NEXT_YEAR + 1) },
-      { edition: EDITION_RANGE },
-    ],
-    [
-      "a standard's edition before 1900",
-      { ...DETAILS, edition: '1899' },
-      { edition: EDITION_RANGE },
-    ],
-    [
-      'a Marsh report without a facility type',
-      { ...REPORT, facilityType: '' },
-      { facilityType: 'Facility type is required.' },
-    ],
-    [
-      'a facility type not on the list',
-      { ...REPORT, facilityType: 'Spaceport' },
-      { facilityType: 'Choose a facility type from the list.' },
-    ],
-    [
-      "a standard's facility type not on the list",
-      { ...DETAILS, facilityType: 'Spaceport' },
-      { facilityType: 'Choose a facility type from the list.' },
-    ],
-    [
-      'a Marsh report for all countries',
-      { ...REPORT, jurisdiction: 'all' },
-      { jurisdiction: 'Country must be a two-letter code, e.g. SG.' },
-    ],
-  ])('refuses %s, naming the field to fix', async (_name, details, fields) => {
+    ['a report for all facility types', { ...REPORT, facilityType: 'all' }, 'facilityType'],
+    ['a report for all countries', { ...REPORT, jurisdiction: 'all' }, 'jurisdiction'],
+    ['a facility type not on the list', { ...REPORT, facilityType: 'Spaceport' }, 'facilityType'],
+    ['a country that is not a code', { ...DETAILS, jurisdiction: 'Singapore' }, 'jurisdiction'],
+    ['an edition that is not a year', { ...DETAILS, edition: '2022 Edition' }, 'edition'],
+    ['an edition after next year', { ...DETAILS, edition: String(NEXT_YEAR + 1) }, 'edition'],
+    ['an edition before 1900', { ...DETAILS, edition: '1899' }, 'edition'],
+    ['a source type not on the list', { ...DETAILS, sourceType: 'ISO' }, 'sourceType'],
+  ])('stores %s as Unconfirmed instead of trusting the model', async (_name, details, field) => {
     const response = await upload(PDF, details)
 
-    expect(response.status).toBe(400)
-    expect(response.body.fields).toEqual(fields)
-    await expectNothingKept()
+    expect(response.status).toBe(201)
+    expect(response.body[field]).toBeNull()
+    expect(response.body.unconfirmed).toContain(field)
+  })
+
+  it('stores the upload date instead of a date that is not a date', async () => {
+    const response = await upload(PDF, { ...DETAILS, effectiveDate: 'last spring' })
+
+    expect(response.body.effectiveDate).toBe(UPLOAD_DAY)
+    expect(response.body.unconfirmed).not.toContain('effectiveDate')
+  })
+
+  it.each([
+    ['cannot be reached', () => labelling.mockRejectedValue(new TypeError('fetch failed'))],
+    ['times out', () => labelling.mockRejectedValue(new DOMException('timed out', 'TimeoutError'))],
+    [
+      'answers with an error',
+      () => labelling.mockResolvedValue(Response.json({ detail: 'boom' }, { status: 500 })),
+    ],
+    ['answers with bad JSON', () => labelling.mockResolvedValue(new Response('not json'))],
+  ])(
+    'still uploads, with every detail but the date Unconfirmed, when /label %s',
+    async (_name, fail) => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const upload = api
+        .post('/api/knowledge-documents')
+        .query({ fileName: 'Scan.pdf' })
+        .set('Content-Type', 'application/pdf')
+      fail()
+
+      const response = await upload.send(PDF)
+
+      expect(response.status).toBe(201)
+      expect(response.body).toMatchObject({
+        title: 'Scan.pdf',
+        issuingBody: null,
+        sourceType: null,
+        effectiveDate: UPLOAD_DAY,
+        unconfirmed: ['sourceType', 'title', 'edition', 'jurisdiction', 'facilityType'],
+      })
+      expect(queued).toHaveBeenCalledOnce()
+    },
+  )
+
+  it('never calls /label for a file that is rejected', async () => {
+    await upload(Buffer.from('just some text'))
+    inspect.mockResolvedValue(Response.json({ detail: 'Password.' }, { status: 422 }))
+    await upload()
+
+    expect(labelling).not.toHaveBeenCalled()
   })
 
   it('rejects a file larger than 100 MB with a reason', async () => {
@@ -423,12 +512,51 @@ describe('PUT /api/knowledge-documents/:id', () => {
       source_type: 'marsh_report',
       jurisdiction: 'SG',
       facility_type: 'Data centre',
-      COPE_dimension: 'all',
       effective_date: '2024-03-12',
       status: 'active',
     })
     const [listed] = (await api.get('/api/knowledge-documents/ingested')).body
     expect(listed).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
+  })
+
+  // IN-05: a document uploaded with some details Unconfirmed, then completed.
+  const needsReview = async () => {
+    const id = await stored({ fileName: 'scan.pdf', sourceType: 'marsh_report', title: 'Survey' })
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+    return id
+  }
+  const sentBody = () =>
+    JSON.parse(String((inspect.mock.lastCall as [string, RequestInit])[1].body))
+
+  it('completes a needs-review document: no Unconfirmed left, details marked admin, passages active', async () => {
+    const id = await needsReview()
+
+    const response = await correct(id)
+
+    expect(response.body.unconfirmed).toEqual([])
+    const saved = await KnowledgeDocumentModel.findById(id).lean()
+    expect(saved?.unconfirmed).toEqual([])
+    expect(saved?.labelling?.details.facility_type).toMatchObject({
+      value: 'Data centre',
+      source: 'admin',
+      model: 'test-model',
+    })
+    expect(Object.values(saved?.labelling?.details ?? {}).map((d) => d.source)).toEqual(
+      Array(6).fill('admin'),
+    )
+    expect(sentBody().status).toBe('active')
+    expect(sentBody()).not.toHaveProperty('COPE_dimension')
+  })
+
+  it('brings back the Unconfirmed list and labelling when search could not be updated', async () => {
+    const id = await needsReview()
+    inspect.mockRejectedValue(new TypeError('fetch failed'))
+
+    expect((await correct(id)).status).toBe(503)
+
+    const saved = await KnowledgeDocumentModel.findById(id).lean()
+    expect(saved?.unconfirmed).toEqual(['jurisdiction', 'facility_type'])
+    expect(saved?.labelling?.details.facility_type?.source).toBe('auto')
   })
 
   it('corrects the source type, which changes the issuing body and edition', async () => {
@@ -640,6 +768,25 @@ describe('POST /api/knowledge-documents/:id/withdraw and /reinstate', () => {
     expect(response.status).toBe(200)
     expect(response.body.withdrawn).toBeNull()
     expect(sentLabels().body).toMatchObject({ status: 'active' })
+  })
+
+  it('leaves null details out of the labels, and reinstates a document with Unconfirmed details as needs_review', async () => {
+    const id = await stored({ fileName: 'scan.pdf', sourceType: 'nfpa_standard' })
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+    await withdraw(id)
+    expect(sentLabels().body).toEqual({
+      source_type: 'nfpa_standard',
+      effective_date: UPLOAD_DAY,
+      status: 'withdrawn',
+    })
+
+    await reinstate(id)
+
+    expect(sentLabels().body).toEqual({
+      source_type: 'nfpa_standard',
+      effective_date: UPLOAD_DAY,
+      status: 'needs_review',
+    })
   })
 
   it('refuses to reinstate a document that is not withdrawn', async () => {

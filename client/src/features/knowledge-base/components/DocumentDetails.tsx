@@ -12,8 +12,9 @@ import {
   dateTime,
   facilityName,
   fileSize,
-  SOURCE_LABELS,
+  sourceLabel,
 } from '../display'
+import { DetailText } from './DetailText'
 
 /** Returns one document's details and actions. */
 export function DocumentDetails({
@@ -33,22 +34,25 @@ export function DocumentDetails({
   return (
     <section id={id} className="kb-details" aria-label={`Details of ${d.title}`}>
       <dl className="kb-facts">
-        <Fact label="Source type">{SOURCE_LABELS[d.sourceType]}</Fact>
-        <Fact label="Issuing body">{d.issuingBody}</Fact>
-        {standard && <Fact label="Edition">{d.edition}</Fact>}
+        <Fact label="Source type">
+          <DetailText text={sourceLabel(d.sourceType)} />
+        </Fact>
+        <Fact label="Issuing body">
+          <DetailText text={d.issuingBody} />
+        </Fact>
+        {standard && (
+          <Fact label="Edition">
+            <DetailText text={d.edition} />
+          </Fact>
+        )}
         <Fact label={standard ? 'Effective date' : 'Report date'} mono>
-          {calendarDate(d.effectiveDate)}
+          <DetailText text={calendarDate(d.effectiveDate)} />
         </Fact>
-        <Fact label="Country">{countryName(d.jurisdiction)}</Fact>
-        <Fact label="Facility type">{facilityName(d.facilityType)}</Fact>
-        <Fact label="File" mono>
-          {d.fileName}
+        <Fact label="Country">
+          <DetailText text={countryName(d.jurisdiction)} />
         </Fact>
-        <Fact label="Size" mono>
-          {fileSize(d.size)}
-        </Fact>
-        <Fact label="Uploaded" mono>
-          {dateTime(d.uploadedAt)}
+        <Fact label="Facility type">
+          <DetailText text={facilityName(d.facilityType)} />
         </Fact>
         {d.withdrawn && (
           <>
@@ -92,6 +96,11 @@ export function DocumentDetails({
             Withdraw
           </Button>
         )}
+        {/* The file's facts are secondary, so they share the actions' row
+            instead of adding a second, half-empty row of details. */}
+        <span className="kb-file-line">
+          {d.fileName} · {fileSize(d.size)} · Uploaded {dateTime(d.uploadedAt)}
+        </span>
       </div>
     </section>
   )

@@ -1,0 +1,1997 @@
+{
+  "_about": "Hand-checked golden answers for the AI document-labelling eval (six details per case) plus top-level section page ranges for the 11 Marsh reports. Pages are 1-based PDF pages; evidence quotes are verbatim substrings of that page's text (except cases with text_layer=false, read from images).",
+  "cases": [
+    {
+      "id": "office0-p1-20",
+      "file": ".local-docs/golden/pdfs/Office Sample 0 - PRE 2026 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "tune",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2026-07-14",
+        "jurisdiction": "SG",
+        "facility_type": "Office"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "14 July 2026"
+        },
+        "jurisdiction": {
+          "page": 14,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "33-storey building with Grade A offices"
+        }
+      },
+      "note": "Report date = cover date '14 July 2026' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p14), inside the 20-page window. Office 0 and Office 3 share the same cover date and sections (near-duplicate reports)."
+    },
+    {
+      "id": "office1-p1-20",
+      "file": ".local-docs/golden/pdfs/Office Sample 1 - PRE 2026 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2026-03-05",
+        "jurisdiction": "SG",
+        "facility_type": "Office"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "5 Mar 2026"
+        },
+        "jurisdiction": {
+          "page": 17,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "houses a 24-storey office tower"
+        }
+      },
+      "note": "Report date = cover date '5 Mar 2026' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p17), inside the 20-page window."
+    },
+    {
+      "id": "office2-p1-20",
+      "file": ".local-docs/golden/pdfs/Office Sample 2 - PRE 2025 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2025-02-28",
+        "jurisdiction": "SG",
+        "facility_type": "Office"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "28 February 2025"
+        },
+        "jurisdiction": {
+          "page": 16,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "premium Grade A office tower"
+        }
+      },
+      "note": "Report date equals survey date (28 February 2025) - same date on cover and p2. Report date = cover date '28 February 2025' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p16), inside the 20-page window."
+    },
+    {
+      "id": "office3-p1-20",
+      "file": ".local-docs/golden/pdfs/Office Sample 3 - PRE 2026 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2026-07-14",
+        "jurisdiction": "SG",
+        "facility_type": "Office"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "14 July 2026"
+        },
+        "jurisdiction": {
+          "page": 14,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "33-storey building with Grade A offices"
+        }
+      },
+      "note": "Report date = cover date '14 July 2026' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p14), inside the 20-page window. Office 0 and Office 3 share the same cover date and sections (near-duplicate reports)."
+    },
+    {
+      "id": "office4-p1-20",
+      "file": ".local-docs/golden/pdfs/Office Sample 4 - PRE 2026 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2026-04-16",
+        "jurisdiction": "SG",
+        "facility_type": "Mixed-use development"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "16 April, 2026"
+        },
+        "jurisdiction": {
+          "page": 12,
+          "quote": "Currency SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "is a mixed-use development that occupies"
+        }
+      },
+      "note": "Report date = cover date '16 April, 2026' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p12), inside the 20-page window. Filed as an Office sample but the Executive Summary (p6) explicitly calls the site a mixed-use development, so expected is Mixed-use development."
+    },
+    {
+      "id": "office5-p1-20",
+      "file": ".local-docs/golden/pdfs/Office Sample 5 - PRE 2026 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2026-04-13",
+        "jurisdiction": "SG",
+        "facility_type": "Mixed-use development"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "13 April, 2026"
+        },
+        "jurisdiction": {
+          "page": 6,
+          "quote": "Singapore’s New Downtown"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "is a mixed-use development that occupies"
+        }
+      },
+      "note": "Report date = cover date '13 April, 2026' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') and explicit 'Singapore' on p6 (p6), inside the 20-page window. Filed as an Office sample but the Executive Summary (p6) explicitly calls the site a mixed-use development, so expected is Mixed-use development."
+    },
+    {
+      "id": "office6-p1-20",
+      "file": ".local-docs/golden/pdfs/Office Sample 6 - PRE 2026 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2026-02-24",
+        "jurisdiction": "SG",
+        "facility_type": "Mixed-use development"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "24 Feb 2026"
+        },
+        "jurisdiction": {
+          "page": 14,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "is a prominent mixed-use development located"
+        }
+      },
+      "note": "Report date = cover date '24 Feb 2026' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p14), inside the 20-page window. Filed as an Office sample but the Executive Summary (p6) explicitly calls the site a mixed-use development, so expected is Mixed-use development."
+    },
+    {
+      "id": "mall1-p1-20",
+      "file": ".local-docs/golden/pdfs/Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "tune",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2024-05-07",
+        "jurisdiction": "SG",
+        "facility_type": "Mixed-use development"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "7 May, 2024"
+        },
+        "jurisdiction": {
+          "page": 14,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "is a mixed development comprising a shopping complex, an office tower and a hotel"
+        }
+      },
+      "note": "Report date = cover date '7 May, 2024' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p14), inside the 20-page window. Judgement: p6 says 'a mixed development comprising a shopping complex, an office tower and a hotel' (not literally 'mixed-use'); treated as Mixed-use development, alternative would be Shopping mall."
+    },
+    {
+      "id": "mall2-p1-20",
+      "file": ".local-docs/golden/pdfs/Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2025-10-30",
+        "jurisdiction": "SG",
+        "facility_type": "Shopping mall"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "30 Oct 2025"
+        },
+        "jurisdiction": {
+          "page": 15,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "an eight-story premium destination mall"
+        }
+      },
+      "note": "Report date = cover date '30 Oct 2025' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p15), inside the 20-page window."
+    },
+    {
+      "id": "mixed1-p1-20",
+      "file": ".local-docs/golden/pdfs/Mixed Use Development Sample 1 - PRE 2025 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "tune",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2025-07-03",
+        "jurisdiction": "SG",
+        "facility_type": "Mixed-use development"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "3 July 2025"
+        },
+        "jurisdiction": {
+          "page": 20,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "is an integrated mixed-use development which features"
+        }
+      },
+      "note": "Report date = cover date '3 July 2025' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p20), inside the 20-page window. Cover title is the placeholder '[PROPERTY] Development', so the generic report title is used."
+    },
+    {
+      "id": "mixed2-p1-20",
+      "file": ".local-docs/golden/pdfs/Mixed Use Development Sample 2 - PRE 2025 - REDACTED.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "report",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2025-10-17",
+        "jurisdiction": "SG",
+        "facility_type": null
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "17 Oct 2025"
+        },
+        "jurisdiction": {
+          "page": 16,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": null
+      },
+      "note": "Report date = cover date '17 Oct 2025' (survey date is separate, on p2). Jurisdiction SG from the currency label ('Currency SGD') (p16), inside the 20-page window. Facility type is null: the first 20 pages never call the site mixed-use or any facility type (p6 only says it 'comprises 5 buildings' in a life-sciences cluster); the word 'mixed-use' first appears on p27."
+    },
+    {
+      "id": "fm2.0-p1-20",
+      "file": ".local-docs/golden/pdfs/FM_2.0_Apr_26.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "tune",
+      "kind": "fm",
+      "expected": {
+        "source_type": "fm_standard",
+        "title": "Installation Guidelines for Automatic Sprinklers",
+        "edition": "2026",
+        "effective_date": "2026-04-01",
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 2,
+          "quote": "FM Property Loss Prevention Data Sheets"
+        },
+        "title": {
+          "page": 1,
+          "quote": "INSTALLATION GUIDELINES FOR AUTOMATIC SPRINKLERS"
+        },
+        "edition": {
+          "page": 1,
+          "quote": "Interim revision April 2026"
+        },
+        "effective_date": {
+          "page": 1,
+          "quote": "Interim revision April 2026"
+        },
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Cover shows 'October 2021 Interim revision April 2026'; the latest (interim) revision date is used for edition and effective_date (1st of month). Original issue October 2021. Title is printed in capitals on the cover."
+    },
+    {
+      "id": "fm2.81-p1-20",
+      "file": ".local-docs/golden/pdfs/FM_2.81_Apr_26.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "fm",
+      "expected": {
+        "source_type": "fm_standard",
+        "title": "Fire Protection System Inspection, Testing and Maintenance",
+        "edition": "2026",
+        "effective_date": "2026-04-01",
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "FM Property Loss Prevention Data Sheets"
+        },
+        "title": {
+          "page": 1,
+          "quote": "FIRE PROTECTION SYSTEM INSPECTION, TESTING AND MAINTENANCE"
+        },
+        "edition": {
+          "page": 1,
+          "quote": "Interim Revision April 2026"
+        },
+        "effective_date": {
+          "page": 1,
+          "quote": "Interim Revision April 2026"
+        },
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Header reads 'April 2019 Interim Revision April 2026'; latest interim revision used. Title is printed in capitals on p1."
+    },
+    {
+      "id": "nfpa13-p1-20",
+      "file": ".local-docs/golden/pdfs/NFPA_13_2019.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "tune",
+      "kind": "nfpa",
+      "expected": {
+        "source_type": "nfpa_standard",
+        "title": "Standard for the Installation of Sprinkler Systems",
+        "edition": "2019",
+        "effective_date": "2018-09-03",
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 4,
+          "quote": "NFPA® 13"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Standard for the Installation of Sprinkler Systems"
+        },
+        "edition": {
+          "page": 4,
+          "quote": "2019 Edition"
+        },
+        "effective_date": {
+          "page": 4,
+          "quote": "effective date of September 3, 2018"
+        },
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "2019 Edition took effect 2018-09-03 (issued 2018-08-14); edition year differs from effective-date year on purpose. All evidence within pages 1-5 (title p1, rest p4); pages 6-20 change nothing."
+    },
+    {
+      "id": "nfpa25-2026-p1-5",
+      "file": ".local-docs/golden/pdfs/NFPA_25_2026.pdf",
+      "pages": [
+        1,
+        5
+      ],
+      "split": "test",
+      "kind": "nfpa",
+      "expected": {
+        "source_type": "nfpa_standard",
+        "title": "Standard for the Inspection, Testing, and Maintenance of Water-Based Fire Protection Systems",
+        "edition": "2026",
+        "effective_date": "2025-09-09",
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "NFPA® 25"
+        },
+        "title": {
+          "page": 4,
+          "quote": "Inspection, Testing, and Maintenance of Water-Based Fire Protection Systems"
+        },
+        "edition": {
+          "page": 1,
+          "quote": "2026 Edition"
+        },
+        "effective_date": {
+          "page": 4,
+          "quote": "effective date of September 9, 2025"
+        },
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "NO TEXT LAYER: this PDF is scanned, so quotes were read from rendered images and are not checked by the substring script. Title in full is printed 'Standard for the' + 'Inspection, ... Systems' on the cover (p1) and p4.",
+      "text_layer": false
+    },
+    {
+      "id": "office3-p20-23",
+      "file": ".local-docs/golden/pdfs/Office Sample 3 - PRE 2026 - REDACTED.pdf",
+      "pages": [
+        20,
+        23
+      ],
+      "split": "test",
+      "kind": "extract",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": "SG",
+        "facility_type": null
+      },
+      "evidence": {
+        "source_type": {
+          "page": 20,
+          "quote": "Marsh Advisory"
+        },
+        "title": {
+          "page": 20,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": {
+          "page": 21,
+          "quote": "Value (SGD)"
+        },
+        "facility_type": null
+      },
+      "note": "Running header gives title and source; no report date in range (only 'June 2026' in a maintenance sentence, not a report date). Jurisdiction SG is inferred from the Singapore-dollar currency label - judgement call (consistent with the Office 2 full case)."
+    },
+    {
+      "id": "mall2-p25-28",
+      "file": ".local-docs/golden/pdfs/Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf",
+      "pages": [
+        25,
+        28
+      ],
+      "split": "test",
+      "kind": "extract",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": null,
+        "facility_type": "Shopping mall"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 25,
+          "quote": "Marsh Advisory"
+        },
+        "title": {
+          "page": 25,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": null,
+        "facility_type": {
+          "page": 25,
+          "quote": "The mall has a diverse mix of about 300 international and local brands"
+        }
+      },
+      "note": "Judgement calls: p25 describes a 'residential and commercial development' with a mall, so facility_type Shopping mall is defensible but not airtight. Jurisdiction left null: 'SCDF' and 'SP PowerGrid' hint at Singapore but no country or currency is stated in range."
+    },
+    {
+      "id": "fm2.0-p60-63",
+      "file": ".local-docs/golden/pdfs/FM_2.0_Apr_26.pdf",
+      "pages": [
+        60,
+        63
+      ],
+      "split": "test",
+      "kind": "extract",
+      "expected": {
+        "source_type": "fm_standard",
+        "title": "Installation Guidelines for Automatic Sprinklers",
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 60,
+          "quote": "FM Property Loss Prevention Data Sheets"
+        },
+        "title": {
+          "page": 60,
+          "quote": "Installation Guidelines for Automatic Sprinklers"
+        },
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Running footer gives title and source. '©2021-2026' is a copyright range, not an edition/revision date, so edition and effective_date are null."
+    },
+    {
+      "id": "fm2.81-p30-33",
+      "file": ".local-docs/golden/pdfs/FM_2.81_Apr_26.pdf",
+      "pages": [
+        30,
+        33
+      ],
+      "split": "test",
+      "kind": "extract",
+      "expected": {
+        "source_type": "fm_standard",
+        "title": "Fire Protection System Inspection, Testing and Maintenance",
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 31,
+          "quote": "FM Property Loss Prevention Data Sheets"
+        },
+        "title": {
+          "page": 30,
+          "quote": "Fire Protection System Inspection, Testing and Maintenance"
+        },
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Running footer gives title and source. '©2019-2026' is a copyright range, not a revision date, so edition and effective_date are null."
+    },
+    {
+      "id": "nfpa13-p200-203",
+      "file": ".local-docs/golden/pdfs/NFPA_13_2019.pdf",
+      "pages": [
+        200,
+        203
+      ],
+      "split": "tune",
+      "kind": "extract",
+      "expected": {
+        "source_type": "nfpa_standard",
+        "title": "Installation of Sprinkler Systems",
+        "edition": "2019",
+        "effective_date": null,
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 200,
+          "quote": "13-197 2019 Edition"
+        },
+        "title": {
+          "page": 201,
+          "quote": "INSTALLATION OF SPRINKLER SYSTEMS"
+        },
+        "edition": {
+          "page": 200,
+          "quote": "2019 Edition"
+        },
+        "effective_date": null,
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Running head is the short title in capitals (compare case-insensitively); the word 'NFPA' does not appear anywhere in these 4 pages, so source_type is null. Corrected at tuning round 0: NFPA-style page numbers (13-197) and '2019 Edition' make the source findable, so source_type is nfpa_standard, not null."
+    },
+    {
+      "id": "template-p1-20",
+      "file": ".local-docs/golden/pdfs/Global PRE Report Template_v2.0_Feb 2026_BLANK.pdf",
+      "pages": [
+        1,
+        20
+      ],
+      "split": "test",
+      "kind": "template",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "evidence": {
+        "source_type": {
+          "page": 2,
+          "quote": "Marsh Risk"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": null,
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Blank template (pages 6-20 only repeat placeholders and headings): 'Enter Report Date', 'Enter Client Name' etc. are placeholders, not values, so date/jurisdiction/facility are null."
+    },
+    {
+      "id": "scanned-nfpa2001-p1-5",
+      "file": "microservices/ingestion-service/tests/test_files/unextractable/NFPA_2001.pdf",
+      "pages": [
+        1,
+        5
+      ],
+      "split": "test",
+      "kind": "scanned",
+      "expected": {
+        "source_type": "nfpa_standard",
+        "title": "Standard on Clean Agent Fire Extinguishing Systems",
+        "edition": "2012",
+        "effective_date": "2011-08-31",
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "NFPA® 2001"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Standard on Clean Agent Fire Extinguishing Systems"
+        },
+        "edition": {
+          "page": 1,
+          "quote": "2012 Edition"
+        },
+        "effective_date": {
+          "page": 4,
+          "quote": "effective date of August 31, 2011"
+        },
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Scanned, read from images; not substring-checked. 2012 Edition took effect 2011-08-31.",
+      "text_layer": false
+    },
+    {
+      "id": "scanned-nfpa25-p1-5",
+      "file": "microservices/ingestion-service/tests/test_files/unextractable/NFPA_25.pdf",
+      "pages": [
+        1,
+        5
+      ],
+      "split": "test",
+      "kind": "scanned",
+      "expected": {
+        "source_type": "nfpa_standard",
+        "title": "Standard for the Inspection, Testing, and Maintenance of Water-Based Fire Protection Systems",
+        "edition": "2026",
+        "effective_date": "2025-09-09",
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "NFPA® 25"
+        },
+        "title": {
+          "page": 4,
+          "quote": "Inspection, Testing, and Maintenance of Water-Based Fire Protection Systems"
+        },
+        "edition": {
+          "page": 1,
+          "quote": "2026 Edition"
+        },
+        "effective_date": {
+          "page": 4,
+          "quote": "effective date of September 9, 2025"
+        },
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Scanned, read from images; not substring-checked. Same 2026 edition as NFPA_25_2026.pdf.",
+      "text_layer": false
+    },
+    {
+      "id": "office2-full",
+      "file": ".local-docs/golden/pdfs/Office Sample 2 - PRE 2025 - REDACTED.pdf",
+      "pages": "all",
+      "split": "test",
+      "kind": "full",
+      "expected": {
+        "source_type": "marsh_report",
+        "title": "Property Risk Evaluation Report",
+        "edition": null,
+        "effective_date": "2025-02-28",
+        "jurisdiction": "SG",
+        "facility_type": "Office"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "A business of Marsh McLennan"
+        },
+        "title": {
+          "page": 1,
+          "quote": "Property Risk Evaluation Report"
+        },
+        "edition": null,
+        "effective_date": {
+          "page": 1,
+          "quote": "28 February 2025"
+        },
+        "jurisdiction": {
+          "page": 16,
+          "quote": "Currency: SGD"
+        },
+        "facility_type": {
+          "page": 6,
+          "quote": "premium Grade A office tower"
+        }
+      },
+      "note": "Same expectations as office2-p1-20 (the 20-page window already covers p6 and p16); the full case tests the whole document. Jurisdiction SG is inferred from the SGD currency label - judgement call. Report date equals survey date."
+    },
+    {
+      "id": "fm2.81-full",
+      "file": ".local-docs/golden/pdfs/FM_2.81_Apr_26.pdf",
+      "pages": "all",
+      "split": "test",
+      "kind": "full",
+      "expected": {
+        "source_type": "fm_standard",
+        "title": "Fire Protection System Inspection, Testing and Maintenance",
+        "edition": "2026",
+        "effective_date": "2026-04-01",
+        "jurisdiction": "all",
+        "facility_type": "all"
+      },
+      "evidence": {
+        "source_type": {
+          "page": 1,
+          "quote": "FM Property Loss Prevention Data Sheets"
+        },
+        "title": {
+          "page": 1,
+          "quote": "FIRE PROTECTION SYSTEM INSPECTION, TESTING AND MAINTENANCE"
+        },
+        "edition": {
+          "page": 1,
+          "quote": "Interim Revision April 2026"
+        },
+        "effective_date": {
+          "page": 1,
+          "quote": "Interim Revision April 2026"
+        },
+        "jurisdiction": null,
+        "facility_type": null
+      },
+      "note": "Same as fm2.81-p1-20. Revision history on p47 also lists 'April 2026. Interim revision', confirming the date."
+    }
+  ],
+  "sections": {
+    "Mixed Use Development Sample 1 - PRE 2025 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 17,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 18,
+        "end": 19,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates ([PROPERTY] Consortium)",
+        "start": 20,
+        "end": 31,
+        "cope": "all",
+        "note": "Heading is in the body (p20) but missing from the contents list."
+      },
+      {
+        "heading": "Management Programs",
+        "start": 32,
+        "end": 35,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 36,
+        "end": 37,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 38,
+        "end": 45,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 46,
+        "end": 50,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 51,
+        "end": 54,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 55,
+        "end": 56,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 57,
+        "end": 57,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 58,
+        "end": 60,
+        "cope": "all"
+      }
+    ],
+    "Mixed Use Development Sample 2 - PRE 2025 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 13,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 14,
+        "end": 15,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 16,
+        "end": 21,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 22,
+        "end": 24,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 25,
+        "end": 26,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 27,
+        "end": 31,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 32,
+        "end": 36,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 37,
+        "end": 40,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 41,
+        "end": 42,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 43,
+        "end": 43,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 44,
+        "end": 49,
+        "cope": "all"
+      }
+    ],
+    "Office Sample 0 - PRE 2026 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 11,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 12,
+        "end": 13,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 14,
+        "end": 21,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 22,
+        "end": 25,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 26,
+        "end": 28,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 29,
+        "end": 33,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 34,
+        "end": 38,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 39,
+        "end": 42,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 43,
+        "end": 44,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 45,
+        "end": 46,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 47,
+        "end": 49,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Map",
+        "start": 50,
+        "end": 50,
+        "cope": "all"
+      },
+      {
+        "heading": "Water Proving Test",
+        "start": 51,
+        "end": 52,
+        "cope": "all"
+      }
+    ],
+    "Office Sample 1 - PRE 2026 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 14,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 15,
+        "end": 16,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 17,
+        "end": 24,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 25,
+        "end": 27,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 28,
+        "end": 30,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 31,
+        "end": 34,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 35,
+        "end": 38,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 39,
+        "end": 42,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 43,
+        "end": 44,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 45,
+        "end": 46,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 47,
+        "end": 48,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Map",
+        "start": 49,
+        "end": 49,
+        "cope": "all"
+      }
+    ],
+    "Office Sample 2 - PRE 2025 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 13,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 14,
+        "end": 15,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 16,
+        "end": 22,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 23,
+        "end": 26,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 27,
+        "end": 27,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 28,
+        "end": 32,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 33,
+        "end": 35,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 36,
+        "end": 39,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 40,
+        "end": 41,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 42,
+        "end": 42,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 43,
+        "end": 45,
+        "cope": "all"
+      }
+    ],
+    "Office Sample 3 - PRE 2026 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 11,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 12,
+        "end": 13,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 14,
+        "end": 21,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 22,
+        "end": 25,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 26,
+        "end": 28,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 29,
+        "end": 33,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 34,
+        "end": 38,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 39,
+        "end": 42,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 43,
+        "end": 44,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 45,
+        "end": 46,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 47,
+        "end": 49,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Map",
+        "start": 50,
+        "end": 50,
+        "cope": "all"
+      },
+      {
+        "heading": "Water Proving Test",
+        "start": 51,
+        "end": 52,
+        "cope": "all"
+      }
+    ],
+    "Office Sample 4 - PRE 2026 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 11,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 12,
+        "end": 18,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 19,
+        "end": 20,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 21,
+        "end": 24,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 25,
+        "end": 27,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 28,
+        "end": 34,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 35,
+        "end": 40,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 41,
+        "end": 44,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 45,
+        "end": 46,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Site Drawing",
+        "start": 47,
+        "end": 47,
+        "cope": "all"
+      },
+      {
+        "heading": "Sprinkler Water-proving Test Results",
+        "start": 48,
+        "end": 50,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photo",
+        "start": 51,
+        "end": 52,
+        "cope": "all"
+      }
+    ],
+    "Office Sample 5 - PRE 2026 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 11,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 12,
+        "end": 17,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 18,
+        "end": 19,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 20,
+        "end": 23,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 24,
+        "end": 25,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 26,
+        "end": 30,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 31,
+        "end": 35,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 36,
+        "end": 39,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 40,
+        "end": 42,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Site Drawing",
+        "start": 43,
+        "end": 43,
+        "cope": "all"
+      },
+      {
+        "heading": "Sprinkler Water-proving Test Results",
+        "start": 44,
+        "end": 45,
+        "cope": "all"
+      },
+      {
+        "heading": "Photo",
+        "start": 46,
+        "end": 47,
+        "cope": "all"
+      }
+    ],
+    "Office Sample 6 - PRE 2026 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 11,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 12,
+        "end": 13,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 14,
+        "end": 20,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 21,
+        "end": 24,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 25,
+        "end": 27,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 28,
+        "end": 34,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 35,
+        "end": 39,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 40,
+        "end": 43,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 44,
+        "end": 45,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 46,
+        "end": 47,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 48,
+        "end": 51,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Map",
+        "start": 52,
+        "end": 52,
+        "cope": "all"
+      }
+    ],
+    "Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 11,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 12,
+        "end": 13,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 14,
+        "end": 18,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 19,
+        "end": 22,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 23,
+        "end": 24,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 25,
+        "end": 28,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 29,
+        "end": 31,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 32,
+        "end": 35,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 36,
+        "end": 37,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 38,
+        "end": 38,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 39,
+        "end": 39,
+        "cope": "all"
+      },
+      {
+        "heading": "Layout Plan",
+        "start": 40,
+        "end": 41,
+        "cope": "all"
+      }
+    ],
+    "Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf": [
+      {
+        "heading": "Contents",
+        "start": 1,
+        "end": 4,
+        "cope": "all",
+        "note": "Covers cover page, document control page and contents list (pages 1-4)."
+      },
+      {
+        "heading": "Purpose and Scope",
+        "start": 5,
+        "end": 5,
+        "cope": "all"
+      },
+      {
+        "heading": "Executive Summary",
+        "start": 6,
+        "end": 7,
+        "cope": "all"
+      },
+      {
+        "heading": "Opportunities for Improvement",
+        "start": 8,
+        "end": 12,
+        "cope": "all"
+      },
+      {
+        "heading": "Risk Quality Ratings and Comments",
+        "start": 13,
+        "end": 14,
+        "cope": "all"
+      },
+      {
+        "heading": "Loss Estimates",
+        "start": 15,
+        "end": 20,
+        "cope": "all"
+      },
+      {
+        "heading": "Management Programs",
+        "start": 21,
+        "end": 23,
+        "cope": "all"
+      },
+      {
+        "heading": "Construction",
+        "start": 24,
+        "end": 24,
+        "cope": "Construction"
+      },
+      {
+        "heading": "Occupancy, Hazards, and Utilities",
+        "start": 25,
+        "end": 28,
+        "cope": "Occupancy"
+      },
+      {
+        "heading": "Fire Protection",
+        "start": 29,
+        "end": 32,
+        "cope": "Protection"
+      },
+      {
+        "heading": "External Exposures",
+        "start": 33,
+        "end": 36,
+        "cope": "Exposure"
+      },
+      {
+        "heading": "Security",
+        "start": 37,
+        "end": 38,
+        "cope": "Protection"
+      },
+      {
+        "heading": "Business Interruption",
+        "start": 39,
+        "end": 40,
+        "cope": "all"
+      },
+      {
+        "heading": "Site Photos",
+        "start": 41,
+        "end": 43,
+        "cope": "all"
+      }
+    ]
+  }
+}

@@ -1,4 +1,5 @@
-"""POST /retrieve: label filters (KB-01 AC8), no withdrawn passages (KB-01 AC13); Chroma faked."""
+"""POST /retrieve: label filters (KB-01 AC8), no withdrawn (KB-01 AC13) or needs-review
+(IN-05 AC5) passages; Chroma faked."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -36,10 +37,10 @@ def where_for(collection, filters):
     return collection.query.call_args.kwargs["where"]
 
 
-ACTIVE_ONLY = {"status": {"$ne": "withdrawn"}}
+ACTIVE_ONLY = {"status": {"$nin": ["withdrawn", "needs_review"]}}
 
 
-def test_no_filters_still_skips_withdrawn_passages(collection):
+def test_no_filters_still_skips_withdrawn_and_needs_review_passages(collection):
     assert where_for(collection, {}) == ACTIVE_ONLY
 
 
