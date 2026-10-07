@@ -982,3 +982,69 @@ describe('retryIngestion', () => {
     expect(doc!.retryCount).toBe(0)
   })
 })
+
+// The retry route (service behaviour is covered above in `retryIngestion`).
+describe('POST /api/knowledge-documents/:id/retry', () => {
+  const RETRY_ID = '6abb28ae16068a0793e99630'
+
+  async function seedFailed(overrides: Record<string, unknown> = {}) {
+    await KnowledgeDocumentModel.create({
+      _id: RETRY_ID,
+      title: 'NFPA 13 sprinkler standard',
+      issuingBody: 'NFPA',
+      edition: '2022',
+      fileName: 'nfpa-13.pdf',
+      file: { key: `knowledge/${RETRY_ID}.pdf`, contentType: 'application/pdf', size: 2048, sha256: 'abc' },
+      status: 'failed',
+      error: 'Processing stopped on a system error, not a fault in the file. Upload it again.',
+      finishedAt: new Date(),
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        COPE_dimension: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+      ...overrides,
+    })
+  }
+
+  // 401 (no session) and 403 (wrong role) are covered by the ROUTES table in
+  // permissions.test.ts, alongside every other protected route.
+
+  it('accepts a retry of a failed document with 202 and re-queues it', async () => {
+    await seedFailed()
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(202)
+
+    const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
+    expect(doc!.status).toBe('queued')
+    expect(doc!.retryCount).toBe(1)
+    expect(requeued).toHaveBeenCalledWith(RETRY_ID)
+  })
+
+  it('409s a document that is not failed', async () => {
+    await seedFailed({ status: 'complete', error: undefined, finishedAt: undefined })
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(409)
+  })
+
+  it('404s an unknown id', async () => {
+    await api.post('/api/knowledge-documents/6abb28ae16068a0793e99999/retry').expect(404)
+  })
+
+  it('404s a malformed id', async () => {
+    await api.post('/api/knowledge-documents/not-an-id/retry').expect(404)
+  })
+
+  it('503s when the ingestion queue cannot be reached, leaving the document failed', async () => {
+    await seedFailed()
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(503)
+
+    const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
+    expect(doc!.status).toBe('failed')
+    expect(doc!.retryCount).toBe(0)
+  })
+})

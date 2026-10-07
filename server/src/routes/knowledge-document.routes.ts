@@ -15,6 +15,8 @@ import {
   reinstateKnowledgeDocument,
   RejectedFileError,
   uploadQuerySchema,
+  retryIngestion,
+  uploadDetailsSchema,
   uploadKnowledgeDocument,
   withdrawKnowledgeDocument,
 } from '../services/knowledge-document.service'
@@ -133,6 +135,19 @@ router.post('/:id/withdraw', requirePermission('knowledge:manage'), async (req, 
 router.post('/:id/reinstate', requirePermission('knowledge:manage'), async (req, res) => {
   try {
     res.json(await reinstateKnowledgeDocument(req.params.id))
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// Retries a failed ingestion without re-uploading (the PDF and details are
+// kept). Answers: 202 accepted (re-queued) · 404 unknown · 409 not failed ·
+// 503 the queue could not be reached (left failed). Same error mapping as the
+// state changes above.
+router.post('/:id/retry', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    await retryIngestion(req.params.id)
+    res.status(202).end()
   } catch (error: unknown) {
     answerStateChange(error, res)
   }
