@@ -6,7 +6,9 @@ import { beforeEach, expect, it, vi } from 'vitest'
 // behaviour of enqueueIngestion is covered separately in ingestion-queue.test.ts.)
 const calls = vi.hoisted(() => [] as string[])
 const remove = vi.hoisted(() => vi.fn(async () => void calls.push('remove')))
-const add = vi.hoisted(() => vi.fn(async () => void calls.push('add')))
+const add = vi.hoisted(() =>
+  vi.fn(async (..._args: [unknown, unknown, { jobId: string }]) => void calls.push('add')),
+)
 vi.mock('bullmq', () => ({
   Queue: class {
     on() {}
