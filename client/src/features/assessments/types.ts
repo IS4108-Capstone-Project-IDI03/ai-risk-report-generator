@@ -1,4 +1,4 @@
-import type { Assessment, TranscriptionStatus } from './api'
+import type { Assessment, Stamp, TranscriptionStatus } from './api'
 
 export type AssessmentRow = {
   engineerId?: string | null
@@ -32,7 +32,9 @@ export type Observation = {
   area: string
   sev: string
   std: string
-  media: string[]
+  // Its photographs (CP-04): url opens the original, or is null for a sample
+  // one, which has only a name.
+  media: { name: string; url: string | null }[]
   detail: string
   audio?: string
   // Where it was captured, when known by id rather than only by name, and the
@@ -45,12 +47,23 @@ export type Observation = {
   attached?: string
   // Shown while a recording is transcribing or after one failed.
   badge?: { tone: 'info' | 'high'; label: string } | null
+  // What it holds: any of 'Note', 'Voice' and 'Photo' (CP-08); worked out for
+  // sample ones.
+  types?: string[]
+  // Transcribing, Transcription failed or Complete (CP-08).
+  status?: string
+  // The latest change to it, and its deletion (CP-08).
+  edited?: Stamp | null
+  deleted?: Stamp | null
   recordings?: {
     id: string
     name: string
     status: TranscriptionStatus
-    // The transcript, or where the transcription stands.
+    // The transcript as corrected, or where the transcription stands.
     text: string
+    // What Whisper wrote, when the engineer has corrected it (CP-08).
+    original: string | null
+    correction: Stamp | null
     error: string | null
     audioUrl: string
   }[]
@@ -111,10 +124,9 @@ export type WorkflowState = {
   fVoiceError: { title: string; message: string } | null
   // Recordings and files waiting for Save observation, all saved with the one observation.
   fClips: VoiceClip[]
-  fPhotos: { name: string }[]
-  // ponytail: photos are placeholders kept in the browser until CP-04 stores
-  // them; these are the ones attached to observations saved on the server, by id.
-  savedPhotos: Record<string, string[]>
+  fPhotos: PhotoFile[]
+  // Why a chosen file was not added as a photo (CP-04 AC4).
+  fPhotoError: string | null
   // The location the engineer is capturing in, and the location sheet.
   fLocationId: string | null
   locOpen: boolean
@@ -123,8 +135,8 @@ export type WorkflowState = {
   lf: { name: string; floor: string }
   lfBusy: boolean
   lfError: string | null
-  // Why the last location could not be removed.
-  locError: string | null
+  // The location waiting for the engineer to confirm removing it, by id.
+  locRemove: string | null
   fCat: string
   fSev: string
   fStd: string
@@ -153,18 +165,37 @@ export type WorkflowState = {
   navCollapsed?: boolean
   // The expanded row on the Observations tab, by its key.
   obsOpen?: string | null
-  // Observations tab filters (CP-06); '' shows every value.
+  // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
-  // The observation whose tags are being edited, by row key, with the
-  // dialog's values; and why the last save failed.
-  tagEdit: { key: string; cat: string; sev: string; locationId: string; std: string } | null
+  // The Observations tab lists the deleted observations instead (CP-08).
+  obsShowDeleted: boolean
+  // The observation being changed on the Observations tab, by row key: a
+  // recording's transcript, or its deletion (CP-08).
+  obsDialog: { kind: 'transcript' | 'delete'; key: string; recordingId?: string } | null
+  // The observation in the Edit dialog, by row key, with the dialog's values:
+  // its tags (CP-06) and note (CP-08); and why the last save failed.
+  tagEdit: {
+    key: string
+    cat: string
+    sev: string
+    locationId: string
+    std: string
+    note: string
+  } | null
   tagBusy: boolean
   archiveOpen: boolean
   archiveBusy: boolean
   tagError: string | null
 }
 
-export type ObservationFilters = { cat: string; sev: string; loc: string; floor: string }
+export type ObservationFilters = {
+  type: string
+  cat: string
+  sev: string
+  loc: string
+  floor: string
+  status: string
+}
 
 // A recording or audio file held in the browser until Save observation uploads it.
 export type VoiceClip = {
@@ -172,5 +203,13 @@ export type VoiceClip = {
   name: string
   length: string | null
   audio: Blob
+  url: string
+}
+
+// A photograph held in the browser until Save observation uploads it (CP-04).
+export type PhotoFile = {
+  id: number
+  name: string
+  image: Blob
   url: string
 }

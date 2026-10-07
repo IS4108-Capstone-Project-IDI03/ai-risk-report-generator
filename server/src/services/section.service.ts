@@ -51,8 +51,10 @@ export type SectionSummaryDto = {
   minObservations: number
   usableObservations: number
   latestDraft: SectionDraftDto | null
-  // Observations added or changed since the newest draft, which a redraft takes in.
+  // Observations added, changed or removed since the newest draft, which a
+  // redraft takes in: the total, and each kind on its own (CP-08).
   changesSinceDraft: number
+  changeCounts: ChangeCounts
 }
 
 export function toDraftDto(s: IReportSection & { _id: unknown }): SectionDraftDto {
@@ -81,14 +83,14 @@ function isFiledUnder(section: TemplateSection) {
   return (o: ObservationDto) => section.cope_dimensions.includes(o.copeDimension!)
 }
 
-// Usable evidence: a note, or a finished transcript. A failed or empty
-// recording alone gives the draft nothing to cite.
+// Usable evidence: a note, or a finished transcript, as the engineer corrected
+// it if they did (CP-08 AC10). A failed or empty recording alone gives the
+// draft nothing to cite.
 function transcriptsOf(o: ObservationDto): string[] {
-  return o.recordings.flatMap((r) =>
-    r.transcription.status === 'transcribed' && r.transcription.transcript
-      ? [r.transcription.transcript]
-      : [],
-  )
+  return o.recordings.flatMap((r) => {
+    const text = r.transcription.correction?.text ?? r.transcription.transcript
+    return r.transcription.status === 'transcribed' && text ? [text] : []
+  })
 }
 function isUsable(o: ObservationDto): boolean {
   return Boolean(o.note?.trim()) || transcriptsOf(o).length > 0
@@ -107,11 +109,20 @@ function toEvidence(o: ObservationDto): Evidence {
     standard: o.standard,
   }
 }
-// Evidence the draft would get now that it did not get then: new observations,
-// or ones whose note, transcripts or tags have changed.
-function changesSince(evidence: Evidence[] | undefined, now: Evidence[]): number {
+// How the evidence differs from what the draft was given, by kind (CP-08):
+// observations added since, ones whose note, transcripts or tags have changed,
+// and ones the draft was given that are no longer evidence, e.g. deleted or
+// uncategorised (CP-08 AC15).
+export type ChangeCounts = { added: number; changed: number; removed: number }
+const NO_CHANGES: ChangeCounts = { added: 0, changed: 0, removed: 0 }
+function changesSince(evidence: Evidence[] | undefined, now: Evidence[]): ChangeCounts {
   const then = new Map((evidence ?? []).map((e) => [e.id, JSON.stringify(e)]))
-  return now.filter((e) => then.get(e.id) !== JSON.stringify(e)).length
+  const current = new Set(now.map((e) => e.id))
+  return {
+    added: now.filter((e) => !then.has(e.id)).length,
+    changed: now.filter((e) => then.has(e.id) && then.get(e.id) !== JSON.stringify(e)).length,
+    removed: [...then.keys()].filter((id) => !current.has(id)).length,
+  }
 }
 
 // One template section with its newest draft as saved, evidence included.
@@ -119,7 +130,9 @@ export type LoadedSection = {
   section: TemplateSection
   usableObservations: number
   latest: (IReportSection & { _id: unknown }) | null
+  // The total of changeCounts, which decides whether the draft is out of date.
   changesSinceDraft: number
+  changeCounts: ChangeCounts
 }
 
 // Sections 7-12 with how much usable evidence each has and its newest draft.
@@ -136,18 +149,20 @@ export async function loadSections(reference: string): Promise<LoadedSection[]> 
   const evidence = usable.map(toEvidence)
   return sections.map((section) => {
     const latest = drafts.find((d) => d.sectionId === section.id) ?? null
+    const changeCounts = latest ? changesSince(latest.evidence, evidence) : NO_CHANGES
     return {
       section,
       usableObservations: usable.filter(isFiledUnder(section)).length,
       latest,
-      changesSinceDraft: latest ? changesSince(latest.evidence, evidence) : 0,
+      changesSinceDraft: changeCounts.added + changeCounts.changed + changeCounts.removed,
+      changeCounts,
     }
   })
 }
 
 export async function listSections(reference: string): Promise<SectionSummaryDto[]> {
   return (await loadSections(reference)).map(
-    ({ section, usableObservations, latest, changesSinceDraft }) => ({
+    ({ section, usableObservations, latest, changesSinceDraft, changeCounts }) => ({
       id: section.id,
       title: section.title,
       copeDimensions: section.cope_dimensions,
@@ -155,6 +170,7 @@ export async function listSections(reference: string): Promise<SectionSummaryDto
       usableObservations,
       latestDraft: latest ? toDraftDto(latest) : null,
       changesSinceDraft,
+      changeCounts,
     }),
   )
 }

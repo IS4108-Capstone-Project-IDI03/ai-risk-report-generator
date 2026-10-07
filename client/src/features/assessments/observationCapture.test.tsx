@@ -30,6 +30,7 @@ function recording(id: string, transcription: Partial<SavedRecording['transcript
     transcription: {
       status: 'transcribing',
       transcript: null,
+      correction: null,
       error: null,
       attempts: 1,
       ...transcription,
@@ -46,7 +47,10 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
     location: BAY_3,
     note: null,
     recordings: [],
+    photos: [],
     recordedAt: '2026-09-29T08:10:00.000Z',
+    edited: null,
+    deleted: null,
     ...fields,
   }
 }
@@ -62,7 +66,7 @@ const json = (status: number, body: unknown) =>
 // A small stand-in for the gateway, answering by route. The dashboard list is
 // unreachable, so the app falls back to its sample rows. A save echoes what
 // was sent, as the gateway does.
-type Sent = { details: Record<string, unknown>; recordings: File[] }
+type Sent = { details: Record<string, unknown>; recordings: File[]; photos: File[] }
 let listed: SavedObservation[] = []
 let saveReply: (sent: Sent) => Promise<Response>
 const saves: Sent[] = []
@@ -75,6 +79,7 @@ function mockGateway() {
       const sent = {
         details: JSON.parse(String(form.get('details'))),
         recordings: form.getAll('recording') as File[],
+        photos: form.getAll('photo') as File[],
       }
       saves.push(sent)
       return saveReply(sent)
@@ -100,6 +105,13 @@ function echo(sent: Sent) {
     note: (sent.details.note as string | undefined) ?? null,
     copeDimension: sent.details.copeDimension as string | null,
     recordings: sent.recordings.map((file, i) => ({ ...recording('r' + i), name: file.name })),
+    photos: sent.photos.map((file, i) => ({
+      id: 'p' + i,
+      name: file.name,
+      contentType: 'image/jpeg',
+      size: file.size,
+      url: `/api/observations/o1/photos/p${i}/image`,
+    })),
   })
   listed = [saved]
   return json(201, saved)
@@ -149,6 +161,12 @@ async function record() {
 }
 const readyList = () => screen.getByRole('region', { name: 'Ready to save' })
 const save = () => click('Save observation')
+// A photo as the device hands it over, taken or chosen (CP-04 AC6).
+const photo = (name = 'IMG_0460.jpg', type = 'image/jpeg') => new File(['jpeg'], name, { type })
+const addPhotos = (...files: File[]) =>
+  fireEvent.change(screen.getByLabelText('Choose photographs'), { target: { files } })
+const takePhoto = (file: File) =>
+  fireEvent.change(screen.getByLabelText('Take photograph'), { target: { files: [file] } })
 
 beforeAll(() => {
   // jsdom cannot play blobs; the list only needs a URL to hand the player.
@@ -173,6 +191,73 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('Capturing site photographs (CP-04)', () => {
+  it('opens the camera to take one photo, and the library to choose several (AC6)', async () => {
+    await openCapture()
+    click('Photo')
+
+    // `capture` sends a phone straight to its camera; Chrome on Android 14+
+    // offers no camera without it. One photo per shot.
+    const camera = screen.getByLabelText('Take photograph')
+    expect(camera).toHaveAttribute('capture', 'environment')
+    expect(camera).toHaveAttribute('accept', 'image/jpeg,image/png')
+    expect(camera).not.toHaveAttribute('multiple')
+    // Without `capture`, so the photo library stays on offer.
+    const library = screen.getByLabelText('Choose photographs')
+    expect(library).not.toHaveAttribute('capture')
+    expect(library).toHaveAttribute('multiple')
+  })
+
+  it('saves photos on their own, as taken or chosen on the device (AC1, AC6)', async () => {
+    await openCapture()
+    click('Photo')
+    // A phone camera names every capture image.jpg.
+    takePhoto(photo('image.jpg'))
+    addPhotos(photo('image.jpg'), photo('riser.png', 'image/png'))
+
+    expect(within(readyList()).getAllByText('image.jpg')).toHaveLength(2)
+    expect(within(readyList()).getByText('riser.png')).toBeInTheDocument()
+    click('Remove riser.png')
+    save()
+
+    expect(await screen.findByText('Observation saved to RPT-2026-0411.')).toBeInTheDocument()
+    expect(saves[0].photos.map((f) => f.name)).toEqual(['image.jpg', 'image.jpg'])
+    expect(saves[0].details).not.toHaveProperty('note')
+    expect(screen.queryByRole('region', { name: 'Ready to save' })).not.toBeInTheDocument()
+  })
+
+  it('refuses a file that is not a JPG or PNG, saying why (AC4)', async () => {
+    await openCapture()
+    click('Photo')
+
+    addPhotos(photo('IMG_0461.HEIC', 'image/heic'), photo())
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'IMG_0461.HEIC is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
+    )
+    expect(within(readyList()).queryByText('IMG_0461.HEIC')).not.toBeInTheDocument()
+    expect(within(readyList()).getByText('IMG_0460.jpg')).toBeInTheDocument()
+    // The next good choice clears the reason.
+    addPhotos(photo('IMG_0462.jpg'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps the photos listed when the gateway refuses one (AC4)', async () => {
+    saveReply = () =>
+      json(415, {
+        error: 'image.jpg is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
+      })
+    await openCapture()
+    click('Photo')
+    addPhotos(photo('image.jpg'))
+
+    save()
+
+    expect(await screen.findByText(/^image\.jpg is not a JPG or PNG image/)).toBeInTheDocument()
+    expect(within(readyList()).getByText('image.jpg')).toBeInTheDocument()
+  })
+})
+
 describe('Capturing an observation (CP-02, CP-03)', () => {
   it('saves a note, a recording and a photo together as one observation', async () => {
     allowMicrophone()
@@ -182,7 +267,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     click('Add note')
     await record()
     click('Photo')
-    click('Add photograph')
+    addPhotos(photo())
 
     // Everything waits in one list; nothing is sent yet.
     expect(within(readyList()).getByText('Note')).toBeInTheDocument()
@@ -206,6 +291,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
       standard: '',
     })
     expect(saves[0].recordings.map((f) => f.name)).toEqual(['Recording 1'])
+    expect(saves[0].photos.map((f) => f.name)).toEqual(['IMG_0460.jpg'])
     expect(screen.queryByRole('region', { name: 'Ready to save' })).not.toBeInTheDocument()
     expect(screen.getByText(/Note · 1 recording · 1 photo/)).toBeInTheDocument()
     expect(screen.getByText('Transcribing')).toBeInTheDocument()
@@ -265,7 +351,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     allowMicrophone()
     await openCapture()
     fireEvent.change(screen.getByLabelText(/COPE category/), {
-      target: { value: 'Not categorised yet' },
+      target: { value: 'Uncategorised' },
     })
     expect(
       screen.getByText('Report drafting leaves this observation out until it is categorised.'),
@@ -276,7 +362,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     await screen.findByText(/Observation saved/)
     expect(saves[0].details.copeDimension).toBeNull()
-    expect(screen.getByText('Not categorised yet', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('Uncategorised', { selector: 'span' })).toBeInTheDocument()
   })
 
   it('keeps everything listed when the save fails, then saves it on retry', async () => {
@@ -373,29 +459,19 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
       within(category())
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual([
-      'Construction',
-      'Occupancy, hazards and utilities',
-      'Fire protection',
-      'External exposures',
-      'Not categorised yet',
-    ])
+    ).toEqual(['Construction', 'Occupancy', 'Protection', 'Exposure', 'Uncategorised'])
 
-    // Each category is stored as the value the knowledge base tags its chunks with.
-    const shared = {
-      Construction: 'Construction',
-      'Occupancy, hazards and utilities': 'Occupancy',
-      'Fire protection': 'Protection',
-      'External exposures': 'Exposure',
-    }
-    for (const label of Object.keys(shared)) {
+    // Each category is shown and stored as the value the knowledge base tags
+    // its chunks with.
+    const shared = ['Construction', 'Occupancy', 'Protection', 'Exposure']
+    for (const label of shared) {
       fireEvent.change(category(), { target: { value: label } })
       write('Hose reel H3 blocked by pallets.')
       save()
       // A saved note clears the box, so the next one starts after this save.
       await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(''))
     }
-    expect(saves.map((s) => s.details.copeDimension)).toEqual(Object.values(shared))
+    expect(saves.map((s) => s.details.copeDimension)).toEqual(shared)
   })
 })
 

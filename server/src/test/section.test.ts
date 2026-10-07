@@ -263,12 +263,90 @@ describe('drafting a report section (GN-01)', () => {
     await observation(ids, 'Construction', { note: 'Curtain wall sealed.' })
     await ObservationModel.updateOne({ _id: riser._id }, { severity: 'critical' })
     expect((await sections()).changesSinceDraft).toBe(2)
+    // Each kind is counted on its own too (CP-08).
+    expect((await sections()).changeCounts).toEqual({ added: 1, changed: 1, removed: 0 })
     // The saved evidence still shows the observation as it was drafted from.
     expect((await ReportSectionModel.findOne().lean())?.evidence[0].severity).toBe('high')
 
     // Redrafting takes them in.
     await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
     expect((await sections()).changesSinceDraft).toBe(0)
+  })
+
+  it('drops a deleted observation from drafting and marks the draft out of date (CP-08 AC13, AC15)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const riser = await observation(ids, 'Construction', { note: 'Riser not fire-stopped.' })
+    const wall = await observation(ids, 'Construction', { note: 'Curtain wall sealed.' })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    const sections = async () => (await api.get(`/api/assessments/${REFERENCE}/sections`)).body[0]
+
+    expect((await api.delete(`/api/observations/${riser._id}`)).status).toBe(200)
+
+    // The draft still holds the observation as it was drafted from, and asks
+    // for a redraft. So does uncategorising one it was given.
+    expect((await sections()).changesSinceDraft).toBe(1)
+    expect((await sections()).changeCounts).toEqual({ added: 0, changed: 0, removed: 1 })
+    expect((await ReportSectionModel.findOne().lean())?.evidence.map((e) => e.id)).toContain(
+      String(riser._id),
+    )
+    await api.patch(`/api/observations/${wall._id}`).send({ copeDimension: null })
+    expect((await sections()).changesSinceDraft).toBe(2)
+    expect((await sections()).changeCounts).toEqual({ added: 0, changed: 0, removed: 2 })
+
+    // A redraft is given neither.
+    await api.patch(`/api/observations/${wall._id}`).send({ copeDimension: 'Construction' })
+    await observation(ids, 'Construction', { note: 'Fire doors self-closing.' })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(drafts.mock.lastCall![0].observations).not.toContainEqual(
+      expect.objectContaining({ id: String(riser._id) }),
+    )
+    expect((await sections()).changesSinceDraft).toBe(0)
+  })
+
+  it('brings a restored observation back into drafting (CP-08 AC14)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const riser = await observation(ids, 'Construction', { note: 'Riser not fire-stopped.' })
+    await observation(ids, 'Construction', { note: 'Curtain wall sealed.' })
+    const usable = async () =>
+      (await api.get(`/api/assessments/${REFERENCE}/sections`)).body[0].usableObservations
+    // The observation IDs the newest draft request was given.
+    const drafted = () =>
+      (drafts.mock.lastCall![0].observations as { id: string }[]).map((o) => o.id)
+
+    await api.delete(`/api/observations/${riser._id}`)
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(drafted()).not.toContain(String(riser._id))
+    expect(await usable()).toBe(1)
+
+    expect((await api.post(`/api/observations/${riser._id}/restore`)).status).toBe(200)
+
+    expect(await usable()).toBe(2)
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(drafted()).toContain(String(riser._id))
+  })
+
+  it('drafts from a corrected transcript (CP-08 AC10, AC16)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const voiced = await observation(ids, 'Construction', { transcription: 'transcribed' })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    const corrected = 'Curtain-wall gaps sealed with fire-rated sealant.'
+
+    const response = await api
+      .put(`/api/observations/${voiced._id}/recordings/${voiced.recordings[0]._id}/transcript`)
+      .send({ text: corrected })
+
+    expect(response.status).toBe(200)
+    // A correction is a change the draft lacks.
+    const [listed] = (await api.get(`/api/assessments/${REFERENCE}/sections`)).body
+    expect(listed.changesSinceDraft).toBe(1)
+    expect(listed.changeCounts).toEqual({ added: 0, changed: 1, removed: 0 })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(drafts.mock.lastCall![0].observations).toEqual([
+      expect.objectContaining({ id: String(voiced._id), transcripts: [corrected] }),
+    ])
   })
 
   it('only lets the assigned engineer draft, and not an archived assessment', async () => {

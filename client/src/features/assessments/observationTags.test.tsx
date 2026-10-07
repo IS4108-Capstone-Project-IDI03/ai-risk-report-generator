@@ -22,7 +22,10 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
     location: BAY_3,
     note: 'Hose reel H3 blocked by pallets.',
     recordings: [],
+    photos: [],
     recordedAt: '2026-09-29T08:10:00.000Z',
+    edited: null,
+    deleted: null,
     ...fields,
   }
 }
@@ -115,10 +118,10 @@ const shown = (...summaries: string[]) => summaries.filter((text) => screen.quer
 const ALL = [HOSE_REEL.note!, STAIRWELL_DOOR.note!, VALVE.note!, RACKING, PUMP_TEST, SORTATION]
 // Expands the observation, unless it still is from last time, and edits its tags.
 async function editTags(summary: string) {
-  if (!screen.queryByRole('button', { name: 'Edit tags' }))
+  if (!screen.queryByRole('button', { name: 'Edit' }))
     fireEvent.click(screen.getByRole('button', { name: new RegExp(summary.slice(0, 20)) }))
-  click('Edit tags')
-  return screen.findByRole('dialog', { name: 'Edit tags' })
+  click('Edit')
+  return screen.findByRole('dialog', { name: 'Edit observation' })
 }
 const optionLabels = (select: HTMLElement) =>
   within(select)
@@ -151,9 +154,9 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
     expect(shown(...ALL)).toEqual(ALL)
 
     const cases = [
-      ['Filter by category', 'External exposures', [STAIRWELL_DOOR.note]],
-      ['Filter by category', 'Not categorised yet', [VALVE.note]],
-      ['Filter by category', 'Fire protection', [HOSE_REEL.note, RACKING, PUMP_TEST]],
+      ['Filter by category', 'Exposure', [STAIRWELL_DOOR.note]],
+      ['Filter by category', 'Uncategorised', [VALVE.note]],
+      ['Filter by category', 'Protection', [HOSE_REEL.note, RACKING, PUMP_TEST]],
       ['Filter by severity', 'moderate', [VALVE.note, SORTATION]],
       // The location's name is its zone; the same zone on any floor matches.
       ['Filter by location', 'Pump house', [VALVE.note, PUMP_TEST]],
@@ -172,7 +175,7 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
   it('narrows by every label chosen, and says so when none match', async () => {
     await openObservations()
 
-    choose('Filter by category', 'Fire protection')
+    choose('Filter by category', 'Protection')
     choose('Filter by location', 'Pump house')
     expect(shown(...ALL)).toEqual([PUMP_TEST])
 
@@ -187,10 +190,10 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
     expect(optionLabels(select('Filter by category'))).toEqual([
       'All categories',
       'Construction',
-      'Occupancy, hazards and utilities',
-      'Fire protection',
-      'External exposures',
-      'Not categorised yet',
+      'Occupancy',
+      'Protection',
+      'Exposure',
+      'Uncategorised',
     ])
     expect(optionLabels(select('Filter by location'))).toEqual([
       'All locations',
@@ -210,19 +213,19 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     // The category comes from the shared vocabulary (AC3).
     expect(optionLabels(select('COPE category', dialog))).toEqual([
       'Construction',
-      'Occupancy, hazards and utilities',
-      'Fire protection',
-      'External exposures',
-      'Not categorised yet',
+      'Occupancy',
+      'Protection',
+      'Exposure',
+      'Uncategorised',
     ])
 
-    choose('COPE category', 'External exposures', dialog)
+    choose('COPE category', 'Exposure', dialog)
     choose('Severity', 'critical', dialog)
     choose('Location', 'l2', dialog)
     choose('Standard reference', 'NFPA 25 – 2026 Edition', dialog)
-    click('Save tags')
+    click('Save changes')
 
-    expect(await screen.findByText('Tags updated.')).toBeInTheDocument()
+    expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
     // The label is stored as its COPE dimension.
     expect(patches).toEqual([
       {
@@ -235,9 +238,9 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
         },
       },
     ])
-    expect(screen.queryByRole('dialog', { name: 'Edit tags' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Edit observation' })).not.toBeInTheDocument()
     const row = screen.getByRole('button', { name: /Unlabelled valve/ })
-    expect(row).toHaveTextContent('External exposures')
+    expect(row).toHaveTextContent('Exposure')
     expect(row).toHaveTextContent('Critical')
     expect(row).toHaveTextContent('Stairwell B · Level 2')
 
@@ -245,7 +248,7 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     cleanup()
     await openObservations()
     const reopened = await screen.findByRole('button', { name: /Unlabelled valve/ })
-    expect(reopened).toHaveTextContent('External exposures')
+    expect(reopened).toHaveTextContent('Exposure')
     expect(reopened).toHaveTextContent('Critical')
     expect(reopened).toHaveTextContent('Stairwell B · Level 2')
     fireEvent.click(reopened)
@@ -261,18 +264,18 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     expect(select('Severity', dialog)).toHaveValue('high')
     expect(select('Location', dialog)).toHaveValue('l1')
     choose('Severity', 'low', dialog)
-    click('Save tags')
-    await screen.findByText('Tags updated.')
+    click('Save changes')
+    await screen.findByText('Changes saved.')
 
     dialog = await editTags(HOSE_REEL.note!)
-    choose('COPE category', 'Not categorised yet', dialog)
+    choose('COPE category', 'Uncategorised', dialog)
     choose('Standard reference', '', dialog)
     expect(
       within(dialog).getByText(
         'Report drafting leaves this observation out until it is categorised.',
       ),
     ).toBeInTheDocument()
-    click('Save tags')
+    click('Save changes')
 
     await vi.waitFor(() =>
       expect(patches.map((p) => p.tags)).toEqual([
@@ -292,10 +295,10 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     const dialog = await editTags(HOSE_REEL.note!)
 
     choose('Location', 'l3', dialog)
-    click('Save tags')
+    click('Save changes')
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Choose one of the locations listed for this assessment. Your changes are still here; press Save tags to try again.',
+      'Choose one of the locations listed for this assessment. Your changes are still here; press Save changes to try again.',
     )
     expect(select('Location', dialog)).toHaveValue('l3')
     // Nothing changed on screen.
@@ -309,16 +312,16 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     await openObservations()
     const dialog = await editTags(PUMP_TEST)
 
-    choose('COPE category', 'External exposures', dialog)
+    choose('COPE category', 'Exposure', dialog)
     choose('Location', 'demo-office', dialog)
-    click('Save tags')
+    click('Save changes')
 
     expect(
-      await screen.findByText('Tags updated. They are kept in this demo only.'),
+      await screen.findByText('Changes saved. They are kept in this demo only.'),
     ).toBeInTheDocument()
     expect(patches).toEqual([])
     const row = screen.getByRole('button', { name: /Pump test certificate/ })
-    expect(row).toHaveTextContent('External exposures')
+    expect(row).toHaveTextContent('Exposure')
     expect(row).toHaveTextContent('Office annexe · Level 1')
     choose('Filter by floor', 'Level 1')
     expect(shown(RACKING, PUMP_TEST, SORTATION)).toEqual([PUMP_TEST])

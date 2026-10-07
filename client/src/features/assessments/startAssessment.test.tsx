@@ -100,7 +100,7 @@ describe('Capture session (CP-01)', () => {
     expect(screen.getByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
     expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
-    expect(notice).toHaveTextContent('Notes and recordings are stored on the server')
+    expect(notice).toHaveTextContent('Notes, recordings and photos are stored on the server')
     expect(
       screen.getByText('Harbourside Cold Store · RPT-2026-0411 · 3 observations captured'),
     ).toBeInTheDocument()
@@ -216,6 +216,7 @@ const CREATED_NOTE = {
   recordedAt: '2026-09-23T09:10:00.000Z',
   note: 'Sprinkler control valve chained open',
   recordings: [],
+  photos: [],
 }
 
 function createFromForm() {

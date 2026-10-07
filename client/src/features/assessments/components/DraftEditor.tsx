@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { AIDraftBlock, Badge, Button, Callout, EmptyState } from '../../../design-system'
 import type { ReviewSection, SectionDraft } from '../api'
 import { formatDayTime } from '../format'
-import { plural, statementId, type ReviewFocus } from '../reviewDisplay'
+import { describeChanges, plural, statementId, type ReviewFocus } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
 
 type Citing = {
@@ -159,10 +159,8 @@ export function DraftEditor({
             </p>
             {review.changesSinceDraft > 0 && (
               <Callout tone="warning" title="This draft is out of date">
-                {plural(review.changesSinceDraft, 'observation')}{' '}
-                {review.changesSinceDraft === 1 ? 'was' : 'were'} added or changed after it was
-                drafted. Redraft it on the Report generation tab to include{' '}
-                {review.changesSinceDraft === 1 ? 'it' : 'them'}.
+                {describeChanges(review.changeCounts)} since it was drafted. Redraft it on the
+                Report generation tab to bring it up to date.
               </Callout>
             )}
             {review.withdrawnSources > 0 && (

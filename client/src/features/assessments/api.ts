@@ -64,6 +64,8 @@ export type CaptureSession = {
 // A recording saved with an observation (CP-03). Its transcription runs after
 // the save returns, so it starts as 'transcribing'.
 export type TranscriptionStatus = 'transcribing' | 'transcribed' | 'failed'
+// Who changed or deleted an observation, and when (CP-08).
+export type Stamp = { at: string; by: { id: string; name: string } }
 export type SavedRecording = {
   id: string
   name: string
@@ -72,15 +74,27 @@ export type SavedRecording = {
   url: string
   transcription: {
     status: TranscriptionStatus
+    // As Whisper wrote it, kept even once corrected.
     transcript: string | null
+    // The engineer's correction, which drafting uses (CP-08).
+    correction: (Stamp & { text: string }) | null
     error: string | null
     attempts: number
   }
 }
+// A site photograph saved with an observation (CP-04); url opens the original.
+export type SavedPhoto = {
+  id: string
+  name: string
+  contentType: 'image/jpeg' | 'image/png'
+  size: number
+  url: string
+}
 // A place on site the engineer records observations in.
 export type SiteLocation = { id: string; name: string; floor: string | null }
 
-// An observation saved on the server: a note (CP-02), recordings (CP-03) or both.
+// An observation saved on the server: any of a note (CP-02), recordings
+// (CP-03) and photos (CP-04).
 export type SavedObservation = {
   id: string
   engineer: string
@@ -93,7 +107,12 @@ export type SavedObservation = {
   // Exactly as the engineer wrote it.
   note: string | null
   recordings: SavedRecording[]
+  photos: SavedPhoto[]
   recordedAt: string
+  // The latest change to its tags, note or a transcript (CP-08).
+  edited: Stamp | null
+  // Set while it is deleted (CP-08).
+  deleted: Stamp | null
 }
 
 export class GatewayError extends Error {
@@ -222,9 +241,10 @@ export async function startCaptureSession(
 const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
-// Saves one observation, with its note and recordings, to the assessment's
-// active capture session. A null copeDimension leaves it uncategorised. The
-// server stores each recording and starts its initial transcription.
+// Saves one observation, with its note, recordings and photos, to the
+// assessment's active capture session. A null copeDimension leaves it
+// uncategorised. The server stores each file and starts each recording's
+// initial transcription.
 export async function saveObservation(
   reference: string,
   details: {
@@ -235,36 +255,66 @@ export async function saveObservation(
     standard?: string
   },
   recordings: { name: string; audio: Blob }[],
+  photos: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   form.append('details', JSON.stringify(details))
   for (const r of recordings) form.append('recording', r.audio, r.name)
+  for (const p of photos) form.append('photo', p.image, p.name)
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
 
-// Every saved observation of the assessment, newest first.
+// Every saved observation of the assessment, newest first. Deleted ones are
+// left out unless includeDeleted asks for them too (CP-08).
 export async function listObservations(
   reference: string,
   signal?: AbortSignal,
+  includeDeleted = false,
 ): Promise<SavedObservation[]> {
-  return (await request<SavedObservation[]>('GET', observationsPath(reference), undefined, signal))
-    .data
+  const path = observationsPath(reference) + (includeDeleted ? '?include=deleted' : '')
+  return (await request<SavedObservation[]>('GET', path, undefined, signal)).data
 }
 
-// Changes a saved observation's tags (CP-06). A tag left out stays as it is; a
-// null copeDimension uncategorises it and a null standard removes it.
-export async function updateObservationTags(
+const observationPath = (id: string) => `/api/observations/${encodeURIComponent(id)}`
+
+// Changes a saved observation's tags (CP-06) or note (CP-08). A field left out
+// stays as it is; a null copeDimension uncategorises it, and a null standard
+// or note removes it.
+export async function updateObservation(
   id: string,
-  tags: {
+  changes: {
     copeDimension?: string | null
     severity?: string
     locationId?: string
     standard?: string | null
+    note?: string | null
   },
 ): Promise<SavedObservation> {
+  return (await request<SavedObservation>('PATCH', observationPath(id), changes)).data
+}
+
+// Corrects a finished transcript, keeping what Whisper wrote (CP-08).
+export async function correctTranscript(
+  id: string,
+  recordingId: string,
+  text: string,
+): Promise<SavedObservation> {
   return (
-    await request<SavedObservation>('PATCH', `/api/observations/${encodeURIComponent(id)}`, tags)
+    await request<SavedObservation>(
+      'PUT',
+      `${observationPath(id)}/recordings/${encodeURIComponent(recordingId)}/transcript`,
+      { text },
+    )
   ).data
+}
+
+// Deletes an observation, a soft delete it can be restored from (CP-08).
+export async function deleteObservation(id: string): Promise<SavedObservation> {
+  return (await request<SavedObservation>('DELETE', observationPath(id))).data
+}
+
+export async function restoreObservation(id: string): Promise<SavedObservation> {
+  return (await request<SavedObservation>('POST', `${observationPath(id)}/restore`)).data
 }
 
 // Starts a new transcription attempt for a failed recording.
@@ -330,6 +380,9 @@ export type SectionDraft = {
   createdAt: string
 }
 
+// What changed in a draft's evidence since it was written, by kind (CP-08).
+export type ChangeCounts = { added: number; changed: number; removed: number }
+
 export type ReportSection = {
   id: string
   title: string
@@ -337,8 +390,10 @@ export type ReportSection = {
   minObservations: number
   usableObservations: number
   latestDraft: SectionDraft | null
-  // Observations added or changed since the newest draft; redrafting takes them in.
+  // Observations added, changed or removed since the newest draft; redrafting
+  // takes them in. The total, and each kind on its own (CP-08).
   changesSinceDraft: number
+  changeCounts: ChangeCounts
 }
 
 const sectionsPath = (reference: string) =>
@@ -414,6 +469,7 @@ export type ReviewSection = {
     unsupportedStatements: number
     withdrawnSources: number
     changesSinceDraft: number
+    changeCounts: ChangeCounts
   }
   draft: Omit<SectionDraft, 'sources'> | null
   // The draft's cited passages, by citation ID.

@@ -13,6 +13,13 @@ export type CopeDimension = (typeof COPE_DIMENSIONS)[number]
 export const SEVERITIES = ['critical', 'high', 'moderate', 'low'] as const
 export type Severity = (typeof SEVERITIES)[number]
 
+// Who changed or deleted an observation, and when (CP-08). `by` is the
+// signed-in user as they were then, so a later rename doesn't rewrite it.
+export interface IStamp {
+  at: Date
+  by: { id: string; name: string }
+}
+
 export interface IRecording {
   _id: Types.ObjectId
   // "Recording 2", or the uploaded file's own name.
@@ -27,12 +34,26 @@ export interface IRecording {
     // Why the latest attempt failed, shown to the engineer.
     error?: string
     attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
+    // The engineer's correction of `transcript` (CP-08). `transcript` stays as
+    // Whisper wrote it, as evidence of what was said; drafting uses this.
+    correction?: IStamp & { text: string }
   }
 }
 
+// A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
+// interpretation (CP-05) or annotation (CP-10) can attach to one photo.
+export interface IPhoto {
+  _id: Types.ObjectId
+  // The uploaded file's own name, or "Photo 2".
+  name: string
+  // The original image in S3, kept as raw evidence and never altered.
+  key: string
+  contentType: 'image/jpeg' | 'image/png'
+  size: number
+}
+
 // One thing the engineer saw on site, with everything captured about it: a
-// note (CP-02) and any number of recordings (CP-03). Photos (CP-04) will join
-// as another list.
+// note (CP-02), any number of recordings (CP-03) and photographs (CP-04).
 export interface IObservation {
   assessment: Types.ObjectId
   session: Types.ObjectId
@@ -42,6 +63,8 @@ export interface IObservation {
   // Exactly as the engineer wrote it, never trimmed or reworded.
   note?: string
   recordings: IRecording[]
+  // Absent on observations saved before CP-04.
+  photos?: IPhoto[]
   // The standard the engineer tied the finding to, if any. The draft finds the
   // clause itself, so only the standard is recorded.
   standard?: string
@@ -59,9 +82,23 @@ export interface IObservation {
     COPE_dimension: CopeDimension | null
     effective_date: Date
   }
+  // The latest change to its tags, note or a transcript (CP-08).
+  edited?: IStamp
+  // Present only while it is deleted (CP-08), a soft delete: nothing is
+  // removed, so drafts that cite it stay traceable, and restoring removes this.
+  deleted?: IStamp
   createdAt: Date
   updatedAt: Date
 }
+
+const stampFields = {
+  at: { type: Date, required: true },
+  by: {
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+  },
+}
+const stampSchema = new Schema<IStamp>(stampFields, { _id: false })
 
 const recordingSchema = new Schema<IRecording>({
   name: { type: String, required: true },
@@ -75,7 +112,17 @@ const recordingSchema = new Schema<IRecording>({
     attempts: [
       { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
     ],
+    correction: {
+      type: new Schema({ text: { type: String, required: true }, ...stampFields }, { _id: false }),
+    },
   },
+})
+
+const photoSchema = new Schema<IPhoto>({
+  name: { type: String, required: true },
+  key: { type: String, required: true },
+  contentType: { type: String, enum: ['image/jpeg', 'image/png'], required: true },
+  size: { type: Number, required: true },
 })
 
 const observationSchema = new Schema<IObservation>(
@@ -86,6 +133,7 @@ const observationSchema = new Schema<IObservation>(
     engineerId: { type: Schema.Types.ObjectId, ref: 'User' },
     note: { type: String, maxlength: 5000 },
     recordings: [recordingSchema],
+    photos: [photoSchema],
     standard: { type: String, trim: true, maxlength: 100 },
     severity: { type: String, enum: SEVERITIES, required: true },
     location: { type: Schema.Types.ObjectId, required: true },
@@ -97,6 +145,8 @@ const observationSchema = new Schema<IObservation>(
       COPE_dimension: { type: String, enum: COPE_DIMENSIONS, default: null },
       effective_date: { type: Date, required: true },
     },
+    edited: { type: stampSchema },
+    deleted: { type: stampSchema },
   },
   { timestamps: true, collection: 'observations' },
 )

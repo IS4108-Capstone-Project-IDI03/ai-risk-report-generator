@@ -78,6 +78,13 @@ function addLocation(name: string, floor = '') {
   fireEvent.click(within(sheet()).getByRole('button', { name: 'Add location' }))
 }
 const locationBar = () => screen.getByRole('button', { name: /^(Location:|Choose a location)/ })
+// The Remove this location? dialog the bin button opens.
+const removeDialog = () => screen.findByRole('dialog', { name: 'Remove this location?' })
+async function confirmRemove() {
+  const dialog = await removeDialog()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Remove location' }))
+  return dialog
+}
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -93,7 +100,6 @@ beforeEach(() => {
   removeReply = () => Promise.resolve(new Response(null, { status: 204 }))
   added.length = 0
   removed.length = 0
-  vi.stubGlobal('confirm', () => true)
   mockGateway()
 })
 afterEach(() => {
@@ -194,17 +200,21 @@ describe('Choosing where observations are captured', () => {
         location: stored[1],
         note: 'Pump test certificate missing.',
         recordings: [],
+        photos: [],
         recordedAt: '2026-09-29T08:10:00.000Z',
       },
     ]
     await openCapture()
     await within(sheet()).findByText('1 observation')
 
-    // Only the unused one offers removal.
+    // Only the unused one offers removal, once confirmed in its own dialog.
     expect(within(sheet()).queryByRole('button', { name: 'Remove Boiler room' })).toBeNull()
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Remove Stairwel B' }))
+    expect(await removeDialog()).toHaveTextContent('Stairwel B')
+    await confirmRemove()
 
     await vi.waitFor(() => expect(within(sheet()).queryByText('Stairwel B')).toBeNull())
+    expect(screen.queryByRole('dialog', { name: 'Remove this location?' })).toBeNull()
     expect(removed).toEqual(['l1'])
     expect(within(sheet()).getByText('Boiler room')).toBeInTheDocument()
   })
@@ -214,19 +224,21 @@ describe('Choosing where observations are captured', () => {
     await openCapture()
     await screen.findByRole('button', { name: /^Lift A · Ground/ })
 
-    vi.stubGlobal('confirm', () => false)
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Remove Lift A · Ground' }))
+    fireEvent.click(within(await removeDialog()).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Remove this location?' })).toBeNull()
     expect(removed).toEqual([])
 
-    // Someone else saved an observation there in the meantime.
-    vi.stubGlobal('confirm', () => true)
+    // Someone else saved an observation there in the meantime: the dialog
+    // stays open and says why.
     removeReply = () =>
       json(409, {
         error: "Lift A has 1 observation. It can't be removed while they are saved there.",
       })
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Remove Lift A · Ground' }))
+    const dialog = await confirmRemove()
 
-    expect(await within(sheet()).findByRole('alert')).toHaveTextContent(
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       "Lift A has 1 observation. It can't be removed while they are saved there.",
     )
     expect(within(sheet()).getByText('Lift A · Ground')).toBeInTheDocument()
@@ -242,6 +254,7 @@ describe('Choosing where observations are captured', () => {
     fireEvent.click(locationBar())
 
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Remove Lift A · Ground' }))
+    await confirmRemove()
 
     // No location is chosen now, so the sheet cannot be closed.
     await vi.waitFor(() =>

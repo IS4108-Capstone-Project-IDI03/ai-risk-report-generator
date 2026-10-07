@@ -8,6 +8,7 @@ import {
   IconRegistry,
   Select,
 } from '../../../design-system'
+import { DeleteDialog, TranscriptDialog } from '../components/ObservationDialogs'
 import { TagDialog } from '../components/TagDialog'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import type { TranscriptionStatus } from '../api'
@@ -17,6 +18,26 @@ const STATUS_BADGE = {
   transcribed: { tone: 'low', label: 'Transcribed' },
   failed: { tone: 'high', label: 'Failed' },
 } as const satisfies Record<TranscriptionStatus, { tone: string; label: string }>
+
+type Row = AssessmentWorkflow['obsList'][number]
+
+// Where an observation's recordings stand (CP-08 AC2). Only one needing the
+// engineer's eyes is badged; Complete is the norm, so it stays quiet.
+function ObservationStatus({ o }: { o: Row }) {
+  return o.statusTone ? (
+    <Badge tone={o.statusTone}>{o.status}</Badge>
+  ) : (
+    <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{o.status}</span>
+  )
+}
+
+// Who last changed or deleted it, and when: "Edited by Alex Rowe · 07 Oct 14:02".
+const stampStyle = {
+  margin: '8px 0 0',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  color: 'var(--text-muted)',
+} as const
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -75,6 +96,15 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
             <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
               <Select
                 size="sm"
+                aria-label="Filter by type"
+                options={v.obsTypeFilterOptions}
+                value={v.obsFilters.type}
+                onChange={v.setObsFilter('type')}
+              ></Select>
+            </div>
+            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+              <Select
+                size="sm"
                 aria-label="Filter by category"
                 options={v.obsCatFilterOptions}
                 value={v.obsFilters.cat}
@@ -108,6 +138,24 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                 onChange={v.setObsFilter('floor')}
               ></Select>
             </div>
+            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+              <Select
+                size="sm"
+                aria-label="Filter by status"
+                options={v.obsStatusFilterOptions}
+                value={v.obsFilters.status}
+                onChange={v.setObsFilter('status')}
+              ></Select>
+            </div>
+            {/* Swaps the list for the deleted observations and back (CP-08 AC14). */}
+            <Button
+              variant={v.obsShowDeleted ? 'tonal' : 'secondary'}
+              size="sm"
+              iconLeft={v.obsShowDeleted ? IconRegistry.action.close : IconRegistry.action.discard}
+              onClick={() => v.setObsShowDeleted(!v.obsShowDeleted)}
+            >
+              {v.obsShowDeleted ? 'Hide deleted' : 'Show deleted'}
+            </Button>
             {!!v.obsFiltering && (
               <Button variant="ghost" size="sm" onClick={v.clearObsFilters}>
                 {'Clear filters'}
@@ -119,8 +167,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns:
-                    '40px minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,2fr) 120px 84px',
+                  gridTemplateColumns: v.obsCols,
                   alignItems: 'center',
                   gap: '12px',
                   padding: '0 16px',
@@ -139,7 +186,8 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                 <span>{'Location'}</span>
                 <span>{'Summary'}</span>
                 <span>{'Severity'}</span>
-                <span style={{ textAlign: 'right' }}>{'Time'}</span>
+                <span>{'Status'}</span>
+                <span style={{ textAlign: 'right' }}>{'Captured'}</span>
               </div>
             </>
           )}
@@ -189,7 +237,10 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                       >
                         {o.cat}
                       </span>
-                      {!!o.badge && <Badge tone={o.badge.tone}>{o.badge.label}</Badge>}
+                      {!!o.deleted && <Badge tone="danger">Deleted</Badge>}
+                    </span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                      {o.typeLabel}
                     </span>
                     {!!v.obsStack && (
                       <>
@@ -220,10 +271,11 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                           >
                             {o.text}
                           </span>
-                          <span style={{ display: 'flex' }}>
+                          <span style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                             <Badge tone={o.sev} dot={true}>
                               {o.sevLabel}
                             </Badge>
+                            <ObservationStatus o={o} />
                           </span>
                         </span>
                       </>
@@ -266,6 +318,9 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                         <Badge tone={o.sev} dot={true}>
                           {o.sevLabel}
                         </Badge>
+                      </span>
+                      <span style={{ display: 'flex' }}>
+                        <ObservationStatus o={o} />
                       </span>
                     </>
                   )}
@@ -361,6 +416,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               <Badge tone={STATUS_BADGE[r.status].tone}>
                                 {STATUS_BADGE[r.status].label}
                               </Badge>
+                              {!!r.correctedLabel && <Badge tone="neutral">Corrected</Badge>}
                             </div>
                             {r.status === 'failed' ? (
                               <div role="status" style={{ marginTop: '8px' }}>
@@ -382,18 +438,52 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                 </Callout>
                               </div>
                             ) : (
-                              <p
-                                style={{
-                                  margin: '6px 0 0',
-                                  fontSize: '15px',
-                                  lineHeight: '24px',
-                                  color: 'var(--text-body)',
-                                  maxWidth: '68ch',
-                                  textWrap: 'pretty',
-                                }}
-                              >
-                                {r.text}
-                              </p>
+                              <>
+                                <p
+                                  style={{
+                                    margin: '6px 0 0',
+                                    fontSize: '15px',
+                                    lineHeight: '24px',
+                                    color: 'var(--text-body)',
+                                    maxWidth: '68ch',
+                                    textWrap: 'pretty',
+                                  }}
+                                >
+                                  {r.text}
+                                </p>
+                                {r.original !== null && (
+                                  <details style={{ marginTop: '6px', fontSize: '14px' }}>
+                                    <summary
+                                      style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
+                                    >
+                                      {'What Whisper wrote'}
+                                    </summary>
+                                    <p
+                                      style={{
+                                        margin: '6px 0 0',
+                                        paddingLeft: '12px',
+                                        borderLeft: '2px solid var(--ai-border)',
+                                        color: 'var(--text-body)',
+                                        maxWidth: '68ch',
+                                      }}
+                                    >
+                                      {r.original}
+                                    </p>
+                                  </details>
+                                )}
+                                {!!r.correctedLabel && <p style={stampStyle}>{r.correctedLabel}</p>}
+                                {r.canCorrect && (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    iconLeft={IconRegistry.action.edit}
+                                    onClick={r.correct}
+                                    style={{ marginTop: '8px' }}
+                                  >
+                                    {'Correct transcript'}
+                                  </Button>
+                                )}
+                              </>
                             )}
                             <audio
                               controls
@@ -404,6 +494,8 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                             />
                           </section>
                         ))}
+                        {!!o.deletedLabel && <p style={stampStyle}>{o.deletedLabel}</p>}
+                        {!!o.editedLabel && <p style={stampStyle}>{o.editedLabel}</p>}
                         <div
                           style={{
                             marginTop: '14px',
@@ -436,14 +528,34 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               </Button>
                             </>
                           )}
-                          {v.canEdit && (
+                          {o.canChange && (
+                            <>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                iconLeft={IconRegistry.action.edit}
+                                onClick={o.editTags}
+                              >
+                                {'Edit'}
+                              </Button>
+                              <Button
+                                variant="danger-tonal"
+                                size="sm"
+                                iconLeft={IconRegistry.action.discard}
+                                onClick={o.deleteObs}
+                              >
+                                {'Delete'}
+                              </Button>
+                            </>
+                          )}
+                          {o.canRestore && (
                             <Button
                               variant="secondary"
                               size="sm"
-                              iconLeft={IconRegistry.action.edit}
-                              onClick={o.editTags}
+                              iconLeft={IconRegistry.action.reinstate}
+                              onClick={o.restoreObs}
                             >
-                              {'Edit tags'}
+                              {'Restore'}
                             </Button>
                           )}
                         </div>
@@ -470,32 +582,72 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                         >
                           {o.media.map((m, index) => (
                             <Fragment key={index}>
-                              <div
-                                style={{
-                                  width: '132px',
-                                  border: '1px solid var(--border-default)',
-                                  borderRadius: '5px',
-                                  background: 'var(--surface-card)',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '6px',
-                                  flexWrap: 'wrap',
-                                  padding: '16px 8px',
-                                }}
-                              >
-                                <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
-                                <span
+                              {m.url ? (
+                                // The original photo, linked from its observation (CP-04 AC2).
+                                <a
+                                  href={m.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label={'Open ' + m.name}
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
-                                    fontSize: '12px',
+                                    width: '132px',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: '5px',
+                                    background: 'var(--surface-card)',
+                                    overflow: 'hidden',
                                     color: 'var(--text-muted)',
+                                    textDecoration: 'none',
                                   }}
                                 >
-                                  {m.name}
-                                </span>
-                              </div>
+                                  {/* ponytail: loads the original; serve smaller copies if lists grow long. */}
+                                  <img
+                                    src={m.url}
+                                    alt=""
+                                    loading="lazy"
+                                    style={{ display: 'block', width: '100%', height: 'auto' }}
+                                  />
+                                  <span
+                                    style={{
+                                      display: 'block',
+                                      padding: '4px 6px',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontSize: '12px',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {m.name}
+                                  </span>
+                                </a>
+                              ) : (
+                                <div
+                                  style={{
+                                    width: '132px',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: '5px',
+                                    background: 'var(--surface-card)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    flexWrap: 'wrap',
+                                    padding: '16px 8px',
+                                  }}
+                                >
+                                  <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
+                                  <span
+                                    style={{
+                                      fontFamily: 'var(--font-mono)',
+                                      fontSize: '12px',
+                                      color: 'var(--text-muted)',
+                                    }}
+                                  >
+                                    {m.name}
+                                  </span>
+                                </div>
+                              )}
                             </Fragment>
                           ))}
                           {v.canEdit && v.canCapture && (
@@ -535,6 +687,15 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               ></EmptyState>
             </div>
           )}
+          {!!v.obsNoDeleted && (
+            <div style={{ padding: '48px 18px' }}>
+              <EmptyState
+                icon={IconRegistry.action.discard}
+                title="No deleted observations"
+                description="An observation you delete is listed here, where you can restore it. Choose Hide deleted to see the observations on file."
+              ></EmptyState>
+            </div>
+          )}
           <div
             style={{
               display: 'flex',
@@ -558,6 +719,16 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
         </div>
       </div>
       <TagDialog v={v} />
+      {v.obsDialog?.kind === 'transcript' && !!v.obsDialog.recording && (
+        <TranscriptDialog
+          key={v.obsDialog.key + v.obsDialog.recording.id}
+          v={v}
+          dialog={v.obsDialog}
+        />
+      )}
+      {v.obsDialog?.kind === 'delete' && (
+        <DeleteDialog key={v.obsDialog.key} v={v} dialog={v.obsDialog} />
+      )}
     </>
   )
 }

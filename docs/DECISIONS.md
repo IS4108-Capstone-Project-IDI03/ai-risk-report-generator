@@ -443,3 +443,113 @@ facility types (office, mall, mixed-use). Other countries and facility types
 are untested.
 
 Stories: IN-05.
+
+## 2026-10-07 — CP-06 merges into CP-08, and observations are corrected in place, soft-deleted and changed only by the assigned engineer
+
+Chose: CP-06 (tag an observation) is merged into a new CP-08 (manage
+captured observations), since both change the same document on the same tab
+through the same route. KB-02 into KB-01 was the precedent. The merged ACs
+read "name" as the location and floor (as CP-06 did), define status as
+Transcribing, Transcription failed or Complete, and list the whole assessment
+rather than one capture session, which the engineer never sees.
+- A note edit or tag edit overwrites the observation in place, with
+  `edited: { at, by }` naming who made the latest change. The traceable
+  record of what a draft cited is the draft's own `evidence`, which already
+  holds each observation as it was drafted from.
+- A transcript correction is stored beside Whisper's words, never over them:
+  `transcription.correction` is what drafting uses, `transcript` is evidence
+  of what was said. Only a finished transcription can be corrected.
+- Deleting sets `deleted: { at, by }` and removes nothing, as RV-10's archive
+  and KB-01's withdraw do. `listObservations` leaves deleted observations out,
+  so the list, section counts and drafting all drop them in one place; Show
+  deleted lists them, and restoring removes the mark.
+- `changesSinceDraft` now also counts observations a draft was given that are
+  no longer evidence (deleted or uncategorised), so the draft shows as out of
+  date. `changeCounts` splits that total into added, changed and removed, and
+  the warning names only the kinds that happened ("2 observations added and 1
+  removed"). The total alone still decides whether the draft is out of date.
+- Only the assessment's assigned engineer can change, delete or restore its
+  observations, and not once it is archived, as for its other details
+  (RV-10). This tightens CP-06, which let any risk engineer retag. Capturing
+  and retrying a transcription stay open to any risk engineer.
+- Categories are shown as the values they are stored as (Construction,
+  Occupancy, Protection, Exposure, Uncategorised), as AC7 names them, rather
+  than as report section names ("Fire protection"). The client no longer maps
+  labels to stored values.
+
+Rejected:
+- An edit history on each observation, as KB-01 keeps for documents: no AC
+  asks to browse earlier wording, and the version that matters, the one a
+  draft cited, is already in that draft's `evidence`.
+- Copying a transcript into the note to edit it ("Edit as text note", design
+  annotation 23): drafting would then read the same words twice, as both
+  transcript and note.
+- Removing a recording from an observation, or deleting an observation for
+  good: either would remove raw evidence.
+- Owner as the engineer who captured the observation: observations saved
+  before CP-02's revision have no capturer ID, and every other change to an
+  assessment already goes by its assigned engineer.
+
+Reason: CP-08 asks for observations to be corrected and removed while every
+draft that cites one stays traceable, and the merged ACs keep CP-06's
+behaviour while closing its overwrite-in-place gap now that drafts cite
+observations (the CP-06 entry above anticipated this).
+
+Stories: CP-08 (with CP-06 merged in), CP-02, GN-01.
+
+## 2026-10-07 — Photos join the observation, their format is read from the image, and the collection is a tab
+
+Chose: an observation gains a `photos` list (CP-04), as the 2026-09-29
+decision planned, saved in the same multipart request as its note and
+recordings. Each photo's original goes to S3 at
+`photos/<reference>/<observation id>/<photo id>.<jpg|png>` and is never
+altered; CP-05's interpretation and CP-10's annotation can attach to a photo by
+its `_id`.
+- Only JPG and PNG are stored, and the gateway decides by the file's first
+  bytes, not the type the browser sends. The client refuses other types first,
+  with the same wording, so the engineer learns before saving.
+- Two pickers (AC6): Take photograph, whose `capture` attribute sends a phone
+  straight to its camera, one photo per shot; and Choose photographs, without
+  it, for several from the library. Chrome on Android 14 and 15 opens
+  Android's photo picker for an image-only picker, which has no camera, so
+  one picker without `capture` left Android engineers unable to take a photo
+  (found testing on a phone, 7 Oct 2026). A desktop browser ignores
+  `capture`, so Take photograph is hidden where the main pointer is a mouse.
+- The photo collection (AC3) is a Photos tab in the assessment workspace,
+  built in the browser from the observation list it already loads, leaving
+  out deleted observations as drafting does. AC3 originally ended "then the
+  image is available for the report photo appendix", which no screen could
+  show: the appendix is EX-01 (its AC3), and the Export tab is still
+  simulated. It now reads "every photo saved with the assessment's
+  observations is listed, except those of deleted observations", which
+  CP-04 can deliver on its own; EX-01 draws its appendix from the same
+  photos.
+- Thumbnails load the original, which the gateway marks cacheable since the
+  image under a photo's id never changes.
+- Photos are not drafting evidence yet: `report_sections.evidence` is
+  unchanged, so no existing draft reads as out of date.
+
+Rejected:
+- Trusting the browser's type or the file extension: an iPhone's HEIC renamed
+  `.jpg`, or a file with no type, would be stored as a JPG that nothing can
+  open.
+- Converting HEIC to JPG in the gateway: it alters the raw evidence (AC1)
+  and needs an image library for one phone setting. iOS usually converts to
+  JPG itself when the picker asks for JPG or PNG; the engineer is told when
+  it does not.
+- One picker without `capture`, the first version: no camera on Android 14+.
+- Widening the picker's types so Android shows its camera (adding
+  `text/plain`, or the non-standard `android/allowCamera`): the first lets any
+  file through the picker, the second is undocumented and could stop working.
+- A gateway route for the collection: no screen needs more than the
+  observation list already holds, as with the Observations filters
+  (2026-09-30). Export (EX-01) reads the photos from the observations.
+- Resized thumbnails: they need an image library and a second stored copy;
+  CP-10 already adds derivative images, so thumbnails can follow that.
+
+Reason: CP-04 asks for the original kept as evidence, linked to its
+observation and available to the report appendix, and for photos taken on the
+device to upload as normal. Reading the format from the image is what makes
+"rejected with a format message" hold whatever the browser reports.
+
+Stories: CP-04.

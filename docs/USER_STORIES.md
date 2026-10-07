@@ -334,7 +334,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   1. Given an active session, when a JPG or PNG photograph is saved, then the original image is stored as raw evidence.
   2. Given a saved photograph, when its photo observation is opened, then the original image is linked to that observation.
-  3. Given a saved photograph, when the assessment photo collection is opened, then the image is available for the report photo appendix.
+  3. Given saved photographs, when the assessment photo collection is opened, then every photo saved with the assessment's observations is listed, except those of deleted observations. (Reworded 7 Oct 2026: including the photos in the report's appendix is EX-01 AC3.)
   4. Given an unsupported file type, when photo upload is attempted, then the file is rejected with a format message.
   5. Given a photo capture is created, when it is saved, then the capture is tagged with the engineer's id.
   6. Given a photo is taken on the device, when the engineer uploads it to the application, then it uploads as normal.
@@ -353,15 +353,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a generated photo observation, when its evidence link is opened, then the source photograph is displayed.
   </details>
 
-- [x] **CP-06** — Tag an observation (risk engineer, Must, 2 pts, deps: CP-02, Sprint 2)
-  <details><summary>Goal / AC</summary>
-
-  Goal: assign location, COPE category or severity to an observation, so findings can be grouped using consistent labels.
-
-  1. Given an observation with a selected floor, name, category or severity value, when the value is saved, then that field retains the selected value after reopening.
-  2. Given an observation with saved labels, when the list is filtered by any one matching label, then the observation is returned.
-  3. Given the capture tagging interface, when a COPE category is selected, then its value belongs to the shared category vocabulary.
-  </details>
+- **CP-06** — Tag an observation: merged into CP-08 on 2026-10-07 (its AC1-AC3 are CP-08 AC6, AC3 and AC7). See `docs/DECISIONS.md`.
 
 - [ ] **CP-07** — Extract structured fields from a voice transcript (risk engineer, Must, 3 pts, deps: CP-03, Sprint 2)
   <details><summary>Goal / AC</summary>
@@ -374,22 +366,31 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a proposed field value, when the engineer saves a correction before use, then the corrected value is used by the observation.
   </details>
 
-- [ ] **CP-08** — Manage captured observation (risk engineer, Must, 3 pts, deps: CP-03, CP-04, CP-06, Sprint 2)
+- [ ] **CP-08** — Manage captured observations (risk engineer, Must, 8 pts, deps: CP-02, CP-03, CP-15, GN-01, Sprint 2; CP-06 merged in)
   <details><summary>Goal / AC</summary>
 
-  Goal: view, correct and remove observations in a capture session, so the observation can be maintained as evidence for report drafting.
+  Goal: view, filter, tag, correct and remove the observations captured for an assessment, so report drafting works from evidence that is accurate, consistently labelled and traceable to what each draft used.
 
-  1. Given a session with captured observations, when its observation list is opened, then every active observation in that session is listed.
-  2. Given an observation list, when an observation row is inspected, then its summary displays type, category, name, status, capture timestamp.
-  3. Given a selected type, category, name or status filter, when the list refreshes, then only matching observations are shown.
-  4. Given a listed observation, when the engineer opens it, then its details are displayed.
-  5. Given an observation with prior citations, when a correction is saved, then the prior evidence version remains traceable.
-  6. Given a saved correction, when a future draft reads that observation, then the current version is used.
-  7. Given an observation owned by the engineer, when a content correction is saved, then the corrected content is persisted.
-  8. Given an observation owned by the engineer, when deletion is confirmed, then the observation is marked as soft-deleted.
-  9. Given a soft-deleted observation, when the default observation list is opened, then the observation is absent.
-  10. Given a soft-deleted observation, when drafting inputs are collected, then the observation is excluded.
-  11. Given an existing citation to the removed observation, when the citation is inspected, then its historical evidence remains traceable.
+  Terms: Type is Note, Voice, or both. Status is Transcribing, Transcription failed or Complete. Tags are category, severity, location (with its floor) and standard. A "change" is editing tags, a note or a transcript, or deleting.
+
+  1. Given an assessment has observations, when I open the Observations tab, then every observation not deleted is listed, newest first.
+  2. Given an observation is listed, when I view its row, then I see its type, category, location, floor, severity, status, and capture date and time.
+  3. Given I filter by type, category, severity, location, floor or status, when the list refreshes, then every matching observation is shown and no others.
+  4. Given I use several filters, when the list refreshes, then every observation matching all of them is shown and no others.
+  5. Given I open an observation, when its details load, then I see its note, recordings, transcripts and tags.
+  6. Given I edit an observation's tags, when I save and reopen it, then the new tags are shown.
+  7. Given I am choosing a category, when I open the list, then only Construction, Occupancy, Protection, Exposure and Uncategorised are offered.
+  8. Given I edit an observation's note, when I save, then the new note is stored exactly as typed.
+  9. Given an observation has no recording, when I clear its note, then the save is refused.
+  10. Given a recording is transcribed, when I correct its transcript, then drafting uses the correction and the original transcript is kept.
+  11. Given an observation was edited or deleted, when I view it, then I see who did it and when.
+  12. Given I confirm deleting an observation, when it is deleted, then it is marked deleted but kept in the database.
+  13. Given an observation is deleted, when I view the list or draft a section, then it is not shown or used.
+  14. Given an observation is deleted, when I choose Show deleted and restore it, then it returns to the list and to drafting.
+  15. Given a draft cites an observation, when the observation is edited or deleted, then the draft still shows it as drafted and is marked out of date.
+  16. Given an observation was edited, when a section is next drafted, then the draft uses the current version.
+  17. Given I am not the assigned engineer, or the assessment is archived, when I try to change an observation, then the change is refused.
+  18. Given a save fails, when the error is shown, then my changes are kept so I can try again.
   </details>
 
 - [ ] **CP-09** — Open the raw capture behind an observation (risk engineer, Must, 1 pt, deps: CP-03, CP-04, Sprint 2)

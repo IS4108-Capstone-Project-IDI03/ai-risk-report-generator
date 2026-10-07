@@ -238,6 +238,7 @@ describe('the review workspace (RV-01)', () => {
       unsupportedStatements: 1,
       withdrawnSources: 0,
       changesSinceDraft: 0,
+      changeCounts: { added: 0, changed: 0, removed: 0 },
     })
     expect(construction.draft.subsections[0].statements).toHaveLength(2)
     expect(construction.draft.sources).toBeUndefined()
@@ -349,6 +350,7 @@ describe('the review workspace (RV-01)', () => {
       unsupportedStatements: 0,
       withdrawnSources: 0,
       changesSinceDraft: 0,
+      changeCounts: { added: 0, changed: 0, removed: 0 },
     })
     // Only the section's own observation shows, since the other is not cited.
     expect(fresh[0].observations.map((o: { id: string }) => o.id)).toEqual([String(riser._id)])
@@ -362,7 +364,11 @@ describe('the review workspace (RV-01)', () => {
     // An observation added after drafting makes the draft out of date.
     await observation(ids, 'Construction', 'Curtain wall sealed.')
     const later = (await api.get(`/api/assessments/${REFERENCE}/review`)).body.sections
-    expect(later[0].review).toMatchObject({ state: 'needs_review', changesSinceDraft: 1 })
+    expect(later[0].review).toMatchObject({
+      state: 'needs_review',
+      changesSinceDraft: 1,
+      changeCounts: { added: 1, changed: 0, removed: 0 },
+    })
   })
 
   it('shows the newest draft, and a passage whose document has no record', async () => {

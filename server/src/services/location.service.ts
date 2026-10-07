@@ -11,9 +11,9 @@ export class LocationNotFoundError extends Error {
   }
 }
 export class LocationInUseError extends Error {
-  constructor(name: string, count: number) {
+  constructor(name: string, count: number, deleted = 0) {
     super(
-      `${name} has ${count} observation${count === 1 ? '' : 's'}. It can't be removed while they are saved there.`,
+      `${name} has ${count} observation${count === 1 ? '' : 's'}${deleted ? `, ${deleted} of them deleted` : ''}. It can't be removed while they are saved there.`,
     )
     this.name = 'LocationInUseError'
   }
@@ -78,7 +78,8 @@ export async function addLocation(
 }
 
 // Removes a location added by mistake. One with observations stays, so no
-// observation loses where it was captured.
+// observation loses where it was captured. Deleted observations count too
+// (CP-08), so a restored one never comes back without its location.
 // ponytail: an observation saved or moved here between the check and the
 // removal would keep a location that is gone; it then shows no location until
 // its tags are edited (CP-06).
@@ -89,10 +90,11 @@ export async function removeLocation(reference: string, id: string) {
     ? assessment.locations?.find((l) => l._id.equals(id))
     : undefined
   if (!location) throw new LocationNotFoundError()
-  const count = await ObservationModel.countDocuments({
-    assessment: assessment._id,
-    location: location._id,
-  })
-  if (count) throw new LocationInUseError(location.name, count)
+  const there = { assessment: assessment._id, location: location._id }
+  const [count, deleted] = await Promise.all([
+    ObservationModel.countDocuments(there),
+    ObservationModel.countDocuments({ ...there, deleted: { $exists: true } }),
+  ])
+  if (count) throw new LocationInUseError(location.name, count, deleted)
   await AssessmentModel.updateOne({ _id: assessment._id }, { $pull: { locations: { _id: id } } })
 }
