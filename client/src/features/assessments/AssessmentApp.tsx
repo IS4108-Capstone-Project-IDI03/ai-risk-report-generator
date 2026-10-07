@@ -11,6 +11,7 @@ import { SectionDrafts } from './screens/SectionDrafts'
 import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
+import { Photos } from './screens/Photos'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 import { AccessDenied } from '../auth/AccessDenied'
@@ -315,6 +316,8 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                     {v.isOverview && <Overview v={v} />}
 
                     {v.isObservations && <Observations v={v} />}
+
+                    {v.isPhotos && <Photos v={v} />}
 
                     {v.isGenerate &&
                       (v.liveReference ? (
