@@ -126,6 +126,31 @@ def test_a_document_with_no_title_falls_back_to_the_file_name(monkeypatch):
     assert "NFPA 13 - 2022.pdf" in post.calls[0]["json"]["message"]
 
 
+def test_a_retried_document_carries_its_attempt_number_in_the_context(monkeypatch):
+    # The gateway folds context.attempt into the notification dedupe key, so a
+    # retry that fails again is a distinct notification. The number comes from
+    # the document's retryCount (bumped only when an admin presses Retry).
+    post = FakePost()
+    monkeypatch.setattr(notifications.httpx, "post", post)
+
+    notifications.notify_ingestion(
+        make_doc(retryCount=2, error="x"), status="failed", failed_stage="chunking"
+    )
+
+    assert post.calls[0]["json"]["context"]["attempt"] == "2"
+
+
+def test_a_first_attempt_carries_no_attempt_number(monkeypatch):
+    # retryCount 0 (or absent) is the original upload: no attempt key, so its
+    # dedupe identity differs from retry #1's.
+    post = FakePost()
+    monkeypatch.setattr(notifications.httpx, "post", post)
+
+    notifications.notify_ingestion(make_doc(retryCount=0), status="complete")
+
+    assert "attempt" not in post.calls[0]["json"]["context"]
+
+
 def test_a_gateway_error_is_swallowed_so_ingestion_is_not_broken(monkeypatch):
     post = FakePost(raise_error=ConnectionError("gateway down"))
     monkeypatch.setattr(notifications.httpx, "post", post)

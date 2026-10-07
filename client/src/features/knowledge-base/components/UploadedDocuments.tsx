@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Callout, EmptyState, IconRegistry, Table } from '../../../design-system'
 import {
   listKnowledgeDocuments,
+  retryIngestion,
   type IngestionStage,
   type IngestionStatus,
   type KnowledgeDocument,
@@ -54,6 +55,28 @@ export function UploadedDocuments({
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // Documents whose retry is in flight, so the button disables and cannot
+  // double-fire. A failed retry (e.g. 409 if someone beat us to it) clears the
+  // flag and refreshes, which shows the document's real current status.
+  const [retrying, setRetrying] = useState<Record<string, boolean>>({})
+  const [retryError, setRetryError] = useState<string | null>(null)
+
+  // Re-reads the list (and, because a retried document is now queued, restarts
+  // the 3s polling loop). Bumping `attempt` re-runs the load effect.
+  const refresh = () => setAttempt((n) => n + 1)
+
+  const retry = async (id: string) => {
+    setRetrying((r) => ({ ...r, [id]: true }))
+    setRetryError(null)
+    try {
+      await retryIngestion(id)
+    } catch {
+      setRetryError('The retry could not be started. Check the connection, then try again.')
+    } finally {
+      setRetrying((r) => ({ ...r, [id]: false }))
+      refresh()
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -130,6 +153,17 @@ export function UploadedDocuments({
           </span>
         )}
         {d.error && <span className="kb-status-reason">{d.error}</span>}
+        {d.status === 'failed' && (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft="refresh-cw"
+            disabled={retrying[d.id]}
+            onClick={() => retry(d.id)}
+          >
+            {retrying[d.id] ? 'Retrying…' : 'Retry'}
+          </Button>
+        )}
       </span>
     )
   }
@@ -151,6 +185,11 @@ export function UploadedDocuments({
         <h2 id="kb-uploaded-title">Recent uploads</h2>
         <p>Complete uploads leave this list after 24 hours, failed ones after 7 days.</p>
       </header>
+      {retryError && (
+        <Callout tone="danger" title="Retry not started">
+          {retryError}
+        </Callout>
+      )}
       {unreachable && (
         <Callout
           tone="danger"

@@ -63,6 +63,14 @@ def notify_ingestion(doc: dict, status: str, failed_stage: str | None = None) ->
     context = {"documentId": str(doc["_id"]), "status": status}
     if status == "failed" and failed_stage:
         context["stage"] = failed_stage
+    # The retry number (bumped only when an admin presses Retry) rides in the
+    # context so the gateway's dedupe key treats each retry as distinct — a
+    # retry that fails again notifies afresh instead of being deduped away. The
+    # original upload (retryCount 0 / absent) carries no attempt, so its
+    # identity differs from retry #1's. Context values are strings.
+    retry_count = doc.get("retryCount") or 0
+    if retry_count:
+        context["attempt"] = str(retry_count)
 
     body = {
         "purpose": _PURPOSE,
