@@ -263,6 +263,8 @@ describe('drafting a report section (GN-01)', () => {
     await observation(ids, 'Construction', { note: 'Curtain wall sealed.' })
     await ObservationModel.updateOne({ _id: riser._id }, { severity: 'critical' })
     expect((await sections()).changesSinceDraft).toBe(2)
+    // Each kind is counted on its own too (CP-08).
+    expect((await sections()).changeCounts).toEqual({ added: 1, changed: 1, removed: 0 })
     // The saved evidence still shows the observation as it was drafted from.
     expect((await ReportSectionModel.findOne().lean())?.evidence[0].severity).toBe('high')
 
@@ -284,11 +286,13 @@ describe('drafting a report section (GN-01)', () => {
     // The draft still holds the observation as it was drafted from, and asks
     // for a redraft. So does uncategorising one it was given.
     expect((await sections()).changesSinceDraft).toBe(1)
+    expect((await sections()).changeCounts).toEqual({ added: 0, changed: 0, removed: 1 })
     expect((await ReportSectionModel.findOne().lean())?.evidence.map((e) => e.id)).toContain(
       String(riser._id),
     )
     await api.patch(`/api/observations/${wall._id}`).send({ copeDimension: null })
     expect((await sections()).changesSinceDraft).toBe(2)
+    expect((await sections()).changeCounts).toEqual({ added: 0, changed: 0, removed: 2 })
 
     // A redraft is given neither.
     await api.patch(`/api/observations/${wall._id}`).send({ copeDimension: 'Construction' })
@@ -336,9 +340,9 @@ describe('drafting a report section (GN-01)', () => {
 
     expect(response.status).toBe(200)
     // A correction is a change the draft lacks.
-    expect(
-      (await api.get(`/api/assessments/${REFERENCE}/sections`)).body[0].changesSinceDraft,
-    ).toBe(1)
+    const [listed] = (await api.get(`/api/assessments/${REFERENCE}/sections`)).body
+    expect(listed.changesSinceDraft).toBe(1)
+    expect(listed.changeCounts).toEqual({ added: 0, changed: 1, removed: 0 })
     await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
     expect(drafts.mock.lastCall![0].observations).toEqual([
       expect.objectContaining({ id: String(voiced._id), transcripts: [corrected] }),

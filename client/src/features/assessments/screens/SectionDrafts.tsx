@@ -15,6 +15,7 @@ import {
   type SectionDraft,
 } from '../api'
 import { ObservationExcerpt } from '../components/ObservationExcerpt'
+import { describeChanges } from '../reviewDisplay'
 import { useObservations } from '../useObservations'
 import { useSections } from '../useSections'
 
@@ -401,8 +402,8 @@ export function SectionDrafts({
                               color: 'var(--status-moderate-fg)',
                             }}
                           >
-                            {plural(s.changesSinceDraft, 'observation')} added, changed or removed
-                            since this draft. Redraft to bring it up to date.
+                            {describeChanges(s.changeCounts)} since this draft. Redraft to bring it
+                            up to date.
                           </span>
                         )}
                         {state === STATE.insufficient && (

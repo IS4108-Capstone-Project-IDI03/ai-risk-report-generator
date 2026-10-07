@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { ReportSection, SavedObservation, SectionDraft } from './api'
+import { describeChanges } from './reviewDisplay'
 
 const REF = 'RPT-2026-0001'
 const RECORD = {
@@ -63,6 +64,7 @@ const section = (fields: Partial<ReportSection>): ReportSection => ({
   usableObservations: 1,
   latestDraft: null,
   changesSinceDraft: 0,
+  changeCounts: { added: 0, changed: 0, removed: 0 },
   ...fields,
 })
 const DRAFT: SectionDraft = {
@@ -237,15 +239,37 @@ it('drafts every section with enough evidence, one after another', async () => {
   expect(screen.getAllByText('Drafted')).toHaveLength(2)
 }, 15_000)
 
-it('says when a draft is missing newer evidence', async () => {
+it('says when a draft is missing newer evidence, by kind, leaving out kinds with none', async () => {
   mockGateway(
     () => json(201, DRAFT),
-    [section({ latestDraft: DRAFT, changesSinceDraft: 2 }), EXPOSURES],
+    [
+      section({
+        latestDraft: DRAFT,
+        changesSinceDraft: 3,
+        changeCounts: { added: 2, changed: 0, removed: 1 },
+      }),
+      EXPOSURES,
+    ],
   )
   await openGenerateTab()
 
+  // Nothing changed, so "changed" is not mentioned.
   expect(
-    screen.getByText(/2 observations added, changed or removed since this draft/),
+    screen.getByText(
+      '2 observations added and 1 removed since this draft. Redraft to bring it up to date.',
+    ),
   ).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Redraft section' })).toBeEnabled()
+})
+
+it('describes each kind of change and never mentions a kind with none (CP-08)', () => {
+  const cases = [
+    [{ added: 1, changed: 0, removed: 0 }, '1 observation added'],
+    [{ added: 0, changed: 2, removed: 0 }, '2 observations changed'],
+    [{ added: 0, changed: 0, removed: 1 }, '1 observation removed'],
+    [{ added: 0, changed: 1, removed: 3 }, '1 observation changed and 3 removed'],
+    [{ added: 2, changed: 1, removed: 1 }, '2 observations added, 1 changed and 1 removed'],
+    [{ added: 0, changed: 0, removed: 0 }, ''],
+  ] as const
+  for (const [counts, text] of cases) expect(describeChanges(counts)).toBe(text)
 })
