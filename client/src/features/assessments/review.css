@@ -1,0 +1,404 @@
+/* The review workspace (RV-01): the section rail, the draft editor and the
+   source panel. Layout widths and the stacked breakpoint come from the
+   workflow's review styles (useAssessmentWorkflow). */
+.rv-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rv-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+}
+.rv-muted {
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+
+/* Section rail */
+.rv-rail-head {
+  padding: 16px 18px 10px;
+}
+.rv-rail-progress {
+  padding: 0 18px 14px;
+}
+.rv-rail-progress .rv-muted {
+  margin-top: 8px;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+.rv-rail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-rail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 18px 10px 16px;
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--duration-instant) var(--ease-standard);
+}
+.rv-rail-row:hover {
+  background: var(--surface-hover);
+}
+.rv-rail-row[aria-current='true'] {
+  border-left-color: var(--action-primary);
+  background: var(--surface-selected);
+}
+.rv-rail-row:focus-visible {
+  outline-offset: -2px;
+}
+.rv-rail-number {
+  flex: 0 0 24px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-muted);
+}
+.rv-rail-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rv-rail-title {
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--text-body);
+}
+.rv-rail-states {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.rv-rail-completion {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-secondary);
+}
+.rv-rail-legend {
+  margin: 10px 0 0;
+  padding: 16px 18px 24px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-muted);
+}
+
+/* Draft editor */
+.rv-editor {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--surface-page);
+}
+.rv-editor-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+  padding: 20px clamp(16px, 2vw, 28px) 48px;
+}
+.rv-editor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.rv-editor-bar .rv-label {
+  flex: 1;
+  font-size: 13px;
+}
+.rv-editor h2 {
+  margin: 0;
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.rv-provenance {
+  margin: -8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--text-muted);
+}
+.rv-statement {
+  margin: 0;
+  padding: 2px 4px;
+  margin-inline: -4px;
+  border-radius: var(--radius-sm);
+  scroll-margin: 24px;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.rv-statement + .rv-statement {
+  margin-top: 10px;
+}
+.rv-statement.is-active {
+  background: var(--surface-selected);
+}
+/* A statement with no source behind it keeps an amber underline until it is resolved. */
+.rv-statement.is-unsupported .rv-statement-text {
+  text-decoration: underline;
+  text-decoration-color: var(--status-moderate-fg);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.rv-flag {
+  display: inline-flex;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+/* A superscript reference numeral. Aligned to the top of the text rather than
+   raised, so it never makes its line taller than the prose around it. */
+.rv-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0 3px;
+  vertical-align: text-top;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.rv-cite:hover {
+  border-color: var(--ai-border);
+}
+.rv-cite[aria-current='true'] {
+  border-color: var(--ai-fg);
+  background: var(--ai-fg);
+  color: var(--text-inverse);
+}
+.rv-subsection-note {
+  padding: 14px 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.rv-subsection-note strong {
+  display: block;
+  font-size: 15px;
+}
+
+/* Source panel */
+.rv-panel-section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rv-panel-section:last-child {
+  border-bottom: none;
+  padding-bottom: 28px;
+}
+.rv-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.rv-panel-head .rv-label {
+  flex: 1;
+}
+.rv-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-viewer {
+  padding: 14px 16px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  scroll-margin: 16px;
+}
+.rv-viewer:focus {
+  outline: none;
+}
+.rv-viewer:focus-visible {
+  outline: 2px solid var(--border-focus);
+}
+.rv-viewer.is-empty {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  box-shadow: none;
+}
+.rv-viewer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -4px -6px 8px 0;
+}
+.rv-viewer-head > span:empty {
+  flex: 1;
+}
+.rv-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+.rv-viewer h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.rv-meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 10px 0 12px;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+.rv-meta dt {
+  color: var(--text-muted);
+}
+.rv-meta dd {
+  margin: 0;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+/* Quoted exactly as indexed, behind a 2px rule. */
+.rv-passage {
+  max-height: 50vh;
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  overflow: auto;
+  border-left: 2px solid var(--border-strong);
+  font-family: var(--font-serif);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rv-passage + .rv-passage {
+  margin-top: 10px;
+}
+.rv-passage-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+.rv-viewer-note {
+  margin: 12px 0 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-secondary);
+}
+.rv-viewer-link {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: var(--text-small-size);
+}
+.rv-claim {
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+.rv-claim.is-active {
+  border-color: var(--border-focus);
+  background: var(--surface-selected);
+}
+.rv-claim-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.rv-claim-heading > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rv-claim-text {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-body);
+  cursor: pointer;
+}
+.rv-claim-text > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.rv-claim-cites {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.rv-claim-cites .rv-cite {
+  min-width: 18px;
+  height: 18px;
+  margin-left: 0;
+}
+.rv-block {
+  display: block;
+}
+.rv-block + .rv-block {
+  margin-top: 4px;
+}
+.rv-block-label {
+  color: var(--text-muted);
+}
