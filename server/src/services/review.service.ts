@@ -29,11 +29,12 @@ export type SourcePassageDto = {
   // shows; null when the document has no record there.
   document: {
     title: string
-    issuingBody: string
-    sourceType: string
+    issuingBody: string | null
+    sourceType: string | null
     edition: string | null
-    // YYYY-MM-DD: a standard's effective date, or a past report's date.
-    effectiveDate: string
+    // YYYY-MM-DD: a standard's effective date, or a past report's date; null
+    // while Unconfirmed (IN-05).
+    effectiveDate: string | null
     withdrawnAt: Date | null
     fileUrl: string
   } | null
