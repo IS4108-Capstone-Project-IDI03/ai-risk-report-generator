@@ -10,7 +10,7 @@ import {
   type NotificationPage,
 } from './api'
 
-export type { NotificationCounts }
+export type NotificationCounts = { total: number; unread: number }
 
 // How often the badge is refreshed from the gateway while the tab is visible.
 // Chosen so a finished job surfaces within a reasonable wait without hammering
