@@ -164,7 +164,7 @@ with the same list.
 
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
-| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio | yes | yes |
+| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio and photos | yes | yes |
 | `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry; tag and note edits, transcript corrections, deletes and restores (the assessment's assigned engineer only, CP-08) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
@@ -185,10 +185,9 @@ edits are visible to the whole team.
 ## Observations
 
 `observations` holds one document per observation: one thing the engineer saw
-on site, with everything captured about it. It has an optional `note` (CP-02)
-and a `recordings` list (CP-03), and needs at least one of them. Photos are
-still browser-only placeholders; CP-04 should add a `photos` list to the same
-document rather than a new collection.
+on site, with everything captured about it. It has an optional `note` (CP-02),
+a `recordings` list (CP-03) and a `photos` list (CP-04), and needs at least one
+of them.
 
 Each document links to its `assessment` and the capture `session` it was
 recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
@@ -215,8 +214,9 @@ observation stays out of drafting until it is categorised by editing its tags.
 The category, severity, location and standard are the observation's tags
 (CP-06). `PATCH /api/observations/:id` changes any of them, and the note
 (CP-08), in place, validated against the same values as capture; the
-recordings and capture time never change. The note is stored exactly as typed,
-and a blank one removes it, which an observation without a recording can't do.
+recordings, photos and capture time never change. The note is stored exactly as
+typed, and a blank one removes it, which an observation without a recording or
+a photo can't do.
 Only what differs is saved, with `edited: { at, by: { id, name } }` naming who
 made the latest change; a save that changes nothing records nothing. The
 observation keeps no history of its own: report section drafts cite
@@ -224,7 +224,7 @@ observations by `_id`, and each draft keeps the observations as it was given
 them in its `evidence`, so a draft can always be checked against what it was
 drafted from. There is no zone field: the location's `name` is its zone and
 its `floor` the floor, so choosing a location tags both. The Observations tab
-filters by type (Note, Voice), category, severity, location, floor and status
+filters by type (Note, Voice, Photo), category, severity, location, floor and status
 (Transcribing, Transcription failed, Complete) in the browser, like the
 dashboard.
 
@@ -266,16 +266,31 @@ update so two clicks cannot start two. Each recording is transcribed and
 updated on its own, so one failure leaves the others. Saving leaves the
 capture session `active`.
 
+Each photo (CP-04) has its own `_id`, a `name` (the uploaded file's, or "Photo
+2"), and its original image in S3 at
+`photos/<reference>/<observation id>/<photo id>.<jpg|png>`, stored unaltered;
+the document keeps the key, `contentType` (`image/jpeg` or `image/png`) and
+size. Only JPG and PNG are stored, and the format comes from the file's first
+bytes, not the type the browser reports, so a HEIC renamed `.jpg` is refused.
+A photo has no status: it is stored as taken. Observations saved before CP-04
+have no `photos` field, which reads treat as none. Drafting does not read
+photos yet, so an observation that is only photos is not usable evidence and
+doesn't count toward a section's minimum. The Photos tab lists every photo of
+the assessment's observations not deleted (CP-04 AC3), the collection the
+report's photo appendix (EX-01) is to draw on; like the Observations tab's
+filters, it is built in the browser from the observation list.
+
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each, 100 MB in all). 201, or 400 `{ error, fields }` as for assessments (also for no note and no recording, an empty recording, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note` and `recordings`, each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each) and a `photo` part per JPG or PNG (up to 20 MB each), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording or photo, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo that isn't JPG or PNG, named in `error`). One refused file saves nothing |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos`, each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
+| `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
 
 ## Report sections (GN-01)
 

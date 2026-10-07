@@ -9,6 +9,7 @@ import {
   SEVERITIES,
   type CopeDimension,
   type IObservation,
+  type IPhoto,
   type IRecording,
   type IStamp,
 } from '../models/observation.model'
@@ -53,7 +54,7 @@ export class ObservationStateError extends Error {
 // Removing the note would leave the observation with nothing captured.
 export class EmptyObservationError extends Error {
   constructor() {
-    super('An observation needs a note or a recording, so this note can’t be removed.')
+    super('An observation needs a note, a recording or a photo, so this note can’t be removed.')
     this.name = 'EmptyObservationError'
   }
 }
@@ -76,6 +77,18 @@ const EXTENSIONS: Record<string, string> = {
 }
 export function audioExtension(contentType: string): string | undefined {
   return EXTENSIONS[contentType.split(';')[0].trim().toLowerCase()]
+}
+
+// A photo's format comes from its first bytes, not the type the browser
+// reports, so a HEIC renamed .jpg is refused rather than stored (CP-04 AC4).
+const JPEG = Buffer.from([0xff, 0xd8, 0xff])
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+export function photoFormat(image: Buffer) {
+  if (image.subarray(0, JPEG.length).equals(JPEG))
+    return { contentType: 'image/jpeg' as const, extension: 'jpg' }
+  if (image.subarray(0, PNG.length).equals(PNG))
+    return { contentType: 'image/png' as const, extension: 'png' }
+  return undefined
 }
 
 // The tags, shared by capture and by later tag edits so both accept only the
@@ -141,6 +154,8 @@ export const transcriptCorrectionSchema = z.object({
     .refine((text) => text.trim() !== '', 'Write the corrected transcript.'),
 })
 export type NewRecording = { name: string; audio: Buffer; contentType: string }
+// The route has already checked it is a JPG or PNG (photoFormat).
+export type NewPhoto = { name: string; image: Buffer }
 
 // Who did something and when, for the DTO.
 type StampDto = { at: Date; by: { id: string; name: string } }
@@ -174,6 +189,15 @@ export type ObservationDto = {
       error: string | null
       attempts: number
     }
+  }[]
+  // Each links to its original image (CP-04 AC2).
+  photos: {
+    type: 'Photo'
+    id: string
+    name: string
+    contentType: IPhoto['contentType']
+    size: number
+    url: string
   }[]
   // When it was captured (CP-02 AC2).
   recordedAt: Date
@@ -227,6 +251,14 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
         attempts: r.transcription.attempts.length,
       },
     })),
+    photos: (o.photos ?? []).map((p) => ({
+      type: 'Photo',
+      id: String(p._id),
+      name: p.name,
+      contentType: p.contentType,
+      size: p.size,
+      url: `/api/observations/${o._id}/photos/${p._id}/image`,
+    })),
     recordedAt: o.createdAt,
     edited: stampDto(o.edited),
     deleted: stampDto(o.deleted),
@@ -248,15 +280,17 @@ async function activeCapture(reference: string) {
   return { assessment, session }
 }
 
-// Saves one observation with its note and recordings against the assessment's
-// active capture session. Each recording goes to S3 as raw evidence (CP-03
-// AC1) and starts its initial transcription (AC3). The session stays active, so
-// the engineer can keep adding observations.
+// Saves one observation with its note, recordings and photos against the
+// assessment's active capture session. Each recording and photo goes to S3 as
+// raw evidence (CP-03 AC1, CP-04 AC1), and each recording starts its initial
+// transcription (CP-03 AC3). The session stays active, so the engineer can
+// keep adding observations.
 export async function saveObservation(
   reference: string,
   details: ObservationDetails,
   recordings: NewRecording[],
   user: SessionUser,
+  photos: NewPhoto[] = [],
 ): Promise<ObservationDto> {
   const { assessment, session } = await activeCapture(reference)
   const locations = assessment.locations ?? []
@@ -274,15 +308,28 @@ export async function saveObservation(
       transcription: { status: 'transcribing' as const, attempts: [{ startedAt: now }] },
     }
   })
+  const storedPhotos = photos.map((p) => {
+    const photoId = new Types.ObjectId()
+    const format = photoFormat(p.image)!
+    return {
+      _id: photoId,
+      name: p.name,
+      key: `photos/${reference}/${id}/${photoId}.${format.extension}`,
+      contentType: format.contentType,
+      size: p.image.length,
+    }
+  })
 
   // No transactions on a standalone mongod, so undo the uploads by hand.
+  const keys = [...stored, ...storedPhotos].map((file) => file.key)
   const undo = () =>
-    Promise.all(stored.map((r) => storage.deleteObject(r.key).catch(() => undefined)))
+    Promise.all(keys.map((key) => storage.deleteObject(key).catch(() => undefined)))
   let observation
   try {
-    await Promise.all(
-      stored.map((r, i) => storage.putObject(r.key, recordings[i].audio, r.contentType)),
-    )
+    await Promise.all([
+      ...stored.map((r, i) => storage.putObject(r.key, recordings[i].audio, r.contentType)),
+      ...storedPhotos.map((p, i) => storage.putObject(p.key, photos[i].image, p.contentType)),
+    ])
     observation = await ObservationModel.create({
       _id: id,
       assessment: assessment._id,
@@ -291,6 +338,7 @@ export async function saveObservation(
       engineerId: user.id,
       note: details.note,
       recordings: stored,
+      photos: storedPhotos,
       standard: details.standard,
       severity: details.severity,
       location: details.locationId,
@@ -351,7 +399,8 @@ export async function updateObservation(
   if (o.deleted) throw new ObservationStateError(DELETED)
   if (changes.locationId && !locations.some((l) => l._id.equals(changes.locationId)))
     throw new UnknownLocationError()
-  if (changes.note === null && !o.recordings.length) throw new EmptyObservationError()
+  if (changes.note === null && !o.recordings.length && !o.photos?.length)
+    throw new EmptyObservationError()
 
   const set: Record<string, unknown> = {}
   const unset: Record<string, 1> = {}
@@ -566,5 +615,21 @@ export async function getRecordingAudio(id: string, recordingId: string) {
     contentType: recording.contentType,
     size: recording.size,
     stream: await storage.getObjectStream(recording.key),
+  }
+}
+
+// The original photo from S3, the raw evidence (CP-04 AC1).
+export async function getPhotoImage(id: string, photoId: string) {
+  if (!isValidObjectId(id) || !isValidObjectId(photoId)) throw new ObservationNotFoundError()
+  const observation = await ObservationModel.findOne(
+    { _id: id, 'photos._id': photoId },
+    { 'photos.$': 1 },
+  ).lean<StoredObservation>()
+  const photo = observation?.photos?.[0]
+  if (!photo) throw new ObservationNotFoundError('photo')
+  return {
+    contentType: photo.contentType,
+    size: photo.size,
+    stream: await storage.getObjectStream(photo.key),
   }
 }

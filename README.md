@@ -30,7 +30,8 @@ with Cohere. MongoDB connectivity and the site schema are also implemented. The
 gateway creates assessments at `POST /api/assessments` and starts or resumes an
 assessment's capture session at `POST /api/assessments/:reference/capture-session`.
 It lists assessments with their status at `GET /api/assessments`, and records
-observations (a note, recordings or both) against the capture session in progress.
+observations (any of a note, recordings and JPG or PNG photos, each file kept in
+S3 as raw evidence) against the capture session in progress.
 An observation's tags (category, severity, location, standard) and note change at
 `PATCH /api/observations/:id`; a finished transcript can be corrected, keeping
 what Whisper wrote; and an observation can be deleted and restored, a soft

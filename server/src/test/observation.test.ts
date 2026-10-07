@@ -727,6 +727,168 @@ describe('observation list, audio and restarts', () => {
   })
 })
 
+describe('site photographs (CP-04)', () => {
+  // Only the first bytes decide the format; the rest stands in for the image.
+  const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('jpeg body')])
+  const PNG = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('png body'),
+  ])
+  // An iPhone's default format, whatever the file is called.
+  const HEIC = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic....')])
+
+  type Photo = { image: Buffer; name?: string; type?: string }
+  // Saves an observation with a `photo` part per image, as the capture screen does.
+  function savePhotos(photos: Photo[], fields: object = {}) {
+    const req = api.post('/api/assessments/RPT-2026-0411/observations').field(
+      'details',
+      JSON.stringify({
+        copeDimension: 'Protection',
+        severity: 'moderate',
+        locationId: String(BAY_3),
+        ...fields,
+      }),
+    )
+    photos.forEach((p, i) =>
+      req.attach('photo', p.image, {
+        filename: p.name ?? `IMG_04${60 + i}.jpg`,
+        contentType: p.type ?? 'image/jpeg',
+      }),
+    )
+    return req
+  }
+
+  it('stores each photo unaltered as raw evidence, linked to its observation (AC1, AC2, AC5)', async () => {
+    await assessmentWithSession()
+
+    const response = await savePhotos([{ image: JPG }, { image: PNG, name: 'riser.png' }])
+
+    expect(response.status).toBe(201)
+    const stored = await ObservationModel.findById(response.body.id).lean()
+    const [jpg, png] = stored!.photos!
+    expect(jpg.key).toBe(`photos/RPT-2026-0411/${response.body.id}/${jpg._id}.jpg`)
+    expect(png.key).toMatch(/\.png$/)
+    expect(s3.get(jpg.key)).toEqual(JPG)
+    expect(s3.get(png.key)).toEqual(PNG)
+    // A photo on its own is an observation; nothing is transcribed.
+    expect(response.body).toMatchObject({
+      note: null,
+      recordings: [],
+      engineerId: String(actor._id),
+      photos: [
+        {
+          type: 'Photo',
+          id: String(jpg._id),
+          name: 'IMG_0460.jpg',
+          contentType: 'image/jpeg',
+          size: JPG.length,
+          url: `/api/observations/${response.body.id}/photos/${jpg._id}/image`,
+        },
+        { name: 'riser.png', contentType: 'image/png' },
+      ],
+    })
+    expect(String(stored?.engineerId)).toBe(String(actor._id))
+    expect(speech).not.toHaveBeenCalled()
+    const [listed] = (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+    expect(listed.photos).toEqual(response.body.photos)
+  })
+
+  it('streams the original photo back', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: PNG }])).body
+
+    const response = await api.get(photos[0].url).buffer(true)
+
+    expect(response.status).toBe(200)
+    expect(response.headers['content-type']).toBe('image/png')
+    expect(Buffer.from(response.body)).toEqual(PNG)
+    expect((await api.get(`/api/observations/${id}/photos/nope/image`)).status).toBe(404)
+    const unknown = `/api/observations/${id}/photos/${new Types.ObjectId()}/image`
+    expect((await api.get(unknown)).status).toBe(404)
+  })
+
+  it('takes the format from the image itself, not the type the browser sent', async () => {
+    await assessmentWithSession()
+
+    const response = await savePhotos([
+      { image: JPG, name: 'image', type: 'application/octet-stream' },
+    ])
+
+    expect(response.status).toBe(201)
+    expect(response.body.photos[0].contentType).toBe('image/jpeg')
+  })
+
+  it('refuses anything but a JPG or PNG with a format message, saving nothing (AC4)', async () => {
+    await assessmentWithSession()
+
+    for (const photo of [
+      { image: HEIC, name: 'IMG_0461.jpg' },
+      { image: HEIC, name: 'IMG_0461.HEIC', type: 'image/heic' },
+      { image: Buffer.from('GIF89a....'), name: 'map.gif', type: 'image/gif' },
+    ]) {
+      // One unsupported photo refuses the whole observation, the good one too.
+      const response = await savePhotos([{ image: JPG }, photo], { note: 'Riser room.' })
+      expect(response.status).toBe(415)
+      expect(response.body.error).toBe(
+        `${photo.name} is not a JPG or PNG image. Save it as JPG or PNG and add it again.`,
+      )
+    }
+    expect(s3.size).toBe(0)
+    expect(await ObservationModel.countDocuments()).toBe(0)
+  })
+
+  it('refuses an empty photo or one over 20 MB', async () => {
+    await assessmentWithSession()
+
+    expect((await savePhotos([{ image: Buffer.from('') }])).status).toBe(400)
+    const huge = Buffer.concat([JPG, Buffer.alloc(20 * 1024 * 1024)])
+    expect((await savePhotos([{ image: huge }])).status).toBe(413)
+    expect(s3.size).toBe(0)
+  })
+
+  it('lets an observation with a photo drop its note (CP-08 AC8)', async () => {
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }], { note: 'Riser room.' })).body
+
+    const response = await api.patch(`/api/observations/${id}`).send({ note: null })
+
+    expect(response.status).toBe(200)
+    expect(response.body.note).toBeNull()
+  })
+
+  it('lists an observation saved before photos existed with none', async () => {
+    const assessment = await assessmentWithSession()
+    const session = await CaptureSessionModel.findOne({ assessment: assessment._id }).lean()
+    // Written without Mongoose, which would add an empty list.
+    await ObservationModel.collection.insertOne({
+      assessment: assessment._id,
+      session: session!._id,
+      engineer: 'Alex Rowe',
+      note: 'Saved before CP-04.',
+      recordings: [],
+      severity: 'low',
+      location: BAY_3,
+      metadata: {
+        source_type: 'observation',
+        jurisdiction: 'SG',
+        facility_type: 'Warehouse',
+        COPE_dimension: null,
+        effective_date: new Date(),
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const [listed] = (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+
+    expect(listed.photos).toEqual([])
+    // Its note still can't be removed: it has nothing else.
+    expect((await api.patch(`/api/observations/${listed.id}`).send({ note: null })).status).toBe(
+      400,
+    )
+  })
+})
+
 it('uses each authenticated capturer ID and ignores forged attribution, while deriving text metadata', async () => {
   await assessmentWithSession()
   const another = { ...actor, _id: new Types.ObjectId(), name: 'Jide Okafor' }

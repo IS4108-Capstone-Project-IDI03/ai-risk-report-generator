@@ -5,6 +5,7 @@ import {
   correctTranscript,
   deleteObservation,
   EmptyObservationError,
+  getPhotoImage,
   getRecordingAudio,
   NotRetryableError,
   observationChangesSchema,
@@ -141,6 +142,26 @@ router.get(
       const audio = await getRecordingAudio(req.params.id, req.params.recordingId)
       res.set({ 'Content-Type': audio.contentType, 'Content-Length': String(audio.size) })
       audio.stream.pipe(res)
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
+// Streams the original photo from S3, the raw evidence (CP-04 AC1, AC2). The
+// image under a photo's id never changes, so the browser may keep it.
+router.get(
+  '/:id/photos/:photoId/image',
+  requirePermission('assessments:view'),
+  async (req, res) => {
+    try {
+      const photo = await getPhotoImage(req.params.id, req.params.photoId)
+      res.set({
+        'Content-Type': photo.contentType,
+        'Content-Length': String(photo.size),
+        'Cache-Control': 'private, max-age=31536000, immutable',
+      })
+      photo.stream.pipe(res)
     } catch (error: unknown) {
       refuse(error, res)
     }

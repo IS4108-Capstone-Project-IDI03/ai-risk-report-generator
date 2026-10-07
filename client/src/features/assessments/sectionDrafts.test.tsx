@@ -52,6 +52,7 @@ const RISER: SavedObservation = {
       },
     },
   ],
+  photos: [],
   recordedAt: '2026-09-23T09:10:00.000Z',
   edited: null,
   deleted: null,

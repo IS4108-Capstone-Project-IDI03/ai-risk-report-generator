@@ -48,6 +48,7 @@ function observation(fields: Partial<SavedObservation>): SavedObservation {
     location: BAY_3,
     note: null,
     recordings: [],
+    photos: [],
     recordedAt: CAPTURED,
     edited: null,
     deleted: null,
@@ -241,7 +242,7 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     listed = [NOTE_ONLY, VOICE_ONLY, TRANSCRIBING, FAILED_VOICE]
     await openObservations()
     const ALL = [NOTE, VOICE, RISER, FAILED, RACKING, PUMP_TEST, SORTATION]
-    expect(optionLabels(select('Filter by type'))).toEqual(['All types', 'Note', 'Voice'])
+    expect(optionLabels(select('Filter by type'))).toEqual(['All types', 'Note', 'Voice', 'Photo'])
     expect(optionLabels(select('Filter by status'))).toEqual([
       'All statuses',
       'Transcribing',
@@ -458,3 +459,61 @@ describe('Who can change an observation (CP-08 AC17)', () => {
     }
   })
 }, 15000)
+
+describe('Site photographs (CP-04)', () => {
+  const IMAGE_URL = '/api/observations/o9/photos/p1/image'
+  const PHOTOGRAPHED = observation({
+    id: 'o9',
+    note: 'Riser room door wedged open.',
+    photos: [
+      { id: 'p1', name: 'IMG_0460.jpg', contentType: 'image/jpeg', size: 4, url: IMAGE_URL },
+    ],
+  })
+  const DELETED = observation({
+    id: 'o10',
+    note: 'Photo of the wrong building.',
+    photos: [
+      { id: 'p2', name: 'IMG_0999.jpg', contentType: 'image/jpeg', size: 4, url: '/x/image' },
+    ],
+    deleted: STAMP,
+  })
+
+  it('links each photo to its observation, opening the original (AC2)', async () => {
+    listed = [PHOTOGRAPHED]
+    await openObservations()
+
+    fireEvent.click(row('Riser room door wedged open.'))
+
+    expect(screen.getByRole('link', { name: 'Open IMG_0460.jpg' })).toHaveAttribute(
+      'href',
+      IMAGE_URL,
+    )
+    expect(screen.getAllByText('Note and photo').length).toBeGreaterThan(0)
+  })
+
+  it('lists every photo in the collection, leaving deleted ones out (AC3)', async () => {
+    listed = [PHOTOGRAPHED, DELETED]
+    await openObservations()
+
+    fireEvent.click(screen.getByRole('tab', { name: /Photos/ }))
+
+    const collection = screen.getByRole('list', { name: 'Site photographs' })
+    // The saved photo, and the sample assessment's own two.
+    expect(within(collection).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(collection).getByRole('link', { name: 'Open IMG_0460.jpg' })).toHaveAttribute(
+      'href',
+      IMAGE_URL,
+    )
+    expect(within(collection).getByText('IMG_0442.jpg · 11 Apr 2026 09:22')).toBeInTheDocument()
+    expect(within(collection).queryByText(/IMG_0999/)).not.toBeInTheDocument()
+
+    // Each leads back to the observation it belongs to.
+    const saved = within(collection).getAllByRole('listitem')[0]
+    fireEvent.click(within(saved).getByRole('button', { name: 'Go to observation' }))
+    expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('link', { name: 'Open IMG_0460.jpg' })).toBeInTheDocument()
+  })
+})

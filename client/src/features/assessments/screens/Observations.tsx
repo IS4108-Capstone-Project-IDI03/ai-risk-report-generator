@@ -582,32 +582,72 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                         >
                           {o.media.map((m, index) => (
                             <Fragment key={index}>
-                              <div
-                                style={{
-                                  width: '132px',
-                                  border: '1px solid var(--border-default)',
-                                  borderRadius: '5px',
-                                  background: 'var(--surface-card)',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '6px',
-                                  flexWrap: 'wrap',
-                                  padding: '16px 8px',
-                                }}
-                              >
-                                <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
-                                <span
+                              {m.url ? (
+                                // The original photo, linked from its observation (CP-04 AC2).
+                                <a
+                                  href={m.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label={'Open ' + m.name}
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
-                                    fontSize: '12px',
+                                    width: '132px',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: '5px',
+                                    background: 'var(--surface-card)',
+                                    overflow: 'hidden',
                                     color: 'var(--text-muted)',
+                                    textDecoration: 'none',
                                   }}
                                 >
-                                  {m.name}
-                                </span>
-                              </div>
+                                  {/* ponytail: loads the original; serve smaller copies if lists grow long. */}
+                                  <img
+                                    src={m.url}
+                                    alt=""
+                                    loading="lazy"
+                                    style={{ display: 'block', width: '100%', height: 'auto' }}
+                                  />
+                                  <span
+                                    style={{
+                                      display: 'block',
+                                      padding: '4px 6px',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontSize: '12px',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {m.name}
+                                  </span>
+                                </a>
+                              ) : (
+                                <div
+                                  style={{
+                                    width: '132px',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: '5px',
+                                    background: 'var(--surface-card)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    flexWrap: 'wrap',
+                                    padding: '16px 8px',
+                                  }}
+                                >
+                                  <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
+                                  <span
+                                    style={{
+                                      fontFamily: 'var(--font-mono)',
+                                      fontSize: '12px',
+                                      color: 'var(--text-muted)',
+                                    }}
+                                  >
+                                    {m.name}
+                                  </span>
+                                </div>
+                              )}
                             </Fragment>
                           ))}
                           {v.canEdit && v.canCapture && (

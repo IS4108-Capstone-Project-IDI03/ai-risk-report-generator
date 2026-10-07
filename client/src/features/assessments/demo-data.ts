@@ -75,8 +75,8 @@ export const initialState: WorkflowState = {
   fTransBusy: false,
   fVoiceError: null,
   fClips: [],
-  savedPhotos: {},
   fPhotos: [],
+  fPhotoError: null,
   fLocationId: null,
   locOpen: false,
   locQuery: '',
@@ -101,7 +101,10 @@ export const initialState: WorkflowState = {
       floor: 'Ground',
       sev: 'critical',
       std: 'FM Global 2-0 §2.4.1',
-      media: ['IMG_0442.jpg', 'IMG_0443.jpg'],
+      media: [
+        { name: 'IMG_0442.jpg', url: null },
+        { name: 'IMG_0443.jpg', url: null },
+      ],
       detail:
         'Racking installed against the north wall since the 2023 survey has completely obstructed the spray pattern for heads SH-04 and SH-05. Minimum clearance of 457 mm is not maintained. Rerouting or relocation of drops is required to meet the design density recorded in 2023.',
     },

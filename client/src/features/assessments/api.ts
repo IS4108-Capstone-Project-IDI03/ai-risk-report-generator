@@ -82,10 +82,19 @@ export type SavedRecording = {
     attempts: number
   }
 }
+// A site photograph saved with an observation (CP-04); url opens the original.
+export type SavedPhoto = {
+  id: string
+  name: string
+  contentType: 'image/jpeg' | 'image/png'
+  size: number
+  url: string
+}
 // A place on site the engineer records observations in.
 export type SiteLocation = { id: string; name: string; floor: string | null }
 
-// An observation saved on the server: a note (CP-02), recordings (CP-03) or both.
+// An observation saved on the server: any of a note (CP-02), recordings
+// (CP-03) and photos (CP-04).
 export type SavedObservation = {
   id: string
   engineer: string
@@ -98,6 +107,7 @@ export type SavedObservation = {
   // Exactly as the engineer wrote it.
   note: string | null
   recordings: SavedRecording[]
+  photos: SavedPhoto[]
   recordedAt: string
   // The latest change to its tags, note or a transcript (CP-08).
   edited: Stamp | null
@@ -231,9 +241,10 @@ export async function startCaptureSession(
 const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
-// Saves one observation, with its note and recordings, to the assessment's
-// active capture session. A null copeDimension leaves it uncategorised. The
-// server stores each recording and starts its initial transcription.
+// Saves one observation, with its note, recordings and photos, to the
+// assessment's active capture session. A null copeDimension leaves it
+// uncategorised. The server stores each file and starts each recording's
+// initial transcription.
 export async function saveObservation(
   reference: string,
   details: {
@@ -244,10 +255,12 @@ export async function saveObservation(
     standard?: string
   },
   recordings: { name: string; audio: Blob }[],
+  photos: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   form.append('details', JSON.stringify(details))
   for (const r of recordings) form.append('recording', r.audio, r.name)
+  for (const p of photos) form.append('photo', p.image, p.name)
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
 
