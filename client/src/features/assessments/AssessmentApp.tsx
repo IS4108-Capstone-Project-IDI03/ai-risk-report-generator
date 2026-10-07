@@ -10,7 +10,7 @@ import { Overview } from './screens/Overview'
 import { Observations } from './screens/Observations'
 import { Generation } from './screens/Generation'
 import { SectionDrafts } from './screens/SectionDrafts'
-import { ReviewDrafts } from './screens/ReviewDrafts'
+import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
 import { UserAccounts } from '../accounts/UserAccounts'
@@ -340,10 +340,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isReview &&
                       (v.liveReference ? (
-                        <ReviewDrafts
+                        <ReviewWorkspace
                           reference={v.liveReference}
                           wrapStyle={v.reviewWrapStyle}
                           railStyle={v.reviewRailStyle}
+                          panelStyle={v.reviewEvidenceStyle}
                           onGenerate={() => v.setTab('generate')}
                         />
                       ) : (

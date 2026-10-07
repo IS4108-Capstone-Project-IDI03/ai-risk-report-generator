@@ -361,3 +361,65 @@ export async function draftSection(reference: string, sectionId: string): Promis
     )
   ).data
 }
+
+export type CompletionState = 'not_started' | 'partial' | 'complete'
+export type ReviewState = 'not_drafted' | 'ai_draft' | 'needs_review'
+
+export type SourcePassage = {
+  id: string
+  kind: 'standard' | 'precedent'
+  text: string
+  headings: string[]
+  pageStart: number | null
+  pageEnd: number | null
+  documentId: string | null
+  document: {
+    title: string
+    issuingBody: string
+    sourceType: string
+    edition: string | null
+    effectiveDate: string
+    withdrawnAt: string | null
+    fileUrl: string
+  } | null
+}
+
+export type FieldObservation = {
+  id: string
+  copeDimension: string
+  note: string | null
+  transcripts: string[]
+  severity: string
+  location: string | null
+  standard: string | null
+}
+
+export type ReviewSection = {
+  id: string
+  title: string
+  copeDimensions: string[]
+  completion: { state: CompletionState; written: number; total: number; tables: number }
+  review: {
+    state: ReviewState
+    unsupportedStatements: number
+    withdrawnSources: number
+    changesSinceDraft: number
+  }
+  draft: Omit<SectionDraft, 'sources'> | null
+  sources: Record<string, SourcePassage>
+  observations: FieldObservation[]
+}
+
+export async function getReviewWorkspace(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<ReviewSection[]> {
+  return (
+    await request<{ sections: ReviewSection[] }>(
+      'GET',
+      `/api/assessments/${encodeURIComponent(reference)}/review`,
+      undefined,
+      signal,
+    )
+  ).data.sections
+}

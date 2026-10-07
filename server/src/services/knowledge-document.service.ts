@@ -398,6 +398,14 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
   return documents.map((d) => toDto(d))
 }
 
+// The review workspace resolves only the documents cited by a draft.
+export async function findKnowledgeDocuments(ids: string[]): Promise<KnowledgeDocumentDto[]> {
+  const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))
+  if (!valid.length) return []
+  const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
+  return documents.map((d) => toDto(d))
+}
+
 // The document isn't in the state the change needs (a 409). KB-01: only an
 // active document can be corrected; one still ingesting would have some
 // passages indexed under the old labels. KB-01: withdraw needs an active

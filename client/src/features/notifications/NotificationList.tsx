@@ -58,11 +58,7 @@ export function NotificationList({
             </Callout>
           </div>
         ) : empty ? (
-          <EmptyState
-            icon="bell"
-            title="No notifications"
-            description="Updates about ingestion and your work appear here as they happen."
-          />
+          <EmptyState icon="bell" title="No notifications" />
         ) : (
           <ul style={{ margin: '0', padding: '0', listStyle: 'none' }}>
             {n.items.map((notification) => (

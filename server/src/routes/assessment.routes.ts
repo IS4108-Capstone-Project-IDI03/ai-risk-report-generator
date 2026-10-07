@@ -35,6 +35,7 @@ import {
   UnknownLocationError,
 } from '../services/observation.service'
 import { RagServiceError } from '../services/rag.service'
+import { getReviewWorkspace } from '../services/review.service'
 import {
   draftSection,
   InsufficientEvidenceError,
@@ -323,6 +324,24 @@ router.get('/:reference/observations', requirePermission('assessments:view'), as
 router.get('/:reference/sections', requirePermission('assessments:view'), async (req, res) => {
   try {
     res.json(await listSections(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof RagServiceError) {
+      res.status(503).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// The review workspace (RV-01) is read-only and available to anyone who can
+// view the assessment.
+router.get('/:reference/review', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await getReviewWorkspace(req.params.reference))
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })
