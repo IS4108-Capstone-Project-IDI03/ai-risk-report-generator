@@ -342,6 +342,11 @@ export class RejectedFileError extends Error {
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
 const PDF_MARKER = Buffer.from('%PDF-')
 
+// Today's date in Singapore (UTC+8, no daylight saving) as YYYY-MM-DD: the
+// upload date a document is effective from when /label gives no date (IN-05).
+// Must match microservices/ingestion-service/app/labelling/__init__.py.
+const uploadDay = () => new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10)
+
 // Turns the /label answer (or null when labelling failed) into the record
 // fields: the six details, `unconfirmed` and `labelling`. Each value is checked
 // again here, so a model slip (e.g. a report for "all" facilities) becomes
@@ -360,7 +365,8 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
     source_type: sourceType,
     title: valid(text('Title', 200), 'title'),
     edition: sourceType === 'marsh_report' ? null : valid(edition(), 'edition'),
-    effective_date: valid(common.effectiveDate, 'effective_date'),
+    // Never Unconfirmed: without a date, every upload would need review.
+    effective_date: valid(common.effectiveDate, 'effective_date') ?? uploadDay(),
     jurisdiction: valid(country(allowAll), 'jurisdiction'),
     facility_type: valid(
       z.string().refine(...onTheList(allowAll ? [...FACILITY_TYPES, 'all'] : FACILITY_TYPES)),

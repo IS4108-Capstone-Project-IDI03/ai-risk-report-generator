@@ -88,9 +88,13 @@ type. Code: `microservices/ingestion-service/app/labelling/`.
    in the pages (dates in any common written form). A report has no edition;
    only a standard may apply to `all` countries or facility types, and a
    standard that names none gets `all`. Anything else is Unconfirmed (`null`).
+   The effective date is never Unconfirmed: a standard gets the upload date, a
+   report keeps its grounded date or else gets the upload date (model `default`,
+   Singapore date; the gateway defaults it the same way if /label fails).
 4. **Failure.** If only the classifier fails, the fixed-list details use the
-   LLM's own answers. If the LLM call fails, every detail is Unconfirmed. The
-   endpoint still answers 200. Only a PDF that will not open gets 422.
+   LLM's own answers. If the LLM call fails, every detail except the effective
+   date is Unconfirmed. The endpoint still answers 200. Only a PDF that will not
+   open gets 422.
 
 The gateway checks each value again before storing it (see
 [database.md](database.md) "Automatic labelling"). A document with an

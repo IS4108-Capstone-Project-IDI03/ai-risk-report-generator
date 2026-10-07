@@ -8,6 +8,7 @@ import pymupdf
 import pytest
 from starlette.testclient import TestClient
 
+import app.labelling as labelling
 from app.labelling import config, models, pages
 from app.main import app
 
@@ -37,6 +38,15 @@ STANDARD = {
     "facility_type": ans("all"),
 }
 TEXT = "Water Mist Systems edition 2024 effective 5 March 2026"
+
+
+TODAY = "2026-10-07"
+
+
+@pytest.fixture(autouse=True)
+def frozen_today(monkeypatch):
+    """Freeze the upload date that labelling uses as the default effective date."""
+    monkeypatch.setattr(labelling, "_today", lambda: TODAY)
 
 
 @pytest.fixture
@@ -98,10 +108,20 @@ def test_free_text_not_in_text_is_unconfirmed(fake):
     fake["answers"]["edition"] = ans("2019")
     fake["answers"]["effective_date"] = ans("2026-04-01")
     body = label(TEXT)
-    assert set(body["unconfirmed"]) == {"title", "edition", "effective_date"}
+    assert set(body["unconfirmed"]) == {"title", "edition"}
 
 
-def test_written_date_grounds_iso_date(fake):
+def test_standard_effective_date_is_upload_date_even_if_model_found_one(fake):
+    assert label(TEXT)["details"]["effective_date"] == {
+        "value": TODAY,
+        "confidence": 1.0,
+        "evidence": None,
+        "model": "default",
+    }
+
+
+def test_report_keeps_a_grounded_date(fake):
+    fake["answers"]["source_type"] = ans("marsh_report")
     assert label(TEXT)["details"]["effective_date"] == {
         "value": "2026-03-05",
         "confidence": 1.0,
@@ -110,12 +130,29 @@ def test_written_date_grounds_iso_date(fake):
     }
 
 
+def test_report_without_a_date_uses_upload_date(fake):
+    fake["answers"]["source_type"] = ans("marsh_report")
+    fake["answers"]["effective_date"] = ans("2026-04-15")  # not written in the text
+    body = label(TEXT)
+    date = body["details"]["effective_date"]
+    assert (date["value"], date["model"], date["confidence"]) == (TODAY, "default", 1.0)
+    assert "effective_date" not in body["unconfirmed"]
+
+
+def test_unconfirmed_source_type_still_gets_a_date(fake):
+    fake["answers"]["source_type"] = ans(None)
+    body = label(TEXT)
+    assert body["details"]["effective_date"]["value"] == "2026-03-05"  # grounded, kept
+    assert "effective_date" not in body["unconfirmed"]
+
+
 def test_month_year_grounds_only_the_first(fake):
+    fake["answers"]["source_type"] = ans("marsh_report")
     text = "Water Mist Systems 2024 April 2026"
     fake["answers"]["effective_date"] = ans("2026-04-01")
     assert label(text)["details"]["effective_date"]["value"] == "2026-04-01"
     fake["answers"]["effective_date"] = ans("2026-04-15")
-    assert label(text)["details"]["effective_date"]["value"] is None
+    assert label(text)["details"]["effective_date"]["value"] == TODAY  # not grounded
 
 
 def test_out_of_list_and_invalid_all_are_unconfirmed(fake):
@@ -151,8 +188,9 @@ def test_model_error_makes_everything_unconfirmed(fake, monkeypatch, error):
 
     monkeypatch.setattr(models, "extract_details", boom)
     body = label(TEXT)
-    assert len(body["unconfirmed"]) == 6
-    assert all(d["value"] is None for d in body["details"].values())
+    assert len(body["unconfirmed"]) == 5  # effective_date falls back to the upload date
+    assert "effective_date" not in body["unconfirmed"]
+    assert all(d["value"] is None for d in body["details"].values() if d["model"] != "default")
 
 
 def test_classifier_failure_falls_back_to_llm_fixed_list(fake, monkeypatch):

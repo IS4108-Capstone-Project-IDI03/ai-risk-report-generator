@@ -393,10 +393,17 @@ Chose: on upload, ingestion-service's `POST /label` reads the first
   Section titles are found by font size (lines set like the mapped titles,
   28 pt), with Docling's heading trail as a fallback when no mapped title is
   found.
+- Effective date is never Unconfirmed. A standard gets the upload date, since
+  its effective date is when the admin makes it the current copy, not a date
+  printed in it. A report keeps its grounded date, else gets the upload date.
+  The upload date is Singapore's (UTC+8), and the gateway applies the same
+  default when /label fails, so no upload ever waits on its date.
+  Reason: the date is not something a model can reliably find, and a missing
+  one would hold every dateless upload in review.
 - If the classifier fails but the LLM answers, the fixed-list details use the
   LLM's own answers (stored model = the LLM). Reason: one failed cheap call
   should not turn a whole upload into manual work. If the LLM fails, every
-  detail is still Unconfirmed.
+  detail except the date is still Unconfirmed.
 
 Rejected:
 - Reading only the first 5 pages. Golden evidence showed reports state the

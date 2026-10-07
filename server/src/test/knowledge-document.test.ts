@@ -33,7 +33,12 @@ useMemoryMongo()
 // A knowledge admin is allowed everything below (F-05); role limits are in permissions.test.ts.
 const api = signedInAsRole(app, 'knowledge_admin')
 
+// 20:00 UTC on 6 Oct is 04:00 on 7 Oct in Singapore: the upload date a
+// document gets when /label finds no effective date (IN-05).
+const UPLOAD_DAY = '2026-10-07'
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-06T20:00:00Z'))
   queued.mockResolvedValue(undefined)
   inspect.mockResolvedValue(Response.json({ pages: 3 }))
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
@@ -46,6 +51,7 @@ afterEach(() => {
   inspect.mockReset()
   labelling.mockReset()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 const PDF = Buffer.from('%PDF-1.7\nfake but well-formed enough\n%%EOF')
@@ -208,7 +214,7 @@ describe('POST /api/knowledge-documents', () => {
     await expectNothingKept()
   })
 
-  it('reads the details with /label, and stores them with the evidence and Unconfirmed nulls', async () => {
+  it('reads the details with /label, and stores them with the evidence, Unconfirmed nulls and the upload date', async () => {
     const response = await upload(PDF, { fileName: 'scan.pdf', sourceType: 'fm_standard' })
 
     expect(response.status).toBe(201)
@@ -218,20 +224,17 @@ describe('POST /api/knowledge-documents', () => {
       issuingBody: 'FM Global',
       title: 'scan.pdf',
       edition: null,
-      effectiveDate: null,
+      effectiveDate: UPLOAD_DAY,
       jurisdiction: null,
       facilityType: null,
-      unconfirmed: ['title', 'edition', 'effectiveDate', 'jurisdiction', 'facilityType'],
+      unconfirmed: ['title', 'edition', 'jurisdiction', 'facilityType'],
     })
     const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
-    expect(saved?.metadata).toMatchObject({ source_type: 'fm_standard', effective_date: null })
-    expect(saved?.unconfirmed).toEqual([
-      'title',
-      'edition',
-      'effective_date',
-      'jurisdiction',
-      'facility_type',
-    ])
+    expect(saved?.metadata).toMatchObject({
+      source_type: 'fm_standard',
+      effective_date: new Date(UPLOAD_DAY),
+    })
+    expect(saved?.unconfirmed).toEqual(['title', 'edition', 'jurisdiction', 'facility_type'])
     expect(saved?.labelling?.details.source_type).toEqual({
       value: 'fm_standard',
       confidence: 0.95,
@@ -255,7 +258,6 @@ describe('POST /api/knowledge-documents', () => {
     ['an edition that is not a year', { ...DETAILS, edition: '2022 Edition' }, 'edition'],
     ['an edition after next year', { ...DETAILS, edition: String(NEXT_YEAR + 1) }, 'edition'],
     ['an edition before 1900', { ...DETAILS, edition: '1899' }, 'edition'],
-    ['a date that is not a date', { ...DETAILS, effectiveDate: 'last spring' }, 'effectiveDate'],
     ['a source type not on the list', { ...DETAILS, sourceType: 'ISO' }, 'sourceType'],
   ])('stores %s as Unconfirmed instead of trusting the model', async (_name, details, field) => {
     const response = await upload(PDF, details)
@@ -263,6 +265,13 @@ describe('POST /api/knowledge-documents', () => {
     expect(response.status).toBe(201)
     expect(response.body[field]).toBeNull()
     expect(response.body.unconfirmed).toContain(field)
+  })
+
+  it('stores the upload date instead of a date that is not a date', async () => {
+    const response = await upload(PDF, { ...DETAILS, effectiveDate: 'last spring' })
+
+    expect(response.body.effectiveDate).toBe(UPLOAD_DAY)
+    expect(response.body.unconfirmed).not.toContain('effectiveDate')
   })
 
   it.each([
@@ -273,32 +282,29 @@ describe('POST /api/knowledge-documents', () => {
       () => labelling.mockResolvedValue(Response.json({ detail: 'boom' }, { status: 500 })),
     ],
     ['answers with bad JSON', () => labelling.mockResolvedValue(new Response('not json'))],
-  ])('still uploads, with every detail Unconfirmed, when /label %s', async (_name, fail) => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const upload = api
-      .post('/api/knowledge-documents')
-      .query({ fileName: 'Scan.pdf' })
-      .set('Content-Type', 'application/pdf')
-    fail()
+  ])(
+    'still uploads, with every detail but the date Unconfirmed, when /label %s',
+    async (_name, fail) => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const upload = api
+        .post('/api/knowledge-documents')
+        .query({ fileName: 'Scan.pdf' })
+        .set('Content-Type', 'application/pdf')
+      fail()
 
-    const response = await upload.send(PDF)
+      const response = await upload.send(PDF)
 
-    expect(response.status).toBe(201)
-    expect(response.body).toMatchObject({
-      title: 'Scan.pdf',
-      issuingBody: null,
-      sourceType: null,
-      unconfirmed: [
-        'sourceType',
-        'title',
-        'edition',
-        'effectiveDate',
-        'jurisdiction',
-        'facilityType',
-      ],
-    })
-    expect(queued).toHaveBeenCalledOnce()
-  })
+      expect(response.status).toBe(201)
+      expect(response.body).toMatchObject({
+        title: 'Scan.pdf',
+        issuingBody: null,
+        sourceType: null,
+        effectiveDate: UPLOAD_DAY,
+        unconfirmed: ['sourceType', 'title', 'edition', 'jurisdiction', 'facilityType'],
+      })
+      expect(queued).toHaveBeenCalledOnce()
+    },
+  )
 
   it('never calls /label for a file that is rejected', async () => {
     await upload(Buffer.from('just some text'))
@@ -549,7 +555,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
     expect((await correct(id)).status).toBe(503)
 
     const saved = await KnowledgeDocumentModel.findById(id).lean()
-    expect(saved?.unconfirmed).toEqual(['effective_date', 'jurisdiction', 'facility_type'])
+    expect(saved?.unconfirmed).toEqual(['jurisdiction', 'facility_type'])
     expect(saved?.labelling?.details.facility_type?.source).toBe('auto')
   })
 
@@ -768,11 +774,19 @@ describe('POST /api/knowledge-documents/:id/withdraw and /reinstate', () => {
     const id = await stored({ fileName: 'scan.pdf', sourceType: 'nfpa_standard' })
     inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
     await withdraw(id)
-    expect(sentLabels().body).toEqual({ source_type: 'nfpa_standard', status: 'withdrawn' })
+    expect(sentLabels().body).toEqual({
+      source_type: 'nfpa_standard',
+      effective_date: UPLOAD_DAY,
+      status: 'withdrawn',
+    })
 
     await reinstate(id)
 
-    expect(sentLabels().body).toEqual({ source_type: 'nfpa_standard', status: 'needs_review' })
+    expect(sentLabels().body).toEqual({
+      source_type: 'nfpa_standard',
+      effective_date: UPLOAD_DAY,
+      status: 'needs_review',
+    })
   })
 
   it('refuses to reinstate a document that is not withdrawn', async () => {
