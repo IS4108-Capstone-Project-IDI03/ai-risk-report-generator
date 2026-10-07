@@ -31,8 +31,11 @@ gateway creates assessments at `POST /api/assessments` and starts or resumes an
 assessment's capture session at `POST /api/assessments/:reference/capture-session`.
 It lists assessments with their status at `GET /api/assessments`, and records
 observations (a note, recordings or both) against the capture session in progress.
-An observation's tags (category, severity, location, standard) change at
-`PATCH /api/observations/:id`. Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
+An observation's tags (category, severity, location, standard) and note change at
+`PATCH /api/observations/:id`; a finished transcript can be corrected, keeping
+what Whisper wrote; and an observation can be deleted and restored, a soft
+delete that drafting leaves out. Only the assessment's assigned engineer can
+make these changes (CP-08). Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
 forwarding remain placeholders.
 
 ### Frontend demo
@@ -64,10 +67,12 @@ session live, an observation's note and recordings are saved through the
 gateway together: the note exactly as typed, and each recording stored in S3
 and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`). An
 observation may be left uncategorised. Photos are still memory-only. On the
-Observations tab, the list filters by category, severity, location and floor,
-and Edit tags changes an observation's category, severity, location and
-standard: through the gateway for a saved observation, in the demo for a sample
-one. A saved assessment drafts sections 7-12 on Report generation (GN-01), and
+Observations tab (CP-08), each row shows the observation's type, category,
+location, severity, status and capture time, and the list filters by any of
+them. An expanded observation offers Edit (its tags and note, saved together), Correct transcript
+(for a finished one, keeping what Whisper wrote) and Delete; Show deleted lists
+deleted ones to restore. These go through the gateway for a saved observation,
+to its assigned engineer only, and stay in the demo for a sample one. A saved assessment drafts sections 7-12 on Report generation (GN-01), and
 its Review tab is the review workspace (RV-01): each section's completion and
 review state, its draft, and beside it each cited passage with its page,
 document title, edition, effective date and any withdrawal, the original
