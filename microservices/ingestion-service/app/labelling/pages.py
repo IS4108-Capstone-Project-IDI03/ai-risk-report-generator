@@ -5,8 +5,8 @@ Called by app/labelling/__init__.py. Calls pymupdf, and Docling for scanned page
 
 import logging
 from functools import cache
-from threading import Lock
 from io import BytesIO
+from threading import Lock
 
 import pymupdf
 
