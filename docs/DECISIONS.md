@@ -393,7 +393,9 @@ rather than one capture session, which the engineer never sees.
   deleted lists them, and restoring removes the mark.
 - `changesSinceDraft` now also counts observations a draft was given that are
   no longer evidence (deleted or uncategorised), so the draft shows as out of
-  date.
+  date. `changeCounts` splits that total into added, changed and removed, and
+  the warning names only the kinds that happened ("2 observations added and 1
+  removed"). The total alone still decides whether the draft is out of date.
 - Only the assessment's assigned engineer can change, delete or restore its
   observations, and not once it is archived, as for its other details
   (RV-10). This tightens CP-06, which let any risk engineer retag. Capturing

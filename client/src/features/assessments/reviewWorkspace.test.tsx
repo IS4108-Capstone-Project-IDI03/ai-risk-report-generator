@@ -106,6 +106,7 @@ const CONSTRUCTION: ReviewSection = {
     unsupportedStatements: 1,
     withdrawnSources: 1,
     changesSinceDraft: 0,
+    changeCounts: { added: 0, changed: 0, removed: 0 },
   },
   draft: {
     id: 'd7',
@@ -174,6 +175,7 @@ const FIRE: ReviewSection = {
     unsupportedStatements: 0,
     withdrawnSources: 0,
     changesSinceDraft: 0,
+    changeCounts: { added: 0, changed: 0, removed: 0 },
   },
   draft: {
     ...CONSTRUCTION.draft!,
@@ -202,6 +204,7 @@ const EXPOSURES: ReviewSection = {
     unsupportedStatements: 0,
     withdrawnSources: 0,
     changesSinceDraft: 0,
+    changeCounts: { added: 0, changed: 0, removed: 0 },
   },
   draft: null,
   sources: {},

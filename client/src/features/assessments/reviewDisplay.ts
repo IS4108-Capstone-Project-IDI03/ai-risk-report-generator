@@ -1,11 +1,30 @@
 // How the review workspace (RV-01) reads a draft: citation numbers, claims,
 // pages and the labels of each section's completion and review states.
 import { IconRegistry } from '../../design-system'
-import type { ReviewSection, ReviewState, SectionDraft, SourcePassage } from './api'
+import type { ChangeCounts, ReviewSection, ReviewState, SectionDraft, SourcePassage } from './api'
 
 type Draft = Omit<SectionDraft, 'sources'>
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+// What changed in a draft's evidence since it was written, e.g. "2
+// observations added, 1 changed and 1 removed" (CP-08). A kind with none is
+// left out, so "1 observation removed" says only what happened.
+export function describeChanges({ added, changed, removed }: ChangeCounts) {
+  const kinds = (
+    [
+      [added, 'added'],
+      [changed, 'changed'],
+      [removed, 'removed'],
+    ] as const
+  ).filter(([n]) => n > 0)
+  const words = kinds.map(([n, kind], i) =>
+    i === 0 ? `${plural(n, 'observation')} ${kind}` : `${n} ${kind}`,
+  )
+  return words.length > 1
+    ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
+    : (words[0] ?? '')
+}
 
 // One number per cited source, in the order each is first cited across the
 // whole section, so a number in the draft names the same source beside it.

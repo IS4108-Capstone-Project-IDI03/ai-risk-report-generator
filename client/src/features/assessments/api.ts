@@ -367,6 +367,9 @@ export type SectionDraft = {
   createdAt: string
 }
 
+// What changed in a draft's evidence since it was written, by kind (CP-08).
+export type ChangeCounts = { added: number; changed: number; removed: number }
+
 export type ReportSection = {
   id: string
   title: string
@@ -375,8 +378,9 @@ export type ReportSection = {
   usableObservations: number
   latestDraft: SectionDraft | null
   // Observations added, changed or removed since the newest draft; redrafting
-  // takes them in.
+  // takes them in. The total, and each kind on its own (CP-08).
   changesSinceDraft: number
+  changeCounts: ChangeCounts
 }
 
 const sectionsPath = (reference: string) =>
@@ -452,6 +456,7 @@ export type ReviewSection = {
     unsupportedStatements: number
     withdrawnSources: number
     changesSinceDraft: number
+    changeCounts: ChangeCounts
   }
   draft: Omit<SectionDraft, 'sources'> | null
   // The draft's cited passages, by citation ID.
