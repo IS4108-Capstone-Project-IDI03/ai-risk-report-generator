@@ -61,17 +61,20 @@ def download(key: str, dest: str) -> None:
 
 
 def labels(doc: dict) -> dict:
-    """Return the document's labels as passage metadata: its five metadata fields and status.
+    """Return the document's labels as passage metadata: its known details and status.
 
     Chroma metadata holds only strings and numbers, so the date becomes
-    YYYY-MM-DD. Must match `labels()` in
+    YYYY-MM-DD and an Unconfirmed (null) detail is left out: without that,
+    Chroma would reject the whole upsert. Status is `needs_review` while any
+    detail is Unconfirmed (IN-05), else `active`. Must match `labels()` in
     server/src/services/knowledge-document.service.ts, which relabels passages
-    after a correction (KB-01) and emits status active or withdrawn (KB-01 AC12–16).
+    after a correction (KB-01) and emits status active, withdrawn or needs_review.
     """
-    metadata = doc["metadata"]
-    date = metadata["effective_date"].strftime("%Y-%m-%d")
-    # Passages are active when first indexed.
-    return {**metadata, "effective_date": date, "status": "active"}
+    metadata = dict(doc["metadata"])
+    if metadata.get("effective_date") is not None:
+        metadata["effective_date"] = metadata["effective_date"].strftime("%Y-%m-%d")
+    known = {key: value for key, value in metadata.items() if value is not None}
+    return {**known, "status": "needs_review" if doc.get("unconfirmed") else "active"}
 
 
 def ingest_document(document_id: str) -> None:

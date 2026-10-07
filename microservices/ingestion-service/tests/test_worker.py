@@ -234,3 +234,26 @@ def test_jobs_share_one_database_client(monkeypatch):
     worker.jobs.cache_clear()
 
     assert worker.jobs() is worker.jobs()
+
+
+def test_an_unconfirmed_detail_is_left_off_the_passage_labels_and_the_document_needs_review(
+    documents,
+):
+    # IN-05: Chroma can't store null, so a null detail's key is omitted.
+    documents.doc["metadata"].update(jurisdiction=None, effective_date=None)
+    documents.doc["unconfirmed"] = ["jurisdiction", "effective_date"]
+
+    result = worker.labels(documents.doc)
+
+    assert result == {
+        "source_type": "marsh_report",
+        "facility_type": "Cold store",
+        "COPE_dimension": "all",
+        "status": "needs_review",
+    }
+
+
+def test_a_document_with_nothing_unconfirmed_is_active(documents):
+    documents.doc["unconfirmed"] = []
+
+    assert worker.labels(documents.doc)["status"] == "active"

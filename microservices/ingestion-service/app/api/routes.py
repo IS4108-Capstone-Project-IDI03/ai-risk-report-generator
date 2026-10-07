@@ -2,8 +2,10 @@ from typing import Annotated, Literal
 
 import pymupdf
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
+from app.labelling import label_pdf
 from app.pipeline.indexer import index_chunks, relabel
 
 router = APIRouter()
@@ -16,18 +18,26 @@ class IngestRequest(BaseModel):
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
-# The labels every passage carries, so search can filter on them (KB-01).
+# The labels a relabel may change (KB-01). Each detail is optional: an Unconfirmed
+# detail is not sent, and the passage keeps the value it has (IN-05). No
+# COPE_dimension: each passage keeps its own, set at ingest (IN-05 AC10).
 class Labels(BaseModel):
+    source_type: NonEmpty | None = None
+    jurisdiction: NonEmpty | None = None
+    facility_type: NonEmpty | None = None
+    effective_date: NonEmpty | None = None
+    # KB-01/IN-05: retrieval skips withdrawn and needs_review passages.
+    status: Literal["active", "withdrawn", "needs_review"] = "active"
+
+
+# What /index requires of a passage: every label, including its own COPE_dimension.
+class ChunkMetadata(BaseModel):
     source_type: NonEmpty
     jurisdiction: NonEmpty
     facility_type: NonEmpty
     COPE_dimension: NonEmpty
     effective_date: NonEmpty
-    # KB-01: retrieval skips withdrawn passages. The default keeps /index working without it.
     status: Literal["active", "withdrawn"] = "active"
-
-
-class ChunkMetadata(Labels):
     document_id: NonEmpty
     page: int = Field(ge=1)
 
@@ -66,6 +76,20 @@ def ingest(request: IngestRequest) -> dict:
     return {"status": "queued", "file": request.filename}
 
 
+def open_pdf(body: bytes) -> int:
+    """Return the page count of a PDF, or raise 422 with the reason shown to the admin."""
+    try:
+        doc = pymupdf.open(stream=body, filetype="pdf")
+    except Exception as error:
+        raise HTTPException(422, "The file is not a valid PDF and cannot be opened.") from error
+    with doc:
+        if doc.needs_pass:
+            raise HTTPException(422, "The PDF is password-protected.")
+        if doc.page_count == 0:
+            raise HTTPException(422, "The PDF has no pages.")
+        return doc.page_count
+
+
 @router.post("/inspect")
 async def inspect(request: Request) -> dict:
     """Open an uploaded PDF so the gateway can reject one that cannot be ingested.
@@ -74,16 +98,21 @@ async def inspect(request: Request) -> dict:
     Called by the gateway (server/src/services/ingestion.service.ts) before it
     stores anything; saves nothing itself.
     """
-    try:
-        doc = pymupdf.open(stream=await request.body(), filetype="pdf")
-    except Exception as error:
-        raise HTTPException(422, "The file is not a valid PDF and cannot be opened.") from error
-    with doc:
-        if doc.needs_pass:
-            raise HTTPException(422, "The PDF is password-protected.")
-        if doc.page_count == 0:
-            raise HTTPException(422, "The PDF has no pages.")
-        return {"pages": doc.page_count}
+    return {"pages": open_pdf(await request.body())}
+
+
+@router.post("/label")
+async def label(request: Request) -> dict:
+    """Read a PDF's details (type, title, edition, date, country, facility) with models.
+
+    Returns each detail's value, confidence and evidence, the Unconfirmed list and
+    per-call usage (IN-05). Called by the gateway (server/src/services/ingestion.service.ts)
+    during upload; saves nothing. Model problems give a 200 with everything Unconfirmed.
+    """
+    body = await request.body()
+    open_pdf(body)
+    # In a thread: OCR and model calls would block the event loop.
+    return await run_in_threadpool(label_pdf, body)
 
 
 @router.post("/index")
@@ -100,4 +129,4 @@ def relabel_document(doc_id: str, labels: Labels) -> dict:
     Called by the gateway (server/src/services/knowledge-document.service.ts)
     after the admin saves a correction; returns how many passages changed.
     """
-    return {"passagesUpdated": relabel(doc_id, labels.model_dump())}
+    return {"passagesUpdated": relabel(doc_id, labels.model_dump(exclude_none=True))}
