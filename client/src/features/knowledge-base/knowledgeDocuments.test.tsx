@@ -1,7 +1,7 @@
 // The knowledge base's Documents tab (KB-01): browse active documents by
 // group, filter by label, and correct a document's details. The gateway is a
 // stubbed fetch.
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -17,6 +17,7 @@ const doc = {
   error: null,
   uploadedAt: '2026-09-29T03:00:00.000Z',
   history: [],
+  unconfirmed: [],
 }
 const FM = {
   ...doc,
@@ -582,5 +583,141 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(screen.getByLabelText('Status')).toHaveValue('')
     expect(screen.getByText(REPORT.title)).toBeInTheDocument()
+  })
+})
+
+// A document labelling could not read (IN-05): details null, title is the file name.
+const UNREAD = {
+  ...doc,
+  id: 'unread',
+  title: 'scan-0042.pdf',
+  issuingBody: null,
+  edition: null,
+  sourceType: null,
+  jurisdiction: null,
+  facilityType: null,
+  effectiveDate: null,
+  unconfirmed: ['sourceType', 'title', 'effectiveDate', 'jurisdiction', 'facilityType'],
+  fileUrl: '/api/knowledge-documents/unread/file',
+}
+// A standard whose edition and facility type are Unconfirmed.
+const PARTLY = {
+  ...NFPA,
+  id: 'partly',
+  title: 'NFPA 25 inspection standard',
+  edition: null,
+  facilityType: null,
+  unconfirmed: ['edition', 'facilityType'],
+}
+
+describe('Knowledge base needs review (IN-05)', () => {
+  it('marks documents with Unconfirmed details Needs review and counts them in a banner', async () => {
+    mockGateway([FM, PARTLY, UNREAD])
+    await openKnowledgeBase()
+
+    expect(await screen.findByText('2 documents need review')).toBeInTheDocument()
+    expect(within(await row(PARTLY.title)).getByText('Needs review')).toBeInTheDocument()
+    expect(within(await row(UNREAD.title)).getByText('Needs review')).toBeInTheDocument()
+    const fm = await row(FM.title)
+    expect(within(fm).queryByText('Needs review')).not.toBeInTheDocument()
+    expect(within(fm).getByText('Active')).toBeInTheDocument()
+  })
+
+  it('filters by Needs review, and leaves those documents out of Active', async () => {
+    mockGateway([FM, PARTLY])
+    await openKnowledgeBase()
+    await row(FM.title)
+
+    filter('Status', 'active')
+    expect(screen.getByText(FM.title)).toBeInTheDocument()
+    expect(screen.queryByText(PARTLY.title)).not.toBeInTheDocument()
+
+    filter('Status', 'needs_review')
+    expect(screen.getByText(PARTLY.title)).toBeInTheDocument()
+    expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
+  })
+
+  it('says "1 document needs review" for one, and shows no banner for none', async () => {
+    mockGateway([FM, PARTLY])
+    await openKnowledgeBase()
+    expect(await screen.findByText('1 document needs review')).toBeInTheDocument()
+    cleanup()
+
+    mockGateway([FM, NFPA])
+    await openKnowledgeBase()
+    await row(FM.title)
+    expect(screen.queryByText(/need(s)? review/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Needs review', { ignore: 'option' })).not.toBeInTheDocument()
+  })
+
+  it('shows Unconfirmed details as muted text and groups an Unconfirmed source type apart', async () => {
+    mockGateway([FM, UNREAD])
+    await openKnowledgeBase()
+
+    const unread = await row(UNREAD.title)
+    expect(within(unread).getAllByText('Unconfirmed')).toHaveLength(2)
+    expect(within(unread).queryByText(/null/)).not.toBeInTheDocument()
+    const grouped = await group('Source type unconfirmed')
+    expect(within(grouped).getByText(UNREAD.title)).toBeInTheDocument()
+  })
+
+  it('has no Unconfirmed group when every document has a source type', async () => {
+    mockGateway([FM])
+    await openKnowledgeBase()
+    await row(FM.title)
+    expect(screen.queryByRole('rowgroup', { name: 'Source type unconfirmed' })).toBeNull()
+  })
+
+  it('opens Unconfirmed fields empty and marked, and requires a source type to be chosen', async () => {
+    const puts = mockGateway([UNREAD], (id) => json(200, { ...UNREAD, id, unconfirmed: [] }))
+    await openKnowledgeBase()
+    const dialog = await edit(UNREAD.title)
+
+    expect(within(dialog).getByLabelText(/^Source type/)).toHaveValue('')
+    expect(within(dialog).getByText('Unconfirmed — fill this in')).toBeInTheDocument()
+
+    // Choosing a source type reveals the rest, each Unconfirmed one empty and marked.
+    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
+      target: { value: 'nfpa_standard' },
+    })
+    expect(within(dialog).getByLabelText(/^Title/)).toHaveValue('')
+    expect(within(dialog).getByLabelText(/^Country/)).toHaveValue('')
+    expect(within(dialog).getAllByText('Unconfirmed — fill this in').length).toBeGreaterThan(1)
+
+    // A standard's facility type is not silently "all": it must be chosen.
+    fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '2023' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
+    expect(await within(dialog).findByText('Choose a facility type.')).toBeInTheDocument()
+    expect(puts).toEqual([])
+  })
+
+  it('marks only the Unconfirmed fields, clears a mark once filled, and drops the badge after saving', async () => {
+    const puts = mockGateway([PARTLY], (id, body) =>
+      json(200, {
+        ...PARTLY,
+        id,
+        edition: body.edition,
+        facilityType: 'Cold store',
+        unconfirmed: [],
+      }),
+    )
+    await openKnowledgeBase()
+    const dialog = await edit(PARTLY.title)
+
+    expect(within(dialog).getByLabelText(/^Title/)).toHaveValue(PARTLY.title)
+    expect(within(dialog).getByLabelText(/^Edition/)).toHaveValue(null)
+    expect(within(dialog).getAllByText('Unconfirmed — fill this in')).toHaveLength(2)
+
+    fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '2023' } })
+    expect(within(dialog).getAllByText('Unconfirmed — fill this in')).toHaveLength(1)
+    fireEvent.change(within(dialog).getByLabelText(/^Facility type/), {
+      target: { value: 'Cold store' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(puts[0].body).toMatchObject({ edition: '2023', facilityType: 'Cold store' })
+    expect(within(await row(PARTLY.title)).queryByText('Needs review')).not.toBeInTheDocument()
+    expect(screen.queryByText(/need(s)? review/)).not.toBeInTheDocument()
   })
 })

@@ -10,7 +10,7 @@ import {
   type IngestionStatus,
   type KnowledgeDocument,
 } from '../api'
-import { calendarDate, dateTime, formatDuration, SOURCE_LABELS } from '../display'
+import { calendarDate, dateTime, facilityName, formatDuration, SOURCE_LABELS } from '../display'
 
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   queued: { label: 'Queued', tone: 'neutral' },
@@ -65,8 +65,14 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
       <strong>{d.title}</strong>
       <small>
         {d.sourceType === 'marsh_report'
-          ? `${SOURCE_LABELS[d.sourceType]} · ${d.facilityType} · ${calendarDate(d.effectiveDate)}`
-          : `${d.issuingBody} · ${d.edition} Edition · ${SOURCE_LABELS[d.sourceType]}`}
+          ? `${SOURCE_LABELS[d.sourceType]} · ${facilityName(d.facilityType)} · ${calendarDate(d.effectiveDate)}`
+          : [
+              d.issuingBody,
+              d.edition && `${d.edition} Edition`,
+              d.sourceType ? SOURCE_LABELS[d.sourceType] : 'Source type unconfirmed',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
       </small>
     </span>
   )
@@ -168,7 +174,7 @@ export function UploadedDocuments({ narrow, refreshKey }: { narrow: boolean; ref
           rows={documents.map((d) => ({
             id: d.id,
             document: title(d),
-            country: d.jurisdiction === 'all' ? 'All countries' : d.jurisdiction,
+            country: d.jurisdiction === 'all' ? 'All countries' : (d.jurisdiction ?? 'Unconfirmed'),
             uploaded: <span className="kb-mono">{dateTime(d.uploadedAt)}</span>,
             status: status(d),
             original: original(d),

@@ -1,4 +1,4 @@
-// The knowledge base's Documents tab (KB-01): every document in the
+// The knowledge base's Documents tab (KB-01, IN-05): every document in the
 // knowledge base, grouped by source type, filtered by label, status or title.
 // Opening a document's title shows its details; Edit details and Restore open
 // one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
@@ -16,6 +16,8 @@ const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'nfpa_standard', title: 'NFPA standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'marsh_report', title: 'Past Marsh reports', icon: IconRegistry.evidence.report },
+  // Documents whose source type labelling could not confirm (IN-05).
+  { sourceType: null, title: 'Source type unconfirmed', icon: 'circle-help' },
 ]
 // '' is "don't filter"; 'all' is a value of its own, so "All countries" finds
 // only documents labelled for all countries (exact match, AC4).
@@ -32,8 +34,17 @@ const FACILITY_FILTER = [
 const STATUS_FILTER = [
   { value: '', label: 'Any status' },
   { value: 'active', label: 'Active' },
+  { value: 'needs_review', label: 'Needs review' },
   { value: 'withdrawn', label: 'Withdrawn' },
 ]
+// Whether a document shows the status badge chosen in the filter; must match
+// components/DocumentRow.tsx, where Needs review is never Active (IN-05).
+const hasStatus = (d: KnowledgeDocument, status: string) =>
+  status === 'withdrawn'
+    ? Boolean(d.withdrawn)
+    : status === 'needs_review'
+      ? d.unconfirmed.length > 0
+      : !d.withdrawn && d.unconfirmed.length === 0
 const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '', status: '' }
 
 // A fuzzy title match: the typed letters appear in the title in order, with
@@ -85,13 +96,14 @@ export function KnowledgeDocuments({
     return () => controller.abort()
   }, [attempt])
 
+  const needReview = (documents ?? []).filter((d) => d.unconfirmed.length > 0).length
   const filtering = Object.values(filters).some((value) => value.trim() !== '')
   const shown = (documents ?? []).filter(
     (d) =>
       titleMatches(d.title, filters.title) &&
       (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
       (!filters.facilityType || d.facilityType === filters.facilityType) &&
-      (!filters.status || (filters.status === 'withdrawn') === Boolean(d.withdrawn)),
+      (!filters.status || hasStatus(d, filters.status)),
   )
   // A changed document replaces its row in place; the gateway's list is
   // sorted by title, which a corrected title may change, so re-sort.
@@ -139,6 +151,17 @@ export function KnowledgeDocuments({
           }
         >
           The gateway could not be reached. Check that the server is running, then try again.
+        </Callout>
+      )}
+
+      {/* Placeholder for the app-wide notification feature (IN-05). */}
+      {needReview > 0 && (
+        <Callout
+          tone="warning"
+          title={`${needReview} ${needReview === 1 ? 'document needs' : 'documents need'} review`}
+        >
+          Open one and choose Edit details to fill in what is Unconfirmed. Until then, new reports
+          do not use it.
         </Callout>
       )}
 
@@ -241,10 +264,11 @@ export function KnowledgeDocuments({
             {GROUPS.map((group) => {
               const rows = shown.filter((d) => d.sourceType === group.sourceType)
               // While filtering, an empty group is noise; unfiltered, it says so.
-              if (filtering && rows.length === 0) return null
+              // The Unconfirmed group exists only when it has documents.
+              if ((filtering || group.sourceType === null) && rows.length === 0) return null
               return (
                 <DocumentGroup
-                  key={group.sourceType}
+                  key={group.sourceType ?? 'unconfirmed'}
                   group={group}
                   documents={rows}
                   openId={openId}

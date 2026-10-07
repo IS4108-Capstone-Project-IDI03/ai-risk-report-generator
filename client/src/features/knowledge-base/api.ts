@@ -1,4 +1,4 @@
-// Browser → gateway requests for knowledge base documents (IN-01, KB-01).
+// Browser → gateway requests for knowledge base documents (IN-01, KB-01, IN-05).
 // uploads.ts uses the upload; KnowledgeBase.tsx uses the recent uploads list;
 // KnowledgeDocuments.tsx uses the active list, corrections, withdraw and reinstate. A failed request
 // throws a GatewayError carrying the HTTP status, which uploads.ts reads to
@@ -36,8 +36,8 @@ export type IngestionProgress = {
   stageLog: { stage: string; startedAt: string; durationMs: number }[]
 }
 
-// What the admin enters for each file. Which fields apply depends on the
-// source type (see uploads.ts); unused ones stay ''. effectiveDate is
+// What the admin enters in Edit details. Which fields apply depends on the
+// source type (see details.ts); unused ones stay ''. effectiveDate is
 // YYYY-MM-DD (a standard's effective date, or a report's report date); edition
 // is a standard's year.
 export type DocumentDetails = {
@@ -49,19 +49,27 @@ export type DocumentDetails = {
   facilityType: string
 }
 
+// The details labelling can leave Unconfirmed (IN-05); matches DetailDtoName
+// in server/src/services/knowledge-document.service.ts.
+export type UnconfirmedDetail =
+  'sourceType' | 'title' | 'edition' | 'effectiveDate' | 'jurisdiction' | 'facilityType'
+
 // One accepted document as the gateway sends it; matches toDto() in
-// server/src/services/knowledge-document.service.ts.
+// server/src/services/knowledge-document.service.ts. A detail that is null
+// is Unconfirmed (IN-05).
 export type KnowledgeDocument = {
   id: string
   title: string
-  issuingBody: string
-  // null for a past report, which has no edition.
+  issuingBody: string | null
+  // null for a past report, which has no edition, or while Unconfirmed.
   edition: string | null
   fileName: string
-  sourceType: SourceType
-  jurisdiction: string
-  facilityType: string
-  effectiveDate: string
+  sourceType: SourceType | null
+  jurisdiction: string | null
+  facilityType: string | null
+  effectiveDate: string | null
+  // The details still Unconfirmed; non-empty means "Needs review".
+  unconfirmed: UnconfirmedDetail[]
   size: number
   status: IngestionStatus
   error: string | null
@@ -78,12 +86,12 @@ export type KnowledgeDocument = {
 // One previous version of a document's details: what a correction replaced,
 // when, and who saved that correction.
 export type DocumentVersion = {
-  sourceType: SourceType
+  sourceType: SourceType | null
   title: string
   edition: string | null
-  effectiveDate: string
-  jurisdiction: string
-  facilityType: string
+  effectiveDate: string | null
+  jurisdiction: string | null
+  facilityType: string | null
   replacedAt: string
   replacedBy: { id: string; name: string }
 }
@@ -138,14 +146,12 @@ export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
   )
 }
 
-// Sends one PDF with its details and returns the queued document. The body is
-// the raw PDF and the details go in the URL's query string, so the gateway
-// needs no multipart-form library.
-export function uploadKnowledgeDocument(
-  file: File,
-  details: DocumentDetails,
-): Promise<KnowledgeDocument> {
-  const query = new URLSearchParams([['fileName', file.name], ...filled(details)])
+// Sends one PDF and returns the queued document. The body is the raw PDF and
+// the file name goes in the URL's query string, so the gateway needs no
+// multipart-form library. The gateway reads the document's details itself
+// (IN-05), so this takes a few seconds, up to ~30 s for a scanned PDF.
+export function uploadKnowledgeDocument(file: File): Promise<KnowledgeDocument> {
+  const query = new URLSearchParams({ fileName: file.name })
   return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/pdf' },

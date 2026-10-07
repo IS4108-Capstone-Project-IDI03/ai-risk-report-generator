@@ -1,6 +1,6 @@
 // The Edit details dialog (KB-01): corrects one document's details (AC6, AC7)
-// or restores a previous version (AC10), using the upload form's fields. A
-// refused value shows its reason under the field and nothing is saved; any
+// or restores a previous version (AC10). A detail still Unconfirmed (IN-05)
+// opens empty and marked, and must be filled in before saving. A refused value shows its reason under the field and nothing is saved; any
 // other failure shows its reason above the fields. Opened by
 // screens/KnowledgeDocuments.tsx; saves through api.ts.
 import { useState } from 'react'
@@ -12,22 +12,31 @@ import {
   type DocumentVersion,
   type KnowledgeDocument,
   type StoredDetails,
+  type UnconfirmedDetail,
 } from '../api'
+import { editionProblem, FACILITY_UNSET, withSourceType } from '../details'
 import { dateTime } from '../display'
-import { editionProblem, withSourceType } from '../uploads'
 import { DetailsFields } from './DetailsFields'
 
 // The form's values for stored details. A standard's "all" facility type is
-// the form's blank "All facility types" choice.
-function formDetails(d: StoredDetails): DocumentDetails {
+// the form's blank "All facility types" choice. An Unconfirmed detail opens
+// empty (null is already empty; the title is the file name until confirmed).
+function formDetails(d: StoredDetails, unconfirmed: UnconfirmedDetail[]): DocumentDetails {
   const standard = d.sourceType !== 'marsh_report'
+  // A standard's blank facility type means "all", so "not chosen" needs its own value.
+  const noFacility = standard ? FACILITY_UNSET : ''
   return {
-    sourceType: d.sourceType,
-    title: d.title,
+    sourceType: d.sourceType ?? '',
+    title: unconfirmed.includes('title') ? '' : d.title,
     edition: d.edition ?? '',
-    effectiveDate: d.effectiveDate,
-    jurisdiction: d.jurisdiction,
-    facilityType: standard && d.facilityType === 'all' ? '' : d.facilityType,
+    effectiveDate: d.effectiveDate ?? '',
+    jurisdiction: d.jurisdiction ?? '',
+    facilityType:
+      d.facilityType === null
+        ? noFacility
+        : standard && d.facilityType === 'all'
+          ? ''
+          : d.facilityType,
   }
 }
 
@@ -43,16 +52,20 @@ export function EditDetailsDialog({
   onClose: () => void
   onSaved: (updated: KnowledgeDocument) => void
 }) {
-  const [details, setDetails] = useState(() => formDetails(version ?? document))
+  const [details, setDetails] = useState(() =>
+    formDetails(version ?? document, version ? [] : document.unconfirmed),
+  )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [problem, setProblem] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   // Same rule as an upload row: changing the source type starts that type's
   // own fields afresh; an edited field's old error no longer applies.
+  // Choosing the source type of a document that had none keeps the other
+  // details, since they were read from the document, not defaulted.
   const change = (next: Partial<DocumentDetails>) => {
     const base =
-      next.sourceType !== undefined && next.sourceType !== details.sourceType
+      next.sourceType !== undefined && next.sourceType !== details.sourceType && details.sourceType
         ? withSourceType(details, next.sourceType)
         : details
     setDetails({ ...base, ...next })
@@ -64,6 +77,12 @@ export function EditDetailsDialog({
     const edition = editionProblem(details)
     if (edition) {
       setErrors({ edition })
+      return
+    }
+    // A standard's facility type still not chosen; a report's blank one is
+    // refused by the gateway with its own message.
+    if (details.facilityType === FACILITY_UNSET) {
+      setErrors({ facilityType: 'Choose a facility type.' })
       return
     }
     setBusy(true)
@@ -118,7 +137,12 @@ export function EditDetailsDialog({
             {version.replacedBy.name}. Check the details, then save to restore them.
           </p>
         )}
-        <DetailsFields details={details} errors={errors} onChange={change} />
+        <DetailsFields
+          details={details}
+          errors={errors}
+          unconfirmed={version ? [] : document.unconfirmed}
+          onChange={change}
+        />
       </div>
     </Dialog>
   )

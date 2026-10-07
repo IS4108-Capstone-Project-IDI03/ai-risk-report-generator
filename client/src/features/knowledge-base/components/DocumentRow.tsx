@@ -5,6 +5,7 @@
 import { Badge, Icon, IconRegistry } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import { calendarDate, countryName, facilityName } from '../display'
+import { DetailText } from './DetailText'
 import { DocumentDetails } from './DocumentDetails'
 
 /** Returns the document's row, plus its details row when open. */
@@ -46,15 +47,31 @@ export function DocumentRow({
             <strong>{d.title}</strong>
             <small>
               {d.edition
-                ? `${d.issuingBody} · ${d.edition} Edition`
-                : `Report date ${calendarDate(d.effectiveDate)}`}
+                ? [d.issuingBody, `${d.edition} Edition`].filter(Boolean).join(' · ')
+                : d.sourceType === 'marsh_report'
+                  ? `Report date ${calendarDate(d.effectiveDate)}`
+                  : 'Edition unconfirmed'}
             </small>
           </button>
         </td>
-        <td className="kb-col-country">{countryName(d.jurisdiction)}</td>
-        <td className="kb-col-facility">{facilityName(d.facilityType)}</td>
+        <td className="kb-col-country">
+          <DetailText text={countryName(d.jurisdiction)} />
+        </td>
+        <td className="kb-col-facility">
+          <DetailText text={facilityName(d.facilityType)} />
+        </td>
         <td className="kb-col-status">
-          {d.withdrawn ? <Badge tone="danger">Withdrawn</Badge> : <Badge tone="low">Active</Badge>}
+          {/* A document with any Unconfirmed detail is not searchable, so it is
+              never shown as Active (IN-05). */}
+          <span className="kb-badges">
+            {d.withdrawn && <Badge tone="danger">Withdrawn</Badge>}
+            {d.unconfirmed.length > 0 && (
+              <Badge tone="moderate" icon={IconRegistry.status.flagged.icon}>
+                Needs review
+              </Badge>
+            )}
+            {!d.withdrawn && d.unconfirmed.length === 0 && <Badge tone="low">Active</Badge>}
+          </span>
         </td>
         <td className="kb-col-original">
           <a

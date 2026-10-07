@@ -1,27 +1,51 @@
-// The knowledge base's Add documents tab (IN-01): the upload panel (file
-// picker, one UploadRow per file, Upload all), then UploadedDocuments.
+// The knowledge base's Add documents tab (IN-01, IN-05): the upload panel
+// (file picker and drop area, one UploadRow per file; a file uploads as soon
+// as it is chosen or dropped), then UploadedDocuments.
 // Shown by KnowledgeBase.tsx; upload logic lives in uploads.ts, this file only
 // displays it.
+import { useState } from 'react'
 import { Button, Icon } from '../../../design-system'
 import { UploadedDocuments } from '../components/UploadedDocuments'
 import { UploadRow } from '../components/UploadRow'
-import { addFiles, clearFinished, uploadAll, useUploads } from '../uploads'
+import { addFiles, clearFinished, useUploads } from '../uploads'
 
 /** Returns the Add documents tab: the upload panel, then recent uploads. */
 export function AddDocuments({ narrow }: { narrow: boolean }) {
   const uploads = useUploads()
-  const drafts = uploads.filter((u) => u.state === 'draft').length
+  const [dragging, setDragging] = useState(false)
   const uploading = uploads.some((u) => u.state === 'uploading')
   const finished = uploads.some((u) => u.state === 'queued' || u.state === 'rejected')
   const acceptedCount = uploads.filter((u) => u.state === 'queued').length
 
   return (
     <>
-      <section className="kb-panel" aria-labelledby="kb-add-title">
+      <section
+        className="kb-panel"
+        data-dragging={dragging || undefined}
+        aria-labelledby="kb-add-title"
+        // Dropping PDFs anywhere on the panel uploads them, like choosing them.
+        // The panel takes the focus style while files are over it.
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDragging(true)
+        }}
+        // Moving onto a child also fires dragleave; only leaving the panel counts.
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false)
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDragging(false)
+          addFiles([...event.dataTransfer.files])
+        }}
+      >
         <header className="kb-panel-head">
           <div>
             <h2 id="kb-add-title">Add documents</h2>
-            <p>PDF only, up to 100 MB each. Every file needs its own details.</p>
+            <p>
+              PDF only, up to 100 MB each. Each file uploads as soon as you add it, and its details
+              are read from the document.
+            </p>
           </div>
           <label className="kb-pick">
             <input
@@ -39,9 +63,7 @@ export function AddDocuments({ narrow }: { narrow: boolean }) {
         </header>
 
         {uploads.length === 0 ? (
-          <p className="kb-empty">
-            No files selected. Choose PDF files to enter their details and upload them.
-          </p>
+          <p className="kb-empty">No files yet. Drop PDF files here or choose them to upload.</p>
         ) : (
           <div className="kb-rows">
             {uploads.map((upload) => (
@@ -52,24 +74,13 @@ export function AddDocuments({ narrow }: { narrow: boolean }) {
 
         {uploads.length > 0 && (
           <footer className="kb-panel-foot">
-            <Button
-              variant="primary"
-              iconLeft="upload"
-              disabled={drafts === 0 || uploading}
-              loading={uploading}
-              onClick={uploadAll}
-            >
-              Upload all
-            </Button>
             {finished && (
               <Button variant="ghost" disabled={uploading} onClick={clearFinished}>
                 Clear finished
               </Button>
             )}
             <span className="kb-count" role="status">
-              {uploading
-                ? 'Uploading…'
-                : `${drafts} to upload${finished ? ` · ${acceptedCount} uploaded` : ''}`}
+              {uploading ? 'Uploading…' : `${acceptedCount} uploaded`}
             </span>
           </footer>
         )}

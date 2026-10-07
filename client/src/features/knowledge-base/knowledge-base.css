@@ -28,6 +28,10 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
 }
+.kb-panel[data-dragging] {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
 .kb-panel > .kb-empty {
   padding: 20px;
 }
@@ -346,9 +350,10 @@
   line-height: 0;
 }
 /* Wide enough for the Withdrawn badge, so withdrawing a document doesn't
-   shift every column. The header and badge are centred in it. */
+   shift every column. The header and badge are centred in it. 136px fits
+   the Needs review badge. */
 .kb-table .kb-col-status {
-  width: 112px;
+  width: 136px;
   text-align: center;
 }
 /* The last column only as wide as its link; its header starts where the
@@ -605,4 +610,28 @@
     animation: none;
     transition: none;
   }
+}
+
+/* A detail labelling could not confirm (IN-05): muted in lists, amber under
+   its field in Edit details (the design system's warning text colour). */
+.kb-unconfirmed {
+  color: var(--text-muted);
+}
+.kb-unconfirmed-hint {
+  color: var(--status-moderate-fg);
+}
+/* "Reading document details…" beside a file that is uploading. */
+.kb-reading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
+/* A document's status cell can hold two badges (Withdrawn, Needs review). */
+.kb-badges {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
