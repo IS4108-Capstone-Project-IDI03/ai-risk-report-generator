@@ -40,9 +40,20 @@ export interface IRecording {
   }
 }
 
+// A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
+// interpretation (CP-05) or annotation (CP-10) can attach to one photo.
+export interface IPhoto {
+  _id: Types.ObjectId
+  // The uploaded file's own name, or "Photo 2".
+  name: string
+  // The original image in S3, kept as raw evidence and never altered.
+  key: string
+  contentType: 'image/jpeg' | 'image/png'
+  size: number
+}
+
 // One thing the engineer saw on site, with everything captured about it: a
-// note (CP-02) and any number of recordings (CP-03). Photos (CP-04) will join
-// as another list.
+// note (CP-02), any number of recordings (CP-03) and photographs (CP-04).
 export interface IObservation {
   assessment: Types.ObjectId
   session: Types.ObjectId
@@ -52,6 +63,8 @@ export interface IObservation {
   // Exactly as the engineer wrote it, never trimmed or reworded.
   note?: string
   recordings: IRecording[]
+  // Absent on observations saved before CP-04.
+  photos?: IPhoto[]
   // The standard the engineer tied the finding to, if any. The draft finds the
   // clause itself, so only the standard is recorded.
   standard?: string
@@ -105,6 +118,13 @@ const recordingSchema = new Schema<IRecording>({
   },
 })
 
+const photoSchema = new Schema<IPhoto>({
+  name: { type: String, required: true },
+  key: { type: String, required: true },
+  contentType: { type: String, enum: ['image/jpeg', 'image/png'], required: true },
+  size: { type: Number, required: true },
+})
+
 const observationSchema = new Schema<IObservation>(
   {
     assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true, index: true },
@@ -113,6 +133,7 @@ const observationSchema = new Schema<IObservation>(
     engineerId: { type: Schema.Types.ObjectId, ref: 'User' },
     note: { type: String, maxlength: 5000 },
     recordings: [recordingSchema],
+    photos: [photoSchema],
     standard: { type: String, trim: true, maxlength: 100 },
     severity: { type: String, enum: SEVERITIES, required: true },
     location: { type: Schema.Types.ObjectId, required: true },

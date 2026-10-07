@@ -31,6 +31,7 @@ import {
   listObservations,
   newObservationSchema,
   NoActiveSessionError,
+  photoFormat,
   saveObservation,
   UnknownLocationError,
 } from '../services/observation.service'
@@ -219,11 +220,12 @@ router.delete(
   },
 )
 
-// Saves one observation (CP-02, CP-03) as a multipart form: a `details` part
-// holding the JSON fields (see newObservationSchema) and a `recording` part
-// per audio file. It needs a note, a recording or both. 400 lists the first
-// problem with each invalid field, as for assessments. Each recording may be
-// up to 25 MB, the Whisper upload limit.
+// Saves one observation (CP-02, CP-03, CP-04) as a multipart form: a `details`
+// part holding the JSON fields (see newObservationSchema), a `recording` part
+// per audio file and a `photo` part per JPG or PNG. It needs at least one of a
+// note, a recording or a photo. 400 lists the first problem with each invalid
+// field, as for assessments. Each recording may be up to 25 MB, the Whisper
+// upload limit, and each photo up to 20 MB.
 // ponytail: the whole form is buffered in memory; stream it to S3 if uploads
 // grow past a few recordings.
 router.post(
@@ -269,8 +271,32 @@ router.post(
       res.status(400).json({ error: 'A recording is empty.' })
       return
     }
-    if (!parsed.data.note && files.length === 0) {
-      res.status(400).json({ error: 'Add a note or a recording to the observation.' })
+
+    const photoFiles = form.getAll('photo').filter((part) => part instanceof File)
+    if (photoFiles.some((file) => file.size > 20 * 1024 * 1024)) {
+      res.status(413).json({ error: 'A photo is larger than 20 MB. Upload a smaller one.' })
+      return
+    }
+    if (photoFiles.some((file) => file.size === 0)) {
+      res.status(400).json({ error: 'A photo is empty.' })
+      return
+    }
+    const photos = await Promise.all(
+      photoFiles.map(async (file, i) => ({
+        name: file.name || `Photo ${i + 1}`,
+        image: Buffer.from(await file.arrayBuffer()),
+      })),
+    )
+    const unsupported = photos.find((photo) => !photoFormat(photo.image))
+    if (unsupported) {
+      res.status(415).json({
+        error: `${unsupported.name} is not a JPG or PNG image. Save it as JPG or PNG and add it again.`,
+      })
+      return
+    }
+
+    if (!parsed.data.note && files.length === 0 && photos.length === 0) {
+      res.status(400).json({ error: 'Add a note, a recording or a photo to the observation.' })
       return
     }
     const recordings = await Promise.all(
@@ -284,7 +310,13 @@ router.post(
       res
         .status(201)
         .json(
-          await saveObservation(req.params.reference, parsed.data, recordings, res.locals.user!),
+          await saveObservation(
+            req.params.reference,
+            parsed.data,
+            recordings,
+            res.locals.user!,
+            photos,
+          ),
         )
     } catch (error: unknown) {
       if (error instanceof UnknownLocationError) {
@@ -408,9 +440,9 @@ router.post(
 // express.raw rejects a body over the limit before the handler runs.
 const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
   if (error?.type !== 'entity.too.large') return next(error)
-  res
-    .status(413)
-    .json({ error: 'The recordings are larger than 100 MB in total. Save fewer at once.' })
+  res.status(413).json({
+    error: 'The recordings and photos are larger than 100 MB in total. Save fewer at once.',
+  })
 }
 router.use(tooLarge)
 
