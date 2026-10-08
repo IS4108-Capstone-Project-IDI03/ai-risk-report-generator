@@ -1,0 +1,33 @@
+{
+  "_about": "Photos with Marsh's own reading of them, to check photo interpretation (CP-05) against. A case's source is a page of a sample report (the largest image on it) or an image file, relative to the repo root. The redacted sample reports keep only these two OFI photos; add cases from unredacted reports or your own site photos, with what Marsh would write, as they become available.",
+  "cases": [
+    {
+      "id": "office-5-ofi-2026-01",
+      "source": {
+        "pdf": "microservices/ingestion-service/tests/test_files/Office Sample 5 - PRE 2026 - REDACTED.pdf",
+        "page": 9
+      },
+      "location": "B2 service lift corridor",
+      "note": null,
+      "marsh": {
+        "observation": "As observed at B2 service lift corridor, fire door sequencer is not in good working condition.",
+        "caption": "Door sequencer not in good working condition",
+        "type": "Fire door ITM"
+      }
+    },
+    {
+      "id": "office-5-ofi-2026-02",
+      "source": {
+        "pdf": "microservices/ingestion-service/tests/test_files/Office Sample 5 - PRE 2026 - REDACTED.pdf",
+        "page": 10
+      },
+      "location": "B3 service corridor",
+      "note": null,
+      "marsh": {
+        "observation": "As observed at B3 service corridor area, a few of the sprinkler heads are recessing more than 50% into the ceiling.",
+        "caption": "Sprinkler head recess into ceiling",
+        "type": "Sprinkler Installation"
+      }
+    }
+  ]
+}
