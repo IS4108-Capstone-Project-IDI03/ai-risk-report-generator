@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Icon, Popover } from '../../design-system'
+import { IconButton, Popover } from '../../design-system'
 import { useNotifications, type NotificationCounts } from './useNotifications'
 import { NotificationList } from './NotificationList'
 import type { Notification } from './api'
@@ -44,28 +44,23 @@ export function NotificationBell({
       onOpenChange={setOpen}
       ariaLabel="Notifications"
       align="right"
+      surfaceClassName="notification-popover-surface"
       trigger={
-        <button
-          type="button"
-          aria-label={label}
+        <IconButton
+          icon="bell"
+          label={label}
+          size="md"
+          selected={open}
           onClick={toggle}
           style={{
             position: 'relative',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '36px',
-            height: '36px',
-            border: 'none',
-            borderRadius: '99px',
-            background: 'transparent',
             color,
-            cursor: 'pointer',
-            transition: 'var(--transition-control)',
+            ['--surface-hover' as string]:
+              tone === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'var(--surface-hover)',
+            ['--surface-selected' as string]:
+              tone === 'dark' ? 'rgba(255, 255, 255, 0.16)' : 'var(--surface-selected)',
           }}
-          data-hoverable="true"
         >
-          <Icon name="bell" size={18} />
           {n.unread > 0 && (
             <span
               aria-hidden="true"
@@ -92,10 +87,14 @@ export function NotificationBell({
               {n.unread > 99 ? '99+' : n.unread}
             </span>
           )}
-        </button>
+        </IconButton>
       }
     >
-      <NotificationList n={n} onActivate={onActivate ?? (() => setOpen(false))} />
+      <NotificationList
+        n={n}
+        onActivate={onActivate ?? (() => setOpen(false))}
+        onClose={() => setOpen(false)}
+      />
     </Popover>
   )
 }

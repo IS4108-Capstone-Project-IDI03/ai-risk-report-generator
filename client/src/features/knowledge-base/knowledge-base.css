@@ -199,6 +199,12 @@
   align-items: flex-start;
   gap: 4px;
 }
+.kb-status-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
 .kb-status-reason {
   max-width: 36ch;
   font-size: var(--text-small-size);

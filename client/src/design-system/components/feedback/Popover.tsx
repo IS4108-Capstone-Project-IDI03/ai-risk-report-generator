@@ -12,6 +12,7 @@ export type PopoverProps = {
   ariaLabel?: string
   align?: 'left' | 'right'
   className?: string
+  surfaceClassName?: string
   style?: CSSProperties
 }
 
@@ -29,6 +30,7 @@ export function Popover({
   ariaLabel,
   align = 'right',
   className = '',
+  surfaceClassName = '',
   style,
 }: PopoverProps) {
   const anchor = useRef<HTMLDivElement>(null)
@@ -101,6 +103,7 @@ export function Popover({
           id={surfaceId}
           role="dialog"
           aria-label={ariaLabel}
+          className={surfaceClassName}
           style={{
             position: 'absolute',
             top: 'calc(100% + var(--space-2))',

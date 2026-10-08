@@ -227,6 +227,17 @@ describe('NotificationBell', () => {
     expect(screen.queryByText('Document 1 failed to ingest.')).not.toBeInTheDocument()
   })
 
+  it('closes from the popover close button', async () => {
+    stubGateway(makeItems(1))
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} pageSize={5} />)
+    open()
+    await screen.findByText('Document 1 failed to ingest.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close notifications' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Notifications' })).not.toBeInTheDocument()
+  })
+
   it('updates the badge from the count poll without a reload', async () => {
     vi.useFakeTimers()
     try {

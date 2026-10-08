@@ -1,7 +1,8 @@
-import { Button, Callout, EmptyState } from '../../design-system'
+import { Badge, Button, Callout, EmptyState, IconButton } from '../../design-system'
 import { NotificationRow } from './NotificationRow'
 import type { UseNotifications } from './useNotifications'
 import type { Notification } from './api'
+import './notifications.css'
 
 // The dropdown's body: a header with the two bulk actions, the list of rows,
 // and a Load more at the foot. Takes the hook's state and the activate handler;
@@ -9,26 +10,24 @@ import type { Notification } from './api'
 export function NotificationList({
   n,
   onActivate,
+  onClose,
 }: {
   n: UseNotifications
   onActivate: (notification: Notification) => void
+  onClose?: () => void
 }) {
   const empty = !n.loading && !n.failed && n.items.length === 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 'var(--space-3)',
-          padding: 'var(--space-3) var(--space-4)',
-          borderBottom: '1px solid var(--border-default)',
-        }}
-      >
-        <h2 style={{ margin: '0', fontSize: '14px', fontWeight: '600' }}>Notifications</h2>
-        <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
+    <div className="notification-list">
+      <header className="notification-list__header">
+        <div className="notification-list__heading">
+          <h2>Notifications</h2>
+          <Badge tone="neutral" dot={n.unread > 0}>
+            {n.unread > 0 ? `${n.unread} unread` : 'All caught up'}
+          </Badge>
+        </div>
+        <div className="notification-list__actions">
           {n.unread > 0 && (
             <Button variant="ghost" size="sm" onClick={n.markAllRead}>
               Mark all as read
@@ -39,12 +38,15 @@ export function NotificationList({
               Dismiss all
             </Button>
           )}
+          {onClose && (
+            <IconButton icon="x" label="Close notifications" size="sm" onClick={onClose} />
+          )}
         </div>
       </header>
 
-      <div style={{ overflowY: 'auto' }}>
+      <div className="notification-list__body">
         {n.failed ? (
-          <div style={{ padding: 'var(--space-4)' }}>
+          <div className="notification-list__message">
             <Callout
               tone="danger"
               title="Notifications not loaded"
@@ -58,9 +60,13 @@ export function NotificationList({
             </Callout>
           </div>
         ) : empty ? (
-          <EmptyState icon="bell" title="No notifications" />
+          <EmptyState
+            icon="bell"
+            title="No notifications"
+            description="New activity will appear here as it happens."
+          />
         ) : (
-          <ul style={{ margin: '0', padding: '0', listStyle: 'none' }}>
+          <ul>
             {n.items.map((notification) => (
               <NotificationRow
                 key={notification.id}
@@ -73,27 +79,14 @@ export function NotificationList({
         )}
 
         {n.loading && n.items.length === 0 && (
-          <p
-            role="status"
-            style={{
-              margin: '0',
-              padding: 'var(--space-4)',
-              fontSize: '13px',
-              color: 'var(--text-muted)',
-            }}
-          >
+          <p role="status" className="notification-list__loading">
             Loading notifications…
           </p>
         )}
       </div>
 
       {n.hasMore && (
-        <div
-          style={{
-            padding: 'var(--space-2) var(--space-4)',
-            borderTop: '1px solid var(--border-default)',
-          }}
-        >
+        <div className="notification-list__footer">
           <Button variant="ghost" size="sm" fullWidth onClick={n.loadMore} disabled={n.loading}>
             {n.loading ? 'Loading…' : 'Load more'}
           </Button>

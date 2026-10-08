@@ -138,14 +138,27 @@ export function UploadedDocuments({
 
     return (
       <span className="kb-status">
-        <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
-        {/* Same badge as the Documents list (components/DocumentRow.tsx), so an
-            upload that needs review is visible where it was added (IN-05). */}
-        {d.status === 'complete' && needsReview(d) && (
-          <Badge tone="moderate" icon={IconRegistry.status.flagged.icon}>
-            Needs review
-          </Badge>
-        )}
+        <span className="kb-status-line">
+          <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
+          {/* Same badge as the Documents list (components/DocumentRow.tsx), so an
+              upload that needs review is visible where it was added (IN-05). */}
+          {d.status === 'complete' && needsReview(d) && (
+            <Badge tone="moderate" icon={IconRegistry.status.flagged.icon}>
+              Needs review
+            </Badge>
+          )}
+          {d.status === 'failed' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="refresh-cw"
+              disabled={retrying[d.id]}
+              onClick={() => retry(d.id)}
+            >
+              {retrying[d.id] ? 'Retrying…' : 'Retry'}
+            </Button>
+          )}
+        </span>
         {p && (
           <span className="kb-stage-detail">
             <span className="kb-elapsed">{formatDuration(p.elapsedMs)}</span>
@@ -153,17 +166,6 @@ export function UploadedDocuments({
           </span>
         )}
         {d.error && <span className="kb-status-reason">{d.error}</span>}
-        {d.status === 'failed' && (
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft="refresh-cw"
-            disabled={retrying[d.id]}
-            onClick={() => retry(d.id)}
-          >
-            {retrying[d.id] ? 'Retrying…' : 'Retry'}
-          </Button>
-        )}
       </span>
     )
   }
