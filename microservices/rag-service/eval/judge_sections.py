@@ -23,7 +23,7 @@ import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeVar
 
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict
@@ -34,6 +34,7 @@ from app.generation.generator import DRAFTING_GUIDE, PROMPT_VERSION, TEMPLATE
 from app.orchestrator import orchestrator
 
 HERE = Path(__file__).parent
+T = TypeVar("T", bound=BaseModel)
 # v2.1: conventions are checked against the drafting guide, not sections.json's list.
 # v2.2: the AC13 pass mark (PASS_FLOORS, PASS_MEAN), averaged over two judge runs.
 # v2.3: backup observations are optional for coverage; clear expansions of short dates
@@ -192,22 +193,27 @@ def judge(case: dict, text: str, sources: dict, finished: bool = False) -> list[
             + text,
         ]
     )
+    return ask_judge(system, user, Findings).issues
+
+
+def ask_judge(system: str, user: str, schema: type[T]) -> T:
+    """One judge call, its answer parsed into `schema`. Shared with judge_ofis (GN-05)."""
     # Groq's free tier limits requests a minute, so a rate limit is retried with the
     # SDK's backoff rather than failing the run.
     client = OpenAI(max_retries=8)
     response = client.chat.completions.parse(
         model=JUDGE_MODEL,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        response_format=Findings,
+        response_format=schema,
         reasoning_effort=JUDGE_REASONING,
         # At high effort gpt-oss can reason for over 15k tokens before writing its
         # findings; this is near its output limit and costs about 2 cents on Groq.
         max_completion_tokens=32000,
     )
-    findings = response.choices[0].message.parsed
-    if findings is None:
+    parsed = response.choices[0].message.parsed
+    if parsed is None:
         raise RuntimeError(f"The judge gave no findings: {response.choices[0].message.refusal}")
-    return findings.issues
+    return parsed
 
 
 def run_case(path: Path) -> list[dict]:
