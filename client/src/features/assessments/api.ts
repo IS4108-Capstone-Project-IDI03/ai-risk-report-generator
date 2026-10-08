@@ -90,6 +90,22 @@ export type SavedPhoto = {
   size: number
   url: string
 }
+// What the vision model proposes from an observation's photos (CP-05), for
+// the engineer to review. It runs after the save returns, so it starts as
+// 'interpreting'.
+export type InterpretationStatus = 'interpreting' | 'interpreted' | 'failed'
+export type SavedInterpretation = {
+  status: InterpretationStatus
+  description: string | null
+  // A proposed category, which may differ from the observation's own.
+  copeDimension: string | null
+  hazardType: string | null
+  // Why it failed, to show the engineer.
+  error: string | null
+  attempts: number
+  // The model that wrote it.
+  model: string | null
+}
 // A place on site the engineer records observations in.
 export type SiteLocation = { id: string; name: string; floor: string | null }
 
@@ -108,6 +124,8 @@ export type SavedObservation = {
   note: string | null
   recordings: SavedRecording[]
   photos: SavedPhoto[]
+  // null when it has no photos (CP-05).
+  interpretation: SavedInterpretation | null
   recordedAt: string
   // The latest change to its tags, note or a transcript (CP-08).
   edited: Stamp | null
@@ -323,6 +341,11 @@ export async function retryTranscription(observationId: string, recordingId: str
     'POST',
     `/api/observations/${encodeURIComponent(observationId)}/recordings/${encodeURIComponent(recordingId)}/transcription/retry`,
   )
+}
+
+// Starts a new attempt at reading an observation's photos after a failure (CP-05).
+export async function retryInterpretation(observationId: string) {
+  await request<void>('POST', `${observationPath(observationId)}/interpretation/retry`)
 }
 
 const locationsPath = (reference: string) =>

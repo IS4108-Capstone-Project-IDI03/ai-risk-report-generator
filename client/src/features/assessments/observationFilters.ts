@@ -11,8 +11,14 @@ export const NO_FILTERS: ObservationFilters = {
 
 // The observation types (CP-08, CP-04). One with a note and a recording is both.
 export const OBSERVATION_TYPES = ['Note', 'Voice', 'Photo']
-// Where an observation's recordings stand (CP-08).
-export const OBSERVATION_STATUSES = ['Transcribing', 'Transcription failed', 'Complete']
+// Where an observation's recordings and photos stand (CP-08, CP-05).
+export const OBSERVATION_STATUSES = [
+  'Transcribing',
+  'Interpreting',
+  'Transcription failed',
+  'Interpretation failed',
+  'Complete',
+]
 
 // What an observation holds. A sample one, kept in the browser, has a note and
 // may carry a sample voice clip and sample photos.
@@ -26,8 +32,10 @@ export const typeLabel = (o: Observation) => {
     ? [first, ...others.slice(0, -1)].join(', ') + ' and ' + others[others.length - 1]
     : first
 }
-// A sample observation has nothing being transcribed.
-export const statusOf = (o: Observation) => o.status ?? 'Complete'
+// A sample observation has nothing being transcribed, but its sample photo
+// proposal is briefly interpreting.
+export const statusOf = (o: Observation) =>
+  o.status ?? (o.interpretation?.status === 'interpreting' ? 'Interpreting' : 'Complete')
 
 // An observation matches when every filter that is set matches its label, so
 // any one label on its own returns every observation carrying it (CP-06 AC2,
