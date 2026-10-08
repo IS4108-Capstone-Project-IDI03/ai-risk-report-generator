@@ -560,3 +560,24 @@ device to upload as normal. Reading the format from the image is what makes
 "rejected with a format message" hold whatever the browser reports.
 
 Stories: CP-04.
+
+## 2026-10-08 — AI-call usage is returned by the services and saved by the gateway
+
+Chose: each Python service adds a `usage` list to the response it already sends
+(drafting, Whisper) and the gateway saves one `ai_calls` row per paid call and
+works out the cost from a dated price table. Labelling already priced its own
+calls, so the gateway keeps that cost and names its basis. Missing provider
+usage is stored as `null` with `usageStatus: "unavailable"`, never 0. Saving
+never throws. Cohere's prices are labelled estimates because Cohere publishes no
+per-use price. Rejected: a callback from each service to a gateway route, which
+needs a service key, a gateway address and an HTTP client in two more services
+for no gain (every call already returns to the gateway), and which would break
+the rule that S5 writes nothing to MongoDB; and storing each provider's raw
+response, which no one could add up across providers.
+
+Reason: EV-04 needs totals per feature, report and billed service, so every
+call has to share one shape. Known gap: a call whose service then fails (a
+refused draft) is not recorded, and ingestion-time embedding is not covered.
+
+Stories: EV-03.
+

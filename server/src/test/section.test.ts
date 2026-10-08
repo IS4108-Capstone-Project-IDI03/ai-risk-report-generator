@@ -1,6 +1,7 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { ObservationModel, type CopeDimension } from '../models/observation.model'
@@ -208,6 +209,59 @@ describe('drafting a report section (GN-01)', () => {
       latestDraft: { id: String(saved?._id) },
     })
     expect(list.body[1]).toMatchObject({ id: '12', usableObservations: 0, latestDraft: null })
+  })
+
+  it('records the usage of the calls that wrote a draft, under the report (EV-03)', async () => {
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Risers.',
+    })
+    const call = (over: object) => ({
+      feature: 'retrieval',
+      billed_service: 'cohere-embed',
+      model: 'embed-v4.0',
+      duration_ms: 300,
+      input_tokens: 40,
+      output_tokens: null,
+      cache_read_tokens: null,
+      search_units: null,
+      audio_seconds: null,
+      usage_status: 'recorded',
+      ...over,
+    })
+    drafts.mockImplementation(() =>
+      json({
+        ...DRAFT,
+        usage: [
+          call({}),
+          call({
+            billed_service: 'cohere-rerank',
+            model: 'rerank-v3.5',
+            input_tokens: null,
+            search_units: 1,
+          }),
+          call({
+            feature: 'draft-section',
+            billed_service: 'anthropic',
+            model: 'claude-opus-5-5',
+            input_tokens: 900,
+            output_tokens: 300,
+          }),
+        ],
+      }),
+    )
+
+    const response = await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    expect(response.status).toBe(201)
+    const rows = await AiCallModel.find({ reportId: REFERENCE }).lean()
+    expect(rows.map((r) => r.billedService).sort()).toEqual([
+      'anthropic',
+      'cohere-embed',
+      'cohere-rerank',
+    ])
+    // The usage list is bookkeeping: it does not leak into the draft the browser gets.
+    expect(JSON.stringify(response.body)).not.toContain('billed_service')
   })
 
   it('tags a section spanning several categories as all', async () => {

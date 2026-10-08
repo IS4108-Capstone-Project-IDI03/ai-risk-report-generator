@@ -25,5 +25,10 @@ export const config = {
   awsRegion: requireEnv('AWS_REGION'),
   s3Bucket: requireEnv('S3_BUCKET'),
   redisUrl: requireEnv('REDIS_URL'),
+  // USD estimates for Cohere calls (EV-03); Cohere publishes no per-use price.
+  prices: {
+    cohereEmbedUsdPer1M: Number(process.env.COHERE_EMBED_USD_PER_1M_TOKENS ?? 0.12),
+    cohereRerankUsdPer1K: Number(process.env.COHERE_RERANK_USD_PER_1K_SEARCHES ?? 2),
+  },
   serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
 }
