@@ -661,3 +661,34 @@ criteria (role, chatbot, units, empty state, scope) are listed in the PR.
 
 Stories: EV-04.
 
+## 2026-10-08 — Photos are read only when an engineer asks
+
+Chose: saving an observation stores its photos and reads nothing. Read photos
+on the Observations tab sends `POST /api/observations/:id/interpretation`,
+which starts the first reading, or a new one after a failure, and replaces
+`/interpretation/retry`. It stays open to any risk engineer, as the retry was.
+This supersedes two points of the CP-05 entry above: "The gateway starts it
+after saving, as it does a transcription" and "Saving starts exactly one
+attempt". Everything else in that entry stands: one reading per observation,
+S5 with Gemini, a proposal that is never drafting evidence.
+- Until asked, the observation has no `interpretation` and the API returns
+  `null`, as before for an observation without photos. The tab shows "Not
+  read yet" with what reading does.
+- The CP-04 AC7 (vetted sheet) and CP-05 AC1 (repo copy) now read "when the
+  engineer asks for them to be read", and a new AC says nothing is sent until
+  then.
+- Observations already read keep their reading.
+
+Rejected:
+- Reading on save, as before: every site photo went to Google whether or not
+  anyone wanted a proposal, while the CP-05 entry's open question (may client
+  photos go to Google?) is unanswered, and each one is a paid call.
+- A per-assessment or per-user setting for automatic reading: more to build
+  and explain, for a choice one button already gives.
+
+Reason: the proposal saves the engineer typing but is optional, so sending a
+client's photos to a third party should be a deliberate act, and Marsh pays
+only for proposals someone wants. The cost is one tap per observation.
+
+Stories: CP-05 (CP-04 in the vetted sheet).
+

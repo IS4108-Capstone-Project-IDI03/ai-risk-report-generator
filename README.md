@@ -32,9 +32,10 @@ assessment's capture session at `POST /api/assessments/:reference/capture-sessio
 It lists assessments with their status at `GET /api/assessments`, and records
 observations (any of a note, recordings and JPG or PNG photos, each file kept in
 S3 as raw evidence) against the capture session in progress. S5 transcribes each
-recording with Whisper and reads an observation's photos with Gemini, proposing
-a description, category and hazard type for the engineer to review (CP-05); the
-proposal is never drafting evidence.
+recording with Whisper and, when an engineer asks, reads an observation's photos
+with Gemini, proposing a description, category and hazard type for the engineer
+to review (CP-05); saving never sends a photo, and the proposal is never
+drafting evidence.
 An observation's tags (category, severity, location, standard) and note change at
 `PATCH /api/observations/:id`; a finished transcript can be corrected, keeping
 what Whisper wrote; and an observation can be deleted and restored, a soft
@@ -70,9 +71,10 @@ choosing or adding the location on site. With a capture
 session live, an observation's note, recordings and photos are saved through the
 gateway together: the note exactly as typed, each recording stored in S3
 and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`), and the
-photos stored in S3 and read together by S5 with Gemini (set a paid-tier
-`GEMINI_API_KEY`), whose proposal shows on the observation for the engineer to
-use as its note or category through Edit (CP-05). An
+photos stored in S3. Read photos on the Observations tab has S5 read them
+together with Gemini (set a paid-tier `GEMINI_API_KEY`); saving never reads
+them. The proposal shows on the observation for the engineer to use as its
+note or category through Edit (CP-05). An
 observation may be left uncategorised. On the
 Observations tab (CP-08), each row shows the observation's type, category,
 location, severity, status and capture time, and the list filters by any of
