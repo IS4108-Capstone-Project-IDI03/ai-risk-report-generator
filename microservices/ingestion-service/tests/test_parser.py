@@ -148,6 +148,7 @@ def test_doc_name_is_fixture_filename(parsed):
 
 
 @pytest.mark.slow
+@pytest.mark.model
 def test_full_document_parse():
     """Parse the entire manual, not just the TEST_PAGE_RANGE slice.
 
