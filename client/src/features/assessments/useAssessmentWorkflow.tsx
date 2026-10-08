@@ -10,7 +10,7 @@ import {
   listAssessments,
   listAssignableEngineers,
   type AssignableEngineer,
-  retryInterpretation,
+  readPhotos,
   retryTranscription,
   saveObservation,
   updateObservation,
@@ -899,15 +899,42 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         toast(cause + ' Try again.', 'warning')
       }
     }
-    // Reads an observation's photos again after a failure (CP-05).
-    async function retryReading(id: string) {
+    // Reads a saved observation's photos when the engineer asks (CP-05): the
+    // first reading, or a new one after a failure.
+    async function readSaved(id: string) {
       try {
-        await retryInterpretation(id)
+        await readPhotos(id)
         captured.reload()
       } catch (error: unknown) {
-        const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
+        const cause = error instanceof Error ? error.message : 'The request was not accepted.'
         toast(cause + ' Try again.', 'warning')
       }
+    }
+    // A sample proposal settles after a moment, as a real reading would.
+    // Matched by its sample flag, not its place in the list, which a later
+    // observation shifts.
+    function settleSamples() {
+      const settle = (list: Observation[]) =>
+        list.map((x) =>
+          x.interpretation?.sample && x.interpretation.status === 'interpreting'
+            ? { ...x, interpretation: { ...x.interpretation, status: 'interpreted' as const } }
+            : x,
+        )
+      updateState((previous) => ({
+        ...previous,
+        fRecent: settle(previous.fRecent),
+        captureObs: Object.fromEntries(
+          Object.entries(previous.captureObs).map(([ref, list]) => [ref, settle(list)]),
+        ),
+      }))
+    }
+    // Reads a sample observation's photos in this demo: nothing reads a photo
+    // here, so a labelled sample proposal stands in (CP-05).
+    function readSample(key: string) {
+      setState(
+        changeLocal(key, (x) => ({ ...x, interpretation: sampleInterpretation(x.cat, x.area) })),
+      )
+      later(settleSamples, 2000)
     }
     async function startRecording() {
       let stream: MediaStream
@@ -1625,6 +1652,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })
         const reading = o.interpretation
         const proposed = reading?.status === 'interpreted' ? reading : null
+        // Its photos are read only when a risk engineer asks (CP-05), through
+        // the gateway, or in this demo for a sample observation.
+        const read =
+          canEdit && !o.deleted
+            ? o.id
+              ? () => void readSaved(o.id!)
+              : () => readSample(key)
+            : null
         return {
           ...o,
           key,
@@ -1650,12 +1685,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           // What the vision model proposes from its photos (CP-05), and what
           // the engineer can do with it. Neither action saves anything by
           // itself: each opens Edit, filled in, for the engineer to save.
-          proposal: reading
-            ? {
+          // Photos not read yet offer only Read photos.
+          proposal: !reading
+            ? o.media.length
+              ? { status: 'unread' as const, read }
+              : null
+            : {
                 ...reading,
                 // "Protection · Sprinkler Installation"
                 summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
-                retry: () => void retryReading(o.id!),
+                retry: read,
                 useAsNote:
                   canChange && !o.deleted && proposed?.description
                     ? () =>
@@ -1670,8 +1709,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   canChange && !o.deleted && proposed?.category && proposed.category !== o.cat
                     ? () => openEdit({ cat: proposed.category! })
                     : null,
-              }
-            : null,
+              },
           icon: CAT_ICON[o.cat] || 'circle-dot',
           color: 'var(--text-secondary)',
           chevron: open ? 'chevron-down' : 'chevron-right',
@@ -2343,7 +2381,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       fPhotos: s.fPhotos,
       fPhotoError: s.fPhotoError,
       photoHint: liveCapture
-        ? 'Take a photograph or choose ones already on this device, as JPG or PNG. Each is stored exactly as taken.'
+        ? 'Take a photograph or choose ones already on this device, as JPG or PNG. Each is stored exactly as taken; read them on the Observations tab for a proposed description.'
         : 'No capture session, so photographs stay in this browser and are not uploaded.',
       // Photos taken on the device or chosen from it (CP-04 AC6). Anything
       // but a JPG or PNG is refused here with the gateway's reason (AC4); the
@@ -2494,12 +2532,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           sev: s.fSev,
           std: s.fStd,
           // Kept in this browser: the preview stays, as the demo never uploads it.
+          // Its photos are read only when the engineer asks (CP-05).
           media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
           detail: text,
-          // Nothing reads a photo here: a labelled sample proposal stands in (CP-05).
-          interpretation: s.fPhotos.length
-            ? sampleInterpretation(s.fCat, currentLocation.name)
-            : null,
         }
         const reference = s.captureTarget.reference
         setState({
@@ -2519,28 +2554,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             }),
           3200,
         )
-        // The sample settles after a moment, as a real interpretation would.
-        // Matched by its sample flag, not its place in the list, which a later
-        // observation shifts.
-        if (s.fPhotos.length) {
-          const settle = (list: Observation[]) =>
-            list.map((x) =>
-              x.interpretation?.sample && x.interpretation.status === 'interpreting'
-                ? { ...x, interpretation: { ...x.interpretation, status: 'interpreted' as const } }
-                : x,
-            )
-          later(
-            () =>
-              updateState((previous) => ({
-                ...previous,
-                fRecent: settle(previous.fRecent),
-                captureObs: Object.fromEntries(
-                  Object.entries(previous.captureObs).map(([ref, list]) => [ref, settle(list)]),
-                ),
-              })),
-            2000,
-          )
-        }
       },
       /* generation */
       gsecs,

@@ -11,8 +11,8 @@ import {
   observationChangesSchema,
   ObservationNotFoundError,
   ObservationStateError,
+  readPhotos,
   restoreObservation,
-  retryInterpretation,
   retryTranscription,
   transcriptCorrectionSchema,
   UnknownLocationError,
@@ -134,20 +134,18 @@ router.post(
   },
 )
 
-// Starts a new attempt at reading the observation's photos after a failure
-// (CP-05), open to any risk engineer as a transcription retry is.
-router.post(
-  '/:id/interpretation/retry',
-  requirePermission('assessments:edit'),
-  async (req, res) => {
-    try {
-      await retryInterpretation(req.params.id)
-      res.status(202).end()
-    } catch (error: unknown) {
-      refuse(error, res)
-    }
-  },
-)
+// Reads the observation's photos (CP-05): the first reading, or a new one
+// after a failure. Saving never reads them, so this is the only way a photo
+// reaches the vision model. Open to any risk engineer, as a transcription
+// retry is.
+router.post('/:id/interpretation', requirePermission('assessments:edit'), async (req, res) => {
+  try {
+    await readPhotos(req.params.id)
+    res.status(202).end()
+  } catch (error: unknown) {
+    refuse(error, res)
+  }
+})
 
 // Streams the original recording from S3, the raw evidence (CP-03 AC1).
 router.get(

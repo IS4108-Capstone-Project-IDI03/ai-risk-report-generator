@@ -39,30 +39,54 @@ const stampStyle = {
   color: 'var(--text-muted)',
 } as const
 
+const proposalSection = {
+  marginTop: '14px',
+  paddingTop: '12px',
+  borderTop: '1px solid var(--border-subtle)',
+} as const
+const proposalHeading = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  flexWrap: 'wrap',
+  fontSize: '14px',
+  fontWeight: '500',
+  color: 'var(--text-primary)',
+} as const
+
 // What the vision model proposes from the observation's photos (CP-05): a
 // machine reading, so it sits in AI violet with the photos it was read from,
-// and becomes the engineer's own only through Edit.
+// and becomes the engineer's own only through Edit. Nothing reads the photos
+// until an engineer asks, so until then it offers Read photos.
 function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['proposal']> }) {
+  if (proposal.status === 'unread')
+    return (
+      <section aria-label="Proposal from the photos" style={proposalSection}>
+        <div style={proposalHeading}>
+          <Icon name="camera" size={14} color="#4f9aee"></Icon>
+          <span>{'Proposal from the photos'}</span>
+        </div>
+        <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+          {
+            'Not read yet. Reading sends the photos to the photo service, which proposes a description, category and hazard type for you to review.'
+          }
+        </p>
+        {!!proposal.read && (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={IconRegistry.action.generate}
+            onClick={proposal.read}
+            style={{ marginTop: '8px' }}
+          >
+            {'Read photos'}
+          </Button>
+        )}
+      </section>
+    )
   return (
-    <section
-      aria-label="Proposal from the photos"
-      style={{
-        marginTop: '14px',
-        paddingTop: '12px',
-        borderTop: '1px solid var(--border-subtle)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          flexWrap: 'wrap',
-          fontSize: '14px',
-          fontWeight: '500',
-          color: 'var(--text-primary)',
-        }}
-      >
+    <section aria-label="Proposal from the photos" style={proposalSection}>
+      <div style={proposalHeading}>
         <Icon name="camera" size={14} color="#4f9aee"></Icon>
         <span>{'Proposal from the photos'}</span>
         <Badge tone="ai" icon="sparkles">
@@ -77,9 +101,16 @@ function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['pro
             tone="warning"
             title="Interpretation failed"
             actions={
-              <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={proposal.retry}>
-                {'Retry interpretation'}
-              </Button>
+              proposal.retry && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="refresh-cw"
+                  onClick={proposal.retry}
+                >
+                  {'Retry interpretation'}
+                </Button>
+              )
             }
           >
             {proposal.error}
