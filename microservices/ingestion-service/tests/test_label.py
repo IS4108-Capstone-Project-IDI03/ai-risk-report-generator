@@ -218,7 +218,10 @@ def test_standard_number_is_kept_when_it_has_the_right_shape_and_is_in_the_text(
 def test_standard_number_grounding(fake, source, value, text, kept):
     fake["answers"]["source_type"] = ans(source)
     fake["answers"]["standard_number"] = ans(value)
-    body = label(text)
+    # Neutral words keep the page above the OCR cut-off (MIN_TEXT_CHARS in
+    # app/labelling/pages.py); a near-empty page would be read by OCR instead,
+    # which differs between machines.
+    body = label(f"{text}. General requirements apply to every building.")
     assert (body["details"]["standard_number"]["value"] == value) is kept
     assert ("standard_number" in body["unconfirmed"]) is not kept
 
