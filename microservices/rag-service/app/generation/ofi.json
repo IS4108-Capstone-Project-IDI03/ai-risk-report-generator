@@ -1,0 +1,43 @@
+{
+  "_about": "Section 3 Opportunities for Improvement (GN-05): Marsh's value lists and Risk Assessment Matrix, from the Global PRE Report Template v2.0 (Feb 2026), pp. 6-9. The model must pick from these lists; code, not the model, sets the priority from the matrix. Bump `version` when anything here changes.",
+  "version": "ofi-config-2026-10-08",
+  "likelihood": ["Almost Certain", "Likely", "Possible", "Unlikely", "Very Rare"],
+  "consequence": ["Insignificant", "Minor", "Moderate", "Major", "Catastrophic"],
+  "_ram_about": "Risk Assessment Matrix: ram[likelihood][consequence] is the priority (template p. 6).",
+  "ram": {
+    "Almost Certain": { "Insignificant": "Priority 2", "Minor": "Priority 2", "Moderate": "Priority 1", "Major": "Priority 1", "Catastrophic": "Priority 1" },
+    "Likely": { "Insignificant": "Priority 3", "Minor": "Priority 2", "Moderate": "Priority 2", "Major": "Priority 1", "Catastrophic": "Priority 1" },
+    "Possible": { "Insignificant": "Priority 4", "Minor": "Priority 3", "Moderate": "Priority 2", "Major": "Priority 1", "Catastrophic": "Priority 1" },
+    "Unlikely": { "Insignificant": "Priority 4", "Minor": "Priority 4", "Moderate": "Priority 3", "Major": "Priority 2", "Catastrophic": "Priority 1" },
+    "Very Rare": { "Insignificant": "Priority 4", "Minor": "Priority 4", "Moderate": "Priority 3", "Major": "Priority 2", "Catastrophic": "Priority 2" }
+  },
+  "categories": ["Management Programs", "Physical Protection", "Other"],
+  "effort": [
+    "Major Procedural",
+    "Major Capital",
+    "Moderate Procedural",
+    "Moderate Capital",
+    "Minor Procedural",
+    "Minor Capital"
+  ],
+  "_types_about": "Provisional. The template says Type is 'aligned with RQR sub-category', and that list is in Marsh's Global Risk Quality Rating spreadsheet, which we don't have. Until Marsh sends it: the types Marsh used in the three sample reports, then the seven RQR main categories (template Section 4).",
+  "types": [
+    "Hot Work Permit",
+    "Pre-Emergency Planning",
+    "Housekeeping",
+    "Fire Door Inspection, Testing and Maintenance",
+    "Fire Protection System",
+    "Fire Protection System Maintenance and Testing",
+    "Fire Protection System Operation",
+    "Fire Protection Impairment",
+    "Sprinkler Installation",
+    "Management of Back-up Power Supply",
+    "External Exposure",
+    "Fire Protection",
+    "Occupancy Hazards",
+    "Construction",
+    "Water Supply",
+    "Surveillance",
+    "Management Programs"
+  ]
+}
