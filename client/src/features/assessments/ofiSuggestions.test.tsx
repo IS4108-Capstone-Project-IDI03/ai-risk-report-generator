@@ -38,6 +38,14 @@ const SUGGESTION: Ofi = {
   precedentReport: 'Shopping Mall Sample 2',
   status: 'New',
   issueDate: '2026-09-28T00:00:00.000Z',
+  provenance: {
+    provider: 'anthropic',
+    model: 'claude-sonnet-5-5',
+    effort: 'medium',
+    prompt_version: 'gn05-v4',
+    config_version: 'ofi-config-2026-10-08',
+    generated_at: '2026-10-08T12:00:00.000Z',
+  },
   sources: {
     'C:nfpa25:12': {
       text: 'Control valves shall be supervised.',

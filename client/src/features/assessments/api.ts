@@ -457,6 +457,15 @@ export type Ofi = {
   // Marsh's fixed fields, the same for a suggestion as once accepted.
   status: string
   issueDate: string | null
+  // The configuration that drafted it (prompt, value-list version, model).
+  provenance: {
+    provider: string
+    model: string
+    effort: string
+    prompt_version: string
+    config_version: string
+    generated_at: string
+  }
 }
 // An accepted OFI as it reads in the report, numbered in report order.
 export type AcceptedOfi = Ofi & { number: string }

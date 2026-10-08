@@ -5,15 +5,19 @@ import { completionLabel, plural, REVIEW_BADGE } from '../reviewDisplay'
 // The section navigation of the review workspace (RV-01): sections 7-12, each
 // with how much of it the draft writes (AC5) and where it stands in review
 // (AC6). Selecting one changes the draft and the source panel together.
+// Section 3's OFIs (GN-05) come first, with how many are in the report.
 export function ReviewSectionRail({
   sections,
   selected,
   onSelect,
+  inReport,
   style,
 }: {
   sections: ReviewSection[]
   selected: string
   onSelect: (id: string) => void
+  // Accepted OFIs, for section 3's row.
+  inReport: number
   style: React.CSSProperties
 }) {
   const drafted = sections.filter((s) => s.draft).length
@@ -34,6 +38,30 @@ export function ReviewSectionRail({
         )}
       </div>
       <ul className="rv-rail-list">
+        <li>
+          <button
+            type="button"
+            className="rv-rail-row"
+            aria-current={selected === '3' ? 'true' : undefined}
+            onClick={() => onSelect('3')}
+          >
+            <span className="rv-rail-number">3</span>
+            <span className="rv-rail-body">
+              <span className="rv-rail-title">Opportunities for Improvement</span>
+              <span className="rv-rail-states">
+                {inReport > 0 ? (
+                  <Badge tone="low" icon="check">
+                    {inReport} in the report
+                  </Badge>
+                ) : (
+                  <Badge tone="neutral" icon="circle-dashed">
+                    None in the report
+                  </Badge>
+                )}
+              </span>
+            </span>
+          </button>
+        </li>
         {sections.map((s) => {
           const badge = REVIEW_BADGE[s.review.state]
           return (
