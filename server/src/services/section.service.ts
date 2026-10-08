@@ -125,7 +125,6 @@ function changesSince(evidence: Evidence[] | undefined, now: Evidence[]): Change
   }
 }
 
-// One template section with its newest draft as saved, evidence included.
 export type LoadedSection = {
   section: TemplateSection
   usableObservations: number
@@ -135,8 +134,6 @@ export type LoadedSection = {
   changeCounts: ChangeCounts
 }
 
-// Sections 7-12 with how much usable evidence each has and its newest draft.
-// The section list and the review workspace (RV-01) both read it.
 export async function loadSections(reference: string): Promise<LoadedSection[]> {
   const assessment = await AssessmentModel.findOne({ reference }, '_id').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)

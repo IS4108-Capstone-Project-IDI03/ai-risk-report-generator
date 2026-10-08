@@ -121,6 +121,7 @@ const registry = {
     settings: 'settings',
     help: 'circle-help',
     panel: 'panel-right',
+    notifications: 'bell',
   },
 }
 function iconName(path: string) {

@@ -16,7 +16,7 @@ import {
 } from '../models/knowledge-document.model'
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
-import { enqueueIngestion } from './ingestion-queue.service'
+import { enqueueIngestion, requeueIngestion } from './ingestion-queue.service'
 import {
   IngestionUnavailableError,
   labelDocument,
@@ -534,16 +534,11 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
   return documents.map((d) => toDto(d))
 }
 
-/**
- * Returns the documents with these ids, in no particular order. An id that is
- * no document's is skipped. The review workspace shows a cited passage's
- * title, edition, effective date and withdrawal from them (RV-01).
- */
+// The review workspace resolves only the documents cited by a draft.
 export async function findKnowledgeDocuments(ids: string[]): Promise<KnowledgeDocumentDto[]> {
   const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))
   if (!valid.length) return []
   const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
-  // A cited document has finished ingestion, so it carries no progress.
   return documents.map((d) => toDto(d))
 }
 
@@ -675,3 +670,59 @@ export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: st
  * withdrawn), or IngestionUnavailableError, in which case it stays withdrawn.
  */
 export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undefined)
+
+/**
+ * Retries a failed ingestion without re-uploading. The PDF is still in S3 and
+ * every detail is still on the record, so retry means re-run, not re-enter: the
+ * document flips `failed → queued`, its failure fields are cleared, its retry
+ * counter is bumped, and the ingestion job is re-queued. The worker then claims
+ * it exactly as a fresh upload.
+ *
+ * Throws KnowledgeDocumentNotFoundError (unknown or malformed id),
+ * KnowledgeDocumentWrongStateError (not currently failed), or
+ * IngestionUnavailableError (the re-queue could not be placed), in which case
+ * the document is put back to failed.
+ */
+export async function retryIngestion(id: string): Promise<void> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  // Atomic on `status: 'failed'`: only a failed document flips, so a double
+  // click cannot queue two runs or double-count. The counter is bumped in the
+  // same write, so it moves exactly when a retry is accepted — never on the
+  // worker's own automatic re-runs.
+  const updated = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'failed' },
+    {
+      $set: { status: 'queued' },
+      $unset: { error: 1, finishedAt: 1, result: 1 },
+      $inc: { retryCount: 1 },
+    },
+    { returnDocument: 'after' },
+  ).lean()
+  if (!updated) {
+    // One of two reasons, disambiguated like retryTranscription.
+    if (await KnowledgeDocumentModel.exists({ _id: id })) {
+      throw new KnowledgeDocumentWrongStateError('Only a failed document can be retried.')
+    }
+    throw new KnowledgeDocumentNotFoundError()
+  }
+  // Re-queue, clearing the stale terminal job BullMQ still holds under this
+  // document id (see requeueIngestion). If it cannot be placed, roll the status
+  // and the counter back, so the document does not sit at `queued` with no job
+  // and the attempt number is not inflated by a retry that never ran.
+  try {
+    await requeueIngestion(id)
+  } catch {
+    await KnowledgeDocumentModel.updateOne(
+      { _id: id, status: 'queued' },
+      {
+        $set: {
+          status: 'failed',
+          error: 'Ingestion could not be re-queued. Try again shortly.',
+          finishedAt: new Date(),
+        },
+        $inc: { retryCount: -1 },
+      },
+    )
+    throw new IngestionUnavailableError('Ingestion could not be re-queued. Try again shortly.')
+  }
+}

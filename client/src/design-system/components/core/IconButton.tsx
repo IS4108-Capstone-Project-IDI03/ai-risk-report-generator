@@ -34,6 +34,7 @@ function IconButton({
   variant = 'ghost',
   selected = false,
   disabled = false,
+  children,
   style = {},
   ...rest
 }: IconButtonProps) {
@@ -74,6 +75,7 @@ function IconButton({
       {...rest}
     >
       <Icon name={icon} size={s.icon} />
+      {children}
     </button>
   )
 }

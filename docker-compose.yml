@@ -123,6 +123,10 @@ services:
       REDIS_URL: redis://redis:6379
       CHROMA_HOST: chroma
       CHROMA_PORT: 8000
+      # Inside the network the gateway is the `server` service, not localhost
+      # (CLAUDE.md pitfall: environment: beats env_file:). The worker posts
+      # ingestion notifications here (IN-10).
+      GATEWAY_URL: http://server:4000
       GLMOCR_MODE: selfhosted
       GLMOCR_OCR_API_HOST: ollama
       GLMOCR_OCR_API_PORT: 11434

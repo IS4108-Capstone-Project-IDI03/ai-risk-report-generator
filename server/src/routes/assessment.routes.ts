@@ -375,10 +375,8 @@ router.get('/:reference/sections', requirePermission('assessments:view'), async 
   }
 })
 
-// The review workspace (RV-01): sections 7-12 with their completion and review
-// states, each newest draft with the passages it cites (and their documents'
-// current details) and the observations it was drafted from. Read-only, so a
-// knowledge admin can open it too. 404, or 503 when S4 cannot be reached.
+// The review workspace (RV-01) is read-only and available to anyone who can
+// view the assessment.
 router.get('/:reference/review', requirePermission('assessments:view'), async (req, res) => {
   try {
     res.json(await getReviewWorkspace(req.params.reference))

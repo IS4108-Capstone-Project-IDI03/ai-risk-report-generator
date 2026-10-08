@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
+import {
+  KnowledgeDocumentNotFoundError,
+  KnowledgeDocumentWrongStateError,
+  retryIngestion,
+} from '../services/knowledge-document.service'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole } from './auth-test-helpers'
 
@@ -24,7 +29,11 @@ vi.mock('../services/storage.service', () => ({
   deleteObject: async (key: string) => void s3.delete(key),
 }))
 const queued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
-vi.mock('../services/ingestion-queue.service', () => ({ enqueueIngestion: queued }))
+const requeued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
+vi.mock('../services/ingestion-queue.service', () => ({
+  enqueueIngestion: queued,
+  requeueIngestion: requeued,
+}))
 const inspect = vi.fn<(url?: string, init?: RequestInit) => Promise<Response>>()
 const labelling = vi.fn<() => Promise<Response>>()
 
@@ -40,6 +49,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-06T20:00:00Z'))
   queued.mockResolvedValue(undefined)
+  requeued.mockResolvedValue(undefined)
   inspect.mockResolvedValue(Response.json({ pages: 3 }))
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
     String(url).endsWith('/label') ? labelling() : inspect(url, init),
@@ -48,6 +58,7 @@ beforeEach(() => {
 afterEach(() => {
   s3.clear()
   queued.mockReset()
+  requeued.mockReset()
   inspect.mockReset()
   labelling.mockReset()
   vi.unstubAllGlobals()
@@ -863,5 +874,180 @@ describe('GET /api/knowledge-documents/:id/file', () => {
       404,
     )
     expect((await api.get('/api/knowledge-documents/not-an-id/file')).status).toBe(404)
+  })
+})
+
+// retryIngestion is the service seam (the route is tested separately). Seeds a
+// document directly so each test starts from a known status.
+describe('retryIngestion', () => {
+  const DOC_ID = '6abb28ae16068a0793e99620'
+
+  async function seed(overrides: Record<string, unknown> = {}) {
+    await KnowledgeDocumentModel.create({
+      _id: DOC_ID,
+      title: 'NFPA 13 sprinkler standard',
+      issuingBody: 'NFPA',
+      edition: '2022',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: `knowledge/${DOC_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'abc',
+      },
+      status: 'failed',
+      error: 'Processing stopped on a system error, not a fault in the file. Upload it again.',
+      finishedAt: new Date(),
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        COPE_dimension: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+      ...overrides,
+    })
+  }
+
+  const stored = () => KnowledgeDocumentModel.findById(DOC_ID).lean()
+
+  it('flips a failed document back to queued, clearing the failure fields', async () => {
+    await seed()
+
+    await retryIngestion(DOC_ID)
+
+    const doc = await stored()
+    expect(doc!.status).toBe('queued')
+    expect(doc!.error).toBeUndefined()
+    expect(doc!.finishedAt).toBeUndefined()
+    expect(doc!.result).toBeUndefined()
+  })
+
+  it('increments the retry counter on each retry', async () => {
+    await seed()
+
+    await retryIngestion(DOC_ID)
+    expect((await stored())!.retryCount).toBe(1)
+
+    // Fail it again, then retry a second time: the counter keeps climbing.
+    await KnowledgeDocumentModel.updateOne(
+      { _id: DOC_ID },
+      { $set: { status: 'failed', error: 'again', finishedAt: new Date() } },
+    )
+    await retryIngestion(DOC_ID)
+    expect((await stored())!.retryCount).toBe(2)
+  })
+
+  it('re-queues the document', async () => {
+    await seed()
+
+    await retryIngestion(DOC_ID)
+
+    expect(requeued).toHaveBeenCalledWith(DOC_ID)
+  })
+
+  it('refuses a document that is not failed, leaving it and its counter untouched', async () => {
+    await seed({ status: 'complete', error: undefined, finishedAt: undefined })
+
+    await expect(retryIngestion(DOC_ID)).rejects.toBeInstanceOf(KnowledgeDocumentWrongStateError)
+
+    const doc = await stored()
+    expect(doc!.status).toBe('complete')
+    expect(doc!.retryCount ?? 0).toBe(0)
+    expect(requeued).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown id', async () => {
+    await expect(retryIngestion('6abb28ae16068a0793e99999')).rejects.toBeInstanceOf(
+      KnowledgeDocumentNotFoundError,
+    )
+  })
+
+  it('rejects a malformed id without reaching the database', async () => {
+    await expect(retryIngestion('not-an-id')).rejects.toBeInstanceOf(KnowledgeDocumentNotFoundError)
+  })
+
+  it('rolls status and counter back if re-queueing fails', async () => {
+    await seed()
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await expect(retryIngestion(DOC_ID)).rejects.toThrow()
+
+    const doc = await stored()
+    // Back to failed, with a re-queue-specific reason, and the counter undone.
+    expect(doc!.status).toBe('failed')
+    expect(doc!.error).toMatch(/re-queue/i)
+    expect(doc!.retryCount).toBe(0)
+  })
+})
+
+// The retry route (service behaviour is covered above in `retryIngestion`).
+describe('POST /api/knowledge-documents/:id/retry', () => {
+  const RETRY_ID = '6abb28ae16068a0793e99630'
+
+  async function seedFailed(overrides: Record<string, unknown> = {}) {
+    await KnowledgeDocumentModel.create({
+      _id: RETRY_ID,
+      title: 'NFPA 13 sprinkler standard',
+      issuingBody: 'NFPA',
+      edition: '2022',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: `knowledge/${RETRY_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'abc',
+      },
+      status: 'failed',
+      error: 'Processing stopped on a system error, not a fault in the file. Upload it again.',
+      finishedAt: new Date(),
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        COPE_dimension: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+      ...overrides,
+    })
+  }
+
+  // 401 (no session) and 403 (wrong role) are covered by the ROUTES table in
+  // permissions.test.ts, alongside every other protected route.
+
+  it('accepts a retry of a failed document with 202 and re-queues it', async () => {
+    await seedFailed()
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(202)
+
+    const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
+    expect(doc!.status).toBe('queued')
+    expect(doc!.retryCount).toBe(1)
+    expect(requeued).toHaveBeenCalledWith(RETRY_ID)
+  })
+
+  it('409s a document that is not failed', async () => {
+    await seedFailed({ status: 'complete', error: undefined, finishedAt: undefined })
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(409)
+  })
+
+  it('404s an unknown id', async () => {
+    await api.post('/api/knowledge-documents/6abb28ae16068a0793e99999/retry').expect(404)
+  })
+
+  it('404s a malformed id', async () => {
+    await api.post('/api/knowledge-documents/not-an-id/retry').expect(404)
+  })
+
+  it('503s when the ingestion queue cannot be reached, leaving the document failed', async () => {
+    await seedFailed()
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(503)
+
+    const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
+    expect(doc!.status).toBe('failed')
+    expect(doc!.retryCount).toBe(0)
   })
 })

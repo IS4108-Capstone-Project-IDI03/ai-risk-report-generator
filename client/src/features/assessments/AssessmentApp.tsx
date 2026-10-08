@@ -1,4 +1,6 @@
 import { Button, Dialog, Icon, SideNav, Tabs, Toast } from '../../design-system'
+import type { Session } from '../auth/api'
+import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
@@ -16,7 +18,7 @@ import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 import { AccessDenied } from '../auth/AccessDenied'
 
-export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
+export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
   return (
     <>
       <div className="workflow">
@@ -110,7 +112,9 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                         {'Risk Report Generator'}
                       </span>
                     </span>
-                    <span style={{ flex: '0 0 auto', width: '36px' }}></span>
+                    <span style={{ flex: '0 0 auto' }}>
+                      <NotificationBell counts={session.notifications} tone="dark" />
+                    </span>
                   </div>
                 </>
               )}
@@ -215,6 +219,12 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                       paddingTop: '6px',
                     }}
                   >
+                    {/* Desktop has no top bar, so the bell lives in the page
+                        header. On phones the navy bar carries it instead, so
+                        this copy is suppressed to avoid a second one. */}
+                    {!v.showTopBar && !v.routeBlocked && (
+                      <NotificationBell counts={session.notifications} />
+                    )}
                     {v.isDashboard && !v.routeBlocked && v.canEdit && (
                       <>
                         {!!v.continueCaptureLabel && (

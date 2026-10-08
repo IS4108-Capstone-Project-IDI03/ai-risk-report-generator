@@ -262,7 +262,6 @@ it('says when a draft is missing newer evidence, by kind, leaving out kinds with
   ).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Redraft section' })).toBeEnabled()
 })
-
 it('says a section was just redrafted, instead of out of date, once it is redrafted', async () => {
   const drafted = mockGateway(
     () => json(201, DRAFT),
