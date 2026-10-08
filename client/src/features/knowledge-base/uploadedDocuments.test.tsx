@@ -68,7 +68,14 @@ beforeEach(() => {
 describe('UploadedDocuments retry', () => {
   it('shows a Retry button on a failed document', async () => {
     stubGateway([FAILED])
-    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
+    render(
+      <UploadedDocuments
+        narrow={false}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
 
     expect(await screen.findByText('NFPA 13 sprinkler standard')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
@@ -76,7 +83,14 @@ describe('UploadedDocuments retry', () => {
 
   it('shows no Retry button on a complete document', async () => {
     stubGateway([COMPLETE])
-    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
+    render(
+      <UploadedDocuments
+        narrow={false}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
 
     expect(await screen.findByText('FM Global 2-0')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
@@ -84,7 +98,14 @@ describe('UploadedDocuments retry', () => {
 
   it('posts the retry and refreshes, so the row returns as queued', async () => {
     const state = stubGateway([FAILED])
-    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
+    render(
+      <UploadedDocuments
+        narrow={false}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
     await screen.findByText('NFPA 13 sprinkler standard')
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -108,7 +129,14 @@ describe('UploadedDocuments retry', () => {
       return json([FAILED])
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
+    render(
+      <UploadedDocuments
+        narrow={false}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
     await screen.findByText('NFPA 13 sprinkler standard')
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -120,7 +148,14 @@ describe('UploadedDocuments retry', () => {
 
   it('offers Retry in the stacked (narrow) layout too', async () => {
     stubGateway([FAILED])
-    render(<UploadedDocuments narrow={true} refreshKey={0} onCompleted={onCompleted} />)
+    render(
+      <UploadedDocuments
+        narrow={true}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
 
     const list = await screen.findByRole('list', { name: 'Recent uploads' })
     expect(within(list).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
