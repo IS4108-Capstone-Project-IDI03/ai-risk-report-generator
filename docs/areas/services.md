@@ -230,3 +230,8 @@ APIs). See [DECISIONS](../DECISIONS.md).
 
 Nothing is written: the workspace only reads. A 503 means S4 could not be
 reached for the template's sections.
+
+## Idle sign-out (F-07)
+
+The gateway ends a session after 15 idle minutes. The browser also runs its own 15-minute timer (`client/src/features/auth/useIdleTimeout.ts`), because the gateway can't tell an idle page its session ended. The two values must match.
+
