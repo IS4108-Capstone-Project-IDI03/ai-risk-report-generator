@@ -581,3 +581,22 @@ refused draft) is not recorded, and ingestion-time embedding is not covered.
 
 Stories: EV-03.
 
+## 2026-10-08 — The cost report is scoped by the API, and the chatbot is left out until it exists
+
+Chose: one `usage:view` permission for both roles, with the scope enforced in
+the report service: a knowledge admin sees every report, a risk engineer only
+the reports where they are the assigned engineer (403 otherwise). The summary
+is added up in the gateway from `ai_calls`, percentiles use the nearest-rank
+method, and the export is a CSV of the breakdown on screen. The four features
+that exist are always listed; the chatbot appears once CB-01 does. Calls with
+no cost are counted, never summed as 0. Rejected: a separate engineer-only
+permission and route, which duplicates the same query; a Mongo aggregation
+pipeline, which is more code for a table that holds a few hundred rows today;
+and XLSX or PDF export.
+
+Reason: EV-04 asks for a knowledge-admin cost report, and a risk engineer
+reasonably wants to see what their own report cost. Changes to the acceptance
+criteria (role, chatbot, units, empty state, scope) are listed in the PR.
+
+Stories: EV-04.
+

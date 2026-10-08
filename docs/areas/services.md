@@ -230,3 +230,14 @@ APIs). See [DECISIONS](../DECISIONS.md).
 
 Nothing is written: the workspace only reads. A 503 means S4 could not be
 reached for the template's sections.
+
+## Usage and costs report (EV-04)
+
+`GET /api/usage/summary?reportId=` and `GET /api/usage/export.csv?reportId=&groupBy=feature|service` (`server/src/routes/usage.routes.ts`, `usage-report.service.ts`), shown on the **Usage and costs** screen (`/usage-costs`, `client/src/features/usage/`). Both read the `ai_calls` collection written by EV-03 and need `usage:view`.
+
+- **Who sees what:** a knowledge admin sees every report. A risk engineer sees only reports where they are the assigned engineer; asking for another report returns 403.
+- **Summary:** cost totals and call counts; breakdown by feature (always the four existing features) and by billed service; latency per feature (average, median, 95th percentile, slowest); tokens, Cohere search units and Whisper audio seconds per feature; the pricing bases used, with calls whose price is an estimate flagged.
+- **Cost:** US dollars, summed over calls that have a cost. A call with no cost is counted in `callsWithoutCost` and never added as 0.
+- **Export:** CSV of the breakdown on screen (one row per feature or per billed service).
+- **Demo data:** `npm --prefix server run seed:usage` writes fake rows tagged "DEMO data" for the sample assessments and replaces them on every run.
+

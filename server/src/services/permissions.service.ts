@@ -18,6 +18,9 @@ export const PERMISSIONS = [
   'knowledge:manage',
   // List and edit user accounts, including role assignment.
   'users:manage',
+  // Open the usage and cost report (EV-04). The API narrows a risk engineer to
+  // the reports assigned to them; a knowledge admin sees every report.
+  'usage:view',
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -29,9 +32,22 @@ export type Permission = (typeof PERMISSIONS)[number]
 // knowledge:view     |      yes      |      yes
 // knowledge:manage   |      -        |      yes
 // users:manage       |      -        |      yes
+// usage:view         |      yes (own reports) | yes (all reports)
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
-  risk_engineer: ['assessments:view', 'assessments:edit', 'reports:generate', 'knowledge:view'],
-  knowledge_admin: ['assessments:view', 'knowledge:view', 'knowledge:manage', 'users:manage'],
+  risk_engineer: [
+    'assessments:view',
+    'assessments:edit',
+    'reports:generate',
+    'knowledge:view',
+    'usage:view',
+  ],
+  knowledge_admin: [
+    'assessments:view',
+    'knowledge:view',
+    'knowledge:manage',
+    'users:manage',
+    'usage:view',
+  ],
 }
 
 // A role outside the matrix, e.g. one left in an old session or record, gets

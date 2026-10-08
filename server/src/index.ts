@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.routes'
 import ragRoutes from './routes/rag.routes'
 import observationRoutes from './routes/observation.routes'
 import { failInterruptedTranscriptions } from './services/observation.service'
+import usageRoutes from './routes/usage.routes'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
@@ -33,6 +34,7 @@ app.use('/api/knowledge-documents', requireAuth, knowledgeDocumentRoutes)
 app.use('/api/rag', requireAuth, ragRoutes)
 app.use('/api/observations', requireAuth, observationRoutes)
 app.use('/api/users', requireAuth, userRoutes)
+app.use('/api/usage', requireAuth, usageRoutes)
 // The count poller runs on a timer, so it authenticates WITHOUT refreshing the
 // session — polling must not keep an idle tab logged in (F-07). Mounted before
 // the general notifications router so this more specific path matches first.

@@ -1008,6 +1008,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
         ],
       },
+      {
+        label: 'Reporting',
+        items: [{ value: 'usage', label: 'Usage and costs', icon: 'files' }],
+      },
     ]
       .map((section) => ({
         ...section,
@@ -1273,6 +1277,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       canDraftSections: isMine && canCapture && can('reports:generate', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
+      isAdmin: session.user.role === 'knowledge_admin',
       // Leaves a blocked screen for the role's home, or a blocked tab for the
       // workspace overview.
       leaveBlocked: () =>
@@ -1483,6 +1488,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isField: sc === 'field',
       isUsers: sc === 'users',
       isKnowledge: sc === 'knowledge',
+      isUsage: sc === 'usage',
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
@@ -1767,7 +1773,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ? 'On site'
               : sc === 'users' || sc === 'knowledge'
                 ? 'Administration'
-                : 'Assessment workspace',
+                : sc === 'usage'
+                  ? 'Reporting'
+                  : 'Assessment workspace',
       title:
         sc === 'dashboard'
           ? 'Your assessments'
@@ -1781,7 +1789,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 ? 'User accounts'
                 : sc === 'knowledge'
                   ? 'Knowledge base'
-                  : s.captureTarget.site,
+                  : sc === 'usage'
+                    ? 'Usage and costs'
+                    : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · ' + session.user.name
@@ -1798,16 +1808,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 ? 'Add your team’s accounts, and keep their details and roles up to date.'
                 : sc === 'knowledge'
                   ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
-                  : openRow
-                    ? [
-                        openRow.id,
-                        openRow.type,
-                        'Assessed ' + openRow.date,
-                        'Report due ' +
-                          (openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set'),
-                        'Engineer ' + openRow.eng,
-                      ].join(' · ')
-                    : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
+                  : sc === 'usage'
+                    ? 'What the AI calls cost, how much they were used, and how fast they ran.'
+                    : openRow
+                      ? [
+                          openRow.id,
+                          openRow.type,
+                          'Assessed ' + openRow.date,
+                          'Report due ' +
+                            (openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set'),
+                          'Engineer ' + openRow.eng,
+                        ].join(' · ')
+                      : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
