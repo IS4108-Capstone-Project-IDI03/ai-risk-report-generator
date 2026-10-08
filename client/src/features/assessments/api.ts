@@ -91,7 +91,8 @@ export type SavedPhoto = {
   url: string
 }
 // What the vision model proposes from an observation's photos (CP-05), for
-// the engineer to review. It runs after the save returns, so it starts as
+// the engineer to review. Nothing reads them until an engineer asks; the
+// reading then runs after that request returns, so it starts as
 // 'interpreting'.
 export type InterpretationStatus = 'interpreting' | 'interpreted' | 'failed'
 export type SavedInterpretation = {
@@ -124,7 +125,7 @@ export type SavedObservation = {
   note: string | null
   recordings: SavedRecording[]
   photos: SavedPhoto[]
-  // null when it has no photos (CP-05).
+  // null until an engineer asks for its photos to be read (CP-05).
   interpretation: SavedInterpretation | null
   recordedAt: string
   // The latest change to its tags, note or a transcript (CP-08).
@@ -343,9 +344,10 @@ export async function retryTranscription(observationId: string, recordingId: str
   )
 }
 
-// Starts a new attempt at reading an observation's photos after a failure (CP-05).
-export async function retryInterpretation(observationId: string) {
-  await request<void>('POST', `${observationPath(observationId)}/interpretation/retry`)
+// Asks for an observation's photos to be read (CP-05): the first reading, or a
+// new one after a failure. Saving never reads them.
+export async function readPhotos(observationId: string) {
+  await request<void>('POST', `${observationPath(observationId)}/interpretation`)
 }
 
 const locationsPath = (reference: string) =>
