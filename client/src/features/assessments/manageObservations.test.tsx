@@ -3,7 +3,13 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
-import type { Assessment, SavedObservation, SavedRecording, Stamp } from './api'
+import type {
+  Assessment,
+  SavedInterpretation,
+  SavedObservation,
+  SavedRecording,
+  Stamp,
+} from './api'
 import { formatDayYearTime } from './format'
 
 // Managing captured observations (CP-08): type, status and capture time on
@@ -49,6 +55,7 @@ function observation(fields: Partial<SavedObservation>): SavedObservation {
     note: null,
     recordings: [],
     photos: [],
+    interpretation: null,
     recordedAt: CAPTURED,
     edited: null,
     deleted: null,
@@ -73,6 +80,48 @@ const TRANSCRIBING = observation({
 const FAILED_VOICE = observation({
   id: 'o4',
   recordings: [recording('r4', { status: 'failed', error: 'Whisper timed out.' })],
+})
+// Observations with photos, and what the vision model proposes from them (CP-05).
+const PHOTO = {
+  id: 'p1',
+  name: 'IMG_0460.jpg',
+  contentType: 'image/jpeg' as const,
+  size: 2000,
+  url: '/api/observations/o6/photos/p1/image',
+}
+const PROPOSED =
+  'During the site visit to Bay 3, it was observed that the new racking sits under two sprinkler heads.'
+function photographed(id: string, note: string, interpretation: Partial<SavedInterpretation>) {
+  return observation({
+    id,
+    note,
+    copeDimension: 'Occupancy',
+    photos: [{ ...PHOTO, url: `/api/observations/${id}/photos/p1/image` }],
+    interpretation: {
+      status: 'interpreted',
+      description: null,
+      copeDimension: null,
+      hazardType: null,
+      error: null,
+      attempts: 1,
+      model: null,
+      ...interpretation,
+    },
+  })
+}
+const READING = 'Racking photographed in the north aisle.'
+const PROPOSAL = 'Bay 3 racking, two photos.'
+const UNREAD = 'Riser room photographed.'
+const INTERPRETING = photographed('o5', READING, { status: 'interpreting' })
+const INTERPRETED = photographed('o6', PROPOSAL, {
+  description: PROPOSED,
+  copeDimension: 'Protection',
+  hazardType: 'Sprinkler Installation',
+  model: 'gemini-3.8-flash',
+})
+const UNREAD_PHOTOS = photographed('o7', UNREAD, {
+  status: 'failed',
+  error: 'The photo service could not interpret the photos.',
 })
 // The sample assessment's own observations, kept in the browser.
 const RACKING =
@@ -149,6 +198,16 @@ function mockGateway() {
           200,
           listed.find((o) => o.id === id),
         )
+      }
+      if (method === 'POST' && rest === '/interpretation/retry') {
+        change((o) => ({
+          interpretation: o.interpretation && {
+            ...o.interpretation,
+            status: 'interpreting',
+            error: null,
+          },
+        }))
+        return Promise.resolve(new Response(null, { status: 202 }))
       }
       if (method === 'PATCH') return change(() => ({ ...body, edited: STAMP }))
       if (method === 'DELETE') return change(() => ({ deleted: STAMP }))
@@ -246,7 +305,9 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     expect(optionLabels(select('Filter by status'))).toEqual([
       'All statuses',
       'Transcribing',
+      'Interpreting',
       'Transcription failed',
+      'Interpretation failed',
       'Complete',
     ])
 
@@ -262,6 +323,107 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     choose('Filter by type', 'Note')
     expect(shown(...ALL)).toEqual([])
     expect(screen.getByText('No observations match those filters')).toBeInTheDocument()
+  })
+}, 15000)
+
+describe('Proposals from photos (CP-05)', () => {
+  it('shows where interpretation stands, and filters on it (AC2)', async () => {
+    listed = [INTERPRETING, INTERPRETED, UNREAD_PHOTOS]
+    await openObservations()
+
+    expect(within(row(READING)).getByText('Interpreting')).toBeInTheDocument()
+    expect(within(row(PROPOSAL)).getByText('Complete')).toBeInTheDocument()
+    expect(within(row(UNREAD)).getByText('Interpretation failed')).toBeInTheDocument()
+    const ALL = [READING, PROPOSAL, UNREAD, RACKING]
+    choose('Filter by status', 'Interpreting')
+    expect(shown(...ALL)).toEqual([READING])
+    choose('Filter by status', 'Interpretation failed')
+    expect(shown(...ALL)).toEqual([UNREAD])
+  })
+
+  it('shows the proposal as AI text, with the photos it was read from (AC3-AC6)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText(PROPOSED)).toBeInTheDocument()
+    expect(within(proposal).getByText('AI proposal')).toBeInTheDocument()
+    expect(within(proposal).getByText('Protection · Sprinkler Installation')).toBeInTheDocument()
+    expect(within(proposal).getByText('Proposed by gemini-3.8-flash')).toBeInTheDocument()
+    expect(within(proposal).getByRole('link', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'href',
+      '/api/observations/o6/photos/p1/image',
+    )
+  })
+
+  it('adds the proposal to the note only when the engineer saves it (Use as note)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    click('Use as note')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit observation' })
+    expect(calls).toEqual([])
+    // Added below what the engineer wrote, never in place of it.
+    const note = PROPOSAL + '\n\n' + PROPOSED
+    expect(within(dialog).getByLabelText('Note')).toHaveValue(note)
+    click('Save changes')
+
+    expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
+    expect(calls).toEqual([{ method: 'PATCH', url: '/api/observations/o6', body: { note } }])
+  })
+
+  it('offers the proposed category only when it differs (Change category)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    click('Change category to Protection')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit observation' })
+    expect(within(dialog).getByLabelText('COPE category')).toHaveValue('Protection')
+    click('Save changes')
+
+    expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
+    expect(calls).toEqual([
+      { method: 'PATCH', url: '/api/observations/o6', body: { copeDimension: 'Protection' } },
+    ])
+    // Now the categories match, so it is no longer offered.
+    expect(
+      screen.queryByRole('button', { name: 'Change category to Protection' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows why interpretation failed and retries it', async () => {
+    listed = [UNREAD_PHOTOS]
+    await openObservations()
+    fireEvent.click(row(UNREAD))
+
+    expect(
+      screen.getByText('The photo service could not interpret the photos.'),
+    ).toBeInTheDocument()
+    click('Retry interpretation')
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        { method: 'POST', url: '/api/observations/o7/interpretation/retry', body: undefined },
+      ]),
+    )
+    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+  })
+
+  it('labels the sample assessment’s proposal as a sample, not a reading', async () => {
+    listed = []
+    await openObservations()
+    fireEvent.click(row(RACKING))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText('Sample proposal')).toBeInTheDocument()
+    expect(
+      within(proposal).getByText(
+        'No capture session, so this is a sample proposal, not a reading of the photos.',
+      ),
+    ).toBeInTheDocument()
   })
 }, 15000)
 

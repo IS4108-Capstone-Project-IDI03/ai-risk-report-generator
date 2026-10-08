@@ -41,7 +41,7 @@ export interface IRecording {
 }
 
 // A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
-// interpretation (CP-05) or annotation (CP-10) can attach to one photo.
+// annotation (CP-10) can attach to one photo.
 export interface IPhoto {
   _id: Types.ObjectId
   // The uploaded file's own name, or "Photo 2".
@@ -50,6 +50,35 @@ export interface IPhoto {
   key: string
   contentType: 'image/jpeg' | 'image/png'
   size: number
+}
+
+// Where reading an observation's photos stands (CP-05). Saving photos starts
+// exactly one attempt; a retry after a failure adds another.
+export const INTERPRETATION_STATUSES = ['interpreting', 'interpreted', 'failed'] as const
+export type InterpretationStatus = (typeof INTERPRETATION_STATUSES)[number]
+
+// What the vision model proposes from all of an observation's photos (CP-05),
+// for the engineer to review. It is never drafting evidence: the engineer
+// takes it into the note or the category through Edit if they agree.
+export interface IInterpretation {
+  status: InterpretationStatus
+  description?: string
+  // A proposed category, which may differ from the engineer's own.
+  copeDimension?: CopeDimension
+  // One of S5's hazard types, e.g. "Housekeeping" or "No hazard visible".
+  hazardType?: string
+  // Why the latest attempt failed, as S5 put it; the DTO makes it readable.
+  error?: string
+  attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
+  // What wrote it and the tokens it took (EV-03); usage is null when the
+  // provider reports none.
+  provenance?: {
+    provider: string
+    model: string
+    promptVersion: string
+    usage: { inputTokens: number; outputTokens: number | null; thoughtTokens: number | null } | null
+    interpretedAt: Date
+  }
 }
 
 // One thing the engineer saw on site, with everything captured about it: a
@@ -65,6 +94,8 @@ export interface IObservation {
   recordings: IRecording[]
   // Absent on observations saved before CP-04.
   photos?: IPhoto[]
+  // Present only on an observation saved with photos (CP-05).
+  interpretation?: IInterpretation
   // The standard the engineer tied the finding to, if any. The draft finds the
   // clause itself, so only the standard is recorded.
   standard?: string
@@ -125,6 +156,38 @@ const photoSchema = new Schema<IPhoto>({
   size: { type: Number, required: true },
 })
 
+const interpretationSchema = new Schema<IInterpretation>(
+  {
+    status: { type: String, enum: INTERPRETATION_STATUSES, required: true },
+    description: String,
+    copeDimension: { type: String, enum: COPE_DIMENSIONS },
+    hazardType: String,
+    error: String,
+    attempts: [
+      { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
+    ],
+    provenance: {
+      type: new Schema(
+        {
+          provider: { type: String, required: true },
+          model: { type: String, required: true },
+          promptVersion: { type: String, required: true },
+          usage: {
+            type: new Schema(
+              { inputTokens: Number, outputTokens: Number, thoughtTokens: Number },
+              { _id: false },
+            ),
+            default: null,
+          },
+          interpretedAt: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
+    },
+  },
+  { _id: false },
+)
+
 const observationSchema = new Schema<IObservation>(
   {
     assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true, index: true },
@@ -134,6 +197,7 @@ const observationSchema = new Schema<IObservation>(
     note: { type: String, maxlength: 5000 },
     recordings: [recordingSchema],
     photos: [photoSchema],
+    interpretation: { type: interpretationSchema },
     standard: { type: String, trim: true, maxlength: 100 },
     severity: { type: String, enum: SEVERITIES, required: true },
     location: { type: Schema.Types.ObjectId, required: true },

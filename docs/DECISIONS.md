@@ -583,3 +583,63 @@ Reason: AC1 needs a real emailed link, but the project has no mail
 infrastructure; generic SMTP settings work with any provider.
 
 Stories: F-06, F-07.
+## 2026-10-08 — Photos are read by Gemini in S5, once per observation, as a proposal only
+
+Chose: S5 interprets an observation's photos with Gemini (`gemini-3.8-flash`)
+behind its own `VISION_PROVIDER` setting, as the team's flowchart and
+architecture diagram place it: photo captioning beside Whisper and OCR, in the
+service that turns captured media into text. The gateway starts it after
+saving, as it does a transcription, and stores the result; S5 stores nothing.
+- One interpretation per observation, covering all its photos in one call.
+  This replaces the CP-04 entry's plan to attach it per photo: the category
+  is a tag on the whole observation, Marsh's own observations often rest on two
+  or three photos of one finding, and photos can't be added after saving, so
+  the set is fixed.
+- The model sees the photos, the location and the note, never the engineer's
+  category or severity, so the category it proposes is its own.
+- It answers in a fixed form: a description in Marsh's "it was observed that"
+  style, one of the four COPE categories, and a hazard type from the OFI Types
+  in Marsh's sample reports, plus Other and "No hazard visible". Many site
+  photos only record a condition as found, and a list without that option
+  would make the model invent a hazard. The list is provisional until Marsh
+  confirms the template's own.
+- S5 turns each photo upright from its EXIF orientation and shrinks it to
+  1600 px before sending (Pillow); the original in S3 is never changed. The
+  model never reads EXIF, so a portrait phone photo would arrive on its side,
+  and Gemini caps a request at 20 MB while CP-04 accepts 20 MB photos.
+- The proposal is not drafting evidence. Drafting does not wait for it,
+  never reads it, and a draft is not out of date when it arrives. Use as note
+  and Change category open the Edit dialog with the proposal filled in, so it
+  becomes the engineer's only when they save it; Use as note appends, never
+  replaces, what they wrote.
+- Interpreting and Interpretation failed join the Observations tab's status,
+  as transcription's do. A failure can be retried; a gateway restart marks an
+  attempt still running as failed.
+- Each proposal keeps its provider, model, prompt version and token usage
+  (EV-03); usage is null when the provider reports none.
+- Without a capture session the demo shows a sample proposal per category,
+  labelled as a sample, not a reading of the photo.
+
+Rejected:
+- S4 with Anthropic, which already has a provider switch, structured output
+  and refusal handling in `llm.py`, so it was less work. The team's diagrams
+  put photo captioning with the media-to-text steps, and Miya, who built S5,
+  agreed to host it there.
+- One interpretation per photo: three photos of one finding could propose three
+  categories for one observation.
+- Sending the engineer's category: the proposal would only echo it.
+- Feeding the proposal to drafting as evidence: a draft would then cite, as an
+  observation, something no engineer wrote, and the citation check would pass.
+- Free-text hazard types: they could not be filtered or carried into a
+  Section 3 OFI (GN-05).
+- The free Gemini tier: Google may use what is sent and have people read it,
+  and these are client site photos. The key must be on a billed project, and
+  requests go with `store: false`.
+
+Open: Marsh has been asked whether site photos and notes may go to Google;
+until they answer, only sample photos go through Gemini. The redacted sample
+reports keep only two OFI photos, so the reference set in
+`speech-ocr-service/eval/` needs more photos with Marsh's reading before its
+hit rate means much.
+
+Stories: CP-05, CP-04, CP-08.

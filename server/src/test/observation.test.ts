@@ -7,6 +7,7 @@ import { CaptureSessionModel, type CaptureSessionStatus } from '../models/captur
 import { ObservationModel } from '../models/observation.model'
 import { SiteModel } from '../models/site.model'
 import {
+  failInterruptedInterpretations,
   failInterruptedTranscriptions,
   listCategoryObservations,
 } from '../services/observation.service'
@@ -21,6 +22,9 @@ vi.mock('../services/storage.service', () => ({
   deleteObject: async (key: string) => void s3.delete(key),
 }))
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
+// S5's photo interpretation (CP-05), stubbed apart from transcription.
+type InterpretBody = { s3_keys: string[]; location: string | null; note: string | null }
+const vision = vi.fn<(body: InterpretBody) => Promise<Response>>()
 
 useMemoryMongo()
 
@@ -38,11 +42,18 @@ const actor = {
 const api = signedInAs(app, actor)
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', (_url: string, init: RequestInit) => speech(JSON.parse(String(init.body))))
+  // Unless a test says otherwise, an interpretation never finishes, so saving
+  // photos leaves nothing running in the background.
+  vision.mockReturnValue(new Promise<Response>(() => {}))
+  vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body))
+    return url.endsWith('/interpret') ? vision(body) : speech(body)
+  })
 })
 afterEach(() => {
   s3.clear()
   speech.mockReset()
+  vision.mockReset()
   vi.unstubAllGlobals()
 })
 
@@ -727,37 +738,37 @@ describe('observation list, audio and restarts', () => {
   })
 })
 
+// Only the first bytes decide the format; the rest stands in for the image.
+const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('jpeg body')])
+const PNG = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.from('png body'),
+])
+// An iPhone's default format, whatever the file is called.
+const HEIC = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic....')])
+
+type Photo = { image: Buffer; name?: string; type?: string }
+// Saves an observation with a `photo` part per image, as the capture screen does.
+function savePhotos(photos: Photo[], fields: object = {}) {
+  const req = api.post('/api/assessments/RPT-2026-0411/observations').field(
+    'details',
+    JSON.stringify({
+      copeDimension: 'Protection',
+      severity: 'moderate',
+      locationId: String(BAY_3),
+      ...fields,
+    }),
+  )
+  photos.forEach((p, i) =>
+    req.attach('photo', p.image, {
+      filename: p.name ?? `IMG_04${60 + i}.jpg`,
+      contentType: p.type ?? 'image/jpeg',
+    }),
+  )
+  return req
+}
+
 describe('site photographs (CP-04)', () => {
-  // Only the first bytes decide the format; the rest stands in for the image.
-  const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('jpeg body')])
-  const PNG = Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    Buffer.from('png body'),
-  ])
-  // An iPhone's default format, whatever the file is called.
-  const HEIC = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic....')])
-
-  type Photo = { image: Buffer; name?: string; type?: string }
-  // Saves an observation with a `photo` part per image, as the capture screen does.
-  function savePhotos(photos: Photo[], fields: object = {}) {
-    const req = api.post('/api/assessments/RPT-2026-0411/observations').field(
-      'details',
-      JSON.stringify({
-        copeDimension: 'Protection',
-        severity: 'moderate',
-        locationId: String(BAY_3),
-        ...fields,
-      }),
-    )
-    photos.forEach((p, i) =>
-      req.attach('photo', p.image, {
-        filename: p.name ?? `IMG_04${60 + i}.jpg`,
-        contentType: p.type ?? 'image/jpeg',
-      }),
-    )
-    return req
-  }
-
   it('stores each photo unaltered as raw evidence, linked to its observation (AC1, AC2, AC5)', async () => {
     await assessmentWithSession()
 
@@ -886,6 +897,170 @@ describe('site photographs (CP-04)', () => {
     expect((await api.patch(`/api/observations/${listed.id}`).send({ note: null })).status).toBe(
       400,
     )
+  })
+})
+
+describe('photo interpretation (CP-05)', () => {
+  const PROPOSAL = {
+    description:
+      'During the site visit to Bay 3, it was observed that the new racking sits under two sprinkler heads.',
+    cope_dimension: 'Protection',
+    hazard_type: 'Sprinkler Installation',
+    provider: 'gemini',
+    model: 'gemini-3.8-flash',
+    prompt_version: 'cp05-v1',
+    usage: { input_tokens: 2064, output_tokens: 48, thought_tokens: 180 },
+  }
+  const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+
+  // Interpretation runs after the response, so wait for it to settle.
+  async function interpreted(id: string) {
+    await vi.waitFor(async () => {
+      const o = await ObservationModel.findById(id).lean()
+      expect(o?.interpretation?.status).not.toBe('interpreting')
+    })
+    return (await ObservationModel.findById(id).lean())!
+  }
+
+  it('queues one interpretation of all the photos, with the location and note (AC1, AC2)', async () => {
+    let finish!: (reply: Response) => void
+    vision.mockReturnValue(new Promise<Response>((resolve) => (finish = resolve)))
+    await assessmentWithSession()
+
+    const response = await savePhotos([{ image: JPG }, { image: PNG }], {
+      note: 'Racking under the heads.',
+    })
+
+    expect(response.status).toBe(201)
+    expect(response.body.interpretation).toEqual({
+      status: 'interpreting',
+      description: null,
+      copeDimension: null,
+      hazardType: null,
+      error: null,
+      attempts: 1,
+      model: null,
+    })
+    const stored = await ObservationModel.findById(response.body.id).lean()
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+    expect(vision).toHaveBeenCalledWith({
+      s3_keys: stored!.photos!.map((p) => p.key),
+      location: 'Bay 3 — north aisle · Ground',
+      note: 'Racking under the heads.',
+    })
+    expect(speech).not.toHaveBeenCalled()
+    // Listed as interpreting while it runs (AC2).
+    expect((await listed())[0].interpretation.status).toBe('interpreting')
+    finish(await s5(200, PROPOSAL))
+    await interpreted(response.body.id)
+  })
+
+  it('stores the proposal and what wrote it, leaving the engineer’s own record alone (AC3-AC5)', async () => {
+    vision.mockReturnValue(s5(200, PROPOSAL))
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }], { copeDimension: null })).body
+
+    const done = await interpreted(id)
+
+    expect(done.interpretation).toMatchObject({
+      status: 'interpreted',
+      description: PROPOSAL.description,
+      copeDimension: 'Protection',
+      hazardType: 'Sprinkler Installation',
+      provenance: {
+        provider: 'gemini',
+        model: 'gemini-3.8-flash',
+        promptVersion: 'cp05-v1',
+        usage: { inputTokens: 2064, outputTokens: 48, thoughtTokens: 180 },
+      },
+    })
+    expect(done.interpretation!.attempts[0].finishedAt).toBeInstanceOf(Date)
+    const [observation] = await listed()
+    expect(observation.interpretation).toEqual({
+      status: 'interpreted',
+      description: PROPOSAL.description,
+      copeDimension: 'Protection',
+      hazardType: 'Sprinkler Installation',
+      error: null,
+      attempts: 1,
+      model: 'gemini-3.8-flash',
+    })
+    // A proposal only: the observation stays uncategorised, with no note.
+    expect(observation).toMatchObject({ copeDimension: null, note: null })
+  })
+
+  it('records usage as unavailable when the provider reports none', async () => {
+    vision.mockReturnValue(s5(200, { ...PROPOSAL, usage: null }))
+    await assessmentWithSession()
+
+    const done = await interpreted((await savePhotos([{ image: JPG }])).body.id)
+
+    expect(done.interpretation?.provenance?.usage).toBeNull()
+  })
+
+  it('shows why it failed, and retries only a failed interpretation', async () => {
+    vision.mockReturnValue(
+      s5(502, { detail: 'The photos could not be interpreted: 403 API key not valid.' }),
+    )
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }])).body
+
+    const failed = await interpreted(id)
+
+    // The detail is kept with the attempt; the engineer sees a readable reason.
+    expect(failed.interpretation).toMatchObject({
+      status: 'failed',
+      error: 'The photos could not be interpreted: 403 API key not valid.',
+    })
+    expect((await listed())[0].interpretation.error).toBe(
+      'The photo service could not interpret the photos.',
+    )
+
+    vision.mockReturnValue(s5(200, PROPOSAL))
+    expect((await api.post(`/api/observations/${id}/interpretation/retry`)).status).toBe(202)
+    const done = await interpreted(id)
+    expect(done.interpretation?.status).toBe('interpreted')
+    expect(done.interpretation?.attempts).toHaveLength(2)
+    expect(done.interpretation?.error).toBeUndefined()
+
+    const again = await api.post(`/api/observations/${id}/interpretation/retry`)
+    expect(again.status).toBe(409)
+    expect(again.body.error).toBe('Only a failed interpretation can be retried.')
+    // An observation without photos has nothing to retry.
+    const { id: noted } = (await note()).body
+    expect((await api.post(`/api/observations/${noted}/interpretation/retry`)).status).toBe(404)
+  })
+
+  it('says so when the photo service cannot be reached', async () => {
+    vision.mockRejectedValue(new TypeError('fetch failed'))
+    await assessmentWithSession()
+
+    const done = await interpreted((await savePhotos([{ image: JPG }])).body.id)
+
+    expect(done.interpretation?.error).toBe('The photo service could not be reached.')
+  })
+
+  it('marks interpretations interrupted by a restart as failed so they can be retried', async () => {
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }])).body
+
+    await failInterruptedInterpretations()
+
+    expect((await ObservationModel.findById(id).lean())?.interpretation).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/interrupted by a gateway restart/),
+    })
+  })
+
+  it('leaves an observation without photos uninterpreted', async () => {
+    await assessmentWithSession()
+
+    const response = await note()
+
+    expect(response.body.interpretation).toBeNull()
+    expect(vision).not.toHaveBeenCalled()
+    const stored = await ObservationModel.findById(response.body.id).lean()
+    expect(stored?.interpretation).toBeUndefined()
   })
 })
 
