@@ -1,4 +1,4 @@
-import express, { Router, type ErrorRequestHandler } from 'express'
+import express, { Router, type ErrorRequestHandler, type Response } from 'express'
 import {
   archiveAssessment,
   assessmentDetailsSchema,
@@ -462,7 +462,7 @@ router.get('/:reference/ofis', requirePermission('assessments:view'), async (req
 // What both OFI writes answer for each failure: 404, 403 for anyone but the
 // assigned engineer, 409 while a transcription is unfinished or once archived,
 // 503 when S4 fails (not 502, which the client reads as the gateway being down).
-function ofiFailure(error: unknown, res: express.Response) {
+function ofiFailure(error: unknown, res: Response) {
   if (error instanceof AssessmentNotFoundError || error instanceof OfiNotFoundError) {
     res.status(404).json({ error: error.message })
   } else if (error instanceof NotAssignedError) {
