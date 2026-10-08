@@ -1,4 +1,4 @@
-import type { Assessment, Stamp, TranscriptionStatus } from './api'
+import type { Assessment, InterpretationStatus, Stamp, TranscriptionStatus } from './api'
 
 export type AssessmentRow = {
   engineerId?: string | null
@@ -50,8 +50,20 @@ export type Observation = {
   // What it holds: any of 'Note', 'Voice' and 'Photo' (CP-08); worked out for
   // sample ones.
   types?: string[]
-  // Transcribing, Transcription failed or Complete (CP-08).
+  // Transcribing, Interpreting, Transcription failed, Interpretation failed or
+  // Complete (CP-08, CP-05).
   status?: string
+  // What the vision model proposes from its photos (CP-05). A sample one is
+  // the demo's stand-in when no capture session is live, not a real reading.
+  interpretation?: {
+    status: InterpretationStatus
+    description: string | null
+    category: string | null
+    hazardType: string | null
+    error: string | null
+    model: string | null
+    sample?: boolean
+  } | null
   // The latest change to it, and its deletion (CP-08).
   edited?: Stamp | null
   deleted?: Stamp | null

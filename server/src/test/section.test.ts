@@ -327,6 +327,50 @@ describe('drafting a report section (GN-01)', () => {
     expect((await sections()).changesSinceDraft).toBe(0)
   })
 
+  it('neither waits for nor drafts from a photo interpretation (CP-05)', async () => {
+    const { assessment: a, session } = await assessment('active')
+    const ids = { assessment: a._id, session: session._id }
+    const riser = await observation(ids, 'Construction', { note: 'Riser not fire-stopped.' })
+    await ObservationModel.updateOne(
+      { _id: riser._id },
+      {
+        $set: {
+          photos: [{ name: 'riser.jpg', key: 'photos/x.jpg', contentType: 'image/jpeg', size: 3 }],
+          interpretation: { status: 'interpreting', attempts: [{ startedAt: new Date() }] },
+        },
+      },
+    )
+
+    // An interpretation still running does not hold up drafting, as a
+    // transcription does: the draft never reads it.
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(201)
+    const [sent] = drafts.mock.calls[0][0].observations as object[]
+    expect(Object.keys(sent).sort()).toEqual([
+      'COPE_dimension',
+      'id',
+      'location',
+      'note',
+      'severity',
+      'standard',
+      'transcripts',
+    ])
+
+    // The proposal arriving later does not put the draft out of date.
+    await ObservationModel.updateOne(
+      { _id: riser._id },
+      {
+        $set: {
+          'interpretation.status': 'interpreted',
+          'interpretation.description': 'It was observed that a riser penetration was unsealed.',
+          'interpretation.copeDimension': 'Construction',
+          'interpretation.hazardType': 'Other',
+        },
+      },
+    )
+    const [section] = (await api.get(`/api/assessments/${REFERENCE}/sections`)).body
+    expect(section.changesSinceDraft).toBe(0)
+  })
+
   it('drops a deleted observation from drafting and marks the draft out of date (CP-08 AC13, AC15)', async () => {
     const { assessment: a, session } = await assessment()
     const ids = { assessment: a._id, session: session._id }
