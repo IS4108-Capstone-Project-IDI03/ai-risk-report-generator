@@ -4,7 +4,7 @@
 // restored version to components/EditDetailsDialog.tsx.
 import { Button, Dialog } from '../../../design-system'
 import type { DocumentVersion, KnowledgeDocument, StoredDetails } from '../api'
-import { calendarDate, countryName, dateTime, facilityName, SOURCE_LABELS } from '../display'
+import { calendarDate, countryName, dateTime, facilityName, sourceLabel } from '../display'
 
 /** Returns the Edit history dialog for one document. */
 export function EditHistoryDialog({
@@ -73,7 +73,7 @@ export function EditHistoryDialog({
 
 // Each detail a correction can change, as it reads on screen.
 const SHOWN: [label: string, read: (d: StoredDetails) => string][] = [
-  ['Source type', (d) => SOURCE_LABELS[d.sourceType]],
+  ['Source type', (d) => sourceLabel(d.sourceType)],
   ['Title', (d) => d.title],
   ['Edition', (d) => d.edition ?? 'none'],
   ['Date', (d) => calendarDate(d.effectiveDate)],

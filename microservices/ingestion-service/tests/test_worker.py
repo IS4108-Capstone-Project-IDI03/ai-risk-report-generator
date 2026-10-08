@@ -35,7 +35,11 @@ class FakeDocuments:
         }
 
     def find_one_and_update(self, query, update, **_):
-        if query["_id"] != self.doc["_id"] or self.doc["status"] not in query["status"]["$in"]:
+        # The claim query matches on a status set; the terminal writes match on
+        # _id only. Honour both so one fake serves claim and complete/fail.
+        if query["_id"] != self.doc["_id"]:
+            return None
+        if "status" in query and self.doc["status"] not in query["status"]["$in"]:
             return None
         self.doc.update(update["$set"])
         return dict(self.doc)
@@ -63,6 +67,11 @@ class FakeJobs:
             self.doc.pop(field, None)
         return dict(self.doc)
 
+    def update_one(self, query, update):
+        if self.doc is None:
+            self.doc = dict(query)
+        self.doc.update(update.get("$set", {}))
+
 
 @pytest.fixture
 def documents(monkeypatch):
@@ -71,8 +80,19 @@ def documents(monkeypatch):
     monkeypatch.setattr(worker, "documents", lambda: fake)
     monkeypatch.setattr(worker, "jobs", lambda: jobs)
     monkeypatch.setattr(worker, "download", lambda key, dest: Path(dest).write_bytes(PDF))
-    # Expose the jobs collection on the fixture so tests can assert on it.
+    # Capture notifications rather than posting to a gateway. Tests that care
+    # read fake.notifications; the rest just want it off the network.
+    notifications = []
+    monkeypatch.setattr(
+        worker,
+        "notify_ingestion",
+        lambda doc, status, failed_stage=None: notifications.append(
+            {"doc": doc, "status": status, "failed_stage": failed_stage}
+        ),
+    )
+    # Expose the jobs collection and captured notifications on the fixture.
     fake.jobs = jobs
+    fake.notifications = notifications
     return fake
 
 
@@ -234,3 +254,82 @@ def test_jobs_share_one_database_client(monkeypatch):
     worker.jobs.cache_clear()
 
     assert worker.jobs() is worker.jobs()
+
+
+def test_an_unconfirmed_detail_is_left_off_the_passage_labels_and_the_document_needs_review(
+    documents,
+):
+    # IN-05: Chroma can't store null, so a null detail's key is omitted.
+    documents.doc["metadata"].update(jurisdiction=None, effective_date=None)
+    documents.doc["unconfirmed"] = ["jurisdiction", "effective_date"]
+
+    result = worker.labels(documents.doc)
+
+    assert result == {
+        "source_type": "marsh_report",
+        "facility_type": "Cold store",
+        "COPE_dimension": "all",
+        "status": "needs_review",
+    }
+
+
+def test_a_document_with_nothing_unconfirmed_is_active(documents):
+    documents.doc["unconfirmed"] = []
+
+    assert worker.labels(documents.doc)["status"] == "active"
+
+
+# --- Notifications (IN-10): the worker tells the gateway on each outcome.
+
+
+def test_a_completed_document_notifies_the_gateway(documents, monkeypatch):
+    monkeypatch.setattr(
+        worker,
+        "run",
+        lambda *a, **k: {"chunks_indexed": 1, "tables_captured": 0, "images_captured": 0},
+    )
+
+    worker.ingest_document(DOC_ID)
+
+    assert len(documents.notifications) == 1
+    note = documents.notifications[0]
+    assert note["status"] == "complete"
+    assert note["doc"]["status"] == "complete"  # the updated document, post-write
+
+
+def test_a_failed_document_notifies_with_the_stage_that_broke(documents, monkeypatch):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        reporter.start_stage("parsing")
+        reporter.start_stage("chunking")
+        raise OSError(-2, "boom")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(OSError):
+        worker.ingest_document(DOC_ID)
+
+    assert len(documents.notifications) == 1
+    note = documents.notifications[0]
+    assert note["status"] == "failed"
+    # The stage in progress when it broke, not the 'failed' sentinel.
+    assert note["failed_stage"] == "chunking"
+    # And that stage is persisted on the job for the gateway to read.
+    assert documents.jobs.doc["failedStage"] == "chunking"
+
+
+def test_the_document_is_recorded_before_it_is_notified(documents, monkeypatch):
+    # The notification carries the already-updated document, which proves the
+    # status write happened first — so a notification problem (swallowed inside
+    # notify_ingestion, see test_notifications.py) can never undo the status.
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        reporter.start_stage("parsing")
+        raise OSError(-2, "boom")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(OSError):
+        worker.ingest_document(DOC_ID)
+
+    note = documents.notifications[0]
+    assert note["doc"]["status"] == "failed"
+    assert note["doc"]["error"] == worker.SYSTEM_ERROR

@@ -1,4 +1,4 @@
-// The knowledge base's Documents tab (KB-01): every document in the
+// The knowledge base's Documents tab (KB-01, IN-05): every document in the
 // knowledge base, grouped by source type, filtered by label, status or title.
 // Opening a document's title shows its details; Edit details and Restore open
 // one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
@@ -7,15 +7,19 @@ import { useEffect, useState } from 'react'
 import { Button, Callout, EmptyState, IconRegistry, Input, Select } from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
 import { listIngestedDocuments, type DocumentVersion, type KnowledgeDocument } from '../api'
+import { needsReview } from '../display'
 import { DocumentGroup, type Group } from '../components/DocumentGroup'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
+import { ReviewBanner } from '../components/ReviewBanner'
 import { StatusChangeDialog } from '../components/StatusChangeDialog'
 
 const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'nfpa_standard', title: 'NFPA standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'marsh_report', title: 'Past Marsh reports', icon: IconRegistry.evidence.report },
+  // Documents whose source type labelling could not confirm (IN-05).
+  { sourceType: null, title: 'Source type unconfirmed', icon: 'circle-help' },
 ]
 // '' is "don't filter"; 'all' is a value of its own, so "All countries" finds
 // only documents labelled for all countries (exact match, AC4).
@@ -32,8 +36,17 @@ const FACILITY_FILTER = [
 const STATUS_FILTER = [
   { value: '', label: 'Any status' },
   { value: 'active', label: 'Active' },
+  { value: 'needs_review', label: 'Needs review' },
   { value: 'withdrawn', label: 'Withdrawn' },
 ]
+// Whether a document shows the status badge chosen in the filter; must match
+// components/DocumentRow.tsx, where Needs review is never Active (IN-05).
+const hasStatus = (d: KnowledgeDocument, status: string) =>
+  status === 'withdrawn'
+    ? Boolean(d.withdrawn)
+    : status === 'needs_review'
+      ? needsReview(d)
+      : !d.withdrawn && d.unconfirmed.length === 0
 const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '', status: '' }
 
 // A fuzzy title match: the typed letters appear in the title in order, with
@@ -57,9 +70,12 @@ type Editing = { document: KnowledgeDocument; version?: DocumentVersion }
 export function KnowledgeDocuments({
   notify,
   onAdd,
+  onNeedReview,
 }: {
   notify: (message: string) => void
   onAdd: () => void
+  // Reports how many documents need review, for the Documents tab's count.
+  onNeedReview: (count: number) => void
 }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
@@ -85,13 +101,18 @@ export function KnowledgeDocuments({
     return () => controller.abort()
   }, [attempt])
 
+  const needReview = (documents ?? []).filter(needsReview)
+  // Loads and saves both change the list, so the tab's count follows it.
+  useEffect(() => {
+    if (documents) onNeedReview(needReview.length)
+  }, [documents, needReview.length, onNeedReview])
   const filtering = Object.values(filters).some((value) => value.trim() !== '')
   const shown = (documents ?? []).filter(
     (d) =>
       titleMatches(d.title, filters.title) &&
       (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
       (!filters.facilityType || d.facilityType === filters.facilityType) &&
-      (!filters.status || (filters.status === 'withdrawn') === Boolean(d.withdrawn)),
+      (!filters.status || hasStatus(d, filters.status)),
   )
   // A changed document replaces its row in place; the gateway's list is
   // sorted by title, which a corrected title may change, so re-sort.
@@ -122,10 +143,7 @@ export function KnowledgeDocuments({
     <section className="kb-docs" aria-labelledby="kb-docs-title">
       <header className="kb-docs-head">
         <h2 id="kb-docs-title">All documents</h2>
-        <p>
-          Every ingested document. New reports use active ones only. Uploads still ingesting, or
-          that failed, are under Add documents.
-        </p>
+        <p>Browse every document in the knowledge base and fix their details.</p>
       </header>
 
       {unreachable && (
@@ -140,6 +158,17 @@ export function KnowledgeDocuments({
         >
           The gateway could not be reached. Check that the server is running, then try again.
         </Callout>
+      )}
+
+      {/* Placeholder for the app-wide notification feature (IN-05). */}
+      {needReview.length > 0 && (
+        <div role="status" aria-label="Documents to review">
+          <ReviewBanner
+            documents={needReview}
+            onEdit={(document) => setEditing({ document })}
+            onShow={() => setFilters({ ...NO_FILTERS, status: 'needs_review' })}
+          />
+        </div>
       )}
 
       <div className="kb-list">
@@ -241,10 +270,11 @@ export function KnowledgeDocuments({
             {GROUPS.map((group) => {
               const rows = shown.filter((d) => d.sourceType === group.sourceType)
               // While filtering, an empty group is noise; unfiltered, it says so.
-              if (filtering && rows.length === 0) return null
+              // The Unconfirmed group exists only when it has documents.
+              if ((filtering || group.sourceType === null) && rows.length === 0) return null
               return (
                 <DocumentGroup
-                  key={group.sourceType}
+                  key={group.sourceType ?? 'unconfirmed'}
                   group={group}
                   documents={rows}
                   openId={openId}

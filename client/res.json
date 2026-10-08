@@ -1,0 +1,1689 @@
+{
+  "numTotalTestSuites": 37,
+  "numPassedTestSuites": 29,
+  "numFailedTestSuites": 8,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 167,
+  "numPassedTests": 157,
+  "numFailedTests": 10,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1791348221704,
+  "success": false,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration starts at sign-in, validates, enters the dashboard, and resets on sign-out",
+          "status": "passed",
+          "title": "starts at sign-in, validates, enters the dashboard, and resets on sign-out",
+          "duration": 6311.836800000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration keeps SSO and access requests explicitly simulated, and opens the real reset flow",
+          "status": "passed",
+          "title": "keeps SSO and access requests explicitly simulated, and opens the real reset flow",
+          "duration": 590.2271000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration filters the dashboard and creates an in-memory assessment",
+          "status": "passed",
+          "title": "filters the dashboard and creates an in-memory assessment",
+          "duration": 4284.635300000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration saves observations and displays them in the assessment",
+          "status": "failed",
+          "title": "saves observations and displays them in the assessment",
+          "duration": 3441.5941999999995,
+          "failureMessages": [
+            "Error: Unable to find role=\"button\" and name `/^Pump house/`\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m6\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33maria-current\u001b[39m=\u001b[32m\"page\"\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.1); color: var(--graphite-0); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-medium); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size);...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\App.test.tsx:106:34\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration stops and resumes simulated generation",
+          "status": "passed",
+          "title": "stops and resumes simulated generation",
+          "duration": 2624.203999999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration requires review and evidence resolution before simulating export",
+          "status": "passed",
+          "title": "requires review and evidence resolution before simulating export",
+          "duration": 8675.556600000004,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration provides usable navigation at 390px",
+          "status": "passed",
+          "title": "provides usable navigation at 390px",
+          "duration": 1957.7765999999974,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Marsh prototype integration"],
+          "fullName": "Marsh prototype integration provides usable navigation at 900px",
+          "status": "passed",
+          "title": "provides usable navigation at 900px",
+          "duration": 1231.6092999999964,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239540,
+      "endTime": 1791348268658.6094,
+      "status": "failed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/App.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "renders every shared component and preserves the icon vocabulary",
+          "status": "passed",
+          "title": "renders every shared component and preserves the icon vocabulary",
+          "duration": 1010.9686999999994,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "exposes native checkbox activation and keyboard tab selection",
+          "status": "passed",
+          "title": "exposes native checkbox activation and keyboard tab selection",
+          "duration": 182.09439999999995,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348270152,
+      "endTime": 1791348271345.0945,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/design-system/components.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["User accounts (F-03)"],
+          "fullName": "User accounts (F-03) lists accounts and opens a profile with the option to edit",
+          "status": "passed",
+          "title": "lists accounts and opens a profile with the option to edit",
+          "duration": 5234.931499999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["User accounts (F-03)"],
+          "fullName": "User accounts (F-03) saves the edited fields and shows them when the profile is reopened",
+          "status": "passed",
+          "title": "saves the edited fields and shows them when the profile is reopened",
+          "duration": 4366.769899999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["User accounts (F-03)"],
+          "fullName": "User accounts (F-03) identifies the invalid field when the gateway rejects the profile",
+          "status": "passed",
+          "title": "identifies the invalid field when the gateway rejects the profile",
+          "duration": 1766.4923999999992,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["User accounts (F-03)"],
+          "fullName": "User accounts (F-03) explains when the gateway cannot be reached",
+          "status": "passed",
+          "title": "explains when the gateway cannot be reached",
+          "duration": 971.9843000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Role assignment (F-05)"],
+          "fullName": "Role assignment (F-05) offers only the two agreed roles and saves the one assigned",
+          "status": "passed",
+          "title": "offers only the two agreed roles and saves the one assigned",
+          "duration": 1691.2420999999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Role assignment (F-05)"],
+          "fullName": "Role assignment (F-05) does not let an admin change their own role or deactivate themselves",
+          "status": "passed",
+          "title": "does not let an admin change their own role or deactivate themselves",
+          "duration": 1103.268799999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["New accounts (F-08)"],
+          "fullName": "New accounts (F-08) saves the account and shows it as active in the account list",
+          "status": "passed",
+          "title": "saves the account and shows it as active in the account list",
+          "duration": 2157.1433000000034,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["New accounts (F-08)"],
+          "fullName": "New accounts (F-08) asks for a role rather than choosing one",
+          "status": "passed",
+          "title": "asks for a role rather than choosing one",
+          "duration": 853.7001999999993,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["New accounts (F-08)"],
+          "fullName": "New accounts (F-08) shows each invalid field its own error and stays on the form",
+          "status": "passed",
+          "title": "shows each invalid field its own error and stays on the form",
+          "duration": 1403.4752000000008,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["New accounts (F-08)"],
+          "fullName": "New accounts (F-08) reports an email another account uses against the email field",
+          "status": "passed",
+          "title": "reports an email another account uses against the email field",
+          "duration": 1416.8976000000039,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["New accounts (F-08)"],
+          "fullName": "New accounts (F-08) returns to the list without saving on cancel",
+          "status": "passed",
+          "title": "returns to the list without saving on cancel",
+          "duration": 1088.7892000000065,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239561,
+      "endTime": 1791348261617.7893,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/accounts/userAccounts.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Sign-in (F-04)"],
+          "fullName": "Sign-in (F-04) shows the sign-in screen for a workspace URL until someone signs in",
+          "status": "passed",
+          "title": "shows the sign-in screen for a workspace URL until someone signs in",
+          "duration": 2576.8581000000013,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Sign-in (F-04)"],
+          "fullName": "Sign-in (F-04) keeps the user signed out with a generic error when the credentials are wrong",
+          "status": "passed",
+          "title": "keeps the user signed out with a generic error when the credentials are wrong",
+          "duration": 1298.5950000000012,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Sign-in (F-04)"],
+          "fullName": "Sign-in (F-04) returns to sign-in when the gateway says the session has ended",
+          "status": "passed",
+          "title": "returns to sign-in when the gateway says the session has ended",
+          "duration": 1658.8122000000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) opens each role at its own workspace",
+          "status": "passed",
+          "title": "opens each role at its own workspace",
+          "duration": 1745.520700000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) opens the URL asked for after sign-in when the role allows it",
+          "status": "passed",
+          "title": "opens the URL asked for after sign-in when the role allows it",
+          "duration": 585.6149000000005,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) blocks a risk engineer from /admin/users",
+          "status": "passed",
+          "title": "blocks a risk engineer from /admin/users",
+          "duration": 1060.3580999999976,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) blocks a risk engineer from /admin/knowledge-base",
+          "status": "passed",
+          "title": "blocks a risk engineer from /admin/knowledge-base",
+          "duration": 747.0786999999982,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) blocks a knowledge admin from /assessments/new",
+          "status": "passed",
+          "title": "blocks a knowledge admin from /assessments/new",
+          "duration": 871.7058999999972,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) blocks a knowledge admin from /site-observation",
+          "status": "passed",
+          "title": "blocks a knowledge admin from /site-observation",
+          "duration": 311.6245999999992,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) lets a knowledge admin read assessments without the controls that change them",
+          "status": "passed",
+          "title": "lets a knowledge admin read assessments without the controls that change them",
+          "duration": 1775.7492999999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Route guard (F-05)"],
+          "fullName": "Route guard (F-05) follows the browser back button between screens",
+          "status": "passed",
+          "title": "follows the browser back button between screens",
+          "duration": 628.2860000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["auth api"],
+          "fullName": "auth api reads the session and its permissions, or none after a 401",
+          "status": "passed",
+          "title": "reads the session and its permissions, or none after a 401",
+          "duration": 67.39089999999851,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["auth api"],
+          "fullName": "auth api posts the credentials and rejects wrong ones with the status",
+          "status": "passed",
+          "title": "posts the credentials and rejects wrong ones with the status",
+          "duration": 59.85529999999926,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239571,
+      "endTime": 1791348252964.8552,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/auth/access.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Reset password (F-06)"],
+          "fullName": "Reset password (F-06) requests a reset link and moves to the confirm screen",
+          "status": "passed",
+          "title": "requests a reset link and moves to the confirm screen",
+          "duration": 1286.5187999999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Reset password (F-06)"],
+          "fullName": "Reset password (F-06) sets a new password and returns to sign-in",
+          "status": "passed",
+          "title": "sets a new password and returns to sign-in",
+          "duration": 487.9411999999993,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Reset password (F-06)"],
+          "fullName": "Reset password (F-06) shows the gateway error for an invalid or expired token",
+          "status": "passed",
+          "title": "shows the gateway error for an invalid or expired token",
+          "duration": 339.71929999999884,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348269930,
+      "endTime": 1791348272044.7192,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/auth/resetPassword.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured starts capture by adding a location, then captures in it",
+          "status": "passed",
+          "title": "starts capture by adding a location, then captures in it",
+          "duration": 7239.0057000000015,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured switches to another location, or adds one, from the location bar",
+          "status": "passed",
+          "title": "switches to another location, or adds one, from the location bar",
+          "duration": 6082.4948,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured filters the list by search and starts a new location from it",
+          "status": "passed",
+          "title": "filters the list by search and starts a new location from it",
+          "duration": 2063.845000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured refuses a location already on the list, whatever the case",
+          "status": "passed",
+          "title": "refuses a location already on the list, whatever the case",
+          "duration": 2997.612399999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured lets the engineer leave capture before choosing a location",
+          "status": "passed",
+          "title": "lets the engineer leave capture before choosing a location",
+          "duration": 1885.991399999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured removes a location added by mistake, but not one with observations",
+          "status": "failed",
+          "title": "removes a location added by mistake, but not one with observations",
+          "duration": 3111.5017000000007,
+          "failureMessages": [
+            "TestingLibraryElementError: Unable to find an accessible element with the role \"dialog\" and name \"Where are you?\"\n\nHere are the accessible roles:\n\n  navigation:\n\n  Name \"\":\n  \u001b[36m<nav\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  button:\n\n  Name \"Dashboard6\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"New assessment\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Site observationlive4\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33maria-current\u001b[39m=\u001b[32m\"page\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.1); color: var(--graphite-0); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-medium); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Tilbury Distribution Centre\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Sign out\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33maria-label\u001b[39m=\u001b[32m\"Sign out\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3); box-sizing: border-box; height: var(--control-height-sm); padding: 0px 10px; font-family: var(--font-sans); font-size: var(--text-small-size); font-weight: var(--weight-medium); line-height: 1; letter-spacing: 0.005em; border-radius: var(--radius-md); cursor: pointer; opacity: 1; box-shadow: none; transition: var(--transition-control); text-decoration: none; white-space: nowrap; background: transparent; color: var(--text-body); border: 1px solid transparent;\"\u001b[39m\n    \u001b[33mtitle\u001b[39m=\u001b[32m\"Sign out\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Toggle navigation\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33maria-label\u001b[39m=\u001b[32m\"Toggle navigation\"\u001b[39m\n    \u001b[33mdata-hoverable\u001b[39m=\u001b[32m\"true\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-top: 2px; border: medium; border-radius: 99px; background: transparent; color: var(--text-secondary); cursor: pointer; transition: var(--transition-control);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Notifications\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33maria-expanded\u001b[39m=\u001b[32m\"false\"\u001b[39m\n    \u001b[33maria-haspopup\u001b[39m=\u001b[32m\"dialog\"\u001b[39m\n    \u001b[33maria-label\u001b[39m=\u001b[32m\"Notifications\"\u001b[39m\n    \u001b[33mdata-hoverable\u001b[39m=\u001b[32m\"true\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"position: relative; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: medium; border-radius: 99px; background: transparent; color: var(--text-secondary); cursor: pointer; transition: var(--transition-control);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Choose a location\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33maria-label\u001b[39m=\u001b[32m\"Choose a location\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"position: sticky; top: 0px; z-index: 1; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 20px; text-align: left; font-family: inherit; background: var(--surface-selected); border-top: 0px; border-right: 0px; border-bottom: 1px solid var(--border-default); border-left: 0px; border-image: none; cursor: pointer;\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Note\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"height: 46px; border-top: medium; border-right: medium; border-bottom: 2px solid var(--action-primary); border-left: medium; border-image: none; background: transparent; font-family: inherit; font-size: 16px; font-weight: 500; color: var(--text-primary); cursor: pointer; transition: color 120ms cubic-bezier(.2,0,.2,1);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Voice\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"height: 46px; border-width: medium medium 2px; border-style: none none solid; border-color: currentcolor currentcolor transparent; border-image: none; background: transparent; font-family: inherit; font-size: 16px; font-weight: 400; color: var(--text-muted); cursor: pointer; transition: color 120ms cubic-bezier(.2,0,.2,1);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Photo\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"height: 46px; border-width: medium medium 2px; border-style: none none solid; border-color: currentcolor currentcolor transparent; border-image: none; background: transparent; font-family: inherit; font-size: 16px; font-weight: 400; color: var(--text-muted); cursor: pointer; transition: color 120ms cubic-bezier(.2,0,.2,1);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Add note\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3); box-sizing: border-box; height: var(--control-height-sm); padding: 0px 10px; font-family: var(--font-sans); font-size: var(--text-small-size); font-weight: var(--weight-medium); line-height: 1; letter-spacing: 0.005em; border-radius: var(--radius-md); cursor: pointer; opacity: 1; box-shadow: none; transition: var(--transition-control); text-decoration: none; white-space: nowrap; background: var(--surface-card); color: var(--text-body); border: 1px solid var(--border-default);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Critical\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mdata-v\u001b[39m=\u001b[32m\"critical\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; justify-content: center; height: 44px; padding: 0px 4px; border-radius: 5px; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 120ms cubic-bezier(.2,0,.2,1); border: 1px solid var(--border-default); background: var(--surface-card); color: var(--text-secondary);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"High\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mdata-v\u001b[39m=\u001b[32m\"high\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; justify-content: center; height: 44px; padding: 0px 4px; border-radius: 5px; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 120ms cubic-bezier(.2,0,.2,1); border: 1px solid var(--status-high-fg); background: var(--status-high-bg); color: var(--status-high-fg);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Moderate\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mdata-v\u001b[39m=\u001b[32m\"moderate\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; justify-content: center; height: 44px; padding: 0px 4px; border-radius: 5px; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 120ms cubic-bezier(.2,0,.2,1); border: 1px solid var(--border-default); background: var(--surface-card); color: var(--text-secondary);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Low\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mdata-v\u001b[39m=\u001b[32m\"low\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; justify-content: center; height: 44px; padding: 0px 4px; border-radius: 5px; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 120ms cubic-bezier(.2,0,.2,1); border: 1px solid var(--border-default); background: var(--surface-card); color: var(--text-secondary);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Save observation\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3); box-sizing: border-box; height: var(--control-height-md); padding: 0px 14px; font-family: var(--font-sans); font-size: var(--text-body-size); font-weight: var(--weight-medium); line-height: 1; letter-spacing: 0.005em; border-radius: var(--radius-md); cursor: pointer; opacity: 1; box-shadow: var(--shadow-sm); transition: var(--transition-control); text-decoration: none; white-space: nowrap; background: var(--action-primary); color: var(--text-inverse); border: 1px solid transparent;\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Cancel\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3); box-sizing: border-box; height: var(--control-height-md); padding: 0px 14px; font-family: var(--font-sans); font-size: var(--text-body-size); font-weight: var(--weight-medium); line-height: 1; letter-spacing: 0.005em; border-radius: var(--radius-md); cursor: pointer; opacity: 1; box-shadow: none; transition: var(--transition-control); text-decoration: none; white-space: nowrap; background: transparent; color: var(--text-body); border: 1px solid transparent;\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Open the assessment workspace\":\n  \u001b[36m<button\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3); box-sizing: border-box; height: var(--control-height-md); padding: 0px 14px; font-family: var(--font-sans); font-size: var(--text-body-size); font-weight: var(--weight-medium); line-height: 1; letter-spacing: 0.005em; border-radius: var(--radius-md); cursor: pointer; opacity: 1; box-shadow: none; transition: var(--transition-control); text-decoration: none; white-space: nowrap; background: var(--surface-card); color: var(--text-body); border: 1px solid var(--border-default);\"\u001b[39m\n    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  img:\n\n  Name \"live\":\n  \u001b[36m<span\u001b[39m\n    \u001b[33maria-label\u001b[39m=\u001b[32m\"live\"\u001b[39m\n    \u001b[33mclass\u001b[39m=\u001b[32m\"live-dot\"\u001b[39m\n    \u001b[33mrole\u001b[39m=\u001b[32m\"img\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  strong:\n\n  Name \"\":\n  \u001b[36m<strong />\u001b[39m\n\n  --------------------------------------------------\n  heading:\n\n  Name \"Site observation\":\n  \u001b[36m<h1\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"margin: 0px; font-size: clamp(23px, 2.4vw, 32px); line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); overflow-wrap: anywhere; text-wrap: pretty;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  main:\n\n  Name \"\":\n  \u001b[36m<main\u001b[39m\n    \u001b[33mclass\u001b[39m=\u001b[32m\"om-scroll\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; min-height: 0px; overflow: auto; background: var(--surface-page);\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  status:\n\n  Name \"\":\n  \u001b[36m<div\u001b[39m\n    \u001b[33mrole\u001b[39m=\u001b[32m\"status\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  textbox:\n\n  Name \"Note\":\n  \u001b[36m<textarea\u001b[39m\n    \u001b[33maria-invalid\u001b[39m=\u001b[32m\"false\"\u001b[39m\n    \u001b[33mmaxlength\u001b[39m=\u001b[32m\"5000\"\u001b[39m\n    \u001b[33mplaceholder\u001b[39m=\u001b[32m\"What did you see? Write as you would for the record.\"\u001b[39m\n    \u001b[33mrows\u001b[39m=\u001b[32m\"5\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"box-sizing: border-box; padding: 8px 10px; background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-md); box-shadow: none; outline: none; resize: vertical; font-family: var(--font-sans); font-size: var(--text-body-size); line-height: var(--text-body-lh); color: var(--text-primary); transition: var(--transition-control);\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  combobox:\n\n  Name \"COPE category\":\n  \u001b[36m<select\u001b[39m\n    \u001b[33maria-invalid\u001b[39m=\u001b[32m\"false\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"appearance: none; width: 100%; height: 100%; padding: 0px 30px 0px 10px; border: medium; outline: none; background: transparent; font-family: inherit; font-size: var(--text-body-size); color: var(--text-primary); cursor: pointer;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Standard reference Optional. The draft cites the matching clause from this standard.\":\n  \u001b[36m<select\u001b[39m\n    \u001b[33maria-describedby\u001b[39m=\u001b[32m\"_r_47_\"\u001b[39m\n    \u001b[33maria-invalid\u001b[39m=\u001b[32m\"false\"\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"appearance: none; width: 100%; height: 100%; padding: 0px 30px 0px 10px; border: medium; outline: none; background: transparent; font-family: inherit; font-size: var(--text-body-size); color: var(--text-primary); cursor: pointer;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  option:\n\n  Name \"Construction\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"Construction\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Occupancy, hazards and utilities\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"Occupancy, hazards and utilities\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Fire protection\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"Fire protection\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"External exposures\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"External exposures\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"Not categorised yet\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"Not categorised yet\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"None, let the draft find it\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"NFPA 25 – 2026 Edition\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"NFPA 25 – 2026 Edition\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"NFPA 13 – 2022 Edition\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"NFPA 13 – 2022 Edition\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"FM 2.0 – Last published April 2026\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"FM 2.0 – Last published April 2026\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"FM 2.81 – Last published April 2026\":\n  \u001b[36m<option\u001b[39m\n    \u001b[33mvalue\u001b[39m=\u001b[32m\"FM 2.81 – Last published April 2026\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n  paragraph:\n\n  Name \"\":\n  \u001b[36m<p\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"margin: 0px; font-size: 16px; line-height: 26px; color: var(--text-secondary); max-width: 60ch; text-wrap: pretty;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"\":\n  \u001b[36m<p\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"margin: 4px 0px 0px; font-size: 14px; line-height: 20px; color: var(--text-secondary); text-wrap: pretty;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"\":\n  \u001b[36m<p\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"margin: 4px 0px 0px; font-size: 14px; line-height: 20px; color: var(--text-secondary); text-wrap: pretty;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"\":\n  \u001b[36m<p\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"margin: 4px 0px 0px; font-size: 14px; line-height: 20px; color: var(--text-secondary); text-wrap: pretty;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  Name \"\":\n  \u001b[36m<p\u001b[39m\n    \u001b[33mstyle\u001b[39m=\u001b[32m\"margin: 4px 0px 0px; font-size: 14px; line-height: 20px; color: var(--text-secondary); text-wrap: pretty;\"\u001b[39m\n  \u001b[36m/>\u001b[39m\n\n  --------------------------------------------------\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m6\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33maria-current\u001b[39m=\u001b[32m\"page\"\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.1); color: var(--graphite-0); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-medium); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-label\u001b[39m=\u001b[32m\"live\"\u001b[39m\n                    ...\n    at Object.getElementError (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\config.js:37:19)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:76:38\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:52:17\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:95:19\n    at sheet (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\locations.test.tsx:70:28)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\locations.test.tsx:201:18\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured keeps the location when removal is cancelled or refused",
+          "status": "passed",
+          "title": "keeps the location when removal is cancelled or refused",
+          "duration": 1567.952599999997,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Choosing where observations are captured"],
+          "fullName": "Choosing where observations are captured asks for another location after removing the one in use",
+          "status": "passed",
+          "title": "asks for another location after removing the one in use",
+          "duration": 2370.0362999999998,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239533,
+      "endTime": 1791348266852.0364,
+      "status": "failed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/assessments/locations.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) saves a note, a recording and a photo together as one observation",
+          "status": "passed",
+          "title": "saves a note, a recording and a photo together as one observation",
+          "duration": 10705.461899999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) includes a note that was typed but not added to the list",
+          "status": "passed",
+          "title": "includes a note that was typed but not added to the list",
+          "duration": 2607.882099999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) removes and edits items before saving",
+          "status": "passed",
+          "title": "removes and edits items before saving",
+          "duration": 7215.539000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) sends an uploaded audio file with its own name",
+          "status": "passed",
+          "title": "sends an uploaded audio file with its own name",
+          "duration": 2567.6995000000024,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) saves an observation left uncategorised and says drafting leaves it out",
+          "status": "passed",
+          "title": "saves an observation left uncategorised and says drafting leaves it out",
+          "duration": 2816.0648999999976,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) keeps everything listed when the save fails, then saves it on retry",
+          "status": "passed",
+          "title": "keeps everything listed when the save fails, then saves it on retry",
+          "duration": 3264.642200000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) shows the reasons the gateway rejected the observation",
+          "status": "passed",
+          "title": "shows the reasons the gateway rejected the observation",
+          "duration": 1721.8280999999988,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) asks for something to save first",
+          "status": "passed",
+          "title": "asks for something to save first",
+          "duration": 1478.2328999999954,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) keeps checking the saved recordings until their transcription finishes",
+          "status": "passed",
+          "title": "keeps checking the saved recordings until their transcription finishes",
+          "duration": 2228.202599999997,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capturing an observation (CP-02, CP-03)"],
+          "fullName": "Capturing an observation (CP-02, CP-03) explains a blocked microphone and offers upload instead",
+          "status": "passed",
+          "title": "explains a blocked microphone and offers upload instead",
+          "duration": 1505.5754000000015,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Tagging on the capture screen (CP-06 AC3)"],
+          "fullName": "Tagging on the capture screen (CP-06 AC3) offers only the shared COPE vocabulary and saves each category as its shared value",
+          "status": "passed",
+          "title": "offers only the shared COPE vocabulary and saves each category as its shared value",
+          "duration": 2528.0204999999987,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Observations tab (CP-03)"],
+          "fullName": "Observations tab (CP-03) shows why a recording failed and retries that recording",
+          "status": "passed",
+          "title": "shows why a recording failed and retries that recording",
+          "duration": 1411.4568,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Observations tab (CP-03)"],
+          "fullName": "Observations tab (CP-03) shows the note, then each recording with its transcript and player",
+          "status": "passed",
+          "title": "shows the note, then each recording with its transcript and player",
+          "duration": 1025.2647999999972,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Observations tab (CP-03)"],
+          "fullName": "Observations tab (CP-03) marks an observation whose recording is still transcribing",
+          "status": "passed",
+          "title": "marks an observation whose recording is still transcribing",
+          "duration": 710.538999999997,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239550,
+      "endTime": 1791348281339.539,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/assessments/observationCapture.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Filtering observations by tag (CP-06 AC2)"],
+          "fullName": "Filtering observations by tag (CP-06 AC2) returns every observation carrying any one chosen label",
+          "status": "failed",
+          "title": "returns every observation carrying any one chosen label",
+          "duration": 12119.773100000002,
+          "failureMessages": [
+            "Error: STACK_TRACE_ERROR\n    at task (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)\n    at Object.<anonymous> (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:458:28)\n    at chain (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:369:14)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\observationTags.test.tsx:149:3\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:734:40\n    at runWithSuite (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:1849:8)\n    at Object.collect (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:734:10)\n    at Object.collect (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:738:54)\n    at processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at collectTests (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:1179:25)\n    at startTests (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:1817:17)\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/vitest/dist/chunks/runBaseTests.9Ij9_de-.js:117:26\n    at withEnv (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/vitest/dist/chunks/runBaseTests.9Ij9_de-.js:84:3)\n    at run (file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/vitest/dist/chunks/runBaseTests.9Ij9_de-.js:109:2)"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Filtering observations by tag (CP-06 AC2)"],
+          "fullName": "Filtering observations by tag (CP-06 AC2) narrows by every label chosen, and says so when none match",
+          "status": "passed",
+          "title": "narrows by every label chosen, and says so when none match",
+          "duration": 2618.733799999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Filtering observations by tag (CP-06 AC2)"],
+          "fullName": "Filtering observations by tag (CP-06 AC2) offers the shared category vocabulary, and the locations and floors on file",
+          "status": "passed",
+          "title": "offers the shared category vocabulary, and the locations and floors on file",
+          "duration": 1516.6331000000027,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Editing an observation’s tags (CP-06 AC1, AC3)"],
+          "fullName": "Editing an observation’s tags (CP-06 AC1, AC3) categorises an observation and keeps its new tags after reopening",
+          "status": "passed",
+          "title": "categorises an observation and keeps its new tags after reopening",
+          "duration": 6872.440299999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Editing an observation’s tags (CP-06 AC1, AC3)"],
+          "fullName": "Editing an observation’s tags (CP-06 AC1, AC3) sends only the tags that changed, and can uncategorise and remove the standard",
+          "status": "passed",
+          "title": "sends only the tags that changed, and can uncategorise and remove the standard",
+          "duration": 4127.1538,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Editing an observation’s tags (CP-06 AC1, AC3)"],
+          "fullName": "Editing an observation’s tags (CP-06 AC1, AC3) keeps the dialog and its changes when the gateway refuses them",
+          "status": "passed",
+          "title": "keeps the dialog and its changes when the gateway refuses them",
+          "duration": 2460.1730000000025,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Editing an observation’s tags (CP-06 AC1, AC3)"],
+          "fullName": "Editing an observation’s tags (CP-06 AC1, AC3) edits a sample observation in this demo only",
+          "status": "passed",
+          "title": "edits a sample observation in this demo only",
+          "duration": 2186.439599999998,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239551,
+      "endTime": 1791348271454.4397,
+      "status": "failed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/assessments/observationTags.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "shows the draft editor with its sources, observations and claims beside it (AC1-AC4)",
+          "status": "failed",
+          "title": "shows the draft editor with its sources, observations and claims beside it (AC1-AC4)",
+          "duration": 8157.035400000001,
+          "failureMessages": [
+            "Error: Unable to find role=\"region\" and name \"Draft editor\"\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m1\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n   ...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\reviewWorkspace.test.tsx:255:23\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows each section's completion and review state in the navigation (AC5, AC6)",
+          "status": "failed",
+          "title": "shows each section's completion and review state in the navigation (AC5, AC6)",
+          "duration": 4031.8824999999997,
+          "failureMessages": [
+            "Error: Unable to find role=\"navigation\" and name \"Report sections\"\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m1\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n   ...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\reviewWorkspace.test.tsx:288:28\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "opens the exact passage a citation references, with its page, title, edition and date (AC7-AC11)",
+          "status": "failed",
+          "title": "opens the exact passage a citation references, with its page, title, edition and date (AC7-AC11)",
+          "duration": 2966.0515000000014,
+          "failureMessages": [
+            "Error: Unable to find role=\"region\" and name \"Draft editor\"\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m1\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n   ...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\reviewWorkspace.test.tsx:304:16\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "opens a cited past report, and labels a withdrawn source (AC7, AC12)",
+          "status": "failed",
+          "title": "opens a cited past report, and labels a withdrawn source (AC7, AC12)",
+          "duration": 2942.4408000000003,
+          "failureMessages": [
+            "Error: Unable to find role=\"region\" and name \"Draft editor\"\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m1\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n   ...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\reviewWorkspace.test.tsx:347:16\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "moves between sections and shows one without a draft as not drafted",
+          "status": "failed",
+          "title": "moves between sections and shows one without a draft as not drafted",
+          "duration": 2591.4093000000066,
+          "failureMessages": [
+            "Error: Unable to find role=\"region\" and name \"Draft editor\"\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m1\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n   ...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\reviewWorkspace.test.tsx:374:16\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "says when there is nothing to review yet",
+          "status": "passed",
+          "title": "says when there is nothing to review yet",
+          "duration": 2067.951500000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "says why the workspace could not be loaded",
+          "status": "failed",
+          "title": "says why the workspace could not be loaded",
+          "duration": 2033.7194999999992,
+          "failureMessages": [
+            "Error: Unable to find an element with the text: The review workspace could not be loaded. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m1\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n   ...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\reviewWorkspace.test.tsx:401:23\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239531,
+      "endTime": 1791348264321.7195,
+      "status": "failed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/assessments/reviewWorkspace.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "drafts a section of a saved assessment and shows each statement's evidence (GN-01)",
+          "status": "failed",
+          "title": "drafts a section of a saved assessment and shows each statement's evidence (GN-01)",
+          "duration": 6387.9942999999985,
+          "failureMessages": [
+            "Error: Unable to find role=\"button\" and name `/Jurong Distribution Hub/`\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<div\u001b[39m\n      \u001b[33mclass\u001b[39m=\u001b[32m\"workflow\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b[36m<div\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"workflow-frame\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[36m<div\u001b[39m\n          \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; height: 100%;\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b[36m<nav\u001b[39m\n            \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 auto; height: 100%; background: var(--surface-nav); color: var(--graphite-300); font-family: var(--font-sans);\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-9) var(--space-7); border-bottom: 1px solid rgba(255, 255, 255, 0.12);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"color: var(--graphite-0); font-size: var(--text-h3-size); font-weight: var(--weight-semibold); letter-spacing: -0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mMarsh\u001b[0m\n              \u001b[36m</span>\u001b[39m\n              \u001b[36m<span\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-small-size); color: var(--graphite-400); letter-spacing: 0.01em;\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[0mRisk Report Generator\u001b[0m\n              \u001b[36m</span>\u001b[39m\n            \u001b[36m</div>\u001b[39m\n            \u001b[36m<div\u001b[39m\n              \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%; overflow-y: auto; padding: var(--space-7) var(--space-5);\"\u001b[39m\n            \u001b[36m>\u001b[39m\n              \u001b[36m<div\u001b[39m\n                \u001b[33mstyle\u001b[39m=\u001b[32m\"margin-bottom: var(--space-7);\"\u001b[39m\n              \u001b[36m>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"padding: 0 var(--space-4) var(--space-4); font-size: var(--text-label-size); letter-spacing: var(--text-label-ls); text-transform: uppercase; font-weight: var(--text-label-weight); color: var(--graphite-500);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[0mAssessments\u001b[0m\n                \u001b[36m</div>\u001b[39m\n                \u001b[36m<div\u001b[39m\n                  \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; flex-direction: column; gap: var(--space-1);\"\u001b[39m\n                \u001b[36m>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33maria-current\u001b[39m=\u001b[32m\"page\"\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.1); color: var(--graphite-0); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-medium); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/inbox.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mDashboard\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size); color: var(--graphite-400);\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0m6\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/plus.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mNew assessment\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                  \u001b[36m</button>\u001b[39m\n                  \u001b[36m<button\u001b[39m\n                    \u001b[33mstyle\u001b[39m=\u001b[32m\"display: flex; align-items: center; gap: var(--space-5); height: 45px; padding: 0 var(--space-4); border: medium; border-radius: var(--radius-md); background: transparent; color: var(--graphite-300); font-family: inherit; font-size: var(--text-body-size); font-weight: var(--weight-regular); cursor: pointer; text-align: left; transition: var(--transition-control);\"\u001b[39m\n                    \u001b[33mtype\u001b[39m=\u001b[32m\"button\"\u001b[39m\n                  \u001b[36m>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33maria-hidden\u001b[39m=\u001b[32m\"true\"\u001b[39m\n                      \u001b[33mrole\u001b[39m=\u001b[32m\"presentation\"\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; background-color: currentcolor; -webkit-mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); mask-image: url(\\\"https://unpkg.com/lucide-static@0.451.0/icons/camera.svg\\\"); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;\"\u001b[39m\n                    \u001b[36m/>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"flex: 1 1 0%;\"\u001b[39m\n                    \u001b[36m>\u001b[39m\n                      \u001b[0mSite observation\u001b[0m\n                    \u001b[36m</span>\u001b[39m\n                    \u001b[36m<span\u001b[39m\n                      \u001b[33mstyle\u001b[39m=\u001b[32m\"font-size: var(--text-caption-size);...\n    at waitForWrapper (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\wait-for.js:163:27)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\node_modules\\@testing-library\\dom\\dist\\query-helpers.js:86:33\n    at openGenerateTab (c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\sectionDrafts.test.tsx:130:29)\n    at c:\\Users\\Kor\\Documents\\GitHub\\ai-risk-report-generator\\client\\src\\features\\assessments\\sectionDrafts.test.tsx:145:3\n    at file:///c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20"
+          ],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "names the reason when a section could not be drafted",
+          "status": "passed",
+          "title": "names the reason when a section could not be drafted",
+          "duration": 4988.421899999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "drafts every section with enough evidence, one after another",
+          "status": "passed",
+          "title": "drafts every section with enough evidence, one after another",
+          "duration": 2897.336900000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "says when a draft is missing newer evidence",
+          "status": "passed",
+          "title": "says when a draft is missing newer evidence",
+          "duration": 2548.3050000000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "says when there is nothing to review yet",
+          "status": "passed",
+          "title": "says when there is nothing to review yet",
+          "duration": 2270.5976999999984,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "reviews each drafted section, and shows an empty one as not drafted",
+          "status": "passed",
+          "title": "reviews each drafted section, and shows an empty one as not drafted",
+          "duration": 2000.9651000000013,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239527,
+      "endTime": 1791348260620.965,
+      "status": "failed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/assessments/sectionDrafts.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Capture session (CP-01)"],
+          "fullName": "Capture session (CP-01) starts a session only when capture opens",
+          "status": "passed",
+          "title": "starts a session only when capture opens",
+          "duration": 6307.562999999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capture session (CP-01)"],
+          "fullName": "Capture session (CP-01) identifies the assessment from the session",
+          "status": "passed",
+          "title": "identifies the assessment from the session",
+          "duration": 2426.1407,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capture session (CP-01)"],
+          "fullName": "Capture session (CP-01) resumes the session in progress when capture reopens",
+          "status": "passed",
+          "title": "resumes the session in progress when capture reopens",
+          "duration": 3605.0566999999974,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capture session (CP-01)"],
+          "fullName": "Capture session (CP-01) keeps sample data usable when the gateway cannot be reached, then retries",
+          "status": "passed",
+          "title": "keeps sample data usable when the gateway cannot be reached, then retries",
+          "duration": 2605.0567999999985,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capture session (CP-01)"],
+          "fullName": "Capture session (CP-01) explains an HTTP 502 from the gateway",
+          "status": "passed",
+          "title": "explains an HTTP 502 from the gateway",
+          "duration": 1624.7342000000026,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capture session (CP-01)"],
+          "fullName": "Capture session (CP-01) explains an HTTP 404 from the gateway",
+          "status": "passed",
+          "title": "explains an HTTP 404 from the gateway",
+          "duration": 1229.8991000000024,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Capture session (CP-01)"],
+          "fullName": "Capture session (CP-01) explains an HTTP 500 from the gateway",
+          "status": "passed",
+          "title": "explains an HTTP 500 from the gateway",
+          "duration": 1680.3853999999992,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Create assessment (CP-01)"],
+          "fullName": "Create assessment (CP-01) creates the assessment on the server and lists it",
+          "status": "passed",
+          "title": "creates the assessment on the server and lists it",
+          "duration": 2874.235099999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Create assessment (CP-01)"],
+          "fullName": "Create assessment (CP-01) opens a created assessment in its workspace, then captures against it",
+          "status": "passed",
+          "title": "opens a created assessment in its workspace, then captures against it",
+          "duration": 4511.1342,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Create assessment (CP-01)"],
+          "fullName": "Create assessment (CP-01) shows the reasons when the server rejects the details",
+          "status": "passed",
+          "title": "shows the reasons when the server rejects the details",
+          "duration": 1633.6045999999988,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Create assessment (CP-01)"],
+          "fullName": "Create assessment (CP-01) sends one request when Create is clicked twice",
+          "status": "passed",
+          "title": "sends one request when Create is clicked twice",
+          "duration": 1469.827599999997,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Create assessment (CP-01)"],
+          "fullName": "Create assessment (CP-01) keeps a demo-only assessment when the gateway is unreachable, and opens its workspace",
+          "status": "passed",
+          "title": "keeps a demo-only assessment when the gateway is unreachable, and opens its workspace",
+          "duration": 1787.1429999999964,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Work list (RV-10)"],
+          "fullName": "Work list (RV-10) lists the assessments assigned to you with their site, date and status",
+          "status": "passed",
+          "title": "lists the assessments assigned to you with their site, date and status",
+          "duration": 742.8048999999955,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Work list (RV-10)"],
+          "fullName": "Work list (RV-10) filters by status and searches by site and client",
+          "status": "passed",
+          "title": "filters by status and searches by site and client",
+          "duration": 820.3425999999963,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Work list (RV-10)"],
+          "fullName": "Work list (RV-10) shows the sample assessments when the gateway cannot be reached",
+          "status": "passed",
+          "title": "shows the sample assessments when the gateway cannot be reached",
+          "duration": 563.174500000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "assigns one engineer by ID and keeps work assigned to someone else out of my list",
+          "status": "passed",
+          "title": "assigns one engineer by ID and keeps work assigned to someone else out of my list",
+          "duration": 1460.6247000000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "reloads the engineer directory after failure and preserves the selected engineer",
+          "status": "passed",
+          "title": "reloads the engineer directory after failure and preserves the selected engineer",
+          "duration": 1317.3387999999977,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows report deadlines, excludes today and finalised work from overdue, and sorts with filters",
+          "status": "passed",
+          "title": "shows report deadlines, excludes today and finalised work from overdue, and sorts with filters",
+          "duration": 1321.847099999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "archives my assessment from its workspace, then shows it only under Archived and restores it (RV-10 AC8, AC9)",
+          "status": "passed",
+          "title": "archives my assessment from its workspace, then shows it only under Archived and restores it (RV-10 AC8, AC9)",
+          "duration": 1741.4063000000024,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "offers Archive on the demo assessment too, from its saved record",
+          "status": "passed",
+          "title": "offers Archive on the demo assessment too, from its saved record",
+          "duration": 616.5063000000009,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "edits my assessment details, keeping its engineer, policy reference and standards (RV-10 AC10, AC11)",
+          "status": "passed",
+          "title": "edits my assessment details, keeping its engineer, policy reference and standards (RV-10 AC10, AC11)",
+          "duration": 2335.052499999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows a knowledge admin the same assessment record, read-only",
+          "status": "passed",
+          "title": "shows a knowledge admin the same assessment record, read-only",
+          "duration": 738.4141000000018,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "continues my most recently started capture from the dashboard, naming it",
+          "status": "passed",
+          "title": "continues my most recently started capture from the dashboard, naming it",
+          "duration": 667.8070000000007,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "offers no capture when none of my assessments is capturing, not even the demo one",
+          "status": "passed",
+          "title": "offers no capture when none of my assessments is capturing, not even the demo one",
+          "duration": 512.7140999999974,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239552,
+      "endTime": 1791348284147.714,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/assessments/startAssessment.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) gives each selected PDF its own row, asking first for its source type",
+          "status": "passed",
+          "title": "gives each selected PDF its own row, asking first for its source type",
+          "duration": 5170.231000000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) asks a standard for its edition, and a Marsh report for its report date and facility type",
+          "status": "passed",
+          "title": "asks a standard for its edition, and a Marsh report for its report date and facility type",
+          "duration": 1377.5498000000007,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) keeps a standard's edition to four digits and flags a year out of range as you type",
+          "status": "passed",
+          "title": "keeps a standard's edition to four digits and flags a year out of range as you type",
+          "duration": 1837.4115999999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) does not upload a standard whose edition is missing",
+          "status": "passed",
+          "title": "does not upload a standard whose edition is missing",
+          "duration": 1485.9717000000019,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) does not upload a standard whose edition is out of range",
+          "status": "passed",
+          "title": "does not upload a standard whose edition is out of range",
+          "duration": 1647.561099999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) sends only a Marsh report's own details",
+          "status": "passed",
+          "title": "sends only a Marsh report's own details",
+          "duration": 2068.7409000000007,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) uploads each file on its own; a rejected file shows its reason and the others go through",
+          "status": "passed",
+          "title": "uploads each file on its own; a rejected file shows its reason and the others go through",
+          "duration": 1568.7960999999996,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) shows the fields the gateway refused on that file’s row",
+          "status": "passed",
+          "title": "shows the fields the gateway refused on that file’s row",
+          "duration": 1259.488699999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) lists uploaded documents with their status, failure reason and original file",
+          "status": "passed",
+          "title": "lists uploaded documents with their status, failure reason and original file",
+          "duration": 892.6411000000007,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) describes a standard by its edition and a Marsh report by its facility type and date",
+          "status": "passed",
+          "title": "describes a standard by its edition and a Marsh report by its facility type and date",
+          "duration": 900.0386999999973,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base uploads (IN-01)"],
+          "fullName": "Knowledge base uploads (IN-01) keeps upload outcomes when you leave the screen and come back",
+          "status": "passed",
+          "title": "keeps upload outcomes when you leave the screen and come back",
+          "duration": 2409.6732000000047,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Ingestion stage tracking (E2)"],
+          "fullName": "Ingestion stage tracking (E2) shows the stage and the page reached for a chunking document",
+          "status": "passed",
+          "title": "shows the stage and the page reached for a chunking document",
+          "duration": 857.0167999999976,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Ingestion stage tracking (E2)"],
+          "fullName": "Ingestion stage tracking (E2) shows the page without a total when the page count is unknown",
+          "status": "passed",
+          "title": "shows the page without a total when the page count is unknown",
+          "duration": 832.8902999999991,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Ingestion stage tracking (E2)"],
+          "fullName": "Ingestion stage tracking (E2) falls back to the Processing badge when a processing document has no progress yet",
+          "status": "passed",
+          "title": "falls back to the Processing badge when a processing document has no progress yet",
+          "duration": 757.5953999999983,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Ingestion stage tracking (E2)"],
+          "fullName": "Ingestion stage tracking (E2) shows no stage detail for a queued document",
+          "status": "passed",
+          "title": "shows no stage detail for a queued document",
+          "duration": 466.63669999999547,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Ingestion stage tracking (E2)"],
+          "fullName": "Ingestion stage tracking (E2) formats a processing duration as minutes and seconds",
+          "status": "passed",
+          "title": "formats a processing duration as minutes and seconds",
+          "duration": 0.6726999999955297,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239558,
+      "endTime": 1791348263105.6726,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/knowledge-base/knowledgeBase.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) opens on the documents, grouped under FM standards, NFPA standards and past Marsh reports",
+          "status": "passed",
+          "title": "opens on the documents, grouped under FM standards, NFPA standards and past Marsh reports",
+          "duration": 3302.979199999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) shows each document’s edition or report date, country, facility type, status and original",
+          "status": "passed",
+          "title": "shows each document’s edition or report date, country, facility type, status and original",
+          "duration": 2174.0580999999984,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) says which group is empty",
+          "status": "passed",
+          "title": "says which group is empty",
+          "duration": 879.9615999999987,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) filters by exact label value, so All countries shows only documents for all countries",
+          "status": "passed",
+          "title": "filters by exact label value, so All countries shows only documents for all countries",
+          "duration": 2497.3623000000007,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) finds titles by fuzzy search: letters in order, any case, gaps allowed",
+          "status": "passed",
+          "title": "finds titles by fuzzy search: letters in order, any case, gaps allowed",
+          "duration": 2236.8053,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) says no documents match, and Clear filters brings them back",
+          "status": "passed",
+          "title": "says no documents match, and Clear filters brings them back",
+          "duration": 1820.0663999999997,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) saves a corrected label and shows the corrected value",
+          "status": "passed",
+          "title": "saves a corrected label and shows the corrected value",
+          "duration": 2303.712599999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) confirms a saved correction",
+          "status": "passed",
+          "title": "confirms a saved correction",
+          "duration": 2367.3689000000013,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) moves a document to its new group when its source type is corrected",
+          "status": "passed",
+          "title": "moves a document to its new group when its source type is corrected",
+          "duration": 1414.050000000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) shows why a value was refused, keeps the dialog open, and leaves the old value",
+          "status": "passed",
+          "title": "shows why a value was refused, keeps the dialog open, and leaves the old value",
+          "duration": 1608.6442000000025,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) shows the reason when search could not be updated",
+          "status": "passed",
+          "title": "shows the reason when search could not be updated",
+          "duration": 1666.2306000000026,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) checks a standard’s edition before sending anything",
+          "status": "passed",
+          "title": "checks a standard’s edition before sending anything",
+          "duration": 1239.1607999999978,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) shows a document’s details when you open its title, with Edit details",
+          "status": "passed",
+          "title": "shows a document’s details when you open its title, with Edit details",
+          "duration": 1004.4040999999997,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) lists previous versions behind Edit history, newest first, with who changed what",
+          "status": "passed",
+          "title": "lists previous versions behind Edit history, newest first, with who changed what",
+          "duration": 874.0954000000056,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) restores a previous version through the Edit details dialog",
+          "status": "passed",
+          "title": "restores a previous version through the Edit details dialog",
+          "duration": 1314.2759000000005,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) saves nothing when you cancel",
+          "status": "passed",
+          "title": "saves nothing when you cancel",
+          "duration": 1050.1984000000011,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) withdraws an active document after confirming, and shows it as Withdrawn (AC12)",
+          "status": "passed",
+          "title": "withdraws an active document after confirming, and shows it as Withdrawn (AC12)",
+          "duration": 1192.2511999999988,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) calls nothing when you cancel a withdrawal",
+          "status": "passed",
+          "title": "calls nothing when you cancel a withdrawal",
+          "duration": 989.1500000000015,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) shows the reason in the dialog when a withdrawal fails, and keeps it open",
+          "status": "passed",
+          "title": "shows the reason in the dialog when a withdrawal fails, and keeps it open",
+          "duration": 1006.6057000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) says nothing changed when the gateway can’t be reached during a withdrawal",
+          "status": "passed",
+          "title": "says nothing changed when the gateway can’t be reached during a withdrawal",
+          "duration": 808.6106999999975,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) shows who withdrew a document and when, with no Edit details (AC14, AC15)",
+          "status": "passed",
+          "title": "shows who withdrew a document and when, with no Edit details (AC14, AC15)",
+          "duration": 750.6782000000021,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) hides Restore on a withdrawn document’s edit history",
+          "status": "passed",
+          "title": "hides Restore on a withdrawn document’s edit history",
+          "duration": 602.9974999999977,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) reinstates a withdrawn document after confirming, and shows it as Active (AC16)",
+          "status": "passed",
+          "title": "reinstates a withdrawn document after confirming, and shows it as Active (AC16)",
+          "duration": 886.9792000000016,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) can withdraw and reinstate the same document again with its details open",
+          "status": "passed",
+          "title": "can withdraw and reinstate the same document again with its details open",
+          "duration": 1005.4024999999965,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) shows the reason in the dialog when a reinstatement fails, and keeps it open",
+          "status": "passed",
+          "title": "shows the reason in the dialog when a reinstatement fails, and keeps it open",
+          "duration": 867.5777999999991,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Knowledge base documents (KB-01)"],
+          "fullName": "Knowledge base documents (KB-01) filters by status, and counts and clears it like the other filters",
+          "status": "passed",
+          "title": "filters by status, and counts and clears it like the other filters",
+          "duration": 726.5075999999972,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348239559,
+      "endTime": 1791348276151.5076,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/knowledge-base/knowledgeDocuments.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell shows the unread count from the session on the bell",
+          "status": "passed",
+          "title": "shows the unread count from the session on the bell",
+          "duration": 1370.5124000000014,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell shows no count when nothing is unread",
+          "status": "passed",
+          "title": "shows no count when nothing is unread",
+          "duration": 82.27669999999853,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell opens the dropdown and loads the first page",
+          "status": "passed",
+          "title": "opens the dropdown and loads the first page",
+          "duration": 686.7330000000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell renders exactly pageSize rows, and a different pageSize changes that",
+          "status": "passed",
+          "title": "renders exactly pageSize rows, and a different pageSize changes that",
+          "duration": 895.5026999999991,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell offers Load more while fewer than the total are loaded, and appends the next page",
+          "status": "passed",
+          "title": "offers Load more while fewer than the total are loaded, and appends the next page",
+          "duration": 622.0792000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell hides Load more once every notification is loaded",
+          "status": "passed",
+          "title": "hides Load more once every notification is loaded",
+          "duration": 299.2042000000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell marks one read, dropping the unread count but keeping the row",
+          "status": "passed",
+          "title": "marks one read, dropping the unread count but keeping the row",
+          "duration": 341.66170000000056,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell marks all read: badge clears, rows stay",
+          "status": "passed",
+          "title": "marks all read: badge clears, rows stay",
+          "duration": 361.73289999999906,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell hides Mark all as read when nothing is unread",
+          "status": "passed",
+          "title": "hides Mark all as read when nothing is unread",
+          "duration": 133.13760000000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell dismisses all: empties the list and hides Load more",
+          "status": "passed",
+          "title": "dismisses all: empties the list and hides Load more",
+          "duration": 235.6301999999996,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell expands a long message in place",
+          "status": "passed",
+          "title": "expands a long message in place",
+          "duration": 183.77699999999822,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell shows an error with a next step when the gateway fails, without blanking",
+          "status": "passed",
+          "title": "shows an error with a next step when the gateway fails, without blanking",
+          "duration": 159.83789999999863,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell shows an empty state when there are no notifications",
+          "status": "passed",
+          "title": "shows an empty state when there are no notifications",
+          "duration": 61.702000000001135,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell closes on Escape",
+          "status": "passed",
+          "title": "closes on Escape",
+          "duration": 110.75040000000081,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["NotificationBell"],
+          "fullName": "NotificationBell updates the badge from the count poll without a reload",
+          "status": "passed",
+          "title": "updates the badge from the count poll without a reload",
+          "duration": 53.41330000000016,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348264878,
+      "endTime": 1791348270476.4133,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/features/notifications/notifications.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Popover"],
+          "fullName": "Popover is closed by default and marks the trigger not expanded",
+          "status": "passed",
+          "title": "is closed by default and marks the trigger not expanded",
+          "duration": 523.2083999999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Popover"],
+          "fullName": "Popover opens on the trigger, revealing its content and marking it expanded",
+          "status": "passed",
+          "title": "opens on the trigger, revealing its content and marking it expanded",
+          "duration": 118.8814999999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Popover"],
+          "fullName": "Popover marks the trigger as a popup control for assistive tech",
+          "status": "passed",
+          "title": "marks the trigger as a popup control for assistive tech",
+          "duration": 33.69659999999931,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Popover"],
+          "fullName": "Popover closes on Escape",
+          "status": "passed",
+          "title": "closes on Escape",
+          "duration": 49.91749999999956,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Popover"],
+          "fullName": "Popover closes on a click outside, but not on a click inside",
+          "status": "passed",
+          "title": "closes on a click outside, but not on a click inside",
+          "duration": 84.51249999999891,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Popover"],
+          "fullName": "Popover returns focus to the trigger when it closes",
+          "status": "passed",
+          "title": "returns focus to the trigger when it closes",
+          "duration": 34.14179999999942,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["Popover"],
+          "fullName": "Popover names the surface for assistive tech",
+          "status": "passed",
+          "title": "names the surface for assistive tech",
+          "duration": 44.89390000000094,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1791348271052,
+      "endTime": 1791348271941.8938,
+      "status": "passed",
+      "message": "",
+      "name": "c:/Users/Kor/Documents/GitHub/ai-risk-report-generator/client/src/design-system/components/feedback/Popover.test.tsx"
+    }
+  ]
+}

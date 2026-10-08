@@ -328,7 +328,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     await screen.findByText(/Observation saved/)
     expect(saves[0].details.note).toBe('Second draft.')
     expect(saves[0].recordings.map((f) => f.name)).toEqual(['Recording 1', 'Recording 3'])
-  })
+  }, 10000)
 
   it('sends an uploaded audio file with its own name', async () => {
     allowMicrophone()

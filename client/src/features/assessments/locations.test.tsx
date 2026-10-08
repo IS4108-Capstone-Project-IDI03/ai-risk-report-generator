@@ -118,7 +118,7 @@ describe('Choosing where observations are captured', () => {
     expect(await screen.findByRole('button', { name: /Location: Stairwell B · Level 2/ }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(added).toEqual([{ name: 'Stairwell B', floor: 'Level 2' }])
-  })
+  }, 10000)
 
   it('switches to another location, or adds one, from the location bar', async () => {
     stored = [

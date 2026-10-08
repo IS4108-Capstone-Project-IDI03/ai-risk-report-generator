@@ -25,9 +25,11 @@
   hardcode "anthropic" or "gemini" in application code.
 - All metadata fields on a MongoDB document must include: source_type,
   jurisdiction, facility_type, COPE_dimension, effective_date. See
-  docs/areas/database.md before writing any new schema. One exception: an
+  docs/areas/database.md before writing any new schema. Two exceptions: an
   uncategorised observation stores `COPE_dimension: null` (present, but
-  null), which keeps it out of category-scoped drafting (CP-02).
+  null), which keeps it out of category-scoped drafting (CP-02); and a
+  knowledge document's Unconfirmed details are `null` (IN-05), while its
+  passages omit those keys and stay out of search until the admin fills them in.
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

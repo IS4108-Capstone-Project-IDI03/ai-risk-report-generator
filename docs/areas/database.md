@@ -359,7 +359,8 @@ permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
 source type would leave the file in the wrong folder); the record keeps `file`
 (`key`, `contentType`, `size`, `sha256`).
 
-The source type decides which details the admin gives:
+The details are read from the PDF at upload (IN-05, see "Automatic labelling"
+below) and corrected by the admin (KB-01). The source type decides which apply:
 
 | Field | Standard (`fm_standard`, `nfpa_standard`) | Past report (`marsh_report`) |
 | --- | --- | --- |
@@ -369,24 +370,74 @@ The source type decides which details the admin gives:
 | `metadata.effective_date` | the edition's effective date | the report date |
 | `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
 | `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
-| `metadata.COPE_dimension` | `all` | `all` |
+| `metadata.COPE_dimension` | `all` | `all` (each passage carries its own, see below) |
 
 `jurisdiction: 'all'` is the only value that isn't a two-letter code; like
 `facility_type: 'all'`, retrieval must treat it as matching any site. Every
-passage (chunk) in Chroma carries its document's five labels (`source_type`,
-`jurisdiction`, `facility_type`, `COPE_dimension`, `effective_date` as
-`YYYY-MM-DD`) next to the pipeline's `doc_id`, `headings`, pages and `bbox`: the
-worker adds them at ingest, and a correction rewrites them in place (KB-01).
-Each passage also carries a sixth label, `status` (`active` or `withdrawn`,
-KB-01): the worker always writes `active`, and withdraw and reinstate rewrite it
-in place. Passages indexed before the status label existed have no `status`; retrieval treats that
-as active.
+passage (chunk) in Chroma carries its document's labels (`source_type`,
+`jurisdiction`, `facility_type`, `effective_date` as `YYYY-MM-DD`) next to the
+pipeline's `doc_id`, `headings`, pages and `bbox`: the worker adds them at
+ingest, and a correction rewrites them in place (KB-01). An Unconfirmed detail
+(IN-05) is left out of the passage, since Chroma can't store null, so no filter
+can match it.
+
+Each passage's `COPE_dimension` is its own (IN-05): during ingestion, a past
+report's passage gets the COPE category of the report section it sits under,
+from the outermost heading in its `headings` that names a mapped section
+(`Construction` → Construction; `Occupancy, Hazards, and Utilities` →
+Occupancy; `Fire Protection` and `Security` → Protection; `External Exposures`
+→ Exposure; titles only, never section numbers). Every other passage, and
+every passage of a standard or of a document whose source type is Unconfirmed,
+is `all`. The map is in `microservices/ingestion-service/app/pipeline/cope.py`.
+A relabel never sends `COPE_dimension`, so a correction keeps each passage's
+own.
+
+Each passage also carries `status`: `active`, `withdrawn` (KB-01) or
+`needs_review` (IN-05: the document has an Unconfirmed detail). The worker
+writes `needs_review` or `active` at ingest; a correction, withdraw and reinstate
+rewrite it in place (reinstating a document that still has Unconfirmed details
+gives `needs_review`). Retrieval returns only passages that are neither
+`withdrawn` nor `needs_review`. Passages indexed before the status label
+existed have no `status`; retrieval treats that as active.
+
+#### Automatic labelling (IN-05)
+
+At upload the gateway asks the ingestion service's `POST /label` to read the
+PDF's first `LABEL_PAGES` pages (default 20; pages without a text layer in the
+first 5 are OCR'd) and fill in the six details. A detail the models are not
+confident about is **Unconfirmed**: stored as `null` in `metadata` (or no
+`edition`), the one exception to the CLAUDE.md metadata rule besides
+uncategorised observations. The title falls back to the file name, and
+`issuingBody` is `null` while the source type is Unconfirmed. Extra fields:
+
+- `unconfirmed`: the Unconfirmed detail names (`source_type`, `title`,
+  `edition`, `effective_date`, `jurisdiction`, `facility_type`); a report never
+  lists `edition`. Non-empty means the document **needs review**. Written by the
+  gateway at upload and emptied by a correction (which must give every
+  detail); the worker reads it to choose the passages' `status`. The API returns
+  it in camelCase.
+- `labelling`: `{ labelledAt, details: { <detail>: { value, confidence,
+  evidence: { page, quote } | null, model, source } } }`, what labelling found
+  (`source: 'auto'`). A correction sets each detail's `value` and `source:
+  'admin'`. Absent when labelling failed, in which case every detail is
+  Unconfirmed.
 
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
 (with `error`, the reason shown to the admin), all set by the ingestion worker,
 which also records `startedAt` and `finishedAt`. Rejected uploads are never
 stored.
+
+`retryCount` tracks how many times a knowledge admin has pressed Retry on a
+failed document. It is incremented atomically — inside the same
+`failed → queued` status flip in `retryIngestion` — so it counts human retries
+only, never automatic BullMQ re-runs of a stalled job. Its value is never
+shown to the user; its sole purpose is to make each retry's ingestion
+notification distinct: `retryCount` is carried in `context.attempt` of the
+notification payload, which `createNotification`'s dedupe key includes, so a
+document that fails, is retried, and fails again produces a second notification
+rather than being deduped into silence. Starts at 0; the `knowledge_documents`
+schema enforces that with `default: 0`.
 
 A `complete` document is **active**: it is what search can use, and the only
 kind the knowledge base lists or lets the admin correct (KB-01). A correction
@@ -412,12 +463,13 @@ as it was. The API returns `withdrawn` as `{ at, by } | null`.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName`, `sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType` and (standards only) `edition` are query values, as in the table above. 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
-| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with the same fields as upload, minus `fileName`. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
+| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
+| `POST /api/knowledge-documents/:id/retry` | Retries a failed ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears `error`/`finishedAt`, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not failed (someone already retried it), 503 queue unreachable (document left failed, counter rolled back). `knowledge:manage` only |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 ### Ingestion jobs (`ingestion_jobs`)
@@ -430,7 +482,10 @@ no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
 `pageTotal` (the page being chunked and the document's page count — progress is
 tracked by page because the chunk total is not knowable up front; both null until
 chunking reaches a page with provenance), `stageLog` (completed stages, each with
-`stage`, `startedAt`, `durationMs`), `currentStageStartedAt`, `startedAt`, and
+`stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
+progress when ingestion failed, written on failure so it need not be inferred
+from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),
+`currentStageStartedAt`, `startedAt`, and
 `updatedAt` (the worker
 sets `updatedAt` itself; the schema has no `timestamps`). Every write is an upsert
 on `documentId`, so a worker that crashes and is handed the job again resumes
@@ -439,6 +494,54 @@ is `processing`: the worker's final write moves the current stage into `stageLog
 and clears `currentStage`, so a `complete` or `failed` document carries no
 `progress`. Elapsed times (`elapsedMs`, `currentStageElapsedMs`) are computed on
 read, never stored.
+
+## Notifications
+
+`notifications` holds one document per event a user is told about, read by the
+header dropdown. A notification is **shared** by the users it targets rather than
+copied per user, so the plan is one document per event and per-user state held on
+it as lists of user ids.
+
+Fields: `purpose` (one of `ingestion_status`, `transcription_status`,
+`drafting_status`, `knowledge_document_status`, `account_status`,
+`assessment_status`), `message` (the line shown in the dropdown), `details` (the
+longer text behind the row's expand control, e.g. a failure reason),
+`targetRole` (a `USER_ROLES` value), `targetUserIds`, `readBy`, `dismissedBy`,
+`createdBy` and `createdByService`, and `context`.
+
+`targetUserIds` names who within the role sees it: user ids, or `['all']` for
+every user holding the role. It is required and must be non-empty — Mongoose
+treats `[]` as present, so the schema adds its own non-empty validator; without
+it a notification would save and then be shown to nobody.
+
+Read paths match `targetRole` against the **session's current role**, never a
+copy stored per recipient. That is what makes a role change take effect at once:
+a user moved from `knowledge_admin` to `risk_engineer` stops seeing the admin
+notifications on their next request, with no migration of existing documents.
+
+`readBy` and `dismissedBy` exist because the document is shared. Marking as read
+adds the caller to `readBy`; "mark all as read" adds them to `readBy` across
+everything they can see; "dismiss all" adds them to `dismissedBy`. None delete,
+since deleting a shared document would clear it for everyone else too — so one
+user reading or dismissing never changes what another user in the role sees.
+
+`createdBy` (a user) and `createdByService` (a service name) are both nullable,
+and normally exactly one is set: a notification raised by the ingestion worker
+has no user behind it, and there is no system or service role to point at.
+
+`context` is the purpose-specific payload, e.g. `{ documentId, stage }` for
+`ingestion_status`. It is deliberately **not** called `metadata`: in this
+codebase that name means the five mandatory label fields (see CLAUDE.md), and
+notifications carry none of them — they are not retrieval evidence.
+
+Indexes: `{ targetRole: 1, createdAt: -1 }` for the dropdown's query, and a TTL
+index on `createdAt` expiring documents after 90 days. The TTL is load-bearing:
+nothing else ever deletes a notification, because dismissing is per user.
+
+Purposes are a closed set so every notification has a known audience and a known
+screen to open. Only `ingestion_status` has a producer today. Deadline and
+reminder purposes are absent on purpose: nothing in the repo schedules work, so
+nothing could fire them.
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

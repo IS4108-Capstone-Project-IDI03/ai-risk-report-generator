@@ -22,6 +22,7 @@ dependencies so a worker can call it exactly as a CLI does.
 
 import sys
 
+from app.pipeline import cope
 from app.pipeline.anonymiser import anonymise
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
@@ -71,8 +72,10 @@ def run(
             ``f"{doc_id}:{n}"`` and never collide across documents.
             Defaults to the file name.
         labels: the document's labels (source type, country, facility type,
-            COPE dimension, effective date), added to every chunk's metadata
-            so search can filter on them (KB-01).
+            effective date, status; a key is absent when Unconfirmed), added to
+            every chunk's metadata so search can filter on them (KB-01). The
+            COPE dimension is not taken from here: each chunk gets its own from
+            its heading trail (IN-05).
         reporter: an optional ProgressReporter (E2) that records each stage
             transition to MongoDB. When omitted, a NoOpReporter is used so the
             stage calls below need no guards. On failure, run() re-raises
@@ -110,10 +113,22 @@ def run(
     _reporter.start_stage("chunking")
     chunks = this.chunk(parsed, doc_path=file_path, doc_id=doc_id, reporter=_reporter)
 
+    # A report's sections are read once from its fonts (IN-05); other documents need none.
+    labels = labels or {}
+    is_report = labels.get("source_type") == "marsh_report"
+    sections = cope.report_sections(file_path) if is_report else []
+
     _reporter.start_stage("anonymising")
     chunks = anonymise(chunks)
     for c in chunks:
-        c["metadata"].update(labels or {})
+        c["metadata"].update(labels)
+        # COPE is per passage (IN-05), from its section; it overrides any document-level value.
+        c["metadata"]["COPE_dimension"] = cope.cope_label(
+            labels.get("source_type"),
+            c["metadata"].get("headings"),
+            page=c["metadata"].get("page_start"),
+            sections=sections,
+        )
 
     _reporter.start_stage("indexing")
     chunks_indexed = index_chunks(chunks) if chunks else 0

@@ -29,6 +29,7 @@ it('renders every shared component and preserves the icon vocabulary', () => {
       <UI.Breadcrumb items={[{ label: 'Home' }, { label: 'Current' }]} />
       <UI.Callout title="Callout" />
       <UI.Dialog open={false} />
+      <UI.Popover open={false} onOpenChange={() => {}} trigger={<button>Bell</button>} />
       <UI.Toast message="Toast" />
       <UI.EmptyState title="Empty" />
       <UI.ProgressBar label="Complete" value={150} />
@@ -46,6 +47,7 @@ it('renders every shared component and preserves the icon vocabulary', () => {
     '100',
   )
   expect(UI.IconRegistry.resolve('action.generate')).toBe('sparkles')
+  expect(UI.IconRegistry.resolve('object.notifications')).toBe('bell')
   expect(UI.IconRegistry.resolve('missing.icon')).toBe('circle')
 })
 it('exposes native checkbox activation and keyboard tab selection', () => {

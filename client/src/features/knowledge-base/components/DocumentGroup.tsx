@@ -5,8 +5,9 @@ import { Badge, Icon } from '../../../design-system'
 import type { KnowledgeDocument, SourceType } from '../api'
 import { DocumentRow } from './DocumentRow'
 
-// One of the table's three headings (AC1).
-export type Group = { sourceType: SourceType; title: string; icon: string }
+// One of the table's headings (AC1); a null source type is the Unconfirmed
+// group (IN-05).
+export type Group = { sourceType: SourceType | null; title: string; icon: string }
 
 /** Returns one group's rows as a table body. */
 export function DocumentGroup({
@@ -26,7 +27,7 @@ export function DocumentGroup({
   onHistory: (document: KnowledgeDocument) => void
   onChangeStatus: (document: KnowledgeDocument) => void
 }) {
-  const id = `kb-group-${group.sourceType}`
+  const id = `kb-group-${group.sourceType ?? 'unconfirmed'}`
   return (
     <tbody aria-labelledby={id}>
       <tr className="kb-band">

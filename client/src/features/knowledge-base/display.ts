@@ -2,7 +2,15 @@
 // recent uploads list (KnowledgeBase.tsx) and the documents list
 // (KnowledgeDocuments.tsx).
 import { JURISDICTIONS } from '../assessments/demo-data'
-import type { SourceType } from './api'
+import type { KnowledgeDocument, SourceType } from './api'
+
+// What an Unconfirmed detail (null, IN-05) reads as; components/DetailText.tsx
+// shows it in muted text.
+export const UNCONFIRMED = 'Unconfirmed'
+
+/** Returns whether a document needs review: an Unconfirmed detail, and not withdrawn (IN-05). */
+// A withdrawn document can't be edited, so it is not asked to be reviewed.
+export const needsReview = (d: KnowledgeDocument) => !d.withdrawn && d.unconfirmed.length > 0
 
 export const SOURCE_LABELS: Record<SourceType, string> = {
   fm_standard: 'FM standard',
@@ -10,14 +18,21 @@ export const SOURCE_LABELS: Record<SourceType, string> = {
   marsh_report: 'Marsh report',
 }
 
+/** Returns a source type as shown, "Unconfirmed" when null. */
+export function sourceLabel(type: SourceType | null): string {
+  return type ? SOURCE_LABELS[type] : UNCONFIRMED
+}
+
 /** Returns a country's name from its code, "All countries" for all. */
-export function countryName(code: string): string {
+export function countryName(code: string | null): string {
+  if (code === null) return UNCONFIRMED
   if (code === 'all') return 'All countries'
   return JURISDICTIONS.find((j) => j.value === code)?.label ?? code
 }
 
 /** Returns a facility type as shown, "All facility types" for all. */
-export function facilityName(type: string): string {
+export function facilityName(type: string | null): string {
+  if (type === null) return UNCONFIRMED
   return type === 'all' ? 'All facility types' : type
 }
 
@@ -26,7 +41,8 @@ export function facilityName(type: string): string {
  * no time. The month is cut to three letters, since some browsers write
  * September as "Sept".
  */
-export function calendarDate(iso: string): string {
+export function calendarDate(iso: string | null): string {
+  if (iso === null) return UNCONFIRMED
   const date = new Date(iso)
   const month = date.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }).slice(0, 3)
   return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}`

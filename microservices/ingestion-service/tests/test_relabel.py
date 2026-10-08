@@ -19,6 +19,8 @@ OLD = {
     "effective_date": "2024-03-12",
 }
 NEW = {**OLD, "jurisdiction": "SG", "facility_type": "Data centre"}
+# What the gateway sends now: no COPE_dimension, because each passage keeps its own (IN-05 AC10).
+BODY = {k: v for k, v in NEW.items() if k != "COPE_dimension"}
 
 
 class FakeCollection:
@@ -88,14 +90,12 @@ def test_no_collection_yet_updates_none(monkeypatch):
     assert response.json() == {"passagesUpdated": 0}
 
 
-def test_a_blank_or_missing_label_is_refused(monkeypatch):
+def test_a_blank_label_is_refused(monkeypatch):
     collection = FakeCollection({f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD}})
     install(monkeypatch, collection)
 
     blank = {**NEW, "jurisdiction": " "}
     assert client.put(f"/documents/{DOC_ID}/labels", json=blank).status_code == 422
-    no_date = {k: v for k, v in NEW.items() if k != "effective_date"}
-    assert client.put(f"/documents/{DOC_ID}/labels", json=no_date).status_code == 422
     assert collection.records[f"{DOC_ID}:0"]["jurisdiction"] == "MY"
 
 
@@ -119,3 +119,36 @@ def test_an_unknown_status_is_refused(monkeypatch):
 
     assert response.status_code == 422
     assert "status" not in collection.records[f"{DOC_ID}:0"]
+
+
+def test_relabel_keeps_each_passages_own_cope_and_ignores_one_in_the_body(monkeypatch):
+    # IN-05 AC10: per-passage COPE is never overwritten by a relabel.
+    collection = FakeCollection(
+        {
+            f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD, "COPE_dimension": "Construction"},
+            f"{DOC_ID}:1": {"doc_id": DOC_ID, **OLD, "COPE_dimension": "Protection"},
+        }
+    )
+    install(monkeypatch, collection)
+
+    client.put(f"/documents/{DOC_ID}/labels", json=BODY)
+    client.put(f"/documents/{DOC_ID}/labels", json={**BODY, "COPE_dimension": "all"})
+
+    assert collection.records[f"{DOC_ID}:0"]["COPE_dimension"] == "Construction"
+    assert collection.records[f"{DOC_ID}:1"]["COPE_dimension"] == "Protection"
+    assert collection.records[f"{DOC_ID}:1"]["jurisdiction"] == "SG"
+
+
+def test_needs_review_is_accepted_and_missing_details_keep_the_passage_values(monkeypatch):
+    # IN-05: an Unconfirmed detail is simply not sent; the passage keeps what it has.
+    collection = FakeCollection({f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD}})
+    install(monkeypatch, collection)
+
+    response = client.put(f"/documents/{DOC_ID}/labels", json={"status": "needs_review"})
+
+    assert response.status_code == 200
+    assert collection.records[f"{DOC_ID}:0"] == {
+        "doc_id": DOC_ID,
+        **OLD,
+        "status": "needs_review",
+    }

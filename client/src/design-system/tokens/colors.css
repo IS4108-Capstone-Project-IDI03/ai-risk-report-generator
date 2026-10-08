@@ -39,8 +39,12 @@
   --green-50: #e2f6ea;
   --green-600: #2f7049;
   --amber-50: #fdf1d8;
+  /* A step stronger than the 50 tint, for a count that must catch the eye
+     (the Documents tab's needs-review count, IN-05); 5.7:1 with --amber-700. */
+  --amber-100: #f9dda0;
   --amber-500: #d6912c;
   --amber-600: #8f5f13;
+  --amber-700: #744c0e;
   --red-50: #fdeae8;
   --red-600: #ad2e2d;
   --violet-50: #eeecfb;

@@ -1,9 +1,29 @@
-// Browser → gateway requests for knowledge base documents (IN-01, KB-01).
+// Browser → gateway requests for knowledge base documents (IN-01, KB-01, IN-05).
 // uploads.ts uses the upload; KnowledgeBase.tsx uses the recent uploads list;
 // KnowledgeDocuments.tsx uses the active list, corrections, withdraw and reinstate. A failed request
 // throws a GatewayError carrying the HTTP status, which uploads.ts reads to
 // decide what happens to the row.
 import { request } from '../accounts/api'
+import { GatewayError, reportSessionEnded } from '../assessments/api'
+
+// A gateway call that returns no body (e.g. the 202 from retry). The shared
+// `request` always parses JSON, which an empty 202 cannot provide, so these
+// mirror its error and 401 handling without the parse.
+async function send(path: string, init: RequestInit): Promise<void> {
+  let response: Response
+  try {
+    response = await fetch(path, init)
+  } catch (error: unknown) {
+    if (init.signal?.aborted) throw error
+    throw new GatewayError(null)
+  }
+  if (response.status === 502 || response.status === 504) throw new GatewayError(null)
+  if (response.status === 401) reportSessionEnded()
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new GatewayError(response.status, problem.error)
+  }
+}
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'marsh_report'
 export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed'
@@ -36,8 +56,8 @@ export type IngestionProgress = {
   stageLog: { stage: string; startedAt: string; durationMs: number }[]
 }
 
-// What the admin enters for each file. Which fields apply depends on the
-// source type (see uploads.ts); unused ones stay ''. effectiveDate is
+// What the admin enters in Edit details. Which fields apply depends on the
+// source type (see details.ts); unused ones stay ''. effectiveDate is
 // YYYY-MM-DD (a standard's effective date, or a report's report date); edition
 // is a standard's year.
 export type DocumentDetails = {
@@ -49,19 +69,27 @@ export type DocumentDetails = {
   facilityType: string
 }
 
+// The details labelling can leave Unconfirmed (IN-05); matches DetailDtoName
+// in server/src/services/knowledge-document.service.ts.
+export type UnconfirmedDetail =
+  'sourceType' | 'title' | 'edition' | 'effectiveDate' | 'jurisdiction' | 'facilityType'
+
 // One accepted document as the gateway sends it; matches toDto() in
-// server/src/services/knowledge-document.service.ts.
+// server/src/services/knowledge-document.service.ts. A detail that is null
+// is Unconfirmed (IN-05).
 export type KnowledgeDocument = {
   id: string
   title: string
-  issuingBody: string
-  // null for a past report, which has no edition.
+  issuingBody: string | null
+  // null for a past report, which has no edition, or while Unconfirmed.
   edition: string | null
   fileName: string
-  sourceType: SourceType
-  jurisdiction: string
-  facilityType: string
-  effectiveDate: string
+  sourceType: SourceType | null
+  jurisdiction: string | null
+  facilityType: string | null
+  effectiveDate: string | null
+  // The details still Unconfirmed; non-empty means "Needs review".
+  unconfirmed: UnconfirmedDetail[]
   size: number
   status: IngestionStatus
   error: string | null
@@ -78,12 +106,12 @@ export type KnowledgeDocument = {
 // One previous version of a document's details: what a correction replaced,
 // when, and who saved that correction.
 export type DocumentVersion = {
-  sourceType: SourceType
+  sourceType: SourceType | null
   title: string
   edition: string | null
-  effectiveDate: string
-  jurisdiction: string
-  facilityType: string
+  effectiveDate: string | null
+  jurisdiction: string | null
+  facilityType: string | null
   replacedAt: string
   replacedBy: { id: string; name: string }
 }
@@ -110,6 +138,14 @@ export function listIngestedDocuments(signal?: AbortSignal): Promise<KnowledgeDo
 // type becomes "all").
 const filled = (details: DocumentDetails) =>
   Object.entries(details).filter(([, value]) => value !== '')
+const EMPTY_DETAILS: DocumentDetails = {
+  sourceType: '',
+  title: '',
+  edition: '',
+  effectiveDate: '',
+  jurisdiction: '',
+  facilityType: '',
+}
 
 // Saves a document's corrected details and returns the stored document (KB-01).
 export function correctKnowledgeDocument(
@@ -138,12 +174,20 @@ export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
   )
 }
 
+// Retries a failed ingestion without re-uploading (the gateway reuses the
+// stored PDF and details). 202 on accept; the document returns to the list as
+// queued. Rejects with the gateway's status: 409 if it is no longer failed
+// (someone retried it already), 404 if gone, 503 if the queue is unreachable.
+export function retryIngestion(id: string): Promise<void> {
+  return send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' })
+}
+
 // Sends one PDF with its details and returns the queued document. The body is
 // the raw PDF and the details go in the URL's query string, so the gateway
 // needs no multipart-form library.
 export function uploadKnowledgeDocument(
   file: File,
-  details: DocumentDetails,
+  details: DocumentDetails = EMPTY_DETAILS,
 ): Promise<KnowledgeDocument> {
   const query = new URLSearchParams([['fileName', file.name], ...filled(details)])
   return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {

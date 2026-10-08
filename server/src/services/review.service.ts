@@ -34,11 +34,11 @@ export type SourcePassageDto = {
   // shows; null when the document has no record there.
   document: {
     title: string
-    issuingBody: string
-    sourceType: string
+    issuingBody: string | null
+    sourceType: string | null
     edition: string | null
     // YYYY-MM-DD: a standard's effective date, or a past report's date.
-    effectiveDate: string
+    effectiveDate: string | null
     withdrawnAt: Date | null
     fileUrl: string
   } | null
@@ -168,7 +168,7 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
             unsupportedStatements: 0,
             withdrawnSources: 0,
             changesSinceDraft: 0,
-            changeCounts: { added: 0, changed: 0, removed: 0 },
+            changeCounts,
           },
           draft: null,
           sources: {},

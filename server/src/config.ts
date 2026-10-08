@@ -25,4 +25,5 @@ export const config = {
   awsRegion: requireEnv('AWS_REGION'),
   s3Bucket: requireEnv('S3_BUCKET'),
   redisUrl: requireEnv('REDIS_URL'),
+  serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
 }

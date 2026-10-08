@@ -69,34 +69,83 @@ eval.interpret_photos`).
 
 ## Knowledge document ingestion (IN-01)
 
-1. The admin picks PDFs on the Knowledge base screen and enters each file's
-   details. The client sends one `POST /api/knowledge-documents` per file, so a
-   rejected file never blocks the others.
+1. The admin drops or picks PDFs on the Knowledge base screen; nothing else is
+   asked (IN-05). The client sends one `POST /api/knowledge-documents?fileName=…`
+   per file as soon as it is added, so a rejected file never blocks the others.
 2. The gateway rejects anything that is not a PDF (Content-Type and `%PDF-`
    header, 415), then asks the ingestion service's `POST /inspect` to open it
    with PyMuPDF (422 with the reason if it is corrupt, password-protected or has
    no pages). Nothing is stored for a rejected file.
-3. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
+3. The gateway asks the ingestion service's `POST /label` for the file's
+   details (IN-05, see "Automatic labelling" below; 180 s timeout). If labelling
+   fails, the upload still goes ahead with every detail Unconfirmed.
+4. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
    `knowledge_documents` as `queued` and adds a BullMQ job (`jobId` = document
    id) to the `ingestion` queue in Redis. If the queue is down, it removes the
    record and the file and answers 503.
-4. `ingestion-worker` (same image as the ingestion service, `python -m
+5. `ingestion-worker` (same image as the ingestion service, `python -m
    app.worker`, concurrency 1) claims the document, downloads the original,
    runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`
-   so chunk ids are `<id>:<n>` and every passage carries the document's five
-   labels (KB-01). The `ProgressReporter` writes each stage transition to the
+   so chunk ids are `<id>:<n>` and every passage carries the document's
+   labels (KB-01; an Unconfirmed one is left out, and `status` is
+   `needs_review` while any detail is Unconfirmed) and its own COPE label
+   (IN-05, from the report section it sits in). The `ProgressReporter` writes each stage transition to the
    `ingestion_jobs` collection in MongoDB (E2), and the gateway merges this into
    the `KnowledgeDocument` DTO as `progress` while the document is `processing`.
    The worker records `complete` with counts or `failed` with the reason on
    `knowledge_documents` as before. A job whose worker died mid-run is
    redelivered by BullMQ and processed again.
-5. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
+6. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
    document is queued or processing, showing each processing document's stage,
    elapsed time and, while chunking, the page reached out of the document's page
    total from `progress` (E2). Pages are shown rather than a chunk count because
    the chunk total is not knowable up front.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
+
+## Automatic labelling (IN-05)
+
+`POST /label` on the ingestion service (body: the PDF) reads the document's
+six details: source type, title, edition, effective date, country and facility
+type. Code: `microservices/ingestion-service/app/labelling/`.
+
+1. **Pages.** PyMuPDF text of the first `LABEL_PAGES` pages (default 20:
+   Marsh reports state the country, via "Currency: SGD", only on pages 12–20).
+   A page with no text layer in the first 5 is OCR'd with the IN-06 engine
+   selection (Apple Vision natively on macOS, RapidOCR in Docker), then treated
+   like any other page. Each page is wrapped in `<page n="…">` so answers can
+   cite it.
+2. **Models**, chosen by settings, never hardcoded:
+   - fixed-list details (source type, country, facility type): a classifier,
+     `LABEL_CLASSIFIER` = `jev` (TypeSafe System One) or `openai-decisions`
+     (OpenAI Decisions API), or `none` to let the LLM answer them; confidence is
+     the classifier's probability for its choice.
+   - free-text details (title, edition, effective date): the LLM,
+     `LABEL_LLM_PROVIDER` = `anthropic` or `openai` with `LABEL_LLM_MODEL`,
+     structured output with a page and quote per detail.
+   The two calls run in parallel; each logs model, tokens, cost and seconds.
+3. **Rules.** A fixed-list value counts only at or above `LABEL_MIN_CONFIDENCE`
+   and on its allowed list. A free-text value counts only if its text appears
+   in the pages (dates in any common written form). A report has no edition;
+   only a standard may apply to `all` countries or facility types, and a
+   standard that names none gets `all`. Anything else is Unconfirmed (`null`).
+   The effective date is never Unconfirmed: a standard gets the upload date, a
+   report keeps its grounded date or else gets the upload date (model `default`,
+   Singapore date; the gateway defaults it the same way if /label fails).
+4. **Failure.** If only the classifier fails, the fixed-list details use the
+   LLM's own answers. If the LLM call fails, every detail except the effective
+   date is Unconfirmed. The endpoint still answers 200. Only a PDF that will not
+   open gets 422.
+
+The gateway checks each value again before storing it (see
+[database.md](database.md) "Automatic labelling"). A document with an
+Unconfirmed detail is listed as **Needs review**, its passages carry `status:
+needs_review`, and retrieval skips them until an admin saves every detail
+through Edit details (KB-01).
+
+The model choice and `LABEL_MIN_CONFIDENCE` come from the evaluation in
+`microservices/ingestion-service/eval/labelling/` (run by hand: it calls paid
+APIs). See [DECISIONS](../DECISIONS.md).
 
 ## Correcting a knowledge document (KB-01)
 
@@ -106,7 +155,8 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
    The gateway validates them as at upload, refuses a document that is not
    active (409), keeps a copy of the old details and saves the new ones.
 3. The gateway calls the ingestion service's `PUT /documents/{id}/labels` (via
-   `INGESTION_SERVICE_URL`) with the five labels. It finds the passages by
+   `INGESTION_SERVICE_URL`) with the labels (never `COPE_dimension`, so each
+   passage keeps its own; IN-05) and `status`. It finds the passages by
    `doc_id` and merges the labels into their Chroma metadata, keeping
    `headings`, pages and `bbox`. Nothing is re-parsed or re-embedded. It
    returns `{ "passagesUpdated": n }` (0 if the document has no passages).
@@ -124,11 +174,12 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
    reinstate needs a withdrawn one.
 2. The gateway saves or removes `withdrawn` (who and when), then calls the
    ingestion service's `PUT /documents/{id}/labels` with the labels plus
-   `status` (`withdrawn` or `active`). No re-parsing or re-embedding.
+   `status` (`withdrawn`, or `needs_review` / `active` depending on whether a
+   detail is still Unconfirmed). No re-parsing or re-embedding.
 3. If that call fails, the gateway puts `withdrawn` back and answers 503, so
    the document keeps its old state.
 4. Retrieval skips withdrawn passages: the RAG service's `retrieve()` always
-   excludes `status: withdrawn`, so `/retrieve` and `/generate` both skip them.
+   excludes `status: withdrawn` (and `needs_review`, IN-05), so `/retrieve` and `/generate` both skip them.
    Reinstating brings them back without uploading again.
 
 ## Report section drafting (S4, GN-01)

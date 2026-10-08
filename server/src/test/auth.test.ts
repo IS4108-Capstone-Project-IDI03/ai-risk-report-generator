@@ -5,6 +5,7 @@ import app from '../index'
 import { UserModel } from '../models/user.model'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs } from './auth-test-helpers'
+import { createNotification } from '../services/notification.service'
 
 useMemoryMongo()
 
@@ -105,6 +106,56 @@ describe('Sliding session expiry (F-07)', () => {
   })
 })
 
+// Polling the notification count must not keep an idle session alive — the
+// whole point of the no-refresh gate on that route (F-07 still holds).
+describe('Notification count polling and session expiry', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not extend the session when only the count is polled', async () => {
+    await seedUser({ email: 'poller@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'poller@example.com', password: 'correct horse' })
+
+    // Poll the count within the 15-minute window. A refreshing route would
+    // reset the clock on each poll and keep the session alive indefinitely;
+    // the count route must not, so these polls succeed but do not extend it.
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000) // 10 min since login
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+
+    // Cross 15 minutes since login with no refreshing request. Had the polls
+    // refreshed the session it would still be valid; because they did not, it
+    // has expired — the next poll is rejected, and so is a real route.
+    vi.advanceTimersByTime(6 * 60 * 1000) // 16 min since login
+    expect((await agent.get('/api/notifications/count')).status).toBe(401)
+    expect((await agent.get('/api/auth/me')).status).toBe(401)
+  })
+
+  it('still lets real activity keep the session alive while polling', async () => {
+    await seedUser({ email: 'active-poller@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'active-poller@example.com', password: 'correct horse' })
+
+    // A refreshing request (/me) at 14 min resets the clock; a later poll does
+    // not undo that, so the session is still valid 10 min after the refresh.
+    vi.advanceTimersByTime(14 * 60 * 1000)
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+  })
+})
+
 describe('POST /api/auth/logout (F-07 AC4)', () => {
   it('invalidates the session, not just the browser cookie', async () => {
     await seedUser({ email: 'logout@example.com' })
@@ -136,6 +187,68 @@ describe('GET /api/auth/me', () => {
     const res = await agent.get('/api/auth/me')
     expect(res.status).toBe(200)
     expect(res.body.user).toMatchObject({ role: 'risk_engineer', name: 'Jide Okafor' })
+  })
+})
+
+// The session carries the user's notification counts, so the header can show
+// the unread badge and decide whether to offer Load more without a separate
+// fetch on sign-in (Task 5).
+describe('session notification counts', () => {
+  it('includes zero counts for a user with no notifications on login', async () => {
+    await seedUser()
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+    expect(res.status).toBe(200)
+    expect(res.body.notifications).toEqual({ total: 0, unread: 0 })
+  })
+
+  it('counts the login user\u2019s role notifications', async () => {
+    await seedUser() // a risk_engineer
+    await createNotification({
+      purpose: 'assessment_status',
+      message: 'A report is ready for review.',
+      targetRole: 'risk_engineer',
+      targetUserIds: ['all'],
+    })
+    // A knowledge-admin notification the engineer must not be counted.
+    await createNotification({
+      purpose: 'ingestion_status',
+      message: 'A document failed to ingest.',
+      targetRole: 'knowledge_admin',
+      targetUserIds: ['all'],
+    })
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+
+    expect(res.body.notifications).toEqual({ total: 1, unread: 1 })
+  })
+
+  it('includes the counts on /api/auth/me too', async () => {
+    const user = await seedUser()
+    await createNotification({
+      purpose: 'assessment_status',
+      message: 'A report is ready for review.',
+      targetRole: 'risk_engineer',
+      targetUserIds: ['all'],
+    })
+    const agent = signedInAs(app, user)
+
+    const res = await agent.get('/api/auth/me')
+
+    expect(res.body.notifications).toEqual({ total: 1, unread: 1 })
+  })
+
+  it('leaves the existing user and permissions fields intact', async () => {
+    await seedUser()
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+
+    expect(res.body.user).toMatchObject({ role: 'risk_engineer', name: 'Jide Okafor' })
+    expect(res.body.permissions).toContain('assessments:view')
   })
 })
 
