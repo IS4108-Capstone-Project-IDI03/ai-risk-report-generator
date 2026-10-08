@@ -26,6 +26,47 @@ recording fails with "The speech service could not be reached", S5 is not runnin
 the gateway was started with the Docker hostname. S5 also needs the AWS
 credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 
+## Photo interpretation (S5, CP-05)
+
+1. Saving an observation with photos stores them in S3 (CP-04) and saves the
+   observation with `interpretation.status: 'interpreting'`: one
+   interpretation covering all its photos (see
+   [database](database.md#observations)).
+2. The gateway posts `{ "s3_keys": [...], "location": ..., "note": ... }` to
+   S5's `POST /interpret` without making the client wait. The location is the
+   observation's location and floor ("L43 pump room · Level 43"); the note is
+   as the engineer wrote it. The engineer's category and severity are not
+   sent, so the proposed category is the model's own.
+3. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
+   from its EXIF orientation, shrinks it to 1600 px on the long edge and
+   re-encodes it as JPEG for the model only; the original in S3 is never
+   changed. It sends them to the provider named by `VISION_PROVIDER` (only
+   Gemini is implemented: `VISION_MODEL`, default `gemini-3.8-flash`, needs a
+   paid-tier `GEMINI_API_KEY`, with `store: false`) and asks for a fixed
+   answer:
+   - `description`, in the form Marsh's reports use ("During the site visit
+     to …, it was observed that …");
+   - `cope_dimension`, one of the four categories;
+   - `hazard_type`, one of the OFI Types in Marsh's sample reports, `Other`,
+     or `No hazard visible`, so the model never has to invent a hazard.
+   It returns those with the provider, model, `prompt_version` and token
+   `usage` (null when the provider reports none), or 502 with `detail`. Like
+   transcription, it writes nothing to MongoDB.
+4. The gateway stores the proposal, or the failure reason, on the
+   observation. A failure can be retried; a restart marks an attempt still
+   running as failed. The client re-reads the list every 3 seconds while any
+   observation is interpreting.
+5. The proposal is for the engineer to review and is never drafting evidence:
+   drafting does not wait for it, never reads it, and a draft does not go out
+   of date when it arrives. On the Observations tab, Use as note and Change
+   category open the Edit dialog with the proposal filled in; only saving it
+   makes it the engineer's own.
+
+Running S5 outside Docker: as for transcription, plus `GEMINI_API_KEY`. The
+reference photos for judging the prompt are in
+`microservices/speech-ocr-service/eval/` (`uv run --extra dev python -m
+eval.interpret_photos`).
+
 ## Knowledge document ingestion (IN-01)
 
 1. The admin picks PDFs on the Knowledge base screen and enters each file's
