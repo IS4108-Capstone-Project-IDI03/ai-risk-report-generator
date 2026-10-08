@@ -231,6 +231,15 @@ APIs). See [DECISIONS](../DECISIONS.md).
 Nothing is written: the workspace only reads. A 503 means S4 could not be
 reached for the template's sections.
 
+## Password reset email (F-06)
+
+`requestPasswordReset` in `server/src/services/auth.service.ts` emails a link `APP_URL/?reset=<code>`. The sign-in screen reads `?reset=`, opens the new-password step with the code filled in, and removes it from the address bar.
+
+- **Real email:** set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` in `.env`. For Gmail, `SMTP_PASS` is an app password (Google account → Security → App passwords; needs 2-step verification).
+- **No `SMTP_HOST`:** nothing is sent. The code is printed in the server console (CI and fresh checkouts).
+- **Mail failure:** logged, and the API answers exactly as on success, so a mail outage never reveals which addresses are registered.
+- The code is single-use and expires after 30 minutes.
+
 ## Idle sign-out (F-07)
 
 The gateway ends a session after 15 idle minutes. The browser also runs its own 15-minute timer (`client/src/features/auth/useIdleTimeout.ts`), because the gateway can't tell an idle page its session ended. The two values must match.
