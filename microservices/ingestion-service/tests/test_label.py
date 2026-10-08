@@ -347,6 +347,8 @@ def test_openai_decisions_adapter_ignores_groq_base_url(monkeypatch):
 
 def test_anthropic_adapter(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "ak")
+    monkeypatch.setenv("LABEL_LLM_PROVIDER", "anthropic")
+    monkeypatch.delenv("LABEL_LLM_MODEL", raising=False)
     data = {
         "stop_reason": "end_turn",
         "content": [{"text": '{"title": {"value": "T"}}'}],
@@ -358,6 +360,10 @@ def test_anthropic_adapter(monkeypatch):
     assert seen["headers"]["x-api-key"] == "ak"
     assert answers["title"]["value"] == "T"
     assert usage["cost_usd"] == pytest.approx(6.0)
+    assert seen["body"]["thinking"] == {"type": "disabled"}
+    # Haiku 5.5 is priced by its own row, not Haiku 4.5's.
+    monkeypatch.setenv("LABEL_LLM_MODEL", "claude-haiku-5-5")
+    assert models.anthropic_extract("t")[1]["cost_usd"] == pytest.approx(0.60)
     data["stop_reason"] = "refusal"
     with pytest.raises(RuntimeError):
         models.anthropic_extract("t")

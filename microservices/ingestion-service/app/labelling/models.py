@@ -147,6 +147,8 @@ def anthropic_extract(text: str) -> tuple[dict, dict]:
         {
             "model": model,
             "max_tokens": 1024,
+            # Off, like Luna's reasoning effort "none". Haiku 4.5 already runs without it.
+            "thinking": {"type": "disabled"},
             "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": text}],
             "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
@@ -156,7 +158,11 @@ def anthropic_extract(text: str) -> tuple[dict, dict]:
     if data.get("stop_reason") in ("refusal", "max_tokens"):
         raise RuntimeError(f"Anthropic stopped with {data['stop_reason']}")
     use = data["usage"]
-    usage = _usage(model, "claude-haiku-4-5", use["input_tokens"], use["output_tokens"], started)
+    # Price row = model name without its date (claude-haiku-4-5-20251001 -> claude-haiku-4-5).
+    # An unpriced model is logged at Haiku 4.5's price rather than crashing after a paid call.
+    price_key = re.sub(r"-\d{8}$", "", model)
+    price_key = price_key if price_key in config.PRICES else "claude-haiku-4-5"
+    usage = _usage(model, price_key, use["input_tokens"], use["output_tokens"], started)
     return json.loads(data["content"][0]["text"]), usage
 
 

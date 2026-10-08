@@ -9,7 +9,7 @@ import os
 from app.labelling import config, decide
 
 CLASSIFIERS = ("jev", "openai-decisions")
-LLMS = ("haiku", "luna")
+LLMS = ("haiku", "haiku-5.5", "luna")
 FREE = ("title", "edition", "effective_date")
 GROUP_CANDS = {"fixed": CLASSIFIERS + LLMS, "free": LLMS}
 GROUP_DETAILS = {"fixed": config.FIXED_LIST, "free": FREE}
