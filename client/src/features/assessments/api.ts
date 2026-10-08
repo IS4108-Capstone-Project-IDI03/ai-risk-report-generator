@@ -481,6 +481,63 @@ export async function listSections(
   return (await request<ReportSection[]>('GET', sectionsPath(reference), undefined, signal)).data
 }
 
+// A drafted Opportunity for Improvement for Section 3 (GN-05). Its value
+// lists come from rag-service generation/ofi.json; `priority` is the Risk
+// Assessment Matrix's value for likelihood x consequence, set in code.
+export type Ofi = {
+  id: string
+  title: string
+  category: string
+  type: string
+  description: string
+  observation: string
+  likelihood: string
+  consequence: string
+  priority: string
+  effort: string
+  // Observation ids it rests on, cited standards (`C:`) and the past-report OFI
+  // (`P:`) it was adapted from, with those passages by ID.
+  observations: string[]
+  standards: string[]
+  precedent: string | null
+  sources: SectionDraft['sources']
+  // The past report's title, from the knowledge base, or null if it has no record.
+  precedentReport: string | null
+  // Marsh's fixed fields, the same for a suggestion as once accepted.
+  status: string
+  issueDate: string | null
+  // The configuration that drafted it (prompt, value-list version, model).
+  provenance: {
+    provider: string
+    model: string
+    effort: string
+    prompt_version: string
+    config_version: string
+    generated_at: string
+  }
+}
+// An accepted OFI as it reads in the report, numbered in report order.
+export type AcceptedOfi = Ofi & { number: string }
+export type OfiList = { suggestions: Ofi[]; accepted: AcceptedOfi[] }
+
+const ofisPath = (reference: string) => `/api/assessments/${encodeURIComponent(reference)}/ofis`
+
+export async function listOfis(reference: string, signal?: AbortSignal): Promise<OfiList> {
+  return (await request<OfiList>('GET', ofisPath(reference), undefined, signal)).data
+}
+
+// Drafts OFI suggestions from the assessment's observations, replacing the
+// unaccepted ones; accepted OFIs stay.
+export async function draftOfis(reference: string): Promise<OfiList> {
+  return (await request<OfiList>('POST', `${ofisPath(reference)}/draft`)).data
+}
+
+// Accepts one suggestion into the report.
+export async function acceptOfi(reference: string, id: string): Promise<OfiList> {
+  return (await request<OfiList>('POST', `${ofisPath(reference)}/${encodeURIComponent(id)}/accept`))
+    .data
+}
+
 // Drafts one section from the assessment's observations; the gateway saves it.
 export async function draftSection(reference: string, sectionId: string): Promise<SectionDraft> {
   return (

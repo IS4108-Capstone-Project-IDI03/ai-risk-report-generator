@@ -33,6 +33,7 @@ import {
   saveObservation,
   UnknownLocationError,
 } from '../services/observation.service'
+import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
 import { RagServiceError } from '../services/rag.service'
 import { getReviewWorkspace } from '../services/review.service'
 import {
@@ -387,5 +388,62 @@ router.post(
 )
 
 router.use(tooLarge)
+
+// Section 3 Opportunities for Improvement (GN-05): suggestions and the
+// accepted OFIs in report order. Read-only, so a knowledge admin can open it.
+router.get('/:reference/ofis', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await listOfis(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// What both OFI writes answer for each failure: 404, 403 for anyone but the
+// assigned engineer, 409 while a transcription is unfinished or once archived,
+// 503 when S4 fails (not 502, which the client reads as the gateway being down).
+function ofiFailure(error: unknown, res: Response) {
+  if (error instanceof AssessmentNotFoundError || error instanceof OfiNotFoundError) {
+    res.status(404).json({ error: error.message })
+  } else if (error instanceof NotAssignedError) {
+    res.status(403).json({ error: error.message })
+  } else if (
+    error instanceof TranscriptionInProgressError ||
+    error instanceof AssessmentArchivedError
+  ) {
+    res.status(409).json({ error: error.message })
+  } else if (error instanceof RagServiceError) {
+    res.status(503).json({ error: error.message })
+  } else {
+    throw error
+  }
+}
+
+// Drafts OFI suggestions from the assessment's observations, replacing the
+// unaccepted ones: 201 with { suggestions, accepted }.
+router.post('/:reference/ofis/draft', requirePermission('reports:generate'), async (req, res) => {
+  try {
+    res.status(201).json(await draftOfis(req.params.reference, res.locals.user!))
+  } catch (error: unknown) {
+    ofiFailure(error, res)
+  }
+})
+
+// Accepts one suggestion into the report (AC4): 200 with { suggestions, accepted }.
+router.post(
+  '/:reference/ofis/:id/accept',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    try {
+      res.json(await acceptOfi(req.params.reference, req.params.id, res.locals.user!))
+    } catch (error: unknown) {
+      ofiFailure(error, res)
+    }
+  },
+)
 
 export default router
