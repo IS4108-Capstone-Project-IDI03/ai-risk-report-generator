@@ -3,6 +3,7 @@
 // library, reading a file's details (IN-05 /label), and relabelling a document's passages (KB-01), because
 // only the Python services write to Chroma.
 import { config } from '../config'
+import { labelUsageToWire, recordAiCalls } from './ai-usage.service'
 
 // Ingestion (its service or its queue) is down; the upload can be retried.
 export class IngestionUnavailableError extends Error {
@@ -39,7 +40,7 @@ export type LabelledDetailAnswer = {
   evidence: { page: number; quote: string } | null
   model: string
 }
-export type LabelAnswer = { details: Record<string, LabelledDetailAnswer> }
+export type LabelAnswer = { details: Record<string, LabelledDetailAnswer>; usage?: unknown }
 
 // Scanned PDFs are OCR'd first: ~30 s alone in Docker, ~100 s while the worker
 // OCRs another scan (measured 2026-10-07). Past this, every detail is Unconfirmed.
@@ -62,6 +63,7 @@ export async function labelDocument(pdf: Buffer): Promise<LabelAnswer | null> {
     if (typeof answer?.details !== 'object' || answer.details === null) {
       throw new Error('/label answered without details')
     }
+    await recordAiCalls(labelUsageToWire(answer.usage))
     return answer
   } catch (error) {
     console.error('Labelling failed; details left Unconfirmed:', error)

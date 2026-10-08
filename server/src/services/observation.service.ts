@@ -601,17 +601,23 @@ export async function retryTranscription(id: string, recordingId: string): Promi
 export async function runTranscription(id: string, recordingId: string): Promise<void> {
   const observation = await ObservationModel.findOne(
     { _id: id, 'recordings._id': recordingId },
-    { 'recordings.$': 1 },
+    { 'recordings.$': 1, assessment: 1 },
   )
     .lean<StoredObservation>()
     .catch(() => null)
   const recording = observation?.recordings[0]
   if (!recording) return
+  // The assessment reference tags the Whisper usage record (EV-03).
+  const reportId = (
+    await AssessmentModel.findById(observation!.assessment, { reference: 1 })
+      .lean()
+      .catch(() => null)
+  )?.reference
   const attempt = `recordings.$.transcription.attempts.${recording.transcription.attempts.length - 1}`
   let outcome: Record<string, unknown>
   try {
     outcome = {
-      'recordings.$.transcription.transcript': await transcribe(recording.key),
+      'recordings.$.transcription.transcript': await transcribe(recording.key, reportId),
       'recordings.$.transcription.status': 'transcribed',
     }
   } catch (error) {

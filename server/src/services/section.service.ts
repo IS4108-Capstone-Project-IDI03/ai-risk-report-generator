@@ -6,6 +6,7 @@ import type { ISite } from '../models/site.model'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { listObservations, type ObservationDto } from './observation.service'
+import { recordAiCalls } from './ai-usage.service'
 import { listTemplateSections, requestSectionDraft, type TemplateSection } from './rag.service'
 
 export class UnknownSectionError extends Error {
@@ -216,6 +217,8 @@ export async function draftSection(
     observations: evidence,
   })
 
+  // The calls are billed even if saving the draft below fails, so record first.
+  await recordAiCalls(draft.usage, { reportId: reference })
   const saved = await ReportSectionModel.create({
     assessment: assessment._id,
     sectionId,

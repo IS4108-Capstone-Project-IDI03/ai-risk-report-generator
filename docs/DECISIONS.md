@@ -621,3 +621,43 @@ reports keep only two OFI photos, so the reference set in
 hit rate means much.
 
 Stories: CP-05, CP-04, CP-08.
+
+## 2026-10-08 — AI-call usage is returned by the services and saved by the gateway
+
+Chose: each Python service adds a `usage` list to the response it already sends
+(drafting, Whisper) and the gateway saves one `ai_calls` row per paid call and
+works out the cost from a dated price table. Labelling already priced its own
+calls, so the gateway keeps that cost and names its basis. Missing provider
+usage is stored as `null` with `usageStatus: "unavailable"`, never 0. Saving
+never throws. Cohere's prices are labelled estimates because Cohere publishes no
+per-use price. Rejected: a callback from each service to a gateway route, which
+needs a service key, a gateway address and an HTTP client in two more services
+for no gain (every call already returns to the gateway), and which would break
+the rule that S5 writes nothing to MongoDB; and storing each provider's raw
+response, which no one could add up across providers.
+
+Reason: EV-04 needs totals per feature, report and billed service, so every
+call has to share one shape. Known gap: a call whose service then fails (a
+refused draft) is not recorded, and ingestion-time embedding is not covered.
+
+Stories: EV-03.
+
+## 2026-10-08 — The cost report is scoped by the API, and the chatbot is left out until it exists
+
+Chose: one `usage:view` permission for both roles, with the scope enforced in
+the report service: a knowledge admin sees every report, a risk engineer only
+the reports where they are the assigned engineer (403 otherwise). The summary
+is added up in the gateway from `ai_calls`, percentiles use the nearest-rank
+method, and the export is a CSV of the breakdown on screen. The four features
+that exist are always listed; the chatbot appears once CB-01 does. Calls with
+no cost are counted, never summed as 0. Rejected: a separate engineer-only
+permission and route, which duplicates the same query; a Mongo aggregation
+pipeline, which is more code for a table that holds a few hundred rows today;
+and XLSX or PDF export.
+
+Reason: EV-04 asks for a knowledge-admin cost report, and a risk engineer
+reasonably wants to see what their own report cost. Changes to the acceptance
+criteria (role, chatbot, units, empty state, scope) are listed in the PR.
+
+Stories: EV-04.
+

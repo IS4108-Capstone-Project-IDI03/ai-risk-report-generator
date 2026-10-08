@@ -8,6 +8,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from app import config
+from app import usage as usage_log
 
 T = TypeVar("T", bound=BaseModel)
 # uvicorn's own logger, so the line shows in `docker compose logs rag-service`.
@@ -49,14 +50,24 @@ def _complete_anthropic(system: str, user: str, schema: type[T], effort: str) ->
     except anthropic.APIConnectionError as error:
         raise GenerationFailed("The language model could not be reached.") from error
     usage = response.usage
+    # Recorded before the refusal check below: a refused or cut-off call is still billed.
+    usage_log.record(
+        "draft-section",
+        "anthropic",
+        response.model,
+        started,
+        input_tokens=getattr(usage, "input_tokens", None),
+        output_tokens=getattr(usage, "output_tokens", None),
+        cache_read_tokens=getattr(usage, "cache_read_input_tokens", None),
+    )
     log.info(
         "LLM %s effort=%s: %.0fs, %s input + %s output tokens (cache read %s)",
         response.model,
         effort,
         time.perf_counter() - started,
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cache_read_input_tokens,
+        getattr(usage, "input_tokens", None),
+        getattr(usage, "output_tokens", None),
+        getattr(usage, "cache_read_input_tokens", None),
     )
     if response.stop_reason == "refusal":
         raise GenerationFailed("The model declined to draft this section.")

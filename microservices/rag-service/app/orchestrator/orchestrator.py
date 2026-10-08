@@ -12,7 +12,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app import config
+from app import config, usage
 from app.generation.generator import PROMPT_VERSION, TEMPLATE, draft_section, generate
 from app.guardrails.checker import check, check_citations
 from app.retrieval.retriever import rerank, retrieve, search
@@ -95,6 +95,8 @@ def draft(section_id: str, assessment, observations) -> dict:
 
     Raises KeyError for a section that is not in the template.
     """
+    # Filled by the paid calls below (embed, rerank, draft) and returned as `usage`.
+    paid_calls = usage.start()
     section = TEMPLATE["sections"][section_id]
     title = section["title"]
     site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
@@ -194,6 +196,7 @@ def draft(section_id: str, assessment, observations) -> dict:
         "questions": result.questions[:3],
         "sources": sources,
         "guardrail": guardrail,
+        "usage": paid_calls,
         "provenance": {
             "provider": config.LLM_PROVIDER,
             "model": model,

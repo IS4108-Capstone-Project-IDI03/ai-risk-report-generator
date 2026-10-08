@@ -545,3 +545,49 @@ nothing could fire them.
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
+
+## AI-call usage (EV-03)
+
+Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per paid AI call, saved by the gateway (`ai-usage.service.ts`) from the `usage` list that the Python services return. The services never write it.
+
+| Field | Meaning |
+|---|---|
+| `feature` | `draft-section`, `retrieval`, `transcribe` or `label-document` |
+| `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev` |
+| `model` | the exact model the provider reported |
+| `reportId` | the assessment reference (absent for labelling, which has no report) |
+| `durationMs` | how long the call took |
+| `inputTokens`, `outputTokens`, `cacheReadTokens` | provider-reported; `null` when not reported |
+| `searchUnits`, `audioSeconds` | Cohere rerank and Whisper billing units |
+| `usageStatus` | `recorded`, or `unavailable` when the provider gave no usage data |
+| `estimatedCostUsd`, `pricingBasis` | the estimate and where its price came from; cost is `null` when there is no price or no usage |
+
+- One draft writes three rows: Claude, Cohere embed and Cohere rerank.
+- A draft that fails after its paid calls (refused, cut off) is not recorded: the service raises before it returns the list.
+- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08). Cohere publishes no per-use price, so those two are estimates, set by `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`.
+- A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
+- Nothing reads the collection yet; EV-04 (cost report) will.
+
+### Where each `ai_calls` field comes from (EV-03)
+
+Each provider reports usage differently. The services rename it into one shape (the "wire" item), and the gateway cleans it and saves it.
+
+| Provider field | Wire item (Python to gateway) | Stored field (`ai_calls`) |
+|---|---|---|
+| Anthropic `usage.input_tokens` | `input_tokens` | `inputTokens` |
+| Anthropic `usage.output_tokens` | `output_tokens` | `outputTokens` |
+| Anthropic `usage.cache_read_input_tokens` | `cache_read_tokens` | `cacheReadTokens` |
+| Cohere embed `meta.billed_units.input_tokens` | `input_tokens` | `inputTokens` |
+| Cohere rerank `meta.billed_units.search_units` | `search_units` | `searchUnits` |
+| Whisper `verbose_json` `duration` (seconds) | `audio_seconds` | `audioSeconds` |
+| Time around the call (`perf_counter`) | `duration_ms` | `durationMs` |
+| Labelling `seconds` (gateway multiplies by 1000) | `duration_ms` | `durationMs` |
+| Labelling `cost_usd` (kept as the service's own cost) | `cost_usd` | `estimatedCostUsd` |
+| Labelling `model`, mapped to its vendor | `billed_service` | `billedService` |
+| Which code path made the call | `feature` | `feature` |
+| Provider gave nothing | `usage_status: "unavailable"` | `usageStatus` |
+| Assessment reference, added by the gateway | not sent | `reportId` |
+| Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis` |
+
+What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.
+

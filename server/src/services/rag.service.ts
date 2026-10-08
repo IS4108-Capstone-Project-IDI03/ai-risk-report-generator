@@ -58,6 +58,8 @@ export type SectionDraftResult = {
   sources: Record<string, unknown>
   questions: string[]
   guardrail: { passed: boolean; unsupported_count: number }
+  // One item per paid call that made the draft (EV-03); saved by section.service.ts.
+  usage?: unknown
   provenance: {
     provider: string
     model: string
