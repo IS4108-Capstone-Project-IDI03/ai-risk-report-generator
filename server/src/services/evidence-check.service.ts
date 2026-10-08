@@ -96,8 +96,11 @@ async function resolvePassages(ids: string[]): Promise<Map<string, Resolution>> 
     }
   } catch (error) {
     if (!(error instanceof RagServiceError)) throw error
-    for (const id of ids) {
-      resolved.set(id, { result: 'unverified', detail: 'The passage lookup was unavailable.' })
+  }
+  // Down, or an answer that left an id out: either way we do not know.
+  for (const id of ids) {
+    if (!resolved.has(id)) {
+      resolved.set(id, { result: 'unverified', detail: 'The passage lookup gave no answer.' })
     }
   }
   return resolved
@@ -164,7 +167,6 @@ function headingChecks(
   draft: Draft,
   templateVersion: string,
 ): IEvaluationCheck[] {
-  if (!section.subsections) return []
   const make = (
     target: string,
     result: IEvaluationCheck['result'],
@@ -176,6 +178,10 @@ function headingChecks(
     result,
     detail,
   })
+  // An old rag-service sends no headings: say so instead of skipping the check.
+  if (!section.subsections) {
+    return [make('template', 'unverified', 'The template headings were not available.')]
+  }
   const expected = section.subsections.map((s) => s.heading)
   const actual = draft.subsections.map((s) => s.heading)
   const expectedKeys = expected.map(norm)
@@ -195,8 +201,15 @@ function headingChecks(
       checks.push(make(heading, 'warn', 'Heading is not in the template.'))
     }
   })
-  const sharedInTemplate = expectedKeys.filter((k) => actualKeys.includes(k))
-  const sharedInDraft = actualKeys.filter((k) => expectedKeys.includes(k))
+  // A repeated heading is named once, then left out of the order check.
+  const firstOnly = actualKeys.filter((k, i) => actualKeys.indexOf(k) === i)
+  actual.forEach((heading, i) => {
+    if (actualKeys.indexOf(actualKeys[i]) < i && !checks.some((c) => c.target === heading)) {
+      checks.push(make(heading, 'warn', 'Heading appears more than once.'))
+    }
+  })
+  const sharedInTemplate = expectedKeys.filter((k) => firstOnly.includes(k))
+  const sharedInDraft = firstOnly.filter((k) => expectedKeys.includes(k))
   if (sharedInTemplate.join('|') !== sharedInDraft.join('|')) {
     checks.push(make('order', 'fail', 'Headings are not in the template order.'))
   }

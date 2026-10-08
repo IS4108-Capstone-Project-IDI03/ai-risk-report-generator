@@ -290,6 +290,40 @@ describe('citations must resolve (AC1)', () => {
   })
 })
 
+describe('gaps in what rag-service answers', () => {
+  it('marks a passage the lookup left out as unverified, not failed', async () => {
+    const { assessment: a } = await assessment()
+    lookup.mockImplementation((ids) =>
+      json({
+        results: [{ id: ids[0], exists: true, doc_id: 'd', status: 'active', page_start: 1 }],
+      }),
+    )
+    await draft(a._id, '7', section7([statement('a', ['C:d:1', 'C:d:2'])]))
+    const run = await runEvaluation(REF, user)
+    const byTarget = Object.fromEntries(
+      checksOf(run, 'citation-resolves').map((c) => [c.target, c.result]),
+    )
+    expect(Object.values(byTarget).sort()).toEqual(['pass', 'unverified'])
+    expect(run.summary.status).toBe('incomplete')
+  })
+
+  it('says so, rather than skipping, when the template headings were not sent', async () => {
+    const { assessment: a } = await assessment()
+    await draft(a._id, '7', section7([]))
+    const bare = {
+      ...TEMPLATE,
+      sections: TEMPLATE.sections.map(({ subsections: _s, ...rest }) => rest),
+    }
+    vi.stubGlobal('fetch', async () => json(bare))
+    const run = await runEvaluation(REF, user)
+    expect(checksOf(run, 'heading-structure').find((c) => c.sectionId === '7')).toMatchObject({
+      target: 'template',
+      result: 'unverified',
+    })
+    expect(run.summary.status).toBe('incomplete')
+  })
+})
+
 describe('the run is saved with its individual checks (AC5)', () => {
   it('keeps every check under the run id, with counts and the required metadata', async () => {
     const { assessment: a, session } = await assessment()
@@ -388,6 +422,24 @@ describe('heading structure (AC4)', () => {
     const [narrative, table, compartment, combustible] = section7([])
     const checks = await headingChecks([narrative, compartment, table, combustible])
     expect(checks).toMatchObject([{ target: 'order', result: 'fail' }])
+  })
+
+  it('names a repeated heading without calling the order wrong', async () => {
+    const [narrative, table, compartment, combustible] = section7([])
+    const checks = await headingChecks([
+      narrative,
+      { ...narrative },
+      table,
+      compartment,
+      combustible,
+    ])
+    expect(checks).toMatchObject([
+      {
+        target: 'Construction Narrative',
+        result: 'warn',
+        detail: 'Heading appears more than once.',
+      },
+    ])
   })
 
   it('warns when the draft was written with another template version', async () => {
