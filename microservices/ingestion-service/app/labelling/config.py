@@ -67,11 +67,13 @@ ALLOWED = {
     "facility_type": FACILITY_TYPES,
 }
 
-# USD per 1M tokens, dated 2026-10-07. Also used by the evaluation script.
+# USD per 1M tokens, dated 2026-10-07 (Haiku 5.5: 2026-10-08). Also used by the evaluation script.
+# Haiku 5.5's price is for prompts up to 100k tokens; 20 pages stay well under that.
 PRICES = {
     "jev": (0.042, 0.0),
     "openai-decisions": (0.10, 0.0),
     "claude-haiku-4-5": (1.0, 5.0),
+    "claude-haiku-5-5": (0.10, 0.50),
     "gpt-6-luna": (0.10, 0.50),
 }
 
