@@ -75,6 +75,7 @@ import {
   canOpen,
   canOpenTab,
   homeScreen,
+  reviewIdForPath,
   SCREEN_PATHS,
   screenForPath,
   type Screen,
@@ -276,7 +277,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const urlSynced = useRef(false)
   useEffect(() => {
     const path = SCREEN_PATHS[state.screen as Screen]
-    if (path && window.location.pathname !== path) {
+    // A knowledge document's Review page is part of the knowledge screen, so
+    // its own path stays (IN-07).
+    const onReviewPage = state.screen === 'knowledge' && reviewIdForPath(window.location.pathname)
+    if (path && window.location.pathname !== path && !onReviewPage) {
       if (urlSynced.current) window.history.pushState(null, '', path)
       else window.history.replaceState(null, '', path)
     }

@@ -19,6 +19,11 @@ import {
   uploadKnowledgeDocument,
   withdrawKnowledgeDocument,
 } from '../services/knowledge-document.service'
+import {
+  compareKnowledgeDocument,
+  decideKnowledgeDocument,
+  decisionSchema,
+} from '../services/knowledge-document-decision.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
@@ -43,7 +48,7 @@ router.get('/ingested', requirePermission('knowledge:view'), async (_req, res) =
 // Uploads one knowledge document (IN-01, IN-05). The body is the PDF itself;
 // its name is in the query string because it is not plain ASCII; every other
 // detail is read from the file. Answers: 201 accepted · 400 no file name · 413 over 100 MB · 415 not a PDF ·
-// 422 a PDF that will not open · 503 ingestion down (retry later).
+// 409 an identical file is stored · 422 a PDF that will not open · 503 ingestion down (retry later).
 router.post(
   '/',
   requirePermission('knowledge:manage'),
@@ -104,7 +109,7 @@ router.put('/:id', requirePermission('knowledge:manage'), async (req, res) => {
   }
 })
 
-// Maps a failed withdraw or reinstate to its HTTP status; rethrows the rest.
+// Maps a failed withdraw, reinstate, comparison or decision to its HTTP status; rethrows the rest.
 function answerStateChange(error: unknown, res: express.Response) {
   const status =
     error instanceof KnowledgeDocumentNotFoundError
@@ -147,6 +152,36 @@ router.post('/:id/retry', requirePermission('knowledge:manage'), async (req, res
   try {
     await retryIngestion(req.params.id)
     res.status(202).end()
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// The reviewed document beside the one it matches, passages aligned (IN-07).
+// Answers: 200 · 404 unknown · 409 no match to compare · 503 ingestion down.
+router.get('/:id/comparison', requirePermission('knowledge:view'), async (req, res) => {
+  try {
+    res.json(await compareKnowledgeDocument(req.params.id))
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// Applies the admin's decision on a match (IN-07). The body is `{ choice }`.
+// Answers: 200 `{ document }` (null once discarded) · 400 unknown choice · 404
+// unknown · 409 details Unconfirmed, no match or a choice that does not fit ·
+// 503 the knowledge base could not be updated (nothing changed).
+router.post('/:id/decision', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = decisionSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
+  try {
+    const { id, name } = res.locals.user!
+    res.json({
+      document: await decideKnowledgeDocument(req.params.id, parsed.data.choice, { id, name }),
+    })
   } catch (error: unknown) {
     answerStateChange(error, res)
   }

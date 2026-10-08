@@ -260,3 +260,27 @@ describe('NotificationBell', () => {
     }
   })
 })
+
+// IN-07: a document that needs review opens its Review page from the bell.
+describe('NotificationBell — needs review', () => {
+  it("opens the document's Review page when its notification is clicked", async () => {
+    const item: Notification = {
+      ...makeItems(1)[0],
+      message: '"NFPA 13" needs review.',
+      context: { documentId: 'doc1', status: 'needs_review' },
+    }
+    stubGateway([item])
+    const followed = vi.fn()
+    window.addEventListener('popstate', followed)
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: '"NFPA 13" needs review.' }))
+
+    expect(window.location.pathname).toBe('/admin/knowledge-base/review/doc1')
+    // The app and the knowledge base follow the URL on popstate.
+    expect(followed).toHaveBeenCalled()
+    window.removeEventListener('popstate', followed)
+    window.history.replaceState(null, '', '/')
+  })
+})

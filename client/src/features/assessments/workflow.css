@@ -10,14 +10,22 @@
   overflow: hidden;
   background: var(--surface-page);
 }
+/* The toast is centred on the content beside the sidebar, whatever the
+   message's length: its own centre is placed there (translateX(-50%)), rather
+   than its left edge at a guess of half a 480px toast, which drifted with
+   every message and ignored the 264px sidebar. */
 .workflow-toast {
+  --nav-w: 0px;
   position: fixed;
-  left: max(20px, calc(50vw - 240px));
-  right: 20px;
+  left: calc(var(--nav-w) + (100vw - var(--nav-w)) / 2);
   bottom: 20px;
   z-index: 90;
-  width: fit-content;
-  max-width: calc(100vw - 40px);
+  width: max-content;
+  max-width: min(480px, calc(100vw - var(--nav-w) - 40px));
+  transform: translateX(-50%);
+}
+.workflow[data-sidenav] .workflow-toast {
+  --nav-w: var(--sidebar-width);
 }
 .workflow-toast > div {
   max-width: 100%;

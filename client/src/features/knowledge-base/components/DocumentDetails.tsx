@@ -1,7 +1,9 @@
 // A document's details panel (KB-01): every detail, then its actions.
-// Active: Edit details, Edit history (AC9) and Withdraw. Withdrawn: who and
-// when (AC14), Reinstate and Edit history, but no Edit details (AC15). Withdraw
-// and Reinstate both open components/StatusChangeDialog.tsx. Used by
+// Active: Edit details, Edit history (AC9) and Withdraw. Needs review: no Edit
+// details, since the row's Review button covers it (IN-07). Withdrawn: who and
+// when (AC14), Reinstate and Edit history, but no Edit details (AC15);
+// Reinstate is off while another edition is active (IN-07 AC15). Withdraw and
+// Reinstate both open components/StatusChangeDialog.tsx. Used by
 // components/DocumentRow.tsx.
 import type { ReactNode } from 'react'
 import { Button, IconRegistry } from '../../../design-system'
@@ -12,6 +14,7 @@ import {
   dateTime,
   facilityName,
   fileSize,
+  needsReview,
   sourceLabel,
 } from '../display'
 import { DetailText } from './DetailText'
@@ -41,6 +44,11 @@ export function DocumentDetails({
           <DetailText text={d.issuingBody} />
         </Fact>
         {standard && (
+          <Fact label="Standard number">
+            <DetailText text={d.standardNumber} />
+          </Fact>
+        )}
+        {standard && (
           <Fact label="Edition">
             <DetailText text={d.edition} />
           </Fact>
@@ -54,6 +62,9 @@ export function DocumentDetails({
         <Fact label="Facility type">
           <DetailText text={facilityName(d.facilityType)} />
         </Fact>
+        {d.withdrawn && d.newerEdition && (
+          <Fact label="Newer edition">{d.newerEdition.edition ?? d.newerEdition.title}</Fact>
+        )}
         {d.withdrawn && (
           <>
             <Fact label="Withdrawn" mono>
@@ -64,16 +75,19 @@ export function DocumentDetails({
         )}
       </dl>
       <div className="kb-details-actions">
-        {d.withdrawn ? (
+        {d.withdrawn && (
           <Button
             variant="tonal"
             size="sm"
             iconLeft={IconRegistry.action.reinstate}
+            // Off while another edition is active: two are never active at once.
+            disabled={!!d.reinstateBlockedBy}
             onClick={onChangeStatus}
           >
             Reinstate
           </Button>
-        ) : (
+        )}
+        {!d.withdrawn && !needsReview(d) && (
           <Button variant="tonal" size="sm" iconLeft={IconRegistry.action.edit} onClick={onEdit}>
             Edit details
           </Button>

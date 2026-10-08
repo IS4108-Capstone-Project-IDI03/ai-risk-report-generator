@@ -734,6 +734,72 @@ only for proposals someone wants. The cost is one tap per observation.
 
 Stories: CP-05 (CP-04 in the vetted sheet).
 
+## 2026-10-08 — Repeats and newer editions: fingerprint at upload, one match check after ingestion, one Needs review status
+
+Chose: three checks, then one admin decision (IN-07).
+- An identical file is rejected at upload, before labelling, S3 and the queue.
+  The gateway compares the file's sha256 fingerprint with every stored
+  document that is not failed, and a unique partial index on `file.sha256`
+  settles two identical files uploaded together. Reason: no LLM call, no
+  storage and no job is spent on a repeat.
+- A document that shares passages with a stored one is checked once, after
+  ingestion, using the embeddings already in Chroma. Two passages match at
+  similarity 0.90 or more (`MATCH_PASSAGE_SIMILARITY`). A document is a
+  possible copy if 58% or more (`MATCH_MIN_SHARE`) of either document's
+  passages match the other. Either direction, so an excerpt of a stored
+  document and a full document whose excerpt is stored are both caught.
+  Candidates are every complete document except itself and its own edition
+  family; the one with the most shared passages is the match.
+- Editions are told apart by the standard number, never the title (step-4
+  feedback: a title missing one "s" flipped a match). The labeller reads the
+  number ("13", "2-81"); on an excerpt without its cover, NFPA's page numbers
+  ("13-33") prove it. Rules, in order: a copy (58%+) of the same edition is a
+  possible copy; same issuing body and number with a different year is a
+  newer or earlier edition, whatever the share; a 58%+ match of another year
+  with an unknown number is an edition; any other 58%+ match is a copy.
+  Reason: the evaluation found the 2022 and 2019 editions of NFPA 13 share
+  only 42% of their passages at 0.90, below any safe copy threshold, and two
+  excerpts of different chapters share none.
+- Keep both gives the new document the matched one's status, and Supersede is
+  refused while another edition of the family is active, so two editions are
+  never active at once.
+- T and S come from the evaluation, not a guess: at T = 0.90 the lowest copy
+  shares 83% of its passages and the highest non-copy 33%, a 50-point margin,
+  so S = 58% sits in the middle. At 0.80 and 0.85 the margin is only 17 points
+  (two reports from one template share 67%); at 0.95 it is 38. Both are env
+  settings. See `microservices/ingestion-service/eval/matching/results/2026-10-08.md`
+  (8 pairs: re-saved, scanned, no-cover, two editions, two same-template
+  reports and three unrelated).
+- One Needs review status for every reason (Unconfirmed details or a match).
+  Passages carry `needs_review` and stay out of search. The row says why. A
+  document mid-ingest is indexed as `needs_review` until the match step
+  finishes.
+- No Superseded status. Supersede withdraws the old edition and links the
+  editions in an `editionFamily`; a withdrawn edition shows the family's newest
+  edition. Reinstate is refused while another edition of the family is active.
+- Discard deletes fully: passages, S3 file, ingestion job and record, after a
+  confirm. Other documents that matched it are matched again.
+
+Rejected:
+- Separate Awaiting decision and Superseded statuses (from the VETTED backlog).
+  Needs review already means "waiting for an admin", and Withdrawn plus an
+  edition family covers a retired edition. Fewer statuses to filter, count
+  and keep in step in the passage labels.
+- A text comparison before ingestion for text PDFs. A scanned copy needs
+  ingestion anyway, so one check after it covers both, and a discarded
+  document costs only the ingestion run.
+- Title matching, fuzzy or exact. Titles are not unique and one typo changed
+  the outcome; the standard number is short, printed on every page and
+  checkable against the text.
+- A word-level diff inside a passage. The review page marks which passages
+  differ; a tidied-text change is enough to show a revised value.
+
+Known limit: an edition whose standard number can't be read or is typed wrong,
+with less than 58% of its passages matching, is not flagged. Retest on
+full-size documents when ingestion moves to cloud models.
+
+Stories: IN-07 (covers IN-11).
+
 ## 2026-10-08 — Recordings and photos can be added to and removed from a saved observation; removal hides, and a changed photo set marks the reading out of date
 
 Chose: the assigned engineer can add recordings and photos to a saved

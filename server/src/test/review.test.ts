@@ -100,7 +100,13 @@ async function knowledgeDocument(fields: {
     ],
     edition: fields.edition,
     fileName: `${fields.title}.pdf`,
-    file: { key: 'knowledge/x.pdf', contentType: 'application/pdf', size: 10, sha256: 'abc' },
+    // The title doubles as the fingerprint: stored files must differ (IN-07 index).
+    file: {
+      key: 'knowledge/x.pdf',
+      contentType: 'application/pdf',
+      size: 10,
+      sha256: fields.title,
+    },
     status: 'complete',
     metadata: {
       source_type: fields.sourceType,

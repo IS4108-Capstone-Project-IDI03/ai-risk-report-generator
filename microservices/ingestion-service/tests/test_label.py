@@ -33,11 +33,12 @@ STANDARD = {
     "source_type": ans("fm_standard"),
     "title": ans("Water Mist Systems"),
     "edition": ans("2024"),
+    "standard_number": ans("2-81"),
     "effective_date": ans("2026-03-05"),
     "jurisdiction": ans("all"),
     "facility_type": ans("all"),
 }
-TEXT = "Water Mist Systems edition 2024 effective 5 March 2026"
+TEXT = "Water Mist Systems edition 2024 effective 5 March 2026 Data Sheet 2-81"
 
 
 TODAY = "2026-10-07"
@@ -181,6 +182,50 @@ def test_report_has_no_edition_and_it_is_not_unconfirmed(fake):
     assert body["unconfirmed"] == []
 
 
+def test_report_has_no_standard_number_and_it_is_not_unconfirmed(fake):
+    fake["answers"]["source_type"] = ans("marsh_report")
+    fake["answers"]["standard_number"] = ans("2-81")  # a report never has one
+    fake["answers"]["jurisdiction"] = ans("SG")
+    fake["answers"]["facility_type"] = ans("Office")
+    body = label(TEXT)
+    assert body["details"]["standard_number"]["value"] is None
+    assert body["unconfirmed"] == []
+
+
+def test_standard_number_is_kept_when_it_has_the_right_shape_and_is_in_the_text(fake):
+    body = label(TEXT)
+    assert body["details"]["standard_number"]["value"] == "2-81"
+    assert "standard_number" not in body["unconfirmed"]
+
+
+@pytest.mark.parametrize(
+    ("source", "value", "text", "kept"),
+    [
+        ("nfpa_standard", "13", "NFPA 13 Standard", True),
+        ("nfpa_standard", "13R", "NFPA 13R Standard", True),
+        ("nfpa_standard", "13", "Standard 13 for sprinklers", False),  # no "nfpa" before it
+        ("nfpa_standard", "2-81", "NFPA 2-81", False),  # wrong shape for NFPA
+        # An excerpt without its cover: NFPA numbers pages "13-33" (standard 13, page 33).
+        ("nfpa_standard", "13", "sprinkler protection 13-33 shall be", True),
+        ("nfpa_standard", "13", "sprinkler protection 113-33 shall be", False),
+        ("nfpa_standard", "13", "Figure 13 33 shows", False),  # no page-number dash
+        ("nfpa_standard", "13", "issued 13-05-2022 in Boston", False),  # a date, not a page
+        ("fm_standard", "2-81", "Data Sheet 2-81", True),
+        ("fm_standard", "2-81", "Data Sheet 2-80", False),  # not in the text
+        ("fm_standard", "281", "Data Sheet 281", False),  # wrong shape for FM
+    ],
+)
+def test_standard_number_grounding(fake, source, value, text, kept):
+    fake["answers"]["source_type"] = ans(source)
+    fake["answers"]["standard_number"] = ans(value)
+    # Neutral words keep the page above the OCR cut-off (MIN_TEXT_CHARS in
+    # app/labelling/pages.py); a near-empty page would be read by OCR instead,
+    # which differs between machines.
+    body = label(f"{text}. General requirements apply to every building.")
+    assert (body["details"]["standard_number"]["value"] == value) is kept
+    assert ("standard_number" in body["unconfirmed"]) is not kept
+
+
 @pytest.mark.parametrize("error", [httpx.TimeoutException("slow"), RuntimeError("bad json")])
 def test_model_error_makes_everything_unconfirmed(fake, monkeypatch, error):
     def boom(text):
@@ -188,7 +233,7 @@ def test_model_error_makes_everything_unconfirmed(fake, monkeypatch, error):
 
     monkeypatch.setattr(models, "extract_details", boom)
     body = label(TEXT)
-    assert len(body["unconfirmed"]) == 5  # effective_date falls back to the upload date
+    assert len(body["unconfirmed"]) == 6  # effective_date falls back to the upload date
     assert "effective_date" not in body["unconfirmed"]
     assert all(d["value"] is None for d in body["details"].values() if d["model"] != "default")
 

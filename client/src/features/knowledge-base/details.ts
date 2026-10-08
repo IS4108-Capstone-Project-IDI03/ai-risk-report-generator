@@ -1,6 +1,6 @@
 // Rules for the details form in the Edit details dialog (KB-01, IN-05).
 // Called by components/DetailsFields.tsx and components/EditDetailsDialog.tsx.
-import type { DocumentDetails, SourceType } from './api'
+import type { DocumentDetails, SourceType, StoredDetails, UnconfirmedDetail } from './api'
 
 // Stands for "not chosen yet" in a standard's facility type, where '' already
 // means "All facility types". Never sent to the gateway.
@@ -17,6 +17,7 @@ export function withSourceType(
   return {
     ...details,
     sourceType,
+    standardNumber: '',
     edition: '',
     facilityType: '',
     jurisdiction: sourceType === 'marsh_report' ? 'SG' : sourceType ? 'all' : '',
@@ -36,4 +37,28 @@ export function editionProblem(details: DocumentDetails): string | null {
   return /^\d{4}$/.test(details.edition) && year >= 1900 && year <= nextYear
     ? null
     : `Edition must be a year from 1900 to ${nextYear}.`
+}
+
+/** Returns the form's values for stored details. */
+// The form's values for stored details. A standard's "all" facility type is
+// the form's blank "All facility types" choice. An Unconfirmed detail opens
+// empty (null is already empty; the title is the file name until confirmed).
+export function formDetails(d: StoredDetails, unconfirmed: UnconfirmedDetail[]): DocumentDetails {
+  const standard = d.sourceType !== 'marsh_report'
+  // A standard's blank facility type means "all", so "not chosen" needs its own value.
+  const noFacility = standard ? FACILITY_UNSET : ''
+  return {
+    sourceType: d.sourceType ?? '',
+    title: unconfirmed.includes('title') ? '' : d.title,
+    standardNumber: d.standardNumber ?? '',
+    edition: d.edition ?? '',
+    effectiveDate: d.effectiveDate ?? '',
+    jurisdiction: d.jurisdiction ?? '',
+    facilityType:
+      d.facilityType === null
+        ? noFacility
+        : standard && d.facilityType === 'all'
+          ? ''
+          : d.facilityType,
+  }
 }

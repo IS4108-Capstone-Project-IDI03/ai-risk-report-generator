@@ -168,7 +168,7 @@ with the same list.
 | `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry and reading photos; tag and note edits, transcript corrections, deletes and restores, and adding, removing and restoring recordings and photos (the assessment's assigned engineer only, CP-08) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
-| `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction) | no | yes |
+| `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
 
 The role is read from the signed session, so a role change takes effect at the
@@ -424,7 +424,7 @@ scenario are left for people to fill: loss figures never come from a model.
 | `POST /api/assessments/:reference/ofis/draft` | Drafts OFIs from the assessment's usable observations and replaces the unaccepted suggestions (`reports:generate`, assigned engineer only). 201 with the list, 403, 404, 409 (a transcription in progress, or archived), 503 (drafting failed, with the reason). |
 | `POST /api/assessments/:reference/ofis/:id/accept` | Accepts a suggestion into the report (assigned engineer only). 200 with the list; accepting twice changes nothing. 403, 404. |
 
-## Knowledge documents (IN-01, KB-01)
+## Knowledge documents (IN-01, KB-01, IN-07)
 
 `knowledge_documents` holds one record per accepted upload. Its `_id` is the
 permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
@@ -441,6 +441,7 @@ below) and corrected by the admin (KB-01). The source type decides which apply:
 | `title` | required | required |
 | `issuingBody` | set from the source type: `FM Global` / `NFPA` | set: `Marsh` |
 | `edition` | required, a four-digit year, e.g. `2022` | absent |
+| `standardNumber` | required, the designation without the issuing body, e.g. `13` or `2-81` (IN-07 matching identity; the labeller's `standard_number`) | absent |
 | `metadata.effective_date` | the edition's effective date | the report date |
 | `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
 | `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
@@ -467,10 +468,14 @@ A relabel never sends `COPE_dimension`, so a correction keeps each passage's
 own.
 
 Each passage also carries `status`: `active`, `withdrawn` (KB-01) or
-`needs_review` (IN-05: the document has an Unconfirmed detail). The worker
-writes `needs_review` or `active` at ingest; a correction, withdraw and reinstate
-rewrite it in place (reinstating a document that still has Unconfirmed details
-gives `needs_review`). Retrieval returns only passages that are neither
+`needs_review` (IN-05: the document has an Unconfirmed detail; IN-07: it has a
+`match`). The rule, in the worker and the gateway alike: `withdrawn` if the
+document is withdrawn, else `needs_review` if `unconfirmed` is non-empty or
+`match` is set, else `active`. The worker indexes every passage as
+`needs_review`, so a document mid-ingest is never searchable, then writes the
+final status once the match step has run. A correction, a decision, withdraw and
+reinstate rewrite it in place (reinstating a document that still has
+Unconfirmed details or a match gives `needs_review`). Retrieval returns only passages that are neither
 `withdrawn` nor `needs_review`. Passages indexed before the status label
 existed have no `status`; retrieval treats that as active.
 
@@ -478,15 +483,15 @@ existed have no `status`; retrieval treats that as active.
 
 At upload the gateway asks the ingestion service's `POST /label` to read the
 PDF's first `LABEL_PAGES` pages (default 20; pages without a text layer in the
-first 5 are OCR'd) and fill in the six details. A detail the models are not
+first 5 are OCR'd) and fill in the seven details. A detail the models are not
 confident about is **Unconfirmed**: stored as `null` in `metadata` (or no
 `edition`), the one exception to the CLAUDE.md metadata rule besides
 uncategorised observations. The title falls back to the file name, and
 `issuingBody` is `null` while the source type is Unconfirmed. Extra fields:
 
 - `unconfirmed`: the Unconfirmed detail names (`source_type`, `title`,
-  `edition`, `effective_date`, `jurisdiction`, `facility_type`); a report never
-  lists `edition`. Non-empty means the document **needs review**. Written by the
+  `edition`, `standard_number`, `effective_date`, `jurisdiction`,
+  `facility_type`); a report never lists `edition` or `standard_number`. Non-empty means the document **needs review**. Written by the
   gateway at upload and emptied by a correction (which must give every
   detail); the worker reads it to choose the passages' `status`. The API returns
   it in camelCase.
@@ -517,7 +522,7 @@ A `complete` document is **active**: it is what search can use, and the only
 kind the knowledge base lists or lets the admin correct (KB-01). A correction
 overwrites the details in place and keeps what it replaced in `history`; the
 last save wins. `history` is an embedded list, oldest first, of earlier
-versions: `{ title, issuingBody, edition?, metadata (all five labels),
+versions: `{ title, issuingBody, edition?, standardNumber?, metadata (all five labels),
 replacedAt, replacedBy: { id, name } }` (`replacedBy` is the signed-in user).
 A save that changes nothing adds no version. Restoring is an ordinary
 correction with an old version's details, so the details it replaces become a
@@ -535,15 +540,54 @@ corrected. Reinstating removes `withdrawn` and records no one. Only the latest
 withdrawal is kept. As with a correction, a failed relabel puts `withdrawn` back
 as it was. The API returns `withdrawn` as `{ at, by } | null`.
 
+#### Duplicates and newer editions (IN-07)
+
+Two more fields on `knowledge_documents`:
+
+- `match`: absent or `null`, or `{ kind, documentId, newMatched, newTotal,
+  storedMatched, storedTotal }`. `kind` is `newer_edition`, `earlier_edition` or
+  `possible_copy`; `documentId` is the stored document it repeats or updates.
+  The four counts always come from the passage check, also for an edition match:
+  how many of this document's passages (`newMatched` of `newTotal`) and how many
+  of the stored document's (`storedMatched` of `storedTotal`) have a match in the
+  other. Written only by the ingestion service's match step (see
+  [services.md](services.md) "Matching"). A non-null `match` makes the document
+  **needs review** until the admin decides. The API returns it with the matched
+  document's `{ id, title, edition }` instead of `documentId`, plus
+  `otherNeedsReview` (that document is also waiting).
+- `editionFamily`: absent or `null`, or an ObjectId shared by every edition of
+  one standard the admin has linked. It is the `_id` of the family's first
+  document. Written only by the gateway, when a decision supersedes or adds an
+  older edition. The API returns `newerEdition: { id, title, edition } | null` on
+  a withdrawn family member when a later edition exists (the family's newest),
+  and `reinstateBlockedBy: { id, title, edition } | null`, the active member of
+  its family (the one the reinstate 409 names), computed on read.
+
+`keep_both` gives the reviewed document the matched document's status: if the
+matched one is withdrawn, the reviewed one is withdrawn too (`{ at, by }`) and
+joins its `editionFamily` (when it has one); otherwise it is active. A
+correction re-runs `/match` when the source type, standard number or edition
+changed, not the title.
+
+`file.sha256` has a **unique partial index** covering documents whose `status`
+is `queued`, `processing` or `complete`, so a failed document's file can be
+uploaded again. It stops two identical files uploaded together both being
+stored. The gateway builds it at startup. It can't build while identical files
+are already stored: the gateway then logs one error naming how many groups of
+identical files there are, and carries on without the index. Remove the extra
+copies and restart. The upload's own check still rejects most repeats.
+
 | Route | Does |
 | --- | --- |
-| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
-| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
+| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
-| `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
+| `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn, or IN-07: another edition in its `editionFamily` is active, named in `error`) / 503 (search not updated, still withdrawn) |
 | `POST /api/knowledge-documents/:id/retry` | Retries a failed ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears `error`/`finishedAt`, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not failed (someone already retried it), 503 queue unreachable (document left failed, counter rolled back). `knowledge:manage` only |
+| `GET /api/knowledge-documents/:id/comparison` | The document, the document its `match` points to, and their passages side by side (IN-07): `{ document, matched, rows }`. 200, or 404 / 409 (no match, or the matched document is gone) / 503 |
+| `POST /api/knowledge-documents/:id/decision` | The admin's decision on a match (IN-07): `{ choice }`, one of `keep_both`, `discard_new`, `discard_other`, `supersede`, `add_as_older` (effects in [services.md](services.md)). Needs `knowledge:manage`. 200 `{ document }`, with `document: null` after `discard_new`; or 400 (unknown choice) / 404 / 409 (details still Unconfirmed, no match, the matched document gone, a choice that doesn't fit the match, or `supersede` while another edition in the stored edition's family is still active) / 503 (nothing changed) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 ### Ingestion jobs (`ingestion_jobs`)

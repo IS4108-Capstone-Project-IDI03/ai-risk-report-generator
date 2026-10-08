@@ -77,7 +77,9 @@ eval.interpret_photos`).
 1. The admin drops or picks PDFs on the Knowledge base screen; nothing else is
    asked (IN-05). The client sends one `POST /api/knowledge-documents?fileName=…`
    per file as soon as it is added, so a rejected file never blocks the others.
-2. The gateway rejects anything that is not a PDF (Content-Type and `%PDF-`
+2. The gateway first fingerprints the file (sha256) and rejects it with 409 if a
+   stored document that is not failed has the same fingerprint (IN-07): no
+   `/inspect`, no `/label`, no S3 write and no job. Then it rejects anything that is not a PDF (Content-Type and `%PDF-`
    header, 415), then asks the ingestion service's `POST /inspect` to open it
    with PyMuPDF (422 with the reason if it is corrupt, password-protected or has
    no pages). Nothing is stored for a rejected file.
@@ -93,12 +95,18 @@ eval.interpret_photos`).
    runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`
    so chunk ids are `<id>:<n>` and every passage carries the document's
    labels (KB-01; an Unconfirmed one is left out, and `status` is
-   `needs_review` while any detail is Unconfirmed) and its own COPE label
+   `needs_review` until the match step below has finished) and its own COPE label
    (IN-05, from the report section it sits in). The `ProgressReporter` writes each stage transition to the
    `ingestion_jobs` collection in MongoDB (E2), and the gateway merges this into
    the `KnowledgeDocument` DTO as `progress` while the document is `processing`.
-   The worker records `complete` with counts or `failed` with the reason on
-   `knowledge_documents` as before. A job whose worker died mid-run is
+   Then the worker runs the match step (IN-07, see "Matching" below) and gives
+   the passages their final `status`.
+   The worker records `complete` with counts and the `match` or `failed` with the reason on
+   `knowledge_documents` as before. After recording it, the worker posts a notification
+   for knowledge admins to the gateway (IN-10, `app/notifications.py`): "finished
+   ingesting" or "failed", or, when the finished document needs review (IN-07),
+   '"<title>" needs review.' with the list's reason as details and
+   `context.status: needs_review`, which the bell opens as the Review page. A job whose worker died mid-run is
    redelivered by BullMQ and processed again.
 6. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
    document is queued or processing, showing each processing document's stage,
@@ -111,8 +119,8 @@ See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 ## Automatic labelling (IN-05)
 
 `POST /label` on the ingestion service (body: the PDF) reads the document's
-six details: source type, title, edition, effective date, country and facility
-type. Code: `microservices/ingestion-service/app/labelling/`.
+seven details: source type, title, edition, standard number, effective date,
+country and facility type. Code: `microservices/ingestion-service/app/labelling/`.
 
 1. **Pages.** PyMuPDF text of the first `LABEL_PAGES` pages (default 20:
    Marsh reports state the country, via "Currency: SGD", only on pages 12–20).
@@ -125,7 +133,7 @@ type. Code: `microservices/ingestion-service/app/labelling/`.
      `LABEL_CLASSIFIER` = `jev` (TypeSafe System One) or `openai-decisions`
      (OpenAI Decisions API), or `none` to let the LLM answer them; confidence is
      the classifier's probability for its choice.
-   - free-text details (title, edition, effective date): the LLM,
+   - free-text details (title, edition, standard number, effective date): the LLM,
      `LABEL_LLM_PROVIDER` = `anthropic` or `openai` with `LABEL_LLM_MODEL`,
      structured output with a page and quote per detail.
    The two calls run in parallel; each logs model, tokens, cost and seconds.
@@ -151,6 +159,84 @@ through Edit details (KB-01).
 The model choice and `LABEL_MIN_CONFIDENCE` come from the evaluation in
 `microservices/ingestion-service/eval/labelling/` (run by hand: it calls paid
 APIs). See [DECISIONS](../DECISIONS.md).
+
+## Matching: duplicates and newer editions (IN-07)
+
+Code: `microservices/ingestion-service/app/matching.py`. It runs at the end of
+ingestion (worker step 4) and writes `match` on the document (shape in
+[database.md](database.md) "Duplicates and newer editions"). An identical file
+never gets this far: the gateway rejects it at upload.
+
+1. **Candidates.** Every `complete` document except itself (active, needs
+   review or withdrawn), but not one in the same edition family. Failed and
+   still-ingesting documents are skipped. Without that filter an older edition
+   would re-flag its own family.
+2. **Copy check.** No new embedding: the new document's vectors are read from
+   Chroma. For each, the 5 nearest passages among the candidates are looked up.
+   A new passage matches a document if one of its passages is at least
+   `MATCH_PASSAGE_SIMILARITY` (0.90) similar. Per candidate, `newShare` is
+   matched new passages over all new passages, and `storedShare` is matched
+   stored passages over all stored passages. The candidate with the highest
+   `max(newShare, storedShare)` is a `possible_copy` if that is at least
+   `MATCH_MIN_SHARE` (0.58). Either direction counts, so an excerpt of a stored
+   document and a full document whose excerpt is stored are both caught.
+3. **One match, by rule order.** Titles are never compared (a missing "s"
+   flipped a match); identity is the issuing body plus the standard number
+   (`standardNumber`, tidied by casefold and removing spaces). A copy candidate
+   has `max(newShare, storedShare)` at least `MATCH_MIN_SHARE`. The first rule
+   that fits wins:
+   1. a copy candidate with the same edition (same year, or both without one):
+      `possible_copy`, highest share first (a withdrawn one still counts);
+   2. another edition of the same body and number (both standards, both
+      editions known, different year), whatever the share: `newer_edition` /
+      `earlier_edition`, against the family's non-withdrawn edition, else the
+      newest; ties go to the one sharing more passages;
+   3. a copy candidate that is a standard of the same body with a known,
+      different edition, when a number is unknown: the same edition kinds;
+   4. any other copy candidate: `possible_copy`;
+   5. otherwise no match. Same number and edition with a low share (different
+      chapters of one edition) is no match. A report never gets an edition.
+   The counts always come from the copy check (zeros when no passage is shared).
+
+Both numbers are env settings (`.env.example`), set by
+`microservices/ingestion-service/eval/matching/results/2026-10-08.md`: at 0.90
+every copy shares at least 83% of its passages and no non-copy more than 33%,
+so 0.58 sits in the middle of a 50-point gap. See [DECISIONS](../DECISIONS.md).
+
+Ingestion service endpoints for IN-07, all behind the gateway (the gateway never
+reads Chroma):
+
+| Endpoint | Does |
+| --- | --- |
+| `POST /documents/{id}/match` | Re-runs the match for a `complete` document, saves `match` (or `null`), relabels its passages to the final status. Returns `{ "match": … \| null }`. 404 unknown, 409 not finished ingesting |
+| `DELETE /documents/{id}/passages` | Deletes the document's passages from Chroma. Returns `{ "passagesDeleted": n }` |
+| `GET /documents/{id}/comparison/{otherId}` | Returns `{ "rows": [{ new, stored, differs }] }` in the new document's order. A new passage pairs with its most similar stored passage if at least 0.90 alike; it differs if unpaired or its tidied text changed. Unpaired stored passages are slotted in by their own order |
+
+**Decisions** (`POST /api/knowledge-documents/:id/decision`, code in
+`server/src/services/knowledge-document-decision.service.ts`). All are refused
+with 409 while the document's details are Unconfirmed, when it has no match, when
+the matched document is gone, or when the choice doesn't fit. Every kind allows
+`keep_both` and `discard_new`; `newer_edition` adds `supersede`;
+`earlier_edition` adds `add_as_older`; if the matched document also needs
+review, `discard_other` is added.
+
+| Choice | Effect |
+| --- | --- |
+| `keep_both` | Clears `match` (and the other document's, if it points back here). The matched document keeps its status |
+| `discard_new` | Deletes the document completely: passages, then the S3 file, the `ingestion_jobs` row and the record. Passages go first so that if Chroma is down nothing has changed. Every document that matched it is then re-matched; one that now matches nothing leaves Needs review |
+| `discard_other` | The same, for the matched document. The reviewed document is then re-matched too |
+| `supersede` | The reviewed (newer) edition becomes active; the stored one is withdrawn (who and when, as KB-01; an existing withdrawal is kept). Both get the same `editionFamily`: the stored document's, or its `_id` if it had none |
+| `add_as_older` | The reviewed (earlier) edition joins the stored one's family and is stored withdrawn |
+
+Saving a decision and relabelling the passages go together: if the relabel
+fails, the gateway writes the old values back and answers 503 (as for withdraw).
+A reinstate is refused (409) while another edition in the same `editionFamily`
+is not withdrawn; the message names it, so the admin withdraws that one first.
+
+A details correction (KB-01) calls `POST /documents/{id}/match` only when the
+source type, standard number or edition changed, or the document already has a match; the
+match call relabels the passages itself. If it fails, the gateway writes the old
+details and history back and answers 503, as it does for any failed relabel.
 
 ## Correcting a knowledge document (KB-01)
 
