@@ -81,6 +81,8 @@ export type SavedRecording = {
     error: string | null
     attempts: number
   }
+  // Who added it after the observation was saved (CP-08).
+  added: Stamp | null
 }
 // A site photograph saved with an observation (CP-04); url opens the original.
 export type SavedPhoto = {
@@ -89,6 +91,7 @@ export type SavedPhoto = {
   contentType: 'image/jpeg' | 'image/png'
   size: number
   url: string
+  added: Stamp | null
 }
 // What the vision model proposes from an observation's photos (CP-05), for
 // the engineer to review. Nothing reads them until an engineer asks; the
@@ -106,6 +109,11 @@ export type SavedInterpretation = {
   attempts: number
   // The model that wrote it.
   model: string | null
+  // The photos it reads, removed ones included (CP-08).
+  photoIds: string[]
+  // Finished, but of photos other than those it has now: photos were added
+  // or removed since (CP-08).
+  outOfDate: boolean
 }
 // A place on site the engineer records observations in.
 export type SiteLocation = { id: string; name: string; floor: string | null }
@@ -123,12 +131,18 @@ export type SavedObservation = {
   location: SiteLocation | null
   // Exactly as the engineer wrote it.
   note: string | null
+  // Those not removed: its evidence.
   recordings: SavedRecording[]
   photos: SavedPhoto[]
-  // null until an engineer asks for its photos to be read (CP-05).
+  // Removed ones, kept to restore (CP-08).
+  removedRecordings: (SavedRecording & { removed: Stamp })[]
+  removedPhotos: (SavedPhoto & { removed: Stamp })[]
+  // null until an engineer asks for its photos to be read (CP-05), and while
+  // no photo is left.
   interpretation: SavedInterpretation | null
   recordedAt: string
-  // The latest change to its tags, note or a transcript (CP-08).
+  // The latest change to its tags, note, a transcript, or its recordings and
+  // photos (CP-08).
   edited: Stamp | null
   // Set while it is deleted (CP-08).
   deleted: Stamp | null
@@ -336,6 +350,40 @@ export async function restoreObservation(id: string): Promise<SavedObservation> 
   return (await request<SavedObservation>('POST', `${observationPath(id)}/restore`)).data
 }
 
+// Adds recordings and photos to a saved observation (CP-08). The server
+// stores each file and starts each recording's transcription; it reads no
+// photo until asked.
+export async function addObservationMedia(
+  id: string,
+  recordings: { name: string; audio: Blob }[],
+  photos: { name: string; image: Blob }[],
+): Promise<SavedObservation> {
+  const form = new FormData()
+  for (const r of recordings) form.append('recording', r.audio, r.name)
+  for (const p of photos) form.append('photo', p.image, p.name)
+  return (await request<SavedObservation>('POST', `${observationPath(id)}/media`, form)).data
+}
+
+// Removes a recording or photo from an observation, a soft removal it can be
+// restored from (CP-08), and restores one.
+export type MediaKind = 'recordings' | 'photos'
+const mediaPath = (id: string, kind: MediaKind, itemId: string) =>
+  `${observationPath(id)}/${kind}/${encodeURIComponent(itemId)}`
+export async function removeMedia(
+  id: string,
+  kind: MediaKind,
+  itemId: string,
+): Promise<SavedObservation> {
+  return (await request<SavedObservation>('DELETE', mediaPath(id, kind, itemId))).data
+}
+export async function restoreMedia(
+  id: string,
+  kind: MediaKind,
+  itemId: string,
+): Promise<SavedObservation> {
+  return (await request<SavedObservation>('POST', `${mediaPath(id, kind, itemId)}/restore`)).data
+}
+
 // Starts a new transcription attempt for a failed recording.
 export async function retryTranscription(observationId: string, recordingId: string) {
   await request<void>(
@@ -344,8 +392,9 @@ export async function retryTranscription(observationId: string, recordingId: str
   )
 }
 
-// Asks for an observation's photos to be read (CP-05): the first reading, or a
-// new one after a failure. Saving never reads them.
+// Asks for an observation's photos to be read (CP-05): the first reading, a
+// new one after a failure, or after photos were added or removed (CP-08).
+// Saving never reads them.
 export async function readPhotos(observationId: string) {
   await request<void>('POST', `${observationPath(observationId)}/interpretation`)
 }
