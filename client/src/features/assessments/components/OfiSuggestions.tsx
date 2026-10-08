@@ -100,18 +100,22 @@ function Sources({ ofi, observations }: { ofi: Ofi; observations: SavedObservati
   )
 }
 
-// One suggestion in the same AI draft box as a section draft's subsections, since
-// it is AI-drafted and not yet in the report.
-function Suggestion({
+// One OFI in the same AI draft box as a section draft's subsections: a suggestion
+// (with Accept) on Report generation, or an accepted, numbered OFI on the Review tab,
+// where it reads like the sections' AI drafts. Its sources open below it.
+export function OfiBlock({
   ofi,
+  number = null,
   observations,
   onAccept,
-  busy,
+  busy = false,
 }: {
   ofi: Ofi
+  // Set once accepted: the OFI's report number.
+  number?: string | null
   observations: SavedObservation[]
   onAccept?: () => void
-  busy: boolean
+  busy?: boolean
 }) {
   const [showSources, setShowSources] = useState(false)
   const precedent = ofi.precedent ? ofi.sources[ofi.precedent] : null
@@ -132,7 +136,7 @@ function Suggestion({
         acceptLabel={`Accept ${ofi.title}`}
         acceptDisabled={busy}
       >
-        <OfiTable number={null} title={ofi.title} rows={templateRows(ofi)} />
+        <OfiTable number={number} title={ofi.title} rows={templateRows(ofi)} />
       </AIDraftBlock>
       {/* The precedent, outside the box since it is not part of the draft (AC2). */}
       {precedent && (
@@ -286,6 +290,27 @@ function ReportOfi({ ofi }: { ofi: AcceptedOfi }) {
   )
 }
 
+// Section 3 as the report has it: the accepted OFIs under their categories, in
+// report order. Shared by the Report generation row and the Review tab.
+export function OfisInReport({ accepted }: { accepted: AcceptedOfi[] }) {
+  if (!accepted.length)
+    return (
+      <p style={muted}>
+        No Opportunities for Improvement are in the report yet. Accept a suggestion to add it.
+      </p>
+    )
+  return CATEGORIES.filter((c) => accepted.some((o) => o.category === c)).map((c) => (
+    <div key={c} style={{ marginTop: '12px' }}>
+      <h5 style={{ margin: 0, fontSize: '15px' }}>{c}</h5>
+      {accepted
+        .filter((o) => o.category === c)
+        .map((o) => (
+          <ReportOfi key={o.id} ofi={o} />
+        ))}
+    </div>
+  ))
+}
+
 // What opens under the row: suggestions to accept, then the OFIs in the report.
 function OfiPanel({
   ofis,
@@ -332,7 +357,7 @@ function OfiPanel({
         </div>
       )}
       {ofis.suggestions.map((o) => (
-        <Suggestion
+        <OfiBlock
           key={o.id}
           ofi={o}
           observations={observations}
@@ -342,22 +367,7 @@ function OfiPanel({
       ))}
       <section aria-label="Opportunities for Improvement in the report" style={card}>
         <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 500 }}>In the report</h4>
-        {ofis.accepted.length === 0 ? (
-          <p style={muted}>
-            No Opportunities for Improvement are in the report yet. Accept a suggestion to add it.
-          </p>
-        ) : (
-          CATEGORIES.filter((c) => ofis.accepted.some((o) => o.category === c)).map((c) => (
-            <div key={c} style={{ marginTop: '12px' }}>
-              <h5 style={{ margin: 0, fontSize: '15px' }}>{c}</h5>
-              {ofis.accepted
-                .filter((o) => o.category === c)
-                .map((o) => (
-                  <ReportOfi key={o.id} ofi={o} />
-                ))}
-            </div>
-          ))
-        )}
+        <OfisInReport accepted={ofis.accepted} />
       </section>
     </section>
   )

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
-import type { ReviewSection, SourcePassage } from './api'
+import type { AcceptedOfi, OfiList, ReviewSection, SourcePassage } from './api'
 
 const REF = 'RPT-2026-0001'
 const RECORD = {
@@ -219,9 +219,13 @@ const json = (status: number, body: unknown) =>
     }),
   )
 
+// Section 3's OFIs (GN-05); none unless a test sets them.
+let ofis: OfiList = { suggestions: [], accepted: [] }
+
 function mockGateway(review: () => Promise<Response>) {
   vi.stubGlobal('fetch', (url: string) => {
     if (url === '/api/assessments') return json(200, [RECORD])
+    if (url === `/api/assessments/${REF}/ofis`) return json(200, ofis)
     if (url === `/api/assessments/${REF}/review`) return review()
     if (url === `/api/assessments/${REF}/sections`) return json(200, [])
     return json(200, [])
@@ -404,3 +408,68 @@ it('says why the workspace could not be loaded', async () => {
   expect(await screen.findByText('The review workspace could not be loaded')).toBeInTheDocument()
   expect(screen.getByText('The drafting service could not be reached.')).toBeInTheDocument()
 }, 15_000)
+
+it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
+  const ofi: AcceptedOfi = {
+    id: 'ofi1',
+    number: '2026-01',
+    title: 'Lock Open Sprinkler Control Valve',
+    category: 'Physical Protection',
+    type: 'Fire Protection System Operation',
+    description: 'Lock the valve open.',
+    observation: 'The valve was found shut.',
+    likelihood: 'Likely',
+    consequence: 'Major',
+    priority: 'Priority 1',
+    effort: 'Minor Capital',
+    observations: [],
+    standards: [],
+    precedent: null,
+    sources: {},
+    precedentReport: null,
+    status: 'New',
+    issueDate: '2026-04-21T00:00:00.000Z',
+    provenance: {
+      provider: 'anthropic',
+      model: 'claude-sonnet-5-5',
+      effort: 'medium',
+      prompt_version: 'gn05-v4',
+      config_version: 'ofi-config-2026-10-08',
+      generated_at: '2026-10-08T12:00:00.000Z',
+    },
+  }
+  ofis = {
+    suggestions: [{ ...ofi, id: 'ofi2', title: 'Improve Hot Work Permit' }],
+    accepted: [ofi],
+  }
+  await openReview()
+  const nav = await screen.findByRole('navigation', { name: 'Report sections' })
+  // A drafted section still opens first; section 3 leads the rail with its count.
+  expect(within(nav).getByRole('button', { name: /Construction/ })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  const three = within(nav).getByRole('button', { name: /Opportunities for Improvement/ })
+  expect(within(three).getByText('1 in the report')).toBeVisible()
+
+  fireEvent.click(three)
+  // Laid out like a section's draft: the editor bar, the provenance, then each OFI in an
+  // AI draft box.
+  // Counted with the other sections: section 3 is first of four here (3, 7, 9, 10).
+  expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+  expect(within(editor()).getByText(/prompt gn05-v4/)).toBeInTheDocument()
+  expect(within(editor()).getByText('AI draft')).toBeInTheDocument()
+  expect(within(editor()).getByText('2026-01')).toBeInTheDocument()
+  expect(within(editor()).getByText('Lock Open Sprinkler Control Valve')).toBeInTheDocument()
+  // Only accepted OFIs are in the report; suggestions are pointed to, not shown.
+  expect(within(editor()).queryByText('Improve Hot Work Permit')).toBeNull()
+  expect(screen.getByText(/1 suggested OFI is waiting to be accepted/)).toBeInTheDocument()
+  // Next leads into the first section.
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Next' }))
+  expect(within(editor()).getByRole('heading', { name: '7. Construction' })).toBeVisible()
+  expect(within(editor()).getByText('Draft editor · 2 of 4')).toBeInTheDocument()
+  // And Previous leads back to it.
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Previous' }))
+  expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+  ofis = { suggestions: [], accepted: [] }
+})
