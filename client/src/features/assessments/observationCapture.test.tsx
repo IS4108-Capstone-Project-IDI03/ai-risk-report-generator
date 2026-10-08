@@ -35,6 +35,7 @@ function recording(id: string, transcription: Partial<SavedRecording['transcript
       attempts: 1,
       ...transcription,
     },
+    added: null,
   } satisfies SavedRecording
 }
 function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
@@ -48,6 +49,8 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
     note: null,
     recordings: [],
     photos: [],
+    removedRecordings: [],
+    removedPhotos: [],
     interpretation: null,
     recordedAt: '2026-09-29T08:10:00.000Z',
     edited: null,
@@ -112,6 +115,7 @@ function echo(sent: Sent) {
       contentType: 'image/jpeg',
       size: file.size,
       url: `/api/observations/o1/photos/p${i}/image`,
+      added: null,
     })),
   })
   listed = [saved]

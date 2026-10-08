@@ -17,6 +17,10 @@ import {
   correctTranscript,
   deleteObservation,
   restoreObservation,
+  addObservationMedia,
+  removeMedia,
+  restoreMedia,
+  type MediaKind,
   type Assessment,
   type AssessmentStatus,
   type SavedObservation,
@@ -24,6 +28,7 @@ import {
   type Stamp,
 } from './api'
 import { formatDayYearTime } from './format'
+import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
   filtersActive,
   labelValues,
@@ -139,6 +144,19 @@ const locationLabel = (l: { name: string; floor?: string | null }) =>
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
 // "Alex Rowe · 07 Oct 2026 14:02", who changed something and when (CP-08).
 const stampLabel = (stamp: Stamp) => stamp.by.name + ' · ' + formatDayYearTime(new Date(stamp.at))
+// A recording added to a sample observation in this demo (CP-08): kept in the
+// browser, never transcribed.
+const demoRecording = (id: string, name: string, url: string, added: Stamp | null) => ({
+  id,
+  name,
+  status: 'transcribed' as const,
+  text: 'No capture session, so this recording stays in this browser and is not transcribed.',
+  original: null,
+  correction: null,
+  error: null,
+  audioUrl: url,
+  added,
+})
 function toEntry(o: SavedObservation): Observation {
   const recordings = o.recordings.map((r) => {
     const { status, transcript, correction, error } = r.transcription
@@ -155,6 +173,7 @@ function toEntry(o: SavedObservation): Observation {
       correction: correction && { at: correction.at, by: correction.by },
       error,
       audioUrl: r.url,
+      added: r.added,
     }
   })
   const statuses = recordings.map((r) => r.status)
@@ -186,7 +205,24 @@ function toEntry(o: SavedObservation): Observation {
     floor: o.location?.floor ?? null,
     sev: o.severity,
     std: o.standard ?? '',
-    media: photos.map((p) => ({ name: p.name, url: p.url })),
+    media: photos.map((p) => ({ id: p.id, name: p.name, url: p.url, added: p.added })),
+    // Removed recordings and photos, kept to restore (CP-08).
+    removedMedia: [
+      ...o.removedRecordings.map((r) => ({
+        kind: 'recordings' as const,
+        id: r.id,
+        name: r.name,
+        url: r.url,
+        removed: r.removed,
+      })),
+      ...o.removedPhotos.map((p) => ({
+        kind: 'photos' as const,
+        id: p.id,
+        name: p.name,
+        url: p.url,
+        removed: p.removed,
+      })),
+    ],
     detail: o.note ?? '',
     attached: [
       o.note ? 'Note' : '',
@@ -213,36 +249,16 @@ function toEntry(o: SavedObservation): Observation {
       hazardType: o.interpretation.hazardType,
       error: o.interpretation.error,
       model: o.interpretation.model,
+      outOfDate: o.interpretation.outOfDate,
+      // The photos it read, kept or since removed (CP-08).
+      readFrom: [...photos, ...o.removedPhotos]
+        .filter((p) => o.interpretation!.photoIds.includes(p.id))
+        .map((p) => ({ name: p.name, url: p.url, removed: !photos.includes(p) })),
     },
     edited: o.edited,
     deleted: o.deleted,
     recordings,
   }
-}
-
-// The photo formats the gateway stores (CP-04 AC4); image/jpg is an old alias.
-const PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png']
-// Why chosen files were not added as photos, worded as the gateway words it.
-function unsupportedPhotos(names: string[]) {
-  const one = names.length === 1
-  return (
-    names.join(', ') +
-    (one ? ' is not a JPG or PNG image.' : ' are not JPG or PNG images.') +
-    (one
-      ? ' Save it as JPG or PNG and add it again.'
-      : ' Save them as JPG or PNG and add them again.')
-  )
-}
-
-// Why the microphone could not start (CP-03 AC8), then what to do instead.
-function microphoneProblem(error: unknown) {
-  // A DOMException, which is not an Error instance in every browser.
-  const name = (error as { name?: unknown } | null)?.name
-  if (name === 'NotAllowedError' || name === 'SecurityError')
-    return "Microphone access is blocked. Allow it in your browser's site settings, or upload a recording instead."
-  if (name === 'NotFoundError')
-    return 'No microphone was found. Connect one, or upload a recording instead.'
-  return 'The microphone could not be started. Upload a recording instead.'
 }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
@@ -850,6 +866,154 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setState({ obsOpen: null })
       toast('Observation restored. Report drafting uses it again.')
     }
+    // Adds the recordings and photos listed in the Add media dialog (CP-08):
+    // through the gateway for a saved observation, which stores and transcribes
+    // them, or in this demo for a sample one. Throws the reason a save failed,
+    // so the dialog keeps the list for another try.
+    async function addMedia(clips: VoiceClip[], photos: PhotoFile[]) {
+      if (!dialogRow) return
+      const { o, key } = dialogRow
+      const what = [
+        clips.length ? plural(clips.length, 'recording') : '',
+        photos.length ? plural(photos.length, 'photo') : '',
+      ]
+        .filter(Boolean)
+        .join(' and ')
+      if (!o.id) {
+        const added = stampNow()
+        setState({
+          ...changeLocal(key, (x) => ({
+            ...x,
+            media: [
+              ...x.media,
+              ...photos.map((p) => ({ id: 'local-' + p.id, name: p.name, url: p.url, added })),
+            ],
+            recordings: [
+              ...(x.recordings ?? []),
+              ...clips.map((c) => demoRecording('local-' + c.id, c.name, c.url, added)),
+            ],
+            interpretation:
+              photos.length && x.interpretation
+                ? { ...x.interpretation, outOfDate: true }
+                : x.interpretation,
+            edited: added,
+          })),
+          obsDialog: null,
+        })
+        return toast('Added ' + what + ' in this demo only.')
+      }
+      let saved
+      try {
+        saved = await addObservationMedia(
+          o.id,
+          clips.map((c) => ({ name: c.name, audio: c.audio })),
+          photos.map((p) => ({ name: p.name, image: p.image })),
+        )
+      } catch (error: unknown) {
+        throw new Error(refusal(error), { cause: error })
+      }
+      captured.replace(saved)
+      // Re-reading the list keeps it refreshing until the transcriptions finish.
+      if (clips.length) captured.reload()
+      // The gateway now serves them; the previews in this browser are done.
+      for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
+      setState({ obsDialog: null })
+      toast(
+        'Added ' +
+          what +
+          '.' +
+          (clips.length ? ' Transcribing ' + plural(clips.length, 'recording') + ' now.' : ''),
+      )
+    }
+    // Moves a sample observation's recording or photo out of, or back into,
+    // its evidence, in this demo only (CP-08).
+    function moveLocal(x: Observation, item: { kind: MediaKind; id: string; name: string }) {
+      const removed = x.removedMedia?.find((m) => m.id === item.id)
+      if (removed)
+        return {
+          ...x,
+          removedMedia: x.removedMedia!.filter((m) => m !== removed),
+          ...(item.kind === 'photos'
+            ? { media: [...x.media, { id: removed.id, name: removed.name, url: removed.url }] }
+            : {
+                recordings: [
+                  ...(x.recordings ?? []),
+                  demoRecording(removed.id, removed.name, removed.url ?? '', null),
+                ],
+              }),
+          edited: stampNow(),
+        }
+      const photo = x.media.find((m) => (m.id ?? m.name) === item.id)
+      const recording = x.recordings?.find((r) => r.id === item.id)
+      return {
+        ...x,
+        media: x.media.filter((m) => m !== photo),
+        recordings: x.recordings?.filter((r) => r !== recording),
+        removedMedia: [
+          ...(x.removedMedia ?? []),
+          {
+            ...item,
+            url: photo?.url ?? recording?.audioUrl ?? null,
+            removed: stampNow(),
+          },
+        ],
+        interpretation:
+          photo && x.interpretation ? { ...x.interpretation, outOfDate: true } : x.interpretation,
+        edited: stampNow(),
+      }
+    }
+    // Removes the recording or photo in the Remove dialog (CP-08), a soft
+    // removal: the gateway keeps it to restore, and drafting stops using it.
+    async function confirmRemoveMedia() {
+      const item = s.obsDialog?.media
+      if (!dialogRow || !item) return
+      const { o, key } = dialogRow
+      const noun = item.kind === 'recordings' ? 'Recording' : 'Photo'
+      if (!o.id) {
+        setState({ ...changeLocal(key, (x) => moveLocal(x, item)), obsDialog: null })
+        return toast(noun + ' removed in this demo only. Restore it under Removed media.')
+      }
+      let saved
+      try {
+        saved = await removeMedia(o.id, item.kind, item.id)
+      } catch (error: unknown) {
+        throw new Error(refusal(error), { cause: error })
+      }
+      captured.replace(saved)
+      setState({ obsDialog: null })
+      toast(
+        noun +
+          ' removed. ' +
+          (item.kind === 'recordings'
+            ? 'Report drafting no longer uses its transcript. '
+            : 'It leaves the Photos tab. ') +
+          'Restore it under Removed media.',
+      )
+    }
+    // Restores a removed recording or photo to the observation (CP-08).
+    async function restoreItem(
+      key: string,
+      o: Observation,
+      item: { kind: MediaKind; id: string; name: string },
+    ) {
+      const noun = item.kind === 'recordings' ? 'Recording' : 'Photo'
+      if (!o.id) {
+        setState(changeLocal(key, (x) => moveLocal(x, item)))
+        return toast(noun + ' restored in this demo only.')
+      }
+      let saved
+      try {
+        saved = await restoreMedia(o.id, item.kind, item.id)
+      } catch (error: unknown) {
+        return toast(refusal(error) + ' Try again.', 'warning')
+      }
+      captured.replace(saved)
+      toast(
+        noun +
+          ' restored.' +
+          (item.kind === 'recordings' ? ' Report drafting uses its transcript again.' : ''),
+      )
+    }
     // Adds the location typed into the sheet and captures in it straight away.
     async function submitLocation() {
       const name = s.lf.name.trim()
@@ -937,31 +1101,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       later(settleSamples, 2000)
     }
     async function startRecording() {
-      let stream: MediaStream
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        media.recorder = await record((audio, length) => {
+          media.recorder = null
+          addClip(audio, null, length)
+        })
       } catch (error: unknown) {
         setState({
           fVoiceError: { title: 'Microphone unavailable', message: microphoneProblem(error) },
         })
         return
       }
-      const chunks: Blob[] = []
-      const next = new MediaRecorder(stream)
-      const startedAt = Date.now()
-      next.ondataavailable = (event) => chunks.push(event.data)
-      next.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop())
-        media.recorder = null
-        const secs = Math.round((Date.now() - startedAt) / 1000)
-        addClip(
-          new Blob(chunks, { type: next.mimeType || 'audio/webm' }),
-          null,
-          String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0'),
-        )
-      }
-      next.start()
-      media.recorder = next
       setState({ fRec: true, fSecs: 0, fVoiceError: null })
     }
 
@@ -1660,6 +1810,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ? () => void readSaved(o.id!)
               : () => readSample(key)
             : null
+        // Recordings and photos can be added by whoever may change it, and
+        // removed while something else stays captured (CP-08).
+        const changing = canChange && !o.deleted
+        const held =
+          (o.detail?.trim() ? 1 : 0) +
+          (o.audio ? 1 : 0) +
+          (o.recordings?.length ?? 0) +
+          o.media.length
+        const removing = (kind: MediaKind, id: string, name: string) =>
+          changing && held > 1
+            ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
+            : null
         return {
           ...o,
           key,
@@ -1682,34 +1844,47 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
           restoreObs: () => void restoreRow(key, o),
           editTags: () => openEdit(),
+          addMedia: changing ? () => setState({ obsDialog: { kind: 'addMedia', key } }) : null,
+          // Its photos, each opening the original, with who added any later.
+          media: o.media.map((m) => ({
+            ...m,
+            addedLabel: m.added ? m.name + ' added by ' + stampLabel(m.added) : null,
+            remove: removing('photos', m.id ?? m.name, m.name),
+          })),
+          removedMedia: (o.removedMedia ?? []).map((m) => ({
+            ...m,
+            removedLabel: 'Removed by ' + stampLabel(m.removed),
+            restore: changing ? () => void restoreItem(key, o, m) : null,
+          })),
           // What the vision model proposes from its photos (CP-05), and what
           // the engineer can do with it. Neither action saves anything by
           // itself: each opens Edit, filled in, for the engineer to save.
-          // Photos not read yet offer only Read photos.
-          proposal: !reading
-            ? o.media.length
+          // Photos not read yet offer only Read photos; a reading of photos
+          // since added or removed offers Read again (CP-08).
+          proposal: !o.media.length
+            ? null
+            : !reading
               ? { status: 'unread' as const, read }
-              : null
-            : {
-                ...reading,
-                // "Protection · Sprinkler Installation"
-                summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
-                retry: read,
-                useAsNote:
-                  canChange && !o.deleted && proposed?.description
-                    ? () =>
-                        openEdit({
-                          note: o.detail
-                            ? o.detail + '\n\n' + proposed.description
-                            : proposed.description!,
-                        })
-                    : null,
-                // Offered only when the proposal differs from its category.
-                changeCategory:
-                  canChange && !o.deleted && proposed?.category && proposed.category !== o.cat
-                    ? () => openEdit({ cat: proposed.category! })
-                    : null,
-              },
+              : {
+                  ...reading,
+                  // "Protection · Sprinkler Installation"
+                  summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
+                  retry: read,
+                  useAsNote:
+                    canChange && !o.deleted && proposed?.description
+                      ? () =>
+                          openEdit({
+                            note: o.detail
+                              ? o.detail + '\n\n' + proposed.description
+                              : proposed.description!,
+                          })
+                      : null,
+                  // Offered only when the proposal differs from its category.
+                  changeCategory:
+                    canChange && !o.deleted && proposed?.category && proposed.category !== o.cat
+                      ? () => openEdit({ cat: proposed.category! })
+                      : null,
+                },
           icon: CAT_ICON[o.cat] || 'circle-dot',
           color: 'var(--text-secondary)',
           chevron: open ? 'chevron-down' : 'chevron-right',
@@ -1722,9 +1897,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           recordings: (o.recordings ?? []).map((r) => ({
             ...r,
             retry: () => void retryVoice(o.id!, r.id),
-            canCorrect: canChange && !o.deleted && r.status === 'transcribed',
+            // A recording added in the demo has no transcript to correct.
+            canCorrect: canChange && !o.deleted && r.status === 'transcribed' && !!o.id,
             correct: () => setState({ obsDialog: { kind: 'transcript', key, recordingId: r.id } }),
             correctedLabel: r.correction ? 'Corrected by ' + stampLabel(r.correction) : null,
+            addedLabel: r.added ? 'Added by ' + stampLabel(r.added) : null,
+            remove: removing('recordings', r.id, r.name),
           })),
           // A saved observation's recordings carry their own text below its note.
           detail: o.recordings ? o.detail : o.detail || o.text,
@@ -1793,11 +1971,24 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               key: s.obsDialog.key,
               summary: dialogRow.o.text,
               recording: dialogRow.o.recordings?.find((r) => r.id === s.obsDialog!.recordingId),
+              // The recording or photo to remove (CP-08).
+              media: s.obsDialog.media,
+              // What the Add media dialog adds to (CP-08): where it was
+              // captured, whether the gateway holds it, and the number its
+              // next recording takes after those it has, removed ones included.
+              where: locationLabel({ name: dialogRow.o.area, floor: dialogRow.o.floor }),
+              saved: !!dialogRow.o.id,
+              nextRecording:
+                (dialogRow.o.recordings?.length ?? 0) +
+                (dialogRow.o.removedMedia ?? []).filter((m) => m.kind === 'recordings').length +
+                1,
             }
           : null,
       closeObsDialog: () => setState({ obsDialog: null }),
       saveTranscript,
       confirmDelete,
+      addMedia,
+      confirmRemoveMedia,
       /* the Edit dialog: tags (CP-06) and note (CP-08) */
       tagOpen: !!tagRow,
       tagEdit: s.tagEdit,
@@ -2387,24 +2578,21 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // but a JPG or PNG is refused here with the gateway's reason (AC4); the
       // gateway checks the image itself too, as a browser can report no type.
       addPhotos: (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = [...(e.target.files ?? [])]
+        const { photos, refused } = choosePhotos([...(e.target.files ?? [])])
         e.target.value = ''
-        const refused = files.filter((f) => f.type && !PHOTO_TYPES.includes(f.type))
-        const added = files
-          .filter((f) => !refused.includes(f))
-          .map((file) => {
-            const id = ++media.photos
-            return {
-              id,
-              name: file.name || 'Photo ' + id,
-              image: file,
-              url: URL.createObjectURL(file),
-            }
-          })
+        const added = photos.map((file) => {
+          const id = ++media.photos
+          return {
+            id,
+            name: file.name || 'Photo ' + id,
+            image: file,
+            url: URL.createObjectURL(file),
+          }
+        })
         updateState((previous) => ({
           ...previous,
           fPhotos: [...previous.fPhotos, ...added],
-          fPhotoError: refused.length ? unsupportedPhotos(refused.map((f) => f.name)) : null,
+          fPhotoError: refused.length ? unsupportedPhotos(refused) : null,
         }))
       },
       removePhoto: (photo: PhotoFile) => {

@@ -447,6 +447,66 @@ describe('drafting a report section (GN-01)', () => {
     ])
   })
 
+  it('drafts without a removed recording, and counts adding, removing and restoring one (CP-08)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const voiced = await observation(ids, 'Construction', {
+      note: 'Riser room.',
+      transcription: 'transcribed',
+    })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    const recording = `/api/observations/${voiced._id}/recordings/${voiced.recordings[0]._id}`
+    const listed = async () => (await api.get(`/api/assessments/${REFERENCE}/sections`)).body[0]
+
+    expect((await api.delete(recording)).status).toBe(200)
+
+    // Its transcript is no longer evidence: a change the draft lacks.
+    expect((await listed()).changeCounts).toEqual({ added: 0, changed: 1, removed: 0 })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(drafts.mock.lastCall![0].observations).toEqual([
+      expect.objectContaining({ id: String(voiced._id), transcripts: [] }),
+    ])
+    // Restoring it brings the transcript back, which the newest draft lacks.
+    await api.post(`${recording}/restore`)
+    expect((await listed()).changesSinceDraft).toBe(1)
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    // So does a recording added later, once it is transcribed.
+    await ObservationModel.updateOne(
+      { _id: voiced._id },
+      {
+        $push: {
+          recordings: {
+            name: 'Recording 2',
+            key: 'audio/y.webm',
+            contentType: 'audio/webm',
+            size: 3,
+            transcription: {
+              status: 'transcribed',
+              transcript: 'Riser sealed at level 2.',
+              attempts: [{ startedAt: new Date() }],
+            },
+            added: { at: new Date(), by: { id: String(engineer._id), name: engineer.name } },
+          },
+        },
+      },
+    )
+    expect((await listed()).changeCounts).toEqual({ added: 0, changed: 1, removed: 0 })
+  })
+
+  it('does not wait for a removed recording still transcribing (CP-08)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const voiced = await observation(ids, 'Construction', {
+      note: 'Riser room.',
+      transcription: 'transcribing',
+    })
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(409)
+
+    await api.delete(`/api/observations/${voiced._id}/recordings/${voiced.recordings[0]._id}`)
+
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(201)
+  })
+
   it('only lets the assigned engineer draft, and not an archived assessment', async () => {
     const { assessment: a, session } = await assessment()
     await observation({ assessment: a._id, session: session._id }, 'Construction', { note: 'x' })
