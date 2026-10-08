@@ -42,8 +42,8 @@ const actor = {
 const api = signedInAs(app, actor)
 
 beforeEach(() => {
-  // Unless a test says otherwise, an interpretation never finishes, so saving
-  // photos leaves nothing running in the background.
+  // Unless a test says otherwise, an interpretation never finishes, so asking
+  // for photos to be read leaves nothing running in the background.
   vision.mockReturnValue(new Promise<Response>(() => {}))
   vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body))
@@ -912,6 +912,7 @@ describe('photo interpretation (CP-05)', () => {
     usage: { input_tokens: 2064, output_tokens: 48, thought_tokens: 180 },
   }
   const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+  const read = (id: string) => api.post(`/api/observations/${id}/interpretation`)
 
   // Interpretation runs after the response, so wait for it to settle.
   async function interpreted(id: string) {
@@ -921,27 +922,36 @@ describe('photo interpretation (CP-05)', () => {
     })
     return (await ObservationModel.findById(id).lean())!
   }
+  // Saves photos, then asks for them to be read, as the Observations tab does.
+  async function readSaved(photos: Photo[] = [{ image: JPG }], fields: object = {}) {
+    const { id } = (await savePhotos(photos, fields)).body
+    expect((await read(id)).status).toBe(202)
+    return id as string
+  }
 
-  it('queues one interpretation of all the photos, with the location and note (AC1, AC2)', async () => {
+  it('sends no photo to the vision model when it is saved', async () => {
+    await assessmentWithSession()
+
+    const response = await savePhotos([{ image: JPG }, { image: PNG }])
+
+    expect(response.status).toBe(201)
+    expect(response.body.interpretation).toBeNull()
+    const stored = await ObservationModel.findById(response.body.id).lean()
+    expect(stored?.interpretation).toBeUndefined()
+    expect(vision).not.toHaveBeenCalled()
+  })
+
+  it('reads all the photos, with the location and note, when asked (AC1, AC2)', async () => {
     let finish!: (reply: Response) => void
     vision.mockReturnValue(new Promise<Response>((resolve) => (finish = resolve)))
     await assessmentWithSession()
+    const { id } = (
+      await savePhotos([{ image: JPG }, { image: PNG }], { note: 'Racking under the heads.' })
+    ).body
 
-    const response = await savePhotos([{ image: JPG }, { image: PNG }], {
-      note: 'Racking under the heads.',
-    })
+    expect((await read(id)).status).toBe(202)
 
-    expect(response.status).toBe(201)
-    expect(response.body.interpretation).toEqual({
-      status: 'interpreting',
-      description: null,
-      copeDimension: null,
-      hazardType: null,
-      error: null,
-      attempts: 1,
-      model: null,
-    })
-    const stored = await ObservationModel.findById(response.body.id).lean()
+    const stored = await ObservationModel.findById(id).lean()
     await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
     expect(vision).toHaveBeenCalledWith({
       s3_keys: stored!.photos!.map((p) => p.key),
@@ -950,15 +960,23 @@ describe('photo interpretation (CP-05)', () => {
     })
     expect(speech).not.toHaveBeenCalled()
     // Listed as interpreting while it runs (AC2).
-    expect((await listed())[0].interpretation.status).toBe('interpreting')
+    expect((await listed())[0].interpretation).toEqual({
+      status: 'interpreting',
+      description: null,
+      copeDimension: null,
+      hazardType: null,
+      error: null,
+      attempts: 1,
+      model: null,
+    })
     finish(await s5(200, PROPOSAL))
-    await interpreted(response.body.id)
+    await interpreted(id)
   })
 
   it('stores the proposal and what wrote it, leaving the engineer’s own record alone (AC3-AC5)', async () => {
     vision.mockReturnValue(s5(200, PROPOSAL))
     await assessmentWithSession()
-    const { id } = (await savePhotos([{ image: JPG }], { copeDimension: null })).body
+    const id = await readSaved([{ image: JPG }], { copeDimension: null })
 
     const done = await interpreted(id)
 
@@ -993,17 +1011,17 @@ describe('photo interpretation (CP-05)', () => {
     vision.mockReturnValue(s5(200, { ...PROPOSAL, usage: null }))
     await assessmentWithSession()
 
-    const done = await interpreted((await savePhotos([{ image: JPG }])).body.id)
+    const done = await interpreted(await readSaved())
 
     expect(done.interpretation?.provenance?.usage).toBeNull()
   })
 
-  it('shows why it failed, and retries only a failed interpretation', async () => {
+  it('shows why it failed, and reads again only after a failure', async () => {
     vision.mockReturnValue(
       s5(502, { detail: 'The photos could not be interpreted: 403 API key not valid.' }),
     )
     await assessmentWithSession()
-    const { id } = (await savePhotos([{ image: JPG }])).body
+    const id = await readSaved()
 
     const failed = await interpreted(id)
 
@@ -1017,32 +1035,57 @@ describe('photo interpretation (CP-05)', () => {
     )
 
     vision.mockReturnValue(s5(200, PROPOSAL))
-    expect((await api.post(`/api/observations/${id}/interpretation/retry`)).status).toBe(202)
+    expect((await read(id)).status).toBe(202)
     const done = await interpreted(id)
     expect(done.interpretation?.status).toBe('interpreted')
     expect(done.interpretation?.attempts).toHaveLength(2)
     expect(done.interpretation?.error).toBeUndefined()
 
-    const again = await api.post(`/api/observations/${id}/interpretation/retry`)
+    const again = await read(id)
     expect(again.status).toBe(409)
-    expect(again.body.error).toBe('Only a failed interpretation can be retried.')
-    // An observation without photos has nothing to retry.
+    expect(again.body.error).toBe('Its photos have already been read.')
+  })
+
+  it('starts one reading when asked twice at once', async () => {
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }])).body
+
+    const replies = await Promise.all([read(id), read(id)])
+
+    expect(replies.map((r) => r.status).sort()).toEqual([202, 409])
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored?.interpretation?.attempts).toHaveLength(1)
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+  })
+
+  it('refuses to read an observation with no photos, a deleted one or an unknown one', async () => {
+    await assessmentWithSession()
     const { id: noted } = (await note()).body
-    expect((await api.post(`/api/observations/${noted}/interpretation/retry`)).status).toBe(404)
+    const noPhotos = await read(noted)
+    expect(noPhotos.status).toBe(409)
+    expect(noPhotos.body.error).toBe('This observation has no photos to read.')
+
+    const { id } = (await savePhotos([{ image: JPG }])).body
+    await api.delete(`/api/observations/${id}`)
+    expect((await read(id)).status).toBe(409)
+
+    expect((await read(String(new Types.ObjectId()))).status).toBe(404)
+    expect((await read('nope')).status).toBe(404)
+    expect(vision).not.toHaveBeenCalled()
   })
 
   it('says so when the photo service cannot be reached', async () => {
     vision.mockRejectedValue(new TypeError('fetch failed'))
     await assessmentWithSession()
 
-    const done = await interpreted((await savePhotos([{ image: JPG }])).body.id)
+    const done = await interpreted(await readSaved())
 
     expect(done.interpretation?.error).toBe('The photo service could not be reached.')
   })
 
-  it('marks interpretations interrupted by a restart as failed so they can be retried', async () => {
+  it('marks interpretations interrupted by a restart as failed so they can be read again', async () => {
     await assessmentWithSession()
-    const { id } = (await savePhotos([{ image: JPG }])).body
+    const id = await readSaved()
 
     await failInterruptedInterpretations()
 
