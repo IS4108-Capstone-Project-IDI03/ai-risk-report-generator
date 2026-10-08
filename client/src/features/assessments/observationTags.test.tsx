@@ -23,6 +23,7 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
     note: 'Hose reel H3 blocked by pallets.',
     recordings: [],
     photos: [],
+    interpretation: null,
     recordedAt: '2026-09-29T08:10:00.000Z',
     edited: null,
     deleted: null,

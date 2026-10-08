@@ -9,7 +9,10 @@ import assessmentRoutes from './routes/assessment.routes'
 import authRoutes from './routes/auth.routes'
 import ragRoutes from './routes/rag.routes'
 import observationRoutes from './routes/observation.routes'
-import { failInterruptedTranscriptions } from './services/observation.service'
+import {
+  failInterruptedInterpretations,
+  failInterruptedTranscriptions,
+} from './services/observation.service'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
@@ -46,6 +49,7 @@ app.use('/api/internal/notifications', requireServiceKey, internalNotificationRo
 async function start() {
   await connectDb()
   await failInterruptedTranscriptions()
+  await failInterruptedInterpretations()
   app.listen(config.port, () => {
     console.log(`Gateway listening on port ${config.port}`)
   })

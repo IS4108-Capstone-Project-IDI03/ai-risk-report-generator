@@ -340,10 +340,12 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a photo is taken on the device, when the engineer uploads it to the application, then it uploads as normal.
   </details>
 
-- [ ] **CP-05** — Automatically interpret a site photograph (risk engineer, Must, 2 pts, deps: CP-04, Sprint 2)
+- [ ] **CP-05** — Automatically interpret a site photograph (risk engineer, Must, 2→5 pts, deps: CP-04, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: receive a proposed observation from a site photograph, so a draft description of the visible hazard can be reviewed.
+
+  S5 reads all of an observation's photos together with Gemini, as one interpretation per observation, and proposes a description, a COPE category and a hazard type. The proposal is never drafting evidence: the engineer takes it into the note or category through Edit (Use as note, Change category). See `docs/DECISIONS.md` (2026-10-08).
 
   1. Given an active capture session, when a supported photograph finishes saving, then a vision job is queued automatically.
   2. Given an active vision job, when the photo observation is opened, then its status is Interpreting.
@@ -371,7 +373,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: view, filter, tag, correct and remove the observations captured for an assessment, so report drafting works from evidence that is accurate, consistently labelled and traceable to what each draft used.
 
-  Terms: Type is Note, Voice, or both. Status is Transcribing, Transcription failed or Complete. Tags are category, severity, location (with its floor) and standard. A "change" is editing tags, a note or a transcript, or deleting.
+  Terms: Type is Note, Voice, or both. Status is Transcribing, Interpreting, Transcription failed, Interpretation failed or Complete (the photo statuses from CP-05). Tags are category, severity, location (with its floor) and standard. A "change" is editing tags, a note or a transcript, or deleting.
 
   1. Given an assessment has observations, when I open the Observations tab, then every observation not deleted is listed, newest first.
   2. Given an observation is listed, when I view its row, then I see its type, category, location, floor, severity, status, and capture date and time.

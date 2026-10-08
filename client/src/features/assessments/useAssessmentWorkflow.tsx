@@ -10,6 +10,7 @@ import {
   listAssessments,
   listAssignableEngineers,
   type AssignableEngineer,
+  retryInterpretation,
   retryTranscription,
   saveObservation,
   updateObservation,
@@ -60,6 +61,7 @@ import {
   PLAIN,
   EVIDENCE,
   OBS,
+  sampleInterpretation,
 } from './demo-data'
 import { roleLabel } from '../accounts/api'
 import type { Session } from '../auth/api'
@@ -156,6 +158,18 @@ function toEntry(o: SavedObservation): Observation {
     }
   })
   const statuses = recordings.map((r) => r.status)
+  const reading = o.interpretation?.status
+  // Where its recordings and photos stand (CP-08 AC2, CP-05 AC2): anything
+  // still running first, then anything that failed.
+  const status = statuses.includes('transcribing')
+    ? 'Transcribing'
+    : reading === 'interpreting'
+      ? 'Interpreting'
+      : statuses.includes('failed')
+        ? 'Transcription failed'
+        : reading === 'failed'
+          ? 'Interpretation failed'
+          : 'Complete'
   const photos = o.photos
   // The row reads as the note, the first recording when there is no note, or
   // how many photos it holds when it is only photos.
@@ -181,23 +195,25 @@ function toEntry(o: SavedObservation): Observation {
     ]
       .filter(Boolean)
       .join(' · '),
-    // Only a recording still in progress or needing attention is badged; a
-    // transcribed one is the norm.
-    badge: statuses.includes('transcribing')
-      ? { tone: 'info', label: 'Transcribing' }
-      : statuses.includes('failed')
-        ? { tone: 'high', label: 'Transcription failed' }
-        : null,
+    // Only work still in progress or needing attention is badged; done is the norm.
+    badge:
+      status === 'Complete'
+        ? null
+        : { tone: status.endsWith('failed') ? 'high' : 'info', label: status },
     types: [
       ...(o.note ? ['Note'] : []),
       ...(recordings.length ? ['Voice'] : []),
       ...(photos.length ? ['Photo'] : []),
     ],
-    status: statuses.includes('transcribing')
-      ? 'Transcribing'
-      : statuses.includes('failed')
-        ? 'Transcription failed'
-        : 'Complete',
+    status,
+    interpretation: o.interpretation && {
+      status: o.interpretation.status,
+      description: o.interpretation.description,
+      category: o.interpretation.copeDimension,
+      hazardType: o.interpretation.hazardType,
+      error: o.interpretation.error,
+      model: o.interpretation.model,
+    },
     edited: o.edited,
     deleted: o.deleted,
     recordings,
@@ -877,6 +893,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     async function retryVoice(id: string, recordingId: string) {
       try {
         await retryTranscription(id, recordingId)
+        captured.reload()
+      } catch (error: unknown) {
+        const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
+        toast(cause + ' Try again.', 'warning')
+      }
+    }
+    // Reads an observation's photos again after a failure (CP-05).
+    async function retryReading(id: string) {
+      try {
+        await retryInterpretation(id)
         captured.reload()
       } catch (error: unknown) {
         const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
@@ -1576,36 +1602,70 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         const status = statusOf(o)
         // A deleted observation changes only by being restored.
         const canChange = canChangeObs
+        // Opens the Edit dialog on its tags and note as they are now, or with
+        // a proposal's wording or category already filled in (CP-05).
+        const openEdit = (change: { note?: string; cat?: string } = {}) =>
+          setState({
+            tagEdit: {
+              key,
+              cat: o.cat,
+              sev,
+              locationId: o.locationId ?? '',
+              std: o.std,
+              note: o.detail ?? '',
+              ...change,
+            },
+            tagError: null,
+          })
+        const reading = o.interpretation
+        const proposed = reading?.status === 'interpreted' ? reading : null
         return {
           ...o,
           key,
           open,
           // The zone and floor, e.g. "Bay 3 — north aisle · Ground".
           where: locationLabel({ name: o.area, floor: o.floor }),
-          // What it holds and where its recordings stand (CP-08 AC2).
+          // What it holds and where its recordings and photos stand (CP-08 AC2).
           typeLabel: typeLabel(o),
           status,
           statusTone:
-            status === 'Transcribing' ? 'info' : status === 'Transcription failed' ? 'high' : null,
+            status === 'Transcribing' || status === 'Interpreting'
+              ? 'info'
+              : status.endsWith('failed')
+                ? 'high'
+                : null,
           canChange: canChange && !o.deleted,
           canRestore: canChange && !!o.deleted,
           editedLabel: o.edited ? 'Edited by ' + stampLabel(o.edited) : null,
           deletedLabel: o.deleted ? 'Deleted by ' + stampLabel(o.deleted) : null,
           deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
           restoreObs: () => void restoreRow(key, o),
-          // Opens the Edit dialog on its tags and note as they are now.
-          editTags: () =>
-            setState({
-              tagEdit: {
-                key,
-                cat: o.cat,
-                sev,
-                locationId: o.locationId ?? '',
-                std: o.std,
-                note: o.detail ?? '',
-              },
-              tagError: null,
-            }),
+          editTags: () => openEdit(),
+          // What the vision model proposes from its photos (CP-05), and what
+          // the engineer can do with it. Neither action saves anything by
+          // itself: each opens Edit, filled in, for the engineer to save.
+          proposal: reading
+            ? {
+                ...reading,
+                // "Protection · Sprinkler Installation"
+                summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
+                retry: () => void retryReading(o.id!),
+                useAsNote:
+                  canChange && !o.deleted && proposed?.description
+                    ? () =>
+                        openEdit({
+                          note: o.detail
+                            ? o.detail + '\n\n' + proposed.description
+                            : proposed.description!,
+                        })
+                    : null,
+                // Offered only when the proposal differs from its category.
+                changeCategory:
+                  canChange && !o.deleted && proposed?.category && proposed.category !== o.cat
+                    ? () => openEdit({ cat: proposed.category! })
+                    : null,
+              }
+            : null,
           icon: CAT_ICON[o.cat] || 'circle-dot',
           color: 'var(--text-secondary)',
           chevron: open ? 'chevron-down' : 'chevron-right',
@@ -2424,6 +2484,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           // Kept in this browser: the preview stays, as the demo never uploads it.
           media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
           detail: text,
+          // Nothing reads a photo here: a labelled sample proposal stands in (CP-05).
+          interpretation: s.fPhotos.length
+            ? sampleInterpretation(s.fCat, currentLocation.name)
+            : null,
         }
         const reference = s.captureTarget.reference
         setState({
@@ -2443,6 +2507,28 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             }),
           3200,
         )
+        // The sample settles after a moment, as a real interpretation would.
+        // Matched by its sample flag, not its place in the list, which a later
+        // observation shifts.
+        if (s.fPhotos.length) {
+          const settle = (list: Observation[]) =>
+            list.map((x) =>
+              x.interpretation?.sample && x.interpretation.status === 'interpreting'
+                ? { ...x, interpretation: { ...x.interpretation, status: 'interpreted' as const } }
+                : x,
+            )
+          later(
+            () =>
+              updateState((previous) => ({
+                ...previous,
+                fRecent: settle(previous.fRecent),
+                captureObs: Object.fromEntries(
+                  Object.entries(previous.captureObs).map(([ref, list]) => [ref, settle(list)]),
+                ),
+              })),
+            2000,
+          )
+        }
       },
       /* generation */
       gsecs,

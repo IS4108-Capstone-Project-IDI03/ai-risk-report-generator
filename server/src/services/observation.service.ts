@@ -8,6 +8,7 @@ import {
   ObservationModel,
   SEVERITIES,
   type CopeDimension,
+  type IInterpretation,
   type IObservation,
   type IPhoto,
   type IRecording,
@@ -17,7 +18,7 @@ import type { ISite } from '../models/site.model'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { toLocationDto, type LocationDto } from './location.service'
-import { transcribe } from './speech.service'
+import { interpret, transcribe } from './speech.service'
 import * as storage from './storage.service'
 
 export class NoActiveSessionError extends Error {
@@ -39,8 +40,8 @@ export class UnknownLocationError extends Error {
   }
 }
 export class NotRetryableError extends Error {
-  constructor() {
-    super('Only a failed transcription can be retried.')
+  constructor(message = 'Only a failed transcription can be retried.') {
+    super(message)
     this.name = 'NotRetryableError'
   }
 }
@@ -199,6 +200,18 @@ export type ObservationDto = {
     size: number
     url: string
   }[]
+  // What the vision model proposes from its photos (CP-05), for the engineer
+  // to review; null when it has no photos.
+  interpretation: {
+    status: IInterpretation['status']
+    description: string | null
+    copeDimension: CopeDimension | null
+    hazardType: string | null
+    error: string | null
+    attempts: number
+    // The model that wrote it.
+    model: string | null
+  } | null
   // When it was captured (CP-02 AC2).
   recordedAt: Date
   // The latest change to its tags, note or a transcript (CP-08).
@@ -221,6 +234,18 @@ function transcriptionFailureReason(error?: string): string | null {
   if (error.startsWith('Whisper could not transcribe the recording:'))
     return 'The speech service could not transcribe the recording.'
   return error.length > 200 ? 'Transcription failed. Please retry or contact support.' : error
+}
+
+// The same for interpreting photos (CP-05), from S5's message prefixes
+// (microservices/speech-ocr-service/app/processors/vision.py).
+function interpretationFailureReason(error?: string): string | null {
+  if (!error) return null
+  if (error.startsWith('The photo could not be read from storage:'))
+    return 'A photo could not be read from storage.'
+  if (error.startsWith('The photo could not be opened:')) return 'A photo could not be opened.'
+  if (error.startsWith('The photos could not be interpreted:'))
+    return 'The photo service could not interpret the photos.'
+  return error.length > 200 ? 'Interpretation failed. Please retry or contact support.' : error
 }
 
 function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
@@ -259,6 +284,17 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
       size: p.size,
       url: `/api/observations/${o._id}/photos/${p._id}/image`,
     })),
+    interpretation: o.interpretation
+      ? {
+          status: o.interpretation.status,
+          description: o.interpretation.description ?? null,
+          copeDimension: o.interpretation.copeDimension ?? null,
+          hazardType: o.interpretation.hazardType ?? null,
+          error: interpretationFailureReason(o.interpretation.error),
+          attempts: o.interpretation.attempts.length,
+          model: o.interpretation.provenance?.model ?? null,
+        }
+      : null,
     recordedAt: o.createdAt,
     edited: stampDto(o.edited),
     deleted: stampDto(o.deleted),
@@ -282,9 +318,10 @@ async function activeCapture(reference: string) {
 
 // Saves one observation with its note, recordings and photos against the
 // assessment's active capture session. Each recording and photo goes to S3 as
-// raw evidence (CP-03 AC1, CP-04 AC1), and each recording starts its initial
-// transcription (CP-03 AC3). The session stays active, so the engineer can
-// keep adding observations.
+// raw evidence (CP-03 AC1, CP-04 AC1), each recording starts its initial
+// transcription (CP-03 AC3), and the photos, if any, start one interpretation
+// (CP-05 AC1). The session stays active, so the engineer can keep adding
+// observations.
 export async function saveObservation(
   reference: string,
   details: ObservationDetails,
@@ -339,6 +376,9 @@ export async function saveObservation(
       note: details.note,
       recordings: stored,
       photos: storedPhotos,
+      ...(storedPhotos.length > 0 && {
+        interpretation: { status: 'interpreting', attempts: [{ startedAt: now }] },
+      }),
       standard: details.standard,
       severity: details.severity,
       location: details.locationId,
@@ -356,6 +396,7 @@ export async function saveObservation(
   }
 
   for (const r of stored) void runTranscription(String(id), String(r._id))
+  if (storedPhotos.length) void runInterpretation(String(id))
   return toDto(observation.toObject(), locations)
 }
 
@@ -600,6 +641,99 @@ export async function failInterruptedTranscriptions() {
       },
     },
     { arrayFilters: [{ 'r.transcription.status': 'transcribing' }] },
+  )
+}
+
+// Starts a new attempt at reading an observation's photos after a failure
+// (CP-05), as retryTranscription does for a recording. Matching on the failed
+// status makes it atomic, so a double click cannot start two attempts.
+export async function retryInterpretation(id: string): Promise<void> {
+  if (!isValidObjectId(id)) throw new ObservationNotFoundError()
+  const { matchedCount } = await ObservationModel.updateOne(
+    { _id: id, 'interpretation.status': 'failed' },
+    {
+      $set: { 'interpretation.status': 'interpreting' },
+      $unset: { 'interpretation.error': 1 },
+      $push: { 'interpretation.attempts': { startedAt: new Date() } },
+    },
+  )
+  if (!matchedCount) {
+    if (await ObservationModel.exists({ _id: id, interpretation: { $exists: true } }))
+      throw new NotRetryableError('Only a failed interpretation can be retried.')
+    throw new ObservationNotFoundError('interpretation')
+  }
+  void runInterpretation(id)
+}
+
+// Runs the latest attempt at reading the observation's photos and records the
+// proposal (CP-05 AC3-AC5). Never throws: a failure is stored as the reason
+// the engineer sees. The vision model is told where the photos were taken and
+// what the note says, but not the engineer's category or severity, so its
+// proposed category is its own. The proposal is not drafting evidence, so a
+// draft never reads it and never goes out of date because of it.
+// ponytail: runs in the gateway process, like runTranscription.
+export async function runInterpretation(id: string): Promise<void> {
+  const observation = await ObservationModel.findById(
+    id,
+    'assessment photos note location interpretation',
+  )
+    .lean<StoredObservation>()
+    .catch(() => null)
+  if (!observation?.interpretation || !observation.photos?.length) return
+  const assessment = await AssessmentModel.findById(observation.assessment, 'locations')
+    .lean()
+    .catch(() => null)
+  const place = assessment?.locations?.find((l) => l._id.equals(observation.location))
+  const attempt = `interpretation.attempts.${observation.interpretation.attempts.length - 1}`
+  let outcome: Record<string, unknown>
+  try {
+    const result = await interpret({
+      s3Keys: observation.photos.map((p) => p.key),
+      location: place ? [place.name, place.floor].filter(Boolean).join(' · ') : null,
+      note: observation.note ?? null,
+    })
+    outcome = {
+      'interpretation.status': 'interpreted',
+      'interpretation.description': result.description,
+      'interpretation.copeDimension': result.cope_dimension,
+      'interpretation.hazardType': result.hazard_type,
+      'interpretation.provenance': {
+        provider: result.provider,
+        model: result.model,
+        promptVersion: result.prompt_version,
+        usage: result.usage && {
+          inputTokens: result.usage.input_tokens,
+          outputTokens: result.usage.output_tokens,
+          thoughtTokens: result.usage.thought_tokens,
+        },
+        interpretedAt: new Date(),
+      },
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'Interpretation failed.'
+    outcome = {
+      'interpretation.status': 'failed',
+      'interpretation.error': reason,
+      [`${attempt}.error`]: reason,
+    }
+  }
+  await ObservationModel.updateOne(
+    { _id: id },
+    { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
+  ).catch((error) => console.error('Saving interpretation failed:', error))
+}
+
+// As for transcriptions: a restart loses an attempt still running in memory,
+// so mark it failed with the reason, ready to retry.
+export async function failInterruptedInterpretations() {
+  await ObservationModel.updateMany(
+    { 'interpretation.status': 'interpreting' },
+    {
+      $set: {
+        'interpretation.status': 'failed',
+        'interpretation.error': 'Interpretation was interrupted by a gateway restart. Retry it.',
+      },
+    },
   )
 }
 

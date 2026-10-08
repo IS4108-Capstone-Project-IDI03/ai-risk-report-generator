@@ -12,6 +12,7 @@ import {
   ObservationNotFoundError,
   ObservationStateError,
   restoreObservation,
+  retryInterpretation,
   retryTranscription,
   transcriptCorrectionSchema,
   UnknownLocationError,
@@ -126,6 +127,21 @@ router.post(
   async (req, res) => {
     try {
       await retryTranscription(req.params.id, req.params.recordingId)
+      res.status(202).end()
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
+// Starts a new attempt at reading the observation's photos after a failure
+// (CP-05), open to any risk engineer as a transcription retry is.
+router.post(
+  '/:id/interpretation/retry',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      await retryInterpretation(req.params.id)
       res.status(202).end()
     } catch (error: unknown) {
       refuse(error, res)
