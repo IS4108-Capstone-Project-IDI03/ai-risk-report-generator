@@ -201,7 +201,7 @@ export type ObservationDto = {
     url: string
   }[]
   // What the vision model proposes from its photos (CP-05), for the engineer
-  // to review; null when it has no photos.
+  // to review; null until an engineer asks for its photos to be read.
   interpretation: {
     status: IInterpretation['status']
     description: string | null
@@ -318,10 +318,10 @@ async function activeCapture(reference: string) {
 
 // Saves one observation with its note, recordings and photos against the
 // assessment's active capture session. Each recording and photo goes to S3 as
-// raw evidence (CP-03 AC1, CP-04 AC1), each recording starts its initial
-// transcription (CP-03 AC3), and the photos, if any, start one interpretation
-// (CP-05 AC1). The session stays active, so the engineer can keep adding
-// observations.
+// raw evidence (CP-03 AC1, CP-04 AC1), and each recording starts its initial
+// transcription (CP-03 AC3). The photos are not read: no photo goes to the
+// vision model until an engineer asks (readPhotos). The session stays active,
+// so the engineer can keep adding observations.
 export async function saveObservation(
   reference: string,
   details: ObservationDetails,
@@ -376,9 +376,6 @@ export async function saveObservation(
       note: details.note,
       recordings: stored,
       photos: storedPhotos,
-      ...(storedPhotos.length > 0 && {
-        interpretation: { status: 'interpreting', attempts: [{ startedAt: now }] },
-      }),
       standard: details.standard,
       severity: details.severity,
       location: details.locationId,
@@ -396,7 +393,6 @@ export async function saveObservation(
   }
 
   for (const r of stored) void runTranscription(String(id), String(r._id))
-  if (storedPhotos.length) void runInterpretation(String(id))
   return toDto(observation.toObject(), locations)
 }
 
@@ -650,29 +646,46 @@ export async function failInterruptedTranscriptions() {
   )
 }
 
-// Starts a new attempt at reading an observation's photos after a failure
-// (CP-05), as retryTranscription does for a recording. Matching on the failed
-// status makes it atomic, so a double click cannot start two attempts.
-export async function retryInterpretation(id: string): Promise<void> {
+// Reads an observation's photos when an engineer asks (CP-05): saving never
+// sends a photo to the vision model, so a client's site photos leave the
+// system only by choice. Starts the first reading, or a new one after a
+// failure. Matching on the state it found makes it atomic, so a double click
+// cannot start two readings.
+export async function readPhotos(id: string): Promise<void> {
   if (!isValidObjectId(id)) throw new ObservationNotFoundError()
+  const o = await ObservationModel.findById(
+    id,
+    'photos interpretation deleted',
+  ).lean<StoredObservation>()
+  if (!o) throw new ObservationNotFoundError()
+  if (o.deleted) throw new ObservationStateError(DELETED)
+  if (!o.photos?.length) throw new ObservationStateError('This observation has no photos to read.')
+  const status = o.interpretation?.status
+  if (status === 'interpreted')
+    throw new ObservationStateError('Its photos have already been read.')
+  const reading = 'Its photos are already being read.'
+  if (status === 'interpreting') throw new ObservationStateError(reading)
+
+  const attempt = { startedAt: new Date() }
   const { matchedCount } = await ObservationModel.updateOne(
-    { _id: id, 'interpretation.status': 'failed' },
-    {
-      $set: { 'interpretation.status': 'interpreting' },
-      $unset: { 'interpretation.error': 1 },
-      $push: { 'interpretation.attempts': { startedAt: new Date() } },
-    },
+    status === 'failed'
+      ? { _id: id, deleted: { $exists: false }, 'interpretation.status': 'failed' }
+      : { _id: id, deleted: { $exists: false }, interpretation: { $exists: false } },
+    status === 'failed'
+      ? {
+          $set: { 'interpretation.status': 'interpreting' },
+          $unset: { 'interpretation.error': 1 },
+          $push: { 'interpretation.attempts': attempt },
+        }
+      : { $set: { interpretation: { status: 'interpreting', attempts: [attempt] } } },
   )
-  if (!matchedCount) {
-    if (await ObservationModel.exists({ _id: id, interpretation: { $exists: true } }))
-      throw new NotRetryableError('Only a failed interpretation can be retried.')
-    throw new ObservationNotFoundError('interpretation')
-  }
+  // Someone else started one between the read and the write.
+  if (!matchedCount) throw new ObservationStateError(reading)
   void runInterpretation(id)
 }
 
 // Runs the latest attempt at reading the observation's photos and records the
-// proposal (CP-05 AC3-AC5). Never throws: a failure is stored as the reason
+// proposal (CP-05 AC3-AC5), once an engineer has asked (readPhotos). Never throws: a failure is stored as the reason
 // the engineer sees. The vision model is told where the photos were taken and
 // what the note says, but not the engineer's category or severity, so its
 // proposed category is its own. The proposal is not drafting evidence, so a
