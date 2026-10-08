@@ -40,10 +40,43 @@ export type TemplateSection = {
   title: string
   cope_dimensions: string[]
   min_observations: number
+  // The section's headings in template order (EV-01 compares drafts with them).
+  subsections?: { heading: string; kind: 'narrative' | 'fields' | 'table' }[]
 }
 
 export async function listTemplateSections(): Promise<TemplateSection[]> {
   return (await callRag<{ sections: TemplateSection[] }>('/sections')).sections
+}
+
+// The template with its version, for the structure checks (EV-01).
+export async function getTemplate(): Promise<{
+  template_version: string
+  sections: TemplateSection[]
+}> {
+  return callRag('/sections')
+}
+
+export type ChunkLookup = {
+  id: string
+  exists: boolean
+  doc_id: string | null
+  status: string | null
+  page_start: number | null
+}
+
+// Asks S4 whether cited passages exist, withdrawn ones included (EV-01 AC1).
+// rag-service takes at most 200 ids a call. Free: no embedding or model call.
+export async function checkChunksExist(ids: string[]): Promise<ChunkLookup[]> {
+  const found: ChunkLookup[] = []
+  for (let i = 0; i < ids.length; i += 200) {
+    const reply = await callRag<{ results: ChunkLookup[] }>('/chunks/exist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids.slice(i, i + 200) }),
+    })
+    found.push(...reply.results)
+  }
+  return found
 }
 
 // What S4 sends back for one drafted section (see rag-service POST /sections/draft).
