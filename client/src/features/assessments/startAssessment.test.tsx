@@ -217,6 +217,8 @@ const CREATED_NOTE = {
   note: 'Sprinkler control valve chained open',
   recordings: [],
   photos: [],
+  removedRecordings: [],
+  removedPhotos: [],
 }
 
 function createFromForm() {

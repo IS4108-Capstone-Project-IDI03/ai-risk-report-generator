@@ -165,7 +165,7 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio and photos | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry and reading photos; tag and note edits, transcript corrections, deletes and restores (the assessment's assigned engineer only, CP-08) | yes | no |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry and reading photos; tag and note edits, transcript corrections, deletes and restores, and adding, removing and restoring recordings and photos (the assessment's assigned engineer only, CP-08) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
@@ -213,10 +213,10 @@ observation stays out of drafting until it is categorised by editing its tags.
 
 The category, severity, location and standard are the observation's tags
 (CP-06). `PATCH /api/observations/:id` changes any of them, and the note
-(CP-08), in place, validated against the same values as capture; the
-recordings, photos and capture time never change. The note is stored exactly as
-typed, and a blank one removes it, which an observation without a recording or
-a photo can't do.
+(CP-08), in place, validated against the same values as capture; the capture
+time never changes. The note is stored exactly as typed, and a blank one
+removes it, which an observation without a recording or a photo it keeps
+can't do.
 Only what differs is saved, with `edited: { at, by: { id, name } }` naming who
 made the latest change; a save that changes nothing records nothing. The
 observation keeps no history of its own: report section drafts cite
@@ -244,10 +244,30 @@ restored, and its location can't be removed while it is saved there, so a
 restored one keeps its location. A draft that was given an observation since
 deleted, or uncategorised, counts it in `changesSinceDraft`.
 
+Recordings and photos can be added to a saved observation, and removed from it
+(CP-08). `POST /api/observations/:id/media` takes them as capture does, stores
+each in S3 under the observation's folder, marks it `added: { at, by }`, and
+starts each recording's transcription; no photo is read until an engineer
+asks. It needs no capture session. Removing is a soft removal, like deleting:
+the recording or photo gets `removed: { at, by }`, present only while removed,
+and nothing is deleted, in MongoDB or S3. Restoring removes `removed`. A
+removal must leave a note, a recording or a photo (409 otherwise); the update
+matches on that, so two removals at once can't leave nothing. The API lists
+only kept ones under `recordings` and `photos`, and removed ones under
+`removedRecordings` and `removedPhotos`, so everything that reads the former
+leaves removed ones out without asking: drafting, the section evidence counts,
+the wait for transcriptions before drafting, the Photos tab and the photo
+appendix (EX-01). Removing or restoring a transcribed recording, or adding one
+once it is transcribed, changes the transcripts a draft was given, so it
+counts in `changesSinceDraft`; photos are not drafting evidence, so they don't.
+A removed recording's transcript can't be corrected, nor a failed one retried,
+until it is restored.
+
 Only the assessment's assigned engineer can change, delete or restore its
-observations (403 otherwise), and not once the assessment is archived (409),
-as for its other details (RV-10). Capturing observations and retrying a failed
-transcription stay open to any risk engineer.
+observations, or add, remove and restore their recordings and photos (403
+otherwise), and not once the assessment is archived (409), as for its other
+details (RV-10). Capturing observations, retrying a failed transcription and
+reading photos stay open to any risk engineer.
 
 The API gives each recording `type: "Voice"`; the note is text by being the
 `note` field. The observation's `engineerId` is set from the signed session;
@@ -289,7 +309,14 @@ as for a recording, and `provenance` records the `provider`, `model`,
 `thoughtTokens`, or null when not reported, EV-03) and `interpretedAt`.
 Asking creates it with one attempt, or adds one while it is `failed`, matched
 atomically so two clicks start one reading. Until then it has no
-`interpretation`, and the API returns `null`. The proposal is not drafting
+`interpretation`, and the API returns `null`, as it does while no photo is
+kept. Each attempt records the photos it reads in `photoIds` (CP-08). A
+finished reading whose `photoIds` differ from the photos kept now, because
+photos were added or removed since, is out of date: the API returns
+`outOfDate: true`, nothing reads the photos again by itself, and asking again
+reads the kept ones, clearing the old proposal while it runs. A reading from
+before photos could change has no `photoIds` and counts as reading every photo
+the observation was saved with (those without `added`). The proposal is not drafting
 evidence: `toEvidence` never reads it, drafting does not wait for it, and it
 does not count towards `changesSinceDraft`. It becomes the engineer's only
 when they save it into the note or the category through `PATCH`. The Photos tab lists every photo of
@@ -300,13 +327,16 @@ filters, it is built in the browser from the observation list.
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each) and a `photo` part per JPG or PNG (up to 20 MB each), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording or photo, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos`, each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model }`, or `null` until its photos are read, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until its photos are read, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
-| `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, deleted or archived) |
+| `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
-| `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
-| `POST /api/observations/:id/interpretation` | Reads the observation's photos (CP-05): the first reading, or a new one after a failure. Saving never reads them. 202, or 404 (unknown observation) / 409 (no photos, deleted, already being read, or already read) |
+| `POST /api/observations/:id/media` | Adds recordings and photos (CP-08): multipart `recording` and `photo` parts, checked as at capture, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId` | Removes one, a soft removal (CP-08). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
+| `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
+| `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |
+| `POST /api/observations/:id/interpretation` | Reads the observation's kept photos (CP-05): the first reading, a new one after a failure, or after photos were added or removed (CP-08). Saving never reads them. 202, or 404 (unknown observation) / 409 (no photos, deleted, already being read, or read and up to date) |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 | `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
 

@@ -33,7 +33,10 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    photos on the Observations tab sends `POST
    /api/observations/:id/interpretation`, which saves the observation with
    `interpretation.status: 'interpreting'`: one interpretation covering all
-   its photos (see [database](database.md#observations)).
+   its kept photos, whose ids it records in `photoIds` (see
+   [database](database.md#observations)). Photos added or removed later
+   (CP-08) leave a finished reading out of date; Read again on the tab sends
+   the same request, reading the photos kept then.
 2. The gateway posts `{ "s3_keys": [...], "location": ..., "note": ... }` to
    S5's `POST /interpret` without making the client wait. The location is the
    observation's location and floor ("L43 pump room · Level 43"); the note is
@@ -286,7 +289,8 @@ details and history back and answers 503, as it does for any failed relabel.
    refuses (409) while any of their recordings is still transcribing.
 4. It sends the usable ones to S4's `POST /sections/draft`. An observation is
    usable when it has a note or a finished transcript; a transcript the
-   engineer corrected is sent as corrected (CP-08). Only those filed under
+   engineer corrected is sent as corrected, and a removed recording is left
+   out, including from the wait in step 3 (CP-08). Only those filed under
    the section's own categories count towards the minimum; with too few, it
    refuses with 422 and gives the count.
    - S4 puts the section's own observations in `<observations>` as the main
