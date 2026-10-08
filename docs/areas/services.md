@@ -238,6 +238,40 @@ APIs). See [DECISIONS](../DECISIONS.md).
     [database](database.md#report-sections-gn-01)). Any S4 failure reaches
     the client as a 503 with the reason.
 
+## Opportunities for Improvement (S4, GN-05)
+
+Section 3's OFIs are drafted on the Report generation tab, as the first row of
+the sections table (`components/OfiSuggestions.tsx`). View OFIs opens the
+suggestions, each with Accept (or Accept all), and the OFIs in the report.
+
+1. The engineer clicks **Draft OFIs**. The gateway (`ofi.service.draftOfis`)
+   checks the assessment and its observations as for sections, then sends the
+   usable observations and the titles of OFIs already accepted to S4's
+   `POST /ofis/draft`.
+2. `orchestrator.draft_ofis_for` takes observations rated critical, high or
+   moderate as candidates. With none, it returns no OFIs and makes no model
+   call.
+3. One batched Cohere search, by each candidate's own words, finds standards
+   (filtered to the site, distance at most 0.60) and past reports' passages
+   (by country). Only past passages under the heading "Opportunities for
+   Improvement", and not its introduction or Risk Assessment Matrix, are kept
+   as past OFIs. One rerank orders both; the top 12 standards and 8 past OFIs
+   go to the model. If rerank fails, vector order is used.
+4. `generator.draft_ofis` writes the OFIs (prompt `gn05-v4`, guide
+   `ofi-skill.md`) as structured output whose category, type, likelihood,
+   consequence and effort must come from `ofi.json`, Marsh's value lists.
+5. Code finishes each OFI. An OFI none of whose observations resolve is
+   dropped. Unresolved standard and precedent labels are dropped. The
+   priority is `ofi.json`'s Risk Assessment Matrix value for likelihood ×
+   consequence, never the model's.
+6. The gateway replaces the unaccepted suggestions with the new ones in
+   `report_ofis` (see [database](database.md#opportunities-for-improvement-gn-05)).
+   The engineer accepts suggestions one by one. Only accepted OFIs are in the
+   report, numbered `<site visit year>-NN` in report order.
+
+`eval/judge_ofis.py` scores drafted OFIs, and Marsh's own, on three cases from
+the sample reports (AC7).
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for

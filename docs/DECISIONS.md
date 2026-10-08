@@ -661,3 +661,46 @@ criteria (role, chatbot, units, empty state, scope) are listed in the PR.
 
 Stories: EV-04.
 
+## 2026-10-08 — OFIs are suggested by the model and accepted by the engineer; code sets their priority and number
+
+Chose:
+- The model proposes Section 3 OFIs from observations rated moderate or worse,
+  as structured records whose category, type, likelihood, consequence and
+  effort must come from `ofi.json` (Marsh's template lists).
+- Code sets the priority from the template's Risk Assessment Matrix, and the
+  number, status and issue date when the list is read. OFI issued by is left
+  for the engineer (Marsh or the consultant).
+- An OFI is a suggestion, kept out of the report, until the engineer accepts
+  it. Redrafting replaces only unaccepted suggestions.
+- Past OFIs are retrieved from the knowledge base by heading, since RT-02 is
+  not built.
+- Section 3 is the first row of the Report generation tab's sections table,
+  laid out like sections 7-12, not the RV-01 review workspace. Any number of
+  suggestions can be accepted, one by one or all at once.
+
+Rejected:
+- An engineer-set "needs OFI" flag on observations. It changes capture screens
+  and adds a step on site, when severity already says which findings matter.
+- Free-text types, as in the sample reports. AC5 asks for configured value
+  lists, so the provisional list is the sample reports' types plus the seven
+  RQR main categories, swappable when Marsh sends its sub-categories.
+- The model choosing the priority. The backlog notes that priority is a matrix
+  lookup, and showing "Likely × Major" lets the engineer see the basis.
+- Loss expectancy from the model. Loss figures stay out of LLM output; those
+  fields are left for people.
+
+Reason: OFIs are advice the client acts on and insurers read, so every
+judgement the template defines as a rule (priority, numbering) is made in code.
+The model does the writing, and the engineer stays the one who decides what
+goes in the report.
+
+Measured (AC7, 2026-10-08, guide `gn05-v4`, gpt-6-luna judge): the mall (4.8)
+and mixed-use (4.55) cases pass; the office case (4.5) fails on field fit. Its
+drafts rated the fire door and recessed sprinklers Priority 1, as Marsh did,
+but the judge marks Major down against the guide's wording, and gives Marsh's
+own office OFIs 2.5 for field fit too. Drafted priorities match Marsh's in 7 of
+10 OFIs and are within one step in 9. Next: score priority by agreement with
+Marsh's own priorities, not the judge's view of likelihood and consequence.
+
+Stories: GN-05.
+
