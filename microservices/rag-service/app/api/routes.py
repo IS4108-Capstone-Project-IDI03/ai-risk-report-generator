@@ -7,6 +7,7 @@ from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.orchestrator.orchestrator import draft, run
 from app.retrieval.retriever import retrieve
+from app.retrieval_config import COLLECTION, chroma_client
 
 router = APIRouter()
 Query = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
@@ -56,6 +57,11 @@ class DraftSectionRequest(BaseModel):
     observations: list[Observation] = Field(min_length=1)
 
 
+class ChunksExistRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[str] = Field(min_length=1, max_length=200)
+
+
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "rag"}
@@ -82,10 +88,48 @@ def list_sections() -> dict:
                 "title": section["title"],
                 "cope_dimensions": section["cope_dimensions"],
                 "min_observations": section["min_observations"],
+                "subsections": [
+                    {"heading": sub["heading"], "kind": sub["kind"]}
+                    for sub in section["subsections"]
+                ],
             }
             for section_id, section in TEMPLATE["sections"].items()
         ],
+        "template_version": TEMPLATE["version"],
     }
+
+
+@router.post("/chunks/exist")
+def chunks_exist(request: ChunksExistRequest) -> dict:
+    # Do cited chunks still exist? One Chroma get, no `where`, so withdrawn and
+    # needs_review passages count as found. Citation id "C:<doc>:<n>" -> chunk id "<doc>:<n>".
+    chunk_ids = [i[2:] for i in request.ids if i[:2] in ("C:", "P:")]
+    try:
+        found = {}
+        if chunk_ids:
+            collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+            got = collection.get(ids=chunk_ids, include=["metadatas"])
+            found = dict(zip(got["ids"], got["metadatas"]))
+    except Exception as error:
+        raise HTTPException(503, f"Chunk lookup failed: {error}") from error
+    results = []
+    for id_ in request.ids:
+        meta = found.get(id_[2:]) if id_[:2] in ("C:", "P:") else None
+        if meta is None:
+            results.append(
+                {"id": id_, "exists": False, "doc_id": None, "status": None, "page_start": None}
+            )
+        else:
+            results.append(
+                {
+                    "id": id_,
+                    "exists": True,
+                    "doc_id": meta.get("doc_id", id_[2:].rpartition(":")[0]),
+                    "status": meta.get("status", "active"),
+                    "page_start": meta.get("page_start"),
+                }
+            )
+    return {"results": results}
 
 
 @router.post("/sections/draft")

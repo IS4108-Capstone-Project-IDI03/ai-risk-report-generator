@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.generation.generator import SectionDraft, Statement, Subsection
+from app.generation.generator import TEMPLATE, SectionDraft, Statement, Subsection
 from app.generation.llm import GenerationFailed
 from app.main import app
 from app.retrieval import retriever
@@ -248,7 +248,14 @@ def test_lists_the_technical_sections_7_to_12():
         "title": "Construction",
         "cope_dimensions": ["Construction"],
         "min_observations": 1,
+        "subsections": [
+            {"heading": "Construction Narrative", "kind": "narrative"},
+            {"heading": "Construction Table", "kind": "table"},
+            {"heading": "Compartmentalization and Fire Divisions", "kind": "narrative"},
+            {"heading": "Details on Combustible Construction", "kind": "narrative"},
+        ],
     }
+    assert body["template_version"] == TEMPLATE["version"]
 
 
 def test_a_list_of_source_types_matches_any_of_them():
