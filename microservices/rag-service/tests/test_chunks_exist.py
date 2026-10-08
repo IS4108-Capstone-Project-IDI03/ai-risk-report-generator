@@ -53,3 +53,11 @@ def test_rejects_bad_requests():
     assert client.post("/chunks/exist", json={"ids": []}).status_code == 422
     assert client.post("/chunks/exist", json={"ids": ["C:d:1"] * 201}).status_code == 422
     assert client.post("/chunks/exist", json={"ids": ["C:d:1"], "x": 1}).status_code == 422
+
+
+def test_a_chunk_without_metadata_still_exists(monkeypatch):
+    fake_chroma(monkeypatch, {"d1:3": None})
+    body = client.post("/chunks/exist", json={"ids": ["C:d1:3"]}).json()
+    assert body["results"] == [
+        {"id": "C:d1:3", "exists": True, "doc_id": "d1", "status": "active", "page_start": None}
+    ]

@@ -114,7 +114,8 @@ def chunks_exist(request: ChunksExistRequest) -> dict:
         raise HTTPException(503, f"Chunk lookup failed: {error}") from error
     results = []
     for id_ in request.ids:
-        meta = found.get(id_[2:]) if id_[:2] in ("C:", "P:") else None
+        chunk = id_[2:] if id_[:2] in ("C:", "P:") else None
+        meta = (found.get(chunk) or {}) if chunk in found else None
         if meta is None:
             results.append(
                 {"id": id_, "exists": False, "doc_id": None, "status": None, "page_start": None}
