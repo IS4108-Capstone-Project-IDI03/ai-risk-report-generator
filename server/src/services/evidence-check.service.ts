@@ -15,7 +15,8 @@ import type { ISite } from '../models/site.model'
 import { NotAssignedError } from './assessment.service'
 import type { SessionUser } from './auth.service'
 import { AssessmentNotFoundError } from './capture-session.service'
-import { checkChunksExist, getTemplate, RagServiceError } from './rag.service'
+import { COMPULSORY_HEADINGS, HEADING_ALIASES, REQUIRED_SECTIONS } from './evidence-check.config'
+import { checkChunksExist, getTemplate, RagServiceError, type TemplateSection } from './rag.service'
 
 export type EvaluationRunDto = {
   id: string
@@ -131,6 +132,87 @@ async function citationChecks(
   )
 }
 
+// Headings compare without case or extra spaces, and known Marsh wordings count as the template's.
+const norm = (heading: string) => {
+  const key = heading.toLowerCase().replace(/\s+/g, ' ').trim()
+  return HEADING_ALIASES[key] ?? key
+}
+
+// AC3: one check per template section: is there a draft? A missing section is
+// named, as a failure or (for section 12) a warning.
+function requiredSectionCheck(
+  section: TemplateSection,
+  draft: Draft | undefined,
+): IEvaluationCheck {
+  const base = {
+    sectionId: section.id,
+    check: 'required-section' as const,
+    target: `${section.id} ${section.title}`,
+  }
+  if (draft) return { ...base, result: 'pass', detail: 'A draft exists.' }
+  return {
+    ...base,
+    result: REQUIRED_SECTIONS[section.id] ?? 'fail',
+    detail: 'No draft for this section.',
+  }
+}
+
+// AC4: compare the draft's headings with the template's. A missing compulsory
+// heading or a wrong order fails; anything else that differs warns.
+function headingChecks(
+  section: TemplateSection,
+  draft: Draft,
+  templateVersion: string,
+): IEvaluationCheck[] {
+  if (!section.subsections) return []
+  const make = (
+    target: string,
+    result: IEvaluationCheck['result'],
+    detail: string,
+  ): IEvaluationCheck => ({
+    sectionId: section.id,
+    check: 'heading-structure',
+    target,
+    result,
+    detail,
+  })
+  const expected = section.subsections.map((s) => s.heading)
+  const actual = draft.subsections.map((s) => s.heading)
+  const expectedKeys = expected.map(norm)
+  const actualKeys = actual.map(norm)
+  const compulsory = (COMPULSORY_HEADINGS[section.id] ?? []).map(norm)
+
+  const checks: IEvaluationCheck[] = []
+  expected.forEach((heading, i) => {
+    if (!actualKeys.includes(expectedKeys[i])) {
+      checks.push(
+        make(heading, compulsory.includes(expectedKeys[i]) ? 'fail' : 'warn', 'Missing heading.'),
+      )
+    }
+  })
+  actual.forEach((heading, i) => {
+    if (!expectedKeys.includes(actualKeys[i])) {
+      checks.push(make(heading, 'warn', 'Heading is not in the template.'))
+    }
+  })
+  const sharedInTemplate = expectedKeys.filter((k) => actualKeys.includes(k))
+  const sharedInDraft = actualKeys.filter((k) => expectedKeys.includes(k))
+  if (sharedInTemplate.join('|') !== sharedInDraft.join('|')) {
+    checks.push(make('order', 'fail', 'Headings are not in the template order.'))
+  }
+  const written = draft.provenance.template_version
+  if (written !== templateVersion) {
+    checks.push(
+      make(
+        'template-version',
+        'warn',
+        `Written with template ${written}; the current one is ${templateVersion}.`,
+      ),
+    )
+  }
+  return checks.length ? checks : [make('headings', 'pass', 'Headings match the template.')]
+}
+
 const toDto = (run: IEvaluationRun & { _id: Types.ObjectId }): EvaluationRunDto => ({
   id: String(run._id),
   reference: run.reference,
@@ -165,6 +247,13 @@ export async function runEvaluation(
 
   // c. The checks.
   const checks = [
+    ...template.sections.flatMap((section) => {
+      const found = drafts.get(section.id)
+      return [
+        requiredSectionCheck(section, found),
+        ...(found ? headingChecks(section, found, template.template_version) : []),
+      ]
+    }),
     ...[...drafts].flatMap(([sectionId, draft]) => findingChecks(sectionId, draft)),
     ...(await citationChecks(drafts, assessment._id)),
   ]

@@ -309,3 +309,88 @@ describe('the run is saved with its individual checks (AC5)', () => {
     expect(await EvaluationRunModel.countDocuments()).toBe(1)
   })
 })
+
+describe('required sections (AC3)', () => {
+  it('names a section with no draft: fail for 7, only a warning for 12', async () => {
+    await assessment()
+
+    const run = await runEvaluation(REF, user)
+
+    const required = checksOf(run, 'required-section')
+    expect(required.map((c) => [c.sectionId, c.result])).toEqual([
+      ['7', 'fail'],
+      ['12', 'warn'],
+    ])
+    expect(required[0].detail).toMatch(/no draft/i)
+  })
+
+  it('passes a section that has a draft', async () => {
+    const { assessment: a } = await assessment()
+    await draft(a._id, '7', section7([]))
+    const required = checksOf(await runEvaluation(REF, user), 'required-section')
+    expect(required.map((c) => [c.sectionId, c.result])).toEqual([
+      ['7', 'pass'],
+      ['12', 'warn'],
+    ])
+  })
+})
+
+describe('heading structure (AC4)', () => {
+  const headingChecks = async (subsections: Sub[], version = VERSION) => {
+    const { assessment: a } = await assessment()
+    await draft(a._id, '7', subsections, version)
+    return checksOf(await runEvaluation(REF, user), 'heading-structure').filter(
+      (c) => c.sectionId === '7',
+    )
+  }
+  const without = (heading: string) => section7([]).filter((s) => s.heading !== heading)
+
+  it('passes a draft whose headings match the template, ignoring case', async () => {
+    const subs = section7([])
+    subs[0].heading = 'construction narrative'
+    expect(await headingChecks(subs)).toMatchObject([{ target: 'headings', result: 'pass' }])
+  })
+
+  it('fails a missing compulsory heading', async () => {
+    const checks = await headingChecks(without('Compartmentalization and Fire Divisions'))
+    expect(checks).toMatchObject([
+      {
+        target: 'Compartmentalization and Fire Divisions',
+        result: 'fail',
+        detail: 'Missing heading.',
+      },
+    ])
+  })
+
+  it('only warns about a missing optional or common heading', async () => {
+    const checks = await headingChecks(
+      without('Details on Combustible Construction').filter(
+        (s) => s.heading !== 'Construction Table',
+      ),
+    )
+    expect(checks.map((c) => [c.target, c.result])).toEqual([
+      ['Construction Table', 'warn'],
+      ['Details on Combustible Construction', 'warn'],
+    ])
+  })
+
+  it('warns about a heading the template does not have', async () => {
+    const checks = await headingChecks([
+      ...section7([]),
+      { heading: 'Roof Condition', kind: 'narrative', statements: [] },
+    ])
+    expect(checks).toMatchObject([{ target: 'Roof Condition', result: 'warn' }])
+  })
+
+  it('fails headings that are out of the template order', async () => {
+    const [narrative, table, compartment, combustible] = section7([])
+    const checks = await headingChecks([narrative, compartment, table, combustible])
+    expect(checks).toMatchObject([{ target: 'order', result: 'fail' }])
+  })
+
+  it('warns when the draft was written with another template version', async () => {
+    const checks = await headingChecks(section7([]), 'global-pre-v1.0')
+    expect(checks).toMatchObject([{ target: 'template-version', result: 'warn' }])
+    expect(checks[0].detail).toContain('global-pre-v1.0')
+  })
+})
