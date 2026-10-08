@@ -352,6 +352,48 @@ The first draft sets the assessment's `reportStatus` to `draft`.
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
 | `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources`, `changesSinceDraft` and its `changeCounts`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under the section's categories, plus any other it cites). Read-only. 404, or 503 when S4 cannot be reached. |
 
+## Opportunities for Improvement (GN-05)
+
+`report_ofis` holds one document per drafted Opportunity for Improvement (OFI),
+the records in the report's Section 3. A draft is a *suggestion* until the
+engineer accepts it; only accepted OFIs are in the report. Drafting again
+replaces the unaccepted suggestions and leaves accepted OFIs alone. Each
+document has:
+
+- `assessment`, and `state`: `suggested` or `accepted`, with `acceptedAt` and
+  `acceptedBy` (the engineer's user `_id`) once accepted.
+- The model's fields: `title`, `category` (Management Programs, Physical
+  Protection or Other), `type`, `description` (the technical basis),
+  `observation` (why it was raised here), `likelihood`, `consequence` and
+  `effort`. The value lists are `rag-service/app/generation/ofi.json`, taken
+  from Marsh's template; `type` is provisional until Marsh sends its RQR
+  sub-categories.
+- `priority` (`Priority 1` to `Priority 4`): the Risk Assessment Matrix's
+  value for `likelihood` × `consequence`, set by S4's code, never by the model.
+- `observations` (the observation `_id`s it rests on), `standards` (cited
+  `C:` IDs), `precedent` (the `P:` ID of the past-report OFI it was adapted
+  from, or `null`) and `sources` (those passages, with `doc_id` and
+  `headings`).
+- `provenance`: `provider`, `model`, `effort`, `prompt_version`,
+  `config_version` (of `ofi.json`), `generated_at`.
+- `createdBy`, the engineer's user `_id`.
+- `metadata` with the five required fields: `source_type: 'ofi'`,
+  `jurisdiction` and `facility_type` from the site, `COPE_dimension: 'all'`
+  (an OFI can address any category) and `effective_date` (when drafted).
+
+Not stored, but worked out when the list is read: the OFI `number`
+(`<site visit year>-NN`, in report order: Management Programs, then Physical
+Protection, then Other, each by acceptance time), `status` (`New`),
+`issueDate` (the site visit date). OFI issued by, insurer rec no., loss
+expectancy, related RTM ID, client response, advisory comment and loss
+scenario are left for people to fill: loss figures never come from a model.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/ofis` | `{ suggestions, accepted }`. Each OFI has `status` and `issueDate`; `accepted` is in report order with `number`. 404. |
+| `POST /api/assessments/:reference/ofis/draft` | Drafts OFIs from the assessment's usable observations and replaces the unaccepted suggestions (`reports:generate`, assigned engineer only). 201 with the list, 403, 404, 409 (a transcription in progress, or archived), 503 (drafting failed, with the reason). |
+| `POST /api/assessments/:reference/ofis/:id/accept` | Accepts a suggestion into the report (assigned engineer only). 200 with the list; accepting twice changes nothing. 403, 404. |
+
 ## Knowledge documents (IN-01, KB-01)
 
 `knowledge_documents` holds one record per accepted upload. Its `_id` is the

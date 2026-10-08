@@ -528,7 +528,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a replacement section draft is ready, when I discard it, then the previously saved section content remains unchanged.
   </details>
 
-- [ ] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: CP-14, RT-02, Sprint 4)
+- [ ] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: GN-01, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: draft each Opportunity for Improvement as a complete record in Marsh's format, informed by comparable past assessments.
@@ -539,6 +539,9 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given I have reviewed a recommendation suggestion, when I explicitly accept it, then that suggestion is inserted into the report.
   5. Given an observation needs an Opportunity for Improvement, when it is drafted, then it is created as a structured record using Marsh's fields and configured value lists.
   6. Given an Opportunity for Improvement has a likelihood and a consequence, when it is drafted, then its priority comes from the Risk Assessment Matrix.
+  7. Given a set of evaluation cases built from Marsh's past reports, when each case's OFIs are drafted and scored by an LLM judge against a fixed rubric, averaged over two runs, then every case meets the pass marks, and the scores, judge model and rubric version are recorded.
+
+  Dependencies changed 8 Oct: GN-01, whose retrieval, rerank and drafting pipeline OFI drafting reuses. CP-14 was dropped, and RT-02 is not needed: OFI drafting retrieves past OFIs from the knowledge base by heading itself. OFI types are provisional until Marsh's RQR sub-category list arrives.
   </details>
 
 - [ ] **GN-06** — Produce Section 4 risk quality ratings and commentary (risk engineer, Must, 3 pts, deps: CP-14, Sprint 4)

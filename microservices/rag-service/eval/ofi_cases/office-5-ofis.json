@@ -1,0 +1,46 @@
+{
+ "name": "office-5-ofis",
+ "source": "Office Sample 5 - PRE 2026 - REDACTED.pdf, Section 3 (pp. 4-6)",
+ "exclude_doc_id": "6ac0b458a99acf65e6f594e7",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office",
+  "standards": []
+ },
+ "observations": [
+  {
+   "id": "off5-ofi-1",
+   "COPE_dimension": "Protection",
+   "severity": "high",
+   "location": "B2 service lift corridor",
+   "note": "fire door sequencer at B2 service lift corridor not working. fire door inspection not in maintenance schedule"
+  },
+  {
+   "id": "off5-ofi-2",
+   "COPE_dimension": "Protection",
+   "severity": "high",
+   "location": "B3 service corridor",
+   "note": "few spk heads recessed more than 50% into ceiling at B3 service corridor"
+  },
+  {
+   "id": "off5-ok-1",
+   "COPE_dimension": "Protection",
+   "severity": "moderate",
+   "location": "Level 1 fire command centre",
+   "note": "FA panel normal, no isolations, monitored by central station"
+  },
+  {
+   "id": "off5-ok-2",
+   "COPE_dimension": "Occupancy",
+   "severity": "moderate",
+   "location": "Office floors",
+   "note": "tenant fit-out works on L30 under hot work permit, fire watch posted, extinguisher at hand"
+  }
+ ],
+ "reference": "New OFI\n2026-01 Fire door inspection and testing. Priority 1. Type: Fire door ITM. Effort: Moderate Procedural.\nDescription: Incorporate fire door inspection and testing into the maintenance regimen. Per NFPA 101, fire doors and their assemblies should be inspected annually and kept in working condition.\nObservation: Inspection and testing of the fire door is not incorporated into the maintenance regimen. At the B2 service lift corridor, the fire door sequencer is not in good working condition.\n\n2026-02 Sprinkler Installation. Priority 1. Type: Sprinkler Installation. Effort: Moderate Procedural.\nDescription: Ensure that sprinklers are properly installed and not recessed into the ceiling.\nObservation: At the B3 service corridor, a few sprinkler heads recess more than 50% into the ceiling, which will impede the sprinklers' flow pattern.",
+ "marsh_priorities": {
+  "off5-ofi-1": "Priority 1",
+  "off5-ofi-2": "Priority 1"
+ }
+}

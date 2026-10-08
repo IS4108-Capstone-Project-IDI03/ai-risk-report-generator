@@ -1,0 +1,63 @@
+{
+ "name": "mixed-1-ofis",
+ "source": "Mixed Use Development Sample 1 - PRE 2025 - REDACTED.pdf, Section 3 (pp. 6-12)",
+ "exclude_doc_id": "6ac0b457a99acf65e6f594e6",
+ "assessment": {
+  "reference": "EVAL-MIXED-1",
+  "jurisdiction": "SG",
+  "facility_type": "Mixed-use development",
+  "standards": []
+ },
+ "observations": [
+  {
+   "id": "mix1-ofi-1",
+   "COPE_dimension": "Occupancy",
+   "severity": "high",
+   "location": "Permit-to-work system",
+   "note": "hot work checklist - combustibles clearance only 3m. no fire watch during or after hot work"
+  },
+  {
+   "id": "mix1-ofi-2",
+   "COPE_dimension": "Protection",
+   "severity": "high",
+   "location": "FCC room",
+   "note": "FCC reported 1451 FA isolations in total. no proper tracking of isolations"
+  },
+  {
+   "id": "mix1-ofi-3",
+   "COPE_dimension": "Occupancy",
+   "severity": "moderate",
+   "location": "Generator set P04",
+   "note": "diesel genset day tank at P04 under 25%. tank topped up manually, no level check procedure"
+  },
+  {
+   "id": "mix1-ofi-4",
+   "COPE_dimension": "Protection",
+   "severity": "moderate",
+   "location": "L43 hosereel pump room",
+   "note": "hosereel firewater supply valves not locked open"
+  },
+  {
+   "id": "mix1-ofi-5",
+   "COPE_dimension": "Occupancy",
+   "severity": "moderate",
+   "location": "L22M LV switch room and MDF room",
+   "note": "tables, tools, cardboard boxes stored in L22M LV switch rm and MDF rm"
+  },
+  {
+   "id": "mix1-ok-1",
+   "COPE_dimension": "Protection",
+   "severity": "moderate",
+   "location": "Basement 1 fire pump room",
+   "note": "weekly churn test records up to date, last annual flow test Mar 25 satisfactory"
+  }
+ ],
+ "reference": "Management Programs\n2025-01 Hot Work Permit - to include clearance for combustibles and firewatch requirement. Priority 1. Type: Hot Work Permit. Effort: Moderate Procedural.\nDescription: As per NFPA 51B Chapter 5, remove combustibles within 11 m of hot work or shield them; constant fire watch during the work and monitoring for at least 1 hour after; fire watch to sign off.\nObservation: The hot work checklist allowed a 3 m clearance, lower than the recommended 11 m, and had no requirement for fire watch during and after hot work.\n\n2025-04 Formalize Fire Protection System Impairment Programme. Priority 2. Type: Fire Protection Impairment. Effort: Moderate Procedural.\nDescription: Check the necessity of each impairment before it is made; work with the fire contractor to reduce fire alarm isolations to those required, with proper tracking of all isolations.\nObservation: During the visit to the FCC room, it was reported that there are a total of 1451 isolations.\n\n2025-05 To improve management of fuel day tanks of diesel generator sets. Priority 2. Type: Management of back up power supply. Effort: Minor Procedural.\nDescription: As the fuel tank is manually topped up, implement a procedure to check fuel levels regularly and keep them above 75%.\nObservation: The fuel level of the day tank at P04 was noted to be less than 25%.\n\n2025-08 Improve housekeeping in electrical rooms. Priority 2. Type: Housekeeping. Effort: Minor Procedural.\nDescription: Remove storage of combustible materials from the L22M LV switch room and MDF room.\nObservation: Tables, tools, cardboard boxes and other items were stored in the Level 22M LV switch room and MDF room.\n\nPhysical Protection\n2025-06 Lock Open Hosereel Firewater Valve. Priority 3. Type: Fire Protection System Operation. Effort: Minor Capital.\nDescription: Lock open the valves on the hosereel firewater supply line to prevent tampering or accidental closing.\nObservation: At the L43 hosereel pump room, the valves were not locked open.",
+ "marsh_priorities": {
+  "mix1-ofi-1": "Priority 1",
+  "mix1-ofi-2": "Priority 2",
+  "mix1-ofi-3": "Priority 2",
+  "mix1-ofi-4": "Priority 3",
+  "mix1-ofi-5": "Priority 2"
+ }
+}
