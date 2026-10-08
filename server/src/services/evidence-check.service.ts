@@ -284,3 +284,10 @@ export async function runEvaluation(
   })
   return toDto(saved.toObject())
 }
+
+/** Returns the newest saved run for the assessment, or null if none has been run. */
+export async function latestEvaluation(reference: string): Promise<EvaluationRunDto | null> {
+  if (!(await AssessmentModel.exists({ reference }))) throw new AssessmentNotFoundError(reference)
+  const run = await EvaluationRunModel.findOne({ reference }).sort({ createdAt: -1 }).lean()
+  return run ? toDto(run) : null
+}

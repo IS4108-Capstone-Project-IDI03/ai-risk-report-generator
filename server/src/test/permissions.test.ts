@@ -33,6 +33,8 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['post', '/api/assessments/RPT-2026-0411/archive', 'assessments:edit'],
   ['post', '/api/assessments/RPT-2026-0411/restore', 'assessments:edit'],
   ['get', '/api/assessments/RPT-2026-0411/locations', 'assessments:view'],
+  ['post', '/api/assessments/RPT-2026-0411/evaluation', 'reports:generate'],
+  ['get', '/api/assessments/RPT-2026-0411/evaluation', 'assessments:view'],
   ['post', '/api/assessments/RPT-2026-0411/locations', 'assessments:edit'],
   ['delete', `/api/assessments/RPT-2026-0411/locations/${ID}`, 'assessments:edit'],
   ['get', '/api/assessments/RPT-2026-0411/observations', 'assessments:view'],

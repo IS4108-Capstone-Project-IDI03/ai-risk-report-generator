@@ -2,6 +2,7 @@
 // The rag-service is stubbed (template and chunk lookup); no paid call is made.
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { EvaluationRunModel } from '../models/evaluation-run.model'
@@ -9,6 +10,7 @@ import { ObservationModel } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
 import { runEvaluation } from '../services/evidence-check.service'
+import { signedInAs } from './auth-test-helpers'
 import { useMemoryMongo } from './memory-mongo'
 
 useMemoryMongo()
@@ -392,5 +394,64 @@ describe('heading structure (AC4)', () => {
     const checks = await headingChecks(section7([]), 'global-pre-v1.0')
     expect(checks).toMatchObject([{ target: 'template-version', result: 'warn' }])
     expect(checks[0].detail).toContain('global-pre-v1.0')
+  })
+})
+
+describe('POST and GET /api/assessments/:reference/evaluation', () => {
+  const person = (role: 'risk_engineer' | 'knowledge_admin', id = new Types.ObjectId()) => ({
+    _id: id,
+    staffId: `T-${id}`,
+    name: role,
+    email: `${id}@example.com`,
+    role,
+    active: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+  const assigned = signedInAs(app, person('risk_engineer', new Types.ObjectId(user.id)))
+  const otherEngineer = signedInAs(app, person('risk_engineer'))
+  const admin = signedInAs(app, person('knowledge_admin'))
+  const url = `/api/assessments/${REF}/evaluation`
+
+  it('runs the checks for the assigned engineer and saves the run (201)', async () => {
+    const { assessment: a } = await assessment()
+    await draft(a._id, '7', section7([statement('bare')]))
+    const res = await assigned.post(url)
+    expect(res.status).toBe(201)
+    expect(res.body.reference).toBe(REF)
+    expect(res.body.checks.some((c: { result: string }) => c.result === 'fail')).toBe(true)
+    expect(await EvaluationRunModel.countDocuments()).toBe(1)
+  })
+
+  it('returns the latest run on GET, to anyone who can view assessments', async () => {
+    const { assessment: a } = await assessment()
+    await draft(a._id, '7', section7([]))
+    await assigned.post(url)
+    await draft(a._id, '7', section7([statement('newer, with no citation')]))
+    const second = (await assigned.post(url)).body
+    const res = await admin.get(url)
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe(second.id)
+  })
+
+  it('answers 404 when nothing has been run, or the assessment is unknown', async () => {
+    await assessment()
+    expect((await assigned.get(url)).status).toBe(404)
+    expect((await assigned.post('/api/assessments/RPT-NOPE/evaluation')).status).toBe(404)
+  })
+
+  it('only lets the assigned engineer run it (403), not another engineer or the admin', async () => {
+    await assessment()
+    expect((await otherEngineer.post(url)).status).toBe(403)
+    expect((await admin.post(url)).status).toBe(403)
+    expect(await EvaluationRunModel.countDocuments()).toBe(0)
+  })
+
+  it('answers 503 when rag-service is down, and 401 without a session', async () => {
+    await assessment()
+    vi.stubGlobal('fetch', async () => json({ detail: 'down' }, 503))
+    expect((await assigned.post(url)).status).toBe(503)
+    const { default: request } = await import('supertest')
+    expect((await request(app).get(url)).status).toBe(401)
   })
 })

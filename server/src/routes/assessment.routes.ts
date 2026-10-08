@@ -35,6 +35,7 @@ import {
   saveObservation,
   UnknownLocationError,
 } from '../services/observation.service'
+import { latestEvaluation, runEvaluation } from '../services/evidence-check.service'
 import { RagServiceError } from '../services/rag.service'
 import { getReviewWorkspace } from '../services/review.service'
 import {
@@ -434,6 +435,47 @@ router.post(
     }
   },
 )
+
+// Runs the evidence and structure checks on the assessment's drafts and saves
+// the run (EV-01): 201 with the run, 403 for anyone but the assigned engineer,
+// 404, and 503 when the template or passage lookup cannot be reached.
+router.post('/:reference/evaluation', requirePermission('reports:generate'), async (req, res) => {
+  try {
+    res.status(201).json(await runEvaluation(req.params.reference, res.locals.user!))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof NotAssignedError) {
+      res.status(403).json({ error: error.message })
+      return
+    }
+    if (error instanceof RagServiceError) {
+      res.status(503).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// The newest saved run (EV-01), or 404 when none has been run yet.
+router.get('/:reference/evaluation', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    const run = await latestEvaluation(req.params.reference)
+    if (!run) {
+      res.status(404).json({ error: 'No evaluation has been run for this assessment yet.' })
+      return
+    }
+    res.json(run)
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
 
 // express.raw rejects a body over the limit before the handler runs.
 const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
