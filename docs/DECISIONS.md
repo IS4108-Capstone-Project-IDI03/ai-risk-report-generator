@@ -692,3 +692,54 @@ only for proposals someone wants. The cost is one tap per observation.
 
 Stories: CP-05 (CP-04 in the vetted sheet).
 
+## 2026-10-08 — Recordings and photos can be added to and removed from a saved observation; removal hides, and a changed photo set marks the reading out of date
+
+Chose: the assigned engineer can add recordings and photos to a saved
+observation (`POST /api/observations/:id/media`), and remove and restore any
+of them (`DELETE` / `POST .../restore` on `/recordings/:id` and
+`/photos/:id`), from Add media and Remove on the Observations tab. This
+supersedes two points above: the CP-08 entry's rejection of "removing a
+recording from an observation", and the CP-05 entry's "photos can't be added
+after saving, so the set is fixed".
+- Removal is soft, as deleting an observation is: the item gets `removed: {
+  at, by }`, its file stays in S3, and Restore brings it back. The API lists
+  kept items under `recordings` and `photos` and removed ones apart, so
+  drafting, the evidence counts, the Photos tab and the photo appendix leave
+  removed ones out with no change of their own. A removed transcript changes
+  what a draft was given, so the draft shows as out of date.
+- An observation must keep a note, a recording or a photo. The removal's
+  update matches on that, so two removals at once can't leave nothing; the
+  note-clearing edit now counts only kept items, matched the same way.
+- An item added later records `added: { at, by }`, since it was not captured
+  with the observation.
+- Each photo reading records the photos it read (`photoIds`). A finished
+  reading of a different set from the photos kept now is out of date: the tab
+  says so and offers Read again. Nothing reads photos by itself, as the entry
+  above decided. Readings from before have no `photoIds` and count as reading
+  the photos saved with the observation.
+- No capture session is needed: adding is a correction, like the other CP-08
+  changes, and often made at the desk after the visit.
+- One upload check (`server/src/routes/media-form.ts`) serves capture and
+  adding, so both refuse the same files with the same words.
+
+Rejected:
+- Deleting the file from S3 on removal: it would destroy raw evidence that a
+  past draft may have been written from, and could not be undone.
+- Removal with no restore: every other soft removal in the app (observation
+  delete, KB-01 withdraw, RV-10 archive) can be undone, and a mis-tap on a
+  phone is likely.
+- Reading the photos again by itself on every change: a paid call that
+  sends client photos to a third party each time, against the entry above.
+- Requiring an active capture session: drafting may already be under way, and
+  starting capture again to attach one photo is two screens for one tap.
+- Reusing the capture screen to add to an existing observation: its tags are
+  for a new observation, and the engineer would lose their place on the
+  Observations tab.
+
+Reason: an engineer finds after saving that a photo is missing, a recording
+is of the wrong room, or the best shot was taken later, and CP-08 asks for
+observations to be corrected while every draft stays traceable to what it
+was drafted from. Hiding rather than deleting keeps that trail.
+
+Stories: CP-08, CP-04, CP-05.
+

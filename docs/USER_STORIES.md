@@ -374,7 +374,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: view, filter, tag, correct and remove the observations captured for an assessment, so report drafting works from evidence that is accurate, consistently labelled and traceable to what each draft used.
 
-  Terms: Type is Note, Voice, or both. Status is Transcribing, Interpreting, Transcription failed, Interpretation failed or Complete (the photo statuses from CP-05). Tags are category, severity, location (with its floor) and standard. A "change" is editing tags, a note or a transcript, or deleting.
+  Terms: Type is Note, Voice, or both. Status is Transcribing, Interpreting, Transcription failed, Interpretation failed or Complete (the photo statuses from CP-05). Tags are category, severity, location (with its floor) and standard. A "change" is editing tags, a note or a transcript, adding, removing or restoring a recording or photo, or deleting.
 
   1. Given an assessment has observations, when I open the Observations tab, then every observation not deleted is listed, newest first.
   2. Given an observation is listed, when I view its row, then I see its type, category, location, floor, severity, status, and capture date and time.
@@ -384,7 +384,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given I edit an observation's tags, when I save and reopen it, then the new tags are shown.
   7. Given I am choosing a category, when I open the list, then only Construction, Occupancy, Protection, Exposure and Uncategorised are offered.
   8. Given I edit an observation's note, when I save, then the new note is stored exactly as typed.
-  9. Given an observation has no recording, when I clear its note, then the save is refused.
+  9. Given an observation has no recording or photo, when I clear its note, then the save is refused. (Reworded 8 Oct 2026: a photo now counts, as recordings and photos can be removed.)
   10. Given a recording is transcribed, when I correct its transcript, then drafting uses the correction and the original transcript is kept.
   11. Given an observation was edited or deleted, when I view it, then I see who did it and when.
   12. Given I confirm deleting an observation, when it is deleted, then it is marked deleted but kept in the database.
@@ -394,6 +394,14 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   16. Given an observation was edited, when a section is next drafted, then the draft uses the current version.
   17. Given I am not the assigned engineer, or the assessment is archived, when I try to change an observation, then the change is refused.
   18. Given a save fails, when the error is shown, then my changes are kept so I can try again.
+
+  Added 8 Oct 2026 (adding and removing recordings and photos; see `docs/DECISIONS.md`):
+
+  19. Given an observation is saved, when I add recordings or photos to it, then each is stored as raw evidence with it, and each recording is transcribed.
+  20. Given I remove a recording or photo, when I view the observation, then it is listed as removed with who removed it and when, and drafting and the photo collection no longer use it.
+  21. Given a recording or photo was removed, when I restore it, then it returns to the observation and to drafting.
+  22. Given removing a recording or photo would leave no note, recording or photo, when I remove it, then the removal is refused.
+  23. Given an observation's photographs changed since they were read, when I view the proposal, then it is marked out of date and I can read them again.
   </details>
 
 - [ ] **CP-09** — Open the raw capture behind an observation (risk engineer, Must, 1 pt, deps: CP-03, CP-04, Sprint 2)
