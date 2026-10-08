@@ -30,10 +30,12 @@ const FAILED = {
   error: 'Processing stopped on a system error, not a fault in the file. Upload it again.',
   uploadedAt: '2026-09-29T03:00:00.000Z',
   fileUrl: '/api/knowledge-documents/6abb28ae16068a0793e9962a/file',
+  unconfirmed: [],
   history: [],
   withdrawn: null,
 }
 const COMPLETE = { ...FAILED, id: 'done', title: 'FM Global 2-0', status: 'complete', error: null }
+const onCompleted = () => undefined
 
 // Serves the uploads list, flipping the failed document to queued once its
 // retry has been posted — the way the gateway would after a successful retry.
@@ -66,7 +68,7 @@ beforeEach(() => {
 describe('UploadedDocuments retry', () => {
   it('shows a Retry button on a failed document', async () => {
     stubGateway([FAILED])
-    render(<UploadedDocuments narrow={false} refreshKey={0} />)
+    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
 
     expect(await screen.findByText('NFPA 13 sprinkler standard')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
@@ -74,7 +76,7 @@ describe('UploadedDocuments retry', () => {
 
   it('shows no Retry button on a complete document', async () => {
     stubGateway([COMPLETE])
-    render(<UploadedDocuments narrow={false} refreshKey={0} />)
+    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
 
     expect(await screen.findByText('FM Global 2-0')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
@@ -82,7 +84,7 @@ describe('UploadedDocuments retry', () => {
 
   it('posts the retry and refreshes, so the row returns as queued', async () => {
     const state = stubGateway([FAILED])
-    render(<UploadedDocuments narrow={false} refreshKey={0} />)
+    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
     await screen.findByText('NFPA 13 sprinkler standard')
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -106,7 +108,7 @@ describe('UploadedDocuments retry', () => {
       return json([FAILED])
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<UploadedDocuments narrow={false} refreshKey={0} />)
+    render(<UploadedDocuments narrow={false} refreshKey={0} onCompleted={onCompleted} />)
     await screen.findByText('NFPA 13 sprinkler standard')
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -118,7 +120,7 @@ describe('UploadedDocuments retry', () => {
 
   it('offers Retry in the stacked (narrow) layout too', async () => {
     stubGateway([FAILED])
-    render(<UploadedDocuments narrow={true} refreshKey={0} />)
+    render(<UploadedDocuments narrow={true} refreshKey={0} onCompleted={onCompleted} />)
 
     const list = await screen.findByRole('list', { name: 'Recent uploads' })
     expect(within(list).getByRole('button', { name: 'Retry' })).toBeInTheDocument()

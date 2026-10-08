@@ -34,11 +34,11 @@ export type SourcePassageDto = {
   // shows; null when the document has no record there.
   document: {
     title: string
-    issuingBody: string
-    sourceType: string
+    issuingBody: string | null
+    sourceType: string | null
     edition: string | null
     // YYYY-MM-DD: a standard's effective date, or a past report's date.
-    effectiveDate: string
+    effectiveDate: string | null
     withdrawnAt: Date | null
     fileUrl: string
   } | null
@@ -156,61 +156,67 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
     (await findKnowledgeDocuments(documentIds)).map((document) => [document.id, document]),
   )
 
-  const sections = loaded.map(({ section, latest, changesSinceDraft }): ReviewSectionDto => {
-    const base = { id: section.id, title: section.title, copeDimensions: section.cope_dimensions }
-    if (!latest) {
+  const sections = loaded.map(
+    ({ section, latest, changesSinceDraft, changeCounts }): ReviewSectionDto => {
+      const base = { id: section.id, title: section.title, copeDimensions: section.cope_dimensions }
+      if (!latest) {
+        return {
+          ...base,
+          completion: completionOf(null),
+          review: {
+            state: 'not_drafted',
+            unsupportedStatements: 0,
+            withdrawnSources: 0,
+            changesSinceDraft: 0,
+            changeCounts,
+          },
+          draft: null,
+          sources: {},
+          observations: [],
+        }
+      }
+      const { sources: saved, ...draft } = toDraftDto(latest)
+      const sources = Object.fromEntries(
+        Object.entries(saved).map(([citation, passage]) => [
+          citation,
+          toPassage(citation, passage, documents),
+        ]),
+      )
+      const unsupportedStatements = latest.subsections
+        .flatMap((s) => s.statements)
+        .filter((s) => !s.supported).length
+      const withdrawnSources = Object.values(sources).filter((p) => p.document?.withdrawnAt).length
+      const cited = citationsOf(latest)
       return {
         ...base,
-        completion: completionOf(null),
+        completion: completionOf(latest),
         review: {
-          state: 'not_drafted',
-          unsupportedStatements: 0,
-          withdrawnSources: 0,
-          changesSinceDraft: 0,
+          state:
+            unsupportedStatements || withdrawnSources || changesSinceDraft
+              ? 'needs_review'
+              : 'ai_draft',
+          unsupportedStatements,
+          withdrawnSources,
+          changesSinceDraft,
+          changeCounts,
         },
-        draft: null,
-        sources: {},
-        observations: [],
+        draft,
+        sources,
+        observations: (latest.evidence ?? [])
+          .filter(
+            (e) => cited.has(`O:${e.id}`) || section.cope_dimensions.includes(e.COPE_dimension),
+          )
+          .map((e) => ({
+            id: e.id,
+            copeDimension: e.COPE_dimension,
+            note: e.note ?? null,
+            transcripts: e.transcripts ?? [],
+            severity: e.severity,
+            location: e.location ?? null,
+            standard: e.standard ?? null,
+          })),
       }
-    }
-    const { sources: saved, ...draft } = toDraftDto(latest)
-    const sources = Object.fromEntries(
-      Object.entries(saved).map(([citation, passage]) => [
-        citation,
-        toPassage(citation, passage, documents),
-      ]),
-    )
-    const unsupportedStatements = latest.subsections
-      .flatMap((s) => s.statements)
-      .filter((s) => !s.supported).length
-    const withdrawnSources = Object.values(sources).filter((p) => p.document?.withdrawnAt).length
-    const cited = citationsOf(latest)
-    return {
-      ...base,
-      completion: completionOf(latest),
-      review: {
-        state:
-          unsupportedStatements || withdrawnSources || changesSinceDraft
-            ? 'needs_review'
-            : 'ai_draft',
-        unsupportedStatements,
-        withdrawnSources,
-        changesSinceDraft,
-      },
-      draft,
-      sources,
-      observations: (latest.evidence ?? [])
-        .filter((e) => cited.has(`O:${e.id}`) || section.cope_dimensions.includes(e.COPE_dimension))
-        .map((e) => ({
-          id: e.id,
-          copeDimension: e.COPE_dimension,
-          note: e.note ?? null,
-          transcripts: e.transcripts ?? [],
-          severity: e.severity,
-          location: e.location ?? null,
-          standard: e.standard ?? null,
-        })),
-    }
-  })
+    },
+  )
   return { sections }
 }

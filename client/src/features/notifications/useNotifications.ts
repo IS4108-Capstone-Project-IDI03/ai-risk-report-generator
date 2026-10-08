@@ -6,7 +6,6 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   type Notification,
-  type NotificationCounts,
   type NotificationPage,
 } from './api'
 

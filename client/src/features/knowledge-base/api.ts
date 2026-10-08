@@ -138,6 +138,14 @@ export function listIngestedDocuments(signal?: AbortSignal): Promise<KnowledgeDo
 // type becomes "all").
 const filled = (details: DocumentDetails) =>
   Object.entries(details).filter(([, value]) => value !== '')
+const EMPTY_DETAILS: DocumentDetails = {
+  sourceType: '',
+  title: '',
+  edition: '',
+  effectiveDate: '',
+  jurisdiction: '',
+  facilityType: '',
+}
 
 // Saves a document's corrected details and returns the stored document (KB-01).
 export function correctKnowledgeDocument(
@@ -179,7 +187,7 @@ export function retryIngestion(id: string): Promise<void> {
 // needs no multipart-form library.
 export function uploadKnowledgeDocument(
   file: File,
-  details: DocumentDetails,
+  details: DocumentDetails = EMPTY_DETAILS,
 ): Promise<KnowledgeDocument> {
   const query = new URLSearchParams([['fileName', file.name], ...filled(details)])
   return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {

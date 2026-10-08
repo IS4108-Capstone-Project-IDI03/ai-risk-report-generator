@@ -459,6 +459,7 @@ export type ReviewSection = {
     unsupportedStatements: number
     withdrawnSources: number
     changesSinceDraft: number
+    changeCounts: ChangeCounts
   }
   draft: Omit<SectionDraft, 'sources'> | null
   sources: Record<string, SourcePassage>

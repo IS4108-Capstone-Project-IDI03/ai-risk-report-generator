@@ -277,6 +277,8 @@ def test_a_document_with_nothing_unconfirmed_is_active(documents):
     documents.doc["unconfirmed"] = []
 
     assert worker.labels(documents.doc)["status"] == "active"
+
+
 # --- Notifications (IN-10): the worker tells the gateway on each outcome.
 
 

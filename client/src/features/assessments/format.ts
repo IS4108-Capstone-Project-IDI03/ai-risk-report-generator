@@ -18,6 +18,3 @@ export function formatDayYearTime(date: Date) {
 export function formatDay(date: Date) {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`
 }
-export function formatDay(date: Date) {
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`
-}

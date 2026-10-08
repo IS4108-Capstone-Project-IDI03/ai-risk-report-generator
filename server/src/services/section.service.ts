@@ -133,12 +133,6 @@ export type LoadedSection = {
   changesSinceDraft: number
   changeCounts: ChangeCounts
 }
-export type LoadedSection = {
-  section: TemplateSection
-  usableObservations: number
-  latest: (IReportSection & { _id: unknown }) | null
-  changesSinceDraft: number
-}
 
 export async function loadSections(reference: string): Promise<LoadedSection[]> {
   const assessment = await AssessmentModel.findOne({ reference }, '_id').lean()

@@ -16,7 +16,6 @@ import {
   RejectedFileError,
   uploadQuerySchema,
   retryIngestion,
-  uploadDetailsSchema,
   uploadKnowledgeDocument,
   withdrawKnowledgeDocument,
 } from '../services/knowledge-document.service'
