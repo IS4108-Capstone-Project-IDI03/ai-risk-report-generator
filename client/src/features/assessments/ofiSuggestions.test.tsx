@@ -1,11 +1,11 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { AcceptedOfi, Ofi, OfiList, SavedObservation } from './api'
+import type { AcceptedOfi, Ofi, OfiList } from './api'
 import { OfiRow } from './components/OfiSuggestions'
 
 const REF = 'RPT-2026-0901'
-const VALVE: SavedObservation = {
+const VALVE = {
   id: 'o1',
   engineer: 'Alex Rowe',
   copeDimension: 'Protection',
@@ -19,8 +19,10 @@ const VALVE: SavedObservation = {
   recordedAt: '2026-09-28T09:00:00.000Z',
   edited: null,
   deleted: null,
+  removedRecordings: [],
+  removedPhotos: [],
 }
-const PANEL: SavedObservation = { ...VALVE, id: 'o2', severity: 'low', note: 'FA panel ok' }
+const PANEL = { ...VALVE, id: 'o2', severity: 'low', note: 'FA panel ok' }
 const SUGGESTION: Ofi = {
   id: 'ofi1',
   title: 'Supervise sprinkler control valves',
