@@ -282,3 +282,11 @@ reached for the template's sections.
 - **Export:** CSV of the breakdown on screen (one row per feature or per billed service).
 - **Demo data:** `npm --prefix server run seed:usage` writes fake rows tagged "DEMO data" for the sample assessments and replaces them on every run.
 
+## Evidence and structure checks (EV-01)
+
+`POST /api/assessments/:reference/evaluation` (assigned engineer, `reports:generate`) runs deterministic checks on the newest draft of each section and saves the run (see `database.md`, Evaluation runs). `GET` on the same path returns the newest run (`assessments:view`, 404 if none). No model is called, so a run costs nothing.
+
+- **Passage lookup:** the gateway asks rag-service `POST /chunks/exist` with the cited passage ids (`C:` standards, `P:` past reports). It looks them up by id straight in the vector store with no status filter, so passages of withdrawn documents are found. Response per id: `exists`, `doc_id`, `status`, `page_start`.
+- **Template:** rag-service `GET /sections` now also returns each section's headings (`subsections`) and `template_version`.
+- **Out of scope:** whether a source actually supports a statement is GN-02.
+

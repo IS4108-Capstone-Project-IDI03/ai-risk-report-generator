@@ -661,3 +661,30 @@ criteria (role, chatbot, units, empty state, scope) are listed in the PR.
 
 Stories: EV-04.
 
+## 2026-10-08 — Evidence checks look passages up by id, and what counts as compulsory comes from the Marsh samples
+
+Chose: EV-01 checks that a cited passage exists with a new rag-service
+`POST /chunks/exist`, which reads the vector store by id with no status filter
+(retrieval hides withdrawn passages, so it cannot answer "exists, including
+withdrawn"), and that costs no embedding. Observation citations are checked in
+MongoDB against the same assessment, and a soft-deleted one fails. The checks
+run on demand and are saved in `evaluation_runs`, with the run's own `_id` as
+the run ID. If the lookup is down a check is saved as unverified and the run
+as incomplete; it never passes. Which template headings are compulsory was
+decided by reading 11 Marsh sample reports (7 office, 2 mixed use, 2 mall): a
+heading in at least 90% of them fails if missing, any other missing or extra
+heading warns, and section 12 (absent in 2 of 11) only warns. The samples
+matched our template about 68% overall and never broke its order. Rejected:
+trusting the draft's saved sources (always true, proves nothing), checking
+passages through `/retrieve` (hides withdrawn), a Mongo copy of the chunks
+(second source of truth), and running checks automatically after every draft
+(more cost and noise for no AC).
+
+Reason: AC1 needs withdrawn passages to count, AC4 needs a defined "departure",
+and the samples are the only evidence of what Marsh actually writes. Limits:
+11 samples from one firm, mostly offices; the template's newer v2.0-only
+headings have no sample to confirm them; whether a source supports a claim is
+GN-02.
+
+Stories: EV-01.
+

@@ -591,3 +591,28 @@ Each provider reports usage differently. The services rename it into one shape (
 
 What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.
 
+## Evaluation runs (EV-01)
+
+Collection `evaluation_runs` (`server/src/models/evaluation-run.model.ts`). One document per run of the evidence and structure checks on an assessment's drafted report. The run's own `_id` is the evaluation run ID, and every individual check result is kept inside it.
+
+| Field | Meaning |
+|---|---|
+| `reference` / `assessment` | the assessment checked (reference such as `RPT-2026-0901`, and its id) |
+| `createdBy`, `createdAt` | who ran it and when |
+| `templateVersion` | the template version the drafts were compared with |
+| `summary` | `passed`, `failed`, `warned`, `unverified`, and `status`: `complete`, or `incomplete` when a check could not be made |
+| `checks[]` | `sectionId`, `check`, `target`, `result`, `detail` (below) |
+| `metadata` | the required five fields (`source_type: "evaluation_run"`, jurisdiction and facility type from the site, `COPE_dimension: "all"`, `effective_date`) |
+
+| `check` | `target` | Fails when | Warns when |
+|---|---|---|---|
+| `required-section` | `7 Construction` | no draft (sections 7-11) | no draft for section 12 |
+| `heading-structure` | a heading, `order`, `template-version` or `headings` | a compulsory heading is missing, or headings are out of order | an optional heading is missing, an extra heading, or an older template version |
+| `finding-has-evidence` | `Heading #2` | the statement has no citation | - |
+| `citation-resolves` | a citation id such as `O:...` or `C:doc:4` | the observation is missing, deleted or from another assessment, or the passage is not found | - |
+
+- A passage in a withdrawn document still counts as found (AC1); the detail says so.
+- `unverified` means the passage lookup was down. The check never passes in that case.
+- Table subsections hold no drafted text yet (GN-03), so they have no finding checks.
+- Which headings are compulsory comes from 11 Marsh sample reports: `server/src/services/evidence-check.config.ts`.
+
