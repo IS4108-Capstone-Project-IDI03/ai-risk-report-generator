@@ -39,6 +39,126 @@ const stampStyle = {
   color: 'var(--text-muted)',
 } as const
 
+// What the vision model proposes from the observation's photos (CP-05): a
+// machine reading, so it sits in AI violet with the photos it was read from,
+// and becomes the engineer's own only through Edit.
+function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['proposal']> }) {
+  return (
+    <section
+      aria-label="Proposal from the photos"
+      style={{
+        marginTop: '14px',
+        paddingTop: '12px',
+        borderTop: '1px solid var(--border-subtle)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          flexWrap: 'wrap',
+          fontSize: '14px',
+          fontWeight: '500',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <Icon name="camera" size={14} color="#4f9aee"></Icon>
+        <span>{'Proposal from the photos'}</span>
+        <Badge tone="ai" icon="sparkles">
+          {proposal.sample ? 'Sample proposal' : 'AI proposal'}
+        </Badge>
+        {proposal.status === 'interpreting' && <Badge tone="info">Interpreting</Badge>}
+        {proposal.status === 'failed' && <Badge tone="high">Failed</Badge>}
+      </div>
+      {proposal.status === 'failed' ? (
+        <div role="status" style={{ marginTop: '8px' }}>
+          <Callout
+            tone="warning"
+            title="Interpretation failed"
+            actions={
+              <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={proposal.retry}>
+                {'Retry interpretation'}
+              </Button>
+            }
+          >
+            {proposal.error}
+          </Callout>
+        </div>
+      ) : proposal.status === 'interpreting' ? (
+        <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+          {'Interpreting the photos…'}
+        </p>
+      ) : (
+        <>
+          <p
+            style={{
+              margin: '6px 0 0',
+              paddingLeft: '12px',
+              borderLeft: '2px solid var(--ai-border)',
+              fontSize: '15px',
+              lineHeight: '24px',
+              color: 'var(--text-body)',
+              maxWidth: '68ch',
+              textWrap: 'pretty',
+            }}
+          >
+            {proposal.description}
+          </p>
+          <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+            {proposal.summary}
+          </p>
+          {/* The photos it was read from, each opening the original (AC6). */}
+          <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+            {'Read from '}
+            {o.media.map((m, index) => (
+              <Fragment key={index}>
+                {index > 0 && ', '}
+                {m.url ? (
+                  <a href={m.url} target="_blank" rel="noreferrer">
+                    {m.name}
+                  </a>
+                ) : (
+                  m.name
+                )}
+              </Fragment>
+            ))}
+          </p>
+          <p style={stampStyle}>
+            {proposal.sample
+              ? 'No capture session, so this is a sample proposal, not a reading of the photos.'
+              : 'Proposed by ' + (proposal.model ?? 'the photo service')}
+          </p>
+          {(!!proposal.useAsNote || !!proposal.changeCategory) && (
+            <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {!!proposal.useAsNote && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="sticky-note"
+                  onClick={proposal.useAsNote}
+                >
+                  {'Use as note'}
+                </Button>
+              )}
+              {!!proposal.changeCategory && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="tag"
+                  onClick={proposal.changeCategory}
+                >
+                  {'Change category to ' + proposal.category}
+                </Button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
 export function Observations({ v }: { v: AssessmentWorkflow }) {
   return (
     <>
@@ -494,6 +614,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                             />
                           </section>
                         ))}
+                        {!!o.proposal && <PhotoProposal o={o} proposal={o.proposal} />}
                         {!!o.deletedLabel && <p style={stampStyle}>{o.deletedLabel}</p>}
                         {!!o.editedLabel && <p style={stampStyle}>{o.editedLabel}</p>}
                         <div
