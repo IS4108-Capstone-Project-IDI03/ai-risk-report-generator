@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
 import {
   archiveAssessment,
   assessmentDetailsSchema,
