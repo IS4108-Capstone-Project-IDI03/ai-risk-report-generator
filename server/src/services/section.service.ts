@@ -125,7 +125,6 @@ function changesSince(evidence: Evidence[] | undefined, now: Evidence[]): Change
   }
 }
 
-// One template section with its newest draft as saved, evidence included.
 export type LoadedSection = {
   section: TemplateSection
   usableObservations: number
@@ -134,7 +133,6 @@ export type LoadedSection = {
   changesSinceDraft: number
   changeCounts: ChangeCounts
 }
-
 export type LoadedSection = {
   section: TemplateSection
   usableObservations: number

@@ -428,7 +428,6 @@ export type SourcePassage = {
   pageStart: number | null
   pageEnd: number | null
   documentId: string | null
-  // null when the document has no record in the knowledge base.
   document: {
     title: string
     issuingBody: string
