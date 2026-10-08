@@ -199,9 +199,14 @@ function mockGateway() {
           listed.find((o) => o.id === id),
         )
       }
-      if (method === 'POST' && rest === '/interpretation/retry') {
+      if (method === 'POST' && rest === '/interpretation') {
         change((o) => ({
-          interpretation: o.interpretation && {
+          interpretation: {
+            description: null,
+            copeDimension: null,
+            hazardType: null,
+            attempts: 0,
+            model: null,
             ...o.interpretation,
             status: 'interpreting',
             error: null,
@@ -406,7 +411,35 @@ describe('Proposals from photos (CP-05)', () => {
 
     await vi.waitFor(() =>
       expect(calls).toEqual([
-        { method: 'POST', url: '/api/observations/o7/interpretation/retry', body: undefined },
+        { method: 'POST', url: '/api/observations/o7/interpretation', body: undefined },
+      ]),
+    )
+    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+  })
+
+  it('reads the photos only when the engineer asks (AC7)', async () => {
+    const UNSENT = 'Riser room door wedged open.'
+    listed = [
+      observation({
+        id: 'o8',
+        note: UNSENT,
+        photos: [{ ...PHOTO, url: '/api/observations/o8/photos/p1/image' }],
+      }),
+    ]
+    await openObservations()
+    // Nothing is running, so nothing is badged.
+    expect(within(row(UNSENT)).getByText('Complete')).toBeInTheDocument()
+    fireEvent.click(row(UNSENT))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText(/^Not read yet\./)).toBeInTheDocument()
+    expect(within(proposal).queryByText('AI proposal')).not.toBeInTheDocument()
+    expect(calls).toEqual([])
+    click('Read photos')
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        { method: 'POST', url: '/api/observations/o8/interpretation', body: undefined },
       ]),
     )
     expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()

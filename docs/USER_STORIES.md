@@ -345,14 +345,15 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: receive a proposed observation from a site photograph, so a draft description of the visible hazard can be reviewed.
 
-  S5 reads all of an observation's photos together with Gemini, as one interpretation per observation, and proposes a description, a COPE category and a hazard type. The proposal is never drafting evidence: the engineer takes it into the note or category through Edit (Use as note, Change category). See `docs/DECISIONS.md` (2026-10-08).
+  S5 reads all of an observation's photos together with Gemini, as one interpretation per observation, and proposes a description, a COPE category and a hazard type. It reads them only when an engineer asks (Read photos), never on save. The proposal is never drafting evidence: the engineer takes it into the note or category through Edit (Use as note, Change category). See `docs/DECISIONS.md` (2026-10-08, both photo entries).
 
-  1. Given an active capture session, when a supported photograph finishes saving, then a vision job is queued automatically.
+  1. Given an observation has supported photographs, when the engineer asks for them to be read, then one vision job covering all of its photographs is queued. (Reworded 8 Oct 2026: it was queued automatically on save.)
   2. Given an active vision job, when the photo observation is opened, then its status is Interpreting.
   3. Given a successful vision result, when the observation is opened, then the proposed description is shown as generated text.
   4. Given a successful vision result, when the generated metadata is inspected, then the proposed category is displayed.
   5. Given a successful vision result, when the generated metadata is inspected, then the proposed hazard type is displayed.
   6. Given a generated photo observation, when its evidence link is opened, then the source photograph is displayed.
+  7. Given an observation's photographs are saved, when the save completes, then none is sent for interpretation until the engineer asks. (Added 8 Oct 2026.)
   </details>
 
 - **CP-06** — Tag an observation: merged into CP-08 on 2026-10-07 (its AC1-AC3 are CP-08 AC6, AC3 and AC7). See `docs/DECISIONS.md`.

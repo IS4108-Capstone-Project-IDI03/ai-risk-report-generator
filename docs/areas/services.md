@@ -28,10 +28,12 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 
 ## Photo interpretation (S5, CP-05)
 
-1. Saving an observation with photos stores them in S3 (CP-04) and saves the
-   observation with `interpretation.status: 'interpreting'`: one
-   interpretation covering all its photos (see
-   [database](database.md#observations)).
+1. Saving an observation with photos stores them in S3 (CP-04) and reads
+   nothing: no photo goes to the vision model until an engineer asks. Read
+   photos on the Observations tab sends `POST
+   /api/observations/:id/interpretation`, which saves the observation with
+   `interpretation.status: 'interpreting'`: one interpretation covering all
+   its photos (see [database](database.md#observations)).
 2. The gateway posts `{ "s3_keys": [...], "location": ..., "note": ... }` to
    S5's `POST /interpret` without making the client wait. The location is the
    observation's location and floor ("L43 pump room · Level 43"); the note is
@@ -53,8 +55,8 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    `usage` (null when the provider reports none), or 502 with `detail`. Like
    transcription, it writes nothing to MongoDB.
 4. The gateway stores the proposal, or the failure reason, on the
-   observation. A failure can be retried; a restart marks an attempt still
-   running as failed. The client re-reads the list every 3 seconds while any
+   observation. A failure can be retried through the same route; a restart
+   marks an attempt still running as failed. The client re-reads the list every 3 seconds while any
    observation is interpreting.
 5. The proposal is for the engineer to review and is never drafting evidence:
    drafting does not wait for it, never reads it, and a draft does not go out

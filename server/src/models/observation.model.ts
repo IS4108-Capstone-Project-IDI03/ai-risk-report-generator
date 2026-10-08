@@ -52,8 +52,8 @@ export interface IPhoto {
   size: number
 }
 
-// Where reading an observation's photos stands (CP-05). Saving photos starts
-// exactly one attempt; a retry after a failure adds another.
+// Where reading an observation's photos stands (CP-05). Nothing reads them
+// until an engineer asks; each request starts exactly one attempt.
 export const INTERPRETATION_STATUSES = ['interpreting', 'interpreted', 'failed'] as const
 export type InterpretationStatus = (typeof INTERPRETATION_STATUSES)[number]
 
@@ -94,7 +94,7 @@ export interface IObservation {
   recordings: IRecording[]
   // Absent on observations saved before CP-04.
   photos?: IPhoto[]
-  // Present only on an observation saved with photos (CP-05).
+  // Present once an engineer has asked for its photos to be read (CP-05).
   interpretation?: IInterpretation
   // The standard the engineer tied the finding to, if any. The draft finds the
   // clause itself, so only the standard is recorded.
