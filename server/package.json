@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "ts-node --transpile-only src/scripts/seed-test.ts",
+    "seed:all": "npm run seed && npm run seed:usage",
     "seed:usage": "ts-node --transpile-only src/scripts/seed-ai-usage.ts",
     "seed:gn01": "ts-node --transpile-only src/scripts/seed-gn01.ts",
     "seed:case": "ts-node --transpile-only src/scripts/seed-eval-case.ts",

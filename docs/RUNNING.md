@@ -171,4 +171,25 @@ docker compose exec server wget -qO- http://speech-ocr-service:8003/health
 
 (`wget`, not `curl` — the Alpine-based images don't ship `curl`.)
 
+### 5. Sample data in Docker (users, assessments, demo AI usage)
+
+**What/why:** the Docker `mongo` container has its own empty database (volume `mongo-data`). It is not the Mac's Homebrew MongoDB, so nothing you created locally is there. Seed it once the containers are up:
+
+```
+docker compose exec server npm run seed:all
+```
+
+- `seed` creates the sample users (password `password123`), sample sites and assessments. `seed:usage` adds clearly fake AI-call rows (tagged "DEMO data") for the Usage and costs screen (EV-04). Both are safe to re-run.
+- Your own account: put `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`, and optionally `SEED_USER_NAME` and `SEED_USER_ROLE` in the gitignored `.env` (see `.env.example`). `seed` creates it, and the password in `.env` always wins on re-seeding.
+- The data survives `docker compose down`. Only `docker compose down -v` deletes it (the `-v` removes the volumes).
+
+### 6. Switching between Mode A and Mode B
+
+The two modes use different databases and the same ports (27017, 4000, 3000), so run one at a time:
+
+1. Stop Mode A: `brew services stop mongodb-community`, then `lsof -tiTCP:4000 -sTCP:LISTEN | xargs kill` and `lsof -tiTCP:3000 -sTCP:LISTEN | xargs kill`. Check with `lsof -iTCP:27017 -iTCP:4000 -iTCP:3000 -sTCP:LISTEN` (no output means free).
+2. Start Mode B: `docker compose up --build -d`, then seed (step 5).
+3. Going back: `docker compose down`, `brew services start mongodb-community`, and run the server with `MONGODB_URI=mongodb://localhost:27017/riskreport` (the `mongo` host in `.env` only resolves inside Docker).
+
 ---
+
