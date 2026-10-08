@@ -419,6 +419,12 @@ Rejected:
   661/661 (100%) with font sizes.
 - Claude Haiku 4.5 for free text: 93% correct on the tuning split against
   Luna's 100%, at about 12× the cost.
+- Claude Haiku 5.5 (released 2026-10-07, thinking off, same per-token price as
+  Luna) for free text: it matches Luna (96% of auto-filled details correct
+  across all cases, 46 filled against Luna's 47) and is faster (2.7 s against
+  3.6 s a document), but costs about 1.7× more a document. Its tokenizer turns
+  the same pages into about 1.7× as many tokens. It doesn't change either
+  winner.
 - The OpenAI Decisions classifier: as accurate as Jev on the tuning split, at
   about twice the cost.
 - Picking the lowest cutoff that reaches 90%. It chose a less accurate point
@@ -434,7 +440,8 @@ Rejected:
 Reason: AC11 asks for ≥ 90% of auto-filled details to be correct. The models,
 cutoff and prompt hints were tuned on the tuning split only, then scored once
 on the test split (95% of auto-filled details correct; 87% auto-filled). See
-`microservices/ingestion-service/eval/labelling/results/2026-10-07.md`.
+`microservices/ingestion-service/eval/labelling/results/2026-10-08.md` (the
+2026-10-07 run plus Haiku 5.5).
 Anthropic structured output allows at most 16 nullable fields, so evidence
 uses `0` and `""` for "none" instead of null.
 

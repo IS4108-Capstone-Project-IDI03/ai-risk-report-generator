@@ -1,4 +1,4 @@
-"""Labelling evaluation (IN-05, AC11): scores the four candidates against golden.json.
+"""Labelling evaluation (IN-05, AC11): scores the five candidates against golden.json.
 
 Run by hand from microservices/ingestion-service (it costs money, under $1, and needs the
 keys in the root .env, so it is not in CI):
@@ -32,6 +32,7 @@ CACHE = HERE / "results" / "cache.json"
 JEV_MAX_CHARS = 120_000
 LLM_SETTINGS = {
     "haiku": ("anthropic", "claude-haiku-4-5-20251001", models.anthropic_extract),
+    "haiku-5.5": ("anthropic", "claude-haiku-5-5", models.anthropic_extract),
     "luna": ("openai", "gpt-6-luna", models.openai_extract),
 }
 CLASSIFIER_CALLS = {
@@ -42,6 +43,7 @@ LABELS = {
     "jev": "Jev",
     "openai-decisions": "OpenAI Decisions",
     "haiku": "Haiku 4.5",
+    "haiku-5.5": "Haiku 5.5",
     "luna": "GPT-6 Luna",
 }
 
@@ -86,7 +88,7 @@ def read_case(case: dict, cache: dict) -> tuple[str, str]:
     return result
 
 
-# ── Step 2: the four calls ───────────────────────────────────────────────
+# ── Step 2: the five calls ───────────────────────────────────────────────
 
 
 def call_key(case_id: str, cand: str, wrapped: str) -> str:
@@ -108,7 +110,7 @@ def run_one(cand: str, wrapped: str) -> dict:
         if cand in sc.CLASSIFIERS:
             answers, usage = CLASSIFIER_CALLS[cand](wrapped)
         else:
-            # Settings are process-wide env vars, so the two LLMs run one after the other.
+            # Settings are process-wide env vars, so the LLMs run one after the other.
             provider, model, fn = LLM_SETTINGS[cand]
             os.environ["LABEL_LLM_PROVIDER"], os.environ["LABEL_LLM_MODEL"] = provider, model
             answers, usage = fn(wrapped)
@@ -135,7 +137,7 @@ def call_case(case: dict, wrapped: str, cache: dict) -> tuple[dict, float]:
     def work(group):
         return [(cand, key, run_one(cand, wrapped)) for cand, key in group]
 
-    # Two classifiers in parallel with the two LLMs (which share env settings, so go in turn).
+    # Two classifiers in parallel with the LLMs (which share env settings, so go in turn).
     groups = [[t] for t in todo if t[0] in sc.CLASSIFIERS] + [[t for t in todo if t[0] in sc.LLMS]]
     spent = 0.0
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -414,7 +416,7 @@ def main() -> None:
     md = [
         f"# Labelling evaluation ({date.today().isoformat()}"
         + (", tune split only" if args.split == "tune" else "") + ")", "",
-        "- Prices (USD per 1M tokens, dated 2026-10-07): "
+        "- Prices (USD per 1M tokens, dated 2026-10-07; Haiku 5.5 2026-10-08): "
         + "; ".join(f"{k} {v[0]} in / {v[1]} out" for k, v in config.PRICES.items()),
         f"- LABEL_PAGES: {config.DEFAULT_PAGES} (OCR capped at the first {config.OCR_MAX_PAGES}); "
         f"each case reads its whole cut. Fixed-list tables use cutoff {cutoff:.2f}.",
