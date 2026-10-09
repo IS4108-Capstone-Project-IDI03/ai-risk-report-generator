@@ -19,10 +19,14 @@ from datetime import UTC, datetime
 from bson import ObjectId
 
 
+class IngestionCancelledError(Exception):
+    """Raised when an ingestion run is asked to stop at a safe checkpoint."""
+
+
 class ProgressReporter:
     """Records stage transitions and chunk progress for one ingestion run."""
 
-    def __init__(self, collection, document_id: str | None) -> None:
+    def __init__(self, collection, document_id: str | None, cancellation_check=None) -> None:
         """Create a reporter.
 
         Args:
@@ -32,6 +36,7 @@ class ProgressReporter:
         """
         self._collection = collection
         self._doc_id = document_id
+        self._cancellation_check = cancellation_check
         # The stage currently in progress and when it began; completed stages
         # accumulate in _stage_log. Elapsed time is computed from these without
         # a read back from MongoDB.
@@ -78,6 +83,11 @@ class ProgressReporter:
         """
         return self._current_stage
 
+    def check_cancelled(self) -> None:
+        """Raise when the owning document has requested cancellation."""
+        if self._cancellation_check and self._cancellation_check():
+            raise IngestionCancelledError()
+
     def start_stage(self, stage: str) -> None:
         """Transition to a new stage.
 
@@ -87,6 +97,7 @@ class ProgressReporter:
         """
         if not self._enabled():
             return
+        self.check_cancelled()
         now = datetime.now(UTC)
         self._close_current_stage(now)
         self._current_stage = stage
@@ -111,7 +122,16 @@ class ProgressReporter:
         """
         if not self._enabled():
             return
+        self.check_cancelled()
         self._write({"pageCurrent": current, "pageTotal": total})
+
+    def cancel(self) -> None:
+        """Record cancellation as the terminal progress outcome."""
+        if not self._enabled():
+            return
+        self._current_stage = "cancelled"
+        self._stage_started_at = datetime.now(UTC)
+        self.finish()
 
     def finish(self) -> None:
         """Move the current stage to the stage log and clear it.
@@ -141,7 +161,13 @@ class NoOpReporter:
     def start_stage(self, stage: str) -> None:
         pass
 
+    def check_cancelled(self) -> None:
+        pass
+
     def update_pages(self, current: int, total: int | None) -> None:
+        pass
+
+    def cancel(self) -> None:
         pass
 
     def finish(self) -> None:

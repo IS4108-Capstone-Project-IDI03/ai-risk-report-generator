@@ -63,3 +63,16 @@ def relabel(doc_id: str, labels: dict) -> int:
         metadatas=[{**metadata, **labels} for metadata in found["metadatas"]],
     )
     return len(found["ids"])
+
+
+def delete_passages(doc_id: str) -> int:
+    """Delete all indexed passages for a document; return the number removed."""
+    try:
+        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+    except NotFoundError:
+        return 0
+    found = collection.get(where={"doc_id": doc_id}, include=[])
+    ids = found["ids"]
+    if ids:
+        collection.delete(ids=ids)
+    return len(ids)
