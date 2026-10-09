@@ -358,7 +358,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         <Review v={v} />
                       ))}
 
-                    {v.isExport && v.liveReference && <EvidenceChecks reference={v.liveReference} />}
+                    {v.isExport && <EvidenceChecks reference={v.liveReference} />}
                     {v.isExport && <ValidationExport v={v} />}
                   </>
                 )}

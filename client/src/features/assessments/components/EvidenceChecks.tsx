@@ -12,16 +12,19 @@ const COLOUR: Record<string, string> = {
   unverified: 'var(--text-muted)',
 }
 
-export function EvidenceChecks({ reference }: { reference: string }) {
+// reference is null for the built-in sample assessment, which has no saved draft to check.
+export function EvidenceChecks({ reference }: { reference: string | null }) {
   const [run, setRun] = useState<EvaluationRun | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!reference) return
     latestEvaluation(reference).then(setRun, () => setRun(null))
   }, [reference])
 
   async function runNow() {
+    if (!reference) return
     setBusy(true)
     setError(null)
     try {
@@ -58,7 +61,7 @@ export function EvidenceChecks({ reference }: { reference: string }) {
             </span>
           )}
           <span style={{ flex: 1 }} />
-          <Button variant="secondary" size="sm" onClick={runNow} disabled={busy}>
+          <Button variant="secondary" size="sm" onClick={runNow} disabled={busy || !reference}>
             {busy ? 'Checking…' : run ? 'Run again' : 'Run checks'}
           </Button>
         </div>
@@ -92,7 +95,9 @@ export function EvidenceChecks({ reference }: { reference: string }) {
         ))}
         {!run && !error && (
           <p style={{ margin: 0, padding: '0 20px 16px', color: 'var(--text-muted)' }}>
-            No checks have been run for this report yet.
+            {reference
+              ? 'No checks have been run for this report yet.'
+              : 'This is the sample assessment. Open a saved assessment from your work list to run the checks.'}
           </p>
         )}
       </div>
