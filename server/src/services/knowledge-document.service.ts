@@ -17,11 +17,7 @@ import {
 } from '../models/knowledge-document.model'
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
-import {
-  enqueueIngestion,
-  requeueIngestion,
-  removeIngestionJob,
-} from './ingestion-queue.service'
+import { enqueueIngestion, requeueIngestion, removeIngestionJob } from './ingestion-queue.service'
 import {
   IngestionUnavailableError,
   labelDocument,
