@@ -105,32 +105,25 @@ async function seedAndVerify(): Promise<void> {
   }
   console.log(`${SAMPLE_USERS.length} sample user accounts are available.`)
 
-  // One personal account for local or Docker dev, set in the gitignored .env
-  // (SEED_USER_EMAIL, SEED_USER_PASSWORD, optional SEED_USER_NAME and
-  // SEED_USER_ROLE), so no real email or password is committed. The password
-  // in .env always wins, so changing it and re-seeding updates the account.
-  const personalEmail = process.env.SEED_USER_EMAIL?.trim().toLowerCase()
-  if (personalEmail) {
-    const role =
-      process.env.SEED_USER_ROLE === 'knowledge_admin' ? 'knowledge_admin' : 'risk_engineer'
-    await UserModel.updateOne(
-      { email: personalEmail },
-      {
-        $setOnInsert: {
-          staffId: 'MRE-9001',
-          name: process.env.SEED_USER_NAME?.trim() || 'Seed User',
-          email: personalEmail,
-          role,
-          active: true,
-        },
-        $set: {
-          passwordHash: await bcrypt.hash(process.env.SEED_USER_PASSWORD || SEED_PASSWORD, 10),
-        },
+  // Chris's dev account, so teammates' Docker databases have it too. The weak
+  // password is dev-only, like SEED_PASSWORD; never seed this into a shared or
+  // production database. Re-seeding resets its password to this one.
+  const chris = { email: 'chrisganaeshfx@gmail.com', password: '123' }
+  await UserModel.updateOne(
+    { email: chris.email },
+    {
+      $setOnInsert: {
+        staffId: 'MRE-9001',
+        name: 'Chris Ganaesh',
+        email: chris.email,
+        role: 'risk_engineer',
+        active: true,
       },
-      { upsert: true },
-    )
-    console.log(`Personal account ${personalEmail} is available (${role}).`)
-  }
+      $set: { passwordHash: await bcrypt.hash(chris.password, 10) },
+    },
+    { upsert: true },
+  )
+  console.log(`Dev account ${chris.email} is available.`)
 
   // Assigns a sample assessment to one account by its staff ID (RV-10).
   async function assignedTo(staffId: string) {

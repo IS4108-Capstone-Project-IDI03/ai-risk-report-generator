@@ -180,7 +180,7 @@ docker compose exec server npm run seed:all
 ```
 
 - `seed` creates the sample users (password `password123`), sample sites and assessments. `seed:usage` adds clearly fake AI-call rows (tagged "DEMO data") for the Usage and costs screen (EV-04). Both are safe to re-run.
-- Your own account: put `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`, and optionally `SEED_USER_NAME` and `SEED_USER_ROLE` in the gitignored `.env` (see `.env.example`). `seed` creates it, and the password in `.env` always wins on re-seeding.
+- A dev account, `chrisganaeshfx@gmail.com` / `123`, is created too (hard-coded in the seed; dev only, never run the seed against a shared database).
 - The data survives `docker compose down`. Only `docker compose down -v` deletes it (the `-v` removes the volumes).
 
 ### 6. Switching between Mode A and Mode B
