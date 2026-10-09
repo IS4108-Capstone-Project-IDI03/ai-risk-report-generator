@@ -77,15 +77,13 @@ export interface IKnowledgeDocument {
   result?: { chunksIndexed: number; tablesCaptured: number; imagesCaptured: number }
   startedAt?: Date
   finishedAt?: Date
-  // Present on every document (see CLAUDE.md). A whole standard spans every
-  // facility type and COPE dimension until chunk-level tagging exists. A
-  // detail labelling could not confirm (IN-05) is null: an approved exception
-  // to the CLAUDE.md rule, like an observation's COPE_dimension null.
+  // The document's details. A detail labelling could not confirm (IN-05) is
+  // null. Knowledge documents carry no COPE_dimension because each passage
+  // carries its own report section (IN-05, Sprint 3).
   metadata: {
     source_type: SourceType | null
     jurisdiction: string | null
     facility_type: string | null
-    COPE_dimension: 'all'
     effective_date: Date | null
   }
   // Details still Unconfirmed (snake_case names). Non-empty = "needs review".
@@ -121,7 +119,6 @@ const metadataSchema = {
   source_type: { type: String, enum: [...SOURCE_TYPES, null] },
   jurisdiction: String,
   facility_type: String,
-  COPE_dimension: { type: String, enum: ['all'], required: true },
   effective_date: Date,
 }
 

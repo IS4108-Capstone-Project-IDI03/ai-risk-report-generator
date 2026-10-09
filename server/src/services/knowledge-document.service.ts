@@ -382,7 +382,6 @@ function recordFields(details: DocumentDetails) {
       source_type: details.sourceType,
       jurisdiction: details.jurisdiction,
       facility_type: details.facilityType,
-      COPE_dimension: 'all' as const,
       effective_date: new Date(details.effectiveDate),
     },
   }
@@ -413,7 +412,6 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
     a.source_type !== b.source_type ||
     a.jurisdiction !== b.jurisdiction ||
     a.facility_type !== b.facility_type ||
-    a.COPE_dimension !== b.COPE_dimension ||
     a.effective_date?.getTime() !== b.effective_date.getTime()
   )
 }
@@ -424,7 +422,8 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
  * search uses to skip passages that are not `active`: `withdrawn` (KB-01) or
  * `needs_review` (IN-05 some detail Unconfirmed, IN-07 a match). Null details are left out
  * (Chroma can't store null, and no filter should match them), and
- * COPE_dimension is never sent, so a relabel can't overwrite per-passage COPE.
+ * `section` is never sent, so a relabel can't overwrite each passage's own
+ * report section (IN-05).
  * Must match `labels()` in microservices/ingestion-service/app/worker.py,
  * which labels passages at ingest.
  */
@@ -553,7 +552,6 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
       source_type: sourceType,
       jurisdiction: values.jurisdiction,
       facility_type: values.facility_type,
-      COPE_dimension: 'all' as const,
       effective_date: values.effective_date ? new Date(values.effective_date) : null,
     },
     unconfirmed,

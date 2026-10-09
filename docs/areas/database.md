@@ -21,7 +21,7 @@ containing vectors from another model. Reranker changes do not require re-indexi
 
 `POST /index` accepts 1–96 already anonymised chunks, each with a unique stable
 `id`, nonblank `text` (at most 8,000 characters), and `metadata`:
-`document_id`, `source_type`, `jurisdiction`, `facility_type`, `COPE_dimension`,
+`document_id`, `source_type`, `jurisdiction`, `facility_type`, `section`,
 `effective_date`, and positive integer `page`. Use document/version/chunk IDs to
 avoid collisions. Upsert makes retrying identical IDs safe; it does not remove
 old IDs when a document is revised or shortened. Document replacement/deletion
@@ -445,7 +445,6 @@ below) and corrected by the admin (KB-01). The source type decides which apply:
 | `metadata.effective_date` | the edition's effective date | the report date |
 | `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
 | `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
-| `metadata.COPE_dimension` | `all` | `all` (each passage carries its own, see below) |
 
 `jurisdiction: 'all'` is the only value that isn't a two-letter code; like
 `facility_type: 'all'`, retrieval must treat it as matching any site. Every
@@ -456,16 +455,22 @@ ingest, and a correction rewrites them in place (KB-01). An Unconfirmed detail
 (IN-05) is left out of the passage, since Chroma can't store null, so no filter
 can match it.
 
-Each passage's `COPE_dimension` is its own (IN-05): during ingestion, a past
-report's passage gets the COPE category of the report section it sits under,
-from the outermost heading in its `headings` that names a mapped section
-(`Construction` → Construction; `Occupancy, Hazards, and Utilities` →
-Occupancy; `Fire Protection` and `Security` → Protection; `External Exposures`
-→ Exposure; titles only, never section numbers). Every other passage, and
-every passage of a standard or of a document whose source type is Unconfirmed,
-is `all`. The map is in `microservices/ingestion-service/app/pipeline/cope.py`.
-A relabel never sends `COPE_dimension`, so a correction keeps each passage's
-own.
+Knowledge documents carry no `COPE_dimension` (an exception to the
+five-field rule): each passage carries its own `section` instead (IN-05).
+During ingestion, a past report's passage gets the template section it sits
+in, found from the PDF's fonts: a line in the section-title size whose text
+is close to one of the Global PRE template's 12 titles (`Purpose and Scope`
+… `Business Interruption`; titles only, never section numbers, since reports
+number them differently), taken by the page the passage starts on. Anything
+after the report's last section is `Appendix`. Two more values keep "no
+section" apart from "unknown section": `Not applicable` for a standard's
+passages and a report's pages before its first section (cover, survey
+details, contents); `Undefined` for a report passage whose section the rule
+can't tell (it runs into a page where a new section starts, the report has no
+titles the rule finds, it has no page, or the source type was Unconfirmed at
+ingest), meant for a person to label. The rule
+is in `microservices/ingestion-service/app/pipeline/sections.py`. A relabel
+never sends `section`, so a correction keeps each passage's own.
 
 Each passage also carries `status`: `active`, `withdrawn` (KB-01) or
 `needs_review` (IN-05: the document has an Unconfirmed detail; IN-07: it has a

@@ -24,7 +24,7 @@ NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)
 
 # The labels a relabel may change (KB-01). Each detail is optional: an Unconfirmed
 # detail is not sent, and the passage keeps the value it has (IN-05). No
-# COPE_dimension: each passage keeps its own, set at ingest (IN-05 AC10).
+# section: each passage keeps its own, set at ingest (IN-05 AC11).
 class Labels(BaseModel):
     source_type: NonEmpty | None = None
     jurisdiction: NonEmpty | None = None
@@ -34,12 +34,12 @@ class Labels(BaseModel):
     status: Literal["active", "withdrawn", "needs_review"] = "active"
 
 
-# What /index requires of a passage: every label, including its own COPE_dimension.
+# What /index requires of a passage: every label, including its own section.
 class ChunkMetadata(BaseModel):
     source_type: NonEmpty
     jurisdiction: NonEmpty
     facility_type: NonEmpty
-    COPE_dimension: NonEmpty
+    section: NonEmpty
     effective_date: NonEmpty
     status: Literal["active", "withdrawn"] = "active"
     document_id: NonEmpty

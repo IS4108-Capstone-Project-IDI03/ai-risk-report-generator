@@ -19,7 +19,6 @@ LABELS = {
     "source_type": "marsh_report",
     "jurisdiction": "MY",
     "facility_type": "Cold store",
-    "COPE_dimension": "all",
     "effective_date": "2024-03-12",
 }
 
@@ -64,14 +63,14 @@ def test_a_corrected_country_is_found_under_the_new_value_and_not_the_old(indexe
     assert found("MY") == []
 
 
-def test_a_relabel_keeps_the_passages_own_cope_and_a_missing_detail(indexed):
-    # IN-05 AC10: no COPE_dimension in the request, and an omitted detail stays as it was.
+def test_a_relabel_keeps_the_passages_own_section_and_a_missing_detail(indexed):
+    # IN-05 AC11: no section in the request, and an omitted detail stays as it was.
     collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
-    collection.update(ids=[f"{DOC_ID}:0"], metadatas=[{"COPE_dimension": "Protection"}])
+    collection.update(ids=[f"{DOC_ID}:0"], metadatas=[{"section": "Fire Protection"}])
 
     TestClient(app).put(f"/documents/{DOC_ID}/labels", json={"status": "needs_review"})
 
     metadata = collection.get(ids=[f"{DOC_ID}:0"], include=["metadatas"])["metadatas"][0]
-    assert metadata["COPE_dimension"] == "Protection"
+    assert metadata["section"] == "Fire Protection"
     assert metadata["jurisdiction"] == "MY"
     assert metadata["status"] == "needs_review"

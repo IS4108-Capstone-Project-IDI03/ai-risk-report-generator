@@ -81,7 +81,6 @@ async function seed(over: Seed = {}) {
       source_type: 'nfpa_standard',
       jurisdiction: 'SG',
       facility_type: 'all',
-      COPE_dimension: 'all',
       effective_date: new Date('2019-01-01'),
     },
     unconfirmed: [],

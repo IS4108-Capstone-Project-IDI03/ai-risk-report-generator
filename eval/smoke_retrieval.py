@@ -24,7 +24,7 @@ def main():
         "source_type": "synthetic",
         "jurisdiction": "SG",
         "facility_type": "warehouse",
-        "COPE_dimension": "Protection",
+        "section": "Fire Protection",
         "effective_date": "2026-09-13",
         "page": 1,
     }
