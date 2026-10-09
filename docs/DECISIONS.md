@@ -643,3 +643,233 @@ reports keep only two OFI photos, so the reference set in
 hit rate means much.
 
 Stories: CP-05, CP-04, CP-08.
+
+## 2026-10-08 — AI-call usage is returned by the services and saved by the gateway
+
+Chose: each Python service adds a `usage` list to the response it already sends
+(drafting, Whisper) and the gateway saves one `ai_calls` row per paid call and
+works out the cost from a dated price table. Labelling already priced its own
+calls, so the gateway keeps that cost and names its basis. Missing provider
+usage is stored as `null` with `usageStatus: "unavailable"`, never 0. Saving
+never throws. Cohere's prices are labelled estimates because Cohere publishes no
+per-use price. Rejected: a callback from each service to a gateway route, which
+needs a service key, a gateway address and an HTTP client in two more services
+for no gain (every call already returns to the gateway), and which would break
+the rule that S5 writes nothing to MongoDB; and storing each provider's raw
+response, which no one could add up across providers.
+
+Reason: EV-04 needs totals per feature, report and billed service, so every
+call has to share one shape. Known gap: a call whose service then fails (a
+refused draft) is not recorded, and ingestion-time embedding is not covered.
+
+Stories: EV-03.
+
+## 2026-10-08 — The cost report is scoped by the API, and the chatbot is left out until it exists
+
+Chose: one `usage:view` permission for both roles, with the scope enforced in
+the report service: a knowledge admin sees every report, a risk engineer only
+the reports where they are the assigned engineer (403 otherwise). The summary
+is added up in the gateway from `ai_calls`, percentiles use the nearest-rank
+method, and the export is a CSV of the breakdown on screen. The four features
+that exist are always listed; the chatbot appears once CB-01 does. Calls with
+no cost are counted, never summed as 0. Rejected: a separate engineer-only
+permission and route, which duplicates the same query; a Mongo aggregation
+pipeline, which is more code for a table that holds a few hundred rows today;
+and XLSX or PDF export.
+
+Reason: EV-04 asks for a knowledge-admin cost report, and a risk engineer
+reasonably wants to see what their own report cost. Changes to the acceptance
+criteria (role, chatbot, units, empty state, scope) are listed in the PR.
+
+Stories: EV-04.
+
+## 2026-10-08 — OFIs are suggested by the model and accepted by the engineer; code sets their priority and number
+
+Chose:
+- The model proposes Section 3 OFIs from observations rated moderate or worse,
+  as structured records whose category, type, likelihood, consequence and
+  effort must come from `ofi.json` (Marsh's template lists).
+- Code sets the priority from the template's Risk Assessment Matrix, and the
+  number, status and issue date when the list is read. OFI issued by is left
+  for the engineer (Marsh or the consultant).
+- An OFI is a suggestion, kept out of the report, until the engineer accepts
+  it. Redrafting replaces only unaccepted suggestions.
+- Past OFIs are retrieved from the knowledge base by heading, since RT-02 is
+  not built.
+- Section 3 is the first row of the Report generation tab's sections table,
+  laid out like sections 7-12, not the RV-01 review workspace. Any number of
+  suggestions can be accepted, one by one or all at once.
+
+Rejected:
+- An engineer-set "needs OFI" flag on observations. It changes capture screens
+  and adds a step on site, when severity already says which findings matter.
+- Free-text types, as in the sample reports. AC5 asks for configured value
+  lists, so the provisional list is the sample reports' types plus the seven
+  RQR main categories, swappable when Marsh sends its sub-categories.
+- The model choosing the priority. The backlog notes that priority is a matrix
+  lookup, and showing "Likely × Major" lets the engineer see the basis.
+- Loss expectancy from the model. Loss figures stay out of LLM output; those
+  fields are left for people.
+
+Reason: OFIs are advice the client acts on and insurers read, so every
+judgement the template defines as a rule (priority, numbering) is made in code.
+The model does the writing, and the engineer stays the one who decides what
+goes in the report.
+
+Measured (AC7, 2026-10-08, guide `gn05-v4`, gpt-6-luna judge): the mall (4.8)
+and mixed-use (4.55) cases pass; the office case (4.5) fails on field fit. Its
+drafts rated the fire door and recessed sprinklers Priority 1, as Marsh did,
+but the judge marks Major down against the guide's wording, and gives Marsh's
+own office OFIs 2.5 for field fit too. Drafted priorities match Marsh's in 7 of
+10 OFIs and are within one step in 9. Next: score priority by agreement with
+Marsh's own priorities, not the judge's view of likelihood and consequence.
+
+Stories: GN-05.
+## 2026-10-08 — Photos are read only when an engineer asks
+
+Chose: saving an observation stores its photos and reads nothing. Read photos
+on the Observations tab sends `POST /api/observations/:id/interpretation`,
+which starts the first reading, or a new one after a failure, and replaces
+`/interpretation/retry`. It stays open to any risk engineer, as the retry was.
+This supersedes two points of the CP-05 entry above: "The gateway starts it
+after saving, as it does a transcription" and "Saving starts exactly one
+attempt". Everything else in that entry stands: one reading per observation,
+S5 with Gemini, a proposal that is never drafting evidence.
+- Until asked, the observation has no `interpretation` and the API returns
+  `null`, as before for an observation without photos. The tab shows "Not
+  read yet" with what reading does.
+- The CP-04 AC7 (vetted sheet) and CP-05 AC1 (repo copy) now read "when the
+  engineer asks for them to be read", and a new AC says nothing is sent until
+  then.
+- Observations already read keep their reading.
+
+Rejected:
+- Reading on save, as before: every site photo went to Google whether or not
+  anyone wanted a proposal, while the CP-05 entry's open question (may client
+  photos go to Google?) is unanswered, and each one is a paid call.
+- A per-assessment or per-user setting for automatic reading: more to build
+  and explain, for a choice one button already gives.
+
+Reason: the proposal saves the engineer typing but is optional, so sending a
+client's photos to a third party should be a deliberate act, and Marsh pays
+only for proposals someone wants. The cost is one tap per observation.
+
+Stories: CP-05 (CP-04 in the vetted sheet).
+
+## 2026-10-08 — Repeats and newer editions: fingerprint at upload, one match check after ingestion, one Needs review status
+
+Chose: three checks, then one admin decision (IN-07).
+- An identical file is rejected at upload, before labelling, S3 and the queue.
+  The gateway compares the file's sha256 fingerprint with every stored
+  document that is not failed, and a unique partial index on `file.sha256`
+  settles two identical files uploaded together. Reason: no LLM call, no
+  storage and no job is spent on a repeat.
+- A document that shares passages with a stored one is checked once, after
+  ingestion, using the embeddings already in Chroma. Two passages match at
+  similarity 0.90 or more (`MATCH_PASSAGE_SIMILARITY`). A document is a
+  possible copy if 58% or more (`MATCH_MIN_SHARE`) of either document's
+  passages match the other. Either direction, so an excerpt of a stored
+  document and a full document whose excerpt is stored are both caught.
+  Candidates are every complete document except itself and its own edition
+  family; the one with the most shared passages is the match.
+- Editions are told apart by the standard number, never the title (step-4
+  feedback: a title missing one "s" flipped a match). The labeller reads the
+  number ("13", "2-81"); on an excerpt without its cover, NFPA's page numbers
+  ("13-33") prove it. Rules, in order: a copy (58%+) of the same edition is a
+  possible copy; same issuing body and number with a different year is a
+  newer or earlier edition, whatever the share; a 58%+ match of another year
+  with an unknown number is an edition; any other 58%+ match is a copy.
+  Reason: the evaluation found the 2022 and 2019 editions of NFPA 13 share
+  only 42% of their passages at 0.90, below any safe copy threshold, and two
+  excerpts of different chapters share none.
+- Keep both gives the new document the matched one's status, and Supersede is
+  refused while another edition of the family is active, so two editions are
+  never active at once.
+- T and S come from the evaluation, not a guess: at T = 0.90 the lowest copy
+  shares 83% of its passages and the highest non-copy 33%, a 50-point margin,
+  so S = 58% sits in the middle. At 0.80 and 0.85 the margin is only 17 points
+  (two reports from one template share 67%); at 0.95 it is 38. Both are env
+  settings. See `microservices/ingestion-service/eval/matching/results/2026-10-08.md`
+  (8 pairs: re-saved, scanned, no-cover, two editions, two same-template
+  reports and three unrelated).
+- One Needs review status for every reason (Unconfirmed details or a match).
+  Passages carry `needs_review` and stay out of search. The row says why. A
+  document mid-ingest is indexed as `needs_review` until the match step
+  finishes.
+- No Superseded status. Supersede withdraws the old edition and links the
+  editions in an `editionFamily`; a withdrawn edition shows the family's newest
+  edition. Reinstate is refused while another edition of the family is active.
+- Discard deletes fully: passages, S3 file, ingestion job and record, after a
+  confirm. Other documents that matched it are matched again.
+
+Rejected:
+- Separate Awaiting decision and Superseded statuses (from the VETTED backlog).
+  Needs review already means "waiting for an admin", and Withdrawn plus an
+  edition family covers a retired edition. Fewer statuses to filter, count
+  and keep in step in the passage labels.
+- A text comparison before ingestion for text PDFs. A scanned copy needs
+  ingestion anyway, so one check after it covers both, and a discarded
+  document costs only the ingestion run.
+- Title matching, fuzzy or exact. Titles are not unique and one typo changed
+  the outcome; the standard number is short, printed on every page and
+  checkable against the text.
+- A word-level diff inside a passage. The review page marks which passages
+  differ; a tidied-text change is enough to show a revised value.
+
+Known limit: an edition whose standard number can't be read or is typed wrong,
+with less than 58% of its passages matching, is not flagged. Retest on
+full-size documents when ingestion moves to cloud models.
+
+Stories: IN-07 (covers IN-11).
+
+## 2026-10-08 — Recordings and photos can be added to and removed from a saved observation; removal hides, and a changed photo set marks the reading out of date
+
+Chose: the assigned engineer can add recordings and photos to a saved
+observation (`POST /api/observations/:id/media`), and remove and restore any
+of them (`DELETE` / `POST .../restore` on `/recordings/:id` and
+`/photos/:id`), from Add media and Remove on the Observations tab. This
+supersedes two points above: the CP-08 entry's rejection of "removing a
+recording from an observation", and the CP-05 entry's "photos can't be added
+after saving, so the set is fixed".
+- Removal is soft, as deleting an observation is: the item gets `removed: {
+  at, by }`, its file stays in S3, and Restore brings it back. The API lists
+  kept items under `recordings` and `photos` and removed ones apart, so
+  drafting, the evidence counts, the Photos tab and the photo appendix leave
+  removed ones out with no change of their own. A removed transcript changes
+  what a draft was given, so the draft shows as out of date.
+- An observation must keep a note, a recording or a photo. The removal's
+  update matches on that, so two removals at once can't leave nothing; the
+  note-clearing edit now counts only kept items, matched the same way.
+- An item added later records `added: { at, by }`, since it was not captured
+  with the observation.
+- Each photo reading records the photos it read (`photoIds`). A finished
+  reading of a different set from the photos kept now is out of date: the tab
+  says so and offers Read again. Nothing reads photos by itself, as the entry
+  above decided. Readings from before have no `photoIds` and count as reading
+  the photos saved with the observation.
+- No capture session is needed: adding is a correction, like the other CP-08
+  changes, and often made at the desk after the visit.
+- One upload check (`server/src/routes/media-form.ts`) serves capture and
+  adding, so both refuse the same files with the same words.
+
+Rejected:
+- Deleting the file from S3 on removal: it would destroy raw evidence that a
+  past draft may have been written from, and could not be undone.
+- Removal with no restore: every other soft removal in the app (observation
+  delete, KB-01 withdraw, RV-10 archive) can be undone, and a mis-tap on a
+  phone is likely.
+- Reading the photos again by itself on every change: a paid call that
+  sends client photos to a third party each time, against the entry above.
+- Requiring an active capture session: drafting may already be under way, and
+  starting capture again to attach one photo is two screens for one tap.
+- Reusing the capture screen to add to an existing observation: its tags are
+  for a new observation, and the engineer would lose their place on the
+  Observations tab.
+
+Reason: an engineer finds after saving that a photo is missing, a recording
+is of the wrong room, or the best shot was taken later, and CP-08 asks for
+observations to be corrected while every draft stays traceable to what it
+was drafted from. Hiding rather than deleting keeps that trail.
+
+Stories: CP-08, CP-04, CP-05.
+

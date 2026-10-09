@@ -75,6 +75,7 @@ export function EditHistoryDialog({
 const SHOWN: [label: string, read: (d: StoredDetails) => string][] = [
   ['Source type', (d) => sourceLabel(d.sourceType)],
   ['Title', (d) => d.title],
+  ['Standard number', (d) => d.standardNumber ?? 'none'],
   ['Edition', (d) => d.edition ?? 'none'],
   ['Date', (d) => calendarDate(d.effectiveDate)],
   ['Country', (d) => countryName(d.jurisdiction)],

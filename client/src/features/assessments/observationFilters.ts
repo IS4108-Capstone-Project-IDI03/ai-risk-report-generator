@@ -21,9 +21,14 @@ export const OBSERVATION_STATUSES = [
 ]
 
 // What an observation holds. A sample one, kept in the browser, has a note and
-// may carry a sample voice clip and sample photos.
+// may carry a sample voice clip, sample photos, and recordings added in the
+// demo (CP-08).
 export const typesOf = (o: Observation) =>
-  o.types ?? ['Note', ...(o.audio ? ['Voice'] : []), ...(o.media.length ? ['Photo'] : [])]
+  o.types ?? [
+    'Note',
+    ...(o.audio || o.recordings?.length ? ['Voice'] : []),
+    ...(o.media.length ? ['Photo'] : []),
+  ]
 // "Note", "Voice and photo" or "Note, voice and photo".
 export const typeLabel = (o: Observation) => {
   const [first = 'Note', ...rest] = typesOf(o)

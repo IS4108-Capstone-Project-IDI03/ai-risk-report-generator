@@ -1,6 +1,7 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { ObservationModel, type CopeDimension } from '../models/observation.model'
@@ -210,6 +211,59 @@ describe('drafting a report section (GN-01)', () => {
     expect(list.body[1]).toMatchObject({ id: '12', usableObservations: 0, latestDraft: null })
   })
 
+  it('records the usage of the calls that wrote a draft, under the report (EV-03)', async () => {
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Risers.',
+    })
+    const call = (over: object) => ({
+      feature: 'retrieval',
+      billed_service: 'cohere-embed',
+      model: 'embed-v4.0',
+      duration_ms: 300,
+      input_tokens: 40,
+      output_tokens: null,
+      cache_read_tokens: null,
+      search_units: null,
+      audio_seconds: null,
+      usage_status: 'recorded',
+      ...over,
+    })
+    drafts.mockImplementation(() =>
+      json({
+        ...DRAFT,
+        usage: [
+          call({}),
+          call({
+            billed_service: 'cohere-rerank',
+            model: 'rerank-v3.5',
+            input_tokens: null,
+            search_units: 1,
+          }),
+          call({
+            feature: 'draft-section',
+            billed_service: 'anthropic',
+            model: 'claude-opus-5-5',
+            input_tokens: 900,
+            output_tokens: 300,
+          }),
+        ],
+      }),
+    )
+
+    const response = await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    expect(response.status).toBe(201)
+    const rows = await AiCallModel.find({ reportId: REFERENCE }).lean()
+    expect(rows.map((r) => r.billedService).sort()).toEqual([
+      'anthropic',
+      'cohere-embed',
+      'cohere-rerank',
+    ])
+    // The usage list is bookkeeping: it does not leak into the draft the browser gets.
+    expect(JSON.stringify(response.body)).not.toContain('billed_service')
+  })
+
   it('tags a section spanning several categories as all', async () => {
     const { assessment: a, session } = await assessment()
     const ids = { assessment: a._id, session: session._id }
@@ -391,6 +445,66 @@ describe('drafting a report section (GN-01)', () => {
     expect(drafts.mock.lastCall![0].observations).toEqual([
       expect.objectContaining({ id: String(voiced._id), transcripts: [corrected] }),
     ])
+  })
+
+  it('drafts without a removed recording, and counts adding, removing and restoring one (CP-08)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const voiced = await observation(ids, 'Construction', {
+      note: 'Riser room.',
+      transcription: 'transcribed',
+    })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    const recording = `/api/observations/${voiced._id}/recordings/${voiced.recordings[0]._id}`
+    const listed = async () => (await api.get(`/api/assessments/${REFERENCE}/sections`)).body[0]
+
+    expect((await api.delete(recording)).status).toBe(200)
+
+    // Its transcript is no longer evidence: a change the draft lacks.
+    expect((await listed()).changeCounts).toEqual({ added: 0, changed: 1, removed: 0 })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(drafts.mock.lastCall![0].observations).toEqual([
+      expect.objectContaining({ id: String(voiced._id), transcripts: [] }),
+    ])
+    // Restoring it brings the transcript back, which the newest draft lacks.
+    await api.post(`${recording}/restore`)
+    expect((await listed()).changesSinceDraft).toBe(1)
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    // So does a recording added later, once it is transcribed.
+    await ObservationModel.updateOne(
+      { _id: voiced._id },
+      {
+        $push: {
+          recordings: {
+            name: 'Recording 2',
+            key: 'audio/y.webm',
+            contentType: 'audio/webm',
+            size: 3,
+            transcription: {
+              status: 'transcribed',
+              transcript: 'Riser sealed at level 2.',
+              attempts: [{ startedAt: new Date() }],
+            },
+            added: { at: new Date(), by: { id: String(engineer._id), name: engineer.name } },
+          },
+        },
+      },
+    )
+    expect((await listed()).changeCounts).toEqual({ added: 0, changed: 1, removed: 0 })
+  })
+
+  it('does not wait for a removed recording still transcribing (CP-08)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const voiced = await observation(ids, 'Construction', {
+      note: 'Riser room.',
+      transcription: 'transcribing',
+    })
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(409)
+
+    await api.delete(`/api/observations/${voiced._id}/recordings/${voiced.recordings[0]._id}`)
+
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(201)
   })
 
   it('only lets the assigned engineer draft, and not an archived assessment', async () => {

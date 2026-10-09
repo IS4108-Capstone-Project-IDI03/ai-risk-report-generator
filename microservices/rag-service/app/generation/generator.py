@@ -10,8 +10,9 @@ miscopies long IDs. The labels are mapped back to full IDs before the draft is c
 import json
 import re
 from pathlib import Path
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.generation.llm import complete
 
@@ -24,6 +25,12 @@ TEMPLATE = json.loads((HERE / "sections.json").read_text())
 DRAFTING_GUIDE = re.sub(
     r"\A---\n.*?\n---\n", "", (HERE / "drafting-skill.md").read_text(), flags=re.S
 )
+
+# Section 3 Opportunities for Improvement (GN-05): Marsh's value lists and matrix, and
+# the OFI drafting guide. Bump OFI_PROMPT_VERSION whenever the prompt or guide changes.
+OFI_PROMPT_VERSION = "gn05-v4"
+OFI_CONFIG = json.loads((HERE / "ofi.json").read_text())
+OFI_GUIDE = re.sub(r"\A---\n.*?\n---\n", "", (HERE / "ofi-skill.md").read_text(), flags=re.S)
 
 
 class Statement(BaseModel):
@@ -160,3 +167,107 @@ def draft_section(
         for statement in sub.statements:
             statement.citations = [full.get(c, c) for c in statement.citations]
     return draft, model
+
+
+def _one_of(values: list[str]):
+    """A type that accepts only these values, so the model must pick from Marsh's lists."""
+    return Literal[tuple(values)]
+
+
+class Ofi(BaseModel):
+    """One Opportunity for Improvement as the model drafts it (GN-05). Number, status,
+    issue date, issuer and priority are not here: code sets them (AC6)."""
+
+    model_config = ConfigDict(extra="forbid")
+    # Non-empty, since the gateway's schema requires every text field.
+    title: str = Field(min_length=1)
+    category: _one_of(OFI_CONFIG["categories"])
+    type: _one_of(OFI_CONFIG["types"])
+    description: str = Field(min_length=1)
+    observation: str = Field(min_length=1)
+    likelihood: _one_of(OFI_CONFIG["likelihood"])
+    consequence: _one_of(OFI_CONFIG["consequence"])
+    effort: _one_of(OFI_CONFIG["effort"])
+    # Labels: the observations it rests on (O), standards it cites (C), and the past OFI
+    # it was adapted from (P), if any.
+    observations: list[str] = Field(min_length=1)
+    standards: list[str]
+    precedent: str | None
+
+
+class OfiDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ofis: list[Ofi]
+
+
+def ram_priority(likelihood: str, consequence: str) -> str:
+    """The OFI's priority from Marsh's Risk Assessment Matrix (AC6): never the model's call."""
+    return OFI_CONFIG["ram"][likelihood][consequence]
+
+
+def _ofi_system_prompt() -> str:
+    lists = "\n".join(
+        f"- {name}: {', '.join(OFI_CONFIG[key])}"
+        for name, key in (
+            ("category", "categories"),
+            ("type", "types"),
+            ("likelihood", "likelihood"),
+            ("consequence", "consequence"),
+            ("effort", "effort"),
+        )
+    )
+    return f"""You draft Section 3, Opportunities for Improvement (OFIs), of a Marsh Property \
+Risk Evaluation (PRE) report. A risk engineer accepts or leaves each one.
+
+Follow this guide:
+
+{OFI_GUIDE}
+
+Pick each of these fields from its list, exactly as written:
+{lists}
+
+Output: `observations`, `standards` and `precedent` hold labels such as "O2", "C1" or "P3". \
+Keep labels out of the text. Return no OFIs if no observation needs one."""
+
+
+def draft_ofis(
+    assessment,
+    observations,
+    standards: list[dict],
+    precedents: list[dict],
+    accepted: list[str],
+    effort: str,
+) -> tuple[OfiDraft, str]:
+    """Return the model's OFIs for these observations, labels mapped back to full IDs
+    (an unknown label stays as written, for the orchestrator to drop), and the model."""
+    full: dict[str, str] = {}
+
+    def label(prefix: str, n: int, real_id: str) -> str:
+        full[f"{prefix}{n}"] = f"{prefix}:{real_id}"
+        return f"{prefix}{n}"
+
+    user = "\n\n".join(
+        [
+            f"Assessment {assessment.reference}: {assessment.facility_type} in "
+            f"{assessment.jurisdiction}.",
+            _block(
+                "observations",
+                [_observation_block(label("O", n, o.id), o) for n, o in enumerate(observations, 1)],
+            ),
+            _block(
+                "standards",
+                [_chunk_block(label("C", n, c["id"]), c) for n, c in enumerate(standards, 1)],
+            ),
+            _block(
+                "past_ofis",
+                [_chunk_block(label("P", n, c["id"]), c) for n, c in enumerate(precedents, 1)],
+            ),
+            _block("accepted_ofis", [f"- {title}" for title in accepted]),
+        ]
+    )
+    result, model = complete(_ofi_system_prompt(), user, OfiDraft, effort)
+    for o in result.ofis:
+        o.observations = [full.get(c, c) for c in o.observations]
+        o.standards = [full.get(c, c) for c in o.standards]
+        o.precedent = full.get(o.precedent, o.precedent) if o.precedent else None
+    return result, model

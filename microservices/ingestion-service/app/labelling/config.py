@@ -15,7 +15,15 @@ from dotenv import load_dotenv
 # and parents[4] would crash the service on start.
 load_dotenv(Path(__file__).resolve().parent / "../../../../.env")
 
-DETAILS = ("source_type", "title", "edition", "effective_date", "jurisdiction", "facility_type")
+DETAILS = (
+    "source_type",
+    "title",
+    "edition",
+    "standard_number",
+    "effective_date",
+    "jurisdiction",
+    "facility_type",
+)
 FIXED_LIST = ("source_type", "jurisdiction", "facility_type")
 STANDARDS = ("fm_standard", "nfpa_standard")
 

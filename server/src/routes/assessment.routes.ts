@@ -1,4 +1,4 @@
-import express, { Router, type ErrorRequestHandler } from 'express'
+import { Router, type Response } from 'express'
 import {
   archiveAssessment,
   assessmentDetailsSchema,
@@ -27,14 +27,13 @@ import {
   removeLocation,
 } from '../services/location.service'
 import {
-  audioExtension,
   listObservations,
   newObservationSchema,
   NoActiveSessionError,
-  photoFormat,
   saveObservation,
   UnknownLocationError,
 } from '../services/observation.service'
+import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
 import { RagServiceError } from '../services/rag.service'
 import { getReviewWorkspace } from '../services/review.service'
 import {
@@ -45,6 +44,7 @@ import {
   UnknownSectionError,
 } from '../services/section.service'
 import { fieldErrors } from './field-errors'
+import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
@@ -222,23 +222,16 @@ router.delete(
 
 // Saves one observation (CP-02, CP-03, CP-04) as a multipart form: a `details`
 // part holding the JSON fields (see newObservationSchema), a `recording` part
-// per audio file and a `photo` part per JPG or PNG. It needs at least one of a
-// note, a recording or a photo. 400 lists the first problem with each invalid
-// field, as for assessments. Each recording may be up to 25 MB, the Whisper
-// upload limit, and each photo up to 20 MB.
-// ponytail: the whole form is buffered in memory; stream it to S3 if uploads
-// grow past a few recordings.
+// per audio file and a `photo` part per JPG or PNG, checked by mediaParts. It
+// needs at least one of a note, a recording or a photo. 400 lists the first
+// problem with each invalid field, as for assessments.
 router.post(
   '/:reference/observations',
   requirePermission('assessments:edit'),
-  express.raw({ type: 'multipart/form-data', limit: '100mb' }),
+  multipartBody,
   async (req, res) => {
-    let form: FormData
-    try {
-      form = await new Response(req.body, {
-        headers: { 'Content-Type': req.get('Content-Type') ?? '' },
-      }).formData()
-    } catch {
+    const form = await readForm(req)
+    if (!form) {
       res.status(400).json({ error: 'Send the observation as a multipart form.' })
       return
     }
@@ -256,56 +249,15 @@ router.post(
       return
     }
 
-    const files = form.getAll('recording').filter((part) => part instanceof File)
-    if (files.some((file) => !audioExtension(file.type))) {
-      res.status(415).json({
-        error: 'This audio format is not supported. Use WebM, Ogg, MP4, M4A, MP3, WAV or FLAC.',
-      })
+    const media = await mediaParts(form)
+    if ('error' in media) {
+      res.status(media.status).json({ error: media.error })
       return
     }
-    if (files.some((file) => file.size > 25 * 1024 * 1024)) {
-      res.status(413).json({ error: 'A recording is larger than 25 MB. Upload a shorter one.' })
-      return
-    }
-    if (files.some((file) => file.size === 0)) {
-      res.status(400).json({ error: 'A recording is empty.' })
-      return
-    }
-
-    const photoFiles = form.getAll('photo').filter((part) => part instanceof File)
-    if (photoFiles.some((file) => file.size > 20 * 1024 * 1024)) {
-      res.status(413).json({ error: 'A photo is larger than 20 MB. Upload a smaller one.' })
-      return
-    }
-    if (photoFiles.some((file) => file.size === 0)) {
-      res.status(400).json({ error: 'A photo is empty.' })
-      return
-    }
-    const photos = await Promise.all(
-      photoFiles.map(async (file, i) => ({
-        name: file.name || `Photo ${i + 1}`,
-        image: Buffer.from(await file.arrayBuffer()),
-      })),
-    )
-    const unsupported = photos.find((photo) => !photoFormat(photo.image))
-    if (unsupported) {
-      res.status(415).json({
-        error: `${unsupported.name} is not a JPG or PNG image. Save it as JPG or PNG and add it again.`,
-      })
-      return
-    }
-
-    if (!parsed.data.note && files.length === 0 && photos.length === 0) {
+    if (!parsed.data.note && media.recordings.length === 0 && media.photos.length === 0) {
       res.status(400).json({ error: 'Add a note, a recording or a photo to the observation.' })
       return
     }
-    const recordings = await Promise.all(
-      files.map(async (file, i) => ({
-        name: file.name || `Recording ${i + 1}`,
-        audio: Buffer.from(await file.arrayBuffer()),
-        contentType: file.type,
-      })),
-    )
     try {
       res
         .status(201)
@@ -313,9 +265,9 @@ router.post(
           await saveObservation(
             req.params.reference,
             parsed.data,
-            recordings,
+            media.recordings,
             res.locals.user!,
-            photos,
+            media.photos,
           ),
         )
     } catch (error: unknown) {
@@ -435,13 +387,63 @@ router.post(
   },
 )
 
-// express.raw rejects a body over the limit before the handler runs.
-const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
-  if (error?.type !== 'entity.too.large') return next(error)
-  res.status(413).json({
-    error: 'The recordings and photos are larger than 100 MB in total. Save fewer at once.',
-  })
-}
 router.use(tooLarge)
+
+// Section 3 Opportunities for Improvement (GN-05): suggestions and the
+// accepted OFIs in report order. Read-only, so a knowledge admin can open it.
+router.get('/:reference/ofis', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await listOfis(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// What both OFI writes answer for each failure: 404, 403 for anyone but the
+// assigned engineer, 409 while a transcription is unfinished or once archived,
+// 503 when S4 fails (not 502, which the client reads as the gateway being down).
+function ofiFailure(error: unknown, res: Response) {
+  if (error instanceof AssessmentNotFoundError || error instanceof OfiNotFoundError) {
+    res.status(404).json({ error: error.message })
+  } else if (error instanceof NotAssignedError) {
+    res.status(403).json({ error: error.message })
+  } else if (
+    error instanceof TranscriptionInProgressError ||
+    error instanceof AssessmentArchivedError
+  ) {
+    res.status(409).json({ error: error.message })
+  } else if (error instanceof RagServiceError) {
+    res.status(503).json({ error: error.message })
+  } else {
+    throw error
+  }
+}
+
+// Drafts OFI suggestions from the assessment's observations, replacing the
+// unaccepted ones: 201 with { suggestions, accepted }.
+router.post('/:reference/ofis/draft', requirePermission('reports:generate'), async (req, res) => {
+  try {
+    res.status(201).json(await draftOfis(req.params.reference, res.locals.user!))
+  } catch (error: unknown) {
+    ofiFailure(error, res)
+  }
+})
+
+// Accepts one suggestion into the report (AC4): 200 with { suggestions, accepted }.
+router.post(
+  '/:reference/ofis/:id/accept',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    try {
+      res.json(await acceptOfi(req.params.reference, req.params.id, res.locals.user!))
+    } catch (error: unknown) {
+      ofiFailure(error, res)
+    }
+  },
+)
 
 export default router

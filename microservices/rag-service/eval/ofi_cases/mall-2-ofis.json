@@ -1,0 +1,54 @@
+{
+ "name": "mall-2-ofis",
+ "source": "Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf, Section 3 (pp. 6-8)",
+ "exclude_doc_id": "6ac0b458a99acf65e6f594e8",
+ "assessment": {
+  "reference": "EVAL-MALL-2",
+  "jurisdiction": "SG",
+  "facility_type": "Shopping mall",
+  "standards": []
+ },
+ "observations": [
+  {
+   "id": "mall2-ofi-1",
+   "COPE_dimension": "Occupancy",
+   "severity": "moderate",
+   "location": "Management office",
+   "note": "hot work permit form reviewed - no fire watch requirement during or after hot work"
+  },
+  {
+   "id": "mall2-ofi-2",
+   "COPE_dimension": "Protection",
+   "severity": "moderate",
+   "location": "Fire command centre",
+   "note": "no formal FP system impairment programme. isolations approved by tech service team only, no impairment permit"
+  },
+  {
+   "id": "mall2-ofi-3",
+   "COPE_dimension": "Protection",
+   "severity": "high",
+   "location": "Retail area L2",
+   "note": "concealed spk cover plates painted over in retail corridor"
+  },
+  {
+   "id": "mall2-ok-1",
+   "COPE_dimension": "Protection",
+   "severity": "moderate",
+   "location": "Fire command centre",
+   "note": "FA panel showed 2 faults on arrival, both cleared during visit, fault log updated"
+  },
+  {
+   "id": "mall2-ok-2",
+   "COPE_dimension": "Occupancy",
+   "severity": "moderate",
+   "location": "Basement 2 loading bay",
+   "note": "loading bay cardboard waste removed daily, area clear at time of visit"
+  }
+ ],
+ "reference": "Management Programs\n2025-01 Improve Hot Work Permit. Priority 2. Type: Hot Work Permit. Effort: Minor Procedural.\nDescription: As per NFPA 51B, the permit form should require a constant fire watch throughout the hot work and for 30-60 minutes after, and the area should be monitored for at least 3 hours after the fire watch.\nObservation: The hot work permit reviewed lacked requirements for fire watch during and post hot work.\n\n2025-02 Formalize Fire Protection System Impairment Programme. Priority 2. Type: Fire Protection System Maintenance and Testing. Effort: Minor Procedural.\nDescription: Implement an impairment procedure with a formal Impairment Notification permit, in accordance with NFPA 25 Chapter 15: no high-risk work in impaired areas, authorised and supervised isolations, impairment forms to relevant parties, systems restored after works.\nObservation: There is no formalized fire protection system impairment programme.\n\nPhysical Protection\n2025-03 Replacement/Cleaning of Concealed Sprinkler Plates. Priority 2. Type: Fire Protection System Operation. Effort: Minor Capital.\nDescription: Cover plates should not be painted over, as this affects the temperature rating of the cover plate and may delay sprinkler activation.\nObservation: Concealed sprinkler cover plates were found to be painted over.",
+ "marsh_priorities": {
+  "mall2-ofi-1": "Priority 2",
+  "mall2-ofi-2": "Priority 2",
+  "mall2-ofi-3": "Priority 2"
+ }
+}

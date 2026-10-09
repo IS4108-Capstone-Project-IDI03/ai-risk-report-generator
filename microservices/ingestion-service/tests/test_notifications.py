@@ -181,3 +181,54 @@ def test_nothing_is_posted_when_the_service_key_is_unset(monkeypatch):
     notifications.notify_ingestion(make_doc(), status="complete")
 
     assert post.calls == []
+
+
+# --- Needs review (IN-07): a finished document that waits for an admin says so.
+
+
+def test_a_document_that_needs_review_says_so_with_its_reason(monkeypatch):
+    post = FakePost()
+    monkeypatch.setattr(notifications.httpx, "post", post)
+
+    notifications.notify_ingestion(
+        make_doc(), status="complete", review_reason="Possible copy of NFPA 13 (2019 edition)"
+    )
+
+    body = post.calls[0]["json"]
+    assert body["message"] == '"NFPA 13 sprinkler standard" needs review.'
+    assert body["details"] == "Possible copy of NFPA 13 (2019 edition)"
+    assert body["context"] == {"documentId": DOC_ID, "status": "needs_review"}
+
+
+@pytest.mark.parametrize(
+    ("doc", "matched", "reason"),
+    [
+        ({"unconfirmed": [], "match": None}, None, None),
+        ({"unconfirmed": ["title"], "match": None}, None, "Unconfirmed details"),
+        (
+            {"unconfirmed": [], "match": {"kind": "possible_copy"}},
+            {"title": "NFPA 13", "edition": "2019"},
+            "Possible copy of NFPA 13 (2019 edition)",
+        ),
+        (
+            {"unconfirmed": ["jurisdiction"], "match": {"kind": "newer_edition"}},
+            {"title": "NFPA 13", "edition": None},
+            "Possible newer edition of NFPA 13 · Unconfirmed details",
+        ),
+        # The matched document was deleted between matching and notifying.
+        ({"unconfirmed": [], "match": {"kind": "possible_copy"}}, None, "Possible copy"),
+        (
+            {"unconfirmed": [], "match": {"kind": "possible_copy"}},
+            {"title": "NFPA 13", "edition": "2019", "withdrawn": {"at": datetime(2026, 1, 1)}},
+            "Possible copy of NFPA 13 (2019 edition, withdrawn)",
+        ),
+        (
+            {"unconfirmed": ["title"], "match": None, "withdrawn": {"at": datetime(2026, 1, 1)}},
+            None,
+            None,
+        ),
+    ],
+)
+def test_review_reason_matches_the_lists_wording(doc, matched, reason):
+    # Same words as reviewReasons() in client/src/features/knowledge-base/display.ts.
+    assert notifications.review_reason(doc, matched) == reason

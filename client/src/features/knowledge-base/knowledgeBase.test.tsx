@@ -172,6 +172,20 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     expect(posted.map((p) => p.fileName).sort()).toEqual(['broken.pdf', 'nfpa-13.pdf'])
   })
 
+  it("rejects an identical file with the gateway's message naming the stored document (IN-07)", async () => {
+    const message = 'Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.'
+    const posted = mockGateway([], { 'same.pdf': () => json(409, { error: message }) })
+    await openAddDocuments()
+
+    choose(pdf('same.pdf'))
+    const row = screen.getByRole('group', { name: 'same.pdf' })
+    expect(await within(row).findByText(message)).toBeInTheDocument()
+    expect(within(row).getByText('Rejected')).toBeInTheDocument()
+    // A different file is the fix, so there is nothing to retry.
+    expect(within(row).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(posted).toHaveLength(1)
+  })
+
   it('keeps a file whose upload failed so it can be tried again', async () => {
     let up = false
     mockGateway([], {
@@ -226,11 +240,42 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
 
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
     const done = (await within(table).findByText(NFPA.title)).closest('tr, li') as HTMLElement
-    expect(within(done).getByText('Complete')).toBeInTheDocument()
+    // One badge: Needs review stands in for Complete, with the reason under the title.
     expect(within(done).getByText('Needs review')).toBeInTheDocument()
+    expect(within(done).queryByText('Complete')).not.toBeInTheDocument()
+    expect(within(done).getByText('Unconfirmed details')).toBeInTheDocument()
+    // The badge is the way in: it opens the document's Review page.
+    fireEvent.click(within(done).getByRole('button', { name: `Needs review: ${NFPA.title}` }))
+    expect(window.location.pathname).toBe(`/admin/knowledge-base/review/${NFPA.id}`)
+    window.history.replaceState(null, '', '/admin/knowledge-base')
     // Until it finishes ingesting it is not in the knowledge base, so nothing to review yet.
     const queued = within(table).getByText('Still ingesting').closest('tr, li') as HTMLElement
     expect(within(queued).queryByText('Needs review')).not.toBeInTheDocument()
+  })
+
+  it('marks a finished upload that matches a stored document Needs review and says why (IN-07)', async () => {
+    mockGateway([
+      {
+        ...NFPA,
+        status: 'complete',
+        match: {
+          kind: 'newer_edition',
+          document: { id: 'old', title: 'NFPA 13', edition: '2019', withdrawn: false },
+          newMatched: 92,
+          newTotal: 98,
+          storedMatched: 92,
+          storedTotal: 120,
+          otherNeedsReview: false,
+        },
+      },
+    ])
+    await openAddDocuments()
+
+    const table = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(table).findByText('Needs review')).toBeInTheDocument()
+    expect(
+      within(table).getByText('Possible newer edition of NFPA 13 (2019 edition)'),
+    ).toBeInTheDocument()
   })
 
   it('describes a standard by its edition and a Marsh report by its facility type and date', async () => {

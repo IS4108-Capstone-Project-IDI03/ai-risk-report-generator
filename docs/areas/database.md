@@ -165,10 +165,10 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio and photos | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription and interpretation retry; tag and note edits, transcript corrections, deletes and restores (the assessment's assigned engineer only, CP-08) | yes | no |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry and reading photos; tag and note edits, transcript corrections, deletes and restores, and adding, removing and restoring recordings and photos (the assessment's assigned engineer only, CP-08) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
-| `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction) | no | yes |
+| `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
 
 The role is read from the signed session, so a role change takes effect at the
@@ -213,10 +213,10 @@ observation stays out of drafting until it is categorised by editing its tags.
 
 The category, severity, location and standard are the observation's tags
 (CP-06). `PATCH /api/observations/:id` changes any of them, and the note
-(CP-08), in place, validated against the same values as capture; the
-recordings, photos and capture time never change. The note is stored exactly as
-typed, and a blank one removes it, which an observation without a recording or
-a photo can't do.
+(CP-08), in place, validated against the same values as capture; the capture
+time never changes. The note is stored exactly as typed, and a blank one
+removes it, which an observation without a recording or a photo it keeps
+can't do.
 Only what differs is saved, with `edited: { at, by: { id, name } }` naming who
 made the latest change; a save that changes nothing records nothing. The
 observation keeps no history of its own: report section drafts cite
@@ -244,10 +244,30 @@ restored, and its location can't be removed while it is saved there, so a
 restored one keeps its location. A draft that was given an observation since
 deleted, or uncategorised, counts it in `changesSinceDraft`.
 
+Recordings and photos can be added to a saved observation, and removed from it
+(CP-08). `POST /api/observations/:id/media` takes them as capture does, stores
+each in S3 under the observation's folder, marks it `added: { at, by }`, and
+starts each recording's transcription; no photo is read until an engineer
+asks. It needs no capture session. Removing is a soft removal, like deleting:
+the recording or photo gets `removed: { at, by }`, present only while removed,
+and nothing is deleted, in MongoDB or S3. Restoring removes `removed`. A
+removal must leave a note, a recording or a photo (409 otherwise); the update
+matches on that, so two removals at once can't leave nothing. The API lists
+only kept ones under `recordings` and `photos`, and removed ones under
+`removedRecordings` and `removedPhotos`, so everything that reads the former
+leaves removed ones out without asking: drafting, the section evidence counts,
+the wait for transcriptions before drafting, the Photos tab and the photo
+appendix (EX-01). Removing or restoring a transcribed recording, or adding one
+once it is transcribed, changes the transcripts a draft was given, so it
+counts in `changesSinceDraft`; photos are not drafting evidence, so they don't.
+A removed recording's transcript can't be corrected, nor a failed one retried,
+until it is restored.
+
 Only the assessment's assigned engineer can change, delete or restore its
-observations (403 otherwise), and not once the assessment is archived (409),
-as for its other details (RV-10). Capturing observations and retrying a failed
-transcription stay open to any risk engineer.
+observations, or add, remove and restore their recordings and photos (403
+otherwise), and not once the assessment is archived (409), as for its other
+details (RV-10). Capturing observations, retrying a failed transcription and
+reading photos stay open to any risk engineer.
 
 The API gives each recording `type: "Voice"`; the note is text by being the
 `note` field. The observation's `engineerId` is set from the signed session;
@@ -277,17 +297,26 @@ have no `photos` field, which reads treat as none. Drafting does not read
 photos yet, so an observation that is only photos is not usable evidence and
 doesn't count toward a section's minimum.
 
-An observation saved with photos also has an `interpretation` (CP-05): what
-the vision model proposes from all its photos together, for the engineer to
-review. Its `status` is `interpreting`, `interpreted` (with `description`, a
+An observation with photos gains an `interpretation` (CP-05) once an engineer
+asks for its photos to be read: what the vision model proposes from all its
+photos together, for the engineer to review. Saving never reads them, so a
+client's site photos reach the vision model only by an engineer's choice. Its
+`status` is `interpreting`, `interpreted` (with `description`, a
 proposed `copeDimension` and a `hazardType`) or `failed` (with `error`, S5's
 reason, which the API turns into a readable one). `attempts` records each run
 as for a recording, and `provenance` records the `provider`, `model`,
 `promptVersion`, token `usage` (`inputTokens`, `outputTokens`,
 `thoughtTokens`, or null when not reported, EV-03) and `interpretedAt`.
-Saving starts exactly one attempt; a retry adds one only while it is
-`failed`, matched atomically. An observation without photos has no
-`interpretation`, and the API returns `null`. The proposal is not drafting
+Asking creates it with one attempt, or adds one while it is `failed`, matched
+atomically so two clicks start one reading. Until then it has no
+`interpretation`, and the API returns `null`, as it does while no photo is
+kept. Each attempt records the photos it reads in `photoIds` (CP-08). A
+finished reading whose `photoIds` differ from the photos kept now, because
+photos were added or removed since, is out of date: the API returns
+`outOfDate: true`, nothing reads the photos again by itself, and asking again
+reads the kept ones, clearing the old proposal while it runs. A reading from
+before photos could change has no `photoIds` and counts as reading every photo
+the observation was saved with (those without `added`). The proposal is not drafting
 evidence: `toEvidence` never reads it, drafting does not wait for it, and it
 does not count towards `changesSinceDraft`. It becomes the engineer's only
 when they save it into the note or the category through `PATCH`. The Photos tab lists every photo of
@@ -298,13 +327,16 @@ filters, it is built in the browser from the observation list.
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each) and a `photo` part per JPG or PNG (up to 20 MB each), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording or photo, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos`, each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model }`, or `null` with no photos, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until its photos are read, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
-| `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, deleted or archived) |
+| `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
-| `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 |
-| `POST /api/observations/:id/interpretation/retry` | New attempt at reading the observation's photos after a failure (CP-05): 202, or 404 (no photos) / 409 (not failed) |
+| `POST /api/observations/:id/media` | Adds recordings and photos (CP-08): multipart `recording` and `photo` parts, checked as at capture, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId` | Removes one, a soft removal (CP-08). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
+| `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
+| `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |
+| `POST /api/observations/:id/interpretation` | Reads the observation's kept photos (CP-05): the first reading, a new one after a failure, or after photos were added or removed (CP-08). Saving never reads them. 202, or 404 (unknown observation) / 409 (no photos, deleted, already being read, or read and up to date) |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 | `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
 
@@ -350,7 +382,49 @@ The first draft sets the assessment's `reportStatus` to `draft`.
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
 | `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources`, `changesSinceDraft` and its `changeCounts`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under the section's categories, plus any other it cites). Read-only. 404, or 503 when S4 cannot be reached. |
 
-## Knowledge documents (IN-01, KB-01)
+## Opportunities for Improvement (GN-05)
+
+`report_ofis` holds one document per drafted Opportunity for Improvement (OFI),
+the records in the report's Section 3. A draft is a *suggestion* until the
+engineer accepts it; only accepted OFIs are in the report. Drafting again
+replaces the unaccepted suggestions and leaves accepted OFIs alone. Each
+document has:
+
+- `assessment`, and `state`: `suggested` or `accepted`, with `acceptedAt` and
+  `acceptedBy` (the engineer's user `_id`) once accepted.
+- The model's fields: `title`, `category` (Management Programs, Physical
+  Protection or Other), `type`, `description` (the technical basis),
+  `observation` (why it was raised here), `likelihood`, `consequence` and
+  `effort`. The value lists are `rag-service/app/generation/ofi.json`, taken
+  from Marsh's template; `type` is provisional until Marsh sends its RQR
+  sub-categories.
+- `priority` (`Priority 1` to `Priority 4`): the Risk Assessment Matrix's
+  value for `likelihood` × `consequence`, set by S4's code, never by the model.
+- `observations` (the observation `_id`s it rests on), `standards` (cited
+  `C:` IDs), `precedent` (the `P:` ID of the past-report OFI it was adapted
+  from, or `null`) and `sources` (those passages, with `doc_id` and
+  `headings`).
+- `provenance`: `provider`, `model`, `effort`, `prompt_version`,
+  `config_version` (of `ofi.json`), `generated_at`.
+- `createdBy`, the engineer's user `_id`.
+- `metadata` with the five required fields: `source_type: 'ofi'`,
+  `jurisdiction` and `facility_type` from the site, `COPE_dimension: 'all'`
+  (an OFI can address any category) and `effective_date` (when drafted).
+
+Not stored, but worked out when the list is read: the OFI `number`
+(`<site visit year>-NN`, in report order: Management Programs, then Physical
+Protection, then Other, each by acceptance time), `status` (`New`),
+`issueDate` (the site visit date). OFI issued by, insurer rec no., loss
+expectancy, related RTM ID, client response, advisory comment and loss
+scenario are left for people to fill: loss figures never come from a model.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/ofis` | `{ suggestions, accepted }`. Each OFI has `status` and `issueDate`; `accepted` is in report order with `number`. 404. |
+| `POST /api/assessments/:reference/ofis/draft` | Drafts OFIs from the assessment's usable observations and replaces the unaccepted suggestions (`reports:generate`, assigned engineer only). 201 with the list, 403, 404, 409 (a transcription in progress, or archived), 503 (drafting failed, with the reason). |
+| `POST /api/assessments/:reference/ofis/:id/accept` | Accepts a suggestion into the report (assigned engineer only). 200 with the list; accepting twice changes nothing. 403, 404. |
+
+## Knowledge documents (IN-01, KB-01, IN-07)
 
 `knowledge_documents` holds one record per accepted upload. Its `_id` is the
 permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
@@ -367,6 +441,7 @@ below) and corrected by the admin (KB-01). The source type decides which apply:
 | `title` | required | required |
 | `issuingBody` | set from the source type: `FM Global` / `NFPA` | set: `Marsh` |
 | `edition` | required, a four-digit year, e.g. `2022` | absent |
+| `standardNumber` | required, the designation without the issuing body, e.g. `13` or `2-81` (IN-07 matching identity; the labeller's `standard_number`) | absent |
 | `metadata.effective_date` | the edition's effective date | the report date |
 | `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
 | `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
@@ -393,10 +468,14 @@ A relabel never sends `COPE_dimension`, so a correction keeps each passage's
 own.
 
 Each passage also carries `status`: `active`, `withdrawn` (KB-01) or
-`needs_review` (IN-05: the document has an Unconfirmed detail). The worker
-writes `needs_review` or `active` at ingest; a correction, withdraw and reinstate
-rewrite it in place (reinstating a document that still has Unconfirmed details
-gives `needs_review`). Retrieval returns only passages that are neither
+`needs_review` (IN-05: the document has an Unconfirmed detail; IN-07: it has a
+`match`). The rule, in the worker and the gateway alike: `withdrawn` if the
+document is withdrawn, else `needs_review` if `unconfirmed` is non-empty or
+`match` is set, else `active`. The worker indexes every passage as
+`needs_review`, so a document mid-ingest is never searchable, then writes the
+final status once the match step has run. A correction, a decision, withdraw and
+reinstate rewrite it in place (reinstating a document that still has
+Unconfirmed details or a match gives `needs_review`). Retrieval returns only passages that are neither
 `withdrawn` nor `needs_review`. Passages indexed before the status label
 existed have no `status`; retrieval treats that as active.
 
@@ -404,15 +483,15 @@ existed have no `status`; retrieval treats that as active.
 
 At upload the gateway asks the ingestion service's `POST /label` to read the
 PDF's first `LABEL_PAGES` pages (default 20; pages without a text layer in the
-first 5 are OCR'd) and fill in the six details. A detail the models are not
+first 5 are OCR'd) and fill in the seven details. A detail the models are not
 confident about is **Unconfirmed**: stored as `null` in `metadata` (or no
 `edition`), the one exception to the CLAUDE.md metadata rule besides
 uncategorised observations. The title falls back to the file name, and
 `issuingBody` is `null` while the source type is Unconfirmed. Extra fields:
 
 - `unconfirmed`: the Unconfirmed detail names (`source_type`, `title`,
-  `edition`, `effective_date`, `jurisdiction`, `facility_type`); a report never
-  lists `edition`. Non-empty means the document **needs review**. Written by the
+  `edition`, `standard_number`, `effective_date`, `jurisdiction`,
+  `facility_type`); a report never lists `edition` or `standard_number`. Non-empty means the document **needs review**. Written by the
   gateway at upload and emptied by a correction (which must give every
   detail); the worker reads it to choose the passages' `status`. The API returns
   it in camelCase.
@@ -443,7 +522,7 @@ A `complete` document is **active**: it is what search can use, and the only
 kind the knowledge base lists or lets the admin correct (KB-01). A correction
 overwrites the details in place and keeps what it replaced in `history`; the
 last save wins. `history` is an embedded list, oldest first, of earlier
-versions: `{ title, issuingBody, edition?, metadata (all five labels),
+versions: `{ title, issuingBody, edition?, standardNumber?, metadata (all five labels),
 replacedAt, replacedBy: { id, name } }` (`replacedBy` is the signed-in user).
 A save that changes nothing adds no version. Restoring is an ordinary
 correction with an old version's details, so the details it replaces become a
@@ -461,15 +540,54 @@ corrected. Reinstating removes `withdrawn` and records no one. Only the latest
 withdrawal is kept. As with a correction, a failed relabel puts `withdrawn` back
 as it was. The API returns `withdrawn` as `{ at, by } | null`.
 
+#### Duplicates and newer editions (IN-07)
+
+Two more fields on `knowledge_documents`:
+
+- `match`: absent or `null`, or `{ kind, documentId, newMatched, newTotal,
+  storedMatched, storedTotal }`. `kind` is `newer_edition`, `earlier_edition` or
+  `possible_copy`; `documentId` is the stored document it repeats or updates.
+  The four counts always come from the passage check, also for an edition match:
+  how many of this document's passages (`newMatched` of `newTotal`) and how many
+  of the stored document's (`storedMatched` of `storedTotal`) have a match in the
+  other. Written only by the ingestion service's match step (see
+  [services.md](services.md) "Matching"). A non-null `match` makes the document
+  **needs review** until the admin decides. The API returns it with the matched
+  document's `{ id, title, edition }` instead of `documentId`, plus
+  `otherNeedsReview` (that document is also waiting).
+- `editionFamily`: absent or `null`, or an ObjectId shared by every edition of
+  one standard the admin has linked. It is the `_id` of the family's first
+  document. Written only by the gateway, when a decision supersedes or adds an
+  older edition. The API returns `newerEdition: { id, title, edition } | null` on
+  a withdrawn family member when a later edition exists (the family's newest),
+  and `reinstateBlockedBy: { id, title, edition } | null`, the active member of
+  its family (the one the reinstate 409 names), computed on read.
+
+`keep_both` gives the reviewed document the matched document's status: if the
+matched one is withdrawn, the reviewed one is withdrawn too (`{ at, by }`) and
+joins its `editionFamily` (when it has one); otherwise it is active. A
+correction re-runs `/match` when the source type, standard number or edition
+changed, not the title.
+
+`file.sha256` has a **unique partial index** covering documents whose `status`
+is `queued`, `processing` or `complete`, so a failed document's file can be
+uploaded again. It stops two identical files uploaded together both being
+stored. The gateway builds it at startup. It can't build while identical files
+are already stored: the gateway then logs one error naming how many groups of
+identical files there are, and carries on without the index. Remove the extra
+copies and restart. The upload's own check still rejects most repeats.
+
 | Route | Does |
 | --- | --- |
-| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
+| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
-| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
+| `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
-| `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn) / 503 (search not updated, still withdrawn) |
+| `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn, or IN-07: another edition in its `editionFamily` is active, named in `error`) / 503 (search not updated, still withdrawn) |
 | `POST /api/knowledge-documents/:id/retry` | Retries a failed ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears `error`/`finishedAt`, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not failed (someone already retried it), 503 queue unreachable (document left failed, counter rolled back). `knowledge:manage` only |
+| `GET /api/knowledge-documents/:id/comparison` | The document, the document its `match` points to, and their passages side by side (IN-07): `{ document, matched, rows }`. 200, or 404 / 409 (no match, or the matched document is gone) / 503 |
+| `POST /api/knowledge-documents/:id/decision` | The admin's decision on a match (IN-07): `{ choice }`, one of `keep_both`, `discard_new`, `discard_other`, `supersede`, `add_as_older` (effects in [services.md](services.md)). Needs `knowledge:manage`. 200 `{ document }`, with `document: null` after `discard_new`; or 400 (unknown choice) / 404 / 409 (details still Unconfirmed, no match, the matched document gone, a choice that doesn't fit the match, or `supersede` while another edition in the stored edition's family is still active) / 503 (nothing changed) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
 
 ### Ingestion jobs (`ingestion_jobs`)
@@ -545,3 +663,49 @@ nothing could fire them.
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).
+
+## AI-call usage (EV-03)
+
+Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per paid AI call, saved by the gateway (`ai-usage.service.ts`) from the `usage` list that the Python services return. The services never write it.
+
+| Field | Meaning |
+|---|---|
+| `feature` | `draft-section`, `retrieval`, `transcribe` or `label-document` |
+| `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev` |
+| `model` | the exact model the provider reported |
+| `reportId` | the assessment reference (absent for labelling, which has no report) |
+| `durationMs` | how long the call took |
+| `inputTokens`, `outputTokens`, `cacheReadTokens` | provider-reported; `null` when not reported |
+| `searchUnits`, `audioSeconds` | Cohere rerank and Whisper billing units |
+| `usageStatus` | `recorded`, or `unavailable` when the provider gave no usage data |
+| `estimatedCostUsd`, `pricingBasis` | the estimate and where its price came from; cost is `null` when there is no price or no usage |
+
+- One draft writes three rows: Claude, Cohere embed and Cohere rerank.
+- A draft that fails after its paid calls (refused, cut off) is not recorded: the service raises before it returns the list.
+- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08). Cohere publishes no per-use price, so those two are estimates, set by `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`.
+- A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
+- Nothing reads the collection yet; EV-04 (cost report) will.
+
+### Where each `ai_calls` field comes from (EV-03)
+
+Each provider reports usage differently. The services rename it into one shape (the "wire" item), and the gateway cleans it and saves it.
+
+| Provider field | Wire item (Python to gateway) | Stored field (`ai_calls`) |
+|---|---|---|
+| Anthropic `usage.input_tokens` | `input_tokens` | `inputTokens` |
+| Anthropic `usage.output_tokens` | `output_tokens` | `outputTokens` |
+| Anthropic `usage.cache_read_input_tokens` | `cache_read_tokens` | `cacheReadTokens` |
+| Cohere embed `meta.billed_units.input_tokens` | `input_tokens` | `inputTokens` |
+| Cohere rerank `meta.billed_units.search_units` | `search_units` | `searchUnits` |
+| Whisper `verbose_json` `duration` (seconds) | `audio_seconds` | `audioSeconds` |
+| Time around the call (`perf_counter`) | `duration_ms` | `durationMs` |
+| Labelling `seconds` (gateway multiplies by 1000) | `duration_ms` | `durationMs` |
+| Labelling `cost_usd` (kept as the service's own cost) | `cost_usd` | `estimatedCostUsd` |
+| Labelling `model`, mapped to its vendor | `billed_service` | `billedService` |
+| Which code path made the call | `feature` | `feature` |
+| Provider gave nothing | `usage_status: "unavailable"` | `usageStatus` |
+| Assessment reference, added by the gateway | not sent | `reportId` |
+| Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis` |
+
+What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.
+

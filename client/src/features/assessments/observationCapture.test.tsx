@@ -35,6 +35,7 @@ function recording(id: string, transcription: Partial<SavedRecording['transcript
       attempts: 1,
       ...transcription,
     },
+    added: null,
   } satisfies SavedRecording
 }
 function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
@@ -48,6 +49,8 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
     note: null,
     recordings: [],
     photos: [],
+    removedRecordings: [],
+    removedPhotos: [],
     interpretation: null,
     recordedAt: '2026-09-29T08:10:00.000Z',
     edited: null,
@@ -112,6 +115,7 @@ function echo(sent: Sent) {
       contentType: 'image/jpeg',
       size: file.size,
       url: `/api/observations/o1/photos/p${i}/image`,
+      added: null,
     })),
   })
   listed = [saved]
@@ -256,6 +260,41 @@ describe('Capturing site photographs (CP-04)', () => {
 
     expect(await screen.findByText(/^image\.jpg is not a JPG or PNG image/)).toBeInTheDocument()
     expect(within(readyList()).getByText('image.jpg')).toBeInTheDocument()
+  })
+})
+
+describe('Reading photos only when asked (CP-05)', () => {
+  it('keeps demo photos unread until asked, then shows a labelled sample', async () => {
+    // No gateway: capture and the Observations tab stay in the demo.
+    const sent: string[] = []
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+      if (init.method && init.method !== 'GET') sent.push(url)
+      return Promise.reject(new TypeError('Failed to fetch'))
+    })
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+    await screen.findByText('Showing sample data')
+    fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
+    click('Photo')
+    addPhotos(photo('IMG_0470.jpg'))
+    save()
+    expect(await screen.findByText(/kept in this demo only/)).toBeInTheDocument()
+
+    // The side navigation's Open assessment entry is named after the site.
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    fireEvent.click(screen.getByRole('button', { name: /1 photograph captured at Bay 3/ }))
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText(/^Not read yet\./)).toBeInTheDocument()
+    click('Read photos')
+
+    expect(within(proposal).getByText('Sample proposal')).toBeInTheDocument()
+    expect(within(proposal).getByText('Interpreting the photos…')).toBeInTheDocument()
+    expect(
+      await within(proposal).findByText(/it was observed that/, {}, { timeout: 4000 }),
+    ).toBeInTheDocument()
+    // Only the attempt to start a capture session; the photos went nowhere.
+    expect(sent).toEqual([CAPTURE_URL])
   })
 })
 

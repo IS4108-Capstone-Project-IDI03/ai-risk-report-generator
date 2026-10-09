@@ -1,4 +1,4 @@
-// The knowledge base's Documents tab (KB-01, IN-05): every document in the
+// The knowledge base's Documents tab (KB-01, IN-05, IN-07): every document in the
 // knowledge base, grouped by source type, filtered by label, status or title.
 // Opening a document's title shows its details; Edit details and Restore open
 // one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
@@ -46,7 +46,7 @@ const hasStatus = (d: KnowledgeDocument, status: string) =>
     ? Boolean(d.withdrawn)
     : status === 'needs_review'
       ? needsReview(d)
-      : !d.withdrawn && d.unconfirmed.length === 0
+      : !d.withdrawn && !needsReview(d)
 const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '', status: '' }
 
 // A fuzzy title match: the typed letters appear in the title in order, with
@@ -62,6 +62,12 @@ function titleMatches(title: string, query: string) {
   return true
 }
 
+export type Filters = typeof NO_FILTERS
+
+// The filters the admin left the list with, kept in the browser's history
+// entry by KnowledgeBase.tsx so the way back from a Review page restores them.
+const restoredFilters = (): Filters | null => window.history.state?.kbFilters ?? null
+
 // What the Edit details dialog opens on: the document, and the version being
 // restored, if any (AC10).
 type Editing = { document: KnowledgeDocument; version?: DocumentVersion }
@@ -71,16 +77,19 @@ export function KnowledgeDocuments({
   notify,
   onAdd,
   onNeedReview,
+  onReview,
 }: {
   notify: (message: string) => void
   onAdd: () => void
   // Reports how many documents need review, for the Documents tab's count.
   onNeedReview: (count: number) => void
+  // Opens a document's Review page (IN-07), keeping the filters for the way back.
+  onReview: (id: string, filters: Filters) => void
 }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const [filters, setFilters] = useState(NO_FILTERS)
+  const [filters, setFilters] = useState<Filters>(() => restoredFilters() ?? NO_FILTERS)
   const [openId, setOpenId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
   const [historyOf, setHistoryOf] = useState<KnowledgeDocument | null>(null)
@@ -165,7 +174,7 @@ export function KnowledgeDocuments({
         <div role="status" aria-label="Documents to review">
           <ReviewBanner
             documents={needReview}
-            onEdit={(document) => setEditing({ document })}
+            onReview={(document) => onReview(document.id, filters)}
             onShow={() => setFilters({ ...NO_FILTERS, status: 'needs_review' })}
           />
         </div>
@@ -261,10 +270,10 @@ export function KnowledgeDocuments({
               <tr>
                 <th className="kb-col-toggle" aria-label="Open details" />
                 <th>Document</th>
-                <th>Country</th>
-                <th>Facility type</th>
                 <th className="kb-col-status">Status</th>
-                <th>Original</th>
+                <th className="kb-col-actions">
+                  <span className="kb-sr">Actions</span>
+                </th>
               </tr>
             </thead>
             {GROUPS.map((group) => {
@@ -282,6 +291,7 @@ export function KnowledgeDocuments({
                   onEdit={(document) => setEditing({ document })}
                   onHistory={setHistoryOf}
                   onChangeStatus={setChangingStatus}
+                  onReview={(document) => onReview(document.id, filters)}
                 />
               )
             })}

@@ -16,6 +16,10 @@ DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
 
 
+def RUN_OK(*_args, **_kwargs):
+    return {"chunks_indexed": 1, "tables_captured": 0, "images_captured": 0}
+
+
 class FakeDocuments:
     """The two pymongo calls the worker makes, over one in-memory document."""
 
@@ -48,6 +52,12 @@ class FakeDocuments:
         assert query == {"_id": self.doc["_id"]}
         self.doc.update(update["$set"])
 
+    # Other stored documents by _id, for the match's title in a notification (IN-07).
+    others: dict = {}
+
+    def find_one(self, query, _projection=None):
+        return self.others.get(query["_id"])
+
 
 class FakeJobs:
     """The ingestion_jobs collection the ProgressReporter writes to.
@@ -73,6 +83,10 @@ class FakeJobs:
         self.doc.update(update.get("$set", {}))
 
 
+def labels_of(doc):
+    return worker.labels(doc)
+
+
 @pytest.fixture
 def documents(monkeypatch):
     fake = FakeDocuments()
@@ -86,9 +100,21 @@ def documents(monkeypatch):
     monkeypatch.setattr(
         worker,
         "notify_ingestion",
-        lambda doc, status, failed_stage=None: notifications.append(
-            {"doc": doc, "status": status, "failed_stage": failed_stage}
+        lambda doc, status, failed_stage=None, review_reason=None: notifications.append(
+            {
+                "doc": doc,
+                "status": status,
+                "failed_stage": failed_stage,
+                "review_reason": review_reason,
+            }
         ),
+    )
+    # IN-07: matching and relabelling have their own tests; here they are recorded.
+    fake.calls = []
+    fake.match = None
+    monkeypatch.setattr(worker, "find_match", lambda doc, _coll: fake.match)
+    monkeypatch.setattr(
+        worker, "relabel_passages", lambda doc: fake.calls.append(labels_of(doc)) or 1
     )
     # Expose the jobs collection and captured notifications on the fixture.
     fake.jobs = jobs
@@ -140,8 +166,53 @@ def test_the_documents_labels_go_to_every_passage(documents, monkeypatch):
         "facility_type": "Cold store",
         "COPE_dimension": "all",
         "effective_date": "2024-03-12",
-        "status": "active",  # KB-01: passages start active
+        "status": "needs_review",  # IN-07: never searchable mid-ingest; relabelled after
     }
+
+
+def test_a_document_with_no_match_ends_active_with_a_null_match(documents, monkeypatch):
+    documents.doc["unconfirmed"] = []
+    monkeypatch.setattr(worker, "run", RUN_OK)
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["match"] is None
+    assert documents.doc["status"] == "complete"
+    assert [c["status"] for c in documents.calls] == ["active"]
+
+
+def test_a_matched_document_is_saved_with_its_match_and_relabelled_needs_review(
+    documents, monkeypatch
+):
+    order = []
+    match = {"kind": "possible_copy", "documentId": ObjectId(), "newMatched": 8, "newTotal": 10,
+             "storedMatched": 8, "storedTotal": 9}  # fmt: skip
+    documents.match = match
+    documents.doc["unconfirmed"] = []
+    monkeypatch.setattr(worker, "run", lambda *a, **k: order.append("index") or RUN_OK())
+    monkeypatch.setattr(worker, "find_match", lambda *a: order.append("match") or match)
+    monkeypatch.setattr(worker, "relabel_passages", lambda doc: order.append(doc["match"]["kind"]))
+
+    worker.ingest_document(DOC_ID)
+
+    assert order == ["index", "match", "possible_copy"]
+    assert documents.doc["match"] == match
+    assert documents.doc["status"] == "complete"
+
+
+def test_a_match_error_fails_the_document(documents, monkeypatch):
+    monkeypatch.setattr(worker, "run", RUN_OK)
+
+    def broken(*_):
+        raise RuntimeError("chroma down")
+
+    monkeypatch.setattr(worker, "find_match", broken)
+
+    with pytest.raises(RuntimeError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert "match" not in documents.doc
 
 
 def test_a_pdf_whose_text_cannot_be_read_is_failed_with_a_plain_reason(documents, monkeypatch):
@@ -279,6 +350,36 @@ def test_a_document_with_nothing_unconfirmed_is_active(documents):
     assert worker.labels(documents.doc)["status"] == "active"
 
 
+def test_a_match_makes_the_passages_need_review(documents):
+    documents.doc["unconfirmed"] = []
+    documents.doc["match"] = {"kind": "newer_edition"}
+
+    assert worker.labels(documents.doc)["status"] == "needs_review"
+
+
+def test_a_withdrawn_document_stays_withdrawn_even_with_a_match(documents):
+    documents.doc["unconfirmed"] = ["edition"]
+    documents.doc["match"] = {"kind": "newer_edition"}
+    documents.doc["withdrawn"] = {"at": datetime(2026, 1, 1)}
+
+    assert worker.labels(documents.doc)["status"] == "withdrawn"
+
+
+def test_relabelling_passages_leaves_out_their_own_cope_dimension(documents, monkeypatch):
+    seen = {}
+    monkeypatch.undo()  # the fixture's recorder replaced relabel_passages; use the real one
+    monkeypatch.setattr(
+        worker, "relabel", lambda doc_id, labels: seen.update(doc_id=doc_id, **labels)
+    )
+    documents.doc["unconfirmed"] = []
+
+    worker.relabel_passages(documents.doc)
+
+    assert seen["doc_id"] == DOC_ID
+    assert seen["status"] == "active"
+    assert "COPE_dimension" not in seen
+
+
 # --- Notifications (IN-10): the worker tells the gateway on each outcome.
 
 
@@ -333,3 +434,20 @@ def test_the_document_is_recorded_before_it_is_notified(documents, monkeypatch):
     note = documents.notifications[0]
     assert note["doc"]["status"] == "failed"
     assert note["doc"]["error"] == worker.SYSTEM_ERROR
+
+
+def test_a_finished_document_that_needs_review_notifies_why(documents, monkeypatch):
+    other = ObjectId()
+    documents.others = {other: {"title": "NFPA 13", "edition": "2019"}}
+    documents.match = {"kind": "possible_copy", "documentId": other}
+    monkeypatch.setattr(
+        worker,
+        "run",
+        lambda *a, **k: {"chunks_indexed": 1, "tables_captured": 0, "images_captured": 0},
+    )
+
+    worker.ingest_document(DOC_ID)
+
+    note = documents.notifications[0]
+    assert note["status"] == "complete"
+    assert note["review_reason"] == "Possible copy of NFPA 13 (2019 edition)"

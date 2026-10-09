@@ -16,6 +16,7 @@ import {
 } from '../api'
 import { ObservationExcerpt } from '../components/ObservationExcerpt'
 import { describeChanges } from '../reviewDisplay'
+import { OfiRow } from '../components/OfiSuggestions'
 import { useObservations } from '../useObservations'
 import { useSections } from '../useSections'
 
@@ -372,6 +373,13 @@ export function SectionDrafts({
               <span>Evidence</span>
               <span />
             </div>
+            {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
+            <OfiRow
+              reference={reference}
+              canDraft={canDraft}
+              observations={observations ?? []}
+              columns={columns}
+            />
             {sections.map((s) => {
               const state = stateOf(s)
               const failed = failures[s.id]

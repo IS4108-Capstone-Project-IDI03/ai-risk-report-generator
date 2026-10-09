@@ -1,0 +1,120 @@
+/* Usage and costs screen (EV-04). Tokens only; see docs/design-system.md. */
+.uc {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px clamp(16px, 2vw, 28px) 40px;
+}
+.uc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.uc-toolbar select {
+  min-width: 240px;
+}
+.uc-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 48px;
+}
+.uc-export,
+.uc-link {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-md);
+  padding: 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  cursor: pointer;
+}
+.uc-export:hover,
+.uc-link:hover {
+  background: var(--surface-header);
+}
+.uc-export:focus-visible,
+.uc-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.uc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.uc-section h2 {
+  margin: 0;
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.uc-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+.uc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body-size);
+}
+.uc-table caption {
+  /* Names the table for screen readers without repeating the section heading. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.uc-table th,
+.uc-table td {
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+.uc-table thead th {
+  background: var(--surface-header);
+  color: var(--text-muted);
+  font-size: var(--text-label-size);
+  letter-spacing: var(--text-label-ls);
+  font-weight: var(--text-label-weight);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-default);
+}
+.uc-table tbody tr + tr > * {
+  border-top: 1px solid var(--border-subtle);
+}
+.uc-table tbody th {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.uc-table [data-numeric] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.uc-bases {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.uc p {
+  margin: 0 0 4px;
+}
+@media (max-width: 760px) {
+  .uc-toolbar select {
+    min-width: 0;
+    width: 100%;
+  }
+}
+/* Dims the old numbers while a new report loads, so they are not mistaken for the new ones. */
+.uc[aria-busy='true'] > :not(.uc-toolbar) {
+  opacity: 0.55;
+}

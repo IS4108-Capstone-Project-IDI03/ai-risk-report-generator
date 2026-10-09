@@ -2,9 +2,11 @@
 
 import json
 import os
+import time
 
 from chromadb.errors import NotFoundError
 
+from app import usage
 from app.retrieval_config import (
     COLLECTION,
     EMBEDDING_DIMENSION,
@@ -38,6 +40,16 @@ def label_filter(filters: dict[str, str | list[str]]) -> dict:
     return {"$and": conditions} if len(conditions) > 1 else conditions[0]
 
 
+def _record_embed(response, started: float) -> None:
+    usage.record(
+        "retrieval",
+        "cohere-embed",
+        EMBEDDING_MODEL,
+        started,
+        input_tokens=usage.billed(response, "input_tokens"),
+    )
+
+
 def retrieve(query: str, filters: dict[str, str | list[str]] | None = None) -> list[dict]:
     if not query.strip():
         raise ValueError("Query must not be blank")
@@ -49,6 +61,7 @@ def retrieve(query: str, filters: dict[str, str | list[str]] | None = None) -> l
     if not count:
         return []
     cohere = cohere_client()
+    started = time.perf_counter()
     embedding = cohere.embed(
         model=EMBEDDING_MODEL,
         texts=[query],
@@ -57,6 +70,7 @@ def retrieve(query: str, filters: dict[str, str | list[str]] | None = None) -> l
         output_dimension=EMBEDDING_DIMENSION,
         truncate="NONE",
     )
+    _record_embed(embedding, started)
     candidates = collection.query(
         query_embeddings=embedding.embeddings.float_,
         n_results=min(20, count),
@@ -87,11 +101,20 @@ def rerank(query: str, passages: list[dict], top_n: int | None = None) -> list[d
     """
     if not passages:
         return []
+    model = os.getenv("RERANK_MODEL", "rerank-v3.5")
+    started = time.perf_counter()
     ranked = cohere_client().rerank(
-        model=os.getenv("RERANK_MODEL", "rerank-v3.5"),
+        model=model,
         query=query,
         documents=[p["text"] for p in passages],
         top_n=min(top_n or len(passages), len(passages)),
+    )
+    usage.record(
+        "retrieval",
+        "cohere-rerank",
+        model,
+        started,
+        search_units=usage.billed(ranked, "search_units"),
     )
     return [
         {**passages[hit.index], "relevance_score": hit.relevance_score} for hit in ranked.results
@@ -117,18 +140,17 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
     count = collection.count()
     if not count:
         return empty
-    vectors = (
-        cohere_client()
-        .embed(
-            model=EMBEDDING_MODEL,
-            texts=[query for query, _, _ in requests],
-            input_type="search_query",
-            embedding_types=["float"],
-            output_dimension=EMBEDDING_DIMENSION,
-            truncate="NONE",
-        )
-        .embeddings.float_
+    started = time.perf_counter()
+    embedding = cohere_client().embed(
+        model=EMBEDDING_MODEL,
+        texts=[query for query, _, _ in requests],
+        input_type="search_query",
+        embedding_types=["float"],
+        output_dimension=EMBEDDING_DIMENSION,
+        truncate="NONE",
     )
+    _record_embed(embedding, started)
+    vectors = embedding.embeddings.float_
     groups: dict[tuple[str, int], list[int]] = {}
     for i, (_, filters, k) in enumerate(requests):
         groups.setdefault((json.dumps(filters, sort_keys=True), k), []).append(i)

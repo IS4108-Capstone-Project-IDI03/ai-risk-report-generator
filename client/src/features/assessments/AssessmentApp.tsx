@@ -16,12 +16,14 @@ import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
+import { UsageCosts } from '../usage/screens/UsageCosts'
 import { AccessDenied } from '../auth/AccessDenied'
 
 export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
   return (
     <>
-      <div className="workflow">
+      {/* data-sidenav lets fixed overlays (the toast) centre on the content, not the window. */}
+      <div className="workflow" data-sidenav={v.showSideNav || undefined}>
         <div className="workflow-frame">
           <div style={{ display: 'flex', height: '100%' }}>
             {!!v.showSideNav && (
@@ -322,6 +324,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
 
                     {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
+
+                    {v.isUsage && <UsageCosts isAdmin={v.isAdmin} />}
 
                     {v.isOverview && <Overview v={v} />}
 

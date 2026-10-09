@@ -3,6 +3,7 @@ import { IconButton, Popover } from '../../design-system'
 import { useNotifications, type NotificationCounts } from './useNotifications'
 import { NotificationList } from './NotificationList'
 import type { Notification } from './api'
+import { KNOWLEDGE_REVIEW_PATH } from '../auth/access'
 
 export type NotificationBellProps = {
   // Counts from the session, so the badge is right before the dropdown opens.
@@ -92,9 +93,28 @@ export function NotificationBell({
     >
       <NotificationList
         n={n}
-        onActivate={onActivate ?? (() => setOpen(false))}
+        onActivate={
+          onActivate ??
+          ((notification) => {
+            setOpen(false)
+            openSubject(notification)
+          })
+        }
         onClose={() => setOpen(false)}
       />
     </Popover>
   )
+}
+
+// Opens what a notification is about, where it has a page. A document that
+// needs review (IN-07) opens its Review page: the URL changes and popstate
+// tells the app and the knowledge base to follow it, as the browser's Back does.
+function openSubject(notification: Notification) {
+  const { documentId, status } = notification.context ?? {}
+  if (status !== 'needs_review' || !documentId) return
+  const path = KNOWLEDGE_REVIEW_PATH + encodeURIComponent(documentId)
+  // Already there: a second entry would make Back land on the same page.
+  if (window.location.pathname === path) return
+  window.history.pushState(null, '', path)
+  window.dispatchEvent(new PopStateEvent('popstate'))
 }
