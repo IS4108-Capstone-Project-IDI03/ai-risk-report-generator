@@ -502,3 +502,38 @@ export async function getReviewWorkspace(
     )
   ).data.sections
 }
+
+// EV-01: one saved evidence-and-structure check of a draft.
+export type EvaluationResult = 'pass' | 'fail' | 'warn' | 'unverified'
+export type EvaluationRun = {
+  _id: string
+  createdAt: string
+  templateVersion?: string
+  summary: { passed: number; failed: number; warned: number; unverified: number; status: string }
+  checks: {
+    sectionId: string
+    check: string
+    target: string
+    result: EvaluationResult
+    detail?: string
+  }[]
+}
+
+// Runs the checks now (gateway saves the run) and returns it.
+export async function runEvaluation(reference: string): Promise<EvaluationRun> {
+  return (
+    await request<EvaluationRun>('POST', `/api/assessments/${encodeURIComponent(reference)}/evaluation`)
+  ).data
+}
+
+// The latest saved run, or null when none has been run yet (404).
+export async function latestEvaluation(reference: string): Promise<EvaluationRun | null> {
+  try {
+    return (
+      await request<EvaluationRun>('GET', `/api/assessments/${encodeURIComponent(reference)}/evaluation`)
+    ).data
+  } catch (error) {
+    if (error instanceof GatewayError && error.status === 404) return null
+    throw error
+  }
+}

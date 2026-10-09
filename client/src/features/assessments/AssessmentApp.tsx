@@ -13,6 +13,7 @@ import { SectionDrafts } from './screens/SectionDrafts'
 import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
+import { EvidenceChecks } from './components/EvidenceChecks'
 import { Photos } from './screens/Photos'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
@@ -357,6 +358,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         <Review v={v} />
                       ))}
 
+                    {v.isExport && v.liveReference && <EvidenceChecks reference={v.liveReference} />}
                     {v.isExport && <ValidationExport v={v} />}
                   </>
                 )}
