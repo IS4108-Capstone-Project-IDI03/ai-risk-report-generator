@@ -17,7 +17,11 @@ import {
 } from '../models/knowledge-document.model'
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
-import { enqueueIngestion, requeueIngestion } from './ingestion-queue.service'
+import {
+  enqueueIngestion,
+  requeueIngestion,
+  removeIngestionJob,
+} from './ingestion-queue.service'
 import {
   IngestionUnavailableError,
   labelDocument,
@@ -887,6 +891,49 @@ export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: st
  * withdrawn), or IngestionUnavailableError, in which case it stays withdrawn.
  */
 export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undefined)
+
+/**
+ * Stops a queued or processing ingestion. A queued document becomes terminal
+ * immediately; a processing document keeps its status until the worker sees
+ * `cancelRequestedAt` and cleans up any partial passages.
+ *
+ * Throws KnowledgeDocumentNotFoundError for an unknown or malformed id, or
+ * KnowledgeDocumentWrongStateError when the document is already terminal.
+ */
+export async function cancelIngestion(id: string): Promise<void> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+
+  const now = new Date()
+  const queued = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'queued' },
+    {
+      $set: { status: 'cancelled', cancelledAt: now },
+      $unset: { error: 1, result: 1, finishedAt: 1, cancelRequestedAt: 1 },
+    },
+    { returnDocument: 'after' },
+  ).lean()
+
+  if (queued) {
+    // MongoDB is authoritative. If Redis removal fails, the worker will still
+    // skip this document because its status is already terminal.
+    await removeIngestionJob(id).catch((error: unknown) => {
+      console.error('Removing cancelled ingestion job failed:', error)
+    })
+    return
+  }
+
+  const processing = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'processing', cancelRequestedAt: { $exists: false } },
+    { $set: { cancelRequestedAt: now } },
+    { returnDocument: 'after' },
+  ).lean()
+  if (processing) return
+
+  const document = await KnowledgeDocumentModel.findById(id).select({ status: 1 }).lean()
+  if (!document) throw new KnowledgeDocumentNotFoundError()
+  if (document.status === 'processing') return
+  throw new KnowledgeDocumentWrongStateError('Only a queued or processing document can be stopped.')
+}
 
 /**
  * Retries a failed ingestion without re-uploading. The PDF is still in S3 and

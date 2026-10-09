@@ -5,6 +5,7 @@ import app from '../index'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import {
+  cancelIngestion,
   KnowledgeDocumentNotFoundError,
   KnowledgeDocumentWrongStateError,
   retryIngestion,
@@ -32,9 +33,11 @@ vi.mock('../services/storage.service', () => ({
 }))
 const queued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
 const requeued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
+const removed = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
 vi.mock('../services/ingestion-queue.service', () => ({
   enqueueIngestion: queued,
   requeueIngestion: requeued,
+  removeIngestionJob: removed,
 }))
 const inspect = vi.fn<(url?: string, init?: RequestInit) => Promise<Response>>()
 const labelling = vi.fn<() => Promise<Response>>()
@@ -52,6 +55,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-10-06T20:00:00Z'))
   queued.mockResolvedValue(undefined)
   requeued.mockResolvedValue(undefined)
+  removed.mockResolvedValue(undefined)
   inspect.mockResolvedValue(Response.json({ pages: 3 }))
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
     String(url).endsWith('/label') ? labelling() : inspect(url, init),
@@ -61,6 +65,7 @@ afterEach(() => {
   s3.clear()
   queued.mockReset()
   requeued.mockReset()
+  removed.mockReset()
   inspect.mockReset()
   labelling.mockReset()
   vi.unstubAllGlobals()
@@ -1200,6 +1205,83 @@ describe('retryIngestion', () => {
   })
 })
 
+describe('cancelIngestion', () => {
+  const CANCEL_ID = '6abb28ae16068a0793e99631'
+
+  async function seed(overrides: Record<string, unknown> = {}) {
+    await KnowledgeDocumentModel.create({
+      _id: CANCEL_ID,
+      title: 'NFPA 13 sprinkler standard',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: `knowledge/${CANCEL_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'cancel-abc',
+      },
+      status: 'queued',
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+      ...overrides,
+    })
+  }
+
+  it('cancels a queued document and removes its queue job', async () => {
+    await seed()
+
+    await cancelIngestion(CANCEL_ID)
+
+    const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
+    expect(doc!.status).toBe('cancelled')
+    expect(doc!.cancelledAt).toBeInstanceOf(Date)
+    expect(removed).toHaveBeenCalledWith(CANCEL_ID)
+  })
+
+  it('marks a processing document for cooperative cancellation', async () => {
+    await seed({ status: 'processing' })
+
+    await cancelIngestion(CANCEL_ID)
+
+    const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
+    expect(doc!.status).toBe('processing')
+    expect(doc!.cancelRequestedAt).toBeInstanceOf(Date)
+    expect(removed).not.toHaveBeenCalled()
+  })
+
+  it('does not change an already terminal document', async () => {
+    await seed({ status: 'complete' })
+
+    await expect(cancelIngestion(CANCEL_ID)).rejects.toBeInstanceOf(
+      KnowledgeDocumentWrongStateError,
+    )
+
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('complete')
+    expect(removed).not.toHaveBeenCalled()
+  })
+
+  it('treats a repeated stop request for processing as accepted', async () => {
+    await seed({ status: 'processing', cancelRequestedAt: new Date() })
+
+    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+  })
+
+  it('does not roll a queued document back when queue removal fails', async () => {
+    await seed()
+    removed.mockRejectedValueOnce(new Error('queue down'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('cancelled')
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
+  })
+})
+
 // The retry route (service behaviour is covered above in `retryIngestion`).
 describe('POST /api/knowledge-documents/:id/retry', () => {
   const RETRY_ID = '6abb28ae16068a0793e99630'
@@ -1267,6 +1349,54 @@ describe('POST /api/knowledge-documents/:id/retry', () => {
     const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
     expect(doc!.status).toBe('failed')
     expect(doc!.retryCount).toBe(0)
+  })
+})
+
+describe('POST /api/knowledge-documents/:id/cancel', () => {
+  const CANCEL_ROUTE_ID = '6abb28ae16068a0793e99632'
+
+  async function seed(status: string) {
+    await KnowledgeDocumentModel.create({
+      _id: CANCEL_ROUTE_ID,
+      title: 'NFPA 13 sprinkler standard',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: `knowledge/${CANCEL_ROUTE_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'cancel-route-abc',
+      },
+      status,
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+    })
+  }
+
+  it('accepts a queued cancellation with 202', async () => {
+    await seed('queued')
+
+    await api.post(`/api/knowledge-documents/${CANCEL_ROUTE_ID}/cancel`).expect(202)
+  })
+
+  it('accepts a processing cancellation with 202', async () => {
+    await seed('processing')
+
+    await api.post(`/api/knowledge-documents/${CANCEL_ROUTE_ID}/cancel`).expect(202)
+  })
+
+  it('409s a terminal document', async () => {
+    await seed('complete')
+
+    await api.post(`/api/knowledge-documents/${CANCEL_ROUTE_ID}/cancel`).expect(409)
+  })
+
+  it('404s an unknown or malformed id', async () => {
+    await api.post('/api/knowledge-documents/6abb28ae16068a0793e99998/cancel').expect(404)
+    await api.post('/api/knowledge-documents/not-an-id/cancel').expect(404)
   })
 })
 
