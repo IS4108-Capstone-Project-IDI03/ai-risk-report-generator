@@ -144,6 +144,13 @@
 .kb-fields > :nth-child(2) {
   grid-column: span 3;
 }
+/* A standard's line one also holds its number, so the title spans two. */
+.kb-fields.is-standard > :nth-child(2) {
+  grid-column: auto;
+}
+.kb-fields.is-standard > :nth-child(3) {
+  grid-column: span 2;
+}
 @container (max-width: 720px) {
   .kb-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -151,12 +158,16 @@
   .kb-fields > :nth-child(-n + 2) {
     grid-column: span 2;
   }
+  .kb-fields.is-standard > :nth-child(-n + 2) {
+    grid-column: auto;
+  }
 }
 @container (max-width: 420px) {
   .kb-fields {
     grid-template-columns: minmax(0, 1fr);
   }
-  .kb-fields > :nth-child(-n + 2) {
+  .kb-fields > :nth-child(-n + 3),
+  .kb-fields.is-standard > :nth-child(-n + 3) {
     grid-column: auto;
   }
 }
@@ -193,11 +204,26 @@
   font-size: var(--text-small-size);
   color: var(--text-muted);
 }
+/* Why an upload needs review keeps the review tone (IN-07). */
+.kb-doc small.kb-why {
+  color: var(--status-moderate-fg);
+}
 .kb-status {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
+}
+.kb-status-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+/* In the Recent uploads table the Status column is centred. */
+.kb-uploaded table .kb-status {
+  align-items: center;
+  text-align: center;
 }
 .kb-status-reason {
   max-width: 36ch;
@@ -356,13 +382,18 @@
   width: 136px;
   text-align: center;
 }
-/* The last column only as wide as its link; its header starts where the
-   link does, as every other header does. */
-.kb-table thead th:last-child,
-.kb-table .kb-col-original {
+/* The actions column only as wide as its content, right-aligned, so View
+   original lines up down the table whether or not Review sits beside it. */
+.kb-table .kb-col-actions {
   width: 1%;
   padding-right: 16px;
   white-space: nowrap;
+}
+.kb-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
 }
 
 /* A source type's band: icon, name and its count. */
@@ -500,14 +531,11 @@
   }
   .kb-table .kb-doc-row {
     display: grid;
-    grid-template-columns: 15px max-content minmax(0, 1fr) auto;
-    /* Status sits beside the title, so country and facility type share a
-       line of their own, the country at its full width: a flagged
-       Unconfirmed (IN-05) no longer runs into its neighbour. */
+    grid-template-columns: 15px minmax(0, 1fr) auto;
+    /* Status sits beside the title; the actions get a line of their own. */
     grid-template-areas:
-      'chev doc doc status'
-      '. country facility facility'
-      '. actions actions actions';
+      'chev doc status'
+      '. actions actions';
     align-items: center;
     gap: 8px 10px;
     padding: 12px 16px;
@@ -522,22 +550,15 @@
   .kb-col-doc {
     grid-area: doc;
   }
-  .kb-col-country,
-  .kb-col-facility {
-    font-size: var(--text-small-size);
-    color: var(--text-secondary);
-  }
-  .kb-col-country {
-    grid-area: country;
-  }
-  .kb-col-facility {
-    grid-area: facility;
-  }
   .kb-col-status {
     grid-area: status;
   }
-  .kb-col-original {
+  .kb-table .kb-col-actions {
     grid-area: actions;
+    width: auto;
+  }
+  .kb-row-actions {
+    justify-content: flex-start;
   }
   .kb-details {
     padding-left: 41px;
@@ -641,10 +662,30 @@
   font-size: var(--text-small-size);
   color: var(--text-secondary);
 }
-/* A document's status cell can hold two badges (Withdrawn, Needs review). */
-.kb-badges {
+/* The Needs review badge as a button (IN-07): the badge's look, plus an
+   arrow, a one-step-darker hover and the focus ring, so it reads as a way in. */
+.kb-review-badge {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  height: var(--chip-height-sm);
+  padding: 0 8px 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--status-moderate-bg);
+  color: var(--status-moderate-fg);
+  font: inherit;
+  font-size: var(--text-caption-size);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.kb-review-badge:hover {
+  border-color: currentColor;
+}
+.kb-review-badge:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }

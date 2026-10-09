@@ -12,10 +12,14 @@ export type Permission =
   | 'knowledge:view'
   | 'knowledge:manage'
   | 'users:manage'
+  | 'usage:view'
 
 export type Session = {
   user: { id: string; name: string; role: UserRole }
   permissions: Permission[]
+  // Populate session state so the header can show the unread badge.
+  // The dropdown will replace `total` with a fresh figure once it loads the list.
+  notifications: { total: number; unread: number }
 }
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {

@@ -1,4 +1,6 @@
 import { Button, Dialog, Icon, SideNav, Tabs, Toast } from '../../design-system'
+import type { Session } from '../auth/api'
+import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
@@ -14,12 +16,14 @@ import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
+import { UsageCosts } from '../usage/screens/UsageCosts'
 import { AccessDenied } from '../auth/AccessDenied'
 
-export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
+export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
   return (
     <>
-      <div className="workflow">
+      {/* data-sidenav lets fixed overlays (the toast) centre on the content, not the window. */}
+      <div className="workflow" data-sidenav={v.showSideNav || undefined}>
         <div className="workflow-frame">
           <div style={{ display: 'flex', height: '100%' }}>
             {!!v.showSideNav && (
@@ -110,7 +114,9 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                         {'Risk Report Generator'}
                       </span>
                     </span>
-                    <span style={{ flex: '0 0 auto', width: '36px' }}></span>
+                    <span style={{ flex: '0 0 auto' }}>
+                      <NotificationBell counts={session.notifications} tone="dark" />
+                    </span>
                   </div>
                 </>
               )}
@@ -215,6 +221,12 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                       paddingTop: '6px',
                     }}
                   >
+                    {/* Desktop has no top bar, so the bell lives in the page
+                        header. On phones the navy bar carries it instead, so
+                        this copy is suppressed to avoid a second one. */}
+                    {!v.showTopBar && !v.routeBlocked && (
+                      <NotificationBell counts={session.notifications} />
+                    )}
                     {v.isDashboard && !v.routeBlocked && v.canEdit && (
                       <>
                         {!!v.continueCaptureLabel && (
@@ -312,6 +324,8 @@ export function AssessmentApp({ v }: { v: AssessmentWorkflow }) {
                     {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
 
                     {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
+
+                    {v.isUsage && <UsageCosts isAdmin={v.isAdmin} />}
 
                     {v.isOverview && <Overview v={v} />}
 

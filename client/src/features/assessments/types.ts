@@ -1,4 +1,4 @@
-import type { Assessment, Stamp, TranscriptionStatus } from './api'
+import type { Assessment, InterpretationStatus, MediaKind, Stamp, TranscriptionStatus } from './api'
 
 export type AssessmentRow = {
   engineerId?: string | null
@@ -33,8 +33,17 @@ export type Observation = {
   sev: string
   std: string
   // Its photographs (CP-04): url opens the original, or is null for a sample
-  // one, which has only a name.
-  media: { name: string; url: string | null }[]
+  // one, which has only a name. Not removed ones (CP-08); id is set on a
+  // saved one or one added in the demo, and added on one added after saving.
+  media: { id?: string; name: string; url: string | null; added?: Stamp | null }[]
+  // Recordings and photos removed from it, to restore (CP-08).
+  removedMedia?: {
+    kind: MediaKind
+    id: string
+    name: string
+    url: string | null
+    removed: Stamp
+  }[]
   detail: string
   audio?: string
   // Where it was captured, when known by id rather than only by name, and the
@@ -50,8 +59,24 @@ export type Observation = {
   // What it holds: any of 'Note', 'Voice' and 'Photo' (CP-08); worked out for
   // sample ones.
   types?: string[]
-  // Transcribing, Transcription failed or Complete (CP-08).
+  // Transcribing, Interpreting, Transcription failed, Interpretation failed or
+  // Complete (CP-08, CP-05).
   status?: string
+  // What the vision model proposes from its photos (CP-05). A sample one is
+  // the demo's stand-in when no capture session is live, not a real reading.
+  interpretation?: {
+    status: InterpretationStatus
+    description: string | null
+    category: string | null
+    hazardType: string | null
+    error: string | null
+    model: string | null
+    sample?: boolean
+    // Photos were added or removed since it was read (CP-08).
+    outOfDate?: boolean
+    // The photos it read, when known, marking any since removed.
+    readFrom?: { name: string; url: string | null; removed: boolean }[]
+  } | null
   // The latest change to it, and its deletion (CP-08).
   edited?: Stamp | null
   deleted?: Stamp | null
@@ -66,6 +91,8 @@ export type Observation = {
     correction: Stamp | null
     error: string | null
     audioUrl: string
+    // Who added it after the observation was saved (CP-08).
+    added: Stamp | null
   }[]
 }
 export type GenerationSection = {
@@ -170,8 +197,14 @@ export type WorkflowState = {
   // The Observations tab lists the deleted observations instead (CP-08).
   obsShowDeleted: boolean
   // The observation being changed on the Observations tab, by row key: a
-  // recording's transcript, or its deletion (CP-08).
-  obsDialog: { kind: 'transcript' | 'delete'; key: string; recordingId?: string } | null
+  // recording's transcript, its deletion, adding recordings and photos, or
+  // removing one of them (CP-08).
+  obsDialog: {
+    kind: 'transcript' | 'delete' | 'addMedia' | 'removeMedia'
+    key: string
+    recordingId?: string
+    media?: { kind: MediaKind; id: string; name: string }
+  } | null
   // The observation in the Edit dialog, by row key, with the dialog's values:
   // its tags (CP-06) and note (CP-08); and why the last save failed.
   tagEdit: {

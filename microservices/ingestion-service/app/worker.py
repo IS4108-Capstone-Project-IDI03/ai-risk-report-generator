@@ -27,7 +27,10 @@ from bullmq import Worker
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 
+from app.matching import find_match
+from app.notifications import notify_ingestion, review_reason
 from app.pipeline import UnparsableDocumentError, run
+from app.pipeline.indexer import relabel
 from app.pipeline.progress import ProgressReporter
 
 load_dotenv(Path(__file__).resolve().parent / "../../../.env")
@@ -65,8 +68,9 @@ def labels(doc: dict) -> dict:
 
     Chroma metadata holds only strings and numbers, so the date becomes
     YYYY-MM-DD and an Unconfirmed (null) detail is left out: without that,
-    Chroma would reject the whole upsert. Status is `needs_review` while any
-    detail is Unconfirmed (IN-05), else `active`. Must match `labels()` in
+    Chroma would reject the whole upsert. Status is `withdrawn` if withdrawn,
+    else `needs_review` while any detail is Unconfirmed (IN-05) or the document
+    has a `match` (IN-07), else `active`. Must match `labels()` in
     server/src/services/knowledge-document.service.ts, which relabels passages
     after a correction (KB-01) and emits status active, withdrawn or needs_review.
     """
@@ -74,7 +78,23 @@ def labels(doc: dict) -> dict:
     if metadata.get("effective_date") is not None:
         metadata["effective_date"] = metadata["effective_date"].strftime("%Y-%m-%d")
     known = {key: value for key, value in metadata.items() if value is not None}
-    return {**known, "status": "needs_review" if doc.get("unconfirmed") else "active"}
+    if doc.get("withdrawn"):
+        status = "withdrawn"
+    elif doc.get("unconfirmed") or doc.get("match"):
+        status = "needs_review"
+    else:
+        status = "active"
+    return {**known, "status": status}
+
+
+def relabel_passages(doc: dict) -> int:
+    """Put the document's current labels on its passages; returns how many changed.
+
+    Leaves out COPE_dimension: each passage keeps its own, set at ingest (IN-05).
+    Called by ingest_document and by POST /documents/{id}/match.
+    """
+    current = {k: v for k, v in labels(doc).items() if k != "COPE_dimension"}
+    return relabel(str(doc["_id"]), current)
 
 
 def ingest_document(document_id: str) -> None:
@@ -104,35 +124,50 @@ def ingest_document(document_id: str) -> None:
     # 2. Download the original into a temporary folder that deletes itself, and
     # 3. run ingestion pipeline: parse → chunk → anonymise → index, with the
     # document's labels on every passage. run() reports its own stages and calls
-    # finish() on success.
+    # finish() on success. Passages go in as needs_review so a document that is
+    # mid-ingest is never searchable (IN-07); step 4 sets the final status.
     try:
         with tempfile.TemporaryDirectory() as tmp:
             # Keep the original file name: the parser reports it as the doc name.
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
-            summary = run(path, doc_id=document_id, labels=labels(doc), reporter=reporter)
-    # 4. Record the outcome: failed here, complete below. The admin sees a plain
+            summary = run(
+                path,
+                doc_id=document_id,
+                labels={**labels(doc), "status": "needs_review"},
+                reporter=reporter,
+            )
+        # 4. Look for a copy or another edition among stored documents, then give
+        # the passages their final labels. An error here fails the document like
+        # any other stage; without that it could go live with the wrong status.
+        match = find_match(doc, collection)
+        relabel_passages({**doc, "match": match})
+    # 5. Record the outcome: failed here, complete below. The admin sees a plain
     # reason; re-raising tells BullMQ the job failed (not retried: attempts is 1).
     except Exception as error:
         log.exception("Ingesting document %s failed.", document_id)
-        # Record the failed stage so the gateway shows "Failed" (E2).
+        # The stage that was running when it broke, read before the 'failed'
+        # sentinel is appended, so the notification can name it (IN-10).
+        failed_stage = reporter.current_stage
+        # Record the failed stage so the gateway shows "Failed" (E2), and keep
+        # the real stage as a field so the gateway/notification need not infer
+        # it from the stage log.
         reporter.start_stage("failed")
         reporter.finish()
-        collection.update_one(
+        if failed_stage:
+            jobs().update_one({"documentId": _id}, {"$set": {"failedStage": failed_stage}})
+        reason = UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
+        failed = collection.find_one_and_update(
             {"_id": _id},
-            {
-                "$set": {
-                    "status": "failed",
-                    "error": (
-                        UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
-                    ),
-                    "finishedAt": datetime.now(UTC),
-                }
-            },
+            {"$set": {"status": "failed", "error": reason, "finishedAt": datetime.now(UTC)}},
+            return_document=ReturnDocument.AFTER,
         )
+        # Tell the gateway after the status is safely recorded; never let a
+        # notification failure undo the status write or mask the ingestion error.
+        notify_ingestion(failed or doc, status="failed", failed_stage=failed_stage)
         raise
 
-    collection.update_one(
+    completed = collection.find_one_and_update(
         {"_id": _id},
         {
             "$set": {
@@ -143,9 +178,21 @@ def ingest_document(document_id: str) -> None:
                     "imagesCaptured": summary["images_captured"],
                 },
                 "finishedAt": datetime.now(UTC),
+                "match": match,
             }
         },
+        return_document=ReturnDocument.AFTER,
     )
+    # A document left waiting for an admin says so, and why, in the bell (IN-07).
+    final = completed or doc
+    matched = (
+        collection.find_one(
+            {"_id": match["documentId"]}, {"title": 1, "edition": 1, "withdrawn": 1}
+        )
+        if match
+        else None
+    )
+    notify_ingestion(final, status="complete", review_reason=review_reason(final, matched))
 
 
 async def process(job, _token):

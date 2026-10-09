@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { listObservations, type SavedObservation } from './api'
 
-// The assessment's observations saved on the server. Transcription finishes
-// after a save returns, so the list is re-read every few seconds while any
-// recording is still transcribing. Deleted ones (CP-08) are read too while
+// The assessment's observations saved on the server. Transcription and photo
+// interpretation finish after a save returns, so the list is re-read every few
+// seconds while any recording is transcribing or any photos are interpreting. Deleted ones (CP-08) are read too while
 // includeDeleted asks for them, for the Observations tab's Show deleted.
 // An unreachable gateway leaves the list as it was.
 export function useObservations(reference: string, open: boolean, includeDeleted = false) {
@@ -24,7 +24,13 @@ export function useObservations(reference: string, open: boolean, includeDeleted
       listObservations(reference, controller.signal, includeDeleted).then(
         (list) => {
           setLoaded({ reference, list, synced: true })
-          if (list.some((o) => o.recordings.some((r) => r.transcription.status === 'transcribing')))
+          if (
+            list.some(
+              (o) =>
+                o.recordings.some((r) => r.transcription.status === 'transcribing') ||
+                o.interpretation?.status === 'interpreting',
+            )
+          )
             timer = setTimeout(load, 3000)
         },
         () => undefined,

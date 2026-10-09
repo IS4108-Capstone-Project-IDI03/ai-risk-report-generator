@@ -81,6 +81,8 @@ export type SavedRecording = {
     error: string | null
     attempts: number
   }
+  // Who added it after the observation was saved (CP-08).
+  added: Stamp | null
 }
 // A site photograph saved with an observation (CP-04); url opens the original.
 export type SavedPhoto = {
@@ -89,6 +91,29 @@ export type SavedPhoto = {
   contentType: 'image/jpeg' | 'image/png'
   size: number
   url: string
+  added: Stamp | null
+}
+// What the vision model proposes from an observation's photos (CP-05), for
+// the engineer to review. Nothing reads them until an engineer asks; the
+// reading then runs after that request returns, so it starts as
+// 'interpreting'.
+export type InterpretationStatus = 'interpreting' | 'interpreted' | 'failed'
+export type SavedInterpretation = {
+  status: InterpretationStatus
+  description: string | null
+  // A proposed category, which may differ from the observation's own.
+  copeDimension: string | null
+  hazardType: string | null
+  // Why it failed, to show the engineer.
+  error: string | null
+  attempts: number
+  // The model that wrote it.
+  model: string | null
+  // The photos it reads, removed ones included (CP-08).
+  photoIds: string[]
+  // Finished, but of photos other than those it has now: photos were added
+  // or removed since (CP-08).
+  outOfDate: boolean
 }
 // A place on site the engineer records observations in.
 export type SiteLocation = { id: string; name: string; floor: string | null }
@@ -106,10 +131,18 @@ export type SavedObservation = {
   location: SiteLocation | null
   // Exactly as the engineer wrote it.
   note: string | null
+  // Those not removed: its evidence.
   recordings: SavedRecording[]
   photos: SavedPhoto[]
+  // Removed ones, kept to restore (CP-08).
+  removedRecordings: (SavedRecording & { removed: Stamp })[]
+  removedPhotos: (SavedPhoto & { removed: Stamp })[]
+  // null until an engineer asks for its photos to be read (CP-05), and while
+  // no photo is left.
+  interpretation: SavedInterpretation | null
   recordedAt: string
-  // The latest change to its tags, note or a transcript (CP-08).
+  // The latest change to its tags, note, a transcript, or its recordings and
+  // photos (CP-08).
   edited: Stamp | null
   // Set while it is deleted (CP-08).
   deleted: Stamp | null
@@ -317,12 +350,53 @@ export async function restoreObservation(id: string): Promise<SavedObservation> 
   return (await request<SavedObservation>('POST', `${observationPath(id)}/restore`)).data
 }
 
+// Adds recordings and photos to a saved observation (CP-08). The server
+// stores each file and starts each recording's transcription; it reads no
+// photo until asked.
+export async function addObservationMedia(
+  id: string,
+  recordings: { name: string; audio: Blob }[],
+  photos: { name: string; image: Blob }[],
+): Promise<SavedObservation> {
+  const form = new FormData()
+  for (const r of recordings) form.append('recording', r.audio, r.name)
+  for (const p of photos) form.append('photo', p.image, p.name)
+  return (await request<SavedObservation>('POST', `${observationPath(id)}/media`, form)).data
+}
+
+// Removes a recording or photo from an observation, a soft removal it can be
+// restored from (CP-08), and restores one.
+export type MediaKind = 'recordings' | 'photos'
+const mediaPath = (id: string, kind: MediaKind, itemId: string) =>
+  `${observationPath(id)}/${kind}/${encodeURIComponent(itemId)}`
+export async function removeMedia(
+  id: string,
+  kind: MediaKind,
+  itemId: string,
+): Promise<SavedObservation> {
+  return (await request<SavedObservation>('DELETE', mediaPath(id, kind, itemId))).data
+}
+export async function restoreMedia(
+  id: string,
+  kind: MediaKind,
+  itemId: string,
+): Promise<SavedObservation> {
+  return (await request<SavedObservation>('POST', `${mediaPath(id, kind, itemId)}/restore`)).data
+}
+
 // Starts a new transcription attempt for a failed recording.
 export async function retryTranscription(observationId: string, recordingId: string) {
   await request<void>(
     'POST',
     `/api/observations/${encodeURIComponent(observationId)}/recordings/${encodeURIComponent(recordingId)}/transcription/retry`,
   )
+}
+
+// Asks for an observation's photos to be read (CP-05): the first reading, a
+// new one after a failure, or after photos were added or removed (CP-08).
+// Saving never reads them.
+export async function readPhotos(observationId: string) {
+  await request<void>('POST', `${observationPath(observationId)}/interpretation`)
 }
 
 const locationsPath = (reference: string) =>
@@ -407,6 +481,63 @@ export async function listSections(
   return (await request<ReportSection[]>('GET', sectionsPath(reference), undefined, signal)).data
 }
 
+// A drafted Opportunity for Improvement for Section 3 (GN-05). Its value
+// lists come from rag-service generation/ofi.json; `priority` is the Risk
+// Assessment Matrix's value for likelihood x consequence, set in code.
+export type Ofi = {
+  id: string
+  title: string
+  category: string
+  type: string
+  description: string
+  observation: string
+  likelihood: string
+  consequence: string
+  priority: string
+  effort: string
+  // Observation ids it rests on, cited standards (`C:`) and the past-report OFI
+  // (`P:`) it was adapted from, with those passages by ID.
+  observations: string[]
+  standards: string[]
+  precedent: string | null
+  sources: SectionDraft['sources']
+  // The past report's title, from the knowledge base, or null if it has no record.
+  precedentReport: string | null
+  // Marsh's fixed fields, the same for a suggestion as once accepted.
+  status: string
+  issueDate: string | null
+  // The configuration that drafted it (prompt, value-list version, model).
+  provenance: {
+    provider: string
+    model: string
+    effort: string
+    prompt_version: string
+    config_version: string
+    generated_at: string
+  }
+}
+// An accepted OFI as it reads in the report, numbered in report order.
+export type AcceptedOfi = Ofi & { number: string }
+export type OfiList = { suggestions: Ofi[]; accepted: AcceptedOfi[] }
+
+const ofisPath = (reference: string) => `/api/assessments/${encodeURIComponent(reference)}/ofis`
+
+export async function listOfis(reference: string, signal?: AbortSignal): Promise<OfiList> {
+  return (await request<OfiList>('GET', ofisPath(reference), undefined, signal)).data
+}
+
+// Drafts OFI suggestions from the assessment's observations, replacing the
+// unaccepted ones; accepted OFIs stay.
+export async function draftOfis(reference: string): Promise<OfiList> {
+  return (await request<OfiList>('POST', `${ofisPath(reference)}/draft`)).data
+}
+
+// Accepts one suggestion into the report.
+export async function acceptOfi(reference: string, id: string): Promise<OfiList> {
+  return (await request<OfiList>('POST', `${ofisPath(reference)}/${encodeURIComponent(id)}/accept`))
+    .data
+}
+
 // Drafts one section from the assessment's observations; the gateway saves it.
 export async function draftSection(reference: string, sectionId: string): Promise<SectionDraft> {
   return (
@@ -417,38 +548,28 @@ export async function draftSection(reference: string, sectionId: string): Promis
   ).data
 }
 
-// The review workspace (RV-01). Completion counts the subsections a draft
-// writes (tables are filled from measured values, GN-03); the review state
-// comes from the draft's own checks until the engineer's decisions (RV-02).
 export type CompletionState = 'not_started' | 'partial' | 'complete'
 export type ReviewState = 'not_drafted' | 'ai_draft' | 'needs_review'
 
-// A passage a draft cites, exactly as the draft was given it, with its
-// document's details as the knowledge base holds them now.
 export type SourcePassage = {
-  // `C:<chunk id>` for a standard, `P:<chunk id>` for a past report.
   id: string
   kind: 'standard' | 'precedent'
   text: string
-  // The heading trail above the passage, outermost first.
   headings: string[]
   pageStart: number | null
   pageEnd: number | null
   documentId: string | null
-  // null when the document has no record in the knowledge base.
   document: {
     title: string
     issuingBody: string
     sourceType: string
     edition: string | null
-    // YYYY-MM-DD: a standard's effective date, or a past report's date.
     effectiveDate: string
     withdrawnAt: string | null
     fileUrl: string
   } | null
 }
 
-// An observation as the draft was given it, even if edited since.
 export type FieldObservation = {
   id: string
   copeDimension: string
@@ -472,13 +593,10 @@ export type ReviewSection = {
     changeCounts: ChangeCounts
   }
   draft: Omit<SectionDraft, 'sources'> | null
-  // The draft's cited passages, by citation ID.
   sources: Record<string, SourcePassage>
-  // The section's own observations and any other the draft cites.
   observations: FieldObservation[]
 }
 
-// Sections 7-12 for reviewing, each newest draft beside its evidence.
 export async function getReviewWorkspace(
   reference: string,
   signal?: AbortSignal,

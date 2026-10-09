@@ -10,16 +10,18 @@ import {
   KnowledgeDocumentModel,
   SOURCE_TYPES,
   type DetailName,
+  type IDocumentMatch,
   type IKnowledgeDocument,
   type ILabelledDetail,
   type SourceType,
 } from '../models/knowledge-document.model'
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
-import { enqueueIngestion } from './ingestion-queue.service'
+import { enqueueIngestion, requeueIngestion } from './ingestion-queue.service'
 import {
   IngestionUnavailableError,
   labelDocument,
+  matchDocument,
   relabelPassages,
   whyPdfCannotOpen,
   type LabelAnswer,
@@ -44,6 +46,14 @@ const edition = () =>
     .refine((value) => /^\d{4}$/.test(value) && +value >= 1900 && +value <= nextYear(), {
       error: () => `Edition must be a year from 1900 to ${nextYear()}.`,
     })
+
+// The standard's designation without the issuing body, e.g. "13" or "2-81".
+// A typed "NFPA 13" or "FM Global Data Sheet 2-81" keeps only the number, since
+// matching compares numbers (without this, "NFPA 13" would never pair with "13").
+const standardNumber = () =>
+  text('Standard number', 40)
+    .transform((value) => value.replace(/^(nfpa|fm global|fm)?\s*(data sheets?)?\s*/i, ''))
+    .pipe(text('Standard number', 20))
 
 const country = (allowAll: boolean) =>
   z
@@ -86,6 +96,7 @@ export const documentDetailsSchema = z.discriminatedUnion(
       ...common,
       sourceType: z.enum(['fm_standard', 'nfpa_standard']),
       edition: edition(),
+      standardNumber: standardNumber(),
       jurisdiction: country(true),
       facilityType: z
         .string()
@@ -135,6 +146,7 @@ const DETAIL_DTO_NAME = {
   source_type: 'sourceType',
   title: 'title',
   edition: 'edition',
+  standard_number: 'standardNumber',
   effective_date: 'effectiveDate',
   jurisdiction: 'jurisdiction',
   facility_type: 'facilityType',
@@ -148,6 +160,8 @@ export type KnowledgeDocumentDto = {
   title: string
   issuingBody: string | null
   edition: string | null
+  // Standards only (IN-07); null for a report or while Unconfirmed.
+  standardNumber: string | null
   fileName: string
   // A detail labelling could not confirm is null (IN-05).
   sourceType: string | null
@@ -169,6 +183,7 @@ export type KnowledgeDocumentDto = {
     sourceType: string | null
     title: string
     edition: string | null
+    standardNumber: string | null
     effectiveDate: string | null
     jurisdiction: string | null
     facilityType: string | null
@@ -178,7 +193,36 @@ export type KnowledgeDocumentDto = {
   // Live ingestion progress; present only while `status` is `processing` and a
   // matching ingestion_jobs row exists (E2).
   progress?: ProgressDto
+  // The stored document this one repeats or updates (IN-07); null if none.
+  // `otherNeedsReview` is true when that document is also waiting for a decision;
+  // `document.withdrawn` changes what Keep both does (it keeps this one withdrawn too).
+  match: {
+    kind: IDocumentMatch['kind']
+    document: { id: string; title: string; edition: string | null; withdrawn: boolean }
+    newMatched: number
+    newTotal: number
+    storedMatched: number
+    storedTotal: number
+    otherNeedsReview: boolean
+  } | null
+  // For a withdrawn edition: the newest edition of its family, when later than
+  // this one (IN-07 AC14); null otherwise.
+  newerEdition: { id: string; title: string; edition: string | null } | null
+  // For a withdrawn document: the active member of its edition family, which
+  // blocks reinstating it (IN-07 AC15); null otherwise.
+  reinstateBlockedBy: { id: string; title: string; edition: string | null } | null
 }
+
+type Doc = IKnowledgeDocument & { _id: Types.ObjectId }
+
+// Whether a document waits for an admin: Unconfirmed details or a match (IN-07).
+// A withdrawn document is out of search whatever else is true.
+export const needsReview = (d: Pick<IKnowledgeDocument, 'unconfirmed' | 'match' | 'withdrawn'>) =>
+  !d.withdrawn && (Boolean(d.unconfirmed?.length) || Boolean(d.match))
+
+// The other documents a batch of DTOs refer to, read in one query each so a
+// long list never costs one lookup per row.
+type DtoRefs = { matched: Map<string, Doc>; newest: Map<string, Doc>; active: Map<string, Doc> }
 
 // Builds the progress field from an ingestion job, computing elapsed times on
 // read and serialising stageLog dates to ISO strings.
@@ -200,15 +244,16 @@ function toProgressDto(job: IIngestionJob): ProgressDto {
 
 // Turns a database row into the shape the browser's api.ts expects. When a
 // processing document has an ingestion job, its progress is folded in (E2).
-function toDto(
-  d: IKnowledgeDocument & { _id: Types.ObjectId },
-  job?: IIngestionJob,
-): KnowledgeDocumentDto {
+function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): KnowledgeDocumentDto {
+  const other = d.match && refs.matched.get(String(d.match.documentId))
+  const newest = d.withdrawn && d.editionFamily && refs.newest.get(String(d.editionFamily))
+  const blocker = d.withdrawn && d.editionFamily && refs.active.get(String(d.editionFamily))
   return {
     id: String(d._id),
     title: d.title,
     issuingBody: d.issuingBody ?? null,
     edition: d.edition ?? null,
+    standardNumber: d.standardNumber ?? null,
     fileName: d.fileName,
     sourceType: d.metadata.source_type,
     jurisdiction: d.metadata.jurisdiction,
@@ -228,6 +273,7 @@ function toDto(
       sourceType: v.metadata.source_type,
       title: v.title,
       edition: v.edition ?? null,
+      standardNumber: v.standardNumber ?? null,
       effectiveDate: isoDay(v.metadata.effective_date),
       jurisdiction: v.metadata.jurisdiction,
       facilityType: v.metadata.facility_type,
@@ -237,7 +283,64 @@ function toDto(
     // Only processing documents carry progress; the caller passes a job only
     // for those (see listKnowledgeDocuments).
     ...(job && d.status === 'processing' ? { progress: toProgressDto(job) } : {}),
+    // A match whose document is gone shows as none; discarding re-matches the
+    // documents that pointed at it, so this is only a brief gap.
+    match:
+      d.match && other
+        ? {
+            kind: d.match.kind,
+            document: {
+              id: String(other._id),
+              title: other.title,
+              edition: other.edition ?? null,
+              withdrawn: Boolean(other.withdrawn),
+            },
+            newMatched: d.match.newMatched,
+            newTotal: d.match.newTotal,
+            storedMatched: d.match.storedMatched,
+            storedTotal: d.match.storedTotal,
+            otherNeedsReview: needsReview(other),
+          }
+        : null,
+    newerEdition:
+      newest && String(newest._id) !== String(d._id) && Number(newest.edition) > Number(d.edition)
+        ? { id: String(newest._id), title: newest.title, edition: newest.edition ?? null }
+        : null,
+    reinstateBlockedBy: blocker
+      ? { id: String(blocker._id), title: blocker.title, edition: blocker.edition ?? null }
+      : null,
   }
+}
+
+/**
+ * Returns the DTOs for these documents, in order. Looks up every matched
+ * document and every withdrawn edition's family once for the whole batch.
+ */
+export async function toDtos(
+  docs: Doc[],
+  jobs: Map<string, IIngestionJob> = new Map(),
+): Promise<KnowledgeDocumentDto[]> {
+  const matchIds = docs.flatMap((d) => (d.match ? [d.match.documentId] : []))
+  const families = docs.flatMap((d) => (d.withdrawn && d.editionFamily ? [d.editionFamily] : []))
+  const [matchedDocs, members] = await Promise.all([
+    matchIds.length ? KnowledgeDocumentModel.find({ _id: { $in: matchIds } }).lean() : [],
+    families.length ? KnowledgeDocumentModel.find({ editionFamily: { $in: families } }).lean() : [],
+  ])
+  const refs: DtoRefs = { matched: new Map(), newest: new Map(), active: new Map() }
+  for (const m of matchedDocs) refs.matched.set(String(m._id), m)
+  for (const m of members) {
+    const family = String(m.editionFamily)
+    // The same condition as the reinstate guard in setWithdrawn: a member not withdrawn.
+    if (!m.withdrawn) refs.active.set(family, m)
+    if (Number(m.edition) > Number(refs.newest.get(family)?.edition ?? 0))
+      refs.newest.set(family, m)
+  }
+  return docs.map((d) => toDto(d, jobs.get(String(d._id)), refs))
+}
+
+/** Returns the DTO for one document. */
+export async function toDtoOf(d: Doc): Promise<KnowledgeDocumentDto> {
+  return (await toDtos([d]))[0]
 }
 
 // The labelling record after a correction: every detail now holds the saved
@@ -251,6 +354,7 @@ function adminLabelling(
     source_type: next.metadata.source_type,
     title: next.title,
     edition: next.edition ?? null,
+    standard_number: next.standardNumber ?? null,
     effective_date: isoDay(next.metadata.effective_date),
     jurisdiction: next.metadata.jurisdiction,
     facility_type: next.metadata.facility_type,
@@ -273,6 +377,7 @@ function recordFields(details: DocumentDetails) {
     title: details.title,
     issuingBody: ISSUING_BODY[details.sourceType],
     edition: 'edition' in details ? details.edition : undefined,
+    standardNumber: 'standardNumber' in details ? details.standardNumber : undefined,
     metadata: {
       source_type: details.sourceType,
       jurisdiction: details.jurisdiction,
@@ -281,6 +386,17 @@ function recordFields(details: DocumentDetails) {
       effective_date: new Date(details.effectiveDate),
     },
   }
+}
+
+// True when the source type (hence issuing body), standard number or edition
+// changed: the details the ingestion service matches on (IN-07). Not the title.
+function identityDiffers(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>) {
+  return (
+    old.edition !== next.edition ||
+    old.standardNumber !== next.standardNumber ||
+    old.issuingBody !== next.issuingBody ||
+    old.metadata.source_type !== next.metadata.source_type
+  )
 }
 
 // Whether a correction changes any detail the record holds. Dates compare by
@@ -293,6 +409,7 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
     old.title !== next.title ||
     old.issuingBody !== next.issuingBody ||
     old.edition !== next.edition ||
+    old.standardNumber !== next.standardNumber ||
     a.source_type !== b.source_type ||
     a.jurisdiction !== b.jurisdiction ||
     a.facility_type !== b.facility_type ||
@@ -305,17 +422,18 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
  * Returns the labels every passage of the document carries, so search can
  * filter on them: its metadata, the date as YYYY-MM-DD, and `status`, which
  * search uses to skip passages that are not `active`: `withdrawn` (KB-01) or
- * `needs_review` (IN-05, some detail Unconfirmed). Null details are left out
+ * `needs_review` (IN-05 some detail Unconfirmed, IN-07 a match). Null details are left out
  * (Chroma can't store null, and no filter should match them), and
  * COPE_dimension is never sent, so a relabel can't overwrite per-passage COPE.
  * Must match `labels()` in microservices/ingestion-service/app/worker.py,
  * which labels passages at ingest.
  */
-function labels({
+export function labels({
   metadata,
   withdrawn,
   unconfirmed,
-}: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn' | 'unconfirmed'>) {
+  match,
+}: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn' | 'unconfirmed' | 'match'>) {
   const details = {
     source_type: metadata.source_type,
     jurisdiction: metadata.jurisdiction,
@@ -324,20 +442,51 @@ function labels({
   }
   return {
     ...Object.fromEntries(Object.entries(details).filter(([, value]) => value != null)),
-    status: withdrawn ? 'withdrawn' : unconfirmed?.length ? 'needs_review' : 'active',
+    status: withdrawn
+      ? 'withdrawn'
+      : needsReview({ unconfirmed, match })
+        ? 'needs_review'
+        : 'active',
   }
 }
 
 // A file IN-01 AC5 turns away. `status` is the HTTP status to answer with.
 export class RejectedFileError extends Error {
   constructor(
-    readonly status: 415 | 422,
+    readonly status: 409 | 415 | 422,
     reason: string,
   ) {
     super(reason)
     this.name = 'RejectedFileError'
   }
 }
+
+// An identical file is already stored (IN-07 AC1): a 409 that names it.
+export class DuplicateDocumentError extends RejectedFileError {
+  constructor(
+    stored: Pick<
+      IKnowledgeDocument,
+      'title' | 'edition' | 'status' | 'unconfirmed' | 'match' | 'withdrawn'
+    >,
+  ) {
+    const shown = stored.withdrawn
+      ? 'Withdrawn'
+      : stored.status !== 'complete'
+        ? 'Being ingested'
+        : needsReview(stored)
+          ? 'Needs review'
+          : 'Active'
+    const edition = stored.edition ? ` (${stored.edition} edition)` : ''
+    super(409, `Already in the knowledge base as ${stored.title}${edition}, ${shown}.`)
+    this.name = 'DuplicateDocumentError'
+  }
+}
+
+// The stored document, if any, with this fingerprint. A failed one doesn't
+// count, so its file can be uploaded again. Same condition as the unique index
+// in models/knowledge-document.model.ts.
+const findStoredCopy = (sha256: string) =>
+  KnowledgeDocumentModel.findOne({ 'file.sha256': sha256, status: { $ne: 'failed' } }).lean()
 
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
 const PDF_MARKER = Buffer.from('%PDF-')
@@ -365,6 +514,8 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
     source_type: sourceType,
     title: valid(text('Title', 200), 'title'),
     edition: sourceType === 'marsh_report' ? null : valid(edition(), 'edition'),
+    standard_number:
+      sourceType === 'marsh_report' ? null : valid(standardNumber(), 'standard_number'),
     // Never Unconfirmed: without a date, every upload would need review.
     effective_date: valid(common.effectiveDate, 'effective_date') ?? uploadDay(),
     jurisdiction: valid(country(allowAll), 'jurisdiction'),
@@ -373,9 +524,11 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
       'facility_type',
     ),
   }
-  // A report has no edition, so it is never "missing".
+  // A report has no edition or standard number, so they are never "missing".
   const unconfirmed = DETAIL_NAMES.filter(
-    (name) => values[name] === null && !(name === 'edition' && sourceType === 'marsh_report'),
+    (name) =>
+      values[name] === null &&
+      !((name === 'edition' || name === 'standard_number') && sourceType === 'marsh_report'),
   )
   const details = Object.fromEntries(
     DETAIL_NAMES.flatMap((name) => {
@@ -395,6 +548,7 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
     title: values.title ?? fileName,
     issuingBody: sourceType ? ISSUING_BODY[sourceType] : null,
     edition: values.edition ?? undefined,
+    standardNumber: values.standard_number ?? undefined,
     metadata: {
       source_type: sourceType,
       jurisdiction: values.jurisdiction,
@@ -408,36 +562,44 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
 }
 
 // Stores the original PDF in S3, records it with the details auto-labelling
-// reads from it and queues its ingestion (IN-01, IN-05), in steps a–f. Throws
-// RejectedFileError before labelling or storing anything if the file is not a
-// PDF or cannot be opened (IN-01 AC5), so a rejected file leaves no trace.
+// reads from it and queues its ingestion (IN-01, IN-05, IN-07), in steps a–g.
+// Throws RejectedFileError before labelling or storing anything if the file is
+// a repeat (IN-07 AC1), not a PDF or cannot be opened (IN-01 AC5), so a
+// rejected file leaves no trace.
 export async function uploadKnowledgeDocument(
   pdf: Buffer,
   contentType: string,
   fileName: string,
 ): Promise<KnowledgeDocumentDto> {
-  // a. Is it really a PDF? Cheap, so it runs first.
+  // a. Is it a file we already hold? First, so a repeat costs no PDF check,
+  // no LLM call, no S3 write and no job. sha256 is a fingerprint: equal
+  // fingerprints mean equal files.
+  const sha256 = createHash('sha256').update(pdf).digest('hex')
+  const stored = await findStoredCopy(sha256)
+  if (stored) throw new DuplicateDocumentError(stored)
+
+  // b. Is it really a PDF? Cheap, so it runs next.
   if (
     contentType.split(';')[0].trim() !== 'application/pdf' ||
     !pdf.subarray(0, 5).equals(PDF_MARKER)
   ) {
     throw new RejectedFileError(415, 'Only PDF files can be uploaded.')
   }
-  // b. Does it open? Asks the ingestion service (see ingestion.service.ts).
+  // c. Does it open? Asks the ingestion service (see ingestion.service.ts).
   const cannotOpen = await whyPdfCannotOpen(pdf)
   if (cannotOpen) throw new RejectedFileError(422, cannotOpen)
 
-  // c. Read its details. Never fails the upload: no answer means every
+  // d. Read its details. Never fails the upload: no answer means every
   // detail is Unconfirmed and an admin fills them in.
   const record = labelledRecord(await labelDocument(pdf), fileName)
 
-  // d. Store the unaltered original in S3 (IN-01 AC4).
+  // e. Store the unaltered original in S3 (IN-01 AC4).
   const id = new Types.ObjectId()
   const key = `knowledge/${id}.pdf`
   await storage.putObject(key, pdf, 'application/pdf')
 
-  // e. Record it in MongoDB as `queued`. sha256 is a fingerprint that proves a
-  // copy retrieved later matches the upload.
+  // f. Record it in MongoDB as `queued`. The fingerprint also proves a copy
+  // retrieved later matches the upload.
   let document
   try {
     document = await KnowledgeDocumentModel.create({
@@ -448,16 +610,22 @@ export async function uploadKnowledgeDocument(
         key,
         contentType: 'application/pdf',
         size: pdf.length,
-        sha256: createHash('sha256').update(pdf).digest('hex'),
+        sha256,
       },
       status: 'queued',
     })
   } catch (error) {
     // No transactions on a standalone mongod, so undo the upload by hand.
     await storage.deleteObject(key).catch(() => undefined)
+    // 11000 = duplicate key: an identical file was stored between step a and
+    // here (two copies uploaded together). Without this, the loser gets a 500.
+    if ((error as { code?: number }).code === 11000) {
+      const winner = await findStoredCopy(sha256)
+      if (winner) throw new DuplicateDocumentError(winner)
+    }
     throw error
   }
-  // f. Queue its ingestion; the worker picks it up from there.
+  // g. Queue its ingestion; the worker picks it up from there.
   try {
     await enqueueIngestion(String(id))
   } catch (error) {
@@ -469,7 +637,7 @@ export async function uploadKnowledgeDocument(
       'Ingestion could not be queued. Try uploading again shortly.',
     )
   }
-  return toDto(document.toObject())
+  return toDtoOf(document.toObject())
 }
 
 export class KnowledgeDocumentNotFoundError extends Error {
@@ -517,7 +685,7 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
   const processingIds = documents.filter((d) => d.status === 'processing').map((d) => String(d._id))
   const jobs = await getJobProgressBatch(processingIds)
 
-  return documents.map((d) => toDto(d, jobs.get(String(d._id))))
+  return toDtos(documents, jobs)
 }
 
 /**
@@ -530,21 +698,16 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
     .collation({ locale: 'en' })
     .sort({ title: 1 })
     .lean()
-  // Complete documents carry no progress, so no job is passed to toDto.
-  return documents.map((d) => toDto(d))
+  // Complete documents carry no progress, so no job is passed.
+  return toDtos(documents)
 }
 
-/**
- * Returns the documents with these ids, in no particular order. An id that is
- * no document's is skipped. The review workspace shows a cited passage's
- * title, edition, effective date and withdrawal from them (RV-01).
- */
+// The review workspace resolves only the documents cited by a draft.
 export async function findKnowledgeDocuments(ids: string[]): Promise<KnowledgeDocumentDto[]> {
   const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))
   if (!valid.length) return []
   const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
-  // A cited document has finished ingestion, so it carries no progress.
-  return documents.map((d) => toDto(d))
+  return toDtos(documents)
 }
 
 // The document isn't in the state the change needs (a 409). KB-01: only an
@@ -559,7 +722,7 @@ export class KnowledgeDocumentWrongStateError extends Error {
 }
 
 /**
- * Returns the document with its corrected details (KB-01 AC6), in steps a–c.
+ * Returns the document with its corrected details (KB-01 AC6), in steps a–d.
  * Every detail can change, including the source type. The details it
  * replaces are kept as a previous version (AC9) when anything changed. Throws
  * KnowledgeDocumentNotFoundError, KnowledgeDocumentWrongStateError (also for a
@@ -585,7 +748,17 @@ export async function correctKnowledgeDocument(
   // b. Save the new details, keeping the old ones in case step c fails. If
   // anything changed, the old details also join the history (AC9).
   const old = document.toObject()
-  const { title, issuingBody, edition, metadata, history, unconfirmed, labelling } = old
+  const {
+    title,
+    issuingBody,
+    edition,
+    standardNumber,
+    metadata,
+    history,
+    unconfirmed,
+    labelling,
+    match,
+  } = old
   const next = recordFields(details)
   document.set({ ...next, unconfirmed: [], labelling: adminLabelling(labelling, next) })
   if (differs(old, next)) {
@@ -593,6 +766,7 @@ export async function correctKnowledgeDocument(
       title,
       issuingBody,
       edition,
+      standardNumber,
       metadata,
       replacedAt: new Date(),
       replacedBy: by,
@@ -600,21 +774,49 @@ export async function correctKnowledgeDocument(
   }
   await document.save()
 
-  // c. Put the new labels on its passages in Chroma. If that fails, write the
-  // old details and history back: without this, MongoDB would show the
-  // correction while search still used the old labels.
+  // c. Put the new labels on its passages, in one of two ways. When the
+  // correction could change the match (an identity detail changed, or the
+  // document already has a match), /match relabels the passages itself from
+  // MongoDB, with the final status (IN-07 AC5). Otherwise relabel directly.
+  // Either way, if it fails, write the old details and history back: without
+  // this, MongoDB would show the correction while search still used the old
+  // labels (or a stale match).
+  const rematch = Boolean(old.match) || identityDiffers(old, next)
   try {
-    await relabelPassages(
-      id,
-      labels(document.toObject()),
-      'Search could not be updated, so the correction was not saved. Try again shortly.',
-    )
+    if (rematch) {
+      await matchDocument(id).catch(() => {
+        throw new IngestionUnavailableError(
+          "The knowledge base couldn't be updated, so nothing changed. Try again shortly.",
+        )
+      })
+    } else {
+      await relabelPassages(
+        id,
+        labels(document.toObject()),
+        'Search could not be updated, so the correction was not saved. Try again shortly.',
+      )
+    }
   } catch (error) {
-    document.set({ title, issuingBody, edition, metadata, history, unconfirmed, labelling })
+    document.set({
+      title,
+      issuingBody,
+      edition,
+      standardNumber,
+      metadata,
+      history,
+      unconfirmed,
+      labelling,
+      // /match may have saved a new match before failing.
+      match: match ?? null,
+    })
+    // The in-memory match never changed, so Mongoose must be told to write it
+    // back over the one /match saved behind its back.
+    document.markModified('match')
     await document.save()
     throw error
   }
-  return toDto(document.toObject())
+  const refreshed = await KnowledgeDocumentModel.findById(id).lean()
+  return toDtoOf(refreshed ?? document.toObject())
 }
 
 // Withdraws or reinstates a document (KB-01), in steps a–c. `by` is who
@@ -637,6 +839,18 @@ async function setWithdrawn(
   if (document.status !== 'complete' || alreadyThere) {
     throw new KnowledgeDocumentWrongStateError(wrongState)
   }
+  // Two editions of one standard are never active together (IN-07 AC15).
+  if (!by && document.editionFamily) {
+    const active = await KnowledgeDocumentModel.findOne({
+      editionFamily: document.editionFamily,
+      _id: { $ne: document._id },
+      withdrawn: { $exists: false },
+    }).lean()
+    if (active) {
+      const edition = active.edition ? ` (${active.edition} edition)` : ''
+      throw new KnowledgeDocumentWrongStateError(`Withdraw ${active.title}${edition} first.`)
+    }
+  }
 
   // b. Save the change, keeping the old value in case step c fails.
   const previous = document.toObject().withdrawn
@@ -657,7 +871,7 @@ async function setWithdrawn(
     await document.save()
     throw error
   }
-  return toDto(document.toObject())
+  return toDtoOf(document.toObject())
 }
 
 /**
@@ -675,3 +889,71 @@ export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: st
  * withdrawn), or IngestionUnavailableError, in which case it stays withdrawn.
  */
 export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undefined)
+
+/**
+ * Retries a failed ingestion without re-uploading. The PDF is still in S3 and
+ * every detail is still on the record, so retry means re-run, not re-enter: the
+ * document flips `failed → queued`, its failure fields are cleared, its retry
+ * counter is bumped, and the ingestion job is re-queued. The worker then claims
+ * it exactly as a fresh upload.
+ *
+ * Throws KnowledgeDocumentNotFoundError (unknown or malformed id),
+ * KnowledgeDocumentWrongStateError (not currently failed), or
+ * IngestionUnavailableError (the re-queue could not be placed), in which case
+ * the document is put back to failed.
+ */
+export async function retryIngestion(id: string): Promise<void> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  // Atomic on `status: 'failed'`: only a failed document flips, so a double
+  // click cannot queue two runs or double-count. The counter is bumped in the
+  // same write, so it moves exactly when a retry is accepted — never on the
+  // worker's own automatic re-runs.
+  const updated = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'failed' },
+    {
+      $set: { status: 'queued' },
+      $unset: { error: 1, finishedAt: 1, result: 1 },
+      $inc: { retryCount: 1 },
+    },
+    { returnDocument: 'after' },
+  )
+    .lean()
+    .catch((error: unknown) => {
+      // 11000 = duplicate key: the same file was uploaded again after this one
+      // failed and is now stored (IN-07 allows one non-failed copy per file).
+      // Without this the admin would get a 500 instead of the reason.
+      if ((error as { code?: number }).code === 11000) {
+        throw new KnowledgeDocumentWrongStateError(
+          'An identical file is already in the knowledge base.',
+        )
+      }
+      throw error
+    })
+  if (!updated) {
+    // One of two reasons, disambiguated like retryTranscription.
+    if (await KnowledgeDocumentModel.exists({ _id: id })) {
+      throw new KnowledgeDocumentWrongStateError('Only a failed document can be retried.')
+    }
+    throw new KnowledgeDocumentNotFoundError()
+  }
+  // Re-queue, clearing the stale terminal job BullMQ still holds under this
+  // document id (see requeueIngestion). If it cannot be placed, roll the status
+  // and the counter back, so the document does not sit at `queued` with no job
+  // and the attempt number is not inflated by a retry that never ran.
+  try {
+    await requeueIngestion(id)
+  } catch {
+    await KnowledgeDocumentModel.updateOne(
+      { _id: id, status: 'queued' },
+      {
+        $set: {
+          status: 'failed',
+          error: 'Ingestion could not be re-queued. Try again shortly.',
+          finishedAt: new Date(),
+        },
+        $inc: { retryCount: -1 },
+      },
+    )
+    throw new IngestionUnavailableError('Ingestion could not be re-queued. Try again shortly.')
+  }
+}

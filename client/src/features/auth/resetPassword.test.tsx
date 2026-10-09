@@ -81,4 +81,13 @@ describe('Reset password (F-06)', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('invalid or has expired'),
     )
   })
+
+  it('opens the new-password step with the code from an emailed link', () => {
+    window.history.replaceState(null, '', '/?reset=abc123')
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Reset token/)).toHaveValue('abc123')
+    // The code is a secret: it is removed from the address bar once read.
+    expect(window.location.search).toBe('')
+  })
 })

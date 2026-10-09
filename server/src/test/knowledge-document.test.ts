@@ -1,8 +1,15 @@
 import { Readable } from 'stream'
+import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
+import {
+  KnowledgeDocumentNotFoundError,
+  KnowledgeDocumentWrongStateError,
+  retryIngestion,
+} from '../services/knowledge-document.service'
+import { buildKnowledgeDocumentIndex } from '../models/db'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole } from './auth-test-helpers'
 
@@ -24,7 +31,11 @@ vi.mock('../services/storage.service', () => ({
   deleteObject: async (key: string) => void s3.delete(key),
 }))
 const queued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
-vi.mock('../services/ingestion-queue.service', () => ({ enqueueIngestion: queued }))
+const requeued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
+vi.mock('../services/ingestion-queue.service', () => ({
+  enqueueIngestion: queued,
+  requeueIngestion: requeued,
+}))
 const inspect = vi.fn<(url?: string, init?: RequestInit) => Promise<Response>>()
 const labelling = vi.fn<() => Promise<Response>>()
 
@@ -40,6 +51,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-06T20:00:00Z'))
   queued.mockResolvedValue(undefined)
+  requeued.mockResolvedValue(undefined)
   inspect.mockResolvedValue(Response.json({ pages: 3 }))
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
     String(url).endsWith('/label') ? labelling() : inspect(url, init),
@@ -48,6 +60,7 @@ beforeEach(() => {
 afterEach(() => {
   s3.clear()
   queued.mockReset()
+  requeued.mockReset()
   inspect.mockReset()
   labelling.mockReset()
   vi.unstubAllGlobals()
@@ -59,6 +72,7 @@ const DETAILS = {
   fileName: 'NFPA 13 – 2022.pdf',
   title: 'NFPA 13: Standard for the Installation of Sprinkler Systems',
   edition: '2022',
+  standardNumber: '13',
   effectiveDate: '2022-01-01',
   sourceType: 'nfpa_standard',
   jurisdiction: 'SG',
@@ -80,7 +94,15 @@ const REPORT = {
 // (camelCase, as above): every detail given is confident, the rest are null.
 function labelAnswer(details: Record<string, string>) {
   const snake = (name: string) => name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
-  const names = ['sourceType', 'title', 'edition', 'effectiveDate', 'jurisdiction', 'facilityType']
+  const names = [
+    'sourceType',
+    'title',
+    'edition',
+    'standardNumber',
+    'effectiveDate',
+    'jurisdiction',
+    'facilityType',
+  ]
   return {
     details: Object.fromEntries(
       names.map((name) => [
@@ -96,8 +118,17 @@ function labelAnswer(details: Record<string, string>) {
   }
 }
 
+// A PDF no earlier upload had: identical files are refused (IN-07 AC1), so
+// tests that store several documents need different bytes for each.
+let pdfCount = 0
+const freshPdf = () => Buffer.concat([PDF, Buffer.from(`\n% copy ${++pdfCount}`)])
+
 // Uploads with only the file name; /label answers with `details`.
-function upload(body = PDF, details: Record<string, string> = DETAILS, type = 'application/pdf') {
+function upload(
+  body = freshPdf(),
+  details: Record<string, string> = DETAILS,
+  type = 'application/pdf',
+) {
   labelling.mockResolvedValue(Response.json(labelAnswer(details)))
   return api
     .post('/api/knowledge-documents')
@@ -105,6 +136,23 @@ function upload(body = PDF, details: Record<string, string> = DETAILS, type = 'a
     .set('Content-Type', type)
     .send(body)
 }
+
+// The last PUT .../labels the gateway sent; a correction also calls /match after it.
+const lastLabelsCall = () =>
+  [...inspect.mock.calls].reverse().find(([url]) => String(url).endsWith('/labels')) as unknown as [
+    string,
+    RequestInit,
+  ]
+
+// A possible-copy match to `documentId`, as the ingestion service stores it.
+const matchTo = (documentId: Types.ObjectId, kind = 'possible_copy') => ({
+  kind,
+  documentId,
+  newMatched: 9,
+  newTotal: 10,
+  storedMatched: 9,
+  storedTotal: 12,
+})
 
 describe('POST /api/knowledge-documents', () => {
   it("saves a standard's details, with the issuing body set from its source type", async () => {
@@ -118,6 +166,7 @@ describe('POST /api/knowledge-documents', () => {
         title: 'NFPA 13: Standard for the Installation of Sprinkler Systems',
         issuingBody: 'NFPA',
         edition: '2022',
+        standardNumber: '13',
         jurisdiction: 'SG',
         facilityType: 'all',
         fileName: 'NFPA 13 – 2022.pdf',
@@ -126,7 +175,7 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   it('saves a standard that applies in all countries', async () => {
-    const response = await upload(PDF, {
+    const response = await upload(freshPdf(), {
       ...DETAILS,
       sourceType: 'fm_standard',
       jurisdiction: 'all',
@@ -137,7 +186,7 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   it("saves a Marsh report's details, with no edition", async () => {
-    const response = await upload(PDF, REPORT)
+    const response = await upload(freshPdf(), REPORT)
 
     expect(response.status).toBe(201)
     expect(response.body).toMatchObject({
@@ -151,7 +200,7 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   it('stores the unaltered original under the document ID and queues one ingestion job', async () => {
-    const response = await upload()
+    const response = await upload(PDF)
 
     expect(s3.get(`knowledge/${response.body.id}.pdf`)).toEqual(PDF)
     expect(queued).toHaveBeenCalledExactlyOnceWith(response.body.id)
@@ -215,7 +264,7 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   it('reads the details with /label, and stores them with the evidence, Unconfirmed nulls and the upload date', async () => {
-    const response = await upload(PDF, { fileName: 'scan.pdf', sourceType: 'fm_standard' })
+    const response = await upload(freshPdf(), { fileName: 'scan.pdf', sourceType: 'fm_standard' })
 
     expect(response.status).toBe(201)
     expect(labelling).toHaveBeenCalledOnce()
@@ -227,14 +276,20 @@ describe('POST /api/knowledge-documents', () => {
       effectiveDate: UPLOAD_DAY,
       jurisdiction: null,
       facilityType: null,
-      unconfirmed: ['title', 'edition', 'jurisdiction', 'facilityType'],
+      unconfirmed: ['title', 'edition', 'standardNumber', 'jurisdiction', 'facilityType'],
     })
     const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
     expect(saved?.metadata).toMatchObject({
       source_type: 'fm_standard',
       effective_date: new Date(UPLOAD_DAY),
     })
-    expect(saved?.unconfirmed).toEqual(['title', 'edition', 'jurisdiction', 'facility_type'])
+    expect(saved?.unconfirmed).toEqual([
+      'title',
+      'edition',
+      'standard_number',
+      'jurisdiction',
+      'facility_type',
+    ])
     expect(saved?.labelling?.details.source_type).toEqual({
       value: 'fm_standard',
       confidence: 0.95,
@@ -245,9 +300,9 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   it('maps a fully labelled Marsh report with no Unconfirmed details and no edition', async () => {
-    const response = await upload(PDF, REPORT)
+    const response = await upload(freshPdf(), REPORT)
 
-    expect(response.body).toMatchObject({ edition: null, unconfirmed: [] })
+    expect(response.body).toMatchObject({ edition: null, standardNumber: null, unconfirmed: [] })
   })
 
   it.each([
@@ -260,7 +315,7 @@ describe('POST /api/knowledge-documents', () => {
     ['an edition before 1900', { ...DETAILS, edition: '1899' }, 'edition'],
     ['a source type not on the list', { ...DETAILS, sourceType: 'ISO' }, 'sourceType'],
   ])('stores %s as Unconfirmed instead of trusting the model', async (_name, details, field) => {
-    const response = await upload(PDF, details)
+    const response = await upload(freshPdf(), details)
 
     expect(response.status).toBe(201)
     expect(response.body[field]).toBeNull()
@@ -268,7 +323,7 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   it('stores the upload date instead of a date that is not a date', async () => {
-    const response = await upload(PDF, { ...DETAILS, effectiveDate: 'last spring' })
+    const response = await upload(freshPdf(), { ...DETAILS, effectiveDate: 'last spring' })
 
     expect(response.body.effectiveDate).toBe(UPLOAD_DAY)
     expect(response.body.unconfirmed).not.toContain('effectiveDate')
@@ -300,7 +355,14 @@ describe('POST /api/knowledge-documents', () => {
         issuingBody: null,
         sourceType: null,
         effectiveDate: UPLOAD_DAY,
-        unconfirmed: ['sourceType', 'title', 'edition', 'jurisdiction', 'facilityType'],
+        unconfirmed: [
+          'sourceType',
+          'title',
+          'edition',
+          'standardNumber',
+          'jurisdiction',
+          'facilityType',
+        ],
       })
       expect(queued).toHaveBeenCalledOnce()
     },
@@ -344,6 +406,61 @@ describe('POST /api/knowledge-documents', () => {
   })
 })
 
+describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)', () => {
+  // The calls an accepted upload would make; none may happen for a repeat.
+  const expectNothingNewKept = (fetches: number) => {
+    expect(inspect).toHaveBeenCalledTimes(fetches)
+    expect(labelling).toHaveBeenCalledTimes(1)
+    expect(s3.size).toBe(1)
+    expect(queued).toHaveBeenCalledTimes(1)
+  }
+
+  it.each([
+    ['active', {}, 'Active'],
+    ['withdrawn', { withdrawn: { at: new Date(), by: { id: 'u', name: 'U' } } }, 'Withdrawn'],
+    ['unconfirmed', { unconfirmed: ['title'] }, 'Needs review'],
+    ['matched', { match: matchTo(new Types.ObjectId()) }, 'Needs review'],
+    ['still ingesting', { status: 'processing' }, 'Being ingested'],
+  ])('rejects a %s repeat with 409 naming the stored document', async (_n, state, shown) => {
+    const first = await upload(PDF)
+    await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'complete', ...state })
+
+    const response = await upload(PDF)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      `Already in the knowledge base as ${DETAILS.title} (2022 edition), ${shown}.`,
+    )
+    expectNothingNewKept(1)
+  })
+
+  it('leaves the edition out of the message for a report', async () => {
+    const first = await upload(PDF, REPORT)
+    await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'complete' })
+
+    const response = await upload(PDF, REPORT)
+
+    expect(response.body.error).toBe(
+      'Already in the knowledge base as Cold store risk survey, Active.',
+    )
+  })
+
+  it('accepts the same file again after its earlier upload failed', async () => {
+    const first = await upload(PDF)
+    await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'failed' })
+
+    expect((await upload(PDF)).status).toBe(201)
+  })
+
+  it('turns the second of two identical uploads made together into a 409 and removes its file', async () => {
+    const [a, b] = await Promise.all([upload(PDF), upload(PDF)])
+
+    expect([a.status, b.status].sort()).toEqual([201, 409])
+    expect(s3.size).toBe(1)
+    expect(await KnowledgeDocumentModel.countDocuments()).toBe(1)
+  })
+})
+
 describe('GET /api/knowledge-documents', () => {
   it('lists recent uploads: in progress, complete for 24 hours, failed for 7 days', async () => {
     const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000)
@@ -357,7 +474,7 @@ describe('GET /api/knowledge-documents', () => {
       ['failed 8 days ago', { status: 'failed', finishedAt: hoursAgo(8 * 24) }],
     ] as const
     for (const [title, state] of cases) {
-      const { body } = await upload(PDF, { ...DETAILS, title })
+      const { body } = await upload(freshPdf(), { ...DETAILS, title })
       await KnowledgeDocumentModel.updateOne({ _id: body.id }, state)
     }
 
@@ -392,7 +509,7 @@ describe('GET /api/knowledge-documents', () => {
     body.find((d) => d.title === title) as Listed
 
   it('includes progress for a processing document with a seeded ingestion job', async () => {
-    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'With progress' })
+    const { body: doc } = await upload(freshPdf(), { ...DETAILS, title: 'With progress' })
     await KnowledgeDocumentModel.updateOne({ _id: doc.id }, { status: 'processing' })
     await seedJob(doc.id)
 
@@ -419,7 +536,7 @@ describe('GET /api/knowledge-documents', () => {
   })
 
   it('gives a queued document no progress field', async () => {
-    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'Queued doc' })
+    const { body: doc } = await upload(freshPdf(), { ...DETAILS, title: 'Queued doc' })
     // Left as 'queued'; a job could exist, but progress is only read for processing.
     await seedJob(doc.id)
 
@@ -428,7 +545,7 @@ describe('GET /api/knowledge-documents', () => {
   })
 
   it('gives a complete document no progress field', async () => {
-    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'Complete doc' })
+    const { body: doc } = await upload(freshPdf(), { ...DETAILS, title: 'Complete doc' })
     await KnowledgeDocumentModel.updateOne(
       { _id: doc.id },
       { status: 'complete', finishedAt: new Date() },
@@ -440,7 +557,7 @@ describe('GET /api/knowledge-documents', () => {
   })
 
   it('gives a processing document with no matching job no progress field', async () => {
-    const { body: doc } = await upload(PDF, { ...DETAILS, title: 'No job yet' })
+    const { body: doc } = await upload(freshPdf(), { ...DETAILS, title: 'No job yet' })
     await KnowledgeDocumentModel.updateOne({ _id: doc.id }, { status: 'processing' })
     // No seedJob: the worker has not written its first stage yet.
 
@@ -451,7 +568,7 @@ describe('GET /api/knowledge-documents', () => {
 
 // Uploads a document and marks it as the ingestion worker would.
 async function stored(details: Record<string, string>, state: object = { status: 'complete' }) {
-  const { body } = await upload(PDF, details)
+  const { body } = await upload(freshPdf(), details)
   await KnowledgeDocumentModel.updateOne({ _id: body.id }, { finishedAt: new Date(), ...state })
   return body.id as string
 }
@@ -505,7 +622,7 @@ describe('PUT /api/knowledge-documents/:id', () => {
 
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ id, jurisdiction: 'SG', facilityType: 'Data centre' })
-    const [url, init] = inspect.mock.lastCall as unknown as [string, RequestInit]
+    const [url, init] = lastLabelsCall()
     expect(url).toBe(`${process.env.INGESTION_SERVICE_URL}/documents/${id}/labels`)
     expect(init.method).toBe('PUT')
     expect(JSON.parse(String(init.body))).toEqual({
@@ -525,8 +642,6 @@ describe('PUT /api/knowledge-documents/:id', () => {
     inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
     return id
   }
-  const sentBody = () =>
-    JSON.parse(String((inspect.mock.lastCall as [string, RequestInit])[1].body))
 
   it('completes a needs-review document: no Unconfirmed left, details marked admin, passages active', async () => {
     const id = await needsReview()
@@ -542,10 +657,13 @@ describe('PUT /api/knowledge-documents/:id', () => {
       model: 'test-model',
     })
     expect(Object.values(saved?.labelling?.details ?? {}).map((d) => d.source)).toEqual(
-      Array(6).fill('admin'),
+      Array(7).fill('admin'),
     )
-    expect(sentBody().status).toBe('active')
-    expect(sentBody()).not.toHaveProperty('COPE_dimension')
+    // The source type, standard number and edition did not change, so the
+    // gateway relabels the passages itself and does not call /match.
+    const urls = inspect.mock.calls.map(([url]) => String(url))
+    expect(urls.filter((url) => url.endsWith('/labels'))).toHaveLength(1)
+    expect(urls.some((url) => url.endsWith('/match'))).toBe(false)
   })
 
   it('brings back the Unconfirmed list and labelling when search could not be updated', async () => {
@@ -623,6 +741,91 @@ describe('PUT /api/knowledge-documents/:id', () => {
 
     expect((await correct(id)).status).toBe(503)
     expect(await listed()).toMatchObject({ sourceType: 'nfpa_standard', edition: '2022' })
+  })
+
+  // IN-07 feedback: documents are matched on source type, standard number and
+  // edition. A title change no longer re-runs /match.
+  const matchCalls = () =>
+    inspect.mock.calls.filter(([url]) => String(url).endsWith('/match')).length
+  // DETAILS without the file name (a correction can't rename the PDF).
+  const STANDARD: Record<string, string> = Object.fromEntries(
+    Object.entries(DETAILS).filter(([name]) => name !== 'fileName'),
+  )
+
+  it.each([
+    ['standard number', { ...STANDARD, standardNumber: '13R' }, 1],
+    ['edition', { ...STANDARD, edition: '2019' }, 1],
+    ['title', { ...STANDARD, title: 'A reworded title' }, 0],
+  ])('re-runs /match after a correction only when the %s changed', async (_n, details, times) => {
+    const id = await stored(DETAILS)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const response = await correct(id, details)
+
+    expect(response.status).toBe(200)
+    expect(matchCalls()).toBe(times)
+  })
+
+  it('saves a corrected standard number, and keeps it in the replaced version', async () => {
+    const id = await stored(DETAILS)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const { body } = await correct(id, { ...STANDARD, standardNumber: '13R' })
+
+    expect(body.standardNumber).toBe('13R')
+    expect(body.history[0].standardNumber).toBe('13')
+    const saved = await KnowledgeDocumentModel.findById(id).lean()
+    expect(saved?.standardNumber).toBe('13R')
+    expect(saved?.labelling?.details.standard_number).toMatchObject({
+      value: '13R',
+      source: 'admin',
+    })
+  })
+
+  it('drops an issuing body typed before the standard number', async () => {
+    const id = await stored(DETAILS)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const { body } = await correct(id, { ...STANDARD, standardNumber: 'NFPA 13R' })
+
+    expect(body.standardNumber).toBe('13R')
+  })
+
+  it('puts the old match back when re-matching fails after saving a new one', async () => {
+    const id = await stored(DETAILS)
+    const old = {
+      kind: 'possible_copy',
+      documentId: new Types.ObjectId(),
+      newMatched: 1,
+      newTotal: 2,
+      storedMatched: 1,
+      storedTotal: 2,
+    }
+    await KnowledgeDocumentModel.updateOne({ _id: id }, { match: old })
+    // /match saves its new match in MongoDB, then fails to relabel.
+    inspect.mockImplementation(async () => {
+      await KnowledgeDocumentModel.updateOne(
+        { _id: id },
+        { match: { ...old, kind: 'newer_edition' } },
+      )
+      return Response.json({ detail: 'Chroma is down' }, { status: 500 })
+    })
+
+    expect((await correct(id, { ...STANDARD, edition: '2023' })).status).toBe(503)
+    expect((await KnowledgeDocumentModel.findById(id).lean())!.match).toMatchObject({
+      kind: 'possible_copy',
+    })
+  })
+
+  it('requires a standard number for a standard, and leaves it out for a report', async () => {
+    const id = await stored(DETAILS)
+
+    const response = await correct(id, { ...STANDARD, standardNumber: ' ' })
+
+    expect(response.status).toBe(400)
+    expect(response.body.fields).toEqual({ standardNumber: 'Standard number is required.' })
+    const report = await correct(id, CORRECTED)
+    expect(report.body.standardNumber).toBeNull()
   })
 
   // KB-01 AC9–AC10: the details a correction replaces are kept as a previous version.
@@ -841,7 +1044,7 @@ describe('POST /api/knowledge-documents/:id/withdraw and /reinstate', () => {
 
 describe('GET /api/knowledge-documents/:id/file', () => {
   it('returns the original exactly as uploaded', async () => {
-    const { body } = await upload()
+    const { body } = await upload(PDF)
 
     const response = await api.get(body.fileUrl).buffer(true)
 
@@ -863,5 +1066,239 @@ describe('GET /api/knowledge-documents/:id/file', () => {
       404,
     )
     expect((await api.get('/api/knowledge-documents/not-an-id/file')).status).toBe(404)
+  })
+})
+
+// retryIngestion is the service seam (the route is tested separately). Seeds a
+// document directly so each test starts from a known status.
+describe('retryIngestion', () => {
+  const DOC_ID = '6abb28ae16068a0793e99620'
+
+  async function seed(overrides: Record<string, unknown> = {}) {
+    await KnowledgeDocumentModel.create({
+      _id: DOC_ID,
+      title: 'NFPA 13 sprinkler standard',
+      issuingBody: 'NFPA',
+      edition: '2022',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: `knowledge/${DOC_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'abc',
+      },
+      status: 'failed',
+      error: 'Processing stopped on a system error, not a fault in the file. Upload it again.',
+      finishedAt: new Date(),
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        COPE_dimension: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+      ...overrides,
+    })
+  }
+
+  const stored = () => KnowledgeDocumentModel.findById(DOC_ID).lean()
+
+  it('flips a failed document back to queued, clearing the failure fields', async () => {
+    await seed()
+
+    await retryIngestion(DOC_ID)
+
+    const doc = await stored()
+    expect(doc!.status).toBe('queued')
+    expect(doc!.error).toBeUndefined()
+    expect(doc!.finishedAt).toBeUndefined()
+    expect(doc!.result).toBeUndefined()
+  })
+
+  it('increments the retry counter on each retry', async () => {
+    await seed()
+
+    await retryIngestion(DOC_ID)
+    expect((await stored())!.retryCount).toBe(1)
+
+    // Fail it again, then retry a second time: the counter keeps climbing.
+    await KnowledgeDocumentModel.updateOne(
+      { _id: DOC_ID },
+      { $set: { status: 'failed', error: 'again', finishedAt: new Date() } },
+    )
+    await retryIngestion(DOC_ID)
+    expect((await stored())!.retryCount).toBe(2)
+  })
+
+  it('re-queues the document', async () => {
+    await seed()
+
+    await retryIngestion(DOC_ID)
+
+    expect(requeued).toHaveBeenCalledWith(DOC_ID)
+  })
+
+  it('refuses a document that is not failed, leaving it and its counter untouched', async () => {
+    await seed({ status: 'complete', error: undefined, finishedAt: undefined })
+
+    await expect(retryIngestion(DOC_ID)).rejects.toBeInstanceOf(KnowledgeDocumentWrongStateError)
+
+    const doc = await stored()
+    expect(doc!.status).toBe('complete')
+    expect(doc!.retryCount ?? 0).toBe(0)
+    expect(requeued).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown id', async () => {
+    await expect(retryIngestion('6abb28ae16068a0793e99999')).rejects.toBeInstanceOf(
+      KnowledgeDocumentNotFoundError,
+    )
+  })
+
+  it('rejects a malformed id without reaching the database', async () => {
+    await expect(retryIngestion('not-an-id')).rejects.toBeInstanceOf(KnowledgeDocumentNotFoundError)
+  })
+
+  it('refuses with 409 when the same file was uploaded again after it failed', async () => {
+    await seed()
+    // The same file, uploaded again and finished (IN-07: one non-failed copy per file).
+    await KnowledgeDocumentModel.create({
+      title: 'Again',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: 'knowledge/again.pdf',
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'abc',
+      },
+      status: 'complete',
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        COPE_dimension: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+    })
+
+    await expect(retryIngestion(DOC_ID)).rejects.toThrow(
+      'An identical file is already in the knowledge base.',
+    )
+    expect((await stored())!.status).toBe('failed')
+    expect(requeued).not.toHaveBeenCalled()
+  })
+
+  it('rolls status and counter back if re-queueing fails', async () => {
+    await seed()
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await expect(retryIngestion(DOC_ID)).rejects.toThrow()
+
+    const doc = await stored()
+    // Back to failed, with a re-queue-specific reason, and the counter undone.
+    expect(doc!.status).toBe('failed')
+    expect(doc!.error).toMatch(/re-queue/i)
+    expect(doc!.retryCount).toBe(0)
+  })
+})
+
+// The retry route (service behaviour is covered above in `retryIngestion`).
+describe('POST /api/knowledge-documents/:id/retry', () => {
+  const RETRY_ID = '6abb28ae16068a0793e99630'
+
+  async function seedFailed(overrides: Record<string, unknown> = {}) {
+    await KnowledgeDocumentModel.create({
+      _id: RETRY_ID,
+      title: 'NFPA 13 sprinkler standard',
+      issuingBody: 'NFPA',
+      edition: '2022',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: `knowledge/${RETRY_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'abc',
+      },
+      status: 'failed',
+      error: 'Processing stopped on a system error, not a fault in the file. Upload it again.',
+      finishedAt: new Date(),
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        COPE_dimension: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+      ...overrides,
+    })
+  }
+
+  // 401 (no session) and 403 (wrong role) are covered by the ROUTES table in
+  // permissions.test.ts, alongside every other protected route.
+
+  it('accepts a retry of a failed document with 202 and re-queues it', async () => {
+    await seedFailed()
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(202)
+
+    const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
+    expect(doc!.status).toBe('queued')
+    expect(doc!.retryCount).toBe(1)
+    expect(requeued).toHaveBeenCalledWith(RETRY_ID)
+  })
+
+  it('409s a document that is not failed', async () => {
+    await seedFailed({ status: 'complete', error: undefined, finishedAt: undefined })
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(409)
+  })
+
+  it('404s an unknown id', async () => {
+    await api.post('/api/knowledge-documents/6abb28ae16068a0793e99999/retry').expect(404)
+  })
+
+  it('404s a malformed id', async () => {
+    await api.post('/api/knowledge-documents/not-an-id/retry').expect(404)
+  })
+
+  it('503s when the ingestion queue cannot be reached, leaving the document failed', async () => {
+    await seedFailed()
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(503)
+
+    const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
+    expect(doc!.status).toBe('failed')
+    expect(doc!.retryCount).toBe(0)
+  })
+})
+
+// Startup index check (IN-07 AC1): duplicates stop the unique index building.
+describe('buildKnowledgeDocumentIndex', () => {
+  it('logs one clear error, and does not throw, when identical files already exist', async () => {
+    await KnowledgeDocumentModel.collection.dropIndexes()
+    const doc = (n: number) => ({
+      title: 'T',
+      fileName: `a${n}.pdf`,
+      file: { key: `k${n}`, contentType: 'application/pdf', size: 1, sha256: 'same' },
+      status: 'complete',
+      metadata: {
+        source_type: 'marsh_report',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        COPE_dimension: 'all',
+        effective_date: new Date(),
+      },
+    })
+    await KnowledgeDocumentModel.collection.insertMany([doc(1), doc(2)])
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await buildKnowledgeDocumentIndex()
+
+    expect(error).toHaveBeenCalledTimes(1)
+    expect(String(error.mock.calls[0][0])).toMatch(/1 groups? of identical files/)
+    error.mockRestore()
+    await KnowledgeDocumentModel.deleteMany({})
+    await KnowledgeDocumentModel.syncIndexes()
   })
 })

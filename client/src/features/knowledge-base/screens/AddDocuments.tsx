@@ -13,9 +13,12 @@ import { addFiles, clearFinished, useUploads } from '../uploads'
 export function AddDocuments({
   narrow,
   onCompleted,
+  onReview,
 }: {
   narrow: boolean
   onCompleted: (count: number) => void
+  // Opens a document's Review page (IN-07).
+  onReview: (id: string) => void
 }) {
   const uploads = useUploads()
   const [dragging, setDragging] = useState(false)
@@ -92,7 +95,12 @@ export function AddDocuments({
         )}
       </section>
 
-      <UploadedDocuments narrow={narrow} refreshKey={acceptedCount} onCompleted={onCompleted} />
+      <UploadedDocuments
+        narrow={narrow}
+        refreshKey={acceptedCount}
+        onCompleted={onCompleted}
+        onReview={onReview}
+      />
     </>
   )
 }

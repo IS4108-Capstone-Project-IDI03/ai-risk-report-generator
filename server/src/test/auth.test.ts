@@ -1,10 +1,13 @@
 import bcrypt from 'bcrypt'
+import nodemailer from 'nodemailer'
 import request from 'supertest'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { config } from '../config'
 import { UserModel } from '../models/user.model'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs } from './auth-test-helpers'
+import { createNotification } from '../services/notification.service'
 
 useMemoryMongo()
 
@@ -105,6 +108,56 @@ describe('Sliding session expiry (F-07)', () => {
   })
 })
 
+// Polling the notification count must not keep an idle session alive — the
+// whole point of the no-refresh gate on that route (F-07 still holds).
+describe('Notification count polling and session expiry', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not extend the session when only the count is polled', async () => {
+    await seedUser({ email: 'poller@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'poller@example.com', password: 'correct horse' })
+
+    // Poll the count within the 15-minute window. A refreshing route would
+    // reset the clock on each poll and keep the session alive indefinitely;
+    // the count route must not, so these polls succeed but do not extend it.
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000) // 10 min since login
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+
+    // Cross 15 minutes since login with no refreshing request. Had the polls
+    // refreshed the session it would still be valid; because they did not, it
+    // has expired — the next poll is rejected, and so is a real route.
+    vi.advanceTimersByTime(6 * 60 * 1000) // 16 min since login
+    expect((await agent.get('/api/notifications/count')).status).toBe(401)
+    expect((await agent.get('/api/auth/me')).status).toBe(401)
+  })
+
+  it('still lets real activity keep the session alive while polling', async () => {
+    await seedUser({ email: 'active-poller@example.com' })
+    const agent = request.agent(app)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await agent
+      .post('/api/auth/login')
+      .send({ email: 'active-poller@example.com', password: 'correct horse' })
+
+    // A refreshing request (/me) at 14 min resets the clock; a later poll does
+    // not undo that, so the session is still valid 10 min after the refresh.
+    vi.advanceTimersByTime(14 * 60 * 1000)
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/notifications/count')).status).toBe(200)
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    expect((await agent.get('/api/auth/me')).status).toBe(200)
+  })
+})
+
 describe('POST /api/auth/logout (F-07 AC4)', () => {
   it('invalidates the session, not just the browser cookie', async () => {
     await seedUser({ email: 'logout@example.com' })
@@ -136,6 +189,68 @@ describe('GET /api/auth/me', () => {
     const res = await agent.get('/api/auth/me')
     expect(res.status).toBe(200)
     expect(res.body.user).toMatchObject({ role: 'risk_engineer', name: 'Jide Okafor' })
+  })
+})
+
+// The session carries the user's notification counts, so the header can show
+// the unread badge and decide whether to offer Load more without a separate
+// fetch on sign-in (Task 5).
+describe('session notification counts', () => {
+  it('includes zero counts for a user with no notifications on login', async () => {
+    await seedUser()
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+    expect(res.status).toBe(200)
+    expect(res.body.notifications).toEqual({ total: 0, unread: 0 })
+  })
+
+  it('counts the login user\u2019s role notifications', async () => {
+    await seedUser() // a risk_engineer
+    await createNotification({
+      purpose: 'assessment_status',
+      message: 'A report is ready for review.',
+      targetRole: 'risk_engineer',
+      targetUserIds: ['all'],
+    })
+    // A knowledge-admin notification the engineer must not be counted.
+    await createNotification({
+      purpose: 'ingestion_status',
+      message: 'A document failed to ingest.',
+      targetRole: 'knowledge_admin',
+      targetUserIds: ['all'],
+    })
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+
+    expect(res.body.notifications).toEqual({ total: 1, unread: 1 })
+  })
+
+  it('includes the counts on /api/auth/me too', async () => {
+    const user = await seedUser()
+    await createNotification({
+      purpose: 'assessment_status',
+      message: 'A report is ready for review.',
+      targetRole: 'risk_engineer',
+      targetUserIds: ['all'],
+    })
+    const agent = signedInAs(app, user)
+
+    const res = await agent.get('/api/auth/me')
+
+    expect(res.body.notifications).toEqual({ total: 1, unread: 1 })
+  })
+
+  it('leaves the existing user and permissions fields intact', async () => {
+    await seedUser()
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
+
+    expect(res.body.user).toMatchObject({ role: 'risk_engineer', name: 'Jide Okafor' })
+    expect(res.body.permissions).toContain('assessments:view')
   })
 })
 
@@ -226,5 +341,64 @@ describe('POST /api/auth/reset (F-06)', () => {
     vi.advanceTimersByTime(31 * 60 * 1000) // past the 30-minute expiry
     const res = await request(app).post('/api/auth/reset').send({ token, password: 'too late now' })
     expect(res.status).toBe(400)
+  })
+})
+
+// Real mail (F-06 AC1): with SMTP configured, the reset link is emailed.
+// nodemailer is stubbed — a test must never reach a real mail server.
+describe('Reset email over SMTP (F-06 AC1)', () => {
+  const sendMail = vi.fn()
+  const original = { ...config.smtp, appUrl: config.appUrl }
+
+  beforeEach(() => {
+    sendMail.mockReset().mockResolvedValue({})
+    vi.spyOn(nodemailer, 'createTransport').mockReturnValue({ sendMail } as never)
+    config.smtp.host = 'smtp.test'
+    config.smtp.from = 'Marsh Risk <sender@example.com>'
+    config.appUrl = 'http://app.test'
+  })
+  afterEach(() => {
+    Object.assign(config.smtp, original)
+    config.appUrl = original.appUrl
+    vi.restoreAllMocks()
+  })
+
+  it('emails the registered user a link that carries the reset code', async () => {
+    await seedUser({ email: 'smtp@example.com' })
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const res = await request(app)
+      .post('/api/auth/request-reset')
+      .send({ email: 'smtp@example.com' })
+    expect(res.status).toBe(200)
+    const mail = sendMail.mock.calls[0][0]
+    expect(mail).toMatchObject({ to: 'smtp@example.com', from: 'Marsh Risk <sender@example.com>' })
+    const code = mail.text.match(/http:\/\/app\.test\/\?reset=([a-f0-9]{64})/)?.[1]
+    expect(code).toBeTruthy()
+    // The code is a secret: with real mail it must not also go to the logs.
+    expect(log.mock.calls.flat().join(' ')).not.toContain(code)
+    // And the emailed code really resets the password.
+    const reset = await request(app)
+      .post('/api/auth/reset')
+      .send({ token: code, password: 'brand new password' })
+    expect(reset.status).toBe(200)
+  })
+
+  it('sends nothing for an unregistered address', async () => {
+    await request(app).post('/api/auth/request-reset').send({ email: 'nobody@example.com' })
+    expect(sendMail).not.toHaveBeenCalled()
+  })
+
+  it('answers the same when the mail server fails', async () => {
+    await seedUser({ email: 'down@example.com' })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    sendMail.mockRejectedValue(new Error('SMTP down'))
+    const failed = await request(app)
+      .post('/api/auth/request-reset')
+      .send({ email: 'down@example.com' })
+    const unknown = await request(app)
+      .post('/api/auth/request-reset')
+      .send({ email: 'nobody@example.com' })
+    expect(failed.status).toBe(unknown.status)
+    expect(failed.body).toEqual(unknown.body)
   })
 })

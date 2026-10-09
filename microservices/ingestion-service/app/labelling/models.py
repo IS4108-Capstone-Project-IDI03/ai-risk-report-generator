@@ -138,7 +138,7 @@ def openai_decisions_classify(text: str) -> tuple[dict, dict]:
 
 
 def anthropic_extract(text: str) -> tuple[dict, dict]:
-    """Return (answers for all six details, usage) from Claude Haiku."""
+    """Return (answers for all seven details, usage) from Claude Haiku."""
     started = time.monotonic()
     model = config.llm_model()
     data = _post(
@@ -167,7 +167,7 @@ def anthropic_extract(text: str) -> tuple[dict, dict]:
 
 
 def openai_extract(text: str) -> tuple[dict, dict]:
-    """Return (answers for all six details, usage) from the OpenAI Responses API."""
+    """Return (answers for all seven details, usage) from the OpenAI Responses API."""
     started = time.monotonic()
     model = config.llm_model()
     data = _post(
@@ -200,5 +200,5 @@ def classify_details(text: str) -> tuple[dict, dict]:
 
 
 def extract_details(text: str) -> tuple[dict, dict]:
-    """Return the configured LLM's answers for all six details, and usage."""
+    """Return the configured LLM's answers for all seven details, and usage."""
     return (openai_extract if config.llm_provider() == "openai" else anthropic_extract)(text)

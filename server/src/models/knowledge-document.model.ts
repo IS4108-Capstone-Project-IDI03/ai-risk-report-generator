@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose'
+import { Schema, model, type Types } from 'mongoose'
 
 // Where a knowledge document is in ingestion. The gateway sets `queued`; the
 // ingestion worker moves it on (see microservices/ingestion-service/app/worker.py).
@@ -14,17 +14,19 @@ export interface IDocumentVersion {
   title: string
   issuingBody: string | null
   edition?: string
+  standardNumber?: string
   metadata: IKnowledgeDocument['metadata']
   replacedAt: Date
   replacedBy: { id: string; name: string }
 }
 
-// The six details auto-labelling reads from a file (IN-05), snake_case as in
+// The seven details auto-labelling reads from a file (IN-05), snake_case as in
 // the ingestion service's /label answer and the Chroma labels.
 export const DETAIL_NAMES = [
   'source_type',
   'title',
   'edition',
+  'standard_number',
   'effective_date',
   'jurisdiction',
   'facility_type',
@@ -41,6 +43,19 @@ export interface ILabelledDetail {
   source: 'auto' | 'admin'
 }
 
+// Why a document needs review besides Unconfirmed details (IN-07). Written only
+// by the ingestion service's match module (microservices/ingestion-service);
+// the counts always come from the copy check, also for an edition match.
+export const MATCH_KINDS = ['newer_edition', 'earlier_edition', 'possible_copy'] as const
+export interface IDocumentMatch {
+  kind: (typeof MATCH_KINDS)[number]
+  documentId: Types.ObjectId
+  newMatched: number
+  newTotal: number
+  storedMatched: number
+  storedTotal: number
+}
+
 export interface IKnowledgeDocument {
   title: string
   // Set from the source type (FM Global, NFPA or Marsh); null while the
@@ -48,6 +63,9 @@ export interface IKnowledgeDocument {
   issuingBody: string | null
   // A standard's year, e.g. "2022"; absent for a past report.
   edition?: string
+  // The designation without the issuing body, e.g. "13" or "2-81"; identity for
+  // matching (IN-07). Standards only; absent for a report.
+  standardNumber?: string
   // The name the file had on the admin's machine.
   fileName: string
   // The unaltered original in S3. MongoDB holds only its key; sha256 lets
@@ -84,6 +102,17 @@ export interface IKnowledgeDocument {
   // Present only while the document is withdrawn (KB-01): when, and by whom.
   // `status` stays `complete`; reinstating removes this.
   withdrawn?: { at: Date; by: { id: string; name: string } }
+  // Times an admin has pressed Retry on a failed ingestion. Only ever bumped by
+  // retryIngestion, so it counts human retries, not automatic worker re-runs.
+  // Not shown anywhere; its sole use is to make each retry's ingestion
+  // notification distinct (so a repeat failure notifies again, IN-10).
+  retryCount: number
+  // The stored document this one repeats or updates (IN-07); null once decided.
+  // Non-empty `unconfirmed` or a match both make the document "needs review".
+  match?: IDocumentMatch | null
+  // Shared by every edition of one standard once an admin links them (IN-07
+  // decisions); the id of the first document of the family. Written only by the gateway.
+  editionFamily?: Types.ObjectId | null
   createdAt: Date
   updatedAt: Date
 }
@@ -113,6 +142,7 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
     title: { type: String, required: true, trim: true },
     issuingBody: { type: String, trim: true },
     edition: { type: String, trim: true },
+    standardNumber: { type: String, trim: true },
     fileName: { type: String, required: true },
     file: {
       key: { type: String, required: true },
@@ -146,6 +176,7 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
             title: { type: String, required: true },
             issuingBody: String,
             edition: String,
+            standardNumber: String,
             metadata: metadataSchema,
             replacedAt: { type: Date, required: true },
             replacedBy: {
@@ -158,6 +189,20 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
       ],
       default: [],
     },
+    match: {
+      type: new Schema(
+        {
+          kind: { type: String, enum: MATCH_KINDS, required: true },
+          documentId: { type: Schema.Types.ObjectId, required: true },
+          newMatched: { type: Number, required: true },
+          newTotal: { type: Number, required: true },
+          storedMatched: { type: Number, required: true },
+          storedTotal: { type: Number, required: true },
+        },
+        { _id: false },
+      ),
+    },
+    editionFamily: { type: Schema.Types.ObjectId },
     withdrawn: {
       type: new Schema(
         {
@@ -170,8 +215,20 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
         { _id: false },
       ),
     },
+    retryCount: { type: Number, required: true, default: 0 },
   },
   { timestamps: true, collection: 'knowledge_documents' },
+)
+
+// One stored copy of each file (IN-07 AC1). A failed document is outside the
+// index so its file can be uploaded again; without this index, two identical
+// files uploaded together would both pass the upload's fingerprint lookup.
+knowledgeDocumentSchema.index(
+  { 'file.sha256': 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ['queued', 'processing', 'complete'] } },
+  },
 )
 
 export const KnowledgeDocumentModel = model<IKnowledgeDocument>(

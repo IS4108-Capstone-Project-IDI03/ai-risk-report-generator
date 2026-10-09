@@ -340,17 +340,20 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a photo is taken on the device, when the engineer uploads it to the application, then it uploads as normal.
   </details>
 
-- [ ] **CP-05** — Automatically interpret a site photograph (risk engineer, Must, 2 pts, deps: CP-04, Sprint 2)
+- [ ] **CP-05** — Automatically interpret a site photograph (risk engineer, Must, 2→5 pts, deps: CP-04, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: receive a proposed observation from a site photograph, so a draft description of the visible hazard can be reviewed.
 
-  1. Given an active capture session, when a supported photograph finishes saving, then a vision job is queued automatically.
+  S5 reads all of an observation's photos together with Gemini, as one interpretation per observation, and proposes a description, a COPE category and a hazard type. It reads them only when an engineer asks (Read photos), never on save. The proposal is never drafting evidence: the engineer takes it into the note or category through Edit (Use as note, Change category). See `docs/DECISIONS.md` (2026-10-08, both photo entries).
+
+  1. Given an observation has supported photographs, when the engineer asks for them to be read, then one vision job covering all of its photographs is queued. (Reworded 8 Oct 2026: it was queued automatically on save.)
   2. Given an active vision job, when the photo observation is opened, then its status is Interpreting.
   3. Given a successful vision result, when the observation is opened, then the proposed description is shown as generated text.
   4. Given a successful vision result, when the generated metadata is inspected, then the proposed category is displayed.
   5. Given a successful vision result, when the generated metadata is inspected, then the proposed hazard type is displayed.
   6. Given a generated photo observation, when its evidence link is opened, then the source photograph is displayed.
+  7. Given an observation's photographs are saved, when the save completes, then none is sent for interpretation until the engineer asks. (Added 8 Oct 2026.)
   </details>
 
 - **CP-06** — Tag an observation: merged into CP-08 on 2026-10-07 (its AC1-AC3 are CP-08 AC6, AC3 and AC7). See `docs/DECISIONS.md`.
@@ -371,7 +374,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: view, filter, tag, correct and remove the observations captured for an assessment, so report drafting works from evidence that is accurate, consistently labelled and traceable to what each draft used.
 
-  Terms: Type is Note, Voice, or both. Status is Transcribing, Transcription failed or Complete. Tags are category, severity, location (with its floor) and standard. A "change" is editing tags, a note or a transcript, or deleting.
+  Terms: Type is Note, Voice, or both. Status is Transcribing, Interpreting, Transcription failed, Interpretation failed or Complete (the photo statuses from CP-05). Tags are category, severity, location (with its floor) and standard. A "change" is editing tags, a note or a transcript, adding, removing or restoring a recording or photo, or deleting.
 
   1. Given an assessment has observations, when I open the Observations tab, then every observation not deleted is listed, newest first.
   2. Given an observation is listed, when I view its row, then I see its type, category, location, floor, severity, status, and capture date and time.
@@ -381,7 +384,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given I edit an observation's tags, when I save and reopen it, then the new tags are shown.
   7. Given I am choosing a category, when I open the list, then only Construction, Occupancy, Protection, Exposure and Uncategorised are offered.
   8. Given I edit an observation's note, when I save, then the new note is stored exactly as typed.
-  9. Given an observation has no recording, when I clear its note, then the save is refused.
+  9. Given an observation has no recording or photo, when I clear its note, then the save is refused. (Reworded 8 Oct 2026: a photo now counts, as recordings and photos can be removed.)
   10. Given a recording is transcribed, when I correct its transcript, then drafting uses the correction and the original transcript is kept.
   11. Given an observation was edited or deleted, when I view it, then I see who did it and when.
   12. Given I confirm deleting an observation, when it is deleted, then it is marked deleted but kept in the database.
@@ -391,6 +394,14 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   16. Given an observation was edited, when a section is next drafted, then the draft uses the current version.
   17. Given I am not the assigned engineer, or the assessment is archived, when I try to change an observation, then the change is refused.
   18. Given a save fails, when the error is shown, then my changes are kept so I can try again.
+
+  Added 8 Oct 2026 (adding and removing recordings and photos; see `docs/DECISIONS.md`):
+
+  19. Given an observation is saved, when I add recordings or photos to it, then each is stored as raw evidence with it, and each recording is transcribed.
+  20. Given I remove a recording or photo, when I view the observation, then it is listed as removed with who removed it and when, and drafting and the photo collection no longer use it.
+  21. Given a recording or photo was removed, when I restore it, then it returns to the observation and to drafting.
+  22. Given removing a recording or photo would leave no note, recording or photo, when I remove it, then the removal is refused.
+  23. Given an observation's photographs changed since they were read, when I view the proposal, then it is marked out of date and I can read them again.
   </details>
 
 - [ ] **CP-09** — Open the raw capture behind an observation (risk engineer, Must, 1 pt, deps: CP-03, CP-04, Sprint 2)
@@ -525,7 +536,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a replacement section draft is ready, when I discard it, then the previously saved section content remains unchanged.
   </details>
 
-- [ ] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: CP-14, RT-02, Sprint 4)
+- [ ] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: GN-01, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: draft each Opportunity for Improvement as a complete record in Marsh's format, informed by comparable past assessments.
@@ -536,6 +547,9 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given I have reviewed a recommendation suggestion, when I explicitly accept it, then that suggestion is inserted into the report.
   5. Given an observation needs an Opportunity for Improvement, when it is drafted, then it is created as a structured record using Marsh's fields and configured value lists.
   6. Given an Opportunity for Improvement has a likelihood and a consequence, when it is drafted, then its priority comes from the Risk Assessment Matrix.
+  7. Given a set of evaluation cases built from Marsh's past reports, when each case's OFIs are drafted and scored by an LLM judge against a fixed rubric, averaged over two runs, then every case meets the pass marks, and the scores, judge model and rubric version are recorded.
+
+  Dependencies changed 8 Oct: GN-01, whose retrieval, rerank and drafting pipeline OFI drafting reuses. CP-14 was dropped, and RT-02 is not needed: OFI drafting retrieves past OFIs from the knowledge base by heading itself. OFI types are provisional until Marsh's RQR sub-category list arrives.
   </details>
 
 - [ ] **GN-06** — Produce Section 4 risk quality ratings and commentary (risk engineer, Must, 3 pts, deps: CP-14, Sprint 4)

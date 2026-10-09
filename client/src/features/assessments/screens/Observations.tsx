@@ -8,7 +8,8 @@ import {
   IconRegistry,
   Select,
 } from '../../../design-system'
-import { DeleteDialog, TranscriptDialog } from '../components/ObservationDialogs'
+import { AddMediaDialog } from '../components/AddMediaDialog'
+import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
 import { TagDialog } from '../components/TagDialog'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import type { TranscriptionStatus } from '../api'
@@ -38,6 +39,186 @@ const stampStyle = {
   fontSize: '12px',
   color: 'var(--text-muted)',
 } as const
+
+const proposalSection = {
+  marginTop: '14px',
+  paddingTop: '12px',
+  borderTop: '1px solid var(--border-subtle)',
+} as const
+const proposalHeading = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  flexWrap: 'wrap',
+  fontSize: '14px',
+  fontWeight: '500',
+  color: 'var(--text-primary)',
+} as const
+
+// What the vision model proposes from the observation's photos (CP-05): a
+// machine reading, so it sits in AI violet with the photos it was read from,
+// and becomes the engineer's own only through Edit. Nothing reads the photos
+// until an engineer asks, so until then it offers Read photos.
+function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['proposal']> }) {
+  if (proposal.status === 'unread')
+    return (
+      <section aria-label="Proposal from the photos" style={proposalSection}>
+        <div style={proposalHeading}>
+          <Icon name="camera" size={14} color="#4f9aee"></Icon>
+          <span>{'Proposal from the photos'}</span>
+        </div>
+        <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+          {
+            'Not read yet. Reading sends the photos to the photo service, which proposes a description, category and hazard type for you to review.'
+          }
+        </p>
+        {!!proposal.read && (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={IconRegistry.action.generate}
+            onClick={proposal.read}
+            style={{ marginTop: '8px' }}
+          >
+            {'Read photos'}
+          </Button>
+        )}
+      </section>
+    )
+  return (
+    <section aria-label="Proposal from the photos" style={proposalSection}>
+      <div style={proposalHeading}>
+        <Icon name="camera" size={14} color="#4f9aee"></Icon>
+        <span>{'Proposal from the photos'}</span>
+        <Badge tone="ai" icon="sparkles">
+          {proposal.sample ? 'Sample proposal' : 'AI proposal'}
+        </Badge>
+        {proposal.status === 'interpreting' && <Badge tone="info">Interpreting</Badge>}
+        {proposal.status === 'failed' && <Badge tone="high">Failed</Badge>}
+      </div>
+      {proposal.status === 'failed' ? (
+        <div role="status" style={{ marginTop: '8px' }}>
+          <Callout
+            tone="warning"
+            title="Interpretation failed"
+            actions={
+              proposal.retry && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="refresh-cw"
+                  onClick={proposal.retry}
+                >
+                  {'Retry interpretation'}
+                </Button>
+              )
+            }
+          >
+            {proposal.error}
+          </Callout>
+        </div>
+      ) : proposal.status === 'interpreting' ? (
+        <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+          {'Interpreting the photos…'}
+        </p>
+      ) : (
+        <>
+          {/* Photos were added or removed since it was read (CP-08). */}
+          {!!proposal.outOfDate && (
+            <div role="status" style={{ marginTop: '8px' }}>
+              <Callout
+                tone="warning"
+                title="Read from an earlier set of photos"
+                actions={
+                  proposal.retry && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      iconLeft="refresh-cw"
+                      onClick={proposal.retry}
+                    >
+                      {'Read again'}
+                    </Button>
+                  )
+                }
+              >
+                {
+                  'Photos were added or removed since this was read. Read them again to include the change.'
+                }
+              </Callout>
+            </div>
+          )}
+          <p
+            style={{
+              margin: '6px 0 0',
+              paddingLeft: '12px',
+              borderLeft: '2px solid var(--ai-border)',
+              fontSize: '15px',
+              lineHeight: '24px',
+              color: 'var(--text-body)',
+              maxWidth: '68ch',
+              textWrap: 'pretty',
+            }}
+          >
+            {proposal.description}
+          </p>
+          <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+            {proposal.summary}
+          </p>
+          {/* The photos it was read from, each opening the original (AC6),
+              marking any since removed (CP-08). */}
+          <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+            {'Read from '}
+            {(proposal.readFrom ?? o.media.map((m) => ({ ...m, removed: false }))).map(
+              (m, index) => (
+                <Fragment key={index}>
+                  {index > 0 && ', '}
+                  {m.url ? (
+                    <a href={m.url} target="_blank" rel="noreferrer">
+                      {m.name}
+                    </a>
+                  ) : (
+                    m.name
+                  )}
+                  {m.removed && ' (removed)'}
+                </Fragment>
+              ),
+            )}
+          </p>
+          <p style={stampStyle}>
+            {proposal.sample
+              ? 'No capture session, so this is a sample proposal, not a reading of the photos.'
+              : 'Proposed by ' + (proposal.model ?? 'the photo service')}
+          </p>
+          {(!!proposal.useAsNote || !!proposal.changeCategory) && (
+            <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {!!proposal.useAsNote && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="sticky-note"
+                  onClick={proposal.useAsNote}
+                >
+                  {'Use as note'}
+                </Button>
+              )}
+              {!!proposal.changeCategory && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="tag"
+                  onClick={proposal.changeCategory}
+                >
+                  {'Change category to ' + proposal.category}
+                </Button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -492,8 +673,22 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               aria-label={'Play ' + r.name}
                               style={{ display: 'block', width: '100%', marginTop: '8px' }}
                             />
+                            {!!r.addedLabel && <p style={stampStyle}>{r.addedLabel}</p>}
+                            {/* Kept to restore, never deleted (CP-08). */}
+                            {!!r.remove && (
+                              <Button
+                                variant="danger-tonal"
+                                size="sm"
+                                iconLeft={IconRegistry.action.discard}
+                                onClick={r.remove}
+                                style={{ marginTop: '8px' }}
+                              >
+                                {'Remove recording'}
+                              </Button>
+                            )}
                           </section>
                         ))}
+                        {!!o.proposal && <PhotoProposal o={o} proposal={o.proposal} />}
                         {!!o.deletedLabel && <p style={stampStyle}>{o.deletedLabel}</p>}
                         {!!o.editedLabel && <p style={stampStyle}>{o.editedLabel}</p>}
                         <div
@@ -538,6 +733,16 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                               >
                                 {'Edit'}
                               </Button>
+                              {!!o.addMedia && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  iconLeft={IconRegistry.action.add}
+                                  onClick={o.addMedia}
+                                >
+                                  {'Add media'}
+                                </Button>
+                              )}
                               <Button
                                 variant="danger-tonal"
                                 size="sm"
@@ -581,7 +786,15 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                           }}
                         >
                           {o.media.map((m, index) => (
-                            <Fragment key={index}>
+                            <div
+                              key={index}
+                              style={{
+                                width: '132px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                              }}
+                            >
                               {m.url ? (
                                 // The original photo, linked from its observation (CP-04 AC2).
                                 <a
@@ -648,12 +861,26 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                   </span>
                                 </div>
                               )}
-                            </Fragment>
+                              {/* Kept to restore, never deleted (CP-08). */}
+                              {!!m.remove && (
+                                <Button
+                                  variant="danger-tonal"
+                                  size="sm"
+                                  iconLeft={IconRegistry.action.discard}
+                                  aria-label={'Remove ' + m.name}
+                                  onClick={m.remove}
+                                >
+                                  {'Remove'}
+                                </Button>
+                              )}
+                            </div>
                           ))}
-                          {v.canEdit && v.canCapture && (
+                          {/* Adds recordings and photos to this observation (CP-08). */}
+                          {!!o.addMedia && (
                             <button
                               type="button"
-                              onClick={v.goField}
+                              aria-label="Add media"
+                              onClick={o.addMedia}
                               style={{
                                 width: '132px',
                                 minHeight: '76px',
@@ -667,10 +894,84 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                 cursor: 'pointer',
                               }}
                             >
-                              <Icon name="camera" size={18}></Icon>
+                              <Icon name={IconRegistry.action.add} size={18}></Icon>
                             </button>
                           )}
                         </div>
+                        {o.media
+                          .filter((m) => m.addedLabel)
+                          .map((m, index) => (
+                            <p key={index} style={stampStyle}>
+                              {m.addedLabel}
+                            </p>
+                          ))}
+                        {o.removedMedia.length > 0 && (
+                          <details style={{ marginTop: '14px', fontSize: '14px' }}>
+                            <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                              {'Removed media (' + o.removedMedia.length + ')'}
+                            </summary>
+                            <ul
+                              aria-label="Removed media"
+                              style={{
+                                listStyle: 'none',
+                                margin: '8px 0 0',
+                                padding: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px',
+                              }}
+                            >
+                              {o.removedMedia.map((m) => (
+                                <li key={m.id} style={{ minWidth: 0 }}>
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    <Icon
+                                      name={m.kind === 'recordings' ? 'mic' : 'image'}
+                                      size={14}
+                                      color="var(--text-muted)"
+                                    ></Icon>
+                                    {m.kind === 'photos' && m.url ? (
+                                      <a href={m.url} target="_blank" rel="noreferrer">
+                                        {m.name}
+                                      </a>
+                                    ) : (
+                                      <span style={{ overflowWrap: 'anywhere' }}>{m.name}</span>
+                                    )}
+                                    {!!m.restore && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        iconLeft={IconRegistry.action.reinstate}
+                                        aria-label={'Restore ' + m.name}
+                                        onClick={m.restore}
+                                      >
+                                        {'Restore'}
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {m.kind === 'recordings' && !!m.url && (
+                                    <audio
+                                      controls
+                                      preload="none"
+                                      src={m.url}
+                                      aria-label={'Play ' + m.name}
+                                      style={{ display: 'block', width: '100%', marginTop: '6px' }}
+                                    />
+                                  )}
+                                  <p style={{ ...stampStyle, margin: '4px 0 0' }}>
+                                    {m.removedLabel}
+                                  </p>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
                       </div>
                     </div>
                   </>
@@ -728,6 +1029,16 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
       )}
       {v.obsDialog?.kind === 'delete' && (
         <DeleteDialog key={v.obsDialog.key} v={v} dialog={v.obsDialog} />
+      )}
+      {v.obsDialog?.kind === 'addMedia' && (
+        <AddMediaDialog key={v.obsDialog.key} v={v} dialog={v.obsDialog} />
+      )}
+      {v.obsDialog?.kind === 'removeMedia' && !!v.obsDialog.media && (
+        <RemoveMediaDialog
+          key={v.obsDialog.key + v.obsDialog.media.id}
+          v={v}
+          dialog={v.obsDialog}
+        />
       )}
     </>
   )

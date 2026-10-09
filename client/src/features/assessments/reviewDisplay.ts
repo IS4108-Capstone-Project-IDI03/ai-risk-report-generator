@@ -7,9 +7,6 @@ type Draft = Omit<SectionDraft, 'sources'>
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-// What changed in a draft's evidence since it was written, e.g. "2
-// observations added, 1 changed and 1 removed" (CP-08). A kind with none is
-// left out, so "1 observation removed" says only what happened.
 export function describeChanges({ added, changed, removed }: ChangeCounts) {
   const kinds = (
     [
@@ -25,7 +22,6 @@ export function describeChanges({ added, changed, removed }: ChangeCounts) {
     ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
     : (words[0] ?? '')
 }
-
 // One number per cited source, in the order each is first cited across the
 // whole section, so a number in the draft names the same source beside it.
 export function citationNumbers(draft: Draft): Map<string, number> {

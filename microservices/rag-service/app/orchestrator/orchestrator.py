@@ -12,8 +12,17 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app import config
-from app.generation.generator import PROMPT_VERSION, TEMPLATE, draft_section, generate
+from app import config, usage
+from app.generation.generator import (
+    OFI_CONFIG,
+    OFI_PROMPT_VERSION,
+    PROMPT_VERSION,
+    TEMPLATE,
+    draft_ofis,
+    draft_section,
+    generate,
+    ram_priority,
+)
 from app.guardrails.checker import check, check_citations
 from app.retrieval.retriever import rerank, retrieve, search
 
@@ -90,11 +99,28 @@ def standard_queries(section: dict, observations) -> list[str]:
     ]
 
 
+def _nearest_first(per_observation: list[list[dict]]) -> dict[str, dict]:
+    """Standards within MAX_STANDARD_DISTANCE, each observation's nearest first, then the
+    next nearest, so if rerank fails a cap still keeps every observation's nearest."""
+    standards: dict[str, dict] = {}
+    per_observation = [
+        [h for h in hits if h.get("distance", 0) <= MAX_STANDARD_DISTANCE]
+        for hits in per_observation
+    ]
+    for rank in range(STANDARDS_PER_OBSERVATION):
+        for hits in per_observation:
+            if rank < len(hits):
+                standards.setdefault(hits[rank]["id"], hits[rank])
+    return standards
+
+
 def draft(section_id: str, assessment, observations) -> dict:
     """Draft one report section (GN-01): retrieve, generate, check citations.
 
     Raises KeyError for a section that is not in the template.
     """
+    # Filled by the paid calls below (embed, rerank, draft) and returned as `usage`.
+    paid_calls = usage.start()
     section = TEMPLATE["sections"][section_id]
     title = section["title"]
     site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
@@ -120,17 +146,7 @@ def draft(section_id: str, assessment, observations) -> dict:
         ]
     )
 
-    # Each observation's nearest passage first, then the next nearest, so if rerank
-    # fails the cap below still keeps every observation's nearest.
-    standards: dict[str, dict] = {}
-    per_observation = [
-        [h for h in hits if h.get("distance", 0) <= MAX_STANDARD_DISTANCE]
-        for hits in per_observation
-    ]
-    for rank in range(STANDARDS_PER_OBSERVATION):
-        for hits in per_observation:
-            if rank < len(hits):
-                standards.setdefault(hits[rank]["id"], hits[rank])
+    standards = _nearest_first(per_observation)
 
     # Past reports' passages under the same section heading, as wording and precedent.
     precedents = [
@@ -194,6 +210,7 @@ def draft(section_id: str, assessment, observations) -> dict:
         "questions": result.questions[:3],
         "sources": sources,
         "guardrail": guardrail,
+        "usage": paid_calls,
         "provenance": {
             "provider": config.LLM_PROVIDER,
             "model": model,
@@ -202,4 +219,112 @@ def draft(section_id: str, assessment, observations) -> dict:
             "template_version": TEMPLATE["version"],
             "generated_at": datetime.now(UTC).isoformat(),
         },
+    }
+
+
+# Severities that can call for an OFI (GN-05, decided 8 Oct): the model proposes OFIs only
+# from these; a low-severity finding is reported in its section, not acted on.
+OFI_SEVERITIES = {"critical", "high", "moderate"}
+OFI_HEADING = "Opportunities for Improvement"
+MAX_PAST_OFIS = 8
+
+
+def _is_past_ofi(chunk: dict) -> bool:
+    """A past report's OFI record: under "Opportunities for Improvement", but not the
+    section's introduction or its Risk Assessment Matrix boilerplate."""
+    headings = (chunk["metadata"] or {}).get("headings") or []
+    return (
+        OFI_HEADING in headings
+        and headings[-1] != OFI_HEADING
+        and not any("Risk Assessment Matrix" in h for h in headings)
+    )
+
+
+def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
+    """Draft Section 3 Opportunities for Improvement (GN-05): pick candidate observations,
+    retrieve standards and past OFIs, generate, then finish each OFI in code.
+
+    `accepted` holds the titles of OFIs already accepted, so they aren't proposed again.
+    """
+    # Filled by the paid calls below (embed, rerank, draft) and returned as `usage` (EV-03).
+    paid_calls = usage.start()
+    provenance = {
+        "provider": config.LLM_PROVIDER,
+        "model": None,
+        "effort": config.LLM_EFFORT,
+        "prompt_version": OFI_PROMPT_VERSION,
+        "config_version": OFI_CONFIG["version"],
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+    # 1. Candidates: moderate-or-worse findings. None means nothing to suggest, and no call.
+    # Cohere embeds at most 96 texts a call, two per candidate.
+    candidates = [o for o in observations if o.severity in OFI_SEVERITIES][:48]
+    if not candidates:
+        return {"ofis": [], "sources": {}, "provenance": provenance, "usage": paid_calls}
+
+    # 2. One batched search, by each candidate's own words: standards filtered to the
+    # site, and past reports by country (their OFIs carry across facility types).
+    site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
+    queries = [
+        spell_out(" ".join(filter(None, [o.note, *o.transcripts])))[:500] for o in candidates
+    ]
+    results = search(
+        [(q, {**site, "source_type": STANDARD_SOURCES}, STANDARDS_PER_OBSERVATION) for q in queries]
+        + [
+            (q, {"jurisdiction": assessment.jurisdiction, "source_type": "marsh_report"}, 10)
+            for q in queries
+        ]
+    )
+    standards = _nearest_first(results[: len(candidates)])
+    past = {c["id"]: c for hits in results[len(candidates) :] for c in hits if _is_past_ofi(c)}
+
+    # One rerank for both kinds against all candidates, as for sections (GN-01 AC14).
+    passages = [*standards.values(), *past.values()]
+    try:
+        passages = rerank(spell_out(_evidence_summary(candidates)), passages)
+    except Exception:
+        log.warning("Rerank failed for OFIs; using vector order", exc_info=True)
+    standards = {c["id"]: c for c in passages if c["id"] in standards}
+    standards = dict(list(standards.items())[:MAX_STANDARDS])
+    precedents = [c for c in passages if c["id"] in past][:MAX_PAST_OFIS]
+
+    # 3. Generate.
+    result, model = draft_ofis(
+        assessment, candidates, list(standards.values()), precedents, accepted, config.LLM_EFFORT
+    )
+
+    # 4. Finish in code: an OFI must rest on a current observation (AC1); a citation or
+    # precedent that doesn't resolve is dropped; the priority is the matrix's (AC6).
+    known = {f"O:{o.id}" for o in candidates}
+    citable = {f"C:{cid}" for cid in standards}
+    precedent_ids = {f"P:{c['id']}" for c in precedents}
+    ofis = []
+    for o in result.ofis:
+        rests_on = [c.removeprefix("O:") for c in o.observations if c in known]
+        if not rests_on:
+            continue
+        ofis.append(
+            {
+                **o.model_dump(exclude={"observations", "standards", "precedent"}),
+                "priority": ram_priority(o.likelihood, o.consequence),
+                "observations": rests_on,
+                "standards": [c for c in o.standards if c in citable],
+                "precedent": o.precedent if o.precedent in precedent_ids else None,
+            }
+        )
+    # The cited passages, so the engineer can see the standard and the precedent (AC2).
+    chunks = {f"C:{cid}": c for cid, c in standards.items()} | {
+        f"P:{c['id']}": c for c in precedents
+    }
+    cited = {c for o in ofis for c in [*o["standards"], o["precedent"]] if c}
+    sources = {
+        ref: {"text": c["text"], **(c["metadata"] or {})}
+        for ref, c in chunks.items()
+        if ref in cited
+    }
+    return {
+        "ofis": ofis,
+        "sources": sources,
+        "provenance": {**provenance, "model": model},
+        "usage": paid_calls,
     }

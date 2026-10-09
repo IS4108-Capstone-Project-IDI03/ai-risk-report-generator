@@ -1,11 +1,15 @@
 from typing import Annotated, Literal
 
 import pymupdf
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
+from app import matching, worker
 from app.labelling import label_pdf
+from app.matching import comparison_rows, find_match
 from app.pipeline.indexer import index_chunks, relabel
 
 router = APIRouter()
@@ -130,3 +134,49 @@ def relabel_document(doc_id: str, labels: Labels) -> dict:
     after the admin saves a correction; returns how many passages changed.
     """
     return {"passagesUpdated": relabel(doc_id, labels.model_dump(exclude_none=True))}
+
+
+def stored_document(doc_id: str) -> dict:
+    """Return the `knowledge_documents` record, or raise 404 if there is none."""
+    try:
+        found = worker.documents().find_one({"_id": ObjectId(doc_id)})
+    except InvalidId:
+        found = None
+    if found is None:
+        raise HTTPException(404, "Document not found.")
+    return found
+
+
+@router.post("/documents/{doc_id}/match")
+def match_document(doc_id: str) -> dict:
+    """Re-check a document for a copy or another edition (IN-07); returns its new match.
+
+    Saves `match` on the record and relabels the passages to the final status.
+    Called by the gateway after a details correction or a discard.
+    """
+    doc = stored_document(doc_id)
+    if doc.get("status") != "complete":
+        # Without this, a half-ingested document could be matched and relabelled.
+        raise HTTPException(409, "The document has not finished ingesting.")
+    match = find_match(doc, worker.documents())
+    worker.documents().update_one({"_id": doc["_id"]}, {"$set": {"match": match}})
+    worker.relabel_passages({**doc, "match": match})
+    return {"match": {**match, "documentId": str(match["documentId"])} if match else None}
+
+
+@router.delete("/documents/{doc_id}/passages")
+def delete_passages(doc_id: str) -> dict:
+    """Delete a document's passages from the search index; returns how many (IN-07)."""
+    collection = matching.passages_collection()
+    ids = collection.get(where={"doc_id": doc_id}, include=[])["ids"] if collection else []
+    if ids:
+        collection.delete(ids=ids)
+    return {"passagesDeleted": len(ids)}
+
+
+@router.get("/documents/{doc_id}/comparison/{other_id}")
+def comparison(doc_id: str, other_id: str) -> dict:
+    """Return the two documents' passages side by side, new document first (IN-07)."""
+    stored_document(doc_id)
+    stored_document(other_id)
+    return {"rows": comparison_rows(doc_id, other_id)}

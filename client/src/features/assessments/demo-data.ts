@@ -1,6 +1,46 @@
 import type { SiteLocation } from './api'
 import { NO_FILTERS } from './observationFilters'
-import type { AssessmentRow, WorkflowState } from './types'
+import type { AssessmentRow, Observation, WorkflowState } from './types'
+
+// The demo's stand-ins for a photo proposal (CP-05), by COPE category.
+const SAMPLE_PROPOSALS: Record<string, { finding: string; hazardType: string }> = {
+  Construction: {
+    finding: 'a cable penetration through the fire-rated wall was not sealed with fire stopping.',
+    hazardType: 'Other',
+  },
+  Occupancy: {
+    finding: 'combustible materials were stored inside the electrical switch room.',
+    hazardType: 'Housekeeping',
+  },
+  Protection: {
+    finding: 'the valves on the hosereel firewater supply line were not locked open.',
+    hazardType: 'Fire Protection System Operation',
+  },
+  Exposure: {
+    finding: 'pallets were stacked against the boundary fence beside the neighbouring warehouse.',
+    hazardType: 'Other',
+  },
+}
+// A sample proposal for an observation saved in the demo with photos, when no
+// capture session is live, by the category the engineer chose. It is labelled
+// a sample: nothing reads the photo. An uncategorised observation gets the
+// Protection one, so the demo can show Change category.
+export function sampleInterpretation(
+  category: string,
+  where: string,
+): NonNullable<Observation['interpretation']> {
+  const known = category in SAMPLE_PROPOSALS
+  const sample = SAMPLE_PROPOSALS[known ? category : 'Protection']
+  return {
+    status: 'interpreting',
+    description: `During the site visit to ${where}, it was observed that ${sample.finding}`,
+    category: known ? category : 'Protection',
+    hazardType: sample.hazardType,
+    error: null,
+    model: null,
+    sample: true,
+  }
+}
 
 // The assessment the capture screen opens. The server seed (`npm run seed`)
 // creates the same reference, so live and demo views name the same site.
@@ -107,6 +147,16 @@ export const initialState: WorkflowState = {
       ],
       detail:
         'Racking installed against the north wall since the 2023 survey has completely obstructed the spray pattern for heads SH-04 and SH-05. Minimum clearance of 457 mm is not maintained. Rerouting or relocation of drops is required to meet the design density recorded in 2023.',
+      interpretation: {
+        status: 'interpreted',
+        description:
+          'During the site visit to Bay 3 — north aisle, it was observed that pallet racking stood directly beneath two sprinkler heads.',
+        category: 'Protection',
+        hazardType: 'Sprinkler Installation',
+        error: null,
+        model: null,
+        sample: true,
+      },
     },
     {
       icon: 'mic',

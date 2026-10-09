@@ -31,13 +31,18 @@ gateway creates assessments at `POST /api/assessments` and starts or resumes an
 assessment's capture session at `POST /api/assessments/:reference/capture-session`.
 It lists assessments with their status at `GET /api/assessments`, and records
 observations (any of a note, recordings and JPG or PNG photos, each file kept in
-S3 as raw evidence) against the capture session in progress.
+S3 as raw evidence) against the capture session in progress. S5 transcribes each
+recording with Whisper and, when an engineer asks, reads an observation's photos
+with Gemini, proposing a description, category and hazard type for the engineer
+to review (CP-05); saving never sends a photo, and the proposal is never
+drafting evidence.
 An observation's tags (category, severity, location, standard) and note change at
 `PATCH /api/observations/:id`; a finished transcript can be corrected, keeping
-what Whisper wrote; and an observation can be deleted and restored, a soft
-delete that drafting leaves out. Only the assessment's assigned engineer can
-make these changes (CP-08). Raw-file ingestion, report generation, citation checks, speech/OCR, and gateway
-forwarding remain placeholders.
+what Whisper wrote; recordings and photos can be added to a saved observation,
+and removed and restored, a soft removal that keeps the file in S3; and an
+observation can be deleted and restored, a soft delete that drafting leaves
+out. Only the assessment's assigned engineer can make these changes (CP-08). S5's OCR endpoint and the free-text `/api/rag/generate`
+route remain placeholders.
 
 ### Frontend demo
 
@@ -64,15 +69,22 @@ from there starts its capture session. Only `RPT-2026-0411` has sample workspace
 content; seed it with `npm --prefix server run seed`. Without the gateway, a new assessment is kept in
 the demo only and capture shows sample data, and both say so. Capture starts by
 choosing or adding the location on site. With a capture
-session live, an observation's note and recordings are saved through the
-gateway together: the note exactly as typed, and each recording stored in S3
-and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`). An
-observation may be left uncategorised. Photos are still memory-only. On the
+session live, an observation's note, recordings and photos are saved through the
+gateway together: the note exactly as typed, each recording stored in S3
+and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`), and the
+photos stored in S3. Read photos on the Observations tab has S5 read them
+together with Gemini (set a paid-tier `GEMINI_API_KEY`); saving never reads
+them. The proposal shows on the observation for the engineer to use as its
+note or category through Edit (CP-05). An
+observation may be left uncategorised. On the
 Observations tab (CP-08), each row shows the observation's type, category,
 location, severity, status and capture time, and the list filters by any of
-them. An expanded observation offers Edit (its tags and note, saved together), Correct transcript
-(for a finished one, keeping what Whisper wrote) and Delete; Show deleted lists
-deleted ones to restore. These go through the gateway for a saved observation,
+them. An expanded observation offers Edit (its tags and note, saved together), Add media
+(recordings and photos, recorded, uploaded, taken or chosen), Remove on each
+recording and photo while something else stays (restored from Removed media),
+Correct transcript (for a finished one, keeping what Whisper wrote) and Delete;
+Show deleted lists deleted ones to restore. A photo reading of photos since
+added or removed shows as out of date, with Read again. These go through the gateway for a saved observation,
 to its assigned engineer only, and stay in the demo for a sample one. A saved assessment drafts sections 7-12 on Report generation (GN-01), and
 its Review tab is the review workspace (RV-01): each section's completion and
 review state, its draft, and beside it each cited passage with its page,

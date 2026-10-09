@@ -25,4 +25,21 @@ export const config = {
   awsRegion: requireEnv('AWS_REGION'),
   s3Bucket: requireEnv('S3_BUCKET'),
   redisUrl: requireEnv('REDIS_URL'),
+  // USD estimates for Cohere calls (EV-03); Cohere publishes no per-use price.
+  prices: {
+    cohereEmbedUsdPer1M: Number(process.env.COHERE_EMBED_USD_PER_1M_TOKENS ?? 0.12),
+    cohereRerankUsdPer1K: Number(process.env.COHERE_RERANK_USD_PER_1K_SEARCHES ?? 2),
+  },
+  serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
+  // Where the browser app is served; the emailed reset link points here (F-06).
+  appUrl: process.env.APP_URL ?? 'http://localhost:3000',
+  // Optional on purpose: CI and fresh checkouts have no mail server, so with
+  // no SMTP_HOST the reset email falls back to the console (auth.service.ts).
+  smtp: {
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    from: process.env.SMTP_FROM ?? 'no-reply@marsh-risk-report.example',
+  },
 }

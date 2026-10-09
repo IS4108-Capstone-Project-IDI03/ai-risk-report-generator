@@ -3,7 +3,13 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
-import type { Assessment, SavedObservation, SavedRecording, Stamp } from './api'
+import type {
+  Assessment,
+  SavedInterpretation,
+  SavedObservation,
+  SavedRecording,
+  Stamp,
+} from './api'
 import { formatDayYearTime } from './format'
 
 // Managing captured observations (CP-08): type, status and capture time on
@@ -36,6 +42,7 @@ function recording(id: string, transcription: Partial<SavedRecording['transcript
       attempts: 1,
       ...transcription,
     },
+    added: null,
   } satisfies SavedRecording
 }
 function observation(fields: Partial<SavedObservation>): SavedObservation {
@@ -49,6 +56,9 @@ function observation(fields: Partial<SavedObservation>): SavedObservation {
     note: null,
     recordings: [],
     photos: [],
+    removedRecordings: [],
+    removedPhotos: [],
+    interpretation: null,
     recordedAt: CAPTURED,
     edited: null,
     deleted: null,
@@ -73,6 +83,51 @@ const TRANSCRIBING = observation({
 const FAILED_VOICE = observation({
   id: 'o4',
   recordings: [recording('r4', { status: 'failed', error: 'Whisper timed out.' })],
+})
+// Observations with photos, and what the vision model proposes from them (CP-05).
+const PHOTO = {
+  id: 'p1',
+  name: 'IMG_0460.jpg',
+  contentType: 'image/jpeg' as const,
+  size: 2000,
+  url: '/api/observations/o6/photos/p1/image',
+  added: null,
+}
+const PROPOSED =
+  'During the site visit to Bay 3, it was observed that the new racking sits under two sprinkler heads.'
+function photographed(id: string, note: string, interpretation: Partial<SavedInterpretation>) {
+  return observation({
+    id,
+    note,
+    copeDimension: 'Occupancy',
+    photos: [{ ...PHOTO, url: `/api/observations/${id}/photos/p1/image` }],
+    interpretation: {
+      status: 'interpreted',
+      description: null,
+      copeDimension: null,
+      hazardType: null,
+      error: null,
+      attempts: 1,
+      model: null,
+      photoIds: ['p1'],
+      outOfDate: false,
+      ...interpretation,
+    },
+  })
+}
+const READING = 'Racking photographed in the north aisle.'
+const PROPOSAL = 'Bay 3 racking, two photos.'
+const UNREAD = 'Riser room photographed.'
+const INTERPRETING = photographed('o5', READING, { status: 'interpreting' })
+const INTERPRETED = photographed('o6', PROPOSAL, {
+  description: PROPOSED,
+  copeDimension: 'Protection',
+  hazardType: 'Sprinkler Installation',
+  model: 'gemini-3.8-flash',
+})
+const UNREAD_PHOTOS = photographed('o7', UNREAD, {
+  status: 'failed',
+  error: 'The photo service could not interpret the photos.',
 })
 // The sample assessment's own observations, kept in the browser.
 const RACKING =
@@ -127,7 +182,14 @@ function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     if (offline) return Promise.reject(new TypeError('Failed to fetch'))
     const method = init.method ?? 'GET'
-    const body = init.body ? JSON.parse(String(init.body)) : undefined
+    // Added recordings and photos arrive as a form (CP-08); calls name its files.
+    const form = init.body instanceof FormData ? init.body : null
+    const names = (part: string) => (form?.getAll(part) as File[]).map((file) => file.name)
+    const body = form
+      ? { recordings: names('recording'), photos: names('photo') }
+      : init.body
+        ? JSON.parse(String(init.body))
+        : undefined
     if (method !== 'GET') calls.push({ method, url, body })
     const refused = refuse?.(method)
     if (refused) return refused
@@ -150,9 +212,76 @@ function mockGateway() {
           listed.find((o) => o.id === id),
         )
       }
+      if (method === 'POST' && rest === '/interpretation') {
+        change((o) => ({
+          interpretation: {
+            description: null,
+            copeDimension: null,
+            hazardType: null,
+            attempts: 0,
+            model: null,
+            ...o.interpretation,
+            status: 'interpreting',
+            error: null,
+            photoIds: o.photos.map((p) => p.id),
+            outOfDate: false,
+          },
+        }))
+        return Promise.resolve(new Response(null, { status: 202 }))
+      }
       if (method === 'PATCH') return change(() => ({ ...body, edited: STAMP }))
-      if (method === 'DELETE') return change(() => ({ deleted: STAMP }))
+      if (method === 'DELETE' && rest === '') return change(() => ({ deleted: STAMP }))
       if (method === 'POST' && rest === '/restore') return change(() => ({ deleted: null }))
+      if (method === 'POST' && rest === '/media')
+        return change((o) => ({
+          recordings: [
+            ...o.recordings,
+            ...names('recording').map((name, i) => ({
+              ...recording('n' + i, { status: 'transcribing' }),
+              name,
+              added: STAMP,
+            })),
+          ],
+          photos: [
+            ...o.photos,
+            ...names('photo').map((name, i) => ({
+              ...PHOTO,
+              id: 'np' + i,
+              name,
+              url: `/api/observations/${id}/photos/np${i}/image`,
+              added: STAMP,
+            })),
+          ],
+          interpretation: o.interpretation && { ...o.interpretation, outOfDate: true },
+          edited: STAMP,
+        }))
+      // Removing and restoring a recording or photo (CP-08).
+      const item = rest.match(/^\/(recordings|photos)\/(\w+)(\/restore)?$/)
+      if (item && (method === 'DELETE' || item[3]))
+        return change((o) => {
+          const [, kind, itemId, restore] = item
+          const recordings = kind === 'recordings'
+          const kept = recordings ? o.recordings : o.photos
+          const removed = recordings ? o.removedRecordings : o.removedPhotos
+          const next = restore
+            ? {
+                kept: [...kept, ...removed.filter((i) => i.id === itemId)],
+                removed: removed.filter((i) => i.id !== itemId),
+              }
+            : {
+                kept: kept.filter((i) => i.id !== itemId),
+                removed: [
+                  ...removed,
+                  ...kept.filter((i) => i.id === itemId).map((i) => ({ ...i, removed: STAMP })),
+                ],
+              }
+          return {
+            edited: STAMP,
+            ...(recordings
+              ? { recordings: next.kept, removedRecordings: next.removed }
+              : { photos: next.kept, removedPhotos: next.removed }),
+          } as Partial<SavedObservation>
+        })
       const transcript = rest.match(/^\/recordings\/(\w+)\/transcript$/)
       if (method === 'PUT' && transcript)
         return change((o) => ({
@@ -197,6 +326,9 @@ const showDeleted = () => click('Show deleted')
 const hideDeleted = () => click('Hide deleted')
 
 beforeAll(() => {
+  // jsdom cannot preview files; the lists only need a URL to hand over.
+  URL.createObjectURL = () => 'blob:media'
+  URL.revokeObjectURL = () => {}
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
   }
@@ -246,7 +378,9 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     expect(optionLabels(select('Filter by status'))).toEqual([
       'All statuses',
       'Transcribing',
+      'Interpreting',
       'Transcription failed',
+      'Interpretation failed',
       'Complete',
     ])
 
@@ -262,6 +396,135 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     choose('Filter by type', 'Note')
     expect(shown(...ALL)).toEqual([])
     expect(screen.getByText('No observations match those filters')).toBeInTheDocument()
+  })
+}, 15000)
+
+describe('Proposals from photos (CP-05)', () => {
+  it('shows where interpretation stands, and filters on it (AC2)', async () => {
+    listed = [INTERPRETING, INTERPRETED, UNREAD_PHOTOS]
+    await openObservations()
+
+    expect(within(row(READING)).getByText('Interpreting')).toBeInTheDocument()
+    expect(within(row(PROPOSAL)).getByText('Complete')).toBeInTheDocument()
+    expect(within(row(UNREAD)).getByText('Interpretation failed')).toBeInTheDocument()
+    const ALL = [READING, PROPOSAL, UNREAD, RACKING]
+    choose('Filter by status', 'Interpreting')
+    expect(shown(...ALL)).toEqual([READING])
+    choose('Filter by status', 'Interpretation failed')
+    expect(shown(...ALL)).toEqual([UNREAD])
+  })
+
+  it('shows the proposal as AI text, with the photos it was read from (AC3-AC6)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText(PROPOSED)).toBeInTheDocument()
+    expect(within(proposal).getByText('AI proposal')).toBeInTheDocument()
+    expect(within(proposal).getByText('Protection · Sprinkler Installation')).toBeInTheDocument()
+    expect(within(proposal).getByText('Proposed by gemini-3.8-flash')).toBeInTheDocument()
+    expect(within(proposal).getByRole('link', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'href',
+      '/api/observations/o6/photos/p1/image',
+    )
+  })
+
+  it('adds the proposal to the note only when the engineer saves it (Use as note)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    click('Use as note')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit observation' })
+    expect(calls).toEqual([])
+    // Added below what the engineer wrote, never in place of it.
+    const note = PROPOSAL + '\n\n' + PROPOSED
+    expect(within(dialog).getByLabelText('Note')).toHaveValue(note)
+    click('Save changes')
+
+    expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
+    expect(calls).toEqual([{ method: 'PATCH', url: '/api/observations/o6', body: { note } }])
+  })
+
+  it('offers the proposed category only when it differs (Change category)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    click('Change category to Protection')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit observation' })
+    expect(within(dialog).getByLabelText('COPE category')).toHaveValue('Protection')
+    click('Save changes')
+
+    expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
+    expect(calls).toEqual([
+      { method: 'PATCH', url: '/api/observations/o6', body: { copeDimension: 'Protection' } },
+    ])
+    // Now the categories match, so it is no longer offered.
+    expect(
+      screen.queryByRole('button', { name: 'Change category to Protection' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows why interpretation failed and retries it', async () => {
+    listed = [UNREAD_PHOTOS]
+    await openObservations()
+    fireEvent.click(row(UNREAD))
+
+    expect(
+      screen.getByText('The photo service could not interpret the photos.'),
+    ).toBeInTheDocument()
+    click('Retry interpretation')
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        { method: 'POST', url: '/api/observations/o7/interpretation', body: undefined },
+      ]),
+    )
+    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+  })
+
+  it('reads the photos only when the engineer asks (AC7)', async () => {
+    const UNSENT = 'Riser room door wedged open.'
+    listed = [
+      observation({
+        id: 'o8',
+        note: UNSENT,
+        photos: [{ ...PHOTO, url: '/api/observations/o8/photos/p1/image' }],
+      }),
+    ]
+    await openObservations()
+    // Nothing is running, so nothing is badged.
+    expect(within(row(UNSENT)).getByText('Complete')).toBeInTheDocument()
+    fireEvent.click(row(UNSENT))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText(/^Not read yet\./)).toBeInTheDocument()
+    expect(within(proposal).queryByText('AI proposal')).not.toBeInTheDocument()
+    expect(calls).toEqual([])
+    click('Read photos')
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        { method: 'POST', url: '/api/observations/o8/interpretation', body: undefined },
+      ]),
+    )
+    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+  })
+
+  it('labels the sample assessment’s proposal as a sample, not a reading', async () => {
+    listed = []
+    await openObservations()
+    fireEvent.click(row(RACKING))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText('Sample proposal')).toBeInTheDocument()
+    expect(
+      within(proposal).getByText(
+        'No capture session, so this is a sample proposal, not a reading of the photos.',
+      ),
+    ).toBeInTheDocument()
   })
 }, 15000)
 
@@ -460,20 +723,253 @@ describe('Who can change an observation (CP-08 AC17)', () => {
   })
 }, 15000)
 
+describe('Adding and removing recordings and photos (CP-08)', () => {
+  const photo = (name: string, type = 'image/jpeg') => new File(['jpeg'], name, { type })
+  const at = formatDayYearTime(new Date(AT))
+  // The action beside Edit; the dashed tile under Attached media does the same.
+  const addMedia = () => fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
+  const addDialog = () => screen.findByRole('dialog', { name: 'Add to observation' })
+  const choose = (dialog: HTMLElement, ...files: File[]) =>
+    fireEvent.change(within(dialog).getByLabelText('Choose photographs'), { target: { files } })
+  const RISER_ROOM = 'Riser room door wedged open.'
+  const WITH_BOTH = observation({
+    id: 'o9',
+    note: RISER_ROOM,
+    recordings: [recording('r9', { transcript: VOICE })],
+    photos: [{ ...PHOTO, url: '/api/observations/o9/photos/p1/image' }],
+  })
+
+  it('adds recordings and photos to a saved observation, from a list it builds first', async () => {
+    await openObservations()
+    fireEvent.click(row(NOTE))
+    addMedia()
+    const dialog = await addDialog()
+
+    fireEvent.change(within(dialog).getByLabelText('Upload audio files'), {
+      target: { files: [new File(['audio'], 'valve.m4a', { type: 'audio/mp4' })] },
+    })
+    choose(dialog, photo('IMG_0510.jpg'), photo('IMG_0511.HEIC', 'image/heic'))
+    // Refused here with the gateway's wording, as on the capture screen.
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'IMG_0511.HEIC is not a JPG or PNG image.',
+    )
+    const ready = within(dialog).getByRole('region', { name: 'Ready to add' })
+    expect(within(ready).getByText('valve.m4a')).toBeInTheDocument()
+    expect(within(ready).getByText('IMG_0510.jpg')).toBeInTheDocument()
+    expect(calls).toEqual([])
+    click('Add to observation')
+
+    expect(
+      await screen.findByText('Added 1 recording and 1 photo. Transcribing 1 recording now.'),
+    ).toBeInTheDocument()
+    expect(calls).toEqual([
+      {
+        method: 'POST',
+        url: '/api/observations/o1/media',
+        body: { recordings: ['valve.m4a'], photos: ['IMG_0510.jpg'] },
+      },
+    ])
+    // On the observation, with who added them and when.
+    const clip = screen.getByRole('region', { name: 'valve.m4a' })
+    expect(within(clip).getByText('Added by Alex Rowe · ' + at)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open IMG_0510.jpg' })).toBeInTheDocument()
+    expect(screen.getByText('IMG_0510.jpg added by Alex Rowe · ' + at)).toBeInTheDocument()
+  })
+
+  it('keeps the list and says why when the gateway refuses it', async () => {
+    refuse = (method) =>
+      method === 'POST'
+        ? json(415, {
+            error:
+              'IMG_0510.jpg is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
+          })
+        : null
+    await openObservations()
+    fireEvent.click(row(NOTE))
+    addMedia()
+    const dialog = await addDialog()
+    choose(dialog, photo('IMG_0510.jpg'))
+
+    click('Add to observation')
+
+    expect(
+      await within(dialog).findByText(/^IMG_0510\.jpg is not a JPG or PNG image\..*still listed/),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByRole('region', { name: 'Ready to add' })).toHaveTextContent(
+      'IMG_0510.jpg',
+    )
+  })
+
+  it('removes a recording once confirmed, and restores it from Removed media', async () => {
+    listed = [WITH_BOTH]
+    await openObservations()
+    fireEvent.click(row(RISER_ROOM))
+
+    click('Remove recording')
+    const dialog = await screen.findByRole('dialog', { name: 'Remove this recording?' })
+    expect(dialog).toHaveTextContent('Report drafting stops using its transcript')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove recording' }))
+
+    expect(await screen.findByText(/^Recording removed\./)).toBeInTheDocument()
+    expect(calls).toEqual([
+      { method: 'DELETE', url: '/api/observations/o9/recordings/r9', body: undefined },
+    ])
+    expect(screen.queryByRole('region', { name: 'Recording 1' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Removed media (1)'))
+    const removed = screen.getByRole('list', { name: 'Removed media' })
+    expect(within(removed).getByText('Removed by Alex Rowe · ' + at)).toBeInTheDocument()
+
+    fireEvent.click(within(removed).getByRole('button', { name: 'Restore Recording 1' }))
+
+    expect(await screen.findByText(/^Recording restored\./)).toBeInTheDocument()
+    expect(calls[1]).toEqual({
+      method: 'POST',
+      url: '/api/observations/o9/recordings/r9/restore',
+      body: undefined,
+    })
+    expect(screen.getByRole('region', { name: 'Recording 1' })).toBeInTheDocument()
+  })
+
+  it('removes a photo, and keeps the dialog with the reason when it is refused', async () => {
+    listed = [WITH_BOTH]
+    refuse = (method) =>
+      method === 'DELETE'
+        ? json(409, {
+            error:
+              'An observation needs a note, a recording or a photo, so this photo can’t be removed. Add what replaces it first.',
+          })
+        : null
+    await openObservations()
+    fireEvent.click(row(RISER_ROOM))
+
+    click('Remove IMG_0460.jpg')
+    const dialog = await screen.findByRole('dialog', { name: 'Remove this photo?' })
+    expect(dialog).toHaveTextContent('It leaves the Photos tab')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove photo' }))
+
+    expect(await within(dialog).findByText(/so this photo can’t be removed/)).toBeInTheDocument()
+    refuse = null
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove photo' }))
+    expect(
+      await screen.findByText(/^Photo removed\. It leaves the Photos tab\./),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Open IMG_0460.jpg' })).not.toBeInTheDocument()
+  })
+
+  it('offers Remove only while something else stays captured', async () => {
+    listed = [NOTE_ONLY, VOICE_ONLY]
+    await openObservations()
+    fireEvent.click(row(VOICE))
+
+    expect(screen.queryByRole('button', { name: 'Remove recording' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Add media' }).length).toBeGreaterThan(0)
+  })
+
+  it('offers adding and removing only to the assigned engineer', async () => {
+    workList = [assessment(OTHER)]
+    listed = [WITH_BOTH]
+    await openObservations()
+    fireEvent.click(row(RISER_ROOM))
+
+    expect(screen.queryAllByRole('button', { name: 'Add media' })).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Remove recording' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove IMG_0460.jpg' })).not.toBeInTheDocument()
+  })
+
+  it('marks a reading of photos since changed as out of date, and reads them again', async () => {
+    listed = [
+      {
+        ...photographed('o6', PROPOSAL, {
+          description: PROPOSED,
+          copeDimension: 'Protection',
+          hazardType: 'Sprinkler Installation',
+          model: 'gemini-3.8-flash',
+          photoIds: ['p0'],
+          outOfDate: true,
+        }),
+        removedPhotos: [
+          {
+            ...PHOTO,
+            id: 'p0',
+            name: 'IMG_0400.jpg',
+            url: '/api/observations/o6/photos/p0/image',
+            removed: STAMP,
+          },
+        ],
+      },
+    ]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    expect(within(proposal).getByText('Read from an earlier set of photos')).toBeInTheDocument()
+    // It names the photo it read, now removed.
+    expect(
+      within(proposal).getByRole('link', { name: 'IMG_0400.jpg' }).parentElement,
+    ).toHaveTextContent('Read from IMG_0400.jpg (removed)')
+    click('Read again')
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        { method: 'POST', url: '/api/observations/o6/interpretation', body: undefined },
+      ]),
+    )
+    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+  })
+
+  it('adds, removes and restores media of a sample observation in this demo only', async () => {
+    offline = true
+    await openObservations()
+    fireEvent.click(row(SORTATION))
+    addMedia()
+    const dialog = await addDialog()
+    expect(dialog).toHaveTextContent('No capture session, so these stay in this browser')
+    choose(dialog, photo('IMG_0520.jpg'))
+
+    click('Add to observation')
+    expect(await screen.findByText('Added 1 photo in this demo only.')).toBeInTheDocument()
+
+    click('Remove IMG_0520.jpg')
+    const confirm = await screen.findByRole('dialog', { name: 'Remove this photo?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove photo' }))
+    expect(
+      await screen.findByText('Photo removed in this demo only. Restore it under Removed media.'),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Removed media (1)'))
+    click('Restore IMG_0520.jpg')
+    expect(await screen.findByText('Photo restored in this demo only.')).toBeInTheDocument()
+    expect(calls).toEqual([])
+  })
+}, 15000)
+
 describe('Site photographs (CP-04)', () => {
   const IMAGE_URL = '/api/observations/o9/photos/p1/image'
   const PHOTOGRAPHED = observation({
     id: 'o9',
     note: 'Riser room door wedged open.',
     photos: [
-      { id: 'p1', name: 'IMG_0460.jpg', contentType: 'image/jpeg', size: 4, url: IMAGE_URL },
+      {
+        id: 'p1',
+        name: 'IMG_0460.jpg',
+        contentType: 'image/jpeg',
+        size: 4,
+        url: IMAGE_URL,
+        added: null,
+      },
     ],
   })
   const DELETED = observation({
     id: 'o10',
     note: 'Photo of the wrong building.',
     photos: [
-      { id: 'p2', name: 'IMG_0999.jpg', contentType: 'image/jpeg', size: 4, url: '/x/image' },
+      {
+        id: 'p2',
+        name: 'IMG_0999.jpg',
+        contentType: 'image/jpeg',
+        size: 4,
+        url: '/x/image',
+        added: null,
+      },
     ],
     deleted: STAMP,
   })

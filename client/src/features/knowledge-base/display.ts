@@ -2,15 +2,37 @@
 // recent uploads list (KnowledgeBase.tsx) and the documents list
 // (KnowledgeDocuments.tsx).
 import { JURISDICTIONS } from '../assessments/demo-data'
-import type { KnowledgeDocument, SourceType } from './api'
+import type { DocumentMatch, KnowledgeDocument, MatchKind, SourceType } from './api'
 
 // What an Unconfirmed detail (null, IN-05) reads as; components/DetailText.tsx
 // shows it in muted text.
 export const UNCONFIRMED = 'Unconfirmed'
 
-/** Returns whether a document needs review: an Unconfirmed detail, and not withdrawn (IN-05). */
+/** Returns whether a document needs review: an Unconfirmed detail or a match, and not withdrawn (IN-05, IN-07). */
 // A withdrawn document can't be edited, so it is not asked to be reviewed.
-export const needsReview = (d: KnowledgeDocument) => !d.withdrawn && d.unconfirmed.length > 0
+export const needsReview = (d: KnowledgeDocument) =>
+  !d.withdrawn && (d.unconfirmed.length > 0 || !!d.match)
+
+const MATCH_WORDS: Record<MatchKind, string> = {
+  newer_edition: 'Possible newer edition of',
+  earlier_edition: 'Possible earlier edition of',
+  possible_copy: 'Possible copy of',
+}
+
+/** Returns what a match says, e.g. "Possible copy of NFPA 13 (2019 edition, withdrawn)". */
+export function matchLine(match: DocumentMatch): string {
+  const { title, edition, withdrawn } = match.document
+  const notes = [edition && `${edition} edition`, withdrawn && 'withdrawn'].filter(Boolean)
+  return `${MATCH_WORDS[match.kind]} ${title}${notes.length ? ` (${notes.join(', ')})` : ''}`
+}
+
+/** Returns why a document needs review, one phrase per cause, match first. */
+export function reviewReasons(d: KnowledgeDocument): string[] {
+  return [
+    d.match ? matchLine(d.match) : null,
+    d.unconfirmed.length > 0 ? 'Unconfirmed details' : null,
+  ].filter((reason): reason is string => reason !== null)
+}
 
 export const SOURCE_LABELS: Record<SourceType, string> = {
   fm_standard: 'FM standard',

@@ -6,7 +6,8 @@
 import type { UserRole } from '../accounts/api'
 import type { Permission, Session } from './api'
 
-export type Screen = 'dashboard' | 'create' | 'field' | 'assessment' | 'users' | 'knowledge'
+export type Screen =
+  'dashboard' | 'create' | 'field' | 'assessment' | 'users' | 'knowledge' | 'usage'
 
 export const SCREEN_PATHS: Record<Screen, string> = {
   dashboard: '/assessments',
@@ -15,6 +16,7 @@ export const SCREEN_PATHS: Record<Screen, string> = {
   assessment: '/assessment',
   users: '/admin/users',
   knowledge: '/admin/knowledge-base',
+  usage: '/usage-costs',
 }
 
 const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
@@ -24,6 +26,23 @@ const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
   assessment: 'assessments:view',
   users: 'users:manage',
   knowledge: 'knowledge:manage',
+  usage: 'usage:view',
+}
+
+// A knowledge document's Review page (IN-07) is part of the knowledge screen:
+// '/admin/knowledge-base/review/<id>'.
+export const KNOWLEDGE_REVIEW_PATH = `${SCREEN_PATHS.knowledge}/review/`
+
+// The id of the document a path asks to review, or null for any other path.
+export function reviewIdForPath(pathname: string): string | null {
+  const id = pathname.match(new RegExp(`^${KNOWLEDGE_REVIEW_PATH}([^/]+)/*$`))?.[1]
+  if (!id) return null
+  try {
+    return decodeURIComponent(id)
+  } catch {
+    // A malformed escape such as %E0 is not a document id; without this it would crash the page.
+    return null
+  }
 }
 
 // Tabs of the assessment workspace that change the report. Overview and
@@ -43,6 +62,7 @@ const HOME: Record<UserRole, Screen> = {
 // The screen a path names; '/' and unknown paths name the role's home.
 export function screenForPath(pathname: string, session: Session): Screen {
   const path = pathname.replace(/\/+$/, '') || '/'
+  if (reviewIdForPath(path)) return 'knowledge'
   const match = (Object.keys(SCREEN_PATHS) as Screen[]).find((s) => SCREEN_PATHS[s] === path)
   return match ?? homeScreen(session)
 }
