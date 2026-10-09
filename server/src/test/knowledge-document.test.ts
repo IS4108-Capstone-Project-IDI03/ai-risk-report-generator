@@ -34,10 +34,8 @@ vi.mock('../services/storage.service', () => ({
 const queued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
 const requeued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
 const removed = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
-const cancellationQueued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
 vi.mock('../services/ingestion-queue.service', () => ({
   enqueueIngestion: queued,
-  enqueueCancellationJob: cancellationQueued,
   requeueIngestion: requeued,
   removeIngestionJob: removed,
 }))
@@ -56,7 +54,6 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-06T20:00:00Z'))
   queued.mockResolvedValue(undefined)
-  cancellationQueued.mockResolvedValue(undefined)
   requeued.mockResolvedValue(undefined)
   removed.mockResolvedValue(undefined)
   inspect.mockResolvedValue(Response.json({ pages: 3 }))
@@ -67,7 +64,6 @@ beforeEach(() => {
 afterEach(() => {
   s3.clear()
   queued.mockReset()
-  cancellationQueued.mockReset()
   requeued.mockReset()
   removed.mockReset()
   inspect.mockReset()
@@ -1283,15 +1279,15 @@ describe('cancelIngestion', () => {
     expect(removed).toHaveBeenCalledWith(CANCEL_ID)
   })
 
-  it('marks a processing document for cooperative cancellation', async () => {
+  it('cancels a processing document immediately for cooperative cleanup', async () => {
     await seed({ status: 'processing' })
 
     await cancelIngestion(CANCEL_ID)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
-    expect(doc!.status).toBe('processing')
-    expect(doc!.cancelRequestedAt).toBeInstanceOf(Date)
-    expect(cancellationQueued).toHaveBeenCalledWith(CANCEL_ID)
+    expect(doc!.status).toBe('cancelled')
+    expect(doc!.cancelledAt).toBeInstanceOf(Date)
+    expect(doc!.cancelRequestedAt).toBeUndefined()
     expect(removed).not.toHaveBeenCalled()
   })
 
@@ -1304,13 +1300,6 @@ describe('cancelIngestion', () => {
 
     expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('complete')
     expect(removed).not.toHaveBeenCalled()
-  })
-
-  it('treats a repeated stop request for processing as accepted', async () => {
-    await seed({ status: 'processing', cancelRequestedAt: new Date() })
-
-    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
-    expect(cancellationQueued).toHaveBeenCalledWith(CANCEL_ID)
   })
 
   it('does not roll a queued document back when queue removal fails', async () => {
@@ -1415,7 +1404,7 @@ describe('POST /api/knowledge-documents/:id/retry', () => {
 describe('POST /api/knowledge-documents/:id/cancel', () => {
   const CANCEL_ROUTE_ID = '6abb28ae16068a0793e99632'
 
-  async function seed(status: string) {
+  async function seed(status: 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled') {
     await KnowledgeDocumentModel.create({
       _id: CANCEL_ROUTE_ID,
       title: 'NFPA 13 sprinkler standard',
