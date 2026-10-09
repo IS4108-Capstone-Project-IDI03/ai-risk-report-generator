@@ -1,9 +1,11 @@
 """Indexing contract without external API calls."""
 
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from cohere.errors import TooManyRequestsError
 from starlette.testclient import TestClient as TestClient
 
 from app.main import app
@@ -72,6 +74,39 @@ def test_embed_single_call_and_skips_empty(monkeypatch):
     assert embedder.embed(chunks) == [[0.1]] * 96
     assert cohere.embed.call_count == 1
     assert cohere.embed.call_args.kwargs["texts"] == chunks
+
+
+@pytest.mark.model
+def test_embed_waits_one_minute_and_retries_rate_limited_batch(monkeypatch):
+    cohere = Mock()
+    cohere.embed.side_effect = [
+        TooManyRequestsError({"message": "rate limited"}),
+        SimpleNamespace(embeddings=SimpleNamespace(float_=[[0.1]])),
+    ]
+    sleep = Mock()
+    monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
+    monkeypatch.setattr(time, "sleep", sleep)
+
+    assert embedder.embed(["chunk"]) == [[0.1]]
+
+    assert cohere.embed.call_count == 2
+    sleep.assert_called_once_with(60)
+
+
+def test_embed_reraises_rate_limit_after_retry_limit(monkeypatch):
+    cohere = Mock()
+    error = TooManyRequestsError({"message": "rate limited"})
+    cohere.embed.side_effect = error
+    sleep = Mock()
+    monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
+    monkeypatch.setattr(time, "sleep", sleep)
+
+    with pytest.raises(TooManyRequestsError):
+        embedder.embed(["chunk"])
+
+    assert cohere.embed.call_count == 6
+    assert sleep.call_count == 5
+    sleep.assert_called_with(70)
 
 
 def test_missing_key_has_actionable_error(monkeypatch):
