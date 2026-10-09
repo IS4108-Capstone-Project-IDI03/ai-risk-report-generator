@@ -14,7 +14,7 @@ Chunk (as produced by chunker.chunk and consumed here):
     "text": str,              # chunk text; embedded via Cohere and stored as the document
     "metadata": {             # forwarded to Chroma verbatim; scalars or a
     # non-empty homogeneous list of scalars
-        "COPE_dimension":str,# "NA" | "all" | "......" 
+        "section":      str,  # report section, "Appendix" or "Undefined" (IN-05)
         "doc_id":       str,  # foreign key back to the source document
         "headings": list[str],# heading trail; key omitted when the chunk has none
         "page_start":   int,  # present only when known

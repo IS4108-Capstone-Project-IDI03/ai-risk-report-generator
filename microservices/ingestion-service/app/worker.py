@@ -90,11 +90,10 @@ def labels(doc: dict) -> dict:
 def relabel_passages(doc: dict) -> int:
     """Put the document's current labels on its passages; returns how many changed.
 
-    Leaves out COPE_dimension: each passage keeps its own, set at ingest (IN-05).
+    Never touches `section`: each passage keeps its own, set at ingest (IN-05).
     Called by ingest_document and by POST /documents/{id}/match.
     """
-    current = {k: v for k, v in labels(doc).items() if k != "COPE_dimension"}
-    return relabel(str(doc["_id"]), current)
+    return relabel(str(doc["_id"]), labels(doc))
 
 
 def ingest_document(document_id: str) -> None:

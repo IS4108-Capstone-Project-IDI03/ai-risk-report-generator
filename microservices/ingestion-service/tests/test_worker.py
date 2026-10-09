@@ -33,7 +33,6 @@ class FakeDocuments:
                 "source_type": "marsh_report",
                 "jurisdiction": "MY",
                 "facility_type": "Cold store",
-                "COPE_dimension": "all",
                 "effective_date": datetime(2024, 3, 12),
             },
         }
@@ -164,7 +163,6 @@ def test_the_documents_labels_go_to_every_passage(documents, monkeypatch):
         "source_type": "marsh_report",
         "jurisdiction": "MY",
         "facility_type": "Cold store",
-        "COPE_dimension": "all",
         "effective_date": "2024-03-12",
         "status": "needs_review",  # IN-07: never searchable mid-ingest; relabelled after
     }
@@ -339,7 +337,6 @@ def test_an_unconfirmed_detail_is_left_off_the_passage_labels_and_the_document_n
     assert result == {
         "source_type": "marsh_report",
         "facility_type": "Cold store",
-        "COPE_dimension": "all",
         "status": "needs_review",
     }
 
@@ -365,7 +362,7 @@ def test_a_withdrawn_document_stays_withdrawn_even_with_a_match(documents):
     assert worker.labels(documents.doc)["status"] == "withdrawn"
 
 
-def test_relabelling_passages_leaves_out_their_own_cope_dimension(documents, monkeypatch):
+def test_relabelling_passages_leaves_out_their_own_section(documents, monkeypatch):
     seen = {}
     monkeypatch.undo()  # the fixture's recorder replaced relabel_passages; use the real one
     monkeypatch.setattr(
@@ -377,7 +374,7 @@ def test_relabelling_passages_leaves_out_their_own_cope_dimension(documents, mon
 
     assert seen["doc_id"] == DOC_ID
     assert seen["status"] == "active"
-    assert "COPE_dimension" not in seen
+    assert "section" not in seen
 
 
 # --- Notifications (IN-10): the worker tells the gateway on each outcome.

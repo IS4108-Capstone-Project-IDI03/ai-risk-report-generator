@@ -1,5 +1,5 @@
 {
-  "_about": "Hand-checked golden answers for the AI document-labelling eval (six details per case) plus top-level section page ranges for the 11 Marsh reports. Pages are 1-based PDF pages; evidence quotes are verbatim substrings of that page's text (except cases with text_layer=false, read from images).",
+  "_about": "Hand-checked golden answers for the AI document-labelling eval (six details per case) plus top-level section page ranges (each with its template section, IN-05) for the 11 Marsh reports. Pages are 1-based PDF pages; evidence quotes are verbatim substrings of that page's text (except cases with text_layer=false, read from images).",
   "cases": [
     {
       "id": "office0-p1-20",
@@ -986,87 +986,87 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 17,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 18,
         "end": 19,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates ([PROPERTY] Consortium)",
         "start": 20,
         "end": 31,
-        "cope": "all",
+        "section": "Loss Estimates",
         "note": "Heading is in the body (p20) but missing from the contents list."
       },
       {
         "heading": "Management Programs",
         "start": 32,
         "end": 35,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 36,
         "end": 37,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 38,
         "end": 45,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 46,
         "end": 50,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 51,
         "end": 54,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 55,
         "end": 56,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 57,
         "end": 57,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 58,
         "end": 60,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Mixed Use Development Sample 2 - PRE 2025 - REDACTED.pdf": [
@@ -1074,86 +1074,86 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 13,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 14,
         "end": 15,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 16,
         "end": 21,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 22,
         "end": 24,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 25,
         "end": 26,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 27,
         "end": 31,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 32,
         "end": 36,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 37,
         "end": 40,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 41,
         "end": 42,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 43,
         "end": 43,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 44,
         "end": 49,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Office Sample 0 - PRE 2026 - REDACTED.pdf": [
@@ -1161,98 +1161,98 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 11,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 12,
         "end": 13,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 14,
         "end": 21,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 22,
         "end": 25,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 26,
         "end": 28,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 29,
         "end": 33,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 34,
         "end": 38,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 39,
         "end": 42,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 43,
         "end": 44,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 45,
         "end": 46,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 47,
         "end": 49,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Site Map",
         "start": 50,
         "end": 50,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Water Proving Test",
         "start": 51,
         "end": 52,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Office Sample 1 - PRE 2026 - REDACTED.pdf": [
@@ -1260,92 +1260,92 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 14,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 15,
         "end": 16,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 17,
         "end": 24,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 25,
         "end": 27,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 28,
         "end": 30,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 31,
         "end": 34,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 35,
         "end": 38,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 39,
         "end": 42,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 43,
         "end": 44,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 45,
         "end": 46,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 47,
         "end": 48,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Site Map",
         "start": 49,
         "end": 49,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Office Sample 2 - PRE 2025 - REDACTED.pdf": [
@@ -1353,86 +1353,86 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 13,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 14,
         "end": 15,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 16,
         "end": 22,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 23,
         "end": 26,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 27,
         "end": 27,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 28,
         "end": 32,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 33,
         "end": 35,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 36,
         "end": 39,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 40,
         "end": 41,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 42,
         "end": 42,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 43,
         "end": 45,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Office Sample 3 - PRE 2026 - REDACTED.pdf": [
@@ -1440,98 +1440,98 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 11,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 12,
         "end": 13,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 14,
         "end": 21,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 22,
         "end": 25,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 26,
         "end": 28,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 29,
         "end": 33,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 34,
         "end": 38,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 39,
         "end": 42,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 43,
         "end": 44,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 45,
         "end": 46,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 47,
         "end": 49,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Site Map",
         "start": 50,
         "end": 50,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Water Proving Test",
         "start": 51,
         "end": 52,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Office Sample 4 - PRE 2026 - REDACTED.pdf": [
@@ -1539,92 +1539,92 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 11,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Loss Estimates",
         "start": 12,
         "end": 18,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 19,
         "end": 20,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Management Programs",
         "start": 21,
         "end": 24,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 25,
         "end": 27,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 28,
         "end": 34,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 35,
         "end": 40,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 41,
         "end": 44,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 45,
         "end": 46,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Site Drawing",
         "start": 47,
         "end": 47,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Sprinkler Water-proving Test Results",
         "start": 48,
         "end": 50,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Site Photo",
         "start": 51,
         "end": 52,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Office Sample 5 - PRE 2026 - REDACTED.pdf": [
@@ -1632,92 +1632,92 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 11,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Loss Estimates",
         "start": 12,
         "end": 17,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 18,
         "end": 19,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Management Programs",
         "start": 20,
         "end": 23,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 24,
         "end": 25,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 26,
         "end": 30,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 31,
         "end": 35,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 36,
         "end": 39,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 40,
         "end": 42,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Site Drawing",
         "start": 43,
         "end": 43,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Sprinkler Water-proving Test Results",
         "start": 44,
         "end": 45,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Photo",
         "start": 46,
         "end": 47,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Office Sample 6 - PRE 2026 - REDACTED.pdf": [
@@ -1725,92 +1725,92 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 11,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 12,
         "end": 13,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 14,
         "end": 20,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 21,
         "end": 24,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 25,
         "end": 27,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 28,
         "end": 34,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 35,
         "end": 39,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 40,
         "end": 43,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 44,
         "end": 45,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 46,
         "end": 47,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 48,
         "end": 51,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Site Map",
         "start": 52,
         "end": 52,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf": [
@@ -1818,92 +1818,92 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 11,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 12,
         "end": 13,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 14,
         "end": 18,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 19,
         "end": 22,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 23,
         "end": 24,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 25,
         "end": 28,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 29,
         "end": 31,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 32,
         "end": 35,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 36,
         "end": 37,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 38,
         "end": 38,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 39,
         "end": 39,
-        "cope": "all"
+        "section": "Appendix"
       },
       {
         "heading": "Layout Plan",
         "start": 40,
         "end": 41,
-        "cope": "all"
+        "section": "Appendix"
       }
     ],
     "Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf": [
@@ -1911,86 +1911,86 @@
         "heading": "Contents",
         "start": 1,
         "end": 4,
-        "cope": "all",
+        "section": "Not applicable",
         "note": "Covers cover page, document control page and contents list (pages 1-4)."
       },
       {
         "heading": "Purpose and Scope",
         "start": 5,
         "end": 5,
-        "cope": "all"
+        "section": "Purpose and Scope"
       },
       {
         "heading": "Executive Summary",
         "start": 6,
         "end": 7,
-        "cope": "all"
+        "section": "Executive Summary"
       },
       {
         "heading": "Opportunities for Improvement",
         "start": 8,
         "end": 12,
-        "cope": "all"
+        "section": "Opportunities for Improvement"
       },
       {
         "heading": "Risk Quality Ratings and Comments",
         "start": 13,
         "end": 14,
-        "cope": "all"
+        "section": "Risk Quality Ratings and Comments"
       },
       {
         "heading": "Loss Estimates",
         "start": 15,
         "end": 20,
-        "cope": "all"
+        "section": "Loss Estimates"
       },
       {
         "heading": "Management Programs",
         "start": 21,
         "end": 23,
-        "cope": "all"
+        "section": "Management Programs"
       },
       {
         "heading": "Construction",
         "start": 24,
         "end": 24,
-        "cope": "Construction"
+        "section": "Construction"
       },
       {
         "heading": "Occupancy, Hazards, and Utilities",
         "start": 25,
         "end": 28,
-        "cope": "Occupancy"
+        "section": "Occupancy, Hazards, and Utilities"
       },
       {
         "heading": "Fire Protection",
         "start": 29,
         "end": 32,
-        "cope": "Protection"
+        "section": "Fire Protection"
       },
       {
         "heading": "External Exposures",
         "start": 33,
         "end": 36,
-        "cope": "Exposure"
+        "section": "External Exposures"
       },
       {
         "heading": "Security",
         "start": 37,
         "end": 38,
-        "cope": "Protection"
+        "section": "Security"
       },
       {
         "heading": "Business Interruption",
         "start": 39,
         "end": 40,
-        "cope": "all"
+        "section": "Business Interruption"
       },
       {
         "heading": "Site Photos",
         "start": 41,
         "end": 43,
-        "cope": "all"
+        "section": "Appendix"
       }
     ]
   }

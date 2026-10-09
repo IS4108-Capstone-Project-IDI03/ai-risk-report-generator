@@ -95,8 +95,8 @@ eval.interpret_photos`).
    runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`
    so chunk ids are `<id>:<n>` and every passage carries the document's
    labels (KB-01; an Unconfirmed one is left out, and `status` is
-   `needs_review` until the match step below has finished) and its own COPE label
-   (IN-05, from the report section it sits in). The `ProgressReporter` writes each stage transition to the
+   `needs_review` until the match step below has finished) and its own `section`
+   (IN-05, the report section it sits in, `Not applicable` or `Undefined`). The `ProgressReporter` writes each stage transition to the
    `ingestion_jobs` collection in MongoDB (E2), and the gateway merges this into
    the `KnowledgeDocument` DTO as `progress` while the document is `processing`.
    Then the worker runs the match step (IN-07, see "Matching" below) and gives

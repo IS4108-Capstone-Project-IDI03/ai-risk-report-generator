@@ -15,12 +15,11 @@ OLD = {
     "source_type": "marsh_report",
     "jurisdiction": "MY",
     "facility_type": "Cold store",
-    "COPE_dimension": "all",
     "effective_date": "2024-03-12",
 }
 NEW = {**OLD, "jurisdiction": "SG", "facility_type": "Data centre"}
-# What the gateway sends now: no COPE_dimension, because each passage keeps its own (IN-05 AC10).
-BODY = {k: v for k, v in NEW.items() if k != "COPE_dimension"}
+# What the gateway sends: no section, because each passage keeps its own (IN-05 AC11).
+BODY = NEW
 
 
 class FakeCollection:
@@ -121,21 +120,21 @@ def test_an_unknown_status_is_refused(monkeypatch):
     assert "status" not in collection.records[f"{DOC_ID}:0"]
 
 
-def test_relabel_keeps_each_passages_own_cope_and_ignores_one_in_the_body(monkeypatch):
-    # IN-05 AC10: per-passage COPE is never overwritten by a relabel.
+def test_relabel_keeps_each_passages_own_section_and_ignores_one_in_the_body(monkeypatch):
+    # IN-05 AC11: a passage's section is never overwritten by a relabel.
     collection = FakeCollection(
         {
-            f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD, "COPE_dimension": "Construction"},
-            f"{DOC_ID}:1": {"doc_id": DOC_ID, **OLD, "COPE_dimension": "Protection"},
+            f"{DOC_ID}:0": {"doc_id": DOC_ID, **OLD, "section": "Construction"},
+            f"{DOC_ID}:1": {"doc_id": DOC_ID, **OLD, "section": "Fire Protection"},
         }
     )
     install(monkeypatch, collection)
 
     client.put(f"/documents/{DOC_ID}/labels", json=BODY)
-    client.put(f"/documents/{DOC_ID}/labels", json={**BODY, "COPE_dimension": "all"})
+    client.put(f"/documents/{DOC_ID}/labels", json={**BODY, "section": "Undefined"})
 
-    assert collection.records[f"{DOC_ID}:0"]["COPE_dimension"] == "Construction"
-    assert collection.records[f"{DOC_ID}:1"]["COPE_dimension"] == "Protection"
+    assert collection.records[f"{DOC_ID}:0"]["section"] == "Construction"
+    assert collection.records[f"{DOC_ID}:1"]["section"] == "Fire Protection"
     assert collection.records[f"{DOC_ID}:1"]["jurisdiction"] == "SG"
 
 

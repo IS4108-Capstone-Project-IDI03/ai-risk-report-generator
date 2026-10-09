@@ -25,7 +25,6 @@ def make_doc(**overrides):
             "source_type": "marsh_report",
             "jurisdiction": "MY",
             "facility_type": "Cold store",
-            "COPE_dimension": "all",
             "effective_date": datetime(2024, 3, 12),
         },
     }

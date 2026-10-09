@@ -22,7 +22,7 @@ dependencies so a worker can call it exactly as a CLI does.
 
 import sys
 
-from app.pipeline import cope
+from app.pipeline import sections as report
 from app.pipeline.anonymiser import anonymise
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
@@ -73,9 +73,9 @@ def run(
             Defaults to the file name.
         labels: the document's labels (source type, country, facility type,
             effective date, status; a key is absent when Unconfirmed), added to
-            every chunk's metadata so search can filter on them (KB-01). The
-            COPE dimension is not taken from here: each chunk gets its own from
-            its heading trail (IN-05).
+            every chunk's metadata so search can filter on them (KB-01). Each
+            chunk also gets its own report section from where it sits in the
+            PDF (IN-05).
         reporter: an optional ProgressReporter (E2) that records each stage
             transition to MongoDB. When omitted, a NoOpReporter is used so the
             stage calls below need no guards. On failure, run() re-raises
@@ -116,18 +116,16 @@ def run(
     # A report's sections are read once from its fonts (IN-05); other documents need none.
     labels = labels or {}
     is_report = labels.get("source_type") == "marsh_report"
-    sections = cope.report_sections(file_path) if is_report else []
+    sections = report.report_sections(file_path) if is_report else []
 
     _reporter.start_stage("anonymising")
     chunks = anonymise(chunks)
     for c in chunks:
         c["metadata"].update(labels)
-        # COPE is per passage (IN-05), from its section; it overrides any document-level value.
-        c["metadata"]["COPE_dimension"] = cope.cope_label(
-            labels.get("source_type"),
-            c["metadata"].get("headings"),
-            page=c["metadata"].get("page_start"),
-            sections=sections,
+        # The section is per passage (IN-05), from the pages it sits on.
+        meta = c["metadata"]
+        meta["section"] = report.section_label(
+            labels.get("source_type"), meta.get("page_start"), meta.get("page_end"), sections
         )
 
     _reporter.start_stage("indexing")

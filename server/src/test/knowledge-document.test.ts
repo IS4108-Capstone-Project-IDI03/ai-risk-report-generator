@@ -1094,7 +1094,6 @@ describe('retryIngestion', () => {
         source_type: 'nfpa_standard',
         jurisdiction: 'SG',
         facility_type: 'all',
-        COPE_dimension: 'all',
         effective_date: new Date('2022-01-01'),
       },
       ...overrides,
@@ -1176,7 +1175,6 @@ describe('retryIngestion', () => {
         source_type: 'nfpa_standard',
         jurisdiction: 'SG',
         facility_type: 'all',
-        COPE_dimension: 'all',
         effective_date: new Date('2022-01-01'),
       },
     })
@@ -1226,7 +1224,6 @@ describe('POST /api/knowledge-documents/:id/retry', () => {
         source_type: 'nfpa_standard',
         jurisdiction: 'SG',
         facility_type: 'all',
-        COPE_dimension: 'all',
         effective_date: new Date('2022-01-01'),
       },
       ...overrides,
@@ -1286,7 +1283,6 @@ describe('buildKnowledgeDocumentIndex', () => {
         source_type: 'marsh_report',
         jurisdiction: 'SG',
         facility_type: 'all',
-        COPE_dimension: 'all',
         effective_date: new Date(),
       },
     })

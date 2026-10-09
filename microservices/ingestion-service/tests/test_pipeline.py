@@ -12,7 +12,7 @@ anonymise / index_chunks, so no Docling or network calls happen. They pin:
 import pytest
 
 from app import pipeline
-from app.pipeline import cope
+from app.pipeline import sections as report
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.parser import CapturedItem, ParsedDocument
 
@@ -34,7 +34,7 @@ def _parsed(tables=0, images=0) -> ParsedDocument:
 
 def _install_fakes(monkeypatch, parsed, calls, *, chunks=None, sections=None):
     # The fake paths are not real PDFs, so the report's sections are faked too.
-    monkeypatch.setattr(cope, "report_sections", lambda _path: sections or [])
+    monkeypatch.setattr(report, "report_sections", lambda _path: sections or [])
     chunks = (
         chunks
         if chunks is not None
@@ -137,7 +137,6 @@ LABELS = {
     "source_type": "marsh_report",
     "jurisdiction": "MY",
     "facility_type": "Cold store",
-    "COPE_dimension": "all",
     "effective_date": "2024-03-12",
 }
 
@@ -149,49 +148,45 @@ def test_labels_are_added_to_every_passage_before_indexing(monkeypatch):
     pipeline.run("some/report.pdf", labels=LABELS)
     indexed = next(c[1] for c in calls if c[0] == "index")
     assert [chunk["metadata"] for chunk in indexed] == [
-        {"doc_name": "manual.pdf", **LABELS},
-        {"doc_name": "manual.pdf", **LABELS},
+        {"doc_name": "manual.pdf", **LABELS, "section": "Undefined"},
+        {"doc_name": "manual.pdf", **LABELS, "section": "Undefined"},
     ]
 
 
-def test_each_passage_gets_its_cope_label_from_its_heading_trail(monkeypatch):
-    # IN-05: a marsh report's passages are labelled by section; standards are "all".
-    def chunk(headings):
-        return {"id": "m:0", "text": "x", "metadata": {"headings": headings}}
+def _page_chunk(page):
+    meta = {"headings": ["Occupancy, Hazards, and Utilities"], "page_start": page}
+    return {"id": f"m:{page}", "text": "x", "metadata": meta}
 
-    for source_type, expected in [
-        ("marsh_report", ["Protection", "all"]),
-        ("nfpa", ["all", "all"]),
-    ]:
-        calls = []
-        _install_fakes(
-            monkeypatch,
-            _parsed(),
-            calls,
-            chunks=[chunk(["3. Fire Protection", "Sprinklers"]), chunk(["Business Interruption"])],
-        )
-        pipeline.run("some/doc.pdf", labels={**LABELS, "source_type": source_type})
-        indexed = next(c[1] for c in calls if c[0] == "index")
-        assert [c["metadata"]["COPE_dimension"] for c in indexed] == expected
+
+def test_a_standards_passages_are_not_applicable(monkeypatch):
+    # IN-05: only a past report has sections.
+    calls = []
+    _install_fakes(
+        monkeypatch, _parsed(), calls, chunks=[_page_chunk(3)], sections=[(2, "Construction")]
+    )
+    pipeline.run("some/standard.pdf", labels={**LABELS, "source_type": "nfpa_standard"})
+    indexed = next(c[1] for c in calls if c[0] == "index")
+    assert [c["metadata"]["section"] for c in indexed] == ["Not applicable"]
 
 
 def test_a_report_passage_takes_the_section_of_its_start_page(monkeypatch):
-    # IN-05: the report's own section headings beat Docling's (sometimes mis-nested) trail.
-    def chunk(page):
-        meta = {"headings": ["Occupancy, Hazards, and Utilities"], "page_start": page}
-        return {"id": f"m:{page}", "text": "x", "metadata": meta}
-
+    # IN-05: the section comes from the page a passage starts on, not its heading trail.
     calls = []
     _install_fakes(
         monkeypatch,
         _parsed(),
         calls,
-        chunks=[chunk(3), chunk(6), chunk(9)],
-        sections=[(2, "Occupancy"), (5, "Protection"), (8, "all")],
+        chunks=[_page_chunk(1), _page_chunk(3), _page_chunk(6), _page_chunk(9)],
+        sections=[(2, "Construction"), (5, "Fire Protection"), (8, "Appendix")],
     )
     pipeline.run("some/report.pdf", labels=LABELS)
     indexed = next(c[1] for c in calls if c[0] == "index")
-    assert [c["metadata"]["COPE_dimension"] for c in indexed] == ["Occupancy", "Protection", "all"]
+    assert [c["metadata"]["section"] for c in indexed] == [
+        "Not applicable",
+        "Construction",
+        "Fire Protection",
+        "Appendix",
+    ]
 
 
 # --- Progress reporting (E2): the reporter is driven through the stage boundaries.
