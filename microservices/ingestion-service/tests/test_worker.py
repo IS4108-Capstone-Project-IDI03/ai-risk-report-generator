@@ -329,6 +329,7 @@ def test_a_cancellation_job_finishes_a_stale_processing_document(documents):
     assert documents.doc["status"] == "cancelled"
     assert documents.deleted_passages == [DOC_ID]
     assert documents.notifications == []
+    
 def test_cancellation_is_checked_between_pipeline_chunks(documents, monkeypatch):
     checks = []
 

@@ -17,7 +17,12 @@ import {
 } from '../models/knowledge-document.model'
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
-import { enqueueIngestion, requeueIngestion, removeIngestionJob } from './ingestion-queue.service'
+import {
+  enqueueCancellationJob,
+  enqueueIngestion,
+  requeueIngestion,
+  removeIngestionJob,
+} from './ingestion-queue.service'
 import {
   IngestionUnavailableError,
   labelDocument,
@@ -924,11 +929,29 @@ export async function cancelIngestion(id: string): Promise<void> {
     { $set: { cancelRequestedAt: now } },
     { returnDocument: 'after' },
   ).lean()
-  if (processing) return
+  if (processing) {
+    try {
+      await enqueueCancellationJob(id)
+    } catch {
+      throw new IngestionUnavailableError(
+        'The cancellation could not be queued. Try stopping it again shortly.',
+      )
+    }
+    return
+  }
 
   const document = await KnowledgeDocumentModel.findById(id).select({ status: 1 }).lean()
   if (!document) throw new KnowledgeDocumentNotFoundError()
-  if (document.status === 'processing') return
+  if (document.status === 'processing') {
+    try {
+      await enqueueCancellationJob(id)
+    } catch {
+      throw new IngestionUnavailableError(
+        'The cancellation could not be queued. Try stopping it again shortly.',
+      )
+    }
+    return
+  }
   throw new KnowledgeDocumentWrongStateError('Only a queued or processing document can be stopped.')
 }
 

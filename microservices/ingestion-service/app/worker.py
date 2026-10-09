@@ -81,6 +81,7 @@ def cancel_document(document_id: str) -> None:
         return
     reporter = ProgressReporter(jobs(), document_id)
     finish_cancellation(collection, _id, reporter)
+
 @cache  # one client (and its connection pool) for the life of the worker
 def documents():
     """Return the `knowledge_documents` collection in MONGODB_URI's database."""
