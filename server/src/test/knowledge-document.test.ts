@@ -467,7 +467,7 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
 })
 
 describe('GET /api/knowledge-documents', () => {
-  it('lists recent uploads: in progress, complete for 24 hours, failed for 7 days', async () => {
+  it('lists recent uploads: in progress, complete for 24 hours, failed or cancelled for 7 days', async () => {
     const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000)
     // The ingestion worker writes status and finishedAt; set them as it would.
     const cases = [
@@ -477,6 +477,8 @@ describe('GET /api/knowledge-documents', () => {
       ['complete 25 h ago', { status: 'complete', finishedAt: hoursAgo(25) }],
       ['failed 6 days ago', { status: 'failed', finishedAt: hoursAgo(6 * 24) }],
       ['failed 8 days ago', { status: 'failed', finishedAt: hoursAgo(8 * 24) }],
+      ['cancelled 6 days ago', { status: 'cancelled', cancelledAt: hoursAgo(6 * 24) }],
+      ['cancelled 8 days ago', { status: 'cancelled', cancelledAt: hoursAgo(8 * 24) }],
     ] as const
     for (const [title, state] of cases) {
       const { body } = await upload(freshPdf(), { ...DETAILS, title })
@@ -486,6 +488,7 @@ describe('GET /api/knowledge-documents', () => {
     const { body } = await api.get('/api/knowledge-documents')
 
     expect(body.map((d: { title: string }) => d.title).sort()).toEqual([
+      'cancelled 6 days ago',
       'complete 23 h ago',
       'failed 6 days ago',
       'processing',

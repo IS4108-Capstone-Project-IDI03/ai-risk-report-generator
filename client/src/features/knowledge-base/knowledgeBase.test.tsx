@@ -216,7 +216,7 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     expect(within(table).getByText('Complete')).toBeInTheDocument()
     expect(
       within(table).getByText(
-        'Complete uploads leave this list after 24 hours, failed ones after 7 days.',
+        'Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.',
       ),
     ).toBeInTheDocument()
     expect(within(table).getAllByRole('link', { name: /View original/ })[0]).toHaveAttribute(

@@ -666,9 +666,9 @@ const HOUR = 60 * 60 * 1000
 /**
  * Returns the recent uploads, newest first: every document still queued or
  * processing, plus those that finished recently. A success needs no follow-up,
- * so it shows for 24 hours; a failure needs someone to act, so it shows for 7
- * days. Older documents stay stored; they are just not listed here (the full
- * knowledge base view is KB-01).
+ * so it shows for 24 hours; a failure or cancellation needs someone to act, so
+ * it shows for 7 days. Older documents stay stored; they are just not listed
+ * here (the full knowledge base view is KB-01).
  */
 export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> {
   const since = (hours: number) => new Date(Date.now() - hours * HOUR)
@@ -677,6 +677,7 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
       { status: { $in: ['queued', 'processing'] } },
       { status: 'complete', finishedAt: { $gte: since(24) } },
       { status: 'failed', finishedAt: { $gte: since(7 * 24) } },
+      { status: 'cancelled', cancelledAt: { $gte: since(7 * 24) } },
     ],
   })
     .sort({ createdAt: -1 })
@@ -959,6 +960,7 @@ export async function retryIngestion(id: string): Promise<void> {
       $unset: {
         error: 1,
         finishedAt: 1,
+        result: 1,
         cancelRequestedAt: 1,
         cancelledAt: 1,
       },
