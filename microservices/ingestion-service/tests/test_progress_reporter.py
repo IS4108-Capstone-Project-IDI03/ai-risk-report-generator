@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 from bson import ObjectId
 
-from app.pipeline.progress import ProgressReporter
+from app.pipeline.progress import IngestionCancelledError, ProgressReporter
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 
@@ -98,3 +98,25 @@ def test_every_method_is_a_no_op_without_a_document_id():
     reporter.finish()
 
     collection.find_one_and_update.assert_not_called()
+
+
+def test_reporter_raises_when_cancellation_check_returns_true():
+    reporter = ProgressReporter(MagicMock(), DOC_ID, lambda: True)
+
+    try:
+        reporter.check_cancelled()
+    except IngestionCancelledError:
+        pass
+    else:
+        raise AssertionError("expected IngestionCancelledError")
+
+
+def test_cancel_records_a_terminal_cancelled_stage():
+    collection = MagicMock()
+    reporter = ProgressReporter(collection, DOC_ID)
+
+    reporter.start_stage("chunking")
+    reporter.cancel()
+
+    update = last_set(collection)
+    assert update["stageLog"][-1]["stage"] == "cancelled"
