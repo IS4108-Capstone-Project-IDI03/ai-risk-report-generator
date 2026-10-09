@@ -938,29 +938,37 @@ export async function cancelIngestion(id: string): Promise<void> {
 /**
  * Retries a failed ingestion without re-uploading. The PDF is still in S3 and
  * every detail is still on the record, so retry means re-run, not re-enter: the
- * document flips `failed → queued`, its failure fields are cleared, its retry
- * counter is bumped, and the ingestion job is re-queued. The worker then claims
- * it exactly as a fresh upload.
+ * document flips `failed` or `cancelled` → `queued`, its terminal fields are
+ * cleared, its retry counter is bumped, and the ingestion job is re-queued.
+ * The worker then claims it exactly as a fresh upload.
  *
  * Throws KnowledgeDocumentNotFoundError (unknown or malformed id),
- * KnowledgeDocumentWrongStateError (not currently failed), or
+ * KnowledgeDocumentWrongStateError (not currently failed or cancelled), or
  * IngestionUnavailableError (the re-queue could not be placed), in which case
- * the document is put back to failed.
+ * the document is put back to its previous terminal state.
  */
 export async function retryIngestion(id: string): Promise<void> {
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
-  // Atomic on `status: 'failed'`: only a failed document flips, so a double
-  // click cannot queue two runs or double-count. The counter is bumped in the
-  // same write, so it moves exactly when a retry is accepted — never on the
-  // worker's own automatic re-runs.
+  // Atomic on terminal retryable statuses: only a failed or cancelled document
+  // flips, so a double click cannot queue two runs or double-count. The counter
+  // is bumped in the same write, so it moves exactly when a retry is accepted.
   const updated = await KnowledgeDocumentModel.findOneAndUpdate(
-    { _id: id, status: 'failed' },
+    { _id: id, status: { $in: ['failed', 'cancelled'] } },
     {
       $set: { status: 'queued' },
-      $unset: { error: 1, finishedAt: 1, result: 1 },
+      $unset: {
+        error: 1,
+        finishedAt: 1,
+        cancelRequestedAt: 1,
+        cancelledAt: 1,
+      },
       $inc: { retryCount: 1 },
     },
-    { returnDocument: 'after' },
+    // Keep the matched terminal document so a queue failure can restore the
+    // exact terminal state that the retry started from.
+    // Keep the matched terminal document so a queue failure can restore the
+    // exact terminal state that the retry started from.
+    { returnDocument: 'before' },
   )
     .lean()
     .catch((error: unknown) => {
@@ -977,7 +985,9 @@ export async function retryIngestion(id: string): Promise<void> {
   if (!updated) {
     // One of two reasons, disambiguated like retryTranscription.
     if (await KnowledgeDocumentModel.exists({ _id: id })) {
-      throw new KnowledgeDocumentWrongStateError('Only a failed document can be retried.')
+      throw new KnowledgeDocumentWrongStateError(
+        'Only a failed or cancelled document can be retried.',
+      )
     }
     throw new KnowledgeDocumentNotFoundError()
   }
@@ -988,16 +998,22 @@ export async function retryIngestion(id: string): Promise<void> {
   try {
     await requeueIngestion(id)
   } catch {
+    const rolledBackStatus = updated.status
     await KnowledgeDocumentModel.updateOne(
       { _id: id, status: 'queued' },
-      {
-        $set: {
-          status: 'failed',
-          error: 'Ingestion could not be re-queued. Try again shortly.',
-          finishedAt: new Date(),
-        },
-        $inc: { retryCount: -1 },
-      },
+      rolledBackStatus === 'cancelled'
+        ? {
+            $set: { status: 'cancelled', cancelledAt: new Date() },
+            $inc: { retryCount: -1 },
+          }
+        : {
+            $set: {
+              status: 'failed',
+              error: 'Ingestion could not be re-queued. Try again shortly.',
+              finishedAt: new Date(),
+            },
+            $inc: { retryCount: -1 },
+          },
     )
     throw new IngestionUnavailableError('Ingestion could not be re-queued. Try again shortly.')
   }
