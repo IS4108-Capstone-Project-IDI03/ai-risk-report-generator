@@ -1,5 +1,6 @@
 // A knowledge document's details form: source type first, then only the
-// details that type needs. Used by the Edit details dialog (KB-01), where a
+// details that type needs. A standard's first line is source type, standard
+// number and title; a report's is source type and title. Used by the Edit details dialog (KB-01), where a
 // detail auto-labelling could not confirm opens empty and marked (IN-05).
 import { Input, Select } from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
@@ -52,7 +53,7 @@ export function DetailsFields({
       ]
     : REPORT_FACILITIES
   return (
-    <div className="kb-fields">
+    <div className={standard ? 'kb-fields is-standard' : 'kb-fields'}>
       <Select
         label="Source type"
         required
@@ -64,6 +65,19 @@ export function DetailsFields({
       />
       {details.sourceType && (
         <>
+          {/* The number identifies the standard across editions, so matching
+              uses it instead of the title (IN-07). */}
+          {standard && (
+            <Input
+              label="Standard number"
+              required
+              placeholder={details.sourceType === 'fm_standard' ? 'e.g. 2-81' : 'e.g. 13'}
+              value={details.standardNumber}
+              error={errors.standardNumber}
+              hint={hint('standardNumber', details.standardNumber)}
+              onChange={(e) => onChange({ standardNumber: e.target.value })}
+            />
+          )}
           <Input
             label="Title"
             required

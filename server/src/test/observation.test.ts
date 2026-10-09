@@ -42,8 +42,8 @@ const actor = {
 const api = signedInAs(app, actor)
 
 beforeEach(() => {
-  // Unless a test says otherwise, an interpretation never finishes, so saving
-  // photos leaves nothing running in the background.
+  // Unless a test says otherwise, an interpretation never finishes, so asking
+  // for photos to be read leaves nothing running in the background.
   vision.mockReturnValue(new Promise<Response>(() => {}))
   vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body))
@@ -912,6 +912,7 @@ describe('photo interpretation (CP-05)', () => {
     usage: { input_tokens: 2064, output_tokens: 48, thought_tokens: 180 },
   }
   const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+  const read = (id: string) => api.post(`/api/observations/${id}/interpretation`)
 
   // Interpretation runs after the response, so wait for it to settle.
   async function interpreted(id: string) {
@@ -921,27 +922,36 @@ describe('photo interpretation (CP-05)', () => {
     })
     return (await ObservationModel.findById(id).lean())!
   }
+  // Saves photos, then asks for them to be read, as the Observations tab does.
+  async function readSaved(photos: Photo[] = [{ image: JPG }], fields: object = {}) {
+    const { id } = (await savePhotos(photos, fields)).body
+    expect((await read(id)).status).toBe(202)
+    return id as string
+  }
 
-  it('queues one interpretation of all the photos, with the location and note (AC1, AC2)', async () => {
+  it('sends no photo to the vision model when it is saved', async () => {
+    await assessmentWithSession()
+
+    const response = await savePhotos([{ image: JPG }, { image: PNG }])
+
+    expect(response.status).toBe(201)
+    expect(response.body.interpretation).toBeNull()
+    const stored = await ObservationModel.findById(response.body.id).lean()
+    expect(stored?.interpretation).toBeUndefined()
+    expect(vision).not.toHaveBeenCalled()
+  })
+
+  it('reads all the photos, with the location and note, when asked (AC1, AC2)', async () => {
     let finish!: (reply: Response) => void
     vision.mockReturnValue(new Promise<Response>((resolve) => (finish = resolve)))
     await assessmentWithSession()
+    const { id } = (
+      await savePhotos([{ image: JPG }, { image: PNG }], { note: 'Racking under the heads.' })
+    ).body
 
-    const response = await savePhotos([{ image: JPG }, { image: PNG }], {
-      note: 'Racking under the heads.',
-    })
+    expect((await read(id)).status).toBe(202)
 
-    expect(response.status).toBe(201)
-    expect(response.body.interpretation).toEqual({
-      status: 'interpreting',
-      description: null,
-      copeDimension: null,
-      hazardType: null,
-      error: null,
-      attempts: 1,
-      model: null,
-    })
-    const stored = await ObservationModel.findById(response.body.id).lean()
+    const stored = await ObservationModel.findById(id).lean()
     await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
     expect(vision).toHaveBeenCalledWith({
       s3_keys: stored!.photos!.map((p) => p.key),
@@ -949,16 +959,26 @@ describe('photo interpretation (CP-05)', () => {
       note: 'Racking under the heads.',
     })
     expect(speech).not.toHaveBeenCalled()
-    // Listed as interpreting while it runs (AC2).
-    expect((await listed())[0].interpretation.status).toBe('interpreting')
+    // Listed as interpreting while it runs (AC2), naming the photos it reads.
+    expect((await listed())[0].interpretation).toEqual({
+      status: 'interpreting',
+      description: null,
+      copeDimension: null,
+      hazardType: null,
+      error: null,
+      attempts: 1,
+      model: null,
+      photoIds: stored!.photos!.map((p) => String(p._id)),
+      outOfDate: false,
+    })
     finish(await s5(200, PROPOSAL))
-    await interpreted(response.body.id)
+    await interpreted(id)
   })
 
   it('stores the proposal and what wrote it, leaving the engineer’s own record alone (AC3-AC5)', async () => {
     vision.mockReturnValue(s5(200, PROPOSAL))
     await assessmentWithSession()
-    const { id } = (await savePhotos([{ image: JPG }], { copeDimension: null })).body
+    const id = await readSaved([{ image: JPG }], { copeDimension: null })
 
     const done = await interpreted(id)
 
@@ -984,6 +1004,8 @@ describe('photo interpretation (CP-05)', () => {
       error: null,
       attempts: 1,
       model: 'gemini-3.8-flash',
+      photoIds: [observation.photos[0].id],
+      outOfDate: false,
     })
     // A proposal only: the observation stays uncategorised, with no note.
     expect(observation).toMatchObject({ copeDimension: null, note: null })
@@ -993,17 +1015,17 @@ describe('photo interpretation (CP-05)', () => {
     vision.mockReturnValue(s5(200, { ...PROPOSAL, usage: null }))
     await assessmentWithSession()
 
-    const done = await interpreted((await savePhotos([{ image: JPG }])).body.id)
+    const done = await interpreted(await readSaved())
 
     expect(done.interpretation?.provenance?.usage).toBeNull()
   })
 
-  it('shows why it failed, and retries only a failed interpretation', async () => {
+  it('shows why it failed, and reads again only after a failure', async () => {
     vision.mockReturnValue(
       s5(502, { detail: 'The photos could not be interpreted: 403 API key not valid.' }),
     )
     await assessmentWithSession()
-    const { id } = (await savePhotos([{ image: JPG }])).body
+    const id = await readSaved()
 
     const failed = await interpreted(id)
 
@@ -1017,32 +1039,57 @@ describe('photo interpretation (CP-05)', () => {
     )
 
     vision.mockReturnValue(s5(200, PROPOSAL))
-    expect((await api.post(`/api/observations/${id}/interpretation/retry`)).status).toBe(202)
+    expect((await read(id)).status).toBe(202)
     const done = await interpreted(id)
     expect(done.interpretation?.status).toBe('interpreted')
     expect(done.interpretation?.attempts).toHaveLength(2)
     expect(done.interpretation?.error).toBeUndefined()
 
-    const again = await api.post(`/api/observations/${id}/interpretation/retry`)
+    const again = await read(id)
     expect(again.status).toBe(409)
-    expect(again.body.error).toBe('Only a failed interpretation can be retried.')
-    // An observation without photos has nothing to retry.
+    expect(again.body.error).toBe('Its photos have already been read.')
+  })
+
+  it('starts one reading when asked twice at once', async () => {
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }])).body
+
+    const replies = await Promise.all([read(id), read(id)])
+
+    expect(replies.map((r) => r.status).sort()).toEqual([202, 409])
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored?.interpretation?.attempts).toHaveLength(1)
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+  })
+
+  it('refuses to read an observation with no photos, a deleted one or an unknown one', async () => {
+    await assessmentWithSession()
     const { id: noted } = (await note()).body
-    expect((await api.post(`/api/observations/${noted}/interpretation/retry`)).status).toBe(404)
+    const noPhotos = await read(noted)
+    expect(noPhotos.status).toBe(409)
+    expect(noPhotos.body.error).toBe('This observation has no photos to read.')
+
+    const { id } = (await savePhotos([{ image: JPG }])).body
+    await api.delete(`/api/observations/${id}`)
+    expect((await read(id)).status).toBe(409)
+
+    expect((await read(String(new Types.ObjectId()))).status).toBe(404)
+    expect((await read('nope')).status).toBe(404)
+    expect(vision).not.toHaveBeenCalled()
   })
 
   it('says so when the photo service cannot be reached', async () => {
     vision.mockRejectedValue(new TypeError('fetch failed'))
     await assessmentWithSession()
 
-    const done = await interpreted((await savePhotos([{ image: JPG }])).body.id)
+    const done = await interpreted(await readSaved())
 
     expect(done.interpretation?.error).toBe('The photo service could not be reached.')
   })
 
-  it('marks interpretations interrupted by a restart as failed so they can be retried', async () => {
+  it('marks interpretations interrupted by a restart as failed so they can be read again', async () => {
     await assessmentWithSession()
-    const { id } = (await savePhotos([{ image: JPG }])).body
+    const id = await readSaved()
 
     await failInterruptedInterpretations()
 
@@ -1061,6 +1108,252 @@ describe('photo interpretation (CP-05)', () => {
     expect(vision).not.toHaveBeenCalled()
     const stored = await ObservationModel.findById(response.body.id).lean()
     expect(stored?.interpretation).toBeUndefined()
+  })
+})
+
+describe('adding and removing recordings and photos (CP-08)', () => {
+  const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+  // Sends recordings and photos to add, as the Add media dialog does.
+  function addMedia(id: string, recordings: Recording[] = [], photos: Photo[] = [], as = api) {
+    const req = as.post(`/api/observations/${id}/media`)
+    recordings.forEach((r, i) =>
+      req.attach('recording', r.audio ?? AUDIO, {
+        filename: r.name ?? `Recording ${i + 1}`,
+        contentType: r.type ?? 'audio/webm',
+      }),
+    )
+    photos.forEach((p, i) =>
+      req.attach('photo', p.image, {
+        filename: p.name ?? `IMG_05${10 + i}.jpg`,
+        contentType: p.type ?? 'image/jpeg',
+      }),
+    )
+    return req
+  }
+  type Kind = 'recordings' | 'photos'
+  const remove = (id: string, kind: Kind, itemId: string) =>
+    api.delete(`/api/observations/${id}/${kind}/${itemId}`)
+  const restore = (id: string, kind: Kind, itemId: string) =>
+    api.post(`/api/observations/${id}/${kind}/${itemId}/restore`)
+  const by = { id: String(actor._id), name: 'Alex Rowe' }
+  const READING = {
+    description: 'During the site visit to Bay 3, it was observed that racking stood under a head.',
+    cope_dimension: 'Protection',
+    hazard_type: 'Sprinkler Installation',
+    provider: 'gemini',
+    model: 'gemini-3.8-flash',
+    prompt_version: 'cp05-v1',
+    usage: null,
+  }
+
+  it('adds recordings and photos to a saved observation, once capture has ended', async () => {
+    speech.mockImplementation(() => s5(200, { transcript: 'Valve chained open.' }))
+    await assessmentWithSession()
+    const { id } = (await note()).body
+    // Adding is a correction, not capture, so no session is needed.
+    await CaptureSessionModel.updateMany({}, { status: 'ready_for_generation' })
+
+    const response = await addMedia(
+      id,
+      [{ name: 'valve.m4a', type: 'audio/mp4' }],
+      [{ image: PNG, name: 'valve.png', type: 'image/png' }],
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      note: 'Hose reel H3 blocked by stacked pallets.',
+      recordings: [{ name: 'valve.m4a', added: { by } }],
+      photos: [{ name: 'valve.png', contentType: 'image/png', added: { by } }],
+      removedRecordings: [],
+      removedPhotos: [],
+      edited: { by },
+      // No photo is read until an engineer asks.
+      interpretation: null,
+    })
+    const stored = await settled(id)
+    const [recording] = stored.recordings
+    const [photo] = stored.photos!
+    expect(recording.key).toBe(`audio/RPT-2026-0411/${id}/${recording._id}.mp4`)
+    expect(photo.key).toBe(`photos/RPT-2026-0411/${id}/${photo._id}.png`)
+    expect(s3.get(recording.key)).toEqual(AUDIO)
+    expect(s3.get(photo.key)).toEqual(PNG)
+    // Each recording added is transcribed, as at capture.
+    expect(recording.transcription).toMatchObject({
+      status: 'transcribed',
+      transcript: 'Valve chained open.',
+    })
+    expect(vision).not.toHaveBeenCalled()
+  })
+
+  it('refuses what capture refuses, storing nothing', async () => {
+    await assessmentWithSession()
+    const { id } = (await note()).body
+
+    const heic = await addMedia(id, [], [{ image: HEIC, name: 'IMG_0461.jpg' }])
+    expect(heic.status).toBe(415)
+    expect(heic.body.error).toBe(
+      'IMG_0461.jpg is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
+    )
+    expect((await addMedia(id, [{ type: 'audio/aiff' }])).status).toBe(415)
+    expect((await addMedia(id, [{ audio: Buffer.from('') }])).status).toBe(400)
+    const nothing = await api.post(`/api/observations/${id}/media`).field('note', 'Not media.')
+    expect(nothing.status).toBe(400)
+    expect(nothing.body.error).toBe('Add a recording or a photo to the observation.')
+
+    expect(s3.size).toBe(0)
+    const [o] = await listed()
+    expect(o).toMatchObject({ recordings: [], photos: [], edited: null })
+  })
+
+  it('lets only the assigned engineer add or remove, and not once deleted or archived', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+    const other = signedInAs(app, { ...actor, _id: new Types.ObjectId(), name: 'Jide Okafor' })
+    const photo = photos[0].id
+
+    expect((await addMedia(id, [], [{ image: JPG }], other)).status).toBe(403)
+    expect((await other.delete(`/api/observations/${id}/photos/${photo}`)).status).toBe(403)
+    expect((await addMedia(String(new Types.ObjectId()), [], [{ image: JPG }])).status).toBe(404)
+    expect((await remove(id, 'photos', String(new Types.ObjectId()))).status).toBe(404)
+    expect((await remove(id, 'recordings', 'nope')).status).toBe(404)
+
+    await api.delete(`/api/observations/${id}`)
+    expect((await addMedia(id, [], [{ image: JPG }])).status).toBe(409)
+    expect((await remove(id, 'photos', photo)).status).toBe(409)
+    await api.post(`/api/observations/${id}/restore`)
+    await AssessmentModel.updateMany({}, { archivedAt: new Date() })
+    expect((await addMedia(id, [], [{ image: JPG }])).status).toBe(409)
+    expect((await remove(id, 'photos', photo)).status).toBe(409)
+
+    // Only the two photos saved with it.
+    expect(s3.size).toBe(2)
+  })
+
+  it('removes a recording without deleting it, and drafting stops using it', async () => {
+    speech.mockImplementation(() => s5(200, { transcript: 'Valve chained open.' }))
+    await assessmentWithSession()
+    const { id } = (await save({ note: 'Pump room.' })).body
+    const stored = await settled(id)
+    const recordingId = String(stored.recordings[0]._id)
+
+    const response = await remove(id, 'recordings', recordingId)
+
+    expect(response.status).toBe(200)
+    expect(response.body.recordings).toEqual([])
+    expect(response.body.removedRecordings).toMatchObject([
+      { id: recordingId, removed: { by }, transcription: { transcript: 'Valve chained open.' } },
+    ])
+    expect(response.body.edited).toMatchObject({ by })
+    // Kept as raw evidence, in the database and in S3.
+    expect(s3.has(stored.recordings[0].key)).toBe(true)
+    expect((await ObservationModel.findById(id).lean())!.recordings).toHaveLength(1)
+    // Drafting reads only what is kept.
+    const [drafting] = await listCategoryObservations('RPT-2026-0411', 'Protection')
+    expect(drafting.recordings).toEqual([])
+    // Not corrected, retried or removed again until it is restored.
+    const transcript = `/api/observations/${id}/recordings/${recordingId}/transcript`
+    expect((await api.put(transcript).send({ text: 'Valve locked.' })).status).toBe(409)
+    expect(
+      (await api.post(`/api/observations/${id}/recordings/${recordingId}/transcription/retry`))
+        .status,
+    ).toBe(409)
+    expect((await remove(id, 'recordings', recordingId)).status).toBe(409)
+
+    const restored = await restore(id, 'recordings', recordingId)
+    expect(restored.status).toBe(200)
+    expect(restored.body.recordings).toMatchObject([{ id: recordingId }])
+    expect(restored.body.removedRecordings).toEqual([])
+    expect((await restore(id, 'recordings', recordingId)).status).toBe(409)
+  })
+
+  it('refuses to remove the last thing captured, even two removals at once', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+
+    const replies = await Promise.all(photos.map((p: { id: string }) => remove(id, 'photos', p.id)))
+
+    expect(replies.map((r) => r.status).sort()).toEqual([200, 409])
+    expect(replies.find((r) => r.status === 409)!.body.error).toBe(
+      'An observation needs a note, a recording or a photo, so this photo can’t be removed. Add what replaces it first.',
+    )
+    const [o] = await listed()
+    expect(o.photos).toHaveLength(1)
+    // With a note, the last photo can go; then the note can't.
+    await api.patch(`/api/observations/${id}`).send({ note: 'Riser room.' })
+    expect((await remove(id, 'photos', o.photos[0].id)).status).toBe(200)
+    expect((await api.patch(`/api/observations/${id}`).send({ note: null })).status).toBe(400)
+  })
+
+  it('marks a reading out of date when photos change, and reads those it has now', async () => {
+    vision.mockImplementation(() => s5(200, READING))
+    await assessmentWithSession()
+    const {
+      id,
+      photos: [first],
+    } = (await savePhotos([{ image: JPG }])).body
+    const reading = async () => (await listed())[0].interpretation
+    await api.post(`/api/observations/${id}/interpretation`)
+    await vi.waitFor(async () => expect((await reading()).status).toBe('interpreted'))
+    expect(await reading()).toMatchObject({ photoIds: [first.id], outOfDate: false })
+
+    // Adding a photo reads nothing; the reading shows as out of date.
+    const added = (await addMedia(id, [], [{ image: PNG, type: 'image/png' }])).body
+    const second = added.photos[1].id
+    expect(added.interpretation).toMatchObject({ photoIds: [first.id], outOfDate: true })
+    expect(vision).toHaveBeenCalledTimes(1)
+    // Removing it again brings the reading back up to date.
+    expect((await remove(id, 'photos', second)).body.interpretation.outOfDate).toBe(false)
+    await restore(id, 'photos', second)
+    // Removing the photo it read leaves it out of date too.
+    expect((await remove(id, 'photos', first.id)).body.interpretation.outOfDate).toBe(true)
+
+    // Read again: only the photos it has now.
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(2))
+    const stored = await ObservationModel.findById(id).lean()
+    expect(vision).toHaveBeenLastCalledWith(
+      expect.objectContaining({ s3_keys: [stored!.photos![1].key] }),
+    )
+    await vi.waitFor(async () =>
+      expect(await reading()).toMatchObject({
+        status: 'interpreted',
+        photoIds: [second],
+        outOfDate: false,
+        attempts: 2,
+      }),
+    )
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(409)
+  })
+
+  it('treats a reading from before photos could change as reading every photo saved', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }], { note: 'Riser room.' })).body
+    await ObservationModel.collection.updateOne(
+      { _id: new Types.ObjectId(id) },
+      {
+        $set: {
+          interpretation: {
+            status: 'interpreted',
+            description: 'An earlier reading.',
+            attempts: [{ startedAt: new Date() }],
+          },
+        },
+      },
+    )
+    expect((await listed())[0].interpretation).toMatchObject({
+      photoIds: [photos[0].id],
+      outOfDate: false,
+    })
+
+    const added = (await addMedia(id, [], [{ image: PNG, type: 'image/png' }])).body
+    expect(added.interpretation.outOfDate).toBe(true)
+
+    // With every photo removed there is no reading to show, or to ask for.
+    await remove(id, 'photos', added.photos[1].id)
+    const none = (await remove(id, 'photos', photos[0].id)).body
+    expect(none.interpretation).toBeNull()
+    expect(none.removedPhotos).toHaveLength(2)
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(409)
   })
 })
 

@@ -23,7 +23,8 @@ import { AccessDenied } from '../auth/AccessDenied'
 export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
   return (
     <>
-      <div className="workflow">
+      {/* data-sidenav lets fixed overlays (the toast) centre on the content, not the window. */}
+      <div className="workflow" data-sidenav={v.showSideNav || undefined}>
         <div className="workflow-frame">
           <div style={{ display: 'flex', height: '100%' }}>
             {!!v.showSideNav && (

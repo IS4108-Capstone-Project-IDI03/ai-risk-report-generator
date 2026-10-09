@@ -3,42 +3,11 @@
 // opens empty and marked, and must be filled in before saving. A refused value shows its reason under the field and nothing is saved; any
 // other failure shows its reason above the fields. Opened by
 // screens/KnowledgeDocuments.tsx; saves through api.ts.
-import { useState } from 'react'
 import { Button, Callout, Dialog } from '../../../design-system'
-import { GatewayError } from '../../assessments/api'
-import {
-  correctKnowledgeDocument,
-  type DocumentDetails,
-  type DocumentVersion,
-  type KnowledgeDocument,
-  type StoredDetails,
-  type UnconfirmedDetail,
-} from '../api'
-import { editionProblem, FACILITY_UNSET, withSourceType } from '../details'
+import type { DocumentVersion, KnowledgeDocument } from '../api'
 import { dateTime } from '../display'
+import { useDetailsForm } from '../useDetailsForm'
 import { DetailsFields } from './DetailsFields'
-
-// The form's values for stored details. A standard's "all" facility type is
-// the form's blank "All facility types" choice. An Unconfirmed detail opens
-// empty (null is already empty; the title is the file name until confirmed).
-function formDetails(d: StoredDetails, unconfirmed: UnconfirmedDetail[]): DocumentDetails {
-  const standard = d.sourceType !== 'marsh_report'
-  // A standard's blank facility type means "all", so "not chosen" needs its own value.
-  const noFacility = standard ? FACILITY_UNSET : ''
-  return {
-    sourceType: d.sourceType ?? '',
-    title: unconfirmed.includes('title') ? '' : d.title,
-    edition: d.edition ?? '',
-    effectiveDate: d.effectiveDate ?? '',
-    jurisdiction: d.jurisdiction ?? '',
-    facilityType:
-      d.facilityType === null
-        ? noFacility
-        : standard && d.facilityType === 'all'
-          ? ''
-          : d.facilityType,
-  }
-}
 
 /** Returns the Edit details dialog, filled from the document or a version. */
 export function EditDetailsDialog({
@@ -52,58 +21,7 @@ export function EditDetailsDialog({
   onClose: () => void
   onSaved: (updated: KnowledgeDocument) => void
 }) {
-  const [details, setDetails] = useState(() =>
-    formDetails(version ?? document, version ? [] : document.unconfirmed),
-  )
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [problem, setProblem] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  // Same rule as an upload row: changing the source type starts that type's
-  // own fields afresh; an edited field's old error no longer applies.
-  // Choosing the source type of a document that had none keeps the other
-  // details, since they were read from the document, not defaulted.
-  const change = (next: Partial<DocumentDetails>) => {
-    const base =
-      next.sourceType !== undefined && next.sourceType !== details.sourceType && details.sourceType
-        ? withSourceType(details, next.sourceType)
-        : details
-    setDetails({ ...base, ...next })
-    setErrors(Object.fromEntries(Object.entries(errors).filter(([field]) => !(field in next))))
-  }
-
-  const save = async () => {
-    // A bad edition is caught here, so nothing is sent.
-    const edition = editionProblem(details)
-    if (edition) {
-      setErrors({ edition })
-      return
-    }
-    // A standard's facility type still not chosen; a report's blank one is
-    // refused by the gateway with its own message.
-    if (details.facilityType === FACILITY_UNSET) {
-      setErrors({ facilityType: 'Choose a facility type.' })
-      return
-    }
-    setBusy(true)
-    setProblem(null)
-    try {
-      onSaved(await correctKnowledgeDocument(document.id, details))
-    } catch (error: unknown) {
-      const refused = error instanceof GatewayError && error.status === 400
-      setErrors(refused ? error.fields : {})
-      setProblem(
-        error instanceof GatewayError && error.status === null
-          ? 'The gateway could not be reached, so the details were not saved. Try again.'
-          : refused && Object.keys(error.fields).length > 0
-            ? null
-            : error instanceof Error
-              ? error.message
-              : 'The details were not saved.',
-      )
-      setBusy(false)
-    }
-  }
+  const { details, errors, problem, busy, change, save } = useDetailsForm(document, version)
 
   return (
     <Dialog
@@ -117,7 +35,7 @@ export function EditDetailsDialog({
           <Button variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" loading={busy} onClick={save}>
+          <Button variant="primary" loading={busy} onClick={() => save(onSaved)}>
             Save details
           </Button>
         </>

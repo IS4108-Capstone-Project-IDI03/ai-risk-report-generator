@@ -39,10 +39,48 @@ def _message(doc: dict, status: str, failed_stage: str | None) -> str:
     if status == "failed":
         where = f" during {failed_stage}" if failed_stage else ""
         return f'"{title}" failed to ingest{where}.'
+    if status == "needs_review":
+        return f'"{title}" needs review.'
     return f'"{title}" finished ingesting.'
 
 
-def notify_ingestion(doc: dict, status: str, failed_stage: str | None = None) -> None:
+# Must match MATCH_WORDS in client/src/features/knowledge-base/display.ts.
+_MATCH_WORDS = {
+    "newer_edition": "Possible newer edition of",
+    "earlier_edition": "Possible earlier edition of",
+    "possible_copy": "Possible copy of",
+}
+
+
+def review_reason(doc: dict, matched: dict | None) -> str | None:
+    """Return why a finished document needs review, in the list's words, or None (IN-07).
+
+    `matched` is the document its match points to (title and edition), if any. A
+    withdrawn document is never asked to be reviewed, as in the knowledge base list.
+    """
+    if doc.get("withdrawn"):
+        return None
+    reasons = []
+    if doc.get("match") and not matched:
+        # Deleted since matching: still say why, without its name.
+        reasons.append(_MATCH_WORDS[doc["match"]["kind"]].removesuffix(" of"))
+    elif doc.get("match"):
+        notes = [f"{matched['edition']} edition" if matched.get("edition") else None]
+        notes.append("withdrawn" if matched.get("withdrawn") else None)
+        notes = ", ".join(n for n in notes if n)
+        detail = f" ({notes})" if notes else ""
+        reasons.append(f"{_MATCH_WORDS[doc['match']['kind']]} {matched['title']}{detail}")
+    if doc.get("unconfirmed"):
+        reasons.append("Unconfirmed details")
+    return " · ".join(reasons) or None
+
+
+def notify_ingestion(
+    doc: dict,
+    status: str,
+    failed_stage: str | None = None,
+    review_reason: str | None = None,
+) -> None:
     """Post an ingestion-status notification to the gateway. Never raises.
 
     Args:
@@ -51,7 +89,12 @@ def notify_ingestion(doc: dict, status: str, failed_stage: str | None = None) ->
         failed_stage: for a failure, the stage that was in progress when it
             broke (parsing/chunking/anonymising/indexing) — never the sentinel
             "failed" the stage log later carries.
+        review_reason: for a finished document that waits for an admin (IN-07),
+            why — it then says "needs review" instead of "finished ingesting", so
+            the admin is told what to do, not just that something happened.
     """
+    if status == "complete" and review_reason:
+        status = "needs_review"
     key = os.environ.get("SERVICE_API_KEY")
     if not key:
         # Without a key the gateway would reject the post, so skip it rather
@@ -85,6 +128,8 @@ def notify_ingestion(doc: dict, status: str, failed_stage: str | None = None) ->
     error = doc.get("error")
     if status == "failed" and error:
         body["details"] = error
+    if status == "needs_review":
+        body["details"] = review_reason
 
     try:
         response = httpx.post(

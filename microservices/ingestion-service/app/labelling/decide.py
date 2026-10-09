@@ -40,9 +40,29 @@ def _date_forms(iso: str) -> list[str] | None:
     return forms
 
 
-def _grounded(detail: str, value: str | None, text: str) -> bool:
+def _nfpa_page(number: str, raw: str) -> bool:
+    """Return whether NFPA's page numbering ("13-33": standard 13, page 33) names the number."""
+    # Not followed by another dash group, so a date like "13-05-2022" doesn't count.
+    return bool(re.search(rf"(?<![\w-]){re.escape(number)}[-–]\d{{1,3}}\b(?![-–]\d)", raw))
+
+
+def _grounded(
+    detail: str, value: str | None, text: str, source_type: str | None = None, raw: str = ""
+) -> bool:
     """Return True if a free-text value is valid and its text appears in the pages."""
     if not value:
+        return False
+    if detail == "standard_number":
+        # NFPA numbers are bare ("13", "13R") so the body's name must precede them, or
+        # NFPA's page numbers must carry them (an excerpt without its cover); FM's "2-81"
+        # is distinctive enough alone. A report has none.
+        if source_type == "nfpa_standard":
+            return bool(
+                re.fullmatch(r"\d+[A-Z]?", value)
+                and (_found(f"nfpa {value}", text) or _nfpa_page(value, raw))
+            )
+        if source_type == "fm_standard":
+            return bool(re.fullmatch(r"\d{1,2}-\d{1,3}", value) and _found(value, text))
         return False
     if detail == "edition":
         return bool(
@@ -82,9 +102,9 @@ def decide(classified: dict | None, extracted: dict, page_text: str, models: dic
             "model": models["fixed"],
         }
     # b. Free-text: only if grounded in the page text. Self-confidence is ignored.
-    for d in ("title", "edition", "effective_date"):
+    for d in ("title", "edition", "standard_number", "effective_date"):
         answer = extracted.get(d) or {}
-        ok = _grounded(d, answer.get("value"), text)
+        ok = _grounded(d, answer.get("value"), text, out["source_type"]["value"], page_text)
         out[d] = {
             "value": answer["value"] if ok else None,
             "confidence": 1.0 if ok else 0.0,
@@ -104,9 +124,9 @@ def decide(classified: dict | None, extracted: dict, page_text: str, models: dic
 
 
 def unconfirmed(details: dict) -> list[str]:
-    """Return the details with no value, except a report's edition (it has none)."""
+    """Return the details with no value, except a report's edition and standard number."""
     is_report = details["source_type"]["value"] == "marsh_report"
     return [
         d for d in config.DETAILS
-        if details[d]["value"] is None and not (d == "edition" and is_report)
+        if details[d]["value"] is None and not (d in ("edition", "standard_number") and is_report)
     ]  # fmt: skip

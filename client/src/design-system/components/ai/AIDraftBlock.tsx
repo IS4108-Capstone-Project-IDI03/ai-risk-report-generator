@@ -10,6 +10,10 @@ export type AIDraftBlockProps = {
   evidenceCount?: number
   children?: React.ReactNode
   onAccept?: () => void
+  // The Accept button's accessible name when several blocks share a screen
+  // (e.g. "Accept <title>"), and whether it is unavailable for now.
+  acceptLabel?: string
+  acceptDisabled?: boolean
   onEdit?: () => void
   onShowEvidence?: () => void
   style?: React.CSSProperties
@@ -44,6 +48,8 @@ function AIDraftBlock({
   evidenceCount = 0,
   children,
   onAccept,
+  acceptLabel,
+  acceptDisabled = false,
   onEdit,
   onShowEvidence,
   style = {},
@@ -150,7 +156,14 @@ function AIDraftBlock({
           </Button>
         ) : null}
         {onAccept && status !== 'accepted' ? (
-          <Button variant={'secondary'} size={'sm'} iconLeft={'check'} onClick={onAccept}>
+          <Button
+            variant={'secondary'}
+            size={'sm'}
+            iconLeft={'check'}
+            aria-label={acceptLabel}
+            disabled={acceptDisabled}
+            onClick={onAccept}
+          >
             {'Accept'}
           </Button>
         ) : null}

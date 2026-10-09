@@ -1,7 +1,7 @@
 // The knowledge base's Documents tab (KB-01): browse active documents by
 // group, filter by label, and correct a document's details. The gateway is a
 // stubbed fetch.
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -88,6 +88,8 @@ function mockGateway(
       puts.push({ id, body })
       return onPut(id, body)
     }
+    // The Review page asks for a comparison first; none of these documents has a match.
+    if (url.endsWith('/comparison')) return json(409, { error: 'No match.' })
     if (url.startsWith('/api/knowledge-documents')) return json(200, [])
     return Promise.reject(new TypeError('Failed to fetch'))
   })
@@ -115,6 +117,12 @@ async function edit(title: string) {
 // A document's row in the table (its open details repeat the same values).
 const row = async (title: string) =>
   (await screen.findByRole('button', { name: new RegExp(`^${title}`) })).closest('tr')!
+// Opens a document's Review page from its row's Review button, and returns its
+// Confirm details section.
+async function openReview(title: string) {
+  fireEvent.click(await screen.findByRole('button', { name: `Needs review: ${title}` }))
+  return screen.findByRole('region', { name: 'Confirm details' })
+}
 // Matches one line of the banner as a whole, bold names included.
 const line = (text: string) => (_: string, el: Element | null) =>
   el?.tagName === 'P' && el.textContent === text
@@ -148,24 +156,29 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(await group('Past Marsh reports')).getByText(REPORT.title)).toBeInTheDocument()
   })
 
-  it('shows each document’s edition or report date, country, facility type, status and original', async () => {
+  it('shows each document’s edition or report date, status and original, with country and facility type in its details', async () => {
     mockGateway([FM, REPORT])
     await openKnowledgeBase()
 
     const standards = await group('FM standards')
     expect(within(standards).getByText('FM Global · 2024 Edition')).toBeInTheDocument()
-    expect(within(standards).getByText('All countries')).toBeInTheDocument()
-    expect(within(standards).getByText('All facility types')).toBeInTheDocument()
     expect(within(standards).getByText('Active')).toBeInTheDocument()
+    // Country and facility type are not columns of the row any more.
+    expect(within(standards).queryByText('All countries')).not.toBeInTheDocument()
+    expect(within(standards).queryByText('All facility types')).not.toBeInTheDocument()
     const reports = await group('Past Marsh reports')
     expect(within(reports).getByText('Report date 12 Mar 2024')).toBeInTheDocument()
-    expect(within(reports).getByText('Malaysia')).toBeInTheDocument()
-    expect(within(reports).getByText('Cold store')).toBeInTheDocument()
+    expect(within(reports).queryByText('Malaysia')).not.toBeInTheDocument()
     expect(
       within(reports).getByRole('link', { name: `View original of ${REPORT.title}` }),
     ).toHaveAttribute('href', REPORT.fileUrl)
     expect(within(reports).queryByRole('button', { name: /Edit details/ })).not.toBeInTheDocument()
     expect(count('Total 2 documents')).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
+    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    expect(within(details).getByText('Malaysia')).toBeInTheDocument()
+    expect(within(details).getByText('Cold store')).toBeInTheDocument()
   })
 
   it('says which group is empty', async () => {
@@ -236,7 +249,11 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
-    expect(await within(await row(REPORT.title)).findByText('Singapore')).toBeInTheDocument()
+    expect(
+      await within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).findByText(
+        'Singapore',
+      ),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(puts).toEqual([
       {
@@ -297,7 +314,11 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(
       await within(dialog).findByText('Choose a facility type from the list.'),
     ).toBeInTheDocument()
-    expect(within(await row(REPORT.title)).getByText('Cold store')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).getByText(
+        'Cold store',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('shows the reason when search could not be updated', async () => {
@@ -423,7 +444,11 @@ describe('Knowledge base documents (KB-01)', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(puts).toEqual([])
-    expect(within(await row(REPORT.title)).getByText('Malaysia')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).getByText(
+        'Malaysia',
+      ),
+    ).toBeInTheDocument()
   })
 
   // KB-01 AC12–16: withdraw and reinstate.
@@ -511,6 +536,20 @@ describe('Knowledge base documents (KB-01)', () => {
         name: `View original of ${REPORT.title}`,
       }),
     ).toBeInTheDocument()
+  })
+
+  it('turns Reinstate off when another edition is active, without a reason line', async () => {
+    mockGateway([
+      {
+        ...WITHDRAWN,
+        reinstateBlockedBy: { id: 'other', title: REPORT.title, edition: '2025' },
+      },
+    ])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    expect(within(details).getByRole('button', { name: 'Reinstate' })).toBeDisabled()
+    expect(within(details).queryByText(/Withdraw the 2025 edition first/)).not.toBeInTheDocument()
   })
 
   it('hides Restore on a withdrawn document’s edit history', async () => {
@@ -655,7 +694,7 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
   })
 
-  it('titles the banner with the one document, whose Edit details opens it, and shows none for none', async () => {
+  it('titles the banner with the one document, whose Review opens its page, and shows none for none', async () => {
     mockGateway([FM, PARTLY])
     await openKnowledgeBase()
     const banner = await reviewBanner()
@@ -663,9 +702,11 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(
       within(banner).getByText('Fill in its unconfirmed details, so new reports can refer to it.'),
     ).toBeInTheDocument()
-    fireEvent.click(within(banner).getByRole('button', { name: 'Edit details' }))
-    expect(screen.getByRole('dialog', { name: 'Edit details' })).toBeInTheDocument()
+    // Review goes to the document's Review page (IN-07), not the Edit dialog.
+    fireEvent.click(within(banner).getByRole('button', { name: 'Review' }))
+    expect(window.location.pathname).toBe(`/admin/knowledge-base/review/${PARTLY.id}`)
     cleanup()
+    window.history.replaceState(null, '', '/')
 
     mockGateway([FM, NFPA])
     await openKnowledgeBase()
@@ -740,11 +781,17 @@ describe('Knowledge base needs review (IN-05)', () => {
     mockGateway([FM, UNREAD])
     await openKnowledgeBase()
 
+    // The row has one badge and no values to flag; the flags are in its details.
     const unread = await row(UNREAD.title)
-    const flags = within(unread).getAllByText('Unconfirmed')
-    expect(flags).toHaveLength(2)
+    expect(within(unread).getByText('Needs review')).toBeInTheDocument()
+    fireEvent.click(within(unread).getByRole('button', { name: new RegExp(`^${UNREAD.title}`) }))
+    const details = screen.getByRole('region', { name: `Details of ${UNREAD.title}` })
+    const flags = within(details).getAllByText('Unconfirmed')
+    expect(flags.length).toBeGreaterThan(1)
     for (const flag of flags) expect(flag.querySelector('[role="presentation"]')).toBeTruthy()
-    expect(within(unread).queryByText(/null/)).not.toBeInTheDocument()
+    expect(within(details).queryByText(/null/)).not.toBeInTheDocument()
+    // Review covers fixing them, so a document needing review has no Edit details.
+    expect(within(details).queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
     const grouped = await group('Source type unconfirmed')
     expect(within(grouped).getByText(UNREAD.title)).toBeInTheDocument()
   })
@@ -756,10 +803,10 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(screen.queryByRole('rowgroup', { name: 'Source type unconfirmed' })).toBeNull()
   })
 
-  it('opens Unconfirmed fields empty and marked, and requires a source type to be chosen', async () => {
+  it('opens Unconfirmed fields empty and marked on the Review page, and requires a source type to be chosen', async () => {
     const puts = mockGateway([UNREAD], (id) => json(200, { ...UNREAD, id, unconfirmed: [] }))
     await openKnowledgeBase()
-    const dialog = await edit(UNREAD.title)
+    const dialog = await openReview(UNREAD.title)
 
     expect(within(dialog).getByLabelText(/^Source type/)).toHaveValue('')
     expect(within(dialog).getByText('Unconfirmed — fill this in')).toBeInTheDocument()
@@ -779,7 +826,7 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(puts).toEqual([])
   })
 
-  it('marks only the Unconfirmed fields, clears a mark once filled, and drops the badge after saving', async () => {
+  it('marks only the Unconfirmed fields on the Review page, clears a mark once filled, and confirms the save with a toast', async () => {
     const puts = mockGateway([PARTLY], (id, body) =>
       json(200, {
         ...PARTLY,
@@ -790,7 +837,7 @@ describe('Knowledge base needs review (IN-05)', () => {
       }),
     )
     await openKnowledgeBase()
-    const dialog = await edit(PARTLY.title)
+    const dialog = await openReview(PARTLY.title)
 
     expect(within(dialog).getByLabelText(/^Title/)).toHaveValue(PARTLY.title)
     expect(within(dialog).getByLabelText(/^Edition/)).toHaveValue(null)
@@ -803,9 +850,10 @@ describe('Knowledge base needs review (IN-05)', () => {
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // No match to decide on, so it goes back to the list with a toast.
+    expect(
+      await screen.findByText(`Details saved. ${PARTLY.title} (2023 edition) is now active.`),
+    ).toBeInTheDocument()
     expect(puts[0].body).toMatchObject({ edition: '2023', facilityType: 'Cold store' })
-    expect(within(await row(PARTLY.title)).queryByText('Needs review')).not.toBeInTheDocument()
-    expect(screen.queryByText(/need(s)? review/)).not.toBeInTheDocument()
   })
 })

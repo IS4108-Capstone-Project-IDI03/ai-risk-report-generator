@@ -14,12 +14,16 @@ from app.labelling.config import (
 _sources = "; ".join(f"{k} = {v}" for k, v in SOURCE_TYPES.items())
 _countries = "; ".join(f"{k} = {v}" for k, v in JURISDICTIONS.items())
 
-SYSTEM_PROMPT = f"""You read the first pages of a property risk document and report six details.
+SYSTEM_PROMPT = f"""You read the first pages of a property risk document and report seven details.
 
 Details:
 - source_type: one of {_sources}.
 - title: the document's title as printed on its cover.
 - edition: a standard's 4-digit edition year. null for reports.
+- standard_number: a standard's designation without the issuing body, as printed: for NFPA
+  the number with an optional letter (e.g. "13", "13R"), for FM Global the data sheet number
+  (e.g. "2-81"). NFPA page numbers start with it: a page numbered "13-33" is in NFPA 13.
+  null for reports.
 - effective_date: YYYY-MM-DD. A standard's effective date as printed (for FM Global, the
   cover's month and year, as the first of that month). For a report, the report or issue
   date on its cover.

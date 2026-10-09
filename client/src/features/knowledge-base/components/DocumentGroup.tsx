@@ -18,6 +18,7 @@ export function DocumentGroup({
   onEdit,
   onHistory,
   onChangeStatus,
+  onReview,
 }: {
   group: Group
   documents: KnowledgeDocument[]
@@ -26,12 +27,13 @@ export function DocumentGroup({
   onEdit: (document: KnowledgeDocument) => void
   onHistory: (document: KnowledgeDocument) => void
   onChangeStatus: (document: KnowledgeDocument) => void
+  onReview: (document: KnowledgeDocument) => void
 }) {
   const id = `kb-group-${group.sourceType ?? 'unconfirmed'}`
   return (
     <tbody aria-labelledby={id}>
       <tr className="kb-band">
-        <th colSpan={6} scope="colgroup">
+        <th colSpan={4} scope="colgroup">
           <span className="kb-band-inner">
             <Icon name={group.icon} size={15} />
             <span id={id}>{group.title}</span>
@@ -41,7 +43,7 @@ export function DocumentGroup({
       </tr>
       {documents.length === 0 ? (
         <tr>
-          <td colSpan={6} className="kb-list-note">
+          <td colSpan={4} className="kb-list-note">
             No {group.title.replace('Past ', 'past ')} yet.
           </td>
         </tr>
@@ -55,6 +57,7 @@ export function DocumentGroup({
             onEdit={() => onEdit(d)}
             onHistory={() => onHistory(d)}
             onChangeStatus={() => onChangeStatus(d)}
+            onReview={() => onReview(d)}
           />
         ))
       )}

@@ -1,0 +1,384 @@
+/* The Review page (IN-07): header, a main column (Confirm details, the
+   passages) and a 344px side panel with the decision, the design system's
+   right inspector. Colours and spacing are the design system's tokens. */
+.kb-review {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.kb-review-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.kb-review-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+/* Focused on open only so screen readers announce it; it isn't interactive, so no ring. */
+.kb-review-title h2:focus {
+  outline: none;
+}
+.kb-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* What the document is, under its title. */
+.kb-review-meta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Main column and side panel. The panel sticks while the passages scroll, so
+   the choice stays beside what it concerns. */
+.kb-review-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 344px;
+  align-items: start;
+  gap: 24px;
+}
+.kb-review-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.kb-review-panel {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.kb-panel-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* The match sits on an amber band across the panel's top, the Needs review
+   colour, so the eye lands here first: what this is, then what to do. The band
+   bleeds to the panel's edges (its 20px padding). */
+.kb-panel-band {
+  margin: -20px -20px 0;
+  padding: 16px 20px;
+  background: var(--status-moderate-bg);
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.kb-panel-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.kb-panel-title > span:first-child {
+  flex: none;
+  margin-top: 4px;
+  color: var(--status-moderate-fg);
+}
+.kb-panel-note {
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+/* Exact counts, label left and figure right, like a ledger. */
+.kb-panel-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+}
+.kb-panel-counts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.kb-panel-counts-head {
+  margin-bottom: 2px;
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--status-moderate-fg);
+}
+/* On the amber band, secondary text takes the band's own hue, not grey. */
+.kb-panel-counts dt {
+  white-space: nowrap;
+  color: var(--status-moderate-fg);
+}
+.kb-panel-counts dd {
+  margin: 0;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+@media (max-width: 1079px) {
+  .kb-review-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Stacked, the decision comes first and scrolls with the page. */
+  .kb-review-panel {
+    position: static;
+    order: -1;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Each step is one card, like the Documents list. */
+.kb-step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  container-type: inline-size;
+}
+.kb-step-panel h3 {
+  margin: 0;
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.kb-step-note {
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+  max-width: 68ch;
+}
+.kb-review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kb-review-form .kb-fields {
+  margin-top: 0;
+}
+.kb-review-form-actions {
+  display: flex;
+  gap: 8px;
+}
+.kb-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.kb-summary p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.kb-summary b {
+  font-weight: var(--weight-semibold);
+  color: var(--status-low-fg);
+}
+
+/* A reason under a row's title in the Documents list. */
+.kb-why {
+  color: var(--status-moderate-fg);
+}
+.kb-why-quiet {
+  color: var(--text-muted);
+}
+/* The comparison: two aligned columns. A differing passage has a 2px rule on
+   its left and the moderate tone; matching passages stay quiet. */
+.kb-cmp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.kb-cmp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kb-cmp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.kb-cmp-tabs {
+  display: none;
+}
+.kb-cmp-same {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.kb-cmp-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+}
+.kb-cmp-table thead th {
+  padding: 6px 12px;
+  text-align: left;
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--surface-header);
+}
+.kb-cmp-cell {
+  padding: 8px 12px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  border-left: 2px solid transparent;
+}
+.kb-cmp-cell p {
+  margin: 0;
+}
+.kb-cmp-cell small {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-label-size);
+  color: var(--text-muted);
+}
+.kb-cmp-cell.is-diff {
+  border-left-color: var(--status-moderate-fg);
+  background: var(--status-moderate-bg);
+  color: var(--text-primary);
+}
+.kb-cmp-empty {
+  font-style: italic;
+  color: var(--text-muted);
+}
+.kb-cmp-fold-cell {
+  padding: 0;
+}
+.kb-cmp-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  color: var(--text-link);
+  cursor: pointer;
+}
+.kb-cmp-fold:hover {
+  background: var(--surface-hover);
+}
+.kb-cmp-fold:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* When the passages card is narrower than 760px (a laptop beside the panel,
+   or a phone), one column shows at a time, chosen by the Stored / New tabs:
+   two columns that narrow make every passage a tall strip. */
+@container (max-width: 759px) {
+  .kb-cmp-tabs {
+    display: block;
+  }
+  /* The tab already names the column. */
+  .kb-cmp-table thead {
+    display: none;
+  }
+  /* A row with nothing on the shown side is the other tab's news. */
+  .kb-cmp[data-pane='new'] tr:has(> td[data-col='new'] .kb-cmp-empty),
+  .kb-cmp[data-pane='stored'] tr:has(> td[data-col='stored'] .kb-cmp-empty) {
+    display: none;
+  }
+  .kb-cmp[data-pane='stored'] [data-col='new'],
+  .kb-cmp[data-pane='new'] [data-col='stored'] {
+    display: none;
+  }
+  /* The shown column takes the full width (a fixed layout would keep it at half). */
+  .kb-cmp-table {
+    table-layout: auto;
+  }
+  .kb-cmp-table th,
+  .kb-cmp-cell {
+    width: 100%;
+  }
+}
+
+/* The choices in the side panel: radios, then one full-width button. */
+.kb-decide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kb-decide-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kb-decide-choices legend {
+  margin-bottom: 12px;
+  padding: 0;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.kb-choice {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  transition: var(--transition-control);
+}
+.kb-choice:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+/* The chosen card: the design system's selected fill, with an ink border. */
+.kb-choice[data-checked] {
+  border-color: var(--action-primary);
+  background: var(--surface-selected);
+}
+.kb-choice:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.kb-choice-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-weight: var(--weight-medium);
+}

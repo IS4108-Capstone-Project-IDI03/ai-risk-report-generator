@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
-from app.orchestrator.orchestrator import draft, run
+from app.orchestrator.orchestrator import draft, draft_ofis_for, run
 from app.retrieval.retriever import retrieve
 from app.retrieval_config import COLLECTION, chroma_client
 
@@ -48,6 +48,14 @@ class Observation(BaseModel):
     severity: str | None = None
     location: str | None = None
     standard: str | None = None
+
+
+class DraftOfisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assessment: Assessment
+    observations: list[Observation] = []
+    # Titles of OFIs the engineer already accepted, so they aren't proposed again.
+    accepted: list[str] = []
 
 
 class DraftSectionRequest(BaseModel):
@@ -139,5 +147,14 @@ def draft_section(request: DraftSectionRequest) -> dict:
         raise HTTPException(404, f"Section {request.section_id} is not in the report template")
     try:
         return draft(request.section_id, request.assessment, request.observations)
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+@router.post("/ofis/draft")
+def draft_ofis(request: DraftOfisRequest) -> dict:
+    """Draft Section 3 Opportunities for Improvement (GN-05) for the gateway to save."""
+    try:
+        return draft_ofis_for(request.assessment, request.observations, request.accepted)
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
