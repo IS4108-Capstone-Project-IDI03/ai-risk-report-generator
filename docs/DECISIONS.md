@@ -561,6 +561,28 @@ device to upload as normal. Reading the format from the image is what makes
 
 Stories: CP-04.
 
+## 2026-10-08 — The reset email goes over SMTP with a console fallback, and the browser times itself out
+
+Chose: the password reset email (F-06) is sent through SMTP when `SMTP_HOST` is
+set (Gmail with an app password for our demo) and carries a link
+`APP_URL/?reset=<code>`; the sign-in screen opens at the new-password step with
+the code filled in and removes it from the address bar. With no `SMTP_HOST` the
+code is printed to the server console as before, so CI and fresh checkouts need
+no mail server, and the server tests force `SMTP_HOST` empty so a developer's
+real `.env` can never make a test send mail. A send failure is logged and the
+response stays identical to success, and real sends are not awaited, so
+neither an outage nor response time reveals which addresses are registered.
+F-07's browser half is a 15-minute idle timer (`useIdleTimeout`) that signs
+out on its own, because the gateway cannot tell an idle page its session
+ended. Rejected: making SMTP settings required, which breaks CI; a
+transactional email service (SES, SendGrid), which adds an account and a
+dependency for one email; and polling the gateway to detect expiry, which
+would count as activity and keep the session alive.
+
+Reason: AC1 needs a real emailed link, but the project has no mail
+infrastructure; generic SMTP settings work with any provider.
+
+Stories: F-06, F-07.
 ## 2026-10-08 — Photos are read by Gemini in S5, once per observation, as a proposal only
 
 Chose: S5 interprets an observation's photos with Gemini (`gemini-3.8-flash`)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { SignIn } from './features/auth/SignIn'
+import { useIdleTimeout } from './features/auth/useIdleTimeout'
 import { currentSession, signOut, type Session } from './features/auth/api'
 import { AssessmentApp } from './features/assessments/AssessmentApp'
 import { SESSION_ENDED_EVENT } from './features/assessments/api'
@@ -7,6 +8,7 @@ import { useAssessmentWorkflow } from './features/assessments/useAssessmentWorkf
 
 function Workspace({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const workflow = useAssessmentWorkflow(onSignOut, session)
+  useIdleTimeout(onSignOut)
   return <AssessmentApp v={workflow} session={session} />
 }
 

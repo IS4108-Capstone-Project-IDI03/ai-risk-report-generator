@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Button, Callout, Checkbox, Input, Tabs } from '../../design-system'
 import { GatewayError } from '../assessments/api'
@@ -15,8 +15,12 @@ function signInProblem(error: unknown) {
   return 'Something went wrong, so you were not signed in. Try again.'
 }
 
+// The reset code in an emailed link (F-06): /?reset=<code>.
+const emailedResetCode = () => new URLSearchParams(window.location.search).get('reset') ?? ''
+
 export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
-  const [mode, setMode] = useState('signin')
+  // A reset link opens straight at the new-password step.
+  const [mode, setMode] = useState(() => (emailedResetCode() ? 'reset-confirm' : 'signin'))
   const [name, setName] = useState('')
   const [employeeNumber, setEmployeeNumber] = useState('')
   const [email, setEmail] = useState('')
@@ -26,8 +30,12 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
-  const [resetToken, setResetToken] = useState('')
+  const [resetToken, setResetToken] = useState(emailedResetCode)
   const [newPassword, setNewPassword] = useState('')
+  // Remove the code from the address bar so it isn't kept in history or shared.
+  useEffect(() => {
+    if (emailedResetCode()) window.history.replaceState(null, '', window.location.pathname)
+  }, [])
   const requestAccess = mode === 'signup'
   function changeMode(value: string) {
     setMode(value)
@@ -87,9 +95,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
     try {
       await requestPasswordReset(resetEmail)
       setMode('reset-confirm')
-      setNotice(
-        'If that email has an account, a reset link has been sent. Check the server logs for the token (this demo has no real email delivery yet).',
-      )
+      setNotice('If that email has an account, a reset link has been sent. Check your inbox.')
     } catch {
       setError('Something went wrong. Try again.')
     } finally {
@@ -130,7 +136,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
             <p>
               {mode === 'reset-request'
                 ? "Enter your work email and we'll send you a reset link."
-                : 'Enter the token from your reset email and choose a new password.'}
+                : 'Choose a new password. Open the link in your reset email, or paste its code here.'}
             </p>
           </header>
           {error && (
@@ -162,7 +168,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
             <form noValidate onSubmit={submitResetConfirm} className="sign-in-form">
               <Input
                 label="Reset token"
-                placeholder="Paste the token from the email"
+                placeholder="Filled in when you open the emailed link"
                 value={resetToken}
                 onChange={(e) => setResetToken(e.target.value)}
                 required
