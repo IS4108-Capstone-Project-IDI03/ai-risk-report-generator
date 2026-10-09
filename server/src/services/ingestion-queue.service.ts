@@ -54,3 +54,21 @@ export async function requeueIngestion(documentId: string): Promise<void> {
 export async function removeIngestionJob(documentId: string): Promise<void> {
   await ingestionQueue().remove(documentId)
 }
+
+// Wakes the worker to finish a cancellation when the original ingestion job
+// has already disappeared (for example after a worker restart). A live
+// ingestion job still wins the race and performs its own cooperative cleanup;
+// this job is then a harmless no-op.
+export async function enqueueCancellationJob(documentId: string): Promise<void> {
+  const timedOut = sleep(ADD_TIMEOUT_MS, undefined, { ref: false }).then(() => {
+    throw new Error('The ingestion queue did not respond.')
+  })
+  await Promise.race([
+    ingestionQueue().add(
+      'cancel',
+      { documentId, action: 'cancel' },
+      { jobId: `cancel-${documentId}`, attempts: 1, removeOnComplete: true },
+    ),
+    timedOut,
+  ])
+}

@@ -310,6 +310,17 @@ def test_a_processing_cancellation_cleans_partial_passages_and_does_not_notify(
     assert documents.notifications == []
 
 
+def test_a_cancellation_job_finishes_a_stale_processing_document(documents):
+    documents.doc["status"] = "processing"
+    documents.doc["cancelRequestedAt"] = datetime.now()
+
+    worker.cancel_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+    assert documents.deleted_passages == [DOC_ID]
+    assert documents.notifications == []
+
+
 def test_cancellation_is_checked_between_pipeline_chunks(documents, monkeypatch):
     checks = []
 
