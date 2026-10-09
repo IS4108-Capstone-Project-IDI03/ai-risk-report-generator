@@ -962,6 +962,7 @@ export async function retryIngestion(id: string): Promise<void> {
         error: 1,
         finishedAt: 1,
         result: 1,
+
         cancelRequestedAt: 1,
         cancelledAt: 1,
       },

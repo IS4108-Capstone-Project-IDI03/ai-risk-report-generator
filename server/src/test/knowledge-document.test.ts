@@ -1313,6 +1313,7 @@ describe('cancelIngestion', () => {
     expect(error).toHaveBeenCalled()
     error.mockRestore()
   })
+
 })
 
 describe('cancelIngestion', () => {
