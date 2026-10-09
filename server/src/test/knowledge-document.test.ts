@@ -1134,6 +1134,24 @@ describe('retryIngestion', () => {
     expect((await stored())!.retryCount).toBe(2)
   })
 
+  it('flips a cancelled document back to queued and clears cancellation fields', async () => {
+    await seed({
+      status: 'cancelled',
+      error: undefined,
+      finishedAt: undefined,
+      cancelledAt: new Date(),
+      cancelRequestedAt: undefined,
+    })
+
+    await retryIngestion(DOC_ID)
+
+    const doc = await stored()
+    expect(doc!.status).toBe('queued')
+    expect(doc!.cancelledAt).toBeUndefined()
+    expect(doc!.cancelRequestedAt).toBeUndefined()
+    expect(doc!.retryCount).toBe(1)
+  })
+
   it('re-queues the document', async () => {
     await seed()
 
@@ -1201,6 +1219,23 @@ describe('retryIngestion', () => {
     // Back to failed, with a re-queue-specific reason, and the counter undone.
     expect(doc!.status).toBe('failed')
     expect(doc!.error).toMatch(/re-queue/i)
+    expect(doc!.retryCount).toBe(0)
+  })
+
+  it('restores cancelled status and counter if re-queueing a cancellation fails', async () => {
+    await seed({
+      status: 'cancelled',
+      error: undefined,
+      finishedAt: undefined,
+      cancelledAt: new Date(),
+    })
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await expect(retryIngestion(DOC_ID)).rejects.toThrow()
+
+    const doc = await stored()
+    expect(doc!.status).toBe('cancelled')
+    expect(doc!.cancelledAt).toBeInstanceOf(Date)
     expect(doc!.retryCount).toBe(0)
   })
 })
@@ -1330,6 +1365,22 @@ describe('POST /api/knowledge-documents/:id/retry', () => {
     await seedFailed({ status: 'complete', error: undefined, finishedAt: undefined })
 
     await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(409)
+  })
+
+  it('accepts a retry of a cancelled document with 202', async () => {
+    await seedFailed({
+      status: 'cancelled',
+      error: undefined,
+      finishedAt: undefined,
+      cancelledAt: new Date(),
+    })
+
+    await api.post(`/api/knowledge-documents/${RETRY_ID}/retry`).expect(202)
+
+    const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
+    expect(doc!.status).toBe('queued')
+    expect(doc!.cancelledAt).toBeUndefined()
+    expect(requeued).toHaveBeenCalledWith(RETRY_ID)
   })
 
   it('404s an unknown id', async () => {
