@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
 import {
+  cancelIngestion,
   listKnowledgeDocuments,
   retryIngestion,
   type IngestionStage,
@@ -27,6 +28,7 @@ const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   processing: { label: 'Processing', tone: 'info' },
   complete: { label: 'Complete', tone: 'low' },
   failed: { label: 'Failed', tone: 'critical' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
 }
 
 // What each stage reads as in the status badge (E2).
@@ -63,6 +65,8 @@ export function UploadedDocuments({
   // flag and refreshes, which shows the document's real current status.
   const [retrying, setRetrying] = useState<Record<string, boolean>>({})
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState<Record<string, boolean>>({})
+  const [cancelError, setCancelError] = useState<string | null>(null)
 
   // Re-reads the list (and, because a retried document is now queued, restarts
   // the 3s polling loop). Bumping `attempt` re-runs the load effect.
@@ -77,6 +81,19 @@ export function UploadedDocuments({
       setRetryError('The retry could not be started. Check the connection, then try again.')
     } finally {
       setRetrying((r) => ({ ...r, [id]: false }))
+      refresh()
+    }
+  }
+
+  const cancel = async (id: string) => {
+    setCancelling((c) => ({ ...c, [id]: true }))
+    setCancelError(null)
+    try {
+      await cancelIngestion(id)
+    } catch {
+      setCancelError('The stop request could not be sent. Check the connection, then try again.')
+    } finally {
+      setCancelling((c) => ({ ...c, [id]: false }))
       refresh()
     }
   }
@@ -165,6 +182,28 @@ export function UploadedDocuments({
               {retrying[d.id] ? 'Retrying…' : 'Retry'}
             </Button>
           )}
+          {d.status === 'cancelled' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="refresh-cw"
+              disabled={retrying[d.id]}
+              onClick={() => retry(d.id)}
+            >
+              {retrying[d.id] ? 'Retrying…' : 'Retry'}
+            </Button>
+          )}
+          {(d.status === 'queued' || d.status === 'processing') && (
+            <Button
+              variant="danger-tonal"
+              size="sm"
+              iconLeft="x"
+              disabled={cancelling[d.id]}
+              onClick={() => cancel(d.id)}
+            >
+              {cancelling[d.id] ? 'Stopping…' : 'Stop'}
+            </Button>
+          )}
         </span>
         {p && (
           <span className="kb-stage-detail">
@@ -197,6 +236,11 @@ export function UploadedDocuments({
       {retryError && (
         <Callout tone="danger" title="Retry not started">
           {retryError}
+        </Callout>
+      )}
+      {cancelError && (
+        <Callout tone="danger" title="Stop not started">
+          {cancelError}
         </Callout>
       )}
       {unreachable && (
