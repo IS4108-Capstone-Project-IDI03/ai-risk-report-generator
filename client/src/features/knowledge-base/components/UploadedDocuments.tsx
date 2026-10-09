@@ -1,6 +1,6 @@
 // Recent uploads with their ingestion status (IN-01), read from the gateway
 // (the server's record, not this browser's): in progress, plus complete for 24
-// hours and failed for 7 days (the gateway decides). Re-read every 3 seconds
+// hours and failed/cancelled for 7 days (the gateway decides). Re-read every 3 seconds
 // while any is still queued or processing. Used by screens/AddDocuments.tsx.
 import { useEffect, useState } from 'react'
 import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
@@ -231,7 +231,9 @@ export function UploadedDocuments({
     <section className="kb-uploaded" aria-labelledby="kb-uploaded-title">
       <header className="kb-uploaded-head">
         <h2 id="kb-uploaded-title">Recent uploads</h2>
-        <p>Complete uploads leave this list after 24 hours, failed ones after 7 days.</p>
+        <p>
+          Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.
+        </p>
       </header>
       {retryError && (
         <Callout tone="danger" title="Retry not started">
