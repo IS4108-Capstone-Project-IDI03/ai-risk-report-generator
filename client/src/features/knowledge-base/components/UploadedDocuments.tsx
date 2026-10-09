@@ -171,6 +171,39 @@ export function UploadedDocuments({
           ) : (
             <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
           )}
+          {d.status === 'failed' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="refresh-cw"
+              disabled={retrying[d.id]}
+              onClick={() => retry(d.id)}
+            >
+              {retrying[d.id] ? 'Retrying…' : 'Retry'}
+            </Button>
+          )}
+          {d.status === 'cancelled' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="refresh-cw"
+              disabled={retrying[d.id]}
+              onClick={() => retry(d.id)}
+            >
+              {retrying[d.id] ? 'Retrying…' : 'Retry'}
+            </Button>
+          )}
+          {(d.status === 'queued' || d.status === 'processing') && (
+            <Button
+              variant="danger-tonal"
+              size="sm"
+              iconLeft="x"
+              disabled={cancelling[d.id]}
+              onClick={() => cancel(d.id)}
+            >
+              {cancelling[d.id] ? 'Stopping…' : 'Stop'}
+            </Button>
+          )}
         </span>
         {p && (
           <span className="kb-stage-detail">
