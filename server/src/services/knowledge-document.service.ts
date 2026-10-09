@@ -18,7 +18,6 @@ import {
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
 import {
-  enqueueCancellationJob,
   enqueueIngestion,
   requeueIngestion,
   removeIngestionJob,
@@ -895,9 +894,10 @@ export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: st
 export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undefined)
 
 /**
- * Stops a queued or processing ingestion. A queued document becomes terminal
- * immediately; a processing document keeps its status until the worker sees
- * `cancelRequestedAt` and cleans up any partial passages before it exits.
+ * Stops a queued or processing ingestion. MongoDB becomes terminal immediately
+ * for both states, so the UI does not wait behind a long-running parser. An
+ * active worker sees the cancelled status at its next checkpoint and cleans up
+ * any partial passages before it exits.
  *
  * Throws KnowledgeDocumentNotFoundError for an unknown or malformed id, or
  * KnowledgeDocumentWrongStateError when the document is already terminal.
@@ -925,33 +925,19 @@ export async function cancelIngestion(id: string): Promise<void> {
   }
 
   const processing = await KnowledgeDocumentModel.findOneAndUpdate(
-    { _id: id, status: 'processing', cancelRequestedAt: { $exists: false } },
-    { $set: { cancelRequestedAt: now } },
+    { _id: id, status: 'processing' },
+    {
+      $set: { status: 'cancelled', cancelledAt: now },
+      $unset: { error: 1, result: 1, finishedAt: 1, cancelRequestedAt: 1 },
+    },
     { returnDocument: 'after' },
   ).lean()
   if (processing) {
-    try {
-      await enqueueCancellationJob(id)
-    } catch {
-      throw new IngestionUnavailableError(
-        'The cancellation could not be queued. Try stopping it again shortly.',
-      )
-    }
     return
   }
 
   const document = await KnowledgeDocumentModel.findById(id).select({ status: 1 }).lean()
   if (!document) throw new KnowledgeDocumentNotFoundError()
-  if (document.status === 'processing') {
-    try {
-      await enqueueCancellationJob(id)
-    } catch {
-      throw new IngestionUnavailableError(
-        'The cancellation could not be queued. Try stopping it again shortly.',
-      )
-    }
-    return
-  }
   throw new KnowledgeDocumentWrongStateError('Only a queued or processing document can be stopped.')
 }
 
