@@ -72,6 +72,17 @@ def finish_cancellation(collection, document_id: ObjectId, reporter: ProgressRep
     reporter.cancel()
 
 
+def cancel_document(document_id: str) -> None:
+    """Finish a cancellation whose original ingestion job is no longer present."""
+    collection = documents()
+    _id = ObjectId(document_id)
+    current = collection.find_one({"_id": _id})
+    if not current or current.get("status") != "processing" or not current.get("cancelRequestedAt"):
+        return
+    reporter = ProgressReporter(jobs(), document_id)
+    finish_cancellation(collection, _id, reporter)
+
+
 @cache  # one client (and its connection pool) for the life of the worker
 def documents():
     """Return the `knowledge_documents` collection in MONGODB_URI's database."""
@@ -247,7 +258,10 @@ async def process(job, _token):
     # run() is CPU-bound for minutes; a thread keeps the event loop free for the
     # BullMQ Worker to renew the job's lock in Redis (its "still alive" signal),
     # so BullMQ does not think the worker stalled.
-    await asyncio.to_thread(ingest_document, job.data["documentId"])
+    if job.data.get("action") == "cancel":
+        await asyncio.to_thread(cancel_document, job.data["documentId"])
+    else:
+        await asyncio.to_thread(ingest_document, job.data["documentId"])
 
 
 async def main() -> None:
