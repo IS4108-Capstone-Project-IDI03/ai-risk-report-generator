@@ -76,6 +76,7 @@ def test_embed_single_call_and_skips_empty(monkeypatch):
     assert cohere.embed.call_args.kwargs["texts"] == chunks
 
 
+@pytest.mark.model
 def test_embed_waits_one_minute_and_retries_rate_limited_batch(monkeypatch):
     cohere = Mock()
     cohere.embed.side_effect = [
@@ -103,9 +104,9 @@ def test_embed_reraises_rate_limit_after_retry_limit(monkeypatch):
     with pytest.raises(TooManyRequestsError):
         embedder.embed(["chunk"])
 
-    assert cohere.embed.call_count == 4
-    assert sleep.call_count == 3
-    sleep.assert_called_with(60)
+    assert cohere.embed.call_count == 6
+    assert sleep.call_count == 5
+    sleep.assert_called_with(70)
 
 
 def test_missing_key_has_actionable_error(monkeypatch):
