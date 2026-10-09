@@ -201,6 +201,8 @@ describe('Choosing where observations are captured', () => {
         note: 'Pump test certificate missing.',
         recordings: [],
         photos: [],
+        removedRecordings: [],
+        removedPhotos: [],
         recordedAt: '2026-09-29T08:10:00.000Z',
       },
     ]

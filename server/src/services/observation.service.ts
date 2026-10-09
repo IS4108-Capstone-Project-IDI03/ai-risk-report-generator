@@ -52,10 +52,14 @@ export class ObservationStateError extends Error {
     this.name = 'ObservationStateError'
   }
 }
-// Removing the note would leave the observation with nothing captured.
+// Removing the note, a recording or a photo would leave the observation with
+// nothing captured (CP-08).
 export class EmptyObservationError extends Error {
-  constructor() {
-    super('An observation needs a note, a recording or a photo, so this note can’t be removed.')
+  constructor(what: 'note' | 'recording' | 'photo' = 'note') {
+    super(
+      `An observation needs a note, a recording or a photo, so this ${what} can’t be removed.` +
+        (what === 'note' ? '' : ' Add what replaces it first.'),
+    )
     this.name = 'EmptyObservationError'
   }
 }
@@ -163,6 +167,36 @@ type StampDto = { at: Date; by: { id: string; name: string } }
 const stampDto = (stamp?: IStamp): StampDto | null =>
   stamp ? { at: stamp.at, by: { id: stamp.by.id, name: stamp.by.name } } : null
 
+type RecordingDto = {
+  type: 'Voice'
+  id: string
+  name: string
+  contentType: string
+  size: number
+  url: string
+  transcription: {
+    status: IRecording['transcription']['status']
+    // As Whisper wrote it, kept even once corrected.
+    transcript: string | null
+    // The engineer's correction, which drafting uses (CP-08).
+    correction: (StampDto & { text: string }) | null
+    error: string | null
+    attempts: number
+  }
+  // Who added it after the observation was saved (CP-08).
+  added: StampDto | null
+}
+// Each links to its original image (CP-04 AC2).
+type PhotoDto = {
+  type: 'Photo'
+  id: string
+  name: string
+  contentType: IPhoto['contentType']
+  size: number
+  url: string
+  added: StampDto | null
+}
+
 export type ObservationDto = {
   id: string
   engineer: string
@@ -174,34 +208,16 @@ export type ObservationDto = {
   // null only if the location is no longer listed.
   location: LocationDto | null
   note: string | null
-  recordings: {
-    type: 'Voice'
-    id: string
-    name: string
-    contentType: string
-    size: number
-    url: string
-    transcription: {
-      status: IRecording['transcription']['status']
-      // As Whisper wrote it, kept even once corrected.
-      transcript: string | null
-      // The engineer's correction, which drafting uses (CP-08).
-      correction: (StampDto & { text: string }) | null
-      error: string | null
-      attempts: number
-    }
-  }[]
-  // Each links to its original image (CP-04 AC2).
-  photos: {
-    type: 'Photo'
-    id: string
-    name: string
-    contentType: IPhoto['contentType']
-    size: number
-    url: string
-  }[]
+  // Its evidence: the recordings and photos not removed. Everything that
+  // reads these, drafting included, leaves removed ones out (CP-08).
+  recordings: RecordingDto[]
+  photos: PhotoDto[]
+  // Removed ones, with who removed them and when, to restore (CP-08).
+  removedRecordings: (RecordingDto & { removed: StampDto })[]
+  removedPhotos: (PhotoDto & { removed: StampDto })[]
   // What the vision model proposes from its photos (CP-05), for the engineer
-  // to review; null when it has no photos.
+  // to review; null until an engineer asks for its photos to be read, and
+  // while none is left.
   interpretation: {
     status: IInterpretation['status']
     description: string | null
@@ -211,10 +227,15 @@ export type ObservationDto = {
     attempts: number
     // The model that wrote it.
     model: string | null
+    // The photos it reads (CP-08), removed ones included.
+    photoIds: string[]
+    // A finished reading of photos other than those it has now (CP-08).
+    outOfDate: boolean
   } | null
   // When it was captured (CP-02 AC2).
   recordedAt: Date
-  // The latest change to its tags, note or a transcript (CP-08).
+  // The latest change to its tags, note, a transcript, or its recordings and
+  // photos (CP-08).
   edited: StampDto | null
   // Set while it is deleted (CP-08).
   deleted: StampDto | null
@@ -248,8 +269,56 @@ function interpretationFailureReason(error?: string): string | null {
   return error.length > 200 ? 'Interpretation failed. Please retry or contact support.' : error
 }
 
+// The recordings or photos not removed (CP-08): the observation's evidence.
+const kept = <T extends { removed?: IStamp }>(items: T[]) => items.filter((item) => !item.removed)
+
+// The photos a reading reads, by id: its own list, or for a reading from
+// before photos could change, every photo the observation was saved with.
+function readPhotoIds(o: StoredObservation): string[] {
+  const ids =
+    o.interpretation?.photoIds ?? (o.photos ?? []).filter((p) => !p.added).map((p) => p._id)
+  return ids.map(String)
+}
+// A finished reading of a set of photos other than the ones kept now (CP-08):
+// photos were added or removed since it was read.
+function readingOutOfDate(o: StoredObservation): boolean {
+  if (o.interpretation?.status !== 'interpreted') return false
+  const read = readPhotoIds(o)
+  const now = kept(o.photos ?? []).map((p) => String(p._id))
+  return read.length !== now.length || now.some((id) => !read.includes(id))
+}
+
 function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
   const location = locations.find((l) => l._id.equals(o.location))
+  const recording = (r: IRecording): RecordingDto => ({
+    type: 'Voice',
+    id: String(r._id),
+    name: r.name,
+    contentType: r.contentType,
+    size: r.size,
+    url: `/api/observations/${o._id}/recordings/${r._id}/audio`,
+    transcription: {
+      status: r.transcription.status,
+      transcript: r.transcription.transcript ?? null,
+      correction: r.transcription.correction
+        ? { text: r.transcription.correction.text, ...stampDto(r.transcription.correction)! }
+        : null,
+      error: transcriptionFailureReason(r.transcription.error),
+      attempts: r.transcription.attempts.length,
+    },
+    added: stampDto(r.added),
+  })
+  const photo = (p: IPhoto): PhotoDto => ({
+    type: 'Photo',
+    id: String(p._id),
+    name: p.name,
+    contentType: p.contentType,
+    size: p.size,
+    url: `/api/observations/${o._id}/photos/${p._id}/image`,
+    added: stampDto(p.added),
+  })
+  const photos = o.photos ?? []
+  const keptPhotos = kept(photos)
   return {
     id: String(o._id),
     engineer: o.engineer,
@@ -259,42 +328,28 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     severity: o.severity,
     location: location ? toLocationDto(location) : null,
     note: o.note ?? null,
-    recordings: o.recordings.map((r) => ({
-      type: 'Voice',
-      id: String(r._id),
-      name: r.name,
-      contentType: r.contentType,
-      size: r.size,
-      url: `/api/observations/${o._id}/recordings/${r._id}/audio`,
-      transcription: {
-        status: r.transcription.status,
-        transcript: r.transcription.transcript ?? null,
-        correction: r.transcription.correction
-          ? { text: r.transcription.correction.text, ...stampDto(r.transcription.correction)! }
-          : null,
-        error: transcriptionFailureReason(r.transcription.error),
-        attempts: r.transcription.attempts.length,
-      },
-    })),
-    photos: (o.photos ?? []).map((p) => ({
-      type: 'Photo',
-      id: String(p._id),
-      name: p.name,
-      contentType: p.contentType,
-      size: p.size,
-      url: `/api/observations/${o._id}/photos/${p._id}/image`,
-    })),
-    interpretation: o.interpretation
-      ? {
-          status: o.interpretation.status,
-          description: o.interpretation.description ?? null,
-          copeDimension: o.interpretation.copeDimension ?? null,
-          hazardType: o.interpretation.hazardType ?? null,
-          error: interpretationFailureReason(o.interpretation.error),
-          attempts: o.interpretation.attempts.length,
-          model: o.interpretation.provenance?.model ?? null,
-        }
-      : null,
+    recordings: kept(o.recordings).map(recording),
+    photos: keptPhotos.map(photo),
+    removedRecordings: o.recordings
+      .filter((r) => r.removed)
+      .map((r) => ({ ...recording(r), removed: stampDto(r.removed)! })),
+    removedPhotos: photos
+      .filter((p) => p.removed)
+      .map((p) => ({ ...photo(p), removed: stampDto(p.removed)! })),
+    interpretation:
+      o.interpretation && keptPhotos.length
+        ? {
+            status: o.interpretation.status,
+            description: o.interpretation.description ?? null,
+            copeDimension: o.interpretation.copeDimension ?? null,
+            hazardType: o.interpretation.hazardType ?? null,
+            error: interpretationFailureReason(o.interpretation.error),
+            attempts: o.interpretation.attempts.length,
+            model: o.interpretation.provenance?.model ?? null,
+            photoIds: readPhotoIds(o),
+            outOfDate: readingOutOfDate(o),
+          }
+        : null,
     recordedAt: o.createdAt,
     edited: stampDto(o.edited),
     deleted: stampDto(o.deleted),
@@ -318,10 +373,10 @@ async function activeCapture(reference: string) {
 
 // Saves one observation with its note, recordings and photos against the
 // assessment's active capture session. Each recording and photo goes to S3 as
-// raw evidence (CP-03 AC1, CP-04 AC1), each recording starts its initial
-// transcription (CP-03 AC3), and the photos, if any, start one interpretation
-// (CP-05 AC1). The session stays active, so the engineer can keep adding
-// observations.
+// raw evidence (CP-03 AC1, CP-04 AC1), and each recording starts its initial
+// transcription (CP-03 AC3). The photos are not read: no photo goes to the
+// vision model until an engineer asks (readPhotos). The session stays active,
+// so the engineer can keep adding observations.
 export async function saveObservation(
   reference: string,
   details: ObservationDetails,
@@ -334,7 +389,47 @@ export async function saveObservation(
   if (!locations.some((l) => l._id.equals(details.locationId))) throw new UnknownLocationError()
   const id = new Types.ObjectId()
   const now = new Date()
-  const stored = recordings.map((r) => {
+  const media = storedMedia(reference, id, recordings, photos, now)
+  const observation = await withUploads(media.files, () =>
+    ObservationModel.create({
+      _id: id,
+      assessment: assessment._id,
+      session: session._id,
+      engineer: user.name,
+      engineerId: user.id,
+      note: details.note,
+      recordings: media.recordings,
+      photos: media.photos,
+      standard: details.standard,
+      severity: details.severity,
+      location: details.locationId,
+      metadata: {
+        source_type: 'observation',
+        jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
+        facility_type: assessment.site?.facilityType ?? 'unknown',
+        COPE_dimension: details.copeDimension,
+        effective_date: now,
+      },
+    }),
+  )
+
+  for (const r of media.recordings) void runTranscription(String(id), String(r._id))
+  return toDto(observation.toObject(), locations)
+}
+
+// Recordings and photos as an observation stores them, each with its own id
+// and an S3 key in the observation's folder, and the files to upload. Each
+// recording starts its one transcription attempt (CP-03 AC3). `added` marks
+// ones added after the observation was saved (CP-08).
+function storedMedia(
+  reference: string,
+  id: Types.ObjectId,
+  recordings: NewRecording[],
+  photos: NewPhoto[],
+  at: Date,
+  added?: IStamp,
+) {
+  const storedRecordings = recordings.map((r) => {
     const recordingId = new Types.ObjectId()
     return {
       _id: recordingId,
@@ -342,7 +437,8 @@ export async function saveObservation(
       key: `audio/${reference}/${id}/${recordingId}.${audioExtension(r.contentType)}`,
       contentType: r.contentType,
       size: r.audio.length,
-      transcription: { status: 'transcribing' as const, attempts: [{ startedAt: now }] },
+      transcription: { status: 'transcribing' as const, attempts: [{ startedAt: at }] },
+      ...(added && { added }),
     }
   })
   const storedPhotos = photos.map((p) => {
@@ -354,50 +450,33 @@ export async function saveObservation(
       key: `photos/${reference}/${id}/${photoId}.${format.extension}`,
       contentType: format.contentType,
       size: p.image.length,
+      ...(added && { added }),
     }
   })
+  const files = [
+    ...storedRecordings.map((r, i) => ({
+      key: r.key,
+      body: recordings[i].audio,
+      type: r.contentType,
+    })),
+    ...storedPhotos.map((p, i) => ({ key: p.key, body: photos[i].image, type: p.contentType })),
+  ]
+  return { recordings: storedRecordings, photos: storedPhotos, files }
+}
 
-  // No transactions on a standalone mongod, so undo the uploads by hand.
-  const keys = [...stored, ...storedPhotos].map((file) => file.key)
-  const undo = () =>
-    Promise.all(keys.map((key) => storage.deleteObject(key).catch(() => undefined)))
-  let observation
+// Uploads the files to S3, then saves. There are no transactions on a
+// standalone mongod, so if either fails the uploads are removed by hand.
+async function withUploads<T>(
+  files: { key: string; body: Buffer; type: string }[],
+  save: () => Promise<T>,
+): Promise<T> {
   try {
-    await Promise.all([
-      ...stored.map((r, i) => storage.putObject(r.key, recordings[i].audio, r.contentType)),
-      ...storedPhotos.map((p, i) => storage.putObject(p.key, photos[i].image, p.contentType)),
-    ])
-    observation = await ObservationModel.create({
-      _id: id,
-      assessment: assessment._id,
-      session: session._id,
-      engineer: user.name,
-      engineerId: user.id,
-      note: details.note,
-      recordings: stored,
-      photos: storedPhotos,
-      ...(storedPhotos.length > 0 && {
-        interpretation: { status: 'interpreting', attempts: [{ startedAt: now }] },
-      }),
-      standard: details.standard,
-      severity: details.severity,
-      location: details.locationId,
-      metadata: {
-        source_type: 'observation',
-        jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
-        facility_type: assessment.site?.facilityType ?? 'unknown',
-        COPE_dimension: details.copeDimension,
-        effective_date: now,
-      },
-    })
+    await Promise.all(files.map((f) => storage.putObject(f.key, f.body, f.type)))
+    return await save()
   } catch (error) {
-    await undo()
+    await Promise.all(files.map((f) => storage.deleteObject(f.key).catch(() => undefined)))
     throw error
   }
-
-  for (const r of stored) void runTranscription(String(id), String(r._id))
-  if (storedPhotos.length) void runInterpretation(String(id))
-  return toDto(observation.toObject(), locations)
 }
 
 const stamp = (user: SessionUser): IStamp => ({
@@ -423,8 +502,12 @@ async function changeable(id: string, user: SessionUser) {
     )
   }
   if (assessment.archivedAt) throw new AssessmentArchivedError(assessment.reference)
-  return { observation, locations: assessment.locations ?? [] }
+  return { observation, locations: assessment.locations ?? [], reference: assessment.reference }
 }
+
+// Matches an observation keeping a recording, or a photo, not removed.
+const KEEPS_RECORDING = { recordings: { $elemMatch: { removed: { $exists: false } } } }
+const KEEPS_PHOTO = { photos: { $elemMatch: { removed: { $exists: false } } } }
 
 // Changes an observation's tags (CP-06) and note (CP-08). The tags cover the
 // note and every recording, so they are set once. Categorising an
@@ -440,7 +523,7 @@ export async function updateObservation(
   if (o.deleted) throw new ObservationStateError(DELETED)
   if (changes.locationId && !locations.some((l) => l._id.equals(changes.locationId)))
     throw new UnknownLocationError()
-  if (changes.note === null && !o.recordings.length && !o.photos?.length)
+  if (changes.note === null && !kept(o.recordings).length && !kept(o.photos ?? []).length)
     throw new EmptyObservationError()
 
   const set: Record<string, unknown> = {}
@@ -459,13 +542,136 @@ export async function updateObservation(
   change('note', o.note, changes.note)
   if (!Object.keys(set).length && !Object.keys(unset).length) return toDto(o, locations)
 
+  // Removing the note matches only while a recording or photo stays, so a
+  // removal at the same moment can't leave nothing captured.
   const updated = await ObservationModel.findOneAndUpdate(
-    { _id: id, deleted: { $exists: false } },
+    {
+      _id: id,
+      deleted: { $exists: false },
+      ...(unset.note && { $or: [KEEPS_RECORDING, KEEPS_PHOTO] }),
+    },
     { $set: { ...set, edited: stamp(user) }, ...(Object.keys(unset).length && { $unset: unset }) },
     { returnDocument: 'after' },
   ).lean<StoredObservation>()
-  // Deleted between the read and the write.
-  if (!updated) throw new ObservationStateError(DELETED)
+  // Deleted, or left with only its note, between the read and the write.
+  if (!updated) {
+    if (await ObservationModel.exists({ _id: id, deleted: { $exists: true } }))
+      throw new ObservationStateError(DELETED)
+    throw new EmptyObservationError()
+  }
+  return toDto(updated, locations)
+}
+
+// Adds recordings and photos to a saved observation (CP-08), each stored in S3
+// as raw evidence and marked with who added it. Each recording starts its
+// transcription. No photo is read until an engineer asks, and a reading of the
+// earlier photos shows as out of date. No capture session is needed: like the
+// other changes, it is a correction its assigned engineer can make later.
+export async function addMedia(
+  id: string,
+  recordings: NewRecording[],
+  photos: NewPhoto[],
+  user: SessionUser,
+): Promise<ObservationDto> {
+  const { observation: o, locations, reference } = await changeable(id, user)
+  if (o.deleted) throw new ObservationStateError(DELETED)
+  const added = stamp(user)
+  const media = storedMedia(reference, o._id, recordings, photos, added.at, added)
+  const updated = await withUploads(media.files, async () => {
+    const saved = await ObservationModel.findOneAndUpdate(
+      { _id: id, deleted: { $exists: false } },
+      {
+        $push: { recordings: { $each: media.recordings }, photos: { $each: media.photos } },
+        $set: { edited: added },
+      },
+      { returnDocument: 'after' },
+    ).lean<StoredObservation>()
+    // Deleted between the read and the write.
+    if (!saved) throw new ObservationStateError(DELETED)
+    return saved
+  })
+  for (const r of media.recordings) void runTranscription(id, String(r._id))
+  return toDto(updated, locations)
+}
+
+export type MediaKind = 'recordings' | 'photos'
+const NOUN = { recordings: 'recording', photos: 'photo' } as const
+
+// Removes a recording or photo from an observation (CP-08), a soft removal:
+// it is marked with who removed it and when, its file stays in S3, and it is
+// no longer evidence, so drafting and the photo collection leave it out.
+// Something must stay captured; matching on that in the update makes it
+// atomic, so two removals at once can't leave nothing.
+export function removeMedia(id: string, kind: MediaKind, itemId: string, user: SessionUser) {
+  return setRemoved(id, kind, itemId, user, true)
+}
+// Restores a removed recording or photo, back into evidence (CP-08).
+export function restoreMedia(id: string, kind: MediaKind, itemId: string, user: SessionUser) {
+  return setRemoved(id, kind, itemId, user, false)
+}
+
+async function setRemoved(
+  id: string,
+  kind: MediaKind,
+  itemId: string,
+  user: SessionUser,
+  remove: boolean,
+): Promise<ObservationDto> {
+  const { observation, locations } = await changeable(id, user)
+  const noun = NOUN[kind]
+  if (!isValidObjectId(itemId)) throw new ObservationNotFoundError(noun)
+  const item = new Types.ObjectId(itemId)
+  // Why the change can't be made to the observation as it stands, if it can't.
+  const refusal = (o: StoredObservation) => {
+    if (o.deleted) return new ObservationStateError(DELETED)
+    const found = ((kind === 'recordings' ? o.recordings : o.photos) ?? []).find((i) =>
+      i._id.equals(item),
+    )
+    if (!found) return new ObservationNotFoundError(noun)
+    if (remove && found.removed)
+      return new ObservationStateError(`This ${noun} is already removed.`)
+    if (!remove && !found.removed) return new ObservationStateError(`This ${noun} is not removed.`)
+    const others = (items: { _id: Types.ObjectId; removed?: IStamp }[]) =>
+      kept(items).some((i) => !i._id.equals(item))
+    if (remove && !o.note && !others(o.recordings) && !others(o.photos ?? []))
+      return new EmptyObservationError(noun)
+    return null
+  }
+  const problem = refusal(observation)
+  if (problem) throw problem
+
+  const now = stamp(user)
+  const path = `${kind}.$[item].removed`
+  const filter: Record<string, unknown> = {
+    _id: id,
+    deleted: { $exists: false },
+    [kind]: { $elemMatch: { _id: item, removed: { $exists: !remove } } },
+  }
+  // Something else stays captured: a note, or another recording or photo.
+  if (remove)
+    filter.$or = [
+      { note: { $type: 'string', $ne: '' } },
+      ...(['recordings', 'photos'] as const).map((k) => ({
+        [k]: {
+          $elemMatch: { removed: { $exists: false }, ...(k === kind && { _id: { $ne: item } }) },
+        },
+      })),
+    ]
+  const updated = await ObservationModel.findOneAndUpdate(
+    filter,
+    remove
+      ? { $set: { [path]: now, edited: now } }
+      : { $set: { edited: now }, $unset: { [path]: 1 } },
+    { arrayFilters: [{ 'item._id': item }], returnDocument: 'after' },
+  ).lean<StoredObservation>()
+  if (!updated) {
+    // It changed between the read and the write: say how, from how it is now.
+    const current = await ObservationModel.findById(id).lean<StoredObservation>()
+    throw (
+      (current && refusal(current)) ??
+      new ObservationStateError('This observation changed while saving. Try again.')
+    )
+  }
   return toDto(updated, locations)
 }
 
@@ -485,6 +691,10 @@ export async function correctTranscript(
     ? o.recordings.find((r) => r._id.equals(recordingId))
     : undefined
   if (!recording) throw new ObservationNotFoundError('recording')
+  if (recording.removed)
+    throw new ObservationStateError(
+      'This recording is removed. Restore it before correcting its transcript.',
+    )
   const { status, transcript, correction } = recording.transcription
   if (status !== 'transcribed')
     throw new ObservationStateError('Only a finished transcription can be corrected.')
@@ -495,7 +705,13 @@ export async function correctTranscript(
     {
       _id: id,
       deleted: { $exists: false },
-      recordings: { $elemMatch: { _id: recordingId, 'transcription.status': 'transcribed' } },
+      recordings: {
+        $elemMatch: {
+          _id: recordingId,
+          'transcription.status': 'transcribed',
+          removed: { $exists: false },
+        },
+      },
     },
     text === transcript
       ? { $set: { edited: now }, $unset: { 'recordings.$.transcription.correction': 1 } }
@@ -575,10 +791,20 @@ export async function listCategoryObservations(
 
 // Starts a new attempt for the same recording (CP-03 AC7). Matching on the
 // failed status makes it atomic, so a double click cannot start two attempts.
+// A removed recording (CP-08) is not retried until it is restored.
 export async function retryTranscription(id: string, recordingId: string): Promise<void> {
   if (!isValidObjectId(id) || !isValidObjectId(recordingId)) throw new ObservationNotFoundError()
   const { matchedCount } = await ObservationModel.updateOne(
-    { _id: id, recordings: { $elemMatch: { _id: recordingId, 'transcription.status': 'failed' } } },
+    {
+      _id: id,
+      recordings: {
+        $elemMatch: {
+          _id: recordingId,
+          'transcription.status': 'failed',
+          removed: { $exists: false },
+        },
+      },
+    },
     {
       $set: { 'recordings.$.transcription.status': 'transcribing' },
       $unset: { 'recordings.$.transcription.error': 1 },
@@ -586,8 +812,13 @@ export async function retryTranscription(id: string, recordingId: string): Promi
     },
   )
   if (!matchedCount) {
-    if (await ObservationModel.exists({ _id: id, 'recordings._id': recordingId }))
-      throw new NotRetryableError()
+    const found = await ObservationModel.findOne(
+      { _id: id, 'recordings._id': recordingId },
+      { 'recordings.$': 1 },
+    ).lean<StoredObservation>()
+    if (found?.recordings[0]?.removed)
+      throw new NotRetryableError('This recording is removed. Restore it before retrying it.')
+    if (found) throw new NotRetryableError()
     throw new ObservationNotFoundError('recording')
   }
   void runTranscription(id, recordingId)
@@ -650,33 +881,63 @@ export async function failInterruptedTranscriptions() {
   )
 }
 
-// Starts a new attempt at reading an observation's photos after a failure
-// (CP-05), as retryTranscription does for a recording. Matching on the failed
-// status makes it atomic, so a double click cannot start two attempts.
-export async function retryInterpretation(id: string): Promise<void> {
+// Reads an observation's photos when an engineer asks (CP-05): saving never
+// sends a photo to the vision model, so a client's site photos leave the
+// system only by choice. Starts the first reading, a new one after a failure,
+// or one of the photos it has now once photos were added or removed since the
+// last (CP-08). Each reading records which photos it reads. Matching on the
+// state it found makes it atomic, so a double click cannot start two.
+export async function readPhotos(id: string): Promise<void> {
   if (!isValidObjectId(id)) throw new ObservationNotFoundError()
+  const o = await ObservationModel.findById(
+    id,
+    'photos interpretation deleted',
+  ).lean<StoredObservation>()
+  if (!o) throw new ObservationNotFoundError()
+  if (o.deleted) throw new ObservationStateError(DELETED)
+  const photoIds = kept(o.photos ?? []).map((p) => p._id)
+  if (!photoIds.length) throw new ObservationStateError('This observation has no photos to read.')
+  const status = o.interpretation?.status
+  if (status === 'interpreted' && !readingOutOfDate(o))
+    throw new ObservationStateError('Its photos have already been read.')
+  const reading = 'Its photos are already being read.'
+  if (status === 'interpreting') throw new ObservationStateError(reading)
+
+  const attempt = { startedAt: new Date() }
   const { matchedCount } = await ObservationModel.updateOne(
-    { _id: id, 'interpretation.status': 'failed' },
     {
-      $set: { 'interpretation.status': 'interpreting' },
-      $unset: { 'interpretation.error': 1 },
-      $push: { 'interpretation.attempts': { startedAt: new Date() } },
+      _id: id,
+      deleted: { $exists: false },
+      ...(status ? { 'interpretation.status': status } : { interpretation: { $exists: false } }),
     },
+    status
+      ? {
+          $set: { 'interpretation.status': 'interpreting', 'interpretation.photoIds': photoIds },
+          // A proposal always matches the photos its reading names.
+          $unset: {
+            'interpretation.error': 1,
+            'interpretation.description': 1,
+            'interpretation.copeDimension': 1,
+            'interpretation.hazardType': 1,
+            'interpretation.provenance': 1,
+          },
+          $push: { 'interpretation.attempts': attempt },
+        }
+      : { $set: { interpretation: { status: 'interpreting', attempts: [attempt], photoIds } } },
   )
-  if (!matchedCount) {
-    if (await ObservationModel.exists({ _id: id, interpretation: { $exists: true } }))
-      throw new NotRetryableError('Only a failed interpretation can be retried.')
-    throw new ObservationNotFoundError('interpretation')
-  }
+  // Someone else started one between the read and the write.
+  if (!matchedCount) throw new ObservationStateError(reading)
   void runInterpretation(id)
 }
 
 // Runs the latest attempt at reading the observation's photos and records the
-// proposal (CP-05 AC3-AC5). Never throws: a failure is stored as the reason
-// the engineer sees. The vision model is told where the photos were taken and
-// what the note says, but not the engineer's category or severity, so its
-// proposed category is its own. The proposal is not drafting evidence, so a
-// draft never reads it and never goes out of date because of it.
+// proposal (CP-05 AC3-AC5), once an engineer has asked (readPhotos). It reads
+// the photos the attempt names (CP-08), so photos added or removed while it
+// runs leave it reading the set it started with. Never throws: a failure is
+// stored as the reason the engineer sees. The vision model is told where the
+// photos were taken and what the note says, but not the engineer's category or
+// severity, so its proposed category is its own. The proposal is not drafting
+// evidence, so a draft never reads it and never goes out of date because of it.
 // ponytail: runs in the gateway process, like runTranscription.
 export async function runInterpretation(id: string): Promise<void> {
   const observation = await ObservationModel.findById(
@@ -685,7 +946,9 @@ export async function runInterpretation(id: string): Promise<void> {
   )
     .lean<StoredObservation>()
     .catch(() => null)
-  if (!observation?.interpretation || !observation.photos?.length) return
+  const read = observation && readPhotoIds(observation)
+  const photos = (observation?.photos ?? []).filter((p) => read?.includes(String(p._id)))
+  if (!observation?.interpretation || !photos.length) return
   const assessment = await AssessmentModel.findById(observation.assessment, 'locations')
     .lean()
     .catch(() => null)
@@ -694,7 +957,7 @@ export async function runInterpretation(id: string): Promise<void> {
   let outcome: Record<string, unknown>
   try {
     const result = await interpret({
-      s3Keys: observation.photos.map((p) => p.key),
+      s3Keys: photos.map((p) => p.key),
       location: place ? [place.name, place.floor].filter(Boolean).join(' · ') : null,
       note: observation.note ?? null,
     })

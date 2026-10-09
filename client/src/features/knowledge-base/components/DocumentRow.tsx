@@ -1,12 +1,14 @@
 // One document's row in the Documents table (KB-01) and, when open, its
-// details row below. The title is the disclosure button; the rest of the row
-// also opens it, as an observation's row does, while its View original link
-// keeps its job. Used by components/DocumentGroup.tsx.
+// details row below: title, one status badge (Needs review is the button into
+// the Review page), then View original. Country and facility type show in the
+// details. The title is the disclosure button; the rest of the row also opens
+// it, as an observation's row does, while its actions keep their job. Used by
+// components/DocumentGroup.tsx.
 import { Badge, Icon, IconRegistry } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
-import { calendarDate, countryName, facilityName, needsReview } from '../display'
-import { DetailText } from './DetailText'
+import { calendarDate, needsReview, reviewReasons } from '../display'
 import { DocumentDetails } from './DocumentDetails'
+import { ReviewBadge } from './ReviewBadge'
 
 /** Returns the document's row, plus its details row when open. */
 export function DocumentRow({
@@ -16,6 +18,7 @@ export function DocumentRow({
   onEdit,
   onHistory,
   onChangeStatus,
+  onReview,
 }: {
   document: KnowledgeDocument
   open: boolean
@@ -23,6 +26,7 @@ export function DocumentRow({
   onEdit: () => void
   onHistory: () => void
   onChangeStatus: () => void
+  onReview: () => void
 }) {
   const panel = `kb-details-${d.id}`
   return (
@@ -47,47 +51,51 @@ export function DocumentRow({
             <strong>{d.title}</strong>
             <small>
               {d.edition
-                ? [d.issuingBody, `${d.edition} Edition`].filter(Boolean).join(' · ')
+                ? [standardName(d), `${d.edition} Edition`].filter(Boolean).join(' · ')
                 : d.sourceType === 'marsh_report'
                   ? `Report date ${calendarDate(d.effectiveDate)}`
                   : 'Edition unconfirmed'}
             </small>
+            {/* Why it needs review, or which edition replaced it (IN-07). */}
+            {needsReview(d) && <small className="kb-why">{reviewReasons(d).join(' · ')}</small>}
+            {d.withdrawn && d.newerEdition && (
+              <small className="kb-why-quiet">
+                Replaced by{' '}
+                {d.newerEdition.edition
+                  ? `the ${d.newerEdition.edition} edition`
+                  : d.newerEdition.title}
+              </small>
+            )}
           </button>
         </td>
-        <td className="kb-col-country">
-          <DetailText text={countryName(d.jurisdiction)} />
-        </td>
-        <td className="kb-col-facility">
-          <DetailText text={facilityName(d.facilityType)} />
-        </td>
         <td className="kb-col-status">
-          {/* A document with any Unconfirmed detail is not searchable, so it is
-              never shown as Active (IN-05). */}
-          <span className="kb-badges">
-            {d.withdrawn && <Badge tone="danger">Withdrawn</Badge>}
-            {needsReview(d) && (
-              <Badge tone="moderate" icon={IconRegistry.status.flagged.icon}>
-                Needs review
-              </Badge>
-            )}
-            {!d.withdrawn && d.unconfirmed.length === 0 && <Badge tone="low">Active</Badge>}
-          </span>
+          {/* One badge. A document with any Unconfirmed detail is not
+              searchable, so it is never shown as Active (IN-05). */}
+          {d.withdrawn ? (
+            <Badge tone="danger">Withdrawn</Badge>
+          ) : needsReview(d) ? (
+            <ReviewBadge title={d.title} onReview={onReview} />
+          ) : (
+            <Badge tone="low">Active</Badge>
+          )}
         </td>
-        <td className="kb-col-original">
-          <a
-            className="kb-link"
-            href={d.fileUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`View original of ${d.title}`}
-          >
-            View original
-          </a>
+        <td className="kb-col-actions">
+          <span className="kb-row-actions">
+            <a
+              className="kb-link"
+              href={d.fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`View original of ${d.title}`}
+            >
+              View original
+            </a>
+          </span>
         </td>
       </tr>
       {open && (
         <tr className="kb-details-row">
-          <td colSpan={6}>
+          <td colSpan={4}>
             <DocumentDetails
               id={panel}
               document={d}
@@ -101,3 +109,7 @@ export function DocumentRow({
     </>
   )
 }
+
+// "NFPA 13", or just the issuing body while the number is unknown.
+const standardName = (d: KnowledgeDocument) =>
+  [d.issuingBody, d.standardNumber].filter(Boolean).join(' ') || null

@@ -110,3 +110,40 @@ export async function requestSectionDraft(body: unknown): Promise<SectionDraftRe
     body: JSON.stringify(body),
   })
 }
+
+// What S4 sends back for drafted OFIs (see rag-service POST /ofis/draft, GN-05).
+export type OfiDraftResult = {
+  ofis: {
+    title: string
+    category: string
+    type: string
+    description: string
+    observation: string
+    likelihood: string
+    consequence: string
+    priority: string
+    effort: string
+    observations: string[]
+    standards: string[]
+    precedent: string | null
+  }[]
+  sources: Record<string, unknown>
+  provenance: {
+    provider: string
+    model: string | null
+    effort: string
+    prompt_version: string
+    config_version: string
+    generated_at: string
+  }
+  // Paid calls for the cost report (EV-03), as for a section draft.
+  usage?: unknown
+}
+
+export async function requestOfiDraft(body: unknown): Promise<OfiDraftResult> {
+  return callRag<OfiDraftResult>('/ofis/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

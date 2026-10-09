@@ -38,6 +38,12 @@ export interface IRecording {
     // Whisper wrote it, as evidence of what was said; drafting uses this.
     correction?: IStamp & { text: string }
   }
+  // Who added it to the observation after it was saved, and when (CP-08);
+  // absent for one captured with it.
+  added?: IStamp
+  // Present only while it is removed (CP-08), a soft removal: the audio stays
+  // in S3 and restoring removes this. A removed recording is not evidence.
+  removed?: IStamp
 }
 
 // A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
@@ -50,10 +56,13 @@ export interface IPhoto {
   key: string
   contentType: 'image/jpeg' | 'image/png'
   size: number
+  // As for a recording (CP-08): who added it after saving, and its removal.
+  added?: IStamp
+  removed?: IStamp
 }
 
-// Where reading an observation's photos stands (CP-05). Saving photos starts
-// exactly one attempt; a retry after a failure adds another.
+// Where reading an observation's photos stands (CP-05). Nothing reads them
+// until an engineer asks; each request starts exactly one attempt.
 export const INTERPRETATION_STATUSES = ['interpreting', 'interpreted', 'failed'] as const
 export type InterpretationStatus = (typeof INTERPRETATION_STATUSES)[number]
 
@@ -70,6 +79,11 @@ export interface IInterpretation {
   // Why the latest attempt failed, as S5 put it; the DTO makes it readable.
   error?: string
   attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
+  // The photos the latest attempt reads, set when it starts (CP-08). Once
+  // photos are added or removed, a finished reading of a different set is out
+  // of date. Absent on readings from before photos could change, which read
+  // every photo the observation was saved with.
+  photoIds?: Types.ObjectId[]
   // What wrote it and the tokens it took (EV-03); usage is null when the
   // provider reports none.
   provenance?: {
@@ -94,7 +108,7 @@ export interface IObservation {
   recordings: IRecording[]
   // Absent on observations saved before CP-04.
   photos?: IPhoto[]
-  // Present only on an observation saved with photos (CP-05).
+  // Present once an engineer has asked for its photos to be read (CP-05).
   interpretation?: IInterpretation
   // The standard the engineer tied the finding to, if any. The draft finds the
   // clause itself, so only the standard is recorded.
@@ -113,7 +127,8 @@ export interface IObservation {
     COPE_dimension: CopeDimension | null
     effective_date: Date
   }
-  // The latest change to its tags, note or a transcript (CP-08).
+  // The latest change to its tags, note, a transcript, or its recordings and
+  // photos (CP-08).
   edited?: IStamp
   // Present only while it is deleted (CP-08), a soft delete: nothing is
   // removed, so drafts that cite it stay traceable, and restoring removes this.
@@ -147,6 +162,8 @@ const recordingSchema = new Schema<IRecording>({
       type: new Schema({ text: { type: String, required: true }, ...stampFields }, { _id: false }),
     },
   },
+  added: { type: stampSchema },
+  removed: { type: stampSchema },
 })
 
 const photoSchema = new Schema<IPhoto>({
@@ -154,6 +171,8 @@ const photoSchema = new Schema<IPhoto>({
   key: { type: String, required: true },
   contentType: { type: String, enum: ['image/jpeg', 'image/png'], required: true },
   size: { type: Number, required: true },
+  added: { type: stampSchema },
+  removed: { type: stampSchema },
 })
 
 const interpretationSchema = new Schema<IInterpretation>(
@@ -166,6 +185,8 @@ const interpretationSchema = new Schema<IInterpretation>(
     attempts: [
       { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
     ],
+    // Left out rather than defaulting to [], which would read as "no photos".
+    photoIds: { type: [Schema.Types.ObjectId], default: undefined },
     provenance: {
       type: new Schema(
         {

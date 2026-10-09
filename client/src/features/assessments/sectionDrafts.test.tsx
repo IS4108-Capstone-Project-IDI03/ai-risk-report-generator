@@ -50,9 +50,12 @@ const RISER: SavedObservation = {
         error: null,
         attempts: 1,
       },
+      added: null,
     },
   ],
   photos: [],
+  removedRecordings: [],
+  removedPhotos: [],
   interpretation: null,
   recordedAt: '2026-09-23T09:10:00.000Z',
   edited: null,
@@ -135,6 +138,8 @@ function mockGateway(
     if (url === '/api/assessments') return json(200, [RECORD])
     if (url === `/api/assessments/${REF}/observations`) return json(200, [RISER])
     if (url === `/api/assessments/${REF}/sections`) return json(200, sections)
+    // The Section 3 OFI block on the same tab (GN-05), with nothing drafted.
+    if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
     const draft = url.match(/\/sections\/(\w+)\/draft$/)
     if (draft && init?.method === 'POST') {
       drafted.push(draft[1])

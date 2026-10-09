@@ -62,7 +62,10 @@ def _row(case: dict, cand: str, group: str, detail: str, out: dict, raw_ans: dic
 
 
 def _skipped(case: dict, detail: str) -> bool:
-    # Reports never have an edition; scoring it would inflate every score.
+    # Reports never have an edition; scoring it would inflate every score. The golden
+    # labels predate standard_number (IN-07): a detail with no expected value is not scored.
+    if detail not in case["expected"]:
+        return True
     return detail == "edition" and case["expected"]["source_type"] == "marsh_report"
 
 
@@ -84,7 +87,7 @@ def score_case(case: dict, cand: str, raw_case: dict, page_text: str, cutoff: fl
 def final_rows(
     case: dict, fixed: str, free: str, raw_case: dict, page_text: str, cutoff: float
 ) -> list[dict]:
-    """Return rows for all six details using the winning fixed-list and free-text models."""
+    """Return rows for all seven details using the winning fixed-list and free-text models."""
     if fixed in CLASSIFIERS:
         # Production: the classifier decides the fixed list, the free-text LLM the rest.
         out = decide_with(fixed, free, raw_case, page_text, cutoff)

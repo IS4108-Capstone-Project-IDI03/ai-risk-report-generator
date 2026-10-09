@@ -1,21 +1,22 @@
 // The banner above the Documents list naming the documents that need review
-// (IN-05): one is named in the title with a button to edit it; several are
+// (IN-05, IN-07): one is named in the title with a button to review it; several are
 // listed (at most three by name) with a button that filters the list to them.
 // Shown by screens/KnowledgeDocuments.tsx, a placeholder for app-wide notifications.
 import { Button, Callout } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
+import { reviewReasons } from '../display'
 
 // Names beyond this become "and N more", so 20 documents don't fill the page.
 const MAX_NAMED = 3
 
-/** Returns the warning banner for documents with Unconfirmed details. */
+/** Returns the warning banner for documents that need review. */
 export function ReviewBanner({
   documents,
-  onEdit,
+  onReview,
   onShow,
 }: {
   documents: KnowledgeDocument[]
-  onEdit: (document: KnowledgeDocument) => void
+  onReview: (document: KnowledgeDocument) => void
   onShow: () => void
 }) {
   if (documents.length === 1) {
@@ -25,13 +26,16 @@ export function ReviewBanner({
         tone="warning"
         title={`${only.title} needs review`}
         actions={
-          <Button variant="secondary" size="sm" onClick={() => onEdit(only)}>
-            Edit details
+          <Button variant="secondary" size="sm" onClick={() => onReview(only)}>
+            Review
           </Button>
         }
       >
+        {only.match && <p className="kb-review-line">{reviewReasons(only).join(' · ')}</p>}
         <p className="kb-review-line">
-          Fill in its unconfirmed details, so new reports can refer to it.
+          {only.match
+            ? 'Compare it with the stored document and choose what to do. Until then, new reports cannot use it.'
+            : 'Fill in its unconfirmed details, so new reports can refer to it.'}
         </p>
       </Callout>
     )
@@ -62,7 +66,9 @@ export function ReviewBanner({
         {rest ? ` and ${rest} more` : ''}
       </p>
       <p className="kb-review-line">
-        Fill in their unconfirmed details, so new reports can refer to them.
+        {documents.some((d) => d.match)
+          ? 'Review them, so new reports can refer to them.'
+          : 'Fill in their unconfirmed details, so new reports can refer to them.'}
       </p>
     </Callout>
   )

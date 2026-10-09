@@ -1,6 +1,7 @@
 // The Observations tab's dialogs for changing an observation (CP-08): a
-// recording's transcript, and deleting it. Its tags and note are edited
-// together in TagDialog.tsx. A failed save shows why and keeps what was typed
+// recording's transcript, deleting it, and removing one of its recordings or
+// photos. Its tags and note are edited together in TagDialog.tsx, and adding
+// recordings and photos is AddMediaDialog.tsx. A failed save shows why and keeps what was typed
 // for another try (AC18), as the knowledge base's StatusChangeDialog does.
 // Opened by screens/Observations.tsx; the saves are in useAssessmentWorkflow.tsx.
 import { useState } from 'react'
@@ -115,6 +116,48 @@ export function DeleteDialog({ v, dialog }: Props) {
         <p style={{ margin: 0 }}>
           Report drafting leaves it out from now on. Drafts that cite it keep it as they were
           drafted from, and you can restore it with Show deleted.
+        </p>
+      </div>
+    </Dialog>
+  )
+}
+
+// Confirms removing a recording or photo from the observation (CP-08). It is
+// kept, not deleted, and Restore under Removed media brings it back.
+export function RemoveMediaDialog({ v, dialog }: Props) {
+  const item = dialog.media!
+  const noun = item.kind === 'recordings' ? 'recording' : 'photo'
+  const { busy, problem, run } = useSave()
+  return (
+    <Dialog
+      title={`Remove this ${noun}?`}
+      width={480}
+      onClose={busy ? undefined : v.closeObsDialog}
+      footer={
+        <>
+          <Button variant="secondary" disabled={busy} onClick={v.closeObsDialog}>
+            {'Cancel'}
+          </Button>
+          <Button variant="danger" loading={busy} onClick={() => run(v.confirmRemoveMedia)}>
+            {`Remove ${noun}`}
+          </Button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {!!problem && (
+          <div role="alert">
+            <Callout tone="warning" title={`The ${noun} was not removed`}>
+              {problem}
+            </Callout>
+          </div>
+        )}
+        <p style={quote}>{item.name}</p>
+        <p style={{ margin: 0 }}>
+          {item.kind === 'recordings'
+            ? 'Report drafting stops using its transcript, and a draft that used it shows as out of date. '
+            : 'It leaves the Photos tab, and a reading of the photos shows as out of date. '}
+          It is kept, not deleted: restore it under Removed media.
         </p>
       </div>
     </Dialog>

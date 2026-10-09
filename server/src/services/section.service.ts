@@ -98,7 +98,7 @@ function isUsable(o: ObservationDto): boolean {
 }
 
 // An observation as the draft is given it, and as the draft saves it.
-type Evidence = IReportSection['evidence'][number]
+export type Evidence = IReportSection['evidence'][number]
 function toEvidence(o: ObservationDto): Evidence {
   return {
     id: o.id,
@@ -177,35 +177,46 @@ export async function listSections(reference: string): Promise<SectionSummaryDto
 // saves it with the evidence it was given and the configuration that wrote it.
 // Only the assigned engineer can, while the assessment is not archived. It can
 // be drafted again at any time, for example after more observations are added.
-export async function draftSection(
-  reference: string,
-  sectionId: string,
-  user: SessionUser,
-): Promise<SectionDraftDto> {
+// The assessment, with its site, for the assigned engineer to draft from: only
+// they can, while it is not archived. Shared with OFI drafting (GN-05).
+export async function assessmentToDraft(reference: string, user: SessionUser) {
   const assessment = await AssessmentModel.findOne({ reference })
     .populate<{ site: ISite | null }>('site', 'jurisdiction facilityType')
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
   if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
+  return assessment
+}
 
-  const section = (await listTemplateSections()).find((s) => s.id === sectionId)
-  if (!section) throw new UnknownSectionError(sectionId)
-
-  // Loaded by the assessment (AC2), oldest first so the draft reads them in
-  // the order they were captured.
+// The usable, categorised observations a draft is given, loaded by the
+// assessment (AC2), oldest first so the draft reads them in the order they
+// were captured. Throws while a transcription is unfinished, since a draft
+// would miss it. Shared with OFI drafting (GN-05).
+export async function draftingEvidence(reference: string): Promise<Evidence[]> {
   const inputs = categorised((await listObservations(reference)).reverse())
   if (inputs.some((o) => o.recordings.some((r) => r.transcription.status === 'transcribing'))) {
     throw new TranscriptionInProgressError()
   }
-  const usable = inputs.filter(isUsable)
-  const own = usable.filter(isFiledUnder(section)).length
+  return inputs.filter(isUsable).map(toEvidence)
+}
+
+export async function draftSection(
+  reference: string,
+  sectionId: string,
+  user: SessionUser,
+): Promise<SectionDraftDto> {
+  const assessment = await assessmentToDraft(reference, user)
+  const section = (await listTemplateSections()).find((s) => s.id === sectionId)
+  if (!section) throw new UnknownSectionError(sectionId)
+
+  const evidence = await draftingEvidence(reference)
+  const own = evidence.filter((e) => section.cope_dimensions.includes(e.COPE_dimension)).length
   if (own < section.min_observations) {
     throw new InsufficientEvidenceError(own, section.min_observations)
   }
 
   const site = assessment.site!
-  const evidence = usable.map(toEvidence)
   const draft = await requestSectionDraft({
     section_id: sectionId,
     assessment: {
