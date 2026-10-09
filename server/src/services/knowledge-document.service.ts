@@ -924,7 +924,6 @@ export async function cancelIngestion(id: string): Promise<void> {
   }
 
   const processing = await KnowledgeDocumentModel.findOneAndUpdate(
-  const processing = await KnowledgeDocumentModel.findOneAndUpdate(
     { _id: id, status: 'processing', cancelRequestedAt: { $exists: false } },
     { $set: { cancelRequestedAt: now } },
     { returnDocument: 'after' },
@@ -962,7 +961,6 @@ export async function retryIngestion(id: string): Promise<void> {
         error: 1,
         finishedAt: 1,
         result: 1,
-
         cancelRequestedAt: 1,
         cancelledAt: 1,
       },
