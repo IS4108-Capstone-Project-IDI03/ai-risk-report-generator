@@ -105,6 +105,26 @@ async function seedAndVerify(): Promise<void> {
   }
   console.log(`${SAMPLE_USERS.length} sample user accounts are available.`)
 
+  // Chris's dev account, so teammates' Docker databases have it too. The weak
+  // password is dev-only, like SEED_PASSWORD; never seed this into a shared or
+  // production database. Re-seeding resets its password to this one.
+  const chris = { email: 'chrisganaeshfx@gmail.com', password: '123' }
+  await UserModel.updateOne(
+    { email: chris.email },
+    {
+      $setOnInsert: {
+        staffId: 'MRE-9001',
+        name: 'Chris Ganaesh',
+        email: chris.email,
+        role: 'risk_engineer',
+        active: true,
+      },
+      $set: { passwordHash: await bcrypt.hash(chris.password, 10) },
+    },
+    { upsert: true },
+  )
+  console.log(`Dev account ${chris.email} is available.`)
+
   // Assigns a sample assessment to one account by its staff ID (RV-10).
   async function assignedTo(staffId: string) {
     const user = (await UserModel.findOne({ staffId }).lean())!
