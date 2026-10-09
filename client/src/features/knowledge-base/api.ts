@@ -225,6 +225,13 @@ export function retryIngestion(id: string): Promise<void> {
   return send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' })
 }
 
+// Stops a queued or processing ingestion. 202 on accept; queued documents
+// become cancelled immediately, while processing documents finish
+// cooperatively in the worker.
+export function cancelIngestion(id: string): Promise<void> {
+  return send(`/api/knowledge-documents/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+}
+
 // Sends one PDF with its details and returns the queued document. The body is
 // the raw PDF and the details go in the URL's query string, so the gateway
 // needs no multipart-form library.
