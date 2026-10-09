@@ -293,6 +293,18 @@ def test_a_cancelled_queued_document_is_not_claimed(documents, monkeypatch):
     assert documents.doc["status"] == "cancelled"
 
 
+def test_a_redelivered_cancelled_document_cleans_partial_passages(documents, monkeypatch):
+    # The worker may crash after the gateway marks an active document cancelled.
+    # BullMQ redelivers the stalled job when the worker comes back.
+    documents.doc["status"] = "cancelled"
+    monkeypatch.setattr(worker, "run", lambda *a, **k: pytest.fail("run() must not be called"))
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+    assert documents.deleted_passages == [DOC_ID]
+
+
 def test_a_processing_cancellation_cleans_partial_passages_and_does_not_notify(
     documents, monkeypatch
 ):

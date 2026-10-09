@@ -155,6 +155,11 @@ def ingest_document(document_id: str) -> None:
         return_document=ReturnDocument.AFTER,
     )
     if doc is None:
+        cancelled = collection.find_one({"_id": _id, "status": "cancelled"})
+        if cancelled:
+            reporter = ProgressReporter(jobs(), document_id)
+            finish_cancellation(collection, _id, reporter)
+            return
         log.warning("Document %s is already finished or missing; skipping.", document_id)
         return
 
