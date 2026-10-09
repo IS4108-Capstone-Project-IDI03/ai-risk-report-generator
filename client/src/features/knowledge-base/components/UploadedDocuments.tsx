@@ -151,14 +151,14 @@ export function UploadedDocuments({
     const p = d.status === 'processing' ? d.progress : undefined
     const stage = p && STAGE_LABELS[p.currentStage]
 
-    // "Pg 12 / 45", or "Pg 12" if the total couldn't be read, while
+    // "12 / 45 pages", or "12 pages" if the total couldn't be read, while
     // chunking once a page with provenance is reached (E2b). The chunk count
     // has no knowable total, so pages are shown instead of a progress bar.
     const pageLabel =
       p && p.currentStage === 'chunking' && p.pageCurrent
         ? p.pageTotal
-          ? `| Pg ${p.pageCurrent} / ${p.pageTotal}`
-          : `| Pg ${p.pageCurrent}`
+          ? `${p.pageCurrent} / ${p.pageTotal} pages`
+          : `${p.pageCurrent} pages`
         : null
 
     return (
@@ -171,49 +171,45 @@ export function UploadedDocuments({
           ) : (
             <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
           )}
-          {d.status === 'failed' && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft="refresh-cw"
-              disabled={retrying[d.id]}
-              onClick={() => retry(d.id)}
-            >
-              {retrying[d.id] ? 'Retrying…' : 'Retry'}
-            </Button>
-          )}
-          {d.status === 'cancelled' && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft="refresh-cw"
-              disabled={retrying[d.id]}
-              onClick={() => retry(d.id)}
-            >
-              {retrying[d.id] ? 'Retrying…' : 'Retry'}
-            </Button>
-          )}
-          {(d.status === 'queued' || d.status === 'processing') && (
-            <Button
-              variant="danger-tonal"
-              size="sm"
-              iconLeft="x"
-              disabled={cancelling[d.id]}
-              onClick={() => cancel(d.id)}
-            >
-              {cancelling[d.id] ? 'Stopping…' : 'Stop'}
-            </Button>
-          )}
         </span>
         {p && (
           <span className="kb-stage-detail">
-            <span className="kb-elapsed">{formatDuration(p.elapsedMs)}</span>
             {pageLabel && <span className="kb-page-count">{pageLabel}</span>}
+            <span className="kb-elapsed">{formatDuration(p.elapsedMs)} elapsed</span>
           </span>
         )}
         {d.error && <span className="kb-status-reason">{d.error}</span>}
       </span>
     )
+  }
+  const action = (d: KnowledgeDocument) => {
+    if (d.status === 'failed' || d.status === 'cancelled') {
+      return (
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft="refresh-cw"
+          disabled={retrying[d.id]}
+          onClick={() => retry(d.id)}
+        >
+          {retrying[d.id] ? 'Retrying…' : 'Retry'}
+        </Button>
+      )
+    }
+    if (d.status === 'queued' || d.status === 'processing') {
+      return (
+        <Button
+          variant="danger-tonal"
+          size="sm"
+          iconLeft="x"
+          disabled={cancelling[d.id]}
+          onClick={() => cancel(d.id)}
+        >
+          {cancelling[d.id] ? 'Stopping…' : 'Stop'}
+        </Button>
+      )
+    }
+    return null
   }
   const original = (d: KnowledgeDocument) => (
     <a
@@ -279,7 +275,10 @@ export function UploadedDocuments({
               {status(d)}
               <span className="kb-stack-meta">
                 <span className="kb-mono">{dateTime(d.uploadedAt)}</span>
-                {original(d)}
+                <span className="kb-stack-actions">
+                  {action(d)}
+                  {original(d)}
+                </span>
               </span>
             </li>
           ))}
@@ -289,7 +288,8 @@ export function UploadedDocuments({
           columns={[
             { key: 'document', header: 'Document' },
             { key: 'uploaded', header: 'Uploaded' },
-            { key: 'status', header: 'Status', align: 'center' },
+            { key: 'status', header: 'Status' },
+            { key: 'action', header: 'Action', align: 'right' },
             { key: 'original', header: 'Original' },
           ]}
           rows={documents.map((d) => ({
@@ -297,6 +297,7 @@ export function UploadedDocuments({
             document: title(d),
             uploaded: <span className="kb-mono">{dateTime(d.uploadedAt)}</span>,
             status: status(d),
+            action: action(d),
             original: original(d),
           }))}
         />
