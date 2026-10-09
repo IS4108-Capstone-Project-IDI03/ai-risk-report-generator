@@ -509,14 +509,17 @@ uncategorised observations. The title falls back to the file name, and
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
 (with `error`, the reason shown to the admin), all set by the ingestion worker,
-which also records `startedAt` and `finishedAt`. Rejected uploads are never
-stored.
+which also records `startedAt` and `finishedAt`. An admin can stop a queued or
+processing document; it then ends as `cancelled`, not `failed`, and remains
+retryable. `cancelRequestedAt` marks an active run waiting for the worker to
+stop at a safe checkpoint, and `cancelledAt` marks terminal cleanup. Rejected
+uploads are never stored.
 
 `retryCount` tracks how many times a knowledge admin has pressed Retry on a
-failed document. It is incremented atomically — inside the same
-`failed → queued` status flip in `retryIngestion` — so it counts human retries
-only, never automatic BullMQ re-runs of a stalled job. Its value is never
-shown to the user; its sole purpose is to make each retry's ingestion
+failed or cancelled document. It is incremented atomically — inside the same
+`failed`/`cancelled → queued` status flip in `retryIngestion` — so it counts
+human retries only, never automatic BullMQ re-runs of a stalled job. Its value
+is never shown to the user; its sole purpose is to make each retry's ingestion
 notification distinct: `retryCount` is carried in `context.attempt` of the
 notification payload, which `createNotification`'s dedupe key includes, so a
 document that fails, is retried, and fails again produces a second notification
@@ -713,4 +716,3 @@ Each provider reports usage differently. The services rename it into one shape (
 | Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis` |
 
 What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.
-
