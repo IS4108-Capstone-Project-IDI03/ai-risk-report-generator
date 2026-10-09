@@ -182,7 +182,13 @@ describe('UploadedDocuments cancellation', () => {
   it('shows Stop only for queued and processing documents', async () => {
     stubGateway([
       { ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null },
-      { ...FAILED, id: 'processing', title: 'Processing standard', status: 'processing', error: null },
+      {
+        ...FAILED,
+        id: 'processing',
+        title: 'Processing standard',
+        status: 'processing',
+        error: null,
+      },
       FAILED,
       COMPLETE,
       CANCELLED,
@@ -202,7 +208,9 @@ describe('UploadedDocuments cancellation', () => {
   })
 
   it('posts cancellation and refreshes the row as cancelled with Retry', async () => {
-    const state = stubGateway([{ ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null }])
+    const state = stubGateway([
+      { ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null },
+    ])
     render(
       <UploadedDocuments
         narrow={false}
@@ -226,7 +234,9 @@ describe('UploadedDocuments cancellation', () => {
       const url = String(input)
       if (url.endsWith('/cancel') && (init?.method ?? 'GET') === 'POST')
         return json({ error: 'nope' }, 503)
-      return json([{ ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null }])
+      return json([
+        { ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null },
+      ])
     })
     vi.stubGlobal('fetch', fetchMock)
     render(
@@ -242,6 +252,8 @@ describe('UploadedDocuments cancellation', () => {
     fireEvent.click(within(table).getByRole('button', { name: 'Stop' }))
 
     expect(await screen.findByText('Stop not started')).toBeInTheDocument()
-    await waitFor(() => expect(within(table).getByRole('button', { name: 'Stop' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(within(table).getByRole('button', { name: 'Stop' })).toBeInTheDocument(),
+    )
   })
 })
