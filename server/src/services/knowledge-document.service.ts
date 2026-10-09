@@ -894,10 +894,9 @@ export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: st
 export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undefined)
 
 /**
- * Stops a queued or processing ingestion. MongoDB becomes terminal immediately
- * for both states, so the UI does not wait behind a long-running parser. An
- * active worker sees the cancelled status at its next checkpoint and cleans up
- * any partial passages before it exits.
+ * Stops a queued or processing ingestion. A queued document becomes terminal
+ * immediately; a processing document keeps its status until the worker sees
+ * `cancelRequestedAt` and cleans up any partial passages before it exits.
  *
  * Throws KnowledgeDocumentNotFoundError for an unknown or malformed id, or
  * KnowledgeDocumentWrongStateError when the document is already terminal.
@@ -925,19 +924,16 @@ export async function cancelIngestion(id: string): Promise<void> {
   }
 
   const processing = await KnowledgeDocumentModel.findOneAndUpdate(
-    { _id: id, status: 'processing' },
-    {
-      $set: { status: 'cancelled', cancelledAt: now },
-      $unset: { error: 1, result: 1, finishedAt: 1, cancelRequestedAt: 1 },
-    },
+  const processing = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'processing', cancelRequestedAt: { $exists: false } },
+    { $set: { cancelRequestedAt: now } },
     { returnDocument: 'after' },
   ).lean()
-  if (processing) {
-    return
-  }
+  if (processing) return
 
   const document = await KnowledgeDocumentModel.findById(id).select({ status: 1 }).lean()
   if (!document) throw new KnowledgeDocumentNotFoundError()
+  if (document.status === 'processing') return
   throw new KnowledgeDocumentWrongStateError('Only a queued or processing document can be stopped.')
 }
 

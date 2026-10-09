@@ -1315,6 +1315,83 @@ describe('cancelIngestion', () => {
   })
 })
 
+describe('cancelIngestion', () => {
+  const CANCEL_ID = '6abb28ae16068a0793e99631'
+
+  async function seed(overrides: Record<string, unknown> = {}) {
+    await KnowledgeDocumentModel.create({
+      _id: CANCEL_ID,
+      title: 'NFPA 13 sprinkler standard',
+      fileName: 'nfpa-13.pdf',
+      file: {
+        key: `knowledge/${CANCEL_ID}.pdf`,
+        contentType: 'application/pdf',
+        size: 2048,
+        sha256: 'cancel-abc',
+      },
+      status: 'queued',
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        effective_date: new Date('2022-01-01'),
+      },
+      ...overrides,
+    })
+  }
+
+  it('cancels a queued document and removes its queue job', async () => {
+    await seed()
+
+    await cancelIngestion(CANCEL_ID)
+
+    const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
+    expect(doc!.status).toBe('cancelled')
+    expect(doc!.cancelledAt).toBeInstanceOf(Date)
+    expect(removed).toHaveBeenCalledWith(CANCEL_ID)
+  })
+
+  it('marks a processing document for cooperative cancellation', async () => {
+    await seed({ status: 'processing' })
+
+    await cancelIngestion(CANCEL_ID)
+
+    const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
+    expect(doc!.status).toBe('processing')
+    expect(doc!.cancelRequestedAt).toBeInstanceOf(Date)
+    expect(removed).not.toHaveBeenCalled()
+  })
+
+  it('does not change an already terminal document', async () => {
+    await seed({ status: 'complete' })
+
+    await expect(cancelIngestion(CANCEL_ID)).rejects.toBeInstanceOf(
+      KnowledgeDocumentWrongStateError,
+    )
+
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('complete')
+    expect(removed).not.toHaveBeenCalled()
+  })
+
+  it('treats a repeated stop request for processing as accepted', async () => {
+    await seed({ status: 'processing', cancelRequestedAt: new Date() })
+
+    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+  })
+
+  it('does not roll a queued document back when queue removal fails', async () => {
+    await seed()
+    removed.mockRejectedValueOnce(new Error('queue down'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('cancelled')
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
+  })
+})
+
 // The retry route (service behaviour is covered above in `retryIngestion`).
 describe('POST /api/knowledge-documents/:id/retry', () => {
   const RETRY_ID = '6abb28ae16068a0793e99630'
