@@ -460,6 +460,10 @@ def chunk(
     seen_chunk_bboxes: list[dict] = []
     try:
         for n, dl_chunk in enumerate(chunker.chunk(dl_doc=doc)):
+            if reporter:
+                check = getattr(reporter, "check_cancelled", None)
+                if check:
+                    check()
             text = (dl_chunk.text or "").strip()
             if not text:
                 continue

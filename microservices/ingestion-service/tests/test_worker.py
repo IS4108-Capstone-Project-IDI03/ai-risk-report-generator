@@ -42,9 +42,18 @@ class FakeDocuments:
         # _id only. Honour both so one fake serves claim and complete/fail.
         if query["_id"] != self.doc["_id"]:
             return None
-        if "status" in query and self.doc["status"] not in query["status"]["$in"]:
+        if "status" in query:
+            expected = query["status"]
+            if isinstance(expected, dict) and "$in" in expected:
+                if self.doc["status"] not in expected["$in"]:
+                    return None
+            elif self.doc["status"] != expected:
+                return None
+        if "cancelRequestedAt" in query and "cancelRequestedAt" in self.doc:
             return None
         self.doc.update(update["$set"])
+        for field in update.get("$unset", {}):
+            self.doc.pop(field, None)
         return dict(self.doc)
 
     def update_one(self, query, update):
@@ -55,6 +64,8 @@ class FakeDocuments:
     others: dict = {}
 
     def find_one(self, query, _projection=None):
+        if query["_id"] == self.doc["_id"]:
+            return dict(self.doc)
         return self.others.get(query["_id"])
 
 
@@ -110,10 +121,14 @@ def documents(monkeypatch):
     )
     # IN-07: matching and relabelling have their own tests; here they are recorded.
     fake.calls = []
+    fake.deleted_passages = []
     fake.match = None
     monkeypatch.setattr(worker, "find_match", lambda doc, _coll: fake.match)
     monkeypatch.setattr(
         worker, "relabel_passages", lambda doc: fake.calls.append(labels_of(doc)) or 1
+    )
+    monkeypatch.setattr(
+        worker, "delete_passages", lambda doc_id: fake.deleted_passages.append(doc_id) or 1
     )
     # Expose the jobs collection and captured notifications on the fixture.
     fake.jobs = jobs
@@ -267,6 +282,49 @@ def test_a_document_interrupted_mid_processing_is_processed_again(documents, mon
     worker.ingest_document(DOC_ID)
 
     assert documents.doc["status"] == "complete"
+
+
+def test_a_cancelled_queued_document_is_not_claimed(documents, monkeypatch):
+    documents.doc["status"] = "cancelled"
+    monkeypatch.setattr(worker, "run", lambda *a, **k: pytest.fail("run() must not be called"))
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+
+
+def test_a_processing_cancellation_cleans_partial_passages_and_does_not_notify(
+    documents, monkeypatch
+):
+    def fake_run(*_args, **_kwargs):
+        documents.doc["cancelRequestedAt"] = datetime.now()
+        return RUN_OK()
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+    assert "cancelRequestedAt" not in documents.doc
+    assert documents.deleted_passages == [DOC_ID]
+    assert documents.notifications == []
+
+
+def test_cancellation_is_checked_between_pipeline_chunks(documents, monkeypatch):
+    checks = []
+
+    class Reporter:
+        def check_cancelled(self):
+            checks.append(True)
+            if len(checks) == 2:
+                raise worker.IngestionCancelledError()
+
+    reporter = Reporter()
+    with pytest.raises(worker.IngestionCancelledError):
+        reporter.check_cancelled()
+        reporter.check_cancelled()
+
+    assert len(checks) == 2
 
 
 def test_documents_share_one_database_client(monkeypatch):
