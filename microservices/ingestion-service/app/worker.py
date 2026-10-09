@@ -48,7 +48,9 @@ SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. U
 def cancellation_requested(collection, document_id: ObjectId) -> bool:
     """Return whether MongoDB has asked this document's worker to stop."""
     current = collection.find_one({"_id": document_id})
-    return bool(current and (current.get("status") == "cancelled" or current.get("cancelRequestedAt")))
+    return bool(
+        current and (current.get("status") == "cancelled" or current.get("cancelRequestedAt"))
+    )
 
 
 def ensure_not_cancelled(collection, document_id: ObjectId) -> None:
