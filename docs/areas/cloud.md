@@ -115,10 +115,14 @@ docker compose up -d --build redis server rag-service speech-ocr-service ingesti
 docker compose ps        # no client, mongo, chroma or ollama
 ```
 
+To see logs, `docker compose logs -f server` or `docker compose logs -f ingestion-worker` or `docker compose logs -f # for all services`.
+
+To see EC2 resource usage, `htop  # btop for nicer interface but need to install for new instances` or `docker stats`.
+
 These services have `restart: unless-stopped`, so they come back after a
 crash and when the instance starts, with no `docker compose up` needed.
 
-The first build takes 10-20 minutes (npm, Python packages, Docling models);
+The first build takes ~10 minutes (npm, Python packages, Docling models);
 later builds reuse the cache.
 
 Laptops run only the client, against the instance:
@@ -134,13 +138,39 @@ npm run dev:local                         # forwards /api to http://localhost:40
 Without it, `npm run dev` also uses `http://localhost:4000`. Each developer's
 IP must be allowed on port 4000 in the security group.
 
-## Updating
+## Updating by hand
+
+Normally the cron job below does this. To update straight away:
 
 ```bash
 cd ~/ai-risk-report-generator && git pull
 docker compose up -d --build redis server rag-service speech-ocr-service ingestion-service ingestion-worker
 docker image prune -f    # old image layers; the disk is 30 GB
 ```
+
+## Automatic updates
+
+`scripts/deploy-ec2.sh` checks `origin/main` every 5 minutes (cron). When there
+are new commits it fast-forwards the checkout, rebuilds and recreates the backend
+services, and prunes old images. Docker's build cache makes unchanged services
+quick. It skips a round while a document is being ingested, since recreating the
+worker would kill that ingestion, and tries again 5 minutes later.
+
+Set it up once on the instance:
+
+```bash
+cd ~/ai-risk-report-generator
+git checkout main                     # the script deploys main (DEPLOY_BRANCH overrides)
+chmod +x scripts/deploy-ec2.sh
+scripts/deploy-ec2.sh --dry-run       # shows what it would do; changes nothing
+( crontab -l 2>/dev/null; echo '*/5 * * * * $HOME/ai-risk-report-generator/scripts/deploy-ec2.sh >> $HOME/deploy.log 2>&1' ) | crontab -
+```
+
+Check what it did with `tail -f ~/deploy.log`. It only writes when something
+happens: a deploy, a skip while ingesting, or an error. It stops, and logs why,
+when the checkout is on another branch or has local edits (it only fast-forwards,
+never merges). `.env` is gitignored, so deploys never touch it. To pause it, run
+`crontab -e` and comment out the line.
 
 ## Checks
 
