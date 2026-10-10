@@ -17,7 +17,7 @@ import {
 } from '../models/knowledge-document.model'
 import type { IIngestionJob, IngestionStage } from '../models/ingestion-job.model'
 import { getJobProgressBatch } from './ingestion-job.service'
-import { enqueueIngestion, requeueIngestion } from './ingestion-queue.service'
+import { enqueueIngestion, requeueIngestion, removeIngestionJob } from './ingestion-queue.service'
 import {
   IngestionUnavailableError,
   labelDocument,
@@ -662,9 +662,9 @@ const HOUR = 60 * 60 * 1000
 /**
  * Returns the recent uploads, newest first: every document still queued or
  * processing, plus those that finished recently. A success needs no follow-up,
- * so it shows for 24 hours; a failure needs someone to act, so it shows for 7
- * days. Older documents stay stored; they are just not listed here (the full
- * knowledge base view is KB-01).
+ * so it shows for 24 hours; a failure or cancellation needs someone to act, so
+ * it shows for 7 days. Older documents stay stored; they are just not listed
+ * here (the full knowledge base view is KB-01).
  */
 export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> {
   const since = (hours: number) => new Date(Date.now() - hours * HOUR)
@@ -673,6 +673,7 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
       { status: { $in: ['queued', 'processing'] } },
       { status: 'complete', finishedAt: { $gte: since(24) } },
       { status: 'failed', finishedAt: { $gte: since(7 * 24) } },
+      { status: 'cancelled', cancelledAt: { $gte: since(7 * 24) } },
     ],
   })
     .sort({ createdAt: -1 })
@@ -889,31 +890,88 @@ export const withdrawKnowledgeDocument = (id: string, by: { id: string; name: st
 export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undefined)
 
 /**
+ * Stops a queued or processing ingestion. MongoDB becomes terminal immediately
+ * for both states, so the UI does not wait behind a long-running parser. An
+ * active worker sees the cancelled status at its next checkpoint and cleans up
+ * any partial passages before it exits.
+ *
+ * Throws KnowledgeDocumentNotFoundError for an unknown or malformed id, or
+ * KnowledgeDocumentWrongStateError when the document is already terminal.
+ */
+export async function cancelIngestion(id: string): Promise<void> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+
+  const now = new Date()
+  const queued = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'queued' },
+    {
+      $set: { status: 'cancelled', cancelledAt: now },
+      $unset: { error: 1, result: 1, finishedAt: 1, cancelRequestedAt: 1 },
+    },
+    { returnDocument: 'after' },
+  ).lean()
+
+  if (queued) {
+    // MongoDB is authoritative. If Redis removal fails, the worker will still
+    // skip this document because its status is already terminal.
+    await removeIngestionJob(id).catch((error: unknown) => {
+      console.error('Removing cancelled ingestion job failed:', error)
+    })
+    return
+  }
+
+  const processing = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'processing' },
+    {
+      $set: { status: 'cancelled', cancelledAt: now },
+      $unset: { error: 1, result: 1, finishedAt: 1, cancelRequestedAt: 1 },
+    },
+    { returnDocument: 'after' },
+  ).lean()
+  if (processing) {
+    return
+  }
+
+  const document = await KnowledgeDocumentModel.findById(id).select({ status: 1 }).lean()
+  if (!document) throw new KnowledgeDocumentNotFoundError()
+  throw new KnowledgeDocumentWrongStateError('Only a queued or processing document can be stopped.')
+}
+
+/**
  * Retries a failed ingestion without re-uploading. The PDF is still in S3 and
  * every detail is still on the record, so retry means re-run, not re-enter: the
- * document flips `failed → queued`, its failure fields are cleared, its retry
- * counter is bumped, and the ingestion job is re-queued. The worker then claims
- * it exactly as a fresh upload.
+ * document flips `failed` or `cancelled` → `queued`, its terminal fields are
+ * cleared, its retry counter is bumped, and the ingestion job is re-queued.
+ * The worker then claims it exactly as a fresh upload.
  *
  * Throws KnowledgeDocumentNotFoundError (unknown or malformed id),
- * KnowledgeDocumentWrongStateError (not currently failed), or
+ * KnowledgeDocumentWrongStateError (not currently failed or cancelled), or
  * IngestionUnavailableError (the re-queue could not be placed), in which case
- * the document is put back to failed.
+ * the document is put back to its previous terminal state.
  */
 export async function retryIngestion(id: string): Promise<void> {
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
-  // Atomic on `status: 'failed'`: only a failed document flips, so a double
-  // click cannot queue two runs or double-count. The counter is bumped in the
-  // same write, so it moves exactly when a retry is accepted — never on the
-  // worker's own automatic re-runs.
+  // Atomic on terminal retryable statuses: only a failed or cancelled document
+  // flips, so a double click cannot queue two runs or double-count. The counter
+  // is bumped in the same write, so it moves exactly when a retry is accepted.
   const updated = await KnowledgeDocumentModel.findOneAndUpdate(
-    { _id: id, status: 'failed' },
+    { _id: id, status: { $in: ['failed', 'cancelled'] } },
     {
       $set: { status: 'queued' },
-      $unset: { error: 1, finishedAt: 1, result: 1 },
+      $unset: {
+        error: 1,
+        finishedAt: 1,
+        result: 1,
+        cancelRequestedAt: 1,
+        cancelledAt: 1,
+      },
       $inc: { retryCount: 1 },
     },
-    { returnDocument: 'after' },
+    // Keep the matched terminal document so a queue failure can restore the
+    // exact terminal state that the retry started from.
+    // Keep the matched terminal document so a queue failure can restore the
+    // exact terminal state that the retry started from.
+    { returnDocument: 'before' },
   )
     .lean()
     .catch((error: unknown) => {
@@ -930,7 +988,9 @@ export async function retryIngestion(id: string): Promise<void> {
   if (!updated) {
     // One of two reasons, disambiguated like retryTranscription.
     if (await KnowledgeDocumentModel.exists({ _id: id })) {
-      throw new KnowledgeDocumentWrongStateError('Only a failed document can be retried.')
+      throw new KnowledgeDocumentWrongStateError(
+        'Only a failed or cancelled document can be retried.',
+      )
     }
     throw new KnowledgeDocumentNotFoundError()
   }
@@ -941,16 +1001,22 @@ export async function retryIngestion(id: string): Promise<void> {
   try {
     await requeueIngestion(id)
   } catch {
+    const rolledBackStatus = updated.status
     await KnowledgeDocumentModel.updateOne(
       { _id: id, status: 'queued' },
-      {
-        $set: {
-          status: 'failed',
-          error: 'Ingestion could not be re-queued. Try again shortly.',
-          finishedAt: new Date(),
-        },
-        $inc: { retryCount: -1 },
-      },
+      rolledBackStatus === 'cancelled'
+        ? {
+            $set: { status: 'cancelled', cancelledAt: new Date() },
+            $inc: { retryCount: -1 },
+          }
+        : {
+            $set: {
+              status: 'failed',
+              error: 'Ingestion could not be re-queued. Try again shortly.',
+              finishedAt: new Date(),
+            },
+            $inc: { retryCount: -1 },
+          },
     )
     throw new IngestionUnavailableError('Ingestion could not be re-queued. Try again shortly.')
   }

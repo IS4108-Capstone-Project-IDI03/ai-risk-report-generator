@@ -231,8 +231,10 @@ jobs:
             .env.example > .env
           echo "MONGODB_URI=$(grep '^MONGODB_URI=' .env)"
 
+      # local-db: CI uses the mongo and chroma containers (off by default, as
+      # the cloud box uses Atlas and Chroma Cloud).
       - name: Start the stack
-        run: docker compose up -d --build
+        run: docker compose --profile local-db up -d --build
 
       - name: Wait for every health endpoint
         run: |
@@ -265,9 +267,9 @@ jobs:
       - name: Container logs
         if: always()
         run: |
-          docker compose ps
-          docker compose logs --no-color --tail=60
+          docker compose --profile local-db ps
+          docker compose --profile local-db logs --no-color --tail=60
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose --profile local-db down -v

@@ -509,14 +509,17 @@ uncategorised observations. The title falls back to the file name, and
 `status` is `queued` (set by the gateway), then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
 (with `error`, the reason shown to the admin), all set by the ingestion worker,
-which also records `startedAt` and `finishedAt`. Rejected uploads are never
-stored.
+which also records `startedAt` and `finishedAt`. An admin can stop a queued or
+processing document; it then ends as `cancelled`, not `failed`, and remains
+retryable. `cancelRequestedAt` marks an active run waiting for the worker to
+stop at a safe checkpoint, and `cancelledAt` marks terminal cleanup. Rejected
+uploads are never stored.
 
 `retryCount` tracks how many times a knowledge admin has pressed Retry on a
-failed document. It is incremented atomically — inside the same
-`failed → queued` status flip in `retryIngestion` — so it counts human retries
-only, never automatic BullMQ re-runs of a stalled job. Its value is never
-shown to the user; its sole purpose is to make each retry's ingestion
+failed or cancelled document. It is incremented atomically — inside the same
+`failed`/`cancelled → queued` status flip in `retryIngestion` — so it counts
+human retries only, never automatic BullMQ re-runs of a stalled job. Its value
+is never shown to the user; its sole purpose is to make each retry's ingestion
 notification distinct: `retryCount` is carried in `context.attempt` of the
 notification payload, which `createNotification`'s dedupe key includes, so a
 document that fails, is retried, and fails again produces a second notification
@@ -590,7 +593,7 @@ copies and restart. The upload's own check still rejects most repeats.
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn, or IN-07: another edition in its `editionFamily` is active, named in `error`) / 503 (search not updated, still withdrawn) |
-| `POST /api/knowledge-documents/:id/retry` | Retries a failed ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears `error`/`finishedAt`, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not failed (someone already retried it), 503 queue unreachable (document left failed, counter rolled back). `knowledge:manage` only |
+| `POST /api/knowledge-documents/:id/retry` | Retries a failed or cancelled ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears terminal error/cancellation fields, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not retryable (someone already retried it), 503 queue unreachable (document is restored to its previous terminal state, counter rolled back). `knowledge:manage` only |
 | `GET /api/knowledge-documents/:id/comparison` | The document, the document its `match` points to, and their passages side by side (IN-07): `{ document, matched, rows }`. 200, or 404 / 409 (no match, or the matched document is gone) / 503 |
 | `POST /api/knowledge-documents/:id/decision` | The admin's decision on a match (IN-07): `{ choice }`, one of `keep_both`, `discard_new`, `discard_other`, `supersede`, `add_as_older` (effects in [services.md](services.md)). Needs `knowledge:manage`. 200 `{ document }`, with `document: null` after `discard_new`; or 400 (unknown choice) / 404 / 409 (details still Unconfirmed, no match, the matched document gone, a choice that doesn't fit the match, or `supersede` while another edition in the stored edition's family is still active) / 503 (nothing changed) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
@@ -713,4 +716,3 @@ Each provider reports usage differently. The services rename it into one shape (
 | Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis` |
 
 What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.
-
