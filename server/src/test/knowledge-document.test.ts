@@ -1386,7 +1386,6 @@ describe('cancelIngestion', () => {
     error.mockRestore()
   })
 })
-})
 
 // The retry route (service behaviour is covered above in `retryIngestion`).
 describe('POST /api/knowledge-documents/:id/retry', () => {

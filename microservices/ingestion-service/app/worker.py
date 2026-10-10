@@ -50,19 +50,6 @@ TIMED_OUT = (
 )
 
 
-def cancellation_requested(collection, document_id: ObjectId) -> bool:
-    """Return whether MongoDB has asked this document's worker to stop."""
-    current = collection.find_one({"_id": document_id})
-    return bool(
-        current and (current.get("status") == "cancelled" or current.get("cancelRequestedAt"))
-    )
-
-
-def ensure_not_cancelled(collection, document_id: ObjectId) -> None:
-    if cancellation_requested(collection, document_id):
-        raise IngestionCancelledError()
-
-
 def finish_cancellation(collection, document_id: ObjectId, reporter: ProgressReporter) -> None:
     """Remove partial passages and mark a processing document cancelled."""
     delete_passages(str(document_id))
@@ -88,7 +75,6 @@ def cancel_document(document_id: str) -> None:
     finish_cancellation(collection, _id, reporter)
 
 
-
 def cancellation_requested(collection, document_id: ObjectId) -> bool:
     """Return whether MongoDB has asked this document's worker to stop."""
     current = collection.find_one({"_id": document_id})
@@ -101,30 +87,6 @@ def ensure_not_cancelled(collection, document_id: ObjectId) -> None:
     if cancellation_requested(collection, document_id):
         raise IngestionCancelledError()
 
-
-def finish_cancellation(collection, document_id: ObjectId, reporter: ProgressReporter) -> None:
-    """Remove partial passages and mark a processing document cancelled."""
-    delete_passages(str(document_id))
-    collection.find_one_and_update(
-        {"_id": document_id, "status": "processing"},
-        {
-            "$set": {"status": "cancelled", "cancelledAt": datetime.now(UTC)},
-            "$unset": {"cancelRequestedAt": "", "error": "", "result": "", "finishedAt": ""},
-        },
-        return_document=ReturnDocument.AFTER,
-    )
-    reporter.cancel()
-
-
-def cancel_document(document_id: str) -> None:
-    """Finish a cancellation whose original ingestion job is no longer present."""
-    collection = documents()
-    _id = ObjectId(document_id)
-    current = collection.find_one({"_id": _id})
-    if not current or current.get("status") != "processing" or not current.get("cancelRequestedAt"):
-        return
-    reporter = ProgressReporter(jobs(), document_id)
-    finish_cancellation(collection, _id, reporter)
 
 @cache  # one client (and its connection pool) for the life of the worker
 def documents():

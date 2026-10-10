@@ -321,6 +321,7 @@ def test_a_redelivered_cancelled_document_cleans_partial_passages(documents, mon
     assert documents.doc["status"] == "cancelled"
     assert documents.deleted_passages == [DOC_ID]
 
+
 def test_a_processing_cancellation_cleans_partial_passages_and_does_not_notify(
     documents, monkeypatch
 ):
@@ -347,6 +348,8 @@ def test_a_cancellation_job_finishes_a_stale_processing_document(documents):
     assert documents.doc["status"] == "cancelled"
     assert documents.deleted_passages == [DOC_ID]
     assert documents.notifications == []
+
+
 def test_cancellation_is_checked_between_pipeline_chunks(documents, monkeypatch):
     checks = []
 
