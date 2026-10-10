@@ -1313,7 +1313,6 @@ describe('cancelIngestion', () => {
     expect(error).toHaveBeenCalled()
     error.mockRestore()
   })
-
 })
 
 describe('cancelIngestion', () => {
@@ -1386,6 +1385,7 @@ describe('cancelIngestion', () => {
     expect(error).toHaveBeenCalled()
     error.mockRestore()
   })
+})
 })
 
 // The retry route (service behaviour is covered above in `retryIngestion`).
