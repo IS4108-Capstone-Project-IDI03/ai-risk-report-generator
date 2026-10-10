@@ -28,6 +28,7 @@ dependencies = [
     "boto3>=1.43.104",
     "onnxruntime>=1.30.0",
     "httpx>=0.28",
+    "google-genai>=1.50",
 ]
 
 [tool.setuptools]
