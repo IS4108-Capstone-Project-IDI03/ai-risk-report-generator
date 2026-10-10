@@ -161,16 +161,24 @@ Set it up once on the instance:
 ```bash
 cd ~/ai-risk-report-generator
 git checkout main                     # the script deploys main (DEPLOY_BRANCH overrides)
-chmod +x scripts/deploy-ec2.sh
-scripts/deploy-ec2.sh --dry-run       # shows what it would do; changes nothing
-( crontab -l 2>/dev/null; echo '*/5 * * * * $HOME/ai-risk-report-generator/scripts/deploy-ec2.sh >> $HOME/deploy.log 2>&1' ) | crontab -
+bash scripts/deploy-ec2.sh --dry-run  # shows what it would do; changes nothing
+# Safe to re-run: drops any existing deploy line before adding one.
+( crontab -l 2>/dev/null | grep -v 'deploy-ec2.sh'; echo '*/5 * * * * bash $HOME/ai-risk-report-generator/scripts/deploy-ec2.sh >> $HOME/deploy.log 2>&1' ) | crontab -
+```
+
+If `crontab -l` shows multiple lines, remove duplicates with
+
+```bash
+( crontab -l | grep -v 'deploy-ec2.sh'; echo '*/5 * * * * bash $HOME/ai-risk-report-generator/scripts/deploy-ec2.sh >> $HOME/deploy.log 2>&1' ) | crontab -
+crontab -l    # should now show one line
+
 ```
 
 Check what it did with `tail -f ~/deploy.log`. It only writes when something
 happens: a deploy, a skip while ingesting, or an error. It stops, and logs why,
 when the checkout is on another branch or has local edits (it only fast-forwards,
-never merges). `.env` is gitignored, so deploys never touch it. To pause it, run
-`crontab -e` and comment out the line.
+never merges). `.env` is gitignored, so deploys never touch it. To remove it, run
+`crontab -l | grep -v 'deploy-ec2.sh' | crontab -`.
 
 ## Checks
 
