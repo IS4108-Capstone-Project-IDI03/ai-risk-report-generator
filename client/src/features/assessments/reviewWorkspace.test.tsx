@@ -1,5 +1,4 @@
 import { SourcePanel } from './components/SourcePanel'
-import type { SavedObservation } from './api'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, expect, it, vi } from 'vitest'
@@ -487,7 +486,15 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
 })
 
 it('opens referenced observation photos from Review citations without inline images', () => {
-  const observation: SavedObservation = {
+  const photo = {
+    id: 'p1',
+    name: 'riser.jpg',
+    contentType: 'image/jpeg' as const,
+    size: 100,
+    url: '/riser.jpg',
+    added: null,
+  }
+  const observation = {
     id: 'o1',
     engineer: 'Alex',
     copeDimension: 'Construction',
@@ -496,13 +503,13 @@ it('opens referenced observation photos from Review citations without inline ima
     location: null,
     note: null,
     recordings: [],
+    removedRecordings: [],
+    removedPhotos: [],
     interpretation: null,
     edited: null,
     deleted: null,
     recordedAt: '2026-10-10T06:00:00Z',
-    photos: [
-      { id: 'p1', name: 'riser.jpg', contentType: 'image/jpeg', size: 100, url: '/riser.jpg' },
-    ],
+    photos: [photo],
   }
   const props = {
     section: CONSTRUCTION,

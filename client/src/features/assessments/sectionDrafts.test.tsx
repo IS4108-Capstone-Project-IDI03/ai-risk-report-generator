@@ -320,6 +320,7 @@ it('shows photos under citations and opens a preview instead of embedding them i
     contentType: 'image/jpeg' as const,
     size: 100,
     url: '/riser.jpg',
+    added: null,
   }
   render(
     <DraftView
