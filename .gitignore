@@ -2,7 +2,7 @@
 .env
 .env.*
 !.env.example
-INGESTION_INSTANCE_KEY.pem
+*.pem
 
 # ── Node ─────────────────────────────────────────────────────────────────
 node_modules/
@@ -26,3 +26,4 @@ __pycache__/
 # Personal files
 CLAUDE.local.md
 .local-docs/
+cache.json
