@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+INGESTION_INSTANCE_KEY.pem
 
 # ── Node ─────────────────────────────────────────────────────────────────
 node_modules/

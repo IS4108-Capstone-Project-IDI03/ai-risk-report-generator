@@ -57,6 +57,8 @@ that; the 4 GiB c7i-flex.large does not.
    boto3 finds the role's credentials by itself, so the box's `.env` leaves
    `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` empty.
 
+   Go to security group -> launch-wizard-1 -> Inbound rules -> add your IP address
+
 ### 2. Atlas and Chroma Cloud
 
 - Atlas → **Network Access** → add the Elastic IP.
@@ -65,12 +67,17 @@ that; the 4 GiB c7i-flex.large does not.
 
 ### 3. On the instance
 
+- SSH in with the `.pem` key, then install Docker Engine and Compose plugin.
 ```bash
 ssh -i a2603.pem ubuntu@<elastic-ip>
+```
 
+- If SSH fails, go to AWS console → EC2 → the instance → **Connect** to run the commands.
+``` bash
 # Docker Engine + Compose plugin
 sudo apt-get update && sudo apt-get install -y ca-certificates curl git
 curl -fsSL https://get.docker.com | sudo sh
+sudo groupadd docker
 sudo usermod -aG docker ubuntu && exit   # log in again for the group to apply
 
 # 4 GB swap: headroom for Docling's peak on large PDFs
