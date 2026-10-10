@@ -208,6 +208,9 @@ def ingest_document(document_id: str) -> None:
             finish_cancellation(collection, _id, reporter)
             return
         log.exception("Ingesting document %s failed.", document_id)
+        # Passages written before the failure (Chroma writes in batches) must not
+        # stay searchable under a document marked failed.
+        delete_passages(str(document_id))
         # The stage that was running when it broke, read before the 'failed'
         # sentinel is appended, so the notification can name it (IN-10).
         failed_stage = reporter.current_stage
