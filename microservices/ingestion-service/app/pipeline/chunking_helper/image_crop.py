@@ -12,13 +12,22 @@ formula subscripts are unreadable at that size, so crops are rendered through a
 zoom matrix (`RENDER_DPI`) instead.
 """
 
+import os
+
 import pymupdf
 
 IMAGE_DEBUG = False  # set True to pop up a Tkinter window showing the crop before sending to OCR
 
-# Render resolution for cropped regions.
-RENDER_DPI = 100
+# Render resolution for cropped regions, unless OCR_RENDER_DPI sets another.
+# 200 keeps small table digits and formula subscripts legible to the OCR model.
+RENDER_DPI = 200
 _PDF_POINTS_PER_INCH = 72
+
+
+def render_dpi() -> int:
+    """Crop resolution: OCR_RENDER_DPI when set, else `RENDER_DPI`."""
+    value = os.getenv("OCR_RENDER_DPI", "").strip()
+    return int(value) if value else RENDER_DPI
 
 
 def convert_bbox(bbox: tuple, page_obj: pymupdf.Page, coord_origin: str) -> tuple:
@@ -53,7 +62,7 @@ def crop_section(
     bbox: tuple,
     page: int,
     coord_origin: str = "",
-    dpi: int = RENDER_DPI,
+    dpi: int | None = None,
 ) -> pymupdf.Pixmap | None:
     """Render the `bbox` region of `page` to a Pixmap, or None if uncroppable.
 
@@ -63,7 +72,7 @@ def crop_section(
         page: Docling's 1-based page number (PyMuPDF is 0-based).
         coord_origin: Docling's coord_origin string. Anything containing "TOP"
             is treated as top-left; everything else is flipped as bottom-left.
-        dpi: render resolution.
+        dpi: render resolution; defaults to `render_dpi()`.
 
     Returns None (rather than raising) when the page is out of range or the
     region is degenerate — a detected rule or divider can have zero width or
@@ -82,7 +91,7 @@ def crop_section(
     if crop_rect.is_empty or crop_rect.width <= 0 or crop_rect.height <= 0:
         return None
 
-    zoom = dpi / _PDF_POINTS_PER_INCH
+    zoom = (dpi or render_dpi()) / _PDF_POINTS_PER_INCH
     return page_obj.get_pixmap(clip=crop_rect, matrix=pymupdf.Matrix(zoom, zoom))
 
 
@@ -91,7 +100,7 @@ def crop_png(
     bbox: tuple,
     page: int,
     coord_origin: str = "",
-    dpi: int = RENDER_DPI,
+    dpi: int | None = None,
 ) -> bytes | None:
     """`crop_section` encoded as PNG bytes, ready to send to an OCR service.
 
