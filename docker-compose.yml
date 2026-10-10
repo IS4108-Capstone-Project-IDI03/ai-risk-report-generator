@@ -1,4 +1,7 @@
 services:
+# Backend services use `restart: unless-stopped`: Docker restarts them after a
+# crash (e.g. the ingestion worker killed for memory on a huge PDF) and when the
+# instance boots, so a stop/start needs no manual `docker compose up`.
   # Local Chroma and Mongo for laptops: `docker compose --profile local-db up`.
   # The cloud box uses Chroma Cloud (CHROMA_MODE=cloud) and Atlas (MONGODB_URI)
   # instead, so these stay off by default and other services' depends_on on
@@ -14,6 +17,7 @@ services:
   # BullMQ's job queue (IN-01). Append-only persistence, so queued jobs
   # survive a restart.
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
     # noeviction: BullMQ must never have queued jobs evicted under memory pressure.
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
@@ -31,6 +35,7 @@ services:
       - mongo-data:/data/db
 
   server:
+    restart: unless-stopped
     build: ./server
     ports:
       - "4000:4000"
@@ -72,6 +77,7 @@ services:
   # ingestion-service and ingestion-worker share one image (same tag), so it
   # is built and stored once.
   ingestion-service:
+    restart: unless-stopped
     image: ai-risk-report-generator-ingestion:cloud
     build:
       context: ./microservices/ingestion-service
@@ -92,6 +98,7 @@ services:
   # Takes queued knowledge documents one at a time and runs the pipeline
   # (app/worker.py). Same image as ingestion-service, different command.
   ingestion-worker:
+    restart: unless-stopped
     image: ai-risk-report-generator-ingestion:cloud
     build:
       context: ./microservices/ingestion-service
@@ -138,6 +145,7 @@ services:
       - test
 
   rag-service:
+    restart: unless-stopped
     build: ./microservices/rag-service
     ports:
       - "127.0.0.1:8002:8002"
@@ -153,6 +161,7 @@ services:
       - ./microservices/rag-service:/app
 
   speech-ocr-service:
+    restart: unless-stopped
     build: ./microservices/speech-ocr-service
     ports:
       - "127.0.0.1:8003:8003"

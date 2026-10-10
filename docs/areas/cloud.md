@@ -115,6 +115,9 @@ docker compose up -d --build redis server rag-service speech-ocr-service ingesti
 docker compose ps        # no client, mongo, chroma or ollama
 ```
 
+These services have `restart: unless-stopped`, so they come back after a
+crash and when the instance starts, with no `docker compose up` needed.
+
 The first build takes 10-20 minutes (npm, Python packages, Docling models);
 later builds reuse the cache.
 
