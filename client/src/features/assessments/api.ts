@@ -123,8 +123,8 @@ export type SiteLocation = { id: string; name: string; floor: string | null }
 export type SavedObservation = {
   id: string
   engineer: string
-  // null when not categorised yet.
-  copeDimension: string | null
+  // Its categories in C-O-P-E order; null when not categorised yet.
+  copeDimensions: string[] | null
   standard: string | null
   severity: string
   // null only if the location is no longer listed.
@@ -275,14 +275,14 @@ const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
 // Saves one observation, with its note, recordings and photos, to the
-// assessment's active capture session. A null copeDimension leaves it
+// assessment's active capture session. Null copeDimensions leave it
 // uncategorised. The server stores each file and starts each recording's
 // initial transcription.
 export async function saveObservation(
   reference: string,
   details: {
     note?: string
-    copeDimension: string | null
+    copeDimensions: string[] | null
     severity: string
     locationId: string
     standard?: string
@@ -311,12 +311,12 @@ export async function listObservations(
 const observationPath = (id: string) => `/api/observations/${encodeURIComponent(id)}`
 
 // Changes a saved observation's tags (CP-06) or note (CP-08). A field left out
-// stays as it is; a null copeDimension uncategorises it, and a null standard
+// stays as it is; null copeDimensions uncategorise it, and a null standard
 // or note removes it.
 export async function updateObservation(
   id: string,
   changes: {
-    copeDimension?: string | null
+    copeDimensions?: string[] | null
     severity?: string
     locationId?: string
     standard?: string | null
@@ -572,7 +572,8 @@ export type SourcePassage = {
 
 export type FieldObservation = {
   id: string
-  copeDimension: string
+  // Its categories in C-O-P-E order, one or more.
+  copeDimensions: string[]
   note: string | null
   transcripts: string[]
   severity: string

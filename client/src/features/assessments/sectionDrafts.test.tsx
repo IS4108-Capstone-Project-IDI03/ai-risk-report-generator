@@ -43,7 +43,7 @@ const RECORD = {
 const RISER: SavedObservation = {
   id: 'o1',
   engineer: 'Alex Rowe',
-  copeDimension: 'Construction',
+  copeDimensions: ['Construction'],
   standard: null,
   severity: 'high',
   location: { id: 'l1', name: 'Riser B', floor: 'Level 3' },

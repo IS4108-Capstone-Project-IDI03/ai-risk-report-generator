@@ -209,7 +209,7 @@ const LOADING_DOCK = { id: 'l1', name: 'Loading dock', floor: null }
 const CREATED_NOTE = {
   id: '6ab3a1e0e45cf009e4507803',
   engineer: 'A. Rowe',
-  copeDimension: 'Protection',
+  copeDimensions: ['Protection'],
   standard: null,
   severity: 'high',
   location: { id: 'l1', name: 'Loading dock', floor: null },

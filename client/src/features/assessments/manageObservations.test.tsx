@@ -49,7 +49,7 @@ function observation(fields: Partial<SavedObservation>): SavedObservation {
   return {
     id: 'o1',
     engineer: 'Alex Rowe',
-    copeDimension: 'Protection',
+    copeDimensions: ['Protection'],
     standard: null,
     severity: 'high',
     location: BAY_3,
@@ -99,7 +99,7 @@ function photographed(id: string, note: string, interpretation: Partial<SavedInt
   return observation({
     id,
     note,
-    copeDimension: 'Occupancy',
+    copeDimensions: ['Occupancy'],
     photos: [{ ...PHOTO, url: `/api/observations/${id}/photos/p1/image` }],
     interpretation: {
       status: 'interpreted',
@@ -447,23 +447,29 @@ describe('Proposals from photos (CP-05)', () => {
     expect(calls).toEqual([{ method: 'PATCH', url: '/api/observations/o6', body: { note } }])
   })
 
-  it('offers the proposed category only when it differs (Change category)', async () => {
+  it('offers the proposed category only when it is not one of its own (Add category)', async () => {
     listed = [INTERPRETED]
     await openObservations()
     fireEvent.click(row(PROPOSAL))
 
-    click('Change category to Protection')
+    click('Add category Protection')
     const dialog = await screen.findByRole('dialog', { name: 'Edit observation' })
-    expect(within(dialog).getByLabelText('COPE category')).toHaveValue('Protection')
+    // Added to the category it has, not in place of it.
+    expect(within(dialog).getByRole('checkbox', { name: 'Occupancy' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: 'Protection' })).toBeChecked()
     click('Save changes')
 
     expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
     expect(calls).toEqual([
-      { method: 'PATCH', url: '/api/observations/o6', body: { copeDimension: 'Protection' } },
+      {
+        method: 'PATCH',
+        url: '/api/observations/o6',
+        body: { copeDimensions: ['Occupancy', 'Protection'] },
+      },
     ])
-    // Now the categories match, so it is no longer offered.
+    // Now it is filed under the proposal, so it is no longer offered.
     expect(
-      screen.queryByRole('button', { name: 'Change category to Protection' }),
+      screen.queryByRole('button', { name: 'Add category Protection' }),
     ).not.toBeInTheDocument()
   })
 

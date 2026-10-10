@@ -5,7 +5,9 @@
 import type { IReportSection } from '../models/report-section.model'
 import { findKnowledgeDocuments, type KnowledgeDocumentDto } from './knowledge-document.service'
 import {
+  filedUnder,
   loadSections,
+  savedEvidence,
   toDraftDto,
   type ChangeCounts,
   type SectionDraftDto,
@@ -47,7 +49,8 @@ export type SourcePassageDto = {
 // An observation as the draft was given it (GN-01 AC11).
 export type FieldObservationDto = {
   id: string
-  copeDimension: string
+  // Its categories in C-O-P-E order, one or more.
+  copeDimensions: string[]
   note: string | null
   transcripts: string[]
   severity: string
@@ -202,13 +205,11 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
         },
         draft,
         sources,
-        observations: (latest.evidence ?? [])
-          .filter(
-            (e) => cited.has(`O:${e.id}`) || section.cope_dimensions.includes(e.COPE_dimension),
-          )
+        observations: savedEvidence(latest.evidence)
+          .filter((e) => cited.has(`O:${e.id}`) || filedUnder(section, e.COPE_dimension))
           .map((e) => ({
             id: e.id,
-            copeDimension: e.COPE_dimension,
+            copeDimensions: e.COPE_dimension,
             note: e.note ?? null,
             transcripts: e.transcripts ?? [],
             severity: e.severity,

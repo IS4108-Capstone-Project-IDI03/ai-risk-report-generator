@@ -1,3 +1,4 @@
+import { hasCategory } from './categories'
 import type { Observation, ObservationFilters } from './types'
 
 export const NO_FILTERS: ObservationFilters = {
@@ -45,11 +46,12 @@ export const statusOf = (o: Observation) =>
 // An observation matches when every filter that is set matches its label, so
 // any one label on its own returns every observation carrying it (CP-06 AC2,
 // CP-08 AC3). The location filter is by name, the zone; the floor is its own
-// filter. An observation of both types matches either.
+// filter. An observation of both types matches either, and one filed under
+// several categories matches any of them.
 export function matchesFilters(o: Observation, f: ObservationFilters) {
   return (
     (!f.type || typesOf(o).includes(f.type)) &&
-    (!f.cat || o.cat === f.cat) &&
+    (!f.cat || hasCategory(o.cats, f.cat)) &&
     (!f.sev || o.sev === f.sev) &&
     (!f.loc || o.area === f.loc) &&
     (!f.floor || o.floor === f.floor) &&

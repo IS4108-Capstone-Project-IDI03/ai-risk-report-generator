@@ -79,7 +79,7 @@ async function observation(
       source_type: 'observation',
       jurisdiction: 'SG',
       facility_type: 'Warehouse',
-      COPE_dimension: copeDimension,
+      COPE_dimension: [copeDimension],
       effective_date: new Date(),
     },
   })
@@ -124,7 +124,7 @@ async function knowledgeDocument(fields: {
 type Evidence = IReportSection['evidence'][number]
 const evidence = (id: unknown, COPE_dimension: CopeDimension, note: string): Evidence => ({
   id: String(id),
-  COPE_dimension,
+  COPE_dimension: [COPE_dimension],
   note,
   transcripts: [],
   severity: 'high',
@@ -282,14 +282,14 @@ describe('the review workspace (RV-01)', () => {
     expect(construction.observations).toEqual([
       {
         id: String(riser._id),
-        copeDimension: 'Construction',
+        copeDimensions: ['Construction'],
         note: 'Riser on L3 not fire-stopped.',
         transcripts: [],
         severity: 'high',
         location: 'Bay 3, Ground',
         standard: null,
       },
-      expect.objectContaining({ id: String(sprinklers._id), copeDimension: 'Protection' }),
+      expect.objectContaining({ id: String(sprinklers._id), copeDimensions: ['Protection'] }),
     ])
 
     // Sections without a draft are not started and not drafted.

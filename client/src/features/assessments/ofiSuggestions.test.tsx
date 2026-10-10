@@ -8,7 +8,7 @@ const REF = 'RPT-2026-0901'
 const VALVE = {
   id: 'o1',
   engineer: 'Alex Rowe',
-  copeDimension: 'Protection',
+  copeDimensions: ['Protection'],
   standard: null,
   severity: 'critical',
   location: { id: 'l1', name: 'Fire pump room', floor: 'Basement 1' },

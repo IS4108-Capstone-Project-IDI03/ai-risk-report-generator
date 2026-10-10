@@ -6,6 +6,7 @@ import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { connectDb } from '../models/db'
 import {
+  copeDimensionsOf,
   ObservationModel,
   type CopeDimension,
   type IRecording,
@@ -209,7 +210,7 @@ async function seed() {
         source_type: 'observation',
         jurisdiction: site.jurisdiction,
         facility_type: site.facilityType,
-        COPE_dimension: o.cope,
+        COPE_dimension: copeDimensionsOf(o.cope),
         // The site visit, a minute apart in the order they are listed here.
         effective_date: effectiveDate,
       },

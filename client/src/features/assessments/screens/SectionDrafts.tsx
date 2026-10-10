@@ -41,7 +41,7 @@ function resolve(id: string, draft: SectionDraft, observations: SavedObservation
         source: o.location
           ? [o.location.name, o.location.floor].filter(Boolean).join(', ')
           : 'Site observation',
-        locator: o.copeDimension ?? undefined,
+        locator: o.copeDimensions?.join(', '),
         excerpt: <ObservationExcerpt observation={o} />,
       }
     }

@@ -1,7 +1,8 @@
 import { Button, Callout, Dialog, Select, Textarea } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { CategoryPicker } from './CategoryPicker'
 
-// Edits an observation: its tags (CP-06), the COPE category, severity,
+// Edits an observation: its tags (CP-06), the COPE categories, severity,
 // location and standard, and its note (CP-08), saved together. A bottom sheet
 // on phones, a dialog on wider screens.
 export function TagDialog({ v }: { v: AssessmentWorkflow }) {
@@ -33,13 +34,7 @@ export function TagDialog({ v }: { v: AssessmentWorkflow }) {
             </Callout>
           </div>
         )}
-        <Select
-          label="COPE category"
-          hint={v.tagCatHint}
-          options={v.tagCatOptions}
-          value={v.tagEdit.cat}
-          onChange={v.setTag('cat')}
-        />
+        <CategoryPicker cats={v.tagEdit.cats} onToggle={v.toggleTagCat} />
         <Select
           label="Severity"
           options={v.tagSevOptions}

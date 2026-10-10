@@ -35,7 +35,7 @@ REQUEST = {
     "observations": [
         {
             "id": "obs1",
-            "COPE_dimension": "Construction",
+            "COPE_dimension": ["Construction"],
             "note": "Riser shafts on L3 are not fire-stopped.",
             "transcripts": ["Curtain wall gaps filled with rock wool."],
             "severity": "high",
@@ -264,7 +264,7 @@ def test_other_categories_are_backup_evidence(monkeypatch):
     # A Protection finding can still support the Construction section.
     sprinklers = {
         "id": "obs2",
-        "COPE_dimension": "Protection",
+        "COPE_dimension": ["Protection"],
         "note": "Sprinkler heads obstructed by new mezzanine.",
     }
     queries, prompts = [], []
@@ -294,6 +294,35 @@ def test_other_categories_are_backup_evidence(monkeypatch):
     # Only the section's own observations steer the standards search.
     assert all("mezzanine" not in q for q in queries)
     assert response.json()["guardrail"]["passed"]
+
+
+def test_an_observation_under_several_categories_is_own_evidence_in_each(monkeypatch):
+    # Filed under Protection and Construction: own evidence for section 7, not backup.
+    both = {
+        "id": "obs2",
+        "COPE_dimension": ["Construction", "Protection"],
+        "note": "Sprinkler heads obstructed by new mezzanine.",
+    }
+    queries, prompts = [], []
+    monkeypatch.setattr(
+        "app.orchestrator.orchestrator.search",
+        lambda requests: queries.extend(q for q, _, _ in requests) or nothing_found(requests),
+    )
+    monkeypatch.setattr("app.generation.generator.complete", fake_complete(prompts, []))
+    body = {**REQUEST, "observations": [*REQUEST["observations"], both]}
+    client.post("/sections/draft", json=body)
+
+    own = prompts[0][1].split("<other_observations>")[0]
+    assert "mezzanine" in own and "category: Construction, Protection" in own
+    assert any("mezzanine" in q for q in queries)
+
+
+def test_one_category_sent_as_a_string_reads_as_a_list_of_one():
+    from app.api.routes import Observation
+
+    assert Observation(id="a", COPE_dimension="Protection").COPE_dimension == ["Protection"]
+    with pytest.raises(ValueError):
+        Observation(id="a", COPE_dimension=[])
 
 
 def test_standards_are_capped_keeping_each_observations_nearest(monkeypatch):

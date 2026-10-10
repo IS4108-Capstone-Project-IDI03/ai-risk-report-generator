@@ -47,6 +47,15 @@ import type {
   VoiceClip,
   WorkflowState,
 } from './types'
+import {
+  categoryIcon,
+  categoryLabel,
+  copeDimensionsOf,
+  sameCategories,
+  toggleCategory,
+  UNCATEGORISED,
+  withCategory,
+} from './categories'
 import { useCaptureSession } from './useCaptureSession'
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
@@ -57,7 +66,6 @@ import {
   JURISDICTIONS,
   ROWS,
   CAT_ICON,
-  UNCATEGORISED,
   DEMO_LOCATIONS,
   STANDARD_REFERENCES,
   SEV,
@@ -129,11 +137,9 @@ const TRANSCRIPTION_TEXT = {
   transcribing: 'Transcribing the recording…',
   failed: 'The recording could not be transcribed.',
 }
-// The categories an observation can be filed under: the shared COPE vocabulary
+// The categories the Observations tab filters by: the shared COPE vocabulary
 // (CP-08 AC7), shown as the values they are stored as, or Uncategorised.
 const CATEGORY_OPTIONS = [...Object.keys(CAT_ICON), UNCATEGORISED]
-// The category to store for one chosen on screen: Uncategorised is null.
-const copeDimensionOf = (category: string) => (category === UNCATEGORISED ? null : category)
 const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),
@@ -198,7 +204,7 @@ function toEntry(o: SavedObservation): Observation {
     id: o.id,
     icon: o.note ? 'sticky-note' : recordings.length ? 'mic' : 'camera',
     color: o.note ? '#f9ac10' : recordings.length ? '#8f7dff' : '#4f9aee',
-    cat: o.copeDimension ?? UNCATEGORISED,
+    cats: o.copeDimensions ?? [],
     time: formatDayYearTime(new Date(o.recordedAt)),
     text,
     area: o.location?.name ?? '',
@@ -618,7 +624,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           name: photo.name,
           url: photo.url,
           where: locationLabel({ name: o.area, floor: o.floor }),
-          cat: o.cat,
+          cat: categoryLabel(o.cats),
           time: o.time,
           openObservation: () =>
             setState({ tab: 'observations', obsOpen: key, obsShowDeleted: false, of: NO_FILTERS }),
@@ -679,7 +685,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           reference,
           {
             note,
-            copeDimension: copeDimensionOf(s.fCat),
+            copeDimensions: copeDimensionsOf(s.fCats),
             severity: s.fSev,
             locationId: location.id,
             standard: s.fStd,
@@ -773,7 +779,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           ...changeLocal(edit.key, (x) => ({
             ...x,
-            cat: edit.cat,
+            cats: edit.cats,
             sev: edit.sev,
             std: edit.std,
             ...(location && {
@@ -793,8 +799,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         return
       }
       const changes = {
-        ...(edit.cat !== o.cat && {
-          copeDimension: copeDimensionOf(edit.cat),
+        ...(!sameCategories(edit.cats, o.cats) && {
+          copeDimensions: copeDimensionsOf(edit.cats),
         }),
         ...(edit.sev !== o.sev && { severity: edit.sev }),
         ...(location && location.id !== o.locationId && { locationId: location.id }),
@@ -1100,7 +1106,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // here, so a labelled sample proposal stands in (CP-05).
     function readSample(key: string) {
       setState(
-        changeLocal(key, (x) => ({ ...x, interpretation: sampleInterpretation(x.cat, x.area) })),
+        changeLocal(key, (x) => ({
+          ...x,
+          interpretation: sampleInterpretation(x.cats[0] ?? UNCATEGORISED, x.area),
+        })),
       )
       later(settleSamples, 2000)
     }
@@ -1791,11 +1800,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         const canChange = canChangeObs
         // Opens the Edit dialog on its tags and note as they are now, or with
         // a proposal's wording or category already filled in (CP-05).
-        const openEdit = (change: { note?: string; cat?: string } = {}) =>
+        const openEdit = (change: { note?: string; cats?: string[] } = {}) =>
           setState({
             tagEdit: {
               key,
-              cat: o.cat,
+              cats: o.cats,
               sev,
               locationId: o.locationId ?? '',
               std: o.std,
@@ -1883,13 +1892,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                               : proposed.description!,
                           })
                       : null,
-                  // Offered only when the proposal differs from its category.
-                  changeCategory:
-                    canChange && !o.deleted && proposed?.category && proposed.category !== o.cat
-                      ? () => openEdit({ cat: proposed.category! })
+                  // Offered only when the proposal is not one of its categories,
+                  // added to those it has.
+                  addCategory:
+                    canChange &&
+                    !o.deleted &&
+                    proposed?.category &&
+                    !o.cats.includes(proposed.category)
+                      ? () => openEdit({ cats: withCategory(o.cats, proposed.category!) })
                       : null,
                 },
-          icon: CAT_ICON[o.cat] || 'circle-dot',
+          icon: categoryIcon(o.cats),
+          catLabel: categoryLabel(o.cats),
           color: 'var(--text-secondary)',
           chevron: open ? 'chevron-down' : 'chevron-right',
           // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
@@ -1998,11 +2012,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       tagEdit: s.tagEdit,
       tagBusy: s.tagBusy,
       tagError: s.tagError,
-      tagCatOptions: CATEGORY_OPTIONS,
-      tagCatHint:
-        s.tagEdit?.cat === UNCATEGORISED
-          ? 'Report drafting leaves this observation out until it is categorised.'
-          : undefined,
+      toggleTagCat: (cat: string) =>
+        s.tagEdit &&
+        setState({ tagEdit: { ...s.tagEdit, cats: toggleCategory(s.tagEdit.cats, cat) } }),
       tagSevOptions: SEVERITY_OPTIONS,
       tagLocOptions: [
         // A location not on the assessment's list can be kept, not chosen again.
@@ -2024,7 +2036,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })),
       ],
       setTag:
-        (field: 'cat' | 'sev' | 'locationId' | 'std' | 'note') =>
+        (field: 'sev' | 'locationId' | 'std' | 'note') =>
         (e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement>) =>
           s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
       closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
@@ -2656,16 +2668,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       closeLocRemove: () => setState({ locRemove: null }),
       confirmLocRemove: removeLocation,
       submitLocation: () => void submitLocation(),
-      fCat: s.fCat,
-      setFCat: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
-        setState({
-          fCat: e.target.value,
-        }),
-      catOptions: CATEGORY_OPTIONS,
-      catHint:
-        s.fCat === UNCATEGORISED
-          ? 'Report drafting leaves this observation out until it is categorised.'
-          : undefined,
+      fCats: s.fCats,
+      toggleFCat: (cat: string) => setState({ fCats: toggleCategory(s.fCats, cat) }),
       sevCriticalStyle: chipStyle(s.fSev === 'critical', 'critical'),
       sevHighStyle: chipStyle(s.fSev === 'high', 'high'),
       sevModerateStyle: chipStyle(s.fSev === 'moderate', 'moderate'),
@@ -2715,7 +2719,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         const entry: Observation = {
           icon: s.fMode === 'photo' ? 'camera' : s.fMode === 'voice' ? 'mic' : 'sticky-note',
           color: s.fMode === 'photo' ? '#4f9aee' : s.fMode === 'voice' ? '#8f7dff' : '#f9ac10',
-          cat: s.fCat,
+          cats: s.fCats,
           time: formatDayYearTime(new Date()),
           text,
           area: currentLocation.name,

@@ -873,6 +873,38 @@ was drafted from. Hiding rather than deleting keeps that trail.
 
 Stories: CP-08, CP-04, CP-05.
 
+## 2026-10-10 — An observation can be filed under several COPE categories
+
+Decision:
+- An observation's `metadata.COPE_dimension` is a list of one or more of the
+  four categories, stored in C-O-P-E order without repeats. Uncategorised
+  stays `null` (never `[]`), so the CLAUDE.md exception is unchanged. The
+  field keeps its name because the five-field metadata rule names it; the API
+  field becomes `copeDimensions` so a caller still sending one string fails
+  loudly instead of being misread.
+- An observation is a section's own evidence when any of its categories is one
+  of the section's. One filed under two categories counts towards both
+  sections' minimum, and is own evidence (not backup) in each draft.
+- A photo reading still proposes one category. Accepting it adds it to the
+  categories the observation has, rather than replacing them.
+- Observations and drafts saved before hold one string. Reads treat it as a
+  list of one (`copeDimensionsOf`), so nothing breaks before migrating, and a
+  draft's old evidence does not count as changed. `npm --prefix server run
+  migrate:cope` rewrites them as lists; running it twice changes nothing.
+
+Rejected:
+- A separate `COPE_dimensions` list beside the single field: two fields to
+  keep in step, and every reader would have to choose between them.
+- A primary category plus secondary ones: drafting has no use for the
+  distinction, and engineers would have to pick one for no gain.
+- Storing `[]` for uncategorised: it would read as a category list that
+  happens to be empty, against the rule that the field is present but null.
+
+Reason: one finding often concerns several parts of the report (an unsealed
+wall penetration is both Construction and Protection), and with one category
+an engineer had to pick a section to leave it out of.
+
+Stories: CP-02, CP-06, GN-01.
 
 ## 2026-10-10 — Ingestion moves to one cloud instance; tables and formulas are read by Claude Haiku 5.5, several at once
 

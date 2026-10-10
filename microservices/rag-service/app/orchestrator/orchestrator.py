@@ -20,6 +20,7 @@ from app.generation.generator import (
     TEMPLATE,
     draft_ofis,
     draft_section,
+    filed_under,
     generate,
     ram_priority,
 )
@@ -91,7 +92,7 @@ def standard_queries(section: dict, observations) -> list[str]:
     from other categories don't search, so other sections' findings don't steer it.
     Cohere embeds at most 96 texts a call.
     """
-    own = [o for o in observations if o.COPE_dimension in section["cope_dimensions"]]
+    own = [o for o in observations if filed_under(o, section)]
     return [
         f"{section['title']}: "
         + spell_out(" ".join(" ".join([o.note or "", *o.transcripts]).split()))[:500]
@@ -124,9 +125,7 @@ def draft(section_id: str, assessment, observations) -> dict:
     section = TEMPLATE["sections"][section_id]
     title = section["title"]
     site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
-    evidence = _evidence_summary(
-        [o for o in observations if o.COPE_dimension in section["cope_dimensions"]]
-    )
+    evidence = _evidence_summary([o for o in observations if filed_under(o, section)])
 
     # One batched search: standards for each of the section's observations, then past
     # reports for the section as a whole. Past reports are filtered by country only:

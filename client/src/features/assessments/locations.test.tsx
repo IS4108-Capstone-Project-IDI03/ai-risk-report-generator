@@ -194,7 +194,7 @@ describe('Choosing where observations are captured', () => {
       {
         id: 'o1',
         engineer: 'A. Rowe',
-        copeDimension: 'Protection',
+        copeDimensions: ['Protection'],
         standard: null,
         severity: 'high',
         location: stored[1],
