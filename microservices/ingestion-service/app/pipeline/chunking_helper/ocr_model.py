@@ -1,6 +1,12 @@
-"""One cached GLM-OCR client, shared by the table and formula extractors.
+"""Table and formula OCR: `recognise()` and the GLM-OCR provider behind it.
 
-`glmocr.ocr_client.OCRClient` instead of `glmocr.GlmOcr` which
+`recognise()` is the one entry point for the table and formula extractors.
+`OCR_PROVIDER` picks who reads the crop: `gemini` (`gemini_ocr`, an API call)
+or `glm` (the self-hosted GLM-OCR below). Both return the same chunk text.
+`glmocr` is an optional install (the local-ocr extra), so the cloud image can
+import this module without it.
+
+GLM-OCR uses `glmocr.ocr_client.OCRClient` instead of `glmocr.GlmOcr` which
 POST an image plus a task prompt to the OCR service and return text. It
 imports nothing heavier than `requests`.
 
@@ -27,10 +33,18 @@ from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
 
-from glmocr.config import OCRApiConfig, load_config
-from glmocr.ocr_client import OCRClient
+try:
+    from glmocr.config import OCRApiConfig, load_config
+    from glmocr.ocr_client import OCRClient
+except ImportError:  # the cloud image leaves out the local-ocr extra
+    OCRApiConfig = load_config = OCRClient = None
 
 TABLE_HEADER_DETECTION_THRESHOLD = 1.3
+
+# Who reads table/formula crops, set by OCR_PROVIDER (never hardcoded, as with
+# LLM_PROVIDER and VISION_PROVIDER). glm is the default until the GLM-vs-Gemini
+# comparison settles it.
+OCR_PROVIDERS = ("gemini", "glm")
 
 # GLM-OCR's own task prompts, copied from the SDK's packaged config.yaml
 # (`pipeline.page_loader.task_prompt_mapping`). The model was trained against
@@ -92,6 +106,11 @@ def _ocr_api_config() -> OCRApiConfig:
 @lru_cache(maxsize=1)
 def _build_client() -> OCRClient:
     """Construct the client. Cached; call `ocr_client()` instead."""
+    if OCRClient is None:
+        raise RuntimeError(
+            "GLM-OCR is not installed in this image. Set OCR_PROVIDER=gemini, or run with "
+            "docker-compose.local-ocr.yml (which installs the local-ocr extra)."
+        )
     return OCRClient(_ocr_api_config())
 
 
@@ -189,6 +208,15 @@ def recognise(image_png: bytes, task: str) -> str | None:
     except KeyError:
         expected = sorted(TASK_PROMPTS)
         raise ValueError(f"unknown OCR task {task!r}; expected one of {expected}") from None
+
+    provider = os.getenv("OCR_PROVIDER", "").strip() or "glm"
+    if provider not in OCR_PROVIDERS:
+        raise ValueError(f"OCR_PROVIDER {provider!r} is not supported; use one of {OCR_PROVIDERS}")
+    if provider == "gemini":
+        # Imported here so the GLM path never loads the Gemini SDK.
+        from app.pipeline.chunking_helper import gemini_ocr
+
+        return gemini_ocr.recognise(image_png, task)
 
     token_budgets = _token_budgets()
 
@@ -372,11 +400,19 @@ def _header_detection(table: list[list[str]]) -> tuple[bool, bool]:
     return (has_header, False)  # Header exists, horizontal table
 
 
-def table_to_records(table: list[list[str]]) -> str:
+def table_to_records(table: list[list[str]], header_hint: str | None = None) -> str:
+    """Flatten rows into one "Heading: value; ..." record per line.
+
+    `header_hint` ("row" | "column" | "none") is the provider's own reading of
+    where the headings are; without it the length heuristic guesses.
+    """
     if table is None or len(table) < 1:
         return ""
 
-    has_header, is_vertical = _header_detection(table)
+    if header_hint in ("row", "column", "none"):
+        has_header, is_vertical = header_hint != "none", header_hint == "column"
+    else:
+        has_header, is_vertical = _header_detection(table)
     if is_vertical:
         table = list(map(list, zip(*table)))
 
