@@ -1,10 +1,22 @@
+import { ObservationExcerpt } from './components/ObservationExcerpt'
+import { DraftView } from './screens/SectionDrafts'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { ReportSection, SavedObservation, SectionDraft } from './api'
 import { describeChanges } from './reviewDisplay'
+
+// jsdom does not implement native modal dialogs.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
 
 const REF = 'RPT-2026-0001'
 const RECORD = {
@@ -302,4 +314,71 @@ it('describes each kind of change and never mentions a kind with none (CP-08)', 
     [{ added: 0, changed: 0, removed: 0 }, ''],
   ] as const
   for (const [counts, text] of cases) expect(describeChanges(counts)).toBe(text)
+})
+
+it('shows photos under citations and opens a preview instead of embedding them in the draft', () => {
+  const photo = {
+    id: 'p1',
+    name: 'riser.jpg',
+    contentType: 'image/jpeg' as const,
+    size: 100,
+    url: '/riser.jpg',
+    added: null,
+  }
+  render(
+    <DraftView
+      draft={DRAFT}
+      observations={[
+        { ...RISER, photos: [photo] },
+        { ...RISER, id: 'unrelated', photos: [{ ...photo, name: 'unrelated.jpg' }] },
+        {
+          ...RISER,
+          id: 'deleted',
+          photos: [{ ...photo, name: 'deleted.jpg' }],
+          deleted: { by: { id: 'e1', name: 'Alex' }, at: '2026-09-24T00:00:00Z' },
+        },
+      ]}
+    />,
+  )
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  expect(screen.queryByText('Site photographs')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /3 sources/ }))
+  expect(screen.queryByText('unrelated.jpg')).not.toBeInTheDocument()
+  expect(screen.queryByText('deleted.jpg')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'View photo' }))
+  const popup = screen.getByRole('dialog', { name: 'riser.jpg' })
+  expect(within(popup).getByRole('img', { name: 'riser.jpg' })).toHaveAttribute('src', '/riser.jpg')
+  fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+it('shows the corrected transcript in draft evidence and keeps the original behind a toggle', () => {
+  render(
+    <ObservationExcerpt
+      observation={{
+        ...RISER,
+        recordings: [
+          {
+            ...RISER.recordings[0],
+            transcription: {
+              ...RISER.recordings[0].transcription,
+              transcript: 'I found a leaf unable to use.',
+              correction: {
+                text: 'I found a lift unable to use.',
+                at: '2026-10-10T05:59:27Z',
+                by: { id: 'e1', name: 'Alex' },
+              },
+            },
+          },
+        ],
+      }}
+    />,
+  )
+  expect(screen.getByText('I found a lift unable to use.')).toBeInTheDocument()
+  expect(screen.getByText('Corrected voice transcript · Recording 1')).toBeInTheDocument()
+  expect(screen.queryByText('I found a leaf unable to use.')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Show original transcript' }))
+  expect(screen.getByText('I found a leaf unable to use.')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Hide original transcript' }))
+  expect(screen.queryByText('I found a leaf unable to use.')).not.toBeInTheDocument()
 })
