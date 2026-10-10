@@ -125,3 +125,12 @@ def test_crop_png_returns_png_bytes(document):
 
 def test_crop_png_returns_none_for_degenerate_region(document):
     assert crop_png(document, (50, 50, 50, 120), page=1, coord_origin="TOPLEFT") is None
+
+
+def test_ocr_render_dpi_sets_the_crop_resolution(document, monkeypatch):
+    monkeypatch.setenv("OCR_RENDER_DPI", "144")
+
+    # One inch (72 pt) square at 144 DPI is 144 pixels a side.
+    pixmap = crop_section(document, (40, 180, 112, 252), page=1, coord_origin="TOPLEFT")
+
+    assert (pixmap.width, pixmap.height) == (144, 144)
