@@ -29,8 +29,9 @@ from pymongo import MongoClient, ReturnDocument
 
 from app.matching import find_match
 from app.notifications import notify_ingestion, review_reason
-from app.pipeline import UnparsableDocumentError, run
-from app.pipeline.indexer import relabel
+from app.pipeline import IngestionCancelledError, UnparsableDocumentError, run
+from app.pipeline.errors import DocumentTimeoutError
+from app.pipeline.indexer import delete_passages, relabel
 from app.pipeline.progress import ProgressReporter
 
 load_dotenv(Path(__file__).resolve().parent / "../../../.env")
@@ -43,6 +44,48 @@ log = logging.getLogger("ingestion-worker")
 # step (docs/design-system.md "Errors"); the technical error goes to the log.
 UNREADABLE = "No text could be read from this PDF. Upload a copy with selectable text."
 SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. Upload it again."
+TIMED_OUT = (
+    "Reading this PDF took longer than the time limit, so nothing was indexed. "
+    "Raise DOCLING_DOCUMENT_TIMEOUT on the server and upload it again."
+)
+
+
+def finish_cancellation(collection, document_id: ObjectId, reporter: ProgressReporter) -> None:
+    """Remove partial passages and mark a processing document cancelled."""
+    delete_passages(str(document_id))
+    collection.find_one_and_update(
+        {"_id": document_id, "status": "processing"},
+        {
+            "$set": {"status": "cancelled", "cancelledAt": datetime.now(UTC)},
+            "$unset": {"cancelRequestedAt": "", "error": "", "result": "", "finishedAt": ""},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    reporter.cancel()
+
+
+def cancel_document(document_id: str) -> None:
+    """Finish a cancellation whose original ingestion job is no longer present."""
+    collection = documents()
+    _id = ObjectId(document_id)
+    current = collection.find_one({"_id": _id})
+    if not current or current.get("status") != "processing" or not current.get("cancelRequestedAt"):
+        return
+    reporter = ProgressReporter(jobs(), document_id)
+    finish_cancellation(collection, _id, reporter)
+
+
+def cancellation_requested(collection, document_id: ObjectId) -> bool:
+    """Return whether MongoDB has asked this document's worker to stop."""
+    current = collection.find_one({"_id": document_id})
+    return bool(
+        current and (current.get("status") == "cancelled" or current.get("cancelRequestedAt"))
+    )
+
+
+def ensure_not_cancelled(collection, document_id: ObjectId) -> None:
+    if cancellation_requested(collection, document_id):
+        raise IngestionCancelledError()
 
 
 @cache  # one client (and its connection pool) for the life of the worker
@@ -108,17 +151,28 @@ def ingest_document(document_id: str) -> None:
     # Redis expires, BullMQ hands the job out again ("stalled"), and the new run
     # starts the document over. A finished document is never re-run.
     doc = collection.find_one_and_update(
-        {"_id": _id, "status": {"$in": ["queued", "processing"]}},
+        {
+            "_id": _id,
+            "status": {"$in": ["queued", "processing"]},
+            "cancelRequestedAt": {"$exists": False},
+        },
         {"$set": {"status": "processing", "startedAt": datetime.now(UTC)}},
         return_document=ReturnDocument.AFTER,
     )
     if doc is None:
+        cancelled = collection.find_one({"_id": _id, "status": "cancelled"})
+        if cancelled:
+            reporter = ProgressReporter(jobs(), document_id)
+            finish_cancellation(collection, _id, reporter)
+            return
         log.warning("Document %s is already finished or missing; skipping.", document_id)
         return
 
     # One progress reporter per job (E2): records each stage transition to
     # ingestion_jobs, which the gateway reads while the document is processing.
-    reporter = ProgressReporter(jobs(), document_id)
+    reporter = ProgressReporter(
+        jobs(), document_id, lambda: cancellation_requested(collection, _id)
+    )
 
     # 2. Download the original into a temporary folder that deletes itself, and
     # 3. run ingestion pipeline: parse → chunk → anonymise → index, with the
@@ -130,6 +184,7 @@ def ingest_document(document_id: str) -> None:
             # Keep the original file name: the parser reports it as the doc name.
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
+            ensure_not_cancelled(collection, _id)
             summary = run(
                 path,
                 doc_id=document_id,
@@ -139,12 +194,24 @@ def ingest_document(document_id: str) -> None:
         # 4. Look for a copy or another edition among stored documents, then give
         # the passages their final labels. An error here fails the document like
         # any other stage; without that it could go live with the wrong status.
+        ensure_not_cancelled(collection, _id)
         match = find_match(doc, collection)
+        ensure_not_cancelled(collection, _id)
         relabel_passages({**doc, "match": match})
+        ensure_not_cancelled(collection, _id)
+    except IngestionCancelledError:
+        finish_cancellation(collection, _id, reporter)
+        return
     # 5. Record the outcome: failed here, complete below. The admin sees a plain
     # reason; re-raising tells BullMQ the job failed (not retried: attempts is 1).
     except Exception as error:
+        if cancellation_requested(collection, _id):
+            finish_cancellation(collection, _id, reporter)
+            return
         log.exception("Ingesting document %s failed.", document_id)
+        # Passages written before the failure (Chroma writes in batches) must not
+        # stay searchable under a document marked failed.
+        delete_passages(str(document_id))
         # The stage that was running when it broke, read before the 'failed'
         # sentinel is appended, so the notification can name it (IN-10).
         failed_stage = reporter.current_stage
@@ -155,7 +222,12 @@ def ingest_document(document_id: str) -> None:
         reporter.finish()
         if failed_stage:
             jobs().update_one({"documentId": _id}, {"$set": {"failedStage": failed_stage}})
-        reason = UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
+        if isinstance(error, UnparsableDocumentError):
+            reason = UNREADABLE
+        elif isinstance(error, DocumentTimeoutError):
+            reason = TIMED_OUT
+        else:
+            reason = SYSTEM_ERROR
         failed = collection.find_one_and_update(
             {"_id": _id},
             {"$set": {"status": "failed", "error": reason, "finishedAt": datetime.now(UTC)}},
@@ -167,7 +239,7 @@ def ingest_document(document_id: str) -> None:
         raise
 
     completed = collection.find_one_and_update(
-        {"_id": _id},
+        {"_id": _id, "status": "processing", "cancelRequestedAt": {"$exists": False}},
         {
             "$set": {
                 "status": "complete",
@@ -182,6 +254,12 @@ def ingest_document(document_id: str) -> None:
         },
         return_document=ReturnDocument.AFTER,
     )
+    if completed is None:
+        if cancellation_requested(collection, _id):
+            finish_cancellation(collection, _id, reporter)
+            return
+        log.warning("Document %s changed before completion; skipping notification.", document_id)
+        return
     # A document left waiting for an admin says so, and why, in the bell (IN-07).
     final = completed or doc
     matched = (
@@ -198,7 +276,10 @@ async def process(job, _token):
     # run() is CPU-bound for minutes; a thread keeps the event loop free for the
     # BullMQ Worker to renew the job's lock in Redis (its "still alive" signal),
     # so BullMQ does not think the worker stalled.
-    await asyncio.to_thread(ingest_document, job.data["documentId"])
+    if job.data.get("action") == "cancel":
+        await asyncio.to_thread(cancel_document, job.data["documentId"])
+    else:
+        await asyncio.to_thread(ingest_document, job.data["documentId"])
 
 
 async def main() -> None:

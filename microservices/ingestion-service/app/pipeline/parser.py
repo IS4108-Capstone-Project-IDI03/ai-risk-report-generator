@@ -12,6 +12,7 @@ If Docling cannot parse the document we raise `UnparsableDocumentError`, which a
 later OCR extraction path can catch (Todo for later stories).
 """
 
+import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -32,7 +33,7 @@ from docling_core.types.doc import (
     TitleItem,
 )
 
-from app.pipeline.errors import UnparsableDocumentError
+from app.pipeline.errors import DocumentTimeoutError, UnparsableDocumentError
 from app.pipeline.ocr_config import get_ocr_options
 
 # Labels whose text is body content we want to keep and chunk. Page
@@ -204,8 +205,14 @@ def _fallback_extract(file_path: str) -> tuple[list[CapturedItem], list[Captured
 
 
 # Bound a single document's processing time so a pathological file cannot hang
-# the pipeline indefinitely (seconds).
-_DOCUMENT_TIMEOUT_SECONDS = 600.0
+# the pipeline indefinitely (seconds). DOCLING_DOCUMENT_TIMEOUT overrides it; 30
+# minutes leaves room for a large standard on a 2-vCPU cloud instance.
+_DOCUMENT_TIMEOUT_SECONDS = 1800.0
+
+
+def _document_timeout() -> float:
+    value = os.getenv("DOCLING_DOCUMENT_TIMEOUT", "").strip()
+    return float(value) if value else _DOCUMENT_TIMEOUT_SECONDS
 
 
 @lru_cache(maxsize=1)
@@ -228,7 +235,7 @@ def _converter() -> DocumentConverter:
     pipeline_options = PdfPipelineOptions(
         do_ocr=True,
         do_table_structure=False,
-        document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
+        document_timeout=_document_timeout(),
         do_formula_enrichment=do_formula_enrichment,
         ocr_options=ocr_options,
     )
@@ -287,6 +294,17 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
     if result.status in (ConversionStatus.FAILURE, ConversionStatus.SKIPPED):
         raise UnparsableDocumentError(
             str(file_path), f"Docling could not extract the document (status={result.status.value})"
+        )
+
+    timeouts = [
+        error
+        for error in getattr(result, "errors", None) or []
+        if getattr(getattr(error, "category", None), "value", None) == "timeout"
+    ]
+    if timeouts:
+        raise DocumentTimeoutError(
+            f"Docling stopped at the {_document_timeout():.0f} s limit "
+            f"(DOCLING_DOCUMENT_TIMEOUT): {timeouts[0].error_message}"
         )
 
     doc = getattr(result, "document", None)

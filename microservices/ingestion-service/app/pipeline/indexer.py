@@ -20,13 +20,75 @@ Chunk (as produced by chunker.chunk and consumed here):
         "page_start":   int,  # present only when known
         "page_end":     int,  # present only when known
         "bbox":         list[float], # flattened [l, t, r, b] values in page order
+        "bbox_pages":   list[int],   # page of each 4-number box in bbox (IN-12)
     },
 }
 Note: the embedding is NOT a chunk field — index_chunks computes it from `text`.
 """
 
 
+# Chroma Cloud rejects a stored document over 16,384 bytes ("Document size
+# (bytes)" quota). Kept a little under, for the UTF-8 newline joins.
+MAX_DOCUMENT_BYTES = 16_000
+
+
+def _size(text: str) -> int:
+    return len(text.encode("utf-8"))
+
+
+def _split_long_line(line: str, limit: int) -> list[str]:
+    """Split one over-limit line at spaces (last resort; records are short)."""
+    parts, current = [], ""
+    for word in line.split(" "):
+        candidate = f"{current} {word}" if current else word
+        if current and _size(candidate) > limit:
+            parts.append(current)
+            current = word
+        else:
+            current = candidate
+    return parts + [current] if current else parts
+
+
+def split_for_storage(text: str, limit: int = MAX_DOCUMENT_BYTES) -> list[str]:
+    """`text` in parts of at most `limit` bytes, split between lines.
+
+    A table chunk is one "Heading: value; ..." record per line, each carrying
+    its own headings, so a part boundary between lines loses nothing.
+    """
+    if _size(text) <= limit:
+        return [text]
+    lines = []
+    for line in text.split("\n"):
+        lines += _split_long_line(line, limit) if _size(line) > limit else [line]
+    parts, current = [], ""
+    for line in lines:
+        candidate = f"{current}\n{line}" if current else line
+        if current and _size(candidate) > limit:
+            parts.append(current)
+            current = line
+        else:
+            current = candidate
+    return parts + [current] if current else parts
+
+
+def _storable(chunks: list[dict]) -> list[dict]:
+    """Chunks too big for one stored document become `<id>:partN`, same metadata."""
+    out = []
+    for chunk in chunks:
+        parts = split_for_storage(chunk["text"])
+        if len(parts) == 1:
+            out.append(chunk)
+            continue
+        out += [
+            {**chunk, "id": f"{chunk['id']}:part{n}", "text": part}
+            for n, part in enumerate(parts, start=1)
+        ]
+    return out
+
+
 def index_chunks(chunks: list[dict]) -> int:
+    """Embed and upsert chunks; return how many passages were stored."""
+    chunks = _storable(chunks)
     texts = [chunk["text"] for chunk in chunks]
     vectors = embed(texts)
     index_type = "spann" if os.getenv("CHROMA_MODE", "local").strip().lower() == "cloud" else "hnsw"
@@ -63,3 +125,16 @@ def relabel(doc_id: str, labels: dict) -> int:
         metadatas=[{**metadata, **labels} for metadata in found["metadatas"]],
     )
     return len(found["ids"])
+
+
+def delete_passages(doc_id: str) -> int:
+    """Delete all indexed passages for a document; return the number removed."""
+    try:
+        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+    except NotFoundError:
+        return 0
+    found = collection.get(where={"doc_id": doc_id}, include=[])
+    ids = found["ids"]
+    if ids:
+        collection.delete(ids=ids)
+    return len(ids)

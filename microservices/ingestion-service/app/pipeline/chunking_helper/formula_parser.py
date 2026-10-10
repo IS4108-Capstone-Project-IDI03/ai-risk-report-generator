@@ -16,7 +16,7 @@ with the table path — one model, two prompts.
 
 from app.pipeline.chunking_helper.image_crop import crop_png
 from app.pipeline.chunking_helper.ocr_model import recognise
-from app.pipeline.chunking_helper.page_cache import load_document
+from app.pipeline.chunking_helper.page_cache import PDF_LOCK, load_document
 
 
 def parse_formula_bbox(bbox, page: int, file_path: str, coord_origin: str = "") -> str | None:
@@ -32,9 +32,9 @@ def parse_formula_bbox(bbox, page: int, file_path: str, coord_origin: str = "") 
     degenerate rect) or when OCR returned nothing, in which case the caller
     keeps Docling's original chunk text.
     """
-    document = load_document(file_path)
-
-    image_png = crop_png(document, bbox, page, coord_origin=coord_origin)
+    with PDF_LOCK:
+        document = load_document(file_path)
+        image_png = crop_png(document, bbox, page, coord_origin=coord_origin)
     if image_png is None:
         return None
 

@@ -27,7 +27,7 @@ async function send(path: string, init: RequestInit): Promise<void> {
 }
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'marsh_report'
-export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed'
+export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
 
 // The stages a document moves through while processing (E2). Mirrors
 // INGESTION_STAGES in server/src/models/ingestion-job.model.ts.
@@ -216,12 +216,20 @@ export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
   )
 }
 
-// Retries a failed ingestion without re-uploading (the gateway reuses the
-// stored PDF and details). 202 on accept; the document returns to the list as
-// queued. Rejects with the gateway's status: 409 if it is no longer failed
-// (someone retried it already), 404 if gone, 503 if the queue is unreachable.
+// Retries a failed or cancelled ingestion without re-uploading (the gateway
+// reuses the stored PDF and details). 202 on accept; the document returns to
+// the list as queued. Rejects with the gateway's status: 409 if it is no longer
+// retryable (someone retried it already), 404 if gone, 503 if the queue is
+// unreachable.
 export function retryIngestion(id: string): Promise<void> {
   return send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' })
+}
+
+// Stops a queued or processing ingestion. 202 on accept; queued documents
+// become cancelled immediately, while processing documents finish
+// cooperatively in the worker.
+export function cancelIngestion(id: string): Promise<void> {
+  return send(`/api/knowledge-documents/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
 }
 
 // Sends one PDF with its details and returns the queued document. The body is
