@@ -20,7 +20,10 @@ pytestmark = pytest.mark.live
 
 # Read in the fixture, never loaded into os.environ at import: collection imports
 # this module even when it is deselected, and .env must not leak into other tests.
-ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+# The repo root's .env; there is none in the container image (tests at /app/tests),
+# where settings come from the environment only.
+_PARENTS = Path(__file__).resolve().parents
+ENV_FILE = _PARENTS[3] / ".env" if len(_PARENTS) > 3 else None
 FM200 = Path(__file__).parent / "test_files" / "Tyco Hygood FM-200 Engineered Manual.pdf"
 # Top-left-origin boxes found with PyMuPDF: the first table on page 48 and the
 # agent-weight formula on page 49 (padded so the whole line is in the crop).
@@ -33,7 +36,7 @@ KEY_FOR = {"anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY"}
 
 def _setting(name: str) -> str | None:
     """The process environment wins over .env, as with load_dotenv."""
-    return os.getenv(name) or dotenv_values(ENV_FILE).get(name)
+    return os.getenv(name) or (dotenv_values(ENV_FILE).get(name) if ENV_FILE else None)
 
 
 @pytest.fixture(autouse=True)

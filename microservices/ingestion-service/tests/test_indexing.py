@@ -90,7 +90,7 @@ def test_embed_waits_one_minute_and_retries_rate_limited_batch(monkeypatch):
     assert embedder.embed(["chunk"]) == [[0.1]]
 
     assert cohere.embed.call_count == 2
-    sleep.assert_called_once_with(60)
+    sleep.assert_called_once_with(70)  # IN-11 raised the wait to 70 s (Cohere limit)
 
 
 def test_embed_reraises_rate_limit_after_retry_limit(monkeypatch):
