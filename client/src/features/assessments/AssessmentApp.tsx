@@ -6,6 +6,7 @@ import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
 import { CreateAssessment } from './screens/CreateAssessment'
 import { SiteObservation } from './screens/SiteObservation'
+import { MoreMenu } from './components/MoreMenu'
 import { Overview } from './screens/Overview'
 import { Observations } from './screens/Observations'
 import { Generation } from './screens/Generation'
@@ -200,16 +201,18 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     >
                       {v.routeBlocked ? 'Access restricted' : v.title}
                     </h1>
-                    <div
-                      style={{
-                        marginTop: '6px',
-                        fontSize: '15px',
-                        lineHeight: '22px',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      {v.routeBlocked ? null : v.meta}
-                    </div>
+                    {!v.routeBlocked && !!v.meta && (
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          fontSize: '15px',
+                          lineHeight: '22px',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {v.meta}
+                      </div>
+                    )}
                   </div>
                   <div
                     style={{
@@ -221,66 +224,50 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       paddingTop: '6px',
                     }}
                   >
+                    {v.isDashboard && !v.routeBlocked && v.canEdit && (
+                      <Button variant="primary" iconLeft="plus" onClick={v.goCreate}>
+                        New assessment
+                      </Button>
+                    )}
+                    {/* The main action, then the occasional ones behind ⋯.
+                        Restore stays visible: it is the one thing to do with
+                        an archived assessment. */}
+                    {!!v.isAssessment && !v.routeBlocked && (
+                      <>
+                        {v.canEdit && v.canCapture && (
+                          <Button variant="primary" iconLeft="camera" onClick={v.goField}>
+                            {'Capture'}
+                          </Button>
+                        )}
+                        {v.canRestore && (
+                          <Button
+                            variant="secondary"
+                            iconLeft="refresh-cw"
+                            onClick={v.restoreAssessment}
+                            disabled={v.archiveBusy}
+                          >
+                            {'Restore'}
+                          </Button>
+                        )}
+                        <MoreMenu
+                          items={[
+                            {
+                              label: 'Version history',
+                              icon: 'history',
+                              onSelect: v.showVersionHistory,
+                            },
+                            ...(v.canArchive
+                              ? [{ label: 'Archive', icon: 'archive', onSelect: v.openArchive }]
+                              : []),
+                          ]}
+                        />
+                      </>
+                    )}
                     {/* Desktop has no top bar, so the bell lives in the page
                         header. On phones the navy bar carries it instead, so
                         this copy is suppressed to avoid a second one. */}
                     {!v.showTopBar && !v.routeBlocked && (
                       <NotificationBell counts={session.notifications} />
-                    )}
-                    {v.isDashboard && !v.routeBlocked && v.canEdit && (
-                      <>
-                        {!!v.continueCaptureLabel && (
-                          <Button
-                            variant="secondary"
-                            iconLeft="camera"
-                            title={v.continueCaptureLabel}
-                            onClick={v.continueCapture}
-                          >
-                            {/* Shortened to fit a phone; the title keeps the full name. */}
-                            <span
-                              style={{
-                                maxWidth: 'min(22rem, calc(100vw - 6rem))',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {v.continueCaptureLabel}
-                            </span>
-                          </Button>
-                        )}
-                        <Button variant="primary" iconLeft="plus" onClick={v.goCreate}>
-                          New assessment
-                        </Button>
-                      </>
-                    )}
-                    {!!v.isAssessment && !v.routeBlocked && (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Button variant="ghost" iconLeft="history" onClick={v.showVersionHistory}>
-                            {'Version history'}
-                          </Button>
-                          {v.canRestore && (
-                            <Button
-                              variant="secondary"
-                              iconLeft="refresh-cw"
-                              onClick={v.restoreAssessment}
-                              disabled={v.archiveBusy}
-                            >
-                              {'Restore'}
-                            </Button>
-                          )}
-                          {v.canArchive && (
-                            <Button variant="ghost" iconLeft="archive" onClick={v.openArchive}>
-                              {'Archive'}
-                            </Button>
-                          )}
-                          {v.canEdit && v.canCapture && (
-                            <Button variant="secondary" iconLeft="camera" onClick={v.goField}>
-                              {'Site observation'}
-                            </Button>
-                          )}
-                        </div>
-                      </>
                     )}
                   </div>
                 </div>
@@ -296,7 +283,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         scrollbarWidth: 'none',
                       }}
                     >
-                      <Tabs items={v.tabItems} value={v.tab} onChange={v.setTab}></Tabs>
+                      <Tabs
+                        items={v.tabItems}
+                        value={v.tabValue}
+                        onChange={v.setTab}
+                        compact
+                      ></Tabs>
                     </div>
                   </>
                 )}

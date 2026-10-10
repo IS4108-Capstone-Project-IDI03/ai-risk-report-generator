@@ -38,6 +38,7 @@ import {
   OBSERVATION_TYPES,
   statusOf,
   typeLabel,
+  typesOf,
 } from './observationFilters'
 import type {
   AssessmentRow,
@@ -56,6 +57,7 @@ import {
   UNCATEGORISED,
   withCategory,
 } from './categories'
+import type { BoxContent } from './components/StatBox'
 import { useCaptureSession } from './useCaptureSession'
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
@@ -102,6 +104,33 @@ const STATUS_LABEL: Record<AssessmentStatus, string> = {
 function isOverdue(r: AssessmentRow) {
   const today = new Date().toLocaleDateString('en-CA')
   return !!r.reportDueDate && r.reportDueDate < today && r.status !== STATUS_LABEL.finalised
+}
+// Days left until the report is due, or days overdue, by local calendar day,
+// with the date as the note: amber within three days, red once overdue. A
+// finalised report is no longer counting down.
+function dueSummary(r: AssessmentRow | null | undefined): BoxContent {
+  if (!r?.reportDueDate) return { value: '—', unit: 'no due date set' }
+  const note = formatDay(r.reportDueDate)
+  if (r.status === STATUS_LABEL.finalised)
+    return { value: 'Done', unit: 'finalised', note, tone: 'ok' }
+  const today = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00')
+  const days = Math.round(
+    (new Date(r.reportDueDate + 'T00:00:00').getTime() - today.getTime()) / 86_400_000,
+  )
+  if (days < 0)
+    return {
+      value: String(-days),
+      unit: (days === -1 ? 'day' : 'days') + ' overdue',
+      note,
+      tone: 'danger',
+    }
+  if (days === 0) return { value: 'Today', unit: 'due', note, tone: 'warning' }
+  return {
+    value: String(days),
+    unit: (days === 1 ? 'day' : 'days') + ' left',
+    note,
+    ...(days <= 3 && { tone: 'warning' as const }),
+  }
 }
 function formatDay(isoDay: string | null) {
   return isoDay
@@ -313,8 +342,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const captured = useObservations(
     state.captureTarget.reference,
     onField || onWorkspace,
-    // Show deleted on the Observations tab reads the deleted ones too (CP-08).
-    onWorkspace && state.obsShowDeleted,
+    // The workspace reads the deleted ones too (CP-08), so the Observations
+    // tab's Deleted button can say how many there are.
+    onWorkspace,
   )
   // The Observations tab needs them too, to move an observation (CP-06).
   const places = useLocations(
@@ -460,14 +490,25 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   }
   // A created assessment clears the form, so the next one starts blank. A form
   // left without creating keeps its draft.
-  function addCreatedRow(row: AssessmentRow) {
+  // A new assessment opens on its Overview when it is the creator's own; one
+  // assigned to someone else is not on their list, so they return to it.
+  function addCreatedRow(row: AssessmentRow, open: boolean) {
     updateState((previous) => ({
       ...previous,
       createdRows: [row, ...previous.createdRows],
-      screen: 'dashboard',
       cf: blankCreateForm(),
       cfBusy: false,
       cfErr: false,
+      ...(open
+        ? {
+            screen: 'assessment',
+            tab: 'overview',
+            captureTarget: { reference: row.id, site: row.site },
+            of: NO_FILTERS,
+            obsShowDeleted: false,
+            obsOpen: null,
+          }
+        : { screen: 'dashboard' }),
     }))
   }
   function openItems() {
@@ -848,7 +889,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           obsDialog: null,
           obsOpen: null,
         })
-        return toast('Observation deleted in this demo only. Choose Show deleted to restore it.')
+        return toast('Observation deleted in this demo only. Choose Deleted to restore it.')
       }
       let saved
       try {
@@ -858,7 +899,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       }
       captured.replace(saved)
       setState({ obsDialog: null, obsOpen: null })
-      toast('Observation deleted. Report drafting leaves it out; Show deleted can restore it.')
+      toast('Observation deleted. Report drafting leaves it out; Deleted can restore it.')
     }
     // Restores a deleted observation to the list and drafting (AC14).
     async function restoreRow(key: string, o: Observation) {
@@ -1139,8 +1180,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const rows = serverRows
       ? [...visibleCreated.filter((r) => !serverIds.has(r.id)), ...serverRows]
       : [...visibleCreated, ...ROWS]
-    // Only the demo assessment has sample workspace content; others show their own details.
-    const openRow = isDemoCapture ? null : rows.find((r) => r.id === s.captureTarget.reference)
+    // Every assessment shows its own record, the demo one included. The demo
+    // keeps sample drafting and review only while it is not on the server.
+    const openRow = rows.find((r) => r.id === s.captureTarget.reference)
+    // The Overview counts what the server holds for an assessment on it, so the
+    // count agrees with the report sections; sample observations kept in this
+    // browser show only on the Observations tab. Offline, the browser's are all
+    // there is.
+    const savedCount = openRow?.persisted ? captured.observations.length : fieldSaved
 
     /* nav */
     // The route guard (F-05): screens the role cannot open are left out of
@@ -1161,17 +1208,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // hides the actions once the work list shows they'd be refused, for the
     // sample observations too, which change in this browser only.
     const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
-    // The dashboard's way back into capture, named on its button: the
-    // engineer's own capture in progress, the most recently started if there
-    // are several, or the demo assessment when the gateway cannot be reached.
-    const [latestCapture] = (serverRows ?? [])
-      .filter((r) => r.status === STATUS_LABEL.capturing && r.engineerId === session.user.id)
-      .sort((a, b) => (b.captureStartedAt ?? '').localeCompare(a.captureStartedAt ?? ''))
-    const continueTarget = latestCapture
-      ? { reference: latestCapture.id, site: latestCapture.site }
-      : listFailed && !serverRows
-        ? CAPTURE_ASSESSMENT
-        : null
     const navSections = [
       {
         label: 'Assessments',
@@ -1632,18 +1668,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           screen: 'field',
         }),
-      continueCaptureLabel: continueTarget && 'Continue capture · ' + continueTarget.site,
-      continueCapture: () => {
-        if (continueTarget)
-          setState({
-            screen: 'field',
-            captureTarget: continueTarget,
-            // Filters name the previous assessment's locations and floors.
-            of: NO_FILTERS,
-            obsShowDeleted: false,
-            obsOpen: null,
-          })
-      },
       canCapture,
       canArchive: isMine && canCapture,
       canRestore: isMine && !canCapture,
@@ -1708,34 +1732,37 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
+      // The photo collection is a view of the Observations tab, opened from
+      // its Photos box, so that tab stays selected while it shows.
       isPhotos: isAssessment && s.tab === 'photos',
+      tabValue: s.tab === 'photos' ? 'observations' : s.tab,
+      goPhotos: () => setState({ tab: 'photos' }),
+      goObservations: () => setState({ tab: 'observations' }),
+      // The Observations tab's boxes: what the observations not deleted hold.
+      obsCounts: (() => {
+        const kept = allRows.filter(({ o }) => !o.deleted).map(({ o }) => o)
+        return {
+          notes: kept.filter((o) => typesOf(o).includes('Note')).length,
+          recordings: kept.reduce(
+            (n, o) => n + (o.recordings ? o.recordings.length : o.audio ? 1 : 0),
+            0,
+          ),
+          photos: photoCollection.length,
+        }
+      })(),
       photoCollection,
       goGenerate: () =>
         setState({
           tab: 'generate',
         }),
-      // A real assessment shows its own record; only the demo one shows samples.
-      ovMetrics: openRow
-        ? [
-            { label: 'Status', value: openRow.status },
-            { label: 'Observations on file', value: fieldSaved },
-            { label: 'Standards', value: openRow.standards?.length ?? 0 },
-            {
-              label: 'Report due',
-              value: openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set',
-              note: isOverdue(openRow) ? 'Overdue' : undefined,
-            },
-          ]
-        : [
-            {
-              label: 'Sections drafted',
-              value: s.gsecs.filter((x) => x.st === 'done').length + ' of ' + s.gsecs.length,
-            },
-            { label: 'Open review items', value: open.length + 3 },
-            { label: 'Observations on file', value: fieldSaved },
-            { label: 'Evidence sources', value: 24 },
-          ],
-      showReviewProgress: !openRow,
+      // The Overview's boxes (the drafting and review ones load their own data).
+      ovCapture: {
+        count: savedCount,
+        note: savedCount ? undefined : 'None captured yet',
+      },
+      ovDue: dueSummary(openRow),
+      canOpenGenerate: canOpenTab('generate', session),
+      canOpenReview: canOpenTab('review', session),
       ovFacts: openRow
         ? [
             { label: 'Report', value: openRow.id },
@@ -1758,36 +1785,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               value: openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set',
             },
             { label: 'Engineer', value: openRow.eng },
+            // Named to the drafting model as context; drafting can cite any
+            // standard in the knowledge base that suits the site.
+            {
+              label: 'Standards selected',
+              value: openRow.standards?.length ? openRow.standards.join(', ') : 'None selected',
+            },
           ]
         : [
-            {
-              label: 'Report',
-              value: 'RPT-2026-0411',
-            },
-            {
-              label: 'Site',
-              value: 'Tilbury Distribution Centre, Ferry Lane, Tilbury RM18 7HR',
-            },
-            {
-              label: 'Client',
-              value: 'Northgate Logistics',
-            },
-            {
-              label: 'Assessment type',
-              value: 'Property risk survey',
-            },
-            {
-              label: 'Site visit',
-              value: '11 Apr 2026',
-            },
-            {
-              label: 'Report due',
-              value: '25 Apr 2026',
-            },
-            {
-              label: 'Engineer',
-              value: 'A. Rowe',
-            },
+            { label: 'Report', value: s.captureTarget.reference },
+            { label: 'Site', value: s.captureTarget.site },
           ],
       obsWide: !narrow,
       obsStack: narrow,
@@ -1979,6 +1986,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsStatusFilterOptions: [{ value: '', label: 'All statuses' }, ...OBSERVATION_STATUSES],
       /* Show deleted (CP-08 AC14): the deleted observations instead */
       obsShowDeleted: s.obsShowDeleted,
+      // How many are deleted, shown on the button that lists them.
+      obsDeletedCount: allRows.filter(({ o }) => o.deleted).length,
       setObsShowDeleted: (on: boolean) => setState({ obsShowDeleted: on, obsOpen: null }),
       obsNoDeleted: s.obsShowDeleted && obsRows.length === 0,
       /* transcript and delete dialogs (CP-08) */
@@ -2041,29 +2050,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
       closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
       saveTags: () => void saveTags(),
-      ovStandards: openRow
-        ? (openRow.standards ?? []).map((name) => ({
-            icon: 'book-marked',
-            name,
-            detail: STANDARDS.find((t) => t.name === name)?.desc ?? '',
-          }))
-        : [
-            {
-              icon: 'book-marked',
-              name: 'FM Global 2-0',
-              detail: 'Installation of sprinkler systems',
-            },
-            {
-              icon: 'book-marked',
-              name: 'NFPA 13',
-              detail: 'Standard for the installation of sprinkler systems',
-            },
-            {
-              icon: 'file-text',
-              name: 'Tilbury survey 2023',
-              detail: 'Previous Marsh report, issued 14 Mar 2023',
-            },
-          ],
       isGenerate: isAssessment && s.tab === 'generate',
       isReview: isAssessment && s.tab === 'review',
       isExport: isAssessment && s.tab === 'export',
@@ -2083,7 +2069,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   : 'Assessment workspace',
       title:
         sc === 'dashboard'
-          ? 'Your assessments'
+          ? 'Assessments'
           : sc === 'create'
             ? s.cfEdit
               ? 'Edit assessment details'
@@ -2115,16 +2101,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
                   : sc === 'usage'
                     ? 'What the AI calls cost, how much they were used, and how fast they ran.'
-                    : openRow
-                      ? [
-                          openRow.id,
-                          openRow.type,
-                          'Assessed ' + openRow.date,
-                          'Report due ' +
-                            (openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set'),
-                          'Engineer ' + openRow.eng,
-                        ].join(' · ')
-                      : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
+                    : // An assessment shows only its name; its details are in its Overview.
+                      '',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
@@ -2144,28 +2122,22 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           count: fieldSaved,
         },
         {
-          value: 'photos',
-          label: 'Photos',
-          icon: 'image',
-          count: photoCollection.length,
-        },
-        {
           value: 'generate',
-          label: 'Report generation',
+          label: 'Generation',
           icon: 'sparkles',
         },
         {
           value: 'review',
           label: 'Review',
           icon: 'user-round-search',
-          // Drafting and review counts exist only for the demo assessment so far.
-          count: openRow ? undefined : live.length,
+          // Counts only for the demo's sample review, shown while it is not on the server.
+          count: isDemoCapture && !openRow?.persisted ? live.length : undefined,
         },
         {
           value: 'export',
-          label: 'Validation and export',
+          label: 'Export',
           icon: 'stamp',
-          count: openRow ? undefined : open.length,
+          count: isDemoCapture && !openRow?.persisted ? open.length : undefined,
         },
       ].filter((item) => canOpenTab(item.value, session)),
       toast: s.toast,
@@ -2410,37 +2382,39 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             standards: s.cf.stds,
             engineerId: s.cf.eng,
           })
-          addCreatedRow(toRow(created))
+          const mine = created.engineer?.id === session.user.id
+          addCreatedRow(toRow(created), mine)
           toast(
             created.reference +
               ' created for ' +
               created.site.name +
-              (created.engineer?.id === session.user.id
-                ? '. Open it from the list to capture observations on site.'
-                : '. It will appear in the assigned engineer’s work list.'),
+              (mine ? '.' : '. It will appear in the assigned engineer’s work list.'),
           )
         } catch (error: unknown) {
           if (error instanceof GatewayError && error.status === null) {
             // Keep the demo usable without the gateway, and say nothing was saved.
             const id = `RPT-2026-${String(416 + s.createdRows.length).padStart(4, '0')}`
-            addCreatedRow({
-              id,
-              site: s.cf.site,
-              client: s.cf.client,
-              type: s.cf.survey,
-              date: formatDay(s.cf.date || null),
-              siteVisitDate: s.cf.date || null,
-              reportDueDate: s.cf.due || null,
-              engineerId: s.cf.eng || null,
-              standards: s.cf.stds,
-              eng: s.cf.eng
-                ? (directory.find((e) => e.id === s.cf.eng)?.name ??
-                  (s.cf.eng === session.user.id ? session.user.name : 'Unassigned'))
-                : 'Unassigned',
-              status: STATUS_LABEL.not_started,
-              sev: 'low',
-              open: 0,
-            })
+            addCreatedRow(
+              {
+                id,
+                site: s.cf.site,
+                client: s.cf.client,
+                type: s.cf.survey,
+                date: formatDay(s.cf.date || null),
+                siteVisitDate: s.cf.date || null,
+                reportDueDate: s.cf.due || null,
+                engineerId: s.cf.eng || null,
+                standards: s.cf.stds,
+                eng: s.cf.eng
+                  ? (directory.find((e) => e.id === s.cf.eng)?.name ??
+                    (s.cf.eng === session.user.id ? session.user.name : 'Unassigned'))
+                  : 'Unassigned',
+                status: STATUS_LABEL.not_started,
+                sev: 'low',
+                open: 0,
+              },
+              s.cf.eng === session.user.id,
+            )
             toast(
               'The gateway could not be reached, so ' +
                 id +

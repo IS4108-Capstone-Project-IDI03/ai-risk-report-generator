@@ -34,7 +34,7 @@ const removed: string[] = []
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     if (url === `/api/assessments/${REF}/capture-session`) return json(201, CAPTURE)
-    if (url === `/api/assessments/${REF}/observations`) return json(200, observations)
+    if (url.startsWith(`/api/assessments/${REF}/observations`)) return json(200, observations)
     if (url.startsWith(LOCATIONS_URL + '/') && init.method === 'DELETE') {
       removed.push(url.slice(LOCATIONS_URL.length + 1))
       return removeReply()
@@ -182,7 +182,7 @@ describe('Choosing where observations are captured', () => {
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Leave capture' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
   })
 
   it('removes a location added by mistake, but not one with observations', async () => {

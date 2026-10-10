@@ -80,7 +80,7 @@ describe('Route guard (F-05)', () => {
 
     openAt('/')
     await signIn('risk_engineer')
-    expect(screen.getByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
     await waitFor(() => expect(window.location.pathname).toBe('/assessments'))
   })
 
@@ -105,7 +105,7 @@ describe('Route guard (F-05)', () => {
     expect(within(nav()).queryByRole('button', { name: screenName })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to your workspace' }))
-    expect(screen.getByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/assessments')
   })
 
@@ -124,7 +124,7 @@ describe('Route guard (F-05)', () => {
     openAt('/assessments')
     await signIn('knowledge_admin')
 
-    expect(screen.getByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New assessment' })).not.toBeInTheDocument()
     expect(within(nav()).getByRole('button', { name: 'User accounts' })).toBeInTheDocument()
 
@@ -132,7 +132,7 @@ describe('Route guard (F-05)', () => {
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent)
     expect(tabs.some((name) => name?.startsWith('Overview'))).toBe(true)
     expect(tabs.some((name) => name?.startsWith('Observations'))).toBe(true)
-    expect(tabs.some((name) => name?.startsWith('Report generation'))).toBe(false)
+    expect(tabs.some((name) => name?.startsWith('Generation'))).toBe(false)
     expect(screen.queryByRole('button', { name: /^Site observation/ })).not.toBeInTheDocument()
   })
 

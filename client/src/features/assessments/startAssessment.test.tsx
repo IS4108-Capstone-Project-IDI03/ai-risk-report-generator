@@ -56,6 +56,8 @@ async function openApp() {
   render(<App />)
   await signIn()
 }
+// Opens or closes the assessment header's ⋯ menu.
+const moreActions = () => fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
 function openCapture() {
   fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
 }
@@ -244,13 +246,12 @@ describe('Create assessment (CP-01)', () => {
     createFromForm()
 
     expect(
-      await screen.findByText(
-        'RPT-2026-0001 created for Jurong Distribution Hub. Open it from the list to capture observations on site.',
-      ),
+      await screen.findByText('RPT-2026-0001 created for Jurong Distribution Hub.'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Jurong Distribution Hub/ })).toHaveTextContent(
-      'RPT-2026-0001',
-    )
+    // It opens on its Overview, ready to capture, rather than back on the list.
+    expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/assessments')
     expect(init.method).toBe('POST')
@@ -291,12 +292,16 @@ describe('Create assessment (CP-01)', () => {
     openRow()
 
     expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
-    expect(screen.getByText(/^RPT-2026-0001 · Property risk survey/)).toHaveTextContent(
-      /Report due 02 May 2026/,
-    )
-    // The overview shows this assessment's own record, not the demo's samples.
-    expect(screen.getByText('Observations on file')).toBeInTheDocument()
-    expect(screen.getAllByText('FM Global 2-0').length).toBeGreaterThan(0)
+    // Only the name heads the page: no status beside it and no details below;
+    // they are in the Overview.
+    expect(screen.queryByText(/Property risk survey ·/)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Jurong Distribution Hub' }).parentElement,
+    ).not.toHaveTextContent('RPT-2026-0001')
+    // The overview shows this assessment's own record, not the demo's samples,
+    // with the standards named in it.
+    expect(screen.getByRole('group', { name: 'Capture' })).toBeInTheDocument()
+    expect(screen.getByText('FM Global 2-0, NFPA 13')).toBeInTheDocument()
     expect(screen.queryByText('Tilbury survey 2023')).not.toBeInTheDocument()
     expect(screen.queryByText('Sections drafted')).not.toBeInTheDocument()
 
@@ -464,10 +469,6 @@ describe('Work list (RV-10)', () => {
 
     expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
     expect(results()).toHaveTextContent('6 of 6 assessments')
-    // Without the gateway, capture continues on the demo assessment.
-    expect(
-      screen.getByRole('button', { name: 'Continue capture · Tilbury Distribution Centre' }),
-    ).toBeInTheDocument()
   })
 })
 
@@ -593,8 +594,12 @@ it('archives my assessment from its workspace, then shows it only under Archived
   )
   await openApp()
   fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-  expect(screen.getAllByRole('button', { name: /^Site observation/ })).toHaveLength(2)
+  // Capture is offered in the navigation and once in the page header.
+  expect(screen.getAllByRole('button', { name: /^Site observation/ })).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
 
+  // Archive is one of the occasional actions behind More actions.
+  moreActions()
   fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
   const dialog = screen.getByRole('dialog', { name: 'Archive this assessment?' })
   status = 'archived'
@@ -612,9 +617,13 @@ it('archives my assessment from its workspace, then shows it only under Archived
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 
   // An archived workspace offers neither capture nor another archive.
-  // Neither the header button nor the side navigation offers capture.
+  // Neither the header nor the side navigation offers capture.
   expect(screen.queryAllByRole('button', { name: /^Site observation/ })).toHaveLength(0)
+  expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
+  moreActions()
+  expect(screen.getByRole('button', { name: 'Version history' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
+  moreActions()
 
   // Restore (AC9) returns it to the work list with the status it had.
   status = 'capturing'
@@ -649,6 +658,7 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
     await screen.findAllByRole('button', { name: /Tilbury Distribution Centre/ })
   ).find((b) => b.getAttribute('data-id') === 'RPT-2026-0411')!
   fireEvent.click(tilbury)
+  moreActions()
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
 
@@ -742,50 +752,12 @@ it('shows a knowledge admin the same assessment record, read-only', async () => 
     expect(screen.getByText('Alex Rowe')).toBeInTheDocument()
     // Only the assigned engineer edits, archives or captures.
     expect(screen.queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
+    moreActions()
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   } finally {
     window.history.pushState({}, '', '/')
   }
-})
-
-it('continues my most recently started capture from the dashboard, naming it', async () => {
-  const capture = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
-    respond(201, CREATED_CAPTURE),
-  )
-  const capturing = (fields: object) => ({ ...CREATED, status: 'capturing', ...fields })
-  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    url === '/api/assessments'
-      ? respond(200, [
-          // Listed first, but started earlier.
-          capturing({
-            reference: 'RPT-2026-0003',
-            site: { ...CREATED.site, name: 'Changi Airfreight Centre' },
-            captureStartedAt: '2026-09-20T08:00:00.000Z',
-          }),
-          capturing({ captureStartedAt: '2026-09-28T08:00:00.000Z' }),
-          // Someone else's is never offered, however recent.
-          capturing({
-            reference: 'RPT-2026-0004',
-            site: { ...CREATED.site, name: 'Pasir Panjang Terminal' },
-            engineer: { id: '6ab39017e45cf009e4507732', name: 'Jide Okafor' },
-            captureStartedAt: '2026-09-30T08:00:00.000Z',
-          }),
-        ])
-      : (init?.method ?? 'GET') === 'GET'
-        ? respond(200, [])
-        : capture(url, init),
-  )
-  await openApp()
-
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Continue capture · Jurong Distribution Hub' }),
-  )
-
-  expect(await screen.findByText('Capture session started')).toBeInTheDocument()
-  expect(capture).toHaveBeenCalledWith(
-    '/api/assessments/RPT-2026-0001/capture-session',
-    expect.objectContaining({ method: 'POST' }),
-  )
 })
 
 it('offers no capture when none of my assessments is capturing, not even the demo one', async () => {
@@ -800,4 +772,198 @@ it('offers no capture when none of my assessments is capturing, not even the dem
   expect(
     screen.queryByRole('button', { name: 'Tilbury Distribution Centre' }),
   ).not.toBeInTheDocument()
+})
+
+describe('Overview', () => {
+  // A local calendar day, days from today, as the gateway stores due dates.
+  const inDays = (days: number) => {
+    const day = new Date()
+    day.setDate(day.getDate() + days)
+    return day.toLocaleDateString('en-CA')
+  }
+  const draft = { id: 'd1', sectionId: '7', subsections: [] }
+  const SECTIONS = [
+    {
+      id: '7',
+      title: 'Construction',
+      minObservations: 1,
+      usableObservations: 2,
+      latestDraft: draft,
+      changesSinceDraft: 0,
+    },
+    {
+      id: '8',
+      title: 'Occupancy',
+      minObservations: 1,
+      usableObservations: 1,
+      latestDraft: draft,
+      changesSinceDraft: 2,
+    },
+    {
+      id: '9',
+      title: 'Fire Protection',
+      minObservations: 3,
+      usableObservations: 1,
+      latestDraft: null,
+      changesSinceDraft: 0,
+    },
+    {
+      id: '10',
+      title: 'Natural Hazards',
+      minObservations: 1,
+      usableObservations: 1,
+      latestDraft: null,
+      changesSinceDraft: 0,
+    },
+  ].map((s) => ({ copeDimensions: [], changeCounts: { added: 0, changed: 0, removed: 0 }, ...s }))
+  const review = (id: string, state: string, unsupportedStatements = 0, changesSinceDraft = 0) => ({
+    id,
+    draft: state === 'not_drafted' ? null : draft,
+    review: { state, unsupportedStatements, withdrawnSources: 0, changesSinceDraft },
+  })
+  const REVIEW = {
+    sections: [
+      review('7', 'ai_draft'),
+      review('8', 'needs_review', 3, 2),
+      review('9', 'not_drafted'),
+      review('10', 'not_drafted'),
+    ],
+  }
+
+  async function openOverview(fields: object = {}) {
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+      // Opening capture starts its session.
+      init?.method === 'POST'
+        ? respond(201)
+        : respond(
+            200,
+            url === '/api/assessments'
+              ? [{ ...CREATED, status: 'capturing', reportDueDate: inDays(5), ...fields }]
+              : url.endsWith('/sections')
+                ? SECTIONS
+                : url.endsWith('/review')
+                  ? REVIEW
+                  : [],
+          ),
+    )
+    await openApp()
+    fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
+  }
+  const box = (label: string) => screen.getByRole('group', { name: label })
+
+  it('follows the report from capture to its due date, with each section’s state', async () => {
+    await openOverview()
+
+    expect(box('Capture')).toHaveTextContent('0observations')
+    expect(box('Capture')).toHaveTextContent('None captured yet')
+    expect(await screen.findByText('2/4')).toBeInTheDocument()
+    expect(box('Drafting')).toHaveTextContent('sections drafted')
+    expect(box('Drafting')).toHaveTextContent('1 out of date')
+    expect(await screen.findByText('1/2')).toBeInTheDocument()
+    expect(box('Review')).toHaveTextContent('drafts flagged')
+    expect(box('Review')).toHaveTextContent('3 statements to check · 1 out of date')
+    expect(box('Report due')).toHaveTextContent('5days left')
+
+    const sections = screen.getByText('Report sections').parentElement!
+    expect(
+      within(sections).getByRole('button', { name: /^Section 7, Construction: Drafted/ }),
+    ).toBeInTheDocument()
+    expect(
+      within(sections).getByRole('button', { name: /^Section 8, Occupancy: Out of date/ }),
+    ).toBeInTheDocument()
+    expect(
+      within(sections).getByRole('button', {
+        name: /^Section 9, Fire Protection: 1 of 3 observations/,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      within(sections).getByRole('button', {
+        name: /^Section 10, Natural Hazards: Ready to draft/,
+      }),
+    ).toBeInTheDocument()
+
+    // The capture box opens the observations it counts; capturing is the
+    // header's button.
+    fireEvent.click(screen.getByRole('button', { name: /^Capture, 0, observations/ }))
+    expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
+    expect(await screen.findByRole('heading', { name: 'Site observation' })).toBeInTheDocument()
+  })
+
+  it('opens Generation from the drafting box', async () => {
+    await openOverview()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: /^Drafting, 2\/4, sections drafted, 1 out of date\. Open Generation$/,
+      }),
+    )
+    expect(screen.getByRole('tab', { name: /Generation/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('says when the report is overdue, and offers capture before any is captured', async () => {
+    await openOverview({ status: 'not_started', reportDueDate: inDays(-2) })
+    expect(box('Report due')).toHaveTextContent('2days overdue')
+    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+  })
+
+  it('says when no due date is set', async () => {
+    await openOverview({ reportDueDate: null })
+    expect(box('Report due')).toHaveTextContent('no due date set')
+  })
+
+  it('counts the observations saved on the server, as the report sections do', async () => {
+    vi.stubGlobal('fetch', (url: string) =>
+      respond(
+        200,
+        url === '/api/assessments'
+          ? [{ ...CREATED, status: 'capturing' }]
+          : url.startsWith('/api/assessments/RPT-2026-0001/observations')
+            ? [CREATED_NOTE, { ...CREATED_NOTE, id: '6ab3a1e0e45cf009e4507804' }]
+            : [],
+      ),
+    )
+    await openApp()
+    fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
+    expect(await within(box('Capture')).findByText('2')).toBeInTheDocument()
+    expect(box('Capture')).toHaveTextContent('observations')
+  })
+
+  it('leaves the demo’s browser-only samples out of the count once it is on the server', async () => {
+    const TILBURY = {
+      ...CREATED,
+      reference: 'RPT-2026-0411',
+      status: 'capturing',
+      site: { ...CREATED.site, name: 'Tilbury Distribution Centre' },
+    }
+    vi.stubGlobal('fetch', (url: string) =>
+      respond(200, url === '/api/assessments' ? [TILBURY] : []),
+    )
+    await openApp()
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
+    // The samples still list on the Observations tab, but the server has none.
+    expect(box('Capture')).toHaveTextContent('0observations')
+  })
+
+  it('says when the drafting service cannot be reached, keeping the rest', async () => {
+    vi.stubGlobal('fetch', (url: string) =>
+      url === '/api/assessments'
+        ? respond(200, [{ ...CREATED, status: 'capturing' }])
+        : url.endsWith('/sections') || url.endsWith('/review')
+          ? respond(503, { error: 'S4 unreachable' })
+          : respond(200, []),
+    )
+    await openApp()
+    fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
+
+    expect(
+      await screen.findByText('The report sections can’t be loaded right now.'),
+    ).toBeInTheDocument()
+    expect(box('Drafting')).toHaveTextContent('unavailable')
+    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+  })
 })

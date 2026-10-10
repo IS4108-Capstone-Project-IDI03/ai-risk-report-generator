@@ -101,7 +101,7 @@ function Sources({ ofi, observations }: { ofi: Ofi; observations: SavedObservati
 }
 
 // One OFI in the same AI draft box as a section draft's subsections: a suggestion
-// (with Accept) on Report generation, or an accepted, numbered OFI on the Review tab,
+// (with Accept) on Generation, or an accepted, numbered OFI on the Review tab,
 // where it reads like the sections' AI drafts. Its sources open below it.
 export function OfiBlock({
   ofi,
@@ -291,7 +291,7 @@ function ReportOfi({ ofi }: { ofi: AcceptedOfi }) {
 }
 
 // Section 3 as the report has it: the accepted OFIs under their categories, in
-// report order. Shared by the Report generation row and the Review tab.
+// report order. Shared by the Generation row and the Review tab.
 export function OfisInReport({ accepted }: { accepted: AcceptedOfi[] }) {
   if (!accepted.length)
     return (

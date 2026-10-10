@@ -167,6 +167,72 @@
 .navigation-drawer nav {
   max-width: 100%;
 }
+/* Overview boxes and section rows that open the tab they summarise. */
+.om-overview-box:hover {
+  background: var(--surface-hover);
+}
+.om-overview-box:focus-visible {
+  outline-offset: -2px;
+}
+/* The Overview's four boxes: two to a row, four once the content area is wide
+   enough. Sized by the content area, not the window, since the side navigation
+   takes part of it. */
+.om-overview-wrap {
+  container-type: inline-size;
+}
+.om-overview-boxes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@container (min-width: 760px) {
+  .om-overview-boxes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+/* The assessment header's ⋯ menu: a short list, narrower than the shared
+   popover's default width (set inline, hence !important). */
+.om-more-menu {
+  min-width: 200px !important;
+}
+.om-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+}
+.om-more-item:hover {
+  background: var(--surface-hover);
+}
+/* The Observations tab's three boxes, always in one row. On a phone there is
+   no room for their labels, so the icon and the unit under the figure say
+   what each counts (the label stays the box's accessible name). */
+.om-stat-boxes-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@container (max-width: 559px) {
+  .om-stat-boxes-3 {
+    gap: 8px;
+  }
+  .om-stat-boxes-3 .om-stat-label {
+    visibility: hidden;
+  }
+  .om-stat-boxes-3 .om-stat-figure {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+}
 
 .generation-row {
   grid-template-columns: 32px minmax(0, 1fr) 200px 110px 160px;

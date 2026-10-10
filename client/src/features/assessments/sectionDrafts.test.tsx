@@ -148,7 +148,7 @@ function mockGateway(
   const drafted: string[] = []
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (url === '/api/assessments') return json(200, [RECORD])
-    if (url === `/api/assessments/${REF}/observations`) return json(200, [RISER])
+    if (url.startsWith(`/api/assessments/${REF}/observations`)) return json(200, [RISER])
     if (url === `/api/assessments/${REF}/sections`) return json(200, sections)
     // The Section 3 OFI block on the same tab (GN-05), with nothing drafted.
     if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
@@ -169,7 +169,7 @@ async function openGenerateTab() {
     (b) => b.getAttribute('data-id') === REF,
   )!
   fireEvent.click(row)
-  fireEvent.click(screen.getByRole('tab', { name: /Report generation/ }))
+  fireEvent.click(screen.getByRole('tab', { name: /Generation/ }))
   await screen.findByText('Draft sections 7 to 12')
 }
 

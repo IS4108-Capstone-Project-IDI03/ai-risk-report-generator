@@ -143,10 +143,10 @@ export function DraftEditor({
           <EmptyState
             icon="file-text"
             title="Not drafted yet"
-            description="This section has no draft to review. Draft it on the Report generation tab."
+            description="This section has no draft to review. Draft it on the Generation tab."
             action={
               <Button variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
-                Go to Report generation
+                Go to Generation
               </Button>
             }
           />
@@ -160,7 +160,7 @@ export function DraftEditor({
             {review.changesSinceDraft > 0 && (
               <Callout tone="warning" title="This draft is out of date">
                 {describeChanges(review.changeCounts)} since it was drafted. Redraft it on the
-                Report generation tab to bring it up to date.
+                Generation tab to bring it up to date.
               </Callout>
             )}
             {review.withdrawnSources > 0 && (

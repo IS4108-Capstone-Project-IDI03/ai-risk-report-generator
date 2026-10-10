@@ -33,7 +33,7 @@ export function ReviewWorkspace({
 }) {
   const { sections, loadError } = useReview(reference)
   const { ofis } = useOfis(reference)
-  // For each OFI's sources, as on Report generation.
+  // For each OFI's sources, as on Generation.
   const { observations } = useObservations(reference, true)
   // Only a list from the gateway counts; anything else reads as no OFIs yet.
   const accepted = Array.isArray(ofis?.accepted) ? ofis.accepted : []
@@ -58,10 +58,10 @@ export function ReviewWorkspace({
       <EmptyState
         icon="file-text"
         title="No sections drafted yet"
-        description="Drafted sections appear here for review. Draft them on the Report generation tab."
+        description="Drafted sections appear here for review. Draft them on the Generation tab."
         action={
           <Button variant="primary" iconLeft="sparkles" onClick={onGenerate}>
-            Go to Report generation
+            Go to Generation
           </Button>
         }
       />
@@ -95,7 +95,7 @@ export function ReviewWorkspace({
 
   // Section 3: the OFIs in the report, laid out like a section's draft: the editor
   // bar, the provenance of their drafting, then each OFI in an AI draft box.
-  // Accepting more happens on Report generation.
+  // Accepting more happens on Generation.
   if (selected === '3') {
     const drafted = accepted[0]?.provenance
     return (
@@ -122,10 +122,10 @@ export function ReviewWorkspace({
               <EmptyState
                 icon="file-text"
                 title="No OFIs in the report yet"
-                description="Draft and accept Opportunities for Improvement on the Report generation tab."
+                description="Draft and accept Opportunities for Improvement on the Generation tab."
                 action={
                   <Button variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
-                    Go to Report generation
+                    Go to Generation
                   </Button>
                 }
               />
@@ -160,7 +160,7 @@ export function ReviewWorkspace({
               </p>
               <div style={{ marginTop: '12px' }}>
                 <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
-                  Go to Report generation
+                  Go to Generation
                 </Button>
               </div>
             </div>

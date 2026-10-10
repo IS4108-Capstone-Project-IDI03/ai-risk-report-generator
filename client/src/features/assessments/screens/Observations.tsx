@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import type * as React from 'react'
 import {
   Badge,
   Button,
@@ -9,6 +10,7 @@ import {
   Select,
 } from '../../../design-system'
 import { AddMediaDialog } from '../components/AddMediaDialog'
+import { StatBox } from '../components/StatBox'
 import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
 import { TagDialog } from '../components/TagDialog'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -59,6 +61,23 @@ const proposalHeading = {
 // machine reading, so it sits in AI violet with the photos it was read from,
 // and becomes the engineer's own only through Edit. Nothing reads the photos
 // until an engineer asks, so until then it offers Read photos.
+// The heading over one column of an open observation.
+function ColumnHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: '11px',
+        fontWeight: '600',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        color: 'var(--text-muted)',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['proposal']> }) {
   if (proposal.status === 'unread')
     return (
@@ -224,31 +243,37 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
           animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
-            marginBottom: '14px',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '19px',
-              lineHeight: '28px',
-              fontWeight: '600',
-              color: 'var(--text-primary)',
-            }}
-          >
-            {'Observations on file'}
-          </span>
-          <span style={{ flex: '1' }}></span>
-          {v.canEdit && v.canCapture && (
-            <Button variant="secondary" size="sm" iconLeft="camera" onClick={v.goField}>
-              {'New observation'}
-            </Button>
-          )}
+        {/* What the observations hold, by kind; Photos opens the photo
+            collection. */}
+        <div className="om-overview-wrap" style={{ marginBottom: '16px' }}>
+          <div className="om-stat-boxes-3">
+            <StatBox
+              icon="sticky-note"
+              label="Notes"
+              content={{
+                value: String(v.obsCounts.notes),
+                unit: v.obsCounts.notes === 1 ? 'text note' : 'text notes',
+              }}
+            />
+            <StatBox
+              icon="mic"
+              label="Recordings"
+              content={{
+                value: String(v.obsCounts.recordings),
+                unit: v.obsCounts.recordings === 1 ? 'recording' : 'recordings',
+              }}
+            />
+            <StatBox
+              icon="image"
+              label="Photos"
+              content={{
+                value: String(v.obsCounts.photos),
+                unit: v.obsCounts.photos === 1 ? 'photo' : 'photos',
+              }}
+              onOpen={v.goPhotos}
+              opens="the photo collection"
+            />
+          </div>
         </div>
         <div
           style={{
@@ -327,10 +352,10 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
             <Button
               variant={v.obsShowDeleted ? 'tonal' : 'secondary'}
               size="sm"
-              iconLeft={v.obsShowDeleted ? IconRegistry.action.close : IconRegistry.action.discard}
+              iconLeft={v.obsShowDeleted ? 'arrow-left' : IconRegistry.action.discard}
               onClick={() => v.setObsShowDeleted(!v.obsShowDeleted)}
             >
-              {v.obsShowDeleted ? 'Hide deleted' : 'Show deleted'}
+              {v.obsShowDeleted ? 'Back to observations' : `Deleted (${v.obsDeletedCount})`}
             </Button>
             {!!v.obsFiltering && (
               <Button variant="ghost" size="sm" onClick={v.clearObsFilters}>
@@ -515,457 +540,457 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                   <>
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px),1fr))',
-                        gap: '24px',
-                        padding: '18px 20px 20px clamp(20px,4vw,52px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '18px',
+                        padding: '18px 20px 18px clamp(20px,4vw,52px)',
                         background: 'var(--surface-sunken)',
                         borderLeft: '3px solid var(--action-primary)',
                         borderBottom: '1px solid var(--border-subtle)',
                         animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
                       }}
                     >
-                      <div style={{ minWidth: '0' }}>
-                        <div
-                          style={{
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: 'var(--text-muted)',
-                          }}
-                        >
-                          {'Detailed notes'}
-                          {!!o.detail && (
-                            <Badge
-                              tone="neutral"
-                              style={{
-                                marginLeft: 'var(--space-3)',
-                                textTransform: 'none',
-                                letterSpacing: 'normal',
-                              }}
-                            >
-                              Text
-                            </Badge>
-                          )}
-                        </div>
+                      {/* Side by side, one column for each kind of content it
+                          holds, so no column runs on while another is empty. */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+                          gap: '24px',
+                        }}
+                      >
                         {!!o.detail && (
-                          <p
-                            style={{
-                              margin: '10px 0 0',
-                              fontSize: '15px',
-                              lineHeight: '24px',
-                              color: 'var(--text-body)',
-                              maxWidth: '68ch',
-                              textWrap: 'pretty',
-                            }}
-                          >
-                            {o.detail}
-                          </p>
-                        )}
-                        {o.recordings.map((r) => (
-                          <section
-                            key={r.id}
-                            aria-label={r.name}
-                            style={{
-                              marginTop: '14px',
-                              paddingTop: '12px',
-                              borderTop: '1px solid var(--border-subtle)',
-                            }}
-                          >
-                            <div
+                          <div style={{ minWidth: '0' }}>
+                            <ColumnHead>
+                              {'Detailed notes'}
+                              <Badge
+                                tone="neutral"
+                                style={{
+                                  marginLeft: 'var(--space-3)',
+                                  textTransform: 'none',
+                                  letterSpacing: 'normal',
+                                }}
+                              >
+                                Text
+                              </Badge>
+                            </ColumnHead>
+                            <p
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                flexWrap: 'wrap',
-                                fontSize: '14px',
-                                fontWeight: '500',
-                                color: 'var(--text-primary)',
+                                margin: '10px 0 0',
+                                fontSize: '15px',
+                                lineHeight: '24px',
+                                color: 'var(--text-body)',
+                                maxWidth: '68ch',
+                                textWrap: 'pretty',
                               }}
                             >
-                              <Icon name="mic" size={14} color="#8f7dff"></Icon>
-                              <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
-                                {r.name}
-                              </span>
-                              <Badge tone="neutral">Voice</Badge>
-                              <Badge tone={STATUS_BADGE[r.status].tone}>
-                                {STATUS_BADGE[r.status].label}
-                              </Badge>
-                              {!!r.correctedLabel && <Badge tone="neutral">Corrected</Badge>}
-                            </div>
-                            {r.status === 'failed' ? (
-                              <div role="status" style={{ marginTop: '8px' }}>
-                                <Callout
-                                  tone="warning"
-                                  title="Transcription failed"
-                                  actions={
-                                    <Button
-                                      variant="secondary"
-                                      size="sm"
-                                      iconLeft="refresh-cw"
-                                      onClick={r.retry}
-                                    >
-                                      {'Retry transcription'}
-                                    </Button>
-                                  }
-                                >
-                                  {r.error}
-                                </Callout>
-                              </div>
-                            ) : (
-                              <>
-                                <p
+                              {o.detail}
+                            </p>
+                          </div>
+                        )}
+                        {(o.recordings.length > 0 || !!o.hasAudio) && (
+                          <div style={{ minWidth: '0' }}>
+                            <ColumnHead>
+                              {'Recordings (' + (o.recordings.length || 1) + ')'}
+                            </ColumnHead>
+                            {o.recordings.map((r, index) => (
+                              <section
+                                key={r.id}
+                                aria-label={r.name}
+                                style={
+                                  index
+                                    ? {
+                                        marginTop: '14px',
+                                        paddingTop: '12px',
+                                        borderTop: '1px solid var(--border-subtle)',
+                                      }
+                                    : { marginTop: '10px' }
+                                }
+                              >
+                                <div
                                   style={{
-                                    margin: '6px 0 0',
-                                    fontSize: '15px',
-                                    lineHeight: '24px',
-                                    color: 'var(--text-body)',
-                                    maxWidth: '68ch',
-                                    textWrap: 'pretty',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    flexWrap: 'wrap',
+                                    fontSize: '14px',
+                                    fontWeight: '500',
+                                    color: 'var(--text-primary)',
                                   }}
                                 >
-                                  {r.text}
-                                </p>
-                                {r.original !== null && (
-                                  <details style={{ marginTop: '6px', fontSize: '14px' }}>
-                                    <summary
-                                      style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
+                                  <Icon name="mic" size={14} color="#8f7dff"></Icon>
+                                  <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                                    {r.name}
+                                  </span>
+                                  <Badge tone="neutral">Voice</Badge>
+                                  <Badge tone={STATUS_BADGE[r.status].tone}>
+                                    {STATUS_BADGE[r.status].label}
+                                  </Badge>
+                                  {!!r.correctedLabel && <Badge tone="neutral">Corrected</Badge>}
+                                </div>
+                                {r.status === 'failed' ? (
+                                  <div role="status" style={{ marginTop: '8px' }}>
+                                    <Callout
+                                      tone="warning"
+                                      title="Transcription failed"
+                                      actions={
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          iconLeft="refresh-cw"
+                                          onClick={r.retry}
+                                        >
+                                          {'Retry transcription'}
+                                        </Button>
+                                      }
                                     >
-                                      {'What Whisper wrote'}
-                                    </summary>
+                                      {r.error}
+                                    </Callout>
+                                  </div>
+                                ) : (
+                                  <>
                                     <p
                                       style={{
                                         margin: '6px 0 0',
-                                        paddingLeft: '12px',
-                                        borderLeft: '2px solid var(--ai-border)',
+                                        fontSize: '15px',
+                                        lineHeight: '24px',
                                         color: 'var(--text-body)',
                                         maxWidth: '68ch',
+                                        textWrap: 'pretty',
                                       }}
                                     >
-                                      {r.original}
+                                      {r.text}
                                     </p>
-                                  </details>
+                                    {r.original !== null && (
+                                      <details style={{ marginTop: '6px', fontSize: '14px' }}>
+                                        <summary
+                                          style={{
+                                            cursor: 'pointer',
+                                            color: 'var(--text-secondary)',
+                                          }}
+                                        >
+                                          {'What Whisper wrote'}
+                                        </summary>
+                                        <p
+                                          style={{
+                                            margin: '6px 0 0',
+                                            paddingLeft: '12px',
+                                            borderLeft: '2px solid var(--ai-border)',
+                                            color: 'var(--text-body)',
+                                            maxWidth: '68ch',
+                                          }}
+                                        >
+                                          {r.original}
+                                        </p>
+                                      </details>
+                                    )}
+                                    {!!r.correctedLabel && (
+                                      <p style={stampStyle}>{r.correctedLabel}</p>
+                                    )}
+                                    {r.canCorrect && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        iconLeft={IconRegistry.action.edit}
+                                        onClick={r.correct}
+                                        style={{ marginTop: '8px' }}
+                                      >
+                                        {'Edit transcript'}
+                                      </Button>
+                                    )}
+                                  </>
                                 )}
-                                {!!r.correctedLabel && <p style={stampStyle}>{r.correctedLabel}</p>}
-                                {r.canCorrect && (
+                                <audio
+                                  controls
+                                  preload="none"
+                                  src={r.audioUrl}
+                                  aria-label={'Play ' + r.name}
+                                  style={{ display: 'block', width: '100%', marginTop: '8px' }}
+                                />
+                                {!!r.addedLabel && <p style={stampStyle}>{r.addedLabel}</p>}
+                                {/* Kept to restore, never deleted (CP-08). */}
+                                {!!r.remove && (
                                   <Button
-                                    variant="secondary"
+                                    variant="danger-tonal"
                                     size="sm"
-                                    iconLeft={IconRegistry.action.edit}
-                                    onClick={r.correct}
+                                    iconLeft={IconRegistry.action.discard}
+                                    aria-label={'Remove ' + r.name}
+                                    onClick={r.remove}
                                     style={{ marginTop: '8px' }}
                                   >
-                                    {'Correct transcript'}
+                                    {'Remove'}
                                   </Button>
                                 )}
-                              </>
-                            )}
-                            <audio
-                              controls
-                              preload="none"
-                              src={r.audioUrl}
-                              aria-label={'Play ' + r.name}
-                              style={{ display: 'block', width: '100%', marginTop: '8px' }}
-                            />
-                            {!!r.addedLabel && <p style={stampStyle}>{r.addedLabel}</p>}
-                            {/* Kept to restore, never deleted (CP-08). */}
-                            {!!r.remove && (
-                              <Button
-                                variant="danger-tonal"
-                                size="sm"
-                                iconLeft={IconRegistry.action.discard}
-                                onClick={r.remove}
-                                style={{ marginTop: '8px' }}
-                              >
-                                {'Remove recording'}
-                              </Button>
-                            )}
-                          </section>
-                        ))}
-                        {!!o.proposal && <PhotoProposal o={o} proposal={o.proposal} />}
-                        {!!o.deletedLabel && <p style={stampStyle}>{o.deletedLabel}</p>}
-                        {!!o.editedLabel && <p style={stampStyle}>{o.editedLabel}</p>}
-                        <div
-                          style={{
-                            marginTop: '14px',
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '8px',
-                          }}
-                        >
-                          {!!o.hasAudio && (
-                            <>
+                              </section>
+                            ))}
+                            {/* A sample observation's clip, played in this demo. */}
+                            {!!o.hasAudio && (
                               <Button
                                 variant="secondary"
                                 size="sm"
                                 iconLeft="mic"
                                 onClick={v.playSampleAudio}
+                                style={{ marginTop: '10px' }}
                               >
                                 {o.audioLabel}
                               </Button>
-                            </>
-                          )}
-                          {!!o.hasStd && (
-                            <>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                iconLeft="book-marked"
-                                onClick={v.openEvidenceSource}
-                              >
-                                {o.std}
-                              </Button>
-                            </>
-                          )}
-                          {o.canChange && (
-                            <>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                iconLeft={IconRegistry.action.edit}
-                                onClick={o.editTags}
-                              >
-                                {'Edit'}
-                              </Button>
-                              {!!o.addMedia && (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  iconLeft={IconRegistry.action.add}
-                                  onClick={o.addMedia}
-                                >
-                                  {'Add media'}
-                                </Button>
-                              )}
-                              <Button
-                                variant="danger-tonal"
-                                size="sm"
-                                iconLeft={IconRegistry.action.discard}
-                                onClick={o.deleteObs}
-                              >
-                                {'Delete'}
-                              </Button>
-                            </>
-                          )}
-                          {o.canRestore && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              iconLeft={IconRegistry.action.reinstate}
-                              onClick={o.restoreObs}
-                            >
-                              {'Restore'}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ minWidth: '0' }}>
-                        <div
-                          style={{
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: 'var(--text-muted)',
-                          }}
-                        >
-                          {'Attached media'}
-                        </div>
-                        <div
-                          style={{
-                            marginTop: '10px',
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '10px',
-                          }}
-                        >
-                          {o.media.map((m, index) => (
+                            )}
+                          </div>
+                        )}
+                        {(o.media.length > 0 || !!o.proposal) && (
+                          <div style={{ minWidth: '0' }}>
+                            <ColumnHead>{'Photos (' + o.media.length + ')'}</ColumnHead>
                             <div
-                              key={index}
                               style={{
-                                width: '132px',
+                                marginTop: '10px',
                                 display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px',
-                              }}
-                            >
-                              {m.url ? (
-                                // The original photo, linked from its observation (CP-04 AC2).
-                                <a
-                                  href={m.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  aria-label={'Open ' + m.name}
-                                  style={{
-                                    width: '132px',
-                                    border: '1px solid var(--border-default)',
-                                    borderRadius: '5px',
-                                    background: 'var(--surface-card)',
-                                    overflow: 'hidden',
-                                    color: 'var(--text-muted)',
-                                    textDecoration: 'none',
-                                  }}
-                                >
-                                  {/* ponytail: loads the original; serve smaller copies if lists grow long. */}
-                                  <img
-                                    src={m.url}
-                                    alt=""
-                                    loading="lazy"
-                                    style={{ display: 'block', width: '100%', height: 'auto' }}
-                                  />
-                                  <span
-                                    style={{
-                                      display: 'block',
-                                      padding: '4px 6px',
-                                      fontFamily: 'var(--font-mono)',
-                                      fontSize: '12px',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                  >
-                                    {m.name}
-                                  </span>
-                                </a>
-                              ) : (
-                                <div
-                                  style={{
-                                    width: '132px',
-                                    border: '1px solid var(--border-default)',
-                                    borderRadius: '5px',
-                                    background: 'var(--surface-card)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    flexWrap: 'wrap',
-                                    padding: '16px 8px',
-                                  }}
-                                >
-                                  <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
-                                  <span
-                                    style={{
-                                      fontFamily: 'var(--font-mono)',
-                                      fontSize: '12px',
-                                      color: 'var(--text-muted)',
-                                    }}
-                                  >
-                                    {m.name}
-                                  </span>
-                                </div>
-                              )}
-                              {/* Kept to restore, never deleted (CP-08). */}
-                              {!!m.remove && (
-                                <Button
-                                  variant="danger-tonal"
-                                  size="sm"
-                                  iconLeft={IconRegistry.action.discard}
-                                  aria-label={'Remove ' + m.name}
-                                  onClick={m.remove}
-                                >
-                                  {'Remove'}
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                          {/* Adds recordings and photos to this observation (CP-08). */}
-                          {!!o.addMedia && (
-                            <button
-                              type="button"
-                              aria-label="Add media"
-                              onClick={o.addMedia}
-                              style={{
-                                width: '132px',
-                                minHeight: '76px',
-                                border: '1px dashed var(--border-strong)',
-                                borderRadius: '5px',
-                                background: 'transparent',
-                                color: 'var(--text-muted)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <Icon name={IconRegistry.action.add} size={18}></Icon>
-                            </button>
-                          )}
-                        </div>
-                        {o.media
-                          .filter((m) => m.addedLabel)
-                          .map((m, index) => (
-                            <p key={index} style={stampStyle}>
-                              {m.addedLabel}
-                            </p>
-                          ))}
-                        {o.removedMedia.length > 0 && (
-                          <details style={{ marginTop: '14px', fontSize: '14px' }}>
-                            <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                              {'Removed media (' + o.removedMedia.length + ')'}
-                            </summary>
-                            <ul
-                              aria-label="Removed media"
-                              style={{
-                                listStyle: 'none',
-                                margin: '8px 0 0',
-                                padding: 0,
-                                display: 'flex',
-                                flexDirection: 'column',
+                                flexWrap: 'wrap',
                                 gap: '10px',
                               }}
                             >
-                              {o.removedMedia.map((m) => (
-                                <li key={m.id} style={{ minWidth: 0 }}>
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '8px',
-                                      flexWrap: 'wrap',
-                                    }}
-                                  >
-                                    <Icon
-                                      name={m.kind === 'recordings' ? 'mic' : 'image'}
-                                      size={14}
-                                      color="var(--text-muted)"
-                                    ></Icon>
-                                    {m.kind === 'photos' && m.url ? (
-                                      <a href={m.url} target="_blank" rel="noreferrer">
-                                        {m.name}
-                                      </a>
-                                    ) : (
-                                      <span style={{ overflowWrap: 'anywhere' }}>{m.name}</span>
-                                    )}
-                                    {!!m.restore && (
-                                      <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        iconLeft={IconRegistry.action.reinstate}
-                                        aria-label={'Restore ' + m.name}
-                                        onClick={m.restore}
+                              {o.media.map((m, index) => (
+                                <div
+                                  key={index}
+                                  style={{
+                                    width: '132px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px',
+                                  }}
+                                >
+                                  {m.url ? (
+                                    // The original photo, linked from its observation (CP-04 AC2).
+                                    <a
+                                      href={m.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      aria-label={'Open ' + m.name}
+                                      style={{
+                                        width: '132px',
+                                        border: '1px solid var(--border-default)',
+                                        borderRadius: '5px',
+                                        background: 'var(--surface-card)',
+                                        overflow: 'hidden',
+                                        color: 'var(--text-muted)',
+                                        textDecoration: 'none',
+                                      }}
+                                    >
+                                      {/* ponytail: loads the original; serve smaller copies if lists grow long. */}
+                                      <img
+                                        src={m.url}
+                                        alt=""
+                                        loading="lazy"
+                                        style={{ display: 'block', width: '100%', height: 'auto' }}
+                                      />
+                                      <span
+                                        style={{
+                                          display: 'block',
+                                          padding: '4px 6px',
+                                          fontFamily: 'var(--font-mono)',
+                                          fontSize: '12px',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                        }}
                                       >
-                                        {'Restore'}
-                                      </Button>
-                                    )}
-                                  </div>
-                                  {m.kind === 'recordings' && !!m.url && (
-                                    <audio
-                                      controls
-                                      preload="none"
-                                      src={m.url}
-                                      aria-label={'Play ' + m.name}
-                                      style={{ display: 'block', width: '100%', marginTop: '6px' }}
-                                    />
+                                        {m.name}
+                                      </span>
+                                    </a>
+                                  ) : (
+                                    <div
+                                      style={{
+                                        width: '132px',
+                                        border: '1px solid var(--border-default)',
+                                        borderRadius: '5px',
+                                        background: 'var(--surface-card)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        flexWrap: 'wrap',
+                                        padding: '16px 8px',
+                                      }}
+                                    >
+                                      <Icon
+                                        name="image"
+                                        size={18}
+                                        color="var(--graphite-500)"
+                                      ></Icon>
+                                      <span
+                                        style={{
+                                          fontFamily: 'var(--font-mono)',
+                                          fontSize: '12px',
+                                          color: 'var(--text-muted)',
+                                        }}
+                                      >
+                                        {m.name}
+                                      </span>
+                                    </div>
                                   )}
-                                  <p style={{ ...stampStyle, margin: '4px 0 0' }}>
-                                    {m.removedLabel}
-                                  </p>
-                                </li>
+                                  {/* Kept to restore, never deleted (CP-08). */}
+                                  {!!m.remove && (
+                                    <Button
+                                      variant="danger-tonal"
+                                      size="sm"
+                                      iconLeft={IconRegistry.action.discard}
+                                      aria-label={'Remove ' + m.name}
+                                      onClick={m.remove}
+                                    >
+                                      {'Remove'}
+                                    </Button>
+                                  )}
+                                </div>
                               ))}
-                            </ul>
-                          </details>
+                            </div>
+                            {o.media
+                              .filter((m) => m.addedLabel)
+                              .map((m, index) => (
+                                <p key={index} style={stampStyle}>
+                                  {m.addedLabel}
+                                </p>
+                              ))}
+                            {/* What the photo service reads in them, beside the photos. */}
+                            {!!o.proposal && <PhotoProposal o={o} proposal={o.proposal} />}
+                          </div>
+                        )}
+                      </div>
+                      {o.removedMedia.length > 0 && (
+                        <details style={{ marginTop: '14px', fontSize: '14px' }}>
+                          <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            {'Removed media (' + o.removedMedia.length + ')'}
+                          </summary>
+                          <ul
+                            aria-label="Removed media"
+                            style={{
+                              listStyle: 'none',
+                              margin: '8px 0 0',
+                              padding: 0,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
+                            }}
+                          >
+                            {o.removedMedia.map((m) => (
+                              <li key={m.id} style={{ minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  <Icon
+                                    name={m.kind === 'recordings' ? 'mic' : 'image'}
+                                    size={14}
+                                    color="var(--text-muted)"
+                                  ></Icon>
+                                  {m.kind === 'photos' && m.url ? (
+                                    <a href={m.url} target="_blank" rel="noreferrer">
+                                      {m.name}
+                                    </a>
+                                  ) : (
+                                    <span style={{ overflowWrap: 'anywhere' }}>{m.name}</span>
+                                  )}
+                                  {!!m.restore && (
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      iconLeft={IconRegistry.action.reinstate}
+                                      aria-label={'Restore ' + m.name}
+                                      onClick={m.restore}
+                                    >
+                                      {'Restore'}
+                                    </Button>
+                                  )}
+                                </div>
+                                {m.kind === 'recordings' && !!m.url && (
+                                  <audio
+                                    controls
+                                    preload="none"
+                                    src={m.url}
+                                    aria-label={'Play ' + m.name}
+                                    style={{ display: 'block', width: '100%', marginTop: '6px' }}
+                                  />
+                                )}
+                                <p style={{ ...stampStyle, margin: '4px 0 0' }}>{m.removedLabel}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                      {/* The observation's own actions in one row: who changed it
+                          last, then Edit and Add media, and Delete apart at the
+                          bottom right so it is not pressed by mistake. */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                          paddingTop: '14px',
+                          borderTop: '1px solid var(--border-subtle)',
+                        }}
+                      >
+                        <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                          {!!o.deletedLabel && (
+                            <p style={{ ...stampStyle, margin: 0 }}>{o.deletedLabel}</p>
+                          )}
+                          {!!o.editedLabel && (
+                            <p style={{ ...stampStyle, margin: 0 }}>{o.editedLabel}</p>
+                          )}
+                        </div>
+                        {!!o.hasStd && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            iconLeft="book-marked"
+                            onClick={v.openEvidenceSource}
+                          >
+                            {o.std}
+                          </Button>
+                        )}
+                        {o.canChange && (
+                          <>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              iconLeft={IconRegistry.action.edit}
+                              onClick={o.editTags}
+                            >
+                              {'Edit'}
+                            </Button>
+                            {!!o.addMedia && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                iconLeft={IconRegistry.action.add}
+                                onClick={o.addMedia}
+                              >
+                                {'Add media'}
+                              </Button>
+                            )}
+                            <Button
+                              variant="danger-tonal"
+                              size="sm"
+                              iconLeft={IconRegistry.action.discard}
+                              onClick={o.deleteObs}
+                              style={{ marginLeft: '8px' }}
+                            >
+                              {'Delete observation'}
+                            </Button>
+                          </>
+                        )}
+                        {o.canRestore && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            iconLeft={IconRegistry.action.reinstate}
+                            onClick={o.restoreObs}
+                          >
+                            {'Restore'}
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -988,7 +1013,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               <EmptyState
                 icon={IconRegistry.action.discard}
                 title="No deleted observations"
-                description="An observation you delete is listed here, where you can restore it. Choose Hide deleted to see the observations on file."
+                description="An observation you delete is listed here, where you can restore it. Choose Back to observations to see the observations on file."
               ></EmptyState>
             </div>
           )}
