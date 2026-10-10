@@ -12,6 +12,7 @@ If Docling cannot parse the document we raise `UnparsableDocumentError`, which a
 later OCR extraction path can catch (Todo for later stories).
 """
 
+import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -204,8 +205,14 @@ def _fallback_extract(file_path: str) -> tuple[list[CapturedItem], list[Captured
 
 
 # Bound a single document's processing time so a pathological file cannot hang
-# the pipeline indefinitely (seconds).
-_DOCUMENT_TIMEOUT_SECONDS = 600.0
+# the pipeline indefinitely (seconds). DOCLING_DOCUMENT_TIMEOUT overrides it; 30
+# minutes leaves room for a large standard on a 2-vCPU cloud instance.
+_DOCUMENT_TIMEOUT_SECONDS = 1800.0
+
+
+def _document_timeout() -> float:
+    value = os.getenv("DOCLING_DOCUMENT_TIMEOUT", "").strip()
+    return float(value) if value else _DOCUMENT_TIMEOUT_SECONDS
 
 
 @lru_cache(maxsize=1)
@@ -228,7 +235,7 @@ def _converter() -> DocumentConverter:
     pipeline_options = PdfPipelineOptions(
         do_ocr=True,
         do_table_structure=False,
-        document_timeout=_DOCUMENT_TIMEOUT_SECONDS,
+        document_timeout=_document_timeout(),
         do_formula_enrichment=do_formula_enrichment,
         ocr_options=ocr_options,
     )

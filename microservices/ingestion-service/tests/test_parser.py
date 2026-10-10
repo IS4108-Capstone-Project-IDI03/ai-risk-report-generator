@@ -163,3 +163,32 @@ def test_full_document_parse():
     orders = [b.order for b in doc.text_blocks]
     assert orders == sorted(orders)
     assert len(set(orders)) == len(orders)
+
+
+# --- parse timeout (IN-12) ----------------------------------------------------
+# On a 2-vCPU cloud box a large standard parses for well over the old 600 s.
+
+
+def _pdf_timeout(monkeypatch, value):
+    from docling.datamodel.base_models import InputFormat
+
+    from app.pipeline import parser
+
+    if value is None:
+        monkeypatch.delenv("DOCLING_DOCUMENT_TIMEOUT", raising=False)
+    else:
+        monkeypatch.setenv("DOCLING_DOCUMENT_TIMEOUT", value)
+    parser._converter.cache_clear()
+    try:
+        options = parser._converter().format_to_options[InputFormat.PDF].pipeline_options
+        return options.document_timeout
+    finally:
+        parser._converter.cache_clear()
+
+
+def test_parse_timeout_defaults_to_thirty_minutes(monkeypatch):
+    assert _pdf_timeout(monkeypatch, None) == 1800.0
+
+
+def test_parse_timeout_comes_from_docling_document_timeout(monkeypatch):
+    assert _pdf_timeout(monkeypatch, "2400") == 2400.0
