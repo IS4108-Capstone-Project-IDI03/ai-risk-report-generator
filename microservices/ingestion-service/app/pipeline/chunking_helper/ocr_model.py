@@ -44,7 +44,7 @@ TABLE_HEADER_DETECTION_THRESHOLD = 1.3
 # Who reads table/formula crops, set by OCR_PROVIDER (never hardcoded, as with
 # LLM_PROVIDER and VISION_PROVIDER). glm is the default until the GLM-vs-Gemini
 # comparison settles it.
-OCR_PROVIDERS = ("gemini", "glm")
+OCR_PROVIDERS = ("anthropic", "gemini", "glm")
 
 # GLM-OCR's own task prompts, copied from the SDK's packaged config.yaml
 # (`pipeline.page_loader.task_prompt_mapping`). The model was trained against
@@ -212,8 +212,12 @@ def recognise(image_png: bytes, task: str) -> str | None:
     provider = os.getenv("OCR_PROVIDER", "").strip() or "glm"
     if provider not in OCR_PROVIDERS:
         raise ValueError(f"OCR_PROVIDER {provider!r} is not supported; use one of {OCR_PROVIDERS}")
+    # API providers are imported here so the GLM path never loads their SDKs.
+    if provider == "anthropic":
+        from app.pipeline.chunking_helper import anthropic_ocr
+
+        return anthropic_ocr.recognise(image_png, task)
     if provider == "gemini":
-        # Imported here so the GLM path never loads the Gemini SDK.
         from app.pipeline.chunking_helper import gemini_ocr
 
         return gemini_ocr.recognise(image_png, task)

@@ -117,3 +117,10 @@ def test_an_unknown_provider_is_named_in_the_error(monkeypatch):
 
     with pytest.raises(ValueError, match=r"'textract'.*gemini.*glm"):
         ocr_model.recognise(PNG, "table")
+
+
+def test_a_rejected_api_key_fails_loudly_instead_of_dropping_every_table(gemini):
+    gemini.replies.append(_HttpError(401))
+
+    with pytest.raises(_HttpError):
+        ocr_model.recognise(PNG, "table")

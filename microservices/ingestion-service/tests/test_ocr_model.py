@@ -46,6 +46,8 @@ def fake_client(monkeypatch):
     """Swap in the recorder and guarantee a cold cache around every test."""
     _FakeClient.instances = []
     ocr_model.close_ocr_client()
+    # Explicit, so a developer's .env (loaded by other modules) can't pick another provider.
+    monkeypatch.setenv("OCR_PROVIDER", "glm")
     monkeypatch.setattr(ocr_model, "OCRClient", _FakeClient)
     yield _FakeClient
     ocr_model.close_ocr_client()
