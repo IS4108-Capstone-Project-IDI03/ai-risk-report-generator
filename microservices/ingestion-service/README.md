@@ -9,8 +9,8 @@ Install:
 
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Chroma,
-  Ollama, and the full stack
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) for the full
+  stack, local Chroma/Mongo, and (optionally) self-hosted GLM-OCR
 
 The commands below use PowerShell. Run Docker Compose commands from the **repository
 root**, not from this directory.
@@ -24,7 +24,9 @@ Copy-Item .env.example .env
 ```
 
 Open `.env` and replace any required `REPLACE_ME` values. Set
-`COHERE_API_KEY` before running document indexing.
+`COHERE_API_KEY` before running document indexing, and `ANTHROPIC_API_KEY` for
+table/formula OCR (`OCR_PROVIDER=anthropic`, the default; see the OCR block in
+`.env.example`).
 
 From this directory:
 
@@ -41,15 +43,13 @@ commands with `uv run`.
 Start the supporting services from the repository root:
 
 ```powershell
-docker compose up -d chroma ollama
-docker compose run --rm ollama-pull
+docker compose --profile local-db up -d chroma
 ```
 
-Or to build and start all services:
-
-```powershell
-docker compose up -d
-```
+Skip this when `.env` uses Chroma Cloud (`CHROMA_MODE=cloud`). Table/formula OCR
+calls the `OCR_PROVIDER` API, so nothing else is needed locally. For
+self-hosted GLM-OCR instead, see
+[Self-hosted GLM-OCR](#self-hosted-glm-ocr-optional).
 
 Then start the ingestion API from this directory:
 
@@ -95,18 +95,29 @@ changing dependencies:
 docker compose build ingestion-service ingestion-worker ingestion-test
 ```
 
-Start the full stack:
+Start the full stack. The default is cloud mode: Atlas (`MONGODB_URI`), Chroma
+Cloud (`CHROMA_MODE=cloud`) and API OCR, with no Ollama. The image holds
+CPU-only torch and Docling's models, so containers never download them:
 
 ```powershell
 docker compose up -d
 ```
 
-Ollama downloads the `glm-ocr` model before the ingestion service becomes ready.
-Check progress and service status with:
+Add `--profile local-db` to also run local Mongo and Chroma containers:
 
 ```powershell
-docker compose logs -f ollama-pull
-docker compose ps
+docker compose --profile local-db up -d
+```
+
+### Self-hosted GLM-OCR (optional)
+
+The `docker-compose.local-ocr.yml` overlay adds Ollama with the `glm-ocr` model
+(~2 GB), builds the image with the `local-ocr` extra and sets `OCR_PROVIDER=glm`.
+With an NVIDIA GPU, add `docker-compose.gpu.yml` as a third `-f`:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.local-ocr.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.local-ocr.yml logs -f ollama-pull
 ```
 
 View ingestion logs:
@@ -138,11 +149,19 @@ Use the real OCR service instead of the test stub by adding `--real-ocr`:
 uv run pytest -m "not slow or slow" --real-ocr
 ```
 
-Real OCR requires Ollama to be running with the `glm-ocr` model. It can be slow
-on CPU.
+Real OCR calls the `OCR_PROVIDER` API (a few cents per document with Claude
+Haiku), or Ollama's `glm-ocr` model with `OCR_PROVIDER=glm` (slow on CPU). To
+send a real FM-200 table and formula crop to the provider and print the result:
 
-Tests marked `chroma` need the local Chroma server (`docker compose up -d
-chroma`, `CHROMA_MODE=local`):
+```powershell
+uv run pytest -m live -s tests/test_ocr_live.py
+```
+
+To compare providers on FM-200's tables (numbers scored against the PDF's own
+text), see `eval/ocr/run_eval.py`.
+
+Tests marked `chroma` need the local Chroma server (`docker compose --profile
+local-db up -d chroma`, `CHROMA_MODE=local`):
 
 ```powershell
 uv run pytest -m chroma
@@ -168,9 +187,11 @@ weights. If those are unavailable, pytest reports a skip.
 To run the test suite in Docker instead, use the repository root:
 
 ```powershell
-docker compose run --rm ingestion-test
-docker compose run --rm ingestion-test uv run pytest -q --tb=short --real-ocr
+docker compose --profile test run --rm --build ingestion-test
 ```
+
+The container run skips `slow`, `inspect` and `live` tests, so it makes no paid
+OCR calls.
 
 ## Troubleshooting
 
@@ -185,33 +206,36 @@ uv --version
 ### Docker cannot start or a port is already in use
 
 Start Docker Desktop and wait until it reports that the engine is running. The
-local stack uses ports `8000` (Chroma), `8001` (ingestion), and `11434`
-(Ollama).
+local stack uses ports `8000` (Chroma, `local-db` profile), `8001` (ingestion),
+and `11434` (Ollama, local-OCR overlay only).
 
 If port `11434` is occupied by Ollama Desktop, quit Ollama from the Windows
-system tray before running Compose. Check the port with:
+system tray before running the local-OCR overlay. Check the port with:
 
 ```powershell
 netstat -ano | findstr ":11434"
 ```
 
-### Ollama model or OCR connection fails
+### OCR fails
 
-From the repository root, check the model pull and service:
+With an API provider, check the provider's key in `.env`. A rejected key, missing
+permission or unknown model fails the document with that error instead of
+silently dropping its tables.
+
+With the local-OCR overlay, check the model pull and service from the repository
+root:
 
 ```powershell
-docker compose logs ollama-pull
-docker compose exec ollama ollama list
+docker compose -f docker-compose.yml -f docker-compose.local-ocr.yml logs ollama-pull
+docker compose -f docker-compose.yml -f docker-compose.local-ocr.yml exec ollama ollama list
 ```
-
-Run `docker compose run --rm ollama-pull` again if `glm-ocr` is missing.
 
 ### Tests skip Docling or fixture-dependent cases
 
 The model-based tests need the fixture PDF under
 `tests/test_files/` and Docling model weights. Run `uv sync` first and allow
-the first test run to download the models. For Docker tests, check that
-`HUGGINGFACE_CACHE` in the root `.env` points to a valid host cache directory.
+the first test run to download the models. Docker images already contain them
+(downloaded at build time).
 
 ### Local code cannot connect to Chroma or Ollama
 

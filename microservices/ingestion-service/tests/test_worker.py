@@ -11,6 +11,7 @@ from bson import ObjectId
 
 from app import worker
 from app.pipeline import UnparsableDocumentError
+from app.pipeline.errors import DocumentTimeoutError
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
@@ -42,9 +43,18 @@ class FakeDocuments:
         # _id only. Honour both so one fake serves claim and complete/fail.
         if query["_id"] != self.doc["_id"]:
             return None
-        if "status" in query and self.doc["status"] not in query["status"]["$in"]:
+        if "status" in query:
+            expected = query["status"]
+            if isinstance(expected, dict) and "$in" in expected:
+                if self.doc["status"] not in expected["$in"]:
+                    return None
+            elif self.doc["status"] != expected:
+                return None
+        if "cancelRequestedAt" in query and "cancelRequestedAt" in self.doc:
             return None
         self.doc.update(update["$set"])
+        for field in update.get("$unset", {}):
+            self.doc.pop(field, None)
         return dict(self.doc)
 
     def update_one(self, query, update):
@@ -55,6 +65,8 @@ class FakeDocuments:
     others: dict = {}
 
     def find_one(self, query, _projection=None):
+        if query["_id"] == self.doc["_id"]:
+            return dict(self.doc)
         return self.others.get(query["_id"])
 
 
@@ -110,10 +122,14 @@ def documents(monkeypatch):
     )
     # IN-07: matching and relabelling have their own tests; here they are recorded.
     fake.calls = []
+    fake.deleted_passages = []
     fake.match = None
     monkeypatch.setattr(worker, "find_match", lambda doc, _coll: fake.match)
     monkeypatch.setattr(
         worker, "relabel_passages", lambda doc: fake.calls.append(labels_of(doc)) or 1
+    )
+    monkeypatch.setattr(
+        worker, "delete_passages", lambda doc_id: fake.deleted_passages.append(doc_id) or 1
     )
     # Expose the jobs collection and captured notifications on the fixture.
     fake.jobs = jobs
@@ -230,6 +246,22 @@ def test_a_pdf_whose_text_cannot_be_read_is_failed_with_a_plain_reason(documents
     assert "finishedAt" in documents.doc
 
 
+def test_a_parse_that_ran_out_of_time_is_failed_with_the_limit_to_raise(documents, monkeypatch):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        raise DocumentTimeoutError("Docling stopped at the 1800 s limit: processed 300/577 pages")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(DocumentTimeoutError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert documents.doc["error"] == (
+        "Reading this PDF took longer than the time limit, so nothing was indexed. "
+        "Raise DOCLING_DOCUMENT_TIMEOUT on the server and upload it again."
+    )
+
+
 def test_a_system_error_is_failed_with_a_plain_reason_not_the_technical_one(documents, monkeypatch):
     def fake_run(file_path, doc_id=None, labels=None, reporter=None):
         raise OSError(-2, "Name or service not known")
@@ -267,6 +299,72 @@ def test_a_document_interrupted_mid_processing_is_processed_again(documents, mon
     worker.ingest_document(DOC_ID)
 
     assert documents.doc["status"] == "complete"
+
+
+def test_a_cancelled_queued_document_is_not_claimed(documents, monkeypatch):
+    documents.doc["status"] = "cancelled"
+    monkeypatch.setattr(worker, "run", lambda *a, **k: pytest.fail("run() must not be called"))
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+
+
+def test_a_redelivered_cancelled_document_cleans_partial_passages(documents, monkeypatch):
+    # The worker may crash after the gateway marks an active document cancelled.
+    # BullMQ redelivers the stalled job when the worker comes back.
+    documents.doc["status"] = "cancelled"
+    monkeypatch.setattr(worker, "run", lambda *a, **k: pytest.fail("run() must not be called"))
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+    assert documents.deleted_passages == [DOC_ID]
+
+
+def test_a_processing_cancellation_cleans_partial_passages_and_does_not_notify(
+    documents, monkeypatch
+):
+    def fake_run(*_args, **_kwargs):
+        documents.doc["cancelRequestedAt"] = datetime.now()
+        return RUN_OK()
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+    assert "cancelRequestedAt" not in documents.doc
+    assert documents.deleted_passages == [DOC_ID]
+    assert documents.notifications == []
+
+
+def test_a_cancellation_job_finishes_a_stale_processing_document(documents):
+    documents.doc["status"] = "processing"
+    documents.doc["cancelRequestedAt"] = datetime.now()
+
+    worker.cancel_document(DOC_ID)
+
+    assert documents.doc["status"] == "cancelled"
+    assert documents.deleted_passages == [DOC_ID]
+    assert documents.notifications == []
+
+
+def test_cancellation_is_checked_between_pipeline_chunks(documents, monkeypatch):
+    checks = []
+
+    class Reporter:
+        def check_cancelled(self):
+            checks.append(True)
+            if len(checks) == 2:
+                raise worker.IngestionCancelledError()
+
+    reporter = Reporter()
+    with pytest.raises(worker.IngestionCancelledError):
+        reporter.check_cancelled()
+        reporter.check_cancelled()
+
+    assert len(checks) == 2
 
 
 def test_documents_share_one_database_client(monkeypatch):
@@ -448,3 +546,18 @@ def test_a_finished_document_that_needs_review_notifies_why(documents, monkeypat
     note = documents.notifications[0]
     assert note["status"] == "complete"
     assert note["review_reason"] == "Possible copy of NFPA 13 (2019 edition)"
+
+
+def test_a_failed_ingestion_removes_the_passages_it_already_wrote(documents, monkeypatch):
+    # Chroma writes in batches: a failure after some were stored must not leave
+    # those passages searchable under a document marked Failed.
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        raise OSError(-2, "Name or service not known")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(OSError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert documents.deleted_passages == [DOC_ID]

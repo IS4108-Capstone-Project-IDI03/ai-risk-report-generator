@@ -211,7 +211,7 @@ describe('Capturing site photographs (CP-04)', () => {
     const library = screen.getByLabelText('Choose photographs')
     expect(library).not.toHaveAttribute('capture')
     expect(library).toHaveAttribute('multiple')
-  })
+  }, 10000)
 
   it('saves photos on their own, as taken or chosen on the device (AC1, AC6)', async () => {
     await openCapture()

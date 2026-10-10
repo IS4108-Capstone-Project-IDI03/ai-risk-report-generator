@@ -203,7 +203,6 @@ const STATE = {
   failed: { tone: 'critical', icon: 'octagon-alert', label: 'Failed' },
 } as const
 
-const columns = '48px minmax(0,1fr) 140px 280px'
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 // Sections 7-12 of the report for a saved assessment (GN-01), laid out like
@@ -297,7 +296,7 @@ export function SectionDrafts({
 
   return (
     <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
-      <div style={{ maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <Callout tone="ai" title={running ? 'Drafting in progress' : 'Draft sections 7 to 12'}>
           {running
             ? 'Sections appear here as each one completes. Each takes a minute or two.'
@@ -310,7 +309,7 @@ export function SectionDrafts({
         )}
         {!sections && !loadError && <p style={muted}>Loading the report sections…</p>}
         {sections && (
-          <div style={card}>
+          <div className="generation-card" style={card}>
             <div
               style={{
                 display: 'flex',
@@ -353,9 +352,9 @@ export function SectionDrafts({
               )}
             </div>
             <div
+              className="generation-row generation-header"
               style={{
                 display: 'grid',
-                gridTemplateColumns: columns,
                 alignItems: 'center',
                 padding: '0 20px',
                 height: '34px',
@@ -370,16 +369,12 @@ export function SectionDrafts({
             >
               <span>{'\u00a7'}</span>
               <span>Section</span>
+              <span>Status</span>
               <span>Evidence</span>
               <span />
             </div>
             {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
-            <OfiRow
-              reference={reference}
-              canDraft={canDraft}
-              observations={observations ?? []}
-              columns={columns}
-            />
+            <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
             {sections.map((s) => {
               const state = stateOf(s)
               const failed = failures[s.id]
@@ -387,9 +382,9 @@ export function SectionDrafts({
                 <Fragment key={s.id}>
                   <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <div
+                      className="generation-row"
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: columns,
                         alignItems: 'center',
                         padding: '12px 20px',
                       }}
@@ -413,9 +408,6 @@ export function SectionDrafts({
                           }}
                         >
                           <span style={{ fontSize: '16px', fontWeight: 500 }}>{s.title}</span>
-                          <Badge tone={state.tone} icon={state.icon}>
-                            {state.label}
-                          </Badge>
                         </span>
                         {s.latestDraft && s.changesSinceDraft > 0 && (
                           <span
@@ -458,6 +450,11 @@ export function SectionDrafts({
                             {s.copeDimensions.join(' or ')}.
                           </span>
                         )}
+                      </span>
+                      <span className="generation-status">
+                        <Badge tone={state.tone} icon={state.icon}>
+                          {state.label}
+                        </Badge>
                       </span>
                       <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
                         {plural(s.usableObservations, 'observation')}

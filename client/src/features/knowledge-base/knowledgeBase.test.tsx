@@ -216,7 +216,7 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     expect(within(table).getByText('Complete')).toBeInTheDocument()
     expect(
       within(table).getByText(
-        'Complete uploads leave this list after 24 hours, failed ones after 7 days.',
+        'Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.',
       ),
     ).toBeInTheDocument()
     expect(within(table).getAllByRole('link', { name: /View original/ })[0]).toHaveAttribute(
@@ -321,7 +321,7 @@ describe('Ingestion stage tracking (E2)', () => {
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(await within(region).findByText('Chunking')).toBeInTheDocument()
-    expect(within(region).getByText('| Pg 12 / 45')).toBeInTheDocument()
+    expect(within(region).getByText('12 / 45 pages')).toBeInTheDocument()
   })
 
   it('shows the page without a total when the page count is unknown', async () => {
@@ -329,7 +329,7 @@ describe('Ingestion stage tracking (E2)', () => {
     await openAddDocuments()
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
-    expect(await within(region).findByText('| Pg 12')).toBeInTheDocument()
+    expect(await within(region).findByText('12 pages')).toBeInTheDocument()
   })
 
   it('falls back to the Processing badge when a processing document has no progress yet', async () => {
