@@ -11,6 +11,7 @@ from bson import ObjectId
 
 from app import worker
 from app.pipeline import UnparsableDocumentError
+from app.pipeline.errors import DocumentTimeoutError
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
@@ -243,6 +244,22 @@ def test_a_pdf_whose_text_cannot_be_read_is_failed_with_a_plain_reason(documents
         == "No text could be read from this PDF. Upload a copy with selectable text."
     )
     assert "finishedAt" in documents.doc
+
+
+def test_a_parse_that_ran_out_of_time_is_failed_with_the_limit_to_raise(documents, monkeypatch):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        raise DocumentTimeoutError("Docling stopped at the 1800 s limit: processed 300/577 pages")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(DocumentTimeoutError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert documents.doc["error"] == (
+        "Reading this PDF took longer than the time limit, so nothing was indexed. "
+        "Raise DOCLING_DOCUMENT_TIMEOUT on the server and upload it again."
+    )
 
 
 def test_a_system_error_is_failed_with_a_plain_reason_not_the_technical_one(documents, monkeypatch):
