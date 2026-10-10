@@ -114,3 +114,47 @@ def test_missing_key_has_actionable_error(monkeypatch):
     monkeypatch.delenv("COHERE_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="Set COHERE_API_KEY"):
         cohere_client()
+
+
+# --- passages over Chroma Cloud's size limit (IN-12) ----------------------------
+# Chroma Cloud rejects a stored document over 16,384 bytes. Table chunks are kept
+# whole and their records repeat every heading, so long tables exceed it. Each
+# record line carries its own headings, so splitting between lines loses nothing.
+
+
+def _stored(monkeypatch):
+    cohere, chroma = Mock(), Mock()
+    cohere.embed.side_effect = lambda **kw: SimpleNamespace(
+        embeddings=SimpleNamespace(float_=[[0.1]] * len(kw["texts"]))
+    )
+    monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
+    monkeypatch.setattr(indexer, "chroma_client", lambda: chroma)
+    return chroma.get_or_create_collection.return_value.upsert
+
+
+def test_a_table_over_the_size_limit_is_stored_as_parts_split_between_records(monkeypatch):
+    upsert = _stored(monkeypatch)
+    row = "Temp: {t}; Design Concentration (% per volume) 7: " + "0.0391 " * 1000
+    rows = [row.format(t=t) for t in (10, 20, 30)]  # ~7 kB each, ~21 kB in all
+    meta = {"doc_id": "fm200", "page_start": 48, "page_end": 48, "bbox": [1.0, 2.0, 3.0, 4.0]}
+    small = {"id": "fm200:3", "text": "Short passage.", "metadata": {"doc_id": "fm200"}}
+    table = {"id": "fm200:table:7", "text": "\n".join(rows), "metadata": meta}
+
+    assert indexer.index_chunks([small, table]) == 3
+
+    stored = upsert.call_args.kwargs
+    assert stored["ids"] == ["fm200:3", "fm200:table:7:part1", "fm200:table:7:part2"]
+    assert stored["documents"] == ["Short passage.", "\n".join(rows[:2]), rows[2]]
+    assert stored["metadatas"] == [{"doc_id": "fm200"}, meta, meta]
+    assert all(len(d.encode("utf-8")) <= 16384 for d in stored["documents"])
+
+
+def test_a_single_line_over_the_limit_is_split_at_spaces():
+    # No line breaks to split at (e.g. a giant record): fall back to word boundaries.
+    line = " ".join(f"value{n:05d}" for n in range(3000))  # ~33 kB, one line
+
+    parts = indexer.split_for_storage(line)
+
+    assert len(parts) == 3
+    assert all(len(p.encode("utf-8")) <= 16384 for p in parts)
+    assert " ".join(parts) == line
