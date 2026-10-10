@@ -546,3 +546,18 @@ def test_a_finished_document_that_needs_review_notifies_why(documents, monkeypat
     note = documents.notifications[0]
     assert note["status"] == "complete"
     assert note["review_reason"] == "Possible copy of NFPA 13 (2019 edition)"
+
+
+def test_a_failed_ingestion_removes_the_passages_it_already_wrote(documents, monkeypatch):
+    # Chroma writes in batches: a failure after some were stored must not leave
+    # those passages searchable under a document marked Failed.
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        raise OSError(-2, "Name or service not known")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(OSError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert documents.deleted_passages == [DOC_ID]
