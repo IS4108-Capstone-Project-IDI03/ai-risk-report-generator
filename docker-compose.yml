@@ -119,7 +119,7 @@ services:
     build:
       context: ./microservices/ingestion-service
       target: test
-    command: ["uv", "run", "pytest", "-q", "--tb=short", "-m", "not slow and not inspect"]
+    command: ["uv", "run", "pytest", "-q", "--tb=short", "-m", "not slow and not inspect and not live"]
     env_file: .env
     environment:
       CHROMA_HOST: chroma

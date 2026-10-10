@@ -28,6 +28,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.18 /uv /usr/local/bin/uv
 # build time (the cpu torch) and reach the network.
 # DOCLING_ARTIFACTS_PATH / HF_HOME: models are downloaded into the image (deps
 # stage), never at runtime.
+# Every `uv sync` keeps uv's download cache in a BuildKit cache mount, which
+# speeds up rebuilds without shipping the cache (~2 GB) in the image.
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
@@ -45,7 +47,7 @@ ARG UV_EXTRAS
 # this layer (the heavy one) is still valid in the cache.
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-install-project --no-dev ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project --no-dev ${UV_EXTRAS}
 
 # Docling's layout + RapidOCR models and the chunker's bge-m3 tokenizer (files
 # only, no weights), so a container never downloads from Hugging Face.
@@ -62,12 +64,12 @@ RUN uv run docling-tools models download layout rapidocr -o "$DOCLING_ARTIFACTS_
 FROM deps AS test
 ARG UV_EXTRAS
 
-RUN uv sync --frozen --no-install-project ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project ${UV_EXTRAS}
 
 COPY . .
-RUN uv sync --frozen ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen ${UV_EXTRAS}
 
-CMD ["uv", "run", "pytest", "-q", "--tb=short", "-m", "not slow and not inspect"]
+CMD ["uv", "run", "pytest", "-q", "--tb=short", "-m", "not slow and not inspect and not live"]
 
 # ── production ────────────────────────────────────────────────────────────────
 FROM deps AS production
@@ -77,7 +79,7 @@ ARG UV_EXTRAS
 COPY app/ ./app/
 COPY config.yml ./
 
-RUN uv sync --frozen --no-dev ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev ${UV_EXTRAS}
 
 EXPOSE 8001
 
