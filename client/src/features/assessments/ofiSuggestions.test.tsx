@@ -97,14 +97,7 @@ function mockGateway(suggestions: Ofi[]) {
 }
 
 function renderRow(canDraft = true) {
-  render(
-    <OfiRow
-      reference={REF}
-      canDraft={canDraft}
-      observations={[VALVE, PANEL]}
-      columns="48px 1fr 140px 280px"
-    />,
-  )
+  render(<OfiRow reference={REF} canDraft={canDraft} observations={[VALVE, PANEL]} />)
 }
 
 afterEach(() => {

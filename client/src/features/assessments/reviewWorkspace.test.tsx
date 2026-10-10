@@ -1,9 +1,21 @@
+import { SourcePanel } from './components/SourcePanel'
+import type { SavedObservation } from './api'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { AcceptedOfi, OfiList, ReviewSection, SourcePassage } from './api'
+
+// jsdom does not implement native modal dialogs.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
 
 const REF = 'RPT-2026-0001'
 const RECORD = {
@@ -472,4 +484,55 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   fireEvent.click(within(editor()).getByRole('button', { name: 'Previous' }))
   expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
   ofis = { suggestions: [], accepted: [] }
+})
+
+it('opens referenced observation photos from Review citations without inline images', () => {
+  const observation: SavedObservation = {
+    id: 'o1',
+    engineer: 'Alex',
+    copeDimension: 'Construction',
+    severity: 'high',
+    standard: null,
+    location: null,
+    note: null,
+    recordings: [],
+    interpretation: null,
+    edited: null,
+    deleted: null,
+    recordedAt: '2026-10-10T06:00:00Z',
+    photos: [
+      { id: 'p1', name: 'riser.jpg', contentType: 'image/jpeg', size: 100, url: '/riser.jpg' },
+    ],
+  }
+  const props = {
+    section: CONSTRUCTION,
+    savedObservations: [observation],
+    focus: { citation: null, statement: null },
+    describe: () => 'Observation',
+    onCite: vi.fn(),
+    onShowClaim: vi.fn(),
+    style: {},
+  }
+  const view = render(<SourcePanel {...props} numbers={new Map([['O:o1', 1]])} />)
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  const photoLink = screen.getByRole('button', { name: 'View photo' })
+  const observationCard = photoLink.closest('li')!
+  expect(within(observationCard).getByText('Riser B, Level 3')).toBeInTheDocument()
+  expect(within(observationCard).getByRole('button', { name: 'View photo' })).toBeInTheDocument()
+  expect(screen.queryByText('riser.jpg')).not.toBeInTheDocument()
+  expect(photoLink.closest('[role="button"]')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'View photo' }))
+  expect(
+    within(screen.getByRole('dialog', { name: 'riser.jpg' })).getByText(
+      'Observation 1 · Riser B, Level 3',
+    ),
+  ).toBeInTheDocument()
+  expect(props.onCite).not.toHaveBeenCalled()
+  expect(
+    within(screen.getByRole('dialog', { name: 'riser.jpg' })).getByRole('img'),
+  ).toHaveAttribute('src', '/riser.jpg')
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  view.rerender(<SourcePanel {...props} numbers={new Map()} />)
+  expect(screen.queryByRole('button', { name: 'View photo' })).not.toBeInTheDocument()
 })

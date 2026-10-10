@@ -402,3 +402,13 @@
 .rv-block-label {
   color: var(--text-muted);
 }
+
+.rv-observation-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-card);
+}
+.rv-observation-photos {
+  padding: 0 var(--space-6) var(--space-4) calc(var(--space-6) + 18px + var(--space-5));
+}
