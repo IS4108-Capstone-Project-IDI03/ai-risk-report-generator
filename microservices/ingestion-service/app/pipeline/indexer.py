@@ -20,6 +20,7 @@ Chunk (as produced by chunker.chunk and consumed here):
         "page_start":   int,  # present only when known
         "page_end":     int,  # present only when known
         "bbox":         list[float], # flattened [l, t, r, b] values in page order
+        "bbox_pages":   list[int],   # page of each 4-number box in bbox (IN-12)
     },
 }
 Note: the embedding is NOT a chunk field — index_chunks computes it from `text`.

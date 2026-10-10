@@ -42,9 +42,11 @@ except ImportError:  # the cloud image leaves out the local-ocr extra
 TABLE_HEADER_DETECTION_THRESHOLD = 1.3
 
 # Who reads table/formula crops, set by OCR_PROVIDER (never hardcoded, as with
-# LLM_PROVIDER and VISION_PROVIDER). glm is the default until the GLM-vs-Gemini
-# comparison settles it.
+# LLM_PROVIDER and VISION_PROVIDER). anthropic is the default: on FM-200 tables
+# Claude Haiku 5.5 read 99% of numbers in ~4 s, GLM-OCR on CPU 73% in ~150 s
+# (eval/ocr/results/2026-10-10.md).
 OCR_PROVIDERS = ("anthropic", "gemini", "glm")
+DEFAULT_OCR_PROVIDER = "anthropic"
 
 # GLM-OCR's own task prompts, copied from the SDK's packaged config.yaml
 # (`pipeline.page_loader.task_prompt_mapping`). The model was trained against
@@ -209,7 +211,7 @@ def recognise(image_png: bytes, task: str) -> str | None:
         expected = sorted(TASK_PROMPTS)
         raise ValueError(f"unknown OCR task {task!r}; expected one of {expected}") from None
 
-    provider = os.getenv("OCR_PROVIDER", "").strip() or "glm"
+    provider = os.getenv("OCR_PROVIDER", "").strip() or DEFAULT_OCR_PROVIDER
     if provider not in OCR_PROVIDERS:
         raise ValueError(f"OCR_PROVIDER {provider!r} is not supported; use one of {OCR_PROVIDERS}")
     # API providers are imported here so the GLM path never loads their SDKs.
