@@ -20,7 +20,7 @@ import pymupdf
 
 from app.pipeline.chunking_helper.image_crop import convert_bbox, crop_png
 from app.pipeline.chunking_helper.ocr_model import recognise
-from app.pipeline.chunking_helper.page_cache import load_document
+from app.pipeline.chunking_helper.page_cache import PDF_LOCK, load_document
 
 log = logging.getLogger(__name__)
 
@@ -41,23 +41,22 @@ def parse_table(bbox, page: int, file_path: str, coord_origin: str = "") -> str 
     degenerate rect) or when OCR returned nothing. The caller drops the table
     rather than indexing an empty chunk.
     """
-    document = load_document(file_path)
-
-    image_png = crop_png(document, bbox, page, coord_origin=coord_origin)
-    if image_png is None:
-        return None
-
-    reading = recognise(image_png, task="table")
-    if reading:
+    with PDF_LOCK:
+        document = load_document(file_path)
+        image_png = crop_png(document, bbox, page, coord_origin=coord_origin)
+        if image_png is None:
+            return None
         page_obj = document[page - 1]
         text_layer = page_obj.get_text(
             clip=pymupdf.Rect(*convert_bbox(bbox, page_obj, coord_origin))
         )
-        missing = numbers_not_in_text_layer(reading, text_layer)
-        if missing:
-            log.warning(
-                "Table on page %s: OCR returned numbers not in the PDF text: %s",
-                page,
-                ", ".join(missing),
-            )
+
+    reading = recognise(image_png, task="table")
+    missing = numbers_not_in_text_layer(reading, text_layer) if reading else []
+    if missing:
+        log.warning(
+            "Table on page %s: OCR returned numbers not in the PDF text: %s",
+            page,
+            ", ".join(missing),
+        )
     return reading
