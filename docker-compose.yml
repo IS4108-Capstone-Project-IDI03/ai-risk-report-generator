@@ -155,7 +155,7 @@ services:
   speech-ocr-service:
     build: ./microservices/speech-ocr-service
     ports:
-      - "8003:8003"
+      - "127.0.0.1:8003:8003"
     env_file: .env
     depends_on:
       - server

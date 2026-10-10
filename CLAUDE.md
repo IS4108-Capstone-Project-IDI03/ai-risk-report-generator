@@ -20,8 +20,9 @@
 - Route handlers in `/server/src/routes/` must never import from `models/`
   directly — always go through `services/`.
 - S5 (speech-ocr-service) writes nothing to MongoDB — it returns results only.
-- LLM provider is set by `LLM_PROVIDER` env var in microservices/rag-service, and
-  the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05) — never
+- LLM provider is set by `LLM_PROVIDER` env var in microservices/rag-service,
+  the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05), and the
+  table/formula OCR provider by `OCR_PROVIDER` in ingestion (IN-12) — never
   hardcode "anthropic" or "gemini" in application code.
 - All metadata fields on a MongoDB document must include: source_type,
   jurisdiction, facility_type, COPE_dimension, effective_date. See
