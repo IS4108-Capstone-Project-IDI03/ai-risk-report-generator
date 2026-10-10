@@ -76,7 +76,12 @@ ssh -i a2603.pem ubuntu@<elastic-ip>
 ``` bash
 # Docker Engine + Compose plugin
 sudo apt-get update && sudo apt-get install -y ca-certificates curl git
+
 curl -fsSL https://get.docker.com | sudo sh
+
+echo 'net.ipv4.ip_forward=1' | sudo tee /etc/sysctl.d/99-docker.conf
+sudo sysctl --system && sudo systemctl restart docker
+
 sudo groupadd docker
 sudo usermod -aG docker ubuntu && exit   # log in again for the group to apply
 
@@ -94,6 +99,8 @@ From your laptop, copy the `.env` up. Never commit it:
 ```bash
 scp -i a2603.pem .env ubuntu@<elastic-ip>:~/ai-risk-report-generator/.env
 ```
+
+Or simply run `nano .env` on the instance and paste the contents. The `.env` must have all the values set to cloud use (MONGODB_URI to actual Atlas URI, CHROMA_MODE=cloud, all API keys filled, etc).
 
 On the box, check: Atlas `MONGODB_URI`, `CHROMA_MODE=cloud` plus credentials,
 AWS keys empty, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `OCR_PROVIDER=anthropic`.
@@ -115,8 +122,14 @@ Laptops run only the client, against the instance:
 
 ```powershell
 cd client
-$env:SERVER_URL = "http://<elastic-ip>:4000"; npm run dev
+Copy-Item .env.example .env.development   # once; set SERVER_URL=http://<elastic-ip>:4000
+npm run dev                               # forwards /api to the EC2 backend
+npm run dev:local                         # forwards /api to http://localhost:4000 instead
 ```
+
+`client/.env.development` is gitignored, so each developer keeps their own.
+Without it, `npm run dev` also uses `http://localhost:4000`. Each developer's
+IP must be allowed on port 4000 in the security group.
 
 ## Updating
 
