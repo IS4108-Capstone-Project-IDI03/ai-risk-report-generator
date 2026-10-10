@@ -109,7 +109,7 @@ function save(fields: object = {}, recordings: Recording[] = [{}], reference = '
     'details',
     JSON.stringify({
       engineer: 'Alex Rowe',
-      copeDimension: 'Protection',
+      copeDimensions: ['Protection'],
       severity: 'high',
       locationId: String(BAY_3),
       ...fields,
@@ -173,7 +173,7 @@ describe('POST /api/assessments/:reference/observations', () => {
       source_type: 'observation',
       jurisdiction: 'SG',
       facility_type: 'Warehouse',
-      COPE_dimension: 'Protection',
+      COPE_dimension: ['Protection'],
     })
     expect(new Date(response.body.recordedAt)).toEqual(stored!.createdAt)
     // Saving adds to the session without ending it.
@@ -243,19 +243,56 @@ describe('POST /api/assessments/:reference/observations', () => {
 
   it('keeps an uncategorised observation out of category-scoped drafting inputs', async () => {
     await assessmentWithSession()
-    const uncategorised = (await note({ copeDimension: null })).body
-    const exposure = (await note({ copeDimension: 'Exposure' })).body
+    const uncategorised = (await note({ copeDimensions: null })).body
+    const exposure = (await note({ copeDimensions: ['Exposure'] })).body
 
     // The field is present but null, so it is never mistaken for a category.
     const stored = await ObservationModel.findById(uncategorised.id).lean()
     expect(stored?.metadata).toHaveProperty('COPE_dimension', null)
-    expect(uncategorised.copeDimension).toBeNull()
+    expect(uncategorised.copeDimensions).toBeNull()
     for (const dimension of ['Construction', 'Occupancy', 'Protection', 'Exposure'] as const) {
       const inputs = await listCategoryObservations('RPT-2026-0411', dimension)
       expect(inputs.map((o) => o.id)).not.toContain(uncategorised.id)
     }
     const exposureInputs = await listCategoryObservations('RPT-2026-0411', 'Exposure')
     expect(exposureInputs.map((o) => o.id)).toEqual([exposure.id])
+  })
+
+  it('files one observation under several categories, in C-O-P-E order', async () => {
+    await assessmentWithSession()
+    const both = (await note({ copeDimensions: ['Protection', 'Construction', 'Protection'] })).body
+    const none = (await note({ copeDimensions: [] })).body
+
+    // Repeats dropped and put in C-O-P-E order, whatever order they were picked in.
+    expect(both.copeDimensions).toEqual(['Construction', 'Protection'])
+    const stored = await ObservationModel.findById(both.id).lean()
+    expect(stored?.metadata.COPE_dimension).toEqual(['Construction', 'Protection'])
+    for (const dimension of ['Construction', 'Protection'] as const) {
+      const inputs = await listCategoryObservations('RPT-2026-0411', dimension)
+      expect(inputs.map((o) => o.id)).toEqual([both.id])
+    }
+    expect(await listCategoryObservations('RPT-2026-0411', 'Exposure')).toEqual([])
+    // An empty list is uncategorised, stored as null like one sent as null.
+    expect(none.copeDimensions).toBeNull()
+    const storedNone = await ObservationModel.findById(none.id).lean()
+    expect(storedNone?.metadata).toHaveProperty('COPE_dimension', null)
+  })
+
+  it('reads a category saved as one string, before several were allowed, as a list of one', async () => {
+    await assessmentWithSession()
+    const { id } = (await note()).body
+    await ObservationModel.collection.updateOne(
+      { _id: new Types.ObjectId(id) },
+      { $set: { 'metadata.COPE_dimension': 'Exposure' } },
+    )
+
+    const [listed] = (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+    expect(listed.copeDimensions).toEqual(['Exposure'])
+    const inputs = await listCategoryObservations('RPT-2026-0411', 'Exposure')
+    expect(inputs.map((o) => o.id)).toEqual([id])
+    // Saving the same category again changes nothing.
+    await api.patch(`/api/observations/${id}`).send({ copeDimensions: ['Exposure'] })
+    expect((await ObservationModel.findById(id).lean())?.edited).toBeUndefined()
   })
 
   it('rejects an observation when no capture session is in progress', async () => {
@@ -285,8 +322,10 @@ describe('POST /api/assessments/:reference/observations', () => {
 
     const invalid = [
       [{ note: 'x'.repeat(5001) }, 'note'],
-      [{ copeDimension: 'Fire protection' }, 'copeDimension'],
-      [{ copeDimension: undefined }, 'copeDimension'],
+      [{ copeDimensions: ['Fire protection'] }, 'copeDimensions'],
+      [{ copeDimensions: undefined }, 'copeDimensions'],
+      [{ copeDimensions: 'Protection' }, 'copeDimensions'],
+      [{ copeDimensions: ['Protection', 'Fire protection'] }, 'copeDimensions'],
       [{ severity: 'urgent' }, 'severity'],
       [{ locationId: undefined }, 'locationId'],
       [{ locationId: 'Bay 3' }, 'locationId'],
@@ -355,14 +394,29 @@ describe('PATCH /api/observations/:id', () => {
 
   it('categorises an uncategorised observation, bringing it into drafting', async () => {
     await assessmentWithSession()
-    const { id } = (await note({ copeDimension: null })).body
+    const { id } = (await note({ copeDimensions: null })).body
 
-    const response = await retag(id, { copeDimension: 'Exposure' })
+    const response = await retag(id, { copeDimensions: ['Exposure'] })
 
     expect(response.status).toBe(200)
-    expect(response.body.copeDimension).toBe('Exposure')
+    expect(response.body.copeDimensions).toEqual(['Exposure'])
     const inputs = await listCategoryObservations('RPT-2026-0411', 'Exposure')
     expect(inputs.map((o) => o.id)).toEqual([id])
+  })
+
+  it('changes an observation’s categories, and records nothing for the same ones reordered', async () => {
+    await assessmentWithSession()
+    const { id } = (await note()).body
+
+    const added = await retag(id, { copeDimensions: ['Protection', 'Construction'] })
+    expect(added.body.copeDimensions).toEqual(['Construction', 'Protection'])
+    const edited = (await ObservationModel.findById(id).lean())?.edited
+
+    const reordered = await retag(id, { copeDimensions: ['Protection', 'Construction'] })
+    expect(reordered.status).toBe(200)
+    expect((await ObservationModel.findById(id).lean())?.edited).toEqual(edited)
+    // Clearing every category uncategorises it.
+    expect((await retag(id, { copeDimensions: [] })).body.copeDimensions).toBeNull()
   })
 
   it('keeps the new tags when the observation is reopened, leaving everything else', async () => {
@@ -386,7 +440,7 @@ describe('PATCH /api/observations/:id', () => {
       location: { id: String(PUMP_HOUSE), name: 'Pump house', floor: null },
       standard: 'FM 2.0 – Last published April 2026',
       // Left out of the request, so unchanged.
-      copeDimension: 'Protection',
+      copeDimensions: ['Protection'],
       note: 'Racking under heads.',
       engineer: 'Alex Rowe',
       recordedAt: saved.recordedAt,
@@ -403,9 +457,9 @@ describe('PATCH /api/observations/:id', () => {
     await assessmentWithSession()
     const { id } = (await note({ standard: 'NFPA 25 – 2026 Edition' })).body
 
-    const response = await retag(id, { copeDimension: null, standard: '' })
+    const response = await retag(id, { copeDimensions: null, standard: '' })
 
-    expect(response.body).toMatchObject({ copeDimension: null, standard: null })
+    expect(response.body).toMatchObject({ copeDimensions: null, standard: null })
     const stored = await ObservationModel.findById(id).lean()
     // Present but null, as when it is saved uncategorised.
     expect(stored?.metadata).toHaveProperty('COPE_dimension', null)
@@ -420,8 +474,8 @@ describe('PATCH /api/observations/:id', () => {
     const { id } = (await note()).body
 
     const invalid = [
-      [{ copeDimension: 'Fire protection' }, 'copeDimension'],
-      [{ copeDimension: 'protection' }, 'copeDimension'],
+      [{ copeDimensions: ['Fire protection'] }, 'copeDimensions'],
+      [{ copeDimensions: ['protection'] }, 'copeDimensions'],
       [{ severity: 'urgent' }, 'severity'],
       [{ severity: null }, 'severity'],
       [{ locationId: 'Bay 3' }, 'locationId'],
@@ -441,7 +495,7 @@ describe('PATCH /api/observations/:id', () => {
       severity: 'high',
       note: 'Hose reel H3 blocked by stacked pallets.',
     })
-    expect(stored?.metadata.COPE_dimension).toBe('Protection')
+    expect(stored?.metadata.COPE_dimension).toEqual(['Protection'])
     expect(String(stored?.location)).toBe(String(BAY_3))
   })
 
@@ -572,8 +626,8 @@ describe('deleting and restoring an observation (CP-08)', () => {
 
   it('leaves a deleted observation out of the list and drafting, unless asked (AC13)', async () => {
     await assessmentWithSession()
-    const kept = (await note({ copeDimension: 'Exposure' })).body
-    const deleted = (await note({ copeDimension: 'Exposure' })).body
+    const kept = (await note({ copeDimensions: ['Exposure'] })).body
+    const deleted = (await note({ copeDimensions: ['Exposure'] })).body
 
     await remove(deleted.id)
 
@@ -585,7 +639,7 @@ describe('deleting and restoring an observation (CP-08)', () => {
 
   it('restores a deleted observation to the list and drafting (AC14)', async () => {
     await assessmentWithSession()
-    const { id } = (await note({ copeDimension: 'Exposure' })).body
+    const { id } = (await note({ copeDimensions: ['Exposure'] })).body
     await remove(id)
 
     const response = await restore(id)
@@ -682,7 +736,7 @@ describe('observation list, audio and restarts', () => {
     await assessmentWithSession()
     const first = (await save()).body
     await settled(first.id)
-    const second = (await note({ copeDimension: null })).body
+    const second = (await note({ copeDimensions: null })).body
 
     const response = await api.get('/api/assessments/RPT-2026-0411/observations')
 
@@ -690,7 +744,7 @@ describe('observation list, audio and restarts', () => {
     expect(response.body.map((o: { id: string }) => o.id)).toEqual([second.id, first.id])
     expect(response.body[1]).toMatchObject({
       engineer: 'Alex Rowe',
-      copeDimension: 'Protection',
+      copeDimensions: ['Protection'],
       location: { id: String(BAY_3), name: 'Bay 3 — north aisle' },
       note: null,
       recordings: [
@@ -753,7 +807,7 @@ function savePhotos(photos: Photo[], fields: object = {}) {
   const req = api.post('/api/assessments/RPT-2026-0411/observations').field(
     'details',
     JSON.stringify({
-      copeDimension: 'Protection',
+      copeDimensions: ['Protection'],
       severity: 'moderate',
       locationId: String(BAY_3),
       ...fields,
@@ -978,7 +1032,7 @@ describe('photo interpretation (CP-05)', () => {
   it('stores the proposal and what wrote it, leaving the engineer’s own record alone (AC3-AC5)', async () => {
     vision.mockReturnValue(s5(200, PROPOSAL))
     await assessmentWithSession()
-    const id = await readSaved([{ image: JPG }], { copeDimension: null })
+    const id = await readSaved([{ image: JPG }], { copeDimensions: null })
 
     const done = await interpreted(id)
 
@@ -1008,7 +1062,7 @@ describe('photo interpretation (CP-05)', () => {
       outOfDate: false,
     })
     // A proposal only: the observation stays uncategorised, with no note.
-    expect(observation).toMatchObject({ copeDimension: null, note: null })
+    expect(observation).toMatchObject({ copeDimensions: null, note: null })
   })
 
   it('records usage as unavailable when the provider reports none', async () => {
@@ -1369,7 +1423,7 @@ it('uses each authenticated capturer ID and ignores forged attribution, while de
           note: 'A note',
           engineer: 'Impersonated user',
           engineerId: String(new Types.ObjectId()),
-          copeDimension: null,
+          copeDimensions: null,
           severity: 'low',
           locationId: String(BAY_3),
         }),

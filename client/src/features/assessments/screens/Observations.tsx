@@ -190,7 +190,7 @@ function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['pro
               ? 'No capture session, so this is a sample proposal, not a reading of the photos.'
               : 'Proposed by ' + (proposal.model ?? 'the photo service')}
           </p>
-          {(!!proposal.useAsNote || !!proposal.changeCategory) && (
+          {(!!proposal.useAsNote || !!proposal.addCategory) && (
             <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {!!proposal.useAsNote && (
                 <Button
@@ -202,14 +202,9 @@ function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['pro
                   {'Use as note'}
                 </Button>
               )}
-              {!!proposal.changeCategory && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft="tag"
-                  onClick={proposal.changeCategory}
-                >
-                  {'Change category to ' + proposal.category}
+              {!!proposal.addCategory && (
+                <Button variant="secondary" size="sm" iconLeft="tag" onClick={proposal.addCategory}>
+                  {'Add category ' + proposal.category}
                 </Button>
               )}
             </div>
@@ -416,7 +411,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {o.cat}
+                        {o.catLabel}
                       </span>
                       {!!o.deleted && <Badge tone="danger">Deleted</Badge>}
                     </span>

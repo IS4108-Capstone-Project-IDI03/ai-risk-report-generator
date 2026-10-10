@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
@@ -41,12 +41,19 @@ class Assessment(BaseModel):
 class Observation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
-    COPE_dimension: str
+    # Its COPE categories, one or more. A single string, as eval cases and gateways
+    # from before an observation could have several send, reads as a list of one.
+    COPE_dimension: Annotated[list[str], Field(min_length=1)]
     note: str | None = None
     transcripts: list[str] = []
     severity: str | None = None
     location: str | None = None
     standard: str | None = None
+
+    @field_validator("COPE_dimension", mode="before")
+    @classmethod
+    def _one_category_as_list(cls, value):
+        return [value] if isinstance(value, str) else value
 
 
 class DraftOfisRequest(BaseModel):

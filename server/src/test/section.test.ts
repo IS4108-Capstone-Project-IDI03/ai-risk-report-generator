@@ -4,7 +4,7 @@ import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
-import { ObservationModel, type CopeDimension } from '../models/observation.model'
+import { copeDimensionsOf, ObservationModel, type CopeDimension } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
@@ -100,7 +100,7 @@ async function assessment(status: CaptureSessionStatus = 'ready_for_generation',
 type Transcription = 'transcribing' | 'transcribed' | 'failed'
 async function observation(
   ids: { assessment: Types.ObjectId; session: Types.ObjectId },
-  copeDimension: CopeDimension | null,
+  copeDimension: CopeDimension | CopeDimension[] | null,
   { note, transcription }: { note?: string; transcription?: Transcription } = {},
 ) {
   return ObservationModel.create({
@@ -129,7 +129,7 @@ async function observation(
       source_type: 'observation',
       jurisdiction: 'SG',
       facility_type: 'Warehouse',
-      COPE_dimension: copeDimension,
+      COPE_dimension: copeDimensionsOf(copeDimension),
       effective_date: new Date(),
     },
   })
@@ -161,7 +161,7 @@ describe('drafting a report section (GN-01)', () => {
     expect(sent.observations).toEqual([
       {
         id: String(noted._id),
-        COPE_dimension: 'Construction',
+        COPE_dimension: ['Construction'],
         note: 'Risers on L3 not fire-stopped.',
         transcripts: [],
         severity: 'high',
@@ -173,7 +173,7 @@ describe('drafting a report section (GN-01)', () => {
         note: null,
         transcripts: ['Curtain wall gaps sealed.'],
       }),
-      expect.objectContaining({ id: String(sprinklers._id), COPE_dimension: 'Protection' }),
+      expect.objectContaining({ id: String(sprinklers._id), COPE_dimension: ['Protection'] }),
     ])
 
     const saved = await ReportSectionModel.findOne().lean()
@@ -288,6 +288,40 @@ describe('drafting a report section (GN-01)', () => {
     expect(drafts).not.toHaveBeenCalled()
   })
 
+  it('counts an observation under several categories towards each of their sections', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const both = await observation(ids, ['Construction', 'Exposure'], { note: 'Shared wall.' })
+    await observation(ids, 'Occupancy', { note: 'One production line.' })
+
+    const [seven, twelve] = (await api.get(`/api/assessments/${REFERENCE}/sections`)).body
+    expect(seven.usableObservations).toBe(1)
+    expect(twelve.usableObservations).toBe(2)
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/12/draft`)).status).toBe(201)
+    expect(drafts.mock.calls[0][0].observations).toContainEqual(
+      expect.objectContaining({
+        id: String(both._id),
+        COPE_dimension: ['Construction', 'Exposure'],
+      }),
+    )
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(201)
+  })
+
+  it('does not count a draft saved with one category as a string as changed', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    await observation(ids, 'Construction', { note: 'Riser not fire-stopped.' })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    // As drafts saved before an observation could have several categories hold it.
+    await ReportSectionModel.collection.updateOne(
+      {},
+      { $set: { 'evidence.0.COPE_dimension': 'Construction' } },
+    )
+
+    const [section] = (await api.get(`/api/assessments/${REFERENCE}/sections`)).body
+    expect(section.changesSinceDraft).toBe(0)
+  })
+
   it('drafts while capture is open, but waits for transcriptions to finish', async () => {
     const { assessment: a, session } = await assessment('active')
     const ids = { assessment: a._id, session: session._id }
@@ -388,12 +422,12 @@ describe('drafting a report section (GN-01)', () => {
     expect((await ReportSectionModel.findOne().lean())?.evidence.map((e) => e.id)).toContain(
       String(riser._id),
     )
-    await api.patch(`/api/observations/${wall._id}`).send({ copeDimension: null })
+    await api.patch(`/api/observations/${wall._id}`).send({ copeDimensions: null })
     expect((await sections()).changesSinceDraft).toBe(2)
     expect((await sections()).changeCounts).toEqual({ added: 0, changed: 0, removed: 2 })
 
     // A redraft is given neither.
-    await api.patch(`/api/observations/${wall._id}`).send({ copeDimension: 'Construction' })
+    await api.patch(`/api/observations/${wall._id}`).send({ copeDimensions: ['Construction'] })
     await observation(ids, 'Construction', { note: 'Fire doors self-closing.' })
     await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
     expect(drafts.mock.lastCall![0].observations).not.toContainEqual(

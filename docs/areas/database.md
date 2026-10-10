@@ -192,10 +192,15 @@ of them.
 Each document links to its `assessment` and the capture `session` it was
 recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
 with the five required fields: `source_type` (`observation`), `jurisdiction`
-and `facility_type` copied from the site, `COPE_dimension` from the COPE
-category the engineer picked (`Construction`, `Occupancy`, `Protection` or
-`Exposure`, the same values the knowledge base uses), and `effective_date`
-(when it was captured). `createdAt` is the capture timestamp. `severity`
+and `facility_type` copied from the site, `COPE_dimension`, the list of COPE
+categories the engineer picked (any of `Construction`, `Occupancy`,
+`Protection` and `Exposure`, the same values the knowledge base uses; one
+finding can concern several), and `effective_date` (when it was captured).
+The list is stored in C-O-P-E order without repeats, so the same choice always
+saves the same list. Observations saved before an observation could have
+several categories hold one string; `copeDimensionsOf` in
+`observation.model.ts` reads it as a list of one, and `npm --prefix server run
+migrate:cope` rewrites those (and drafts' `evidence`) as lists. `createdAt` is the capture timestamp. `severity`
 (`critical`, `high`, `moderate` or `low`) and `location` (the `_id` of one of
 the assessment's `locations`) are required; `standard` is optional. `standard` is the standard the engineer tied
 the observation to (e.g. `NFPA 25 – 2026 Edition`); only the standard is
@@ -206,10 +211,13 @@ its observations; responses include it as `location: { id, name, floor }`.
 
 `note` is stored exactly as written, untrimmed, up to 5,000 characters; a blank
 note counts as none. An observation may be saved uncategorised: its
-`COPE_dimension` is then `null`, present but null rather than left out.
+`COPE_dimension` is then `null`, present but null rather than left out, and
+never `[]` (an empty list sent is saved as `null`).
 `listCategoryObservations` in `observation.service.ts`, the category-scoped
-drafting inputs for GN-01, matches on `COPE_dimension`, so an uncategorised
-observation stays out of drafting until it is categorised by editing its tags.
+drafting inputs for GN-01, matches on `COPE_dimension`, which MongoDB matches
+against any item of the list, so an observation filed under two categories is
+an input to both, and an uncategorised one stays out of drafting until it is
+categorised by editing its tags.
 
 The category, severity, location and standard are the observation's tags
 (CP-06). `PATCH /api/observations/:id` changes any of them, and the note
@@ -224,7 +232,8 @@ observations by `_id`, and each draft keeps the observations as it was given
 them in its `evidence`, so a draft can always be checked against what it was
 drafted from. There is no zone field: the location's `name` is its zone and
 its `floor` the floor, so choosing a location tags both. The Observations tab
-filters by type (Note, Voice, Photo), category, severity, location, floor and status
+filters by type (Note, Voice, Photo), category (an observation filed under
+several matches any of them), severity, location, floor and status
 (Transcribing, Interpreting, Transcription failed, Interpretation failed,
 Complete) in the browser, like the dashboard.
 
@@ -319,16 +328,17 @@ before photos could change has no `photoIds` and counts as reading every photo
 the observation was saved with (those without `added`). The proposal is not drafting
 evidence: `toEvidence` never reads it, drafting does not wait for it, and it
 does not count towards `changesSinceDraft`. It becomes the engineer's only
-when they save it into the note or the category through `PATCH`. The Photos tab lists every photo of
+when they save it into the note or the categories through `PATCH`; the
+Observations tab's Add category adds the proposed one to those it has. The Photos tab lists every photo of
 the assessment's observations not deleted (CP-04 AC3), the collection the
 report's photo appendix (EX-01) is to draw on; like the Observations tab's
 filters, it is built in the browser from the observation list.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimension` (one of the four, or `null` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each) and a `photo` part per JPG or PNG (up to 20 MB each), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording or photo, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until its photos are read, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimension` is `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
-| `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimension` (one of the four, or `null` to uncategorise), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each) and a `photo` part per JPG or PNG (up to 20 MB each), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording or photo, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo that isn't JPG or PNG, named in `error`). One refused file saves nothing |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until its photos are read, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
@@ -359,8 +369,9 @@ are kept; the newest is current. Each document has:
 - `questions`: up to three questions for the engineer about gaps the evidence
   leaves. They are not part of the report.
 - `evidence`: the observations the draft was given, as they were then (`id`,
-  `COPE_dimension`, `note`, `transcripts`, `severity`, `location`,
-  `standard`). A later edit to an observation does not change it, so a
+  `COPE_dimension` (the list of categories; one string in drafts saved
+  before an observation could have several, read as a list of one), `note`,
+  `transcripts`, `severity`, `location`, `standard`). A later edit to an observation does not change it, so a
   citation can always be checked against what was drafted from. This stands in
   for CP-14's snapshot, which the team dropped.
 - `guardrail`: `{ passed, unsupported_count }`.
@@ -380,7 +391,7 @@ The first draft sets the assessment's `reportStatus` to `draft`.
 | --- | --- |
 | `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (or `null`) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks, holds in an older form, or holds that are no longer evidence (deleted or uncategorised, CP-08), which a redraft would bring up to date; and `changeCounts` `{ added, changed, removed }`, the same total by kind, which the screens name, leaving out any kind with none. 404, or 503 when S4 cannot be reached. |
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
-| `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources`, `changesSinceDraft` and its `changeCounts`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under the section's categories, plus any other it cites). Read-only. 404, or 503 when S4 cannot be reached. |
+| `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources`, `changesSinceDraft` and its `changeCounts`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under any of the section's categories, plus any other it cites, each with `copeDimensions`). Read-only. 404, or 503 when S4 cannot be reached. |
 
 ## Opportunities for Improvement (GN-05)
 

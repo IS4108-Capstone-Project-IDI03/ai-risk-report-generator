@@ -45,7 +45,7 @@ const OFI_SEVERITIES = ['critical', 'high', 'moderate']
 // a note or finished transcript to draft from (as the gateway's drafting evidence).
 function isCandidate(o: SavedObservation) {
   return (
-    Boolean(o.copeDimension) &&
+    Boolean(o.copeDimensions?.length) &&
     OFI_SEVERITIES.includes(o.severity) &&
     (Boolean(o.note?.trim()) || o.recordings.some((r) => r.transcription.transcript))
   )
@@ -69,7 +69,7 @@ function Sources({ ofi, observations }: { ofi: Ofi; observations: SavedObservati
         source: o.location
           ? [o.location.name, o.location.floor].filter(Boolean).join(', ')
           : 'Site observation',
-        locator: o.copeDimension ?? undefined,
+        locator: o.copeDimensions?.join(', '),
         excerpt: <ObservationExcerpt observation={o} />,
       })
   }

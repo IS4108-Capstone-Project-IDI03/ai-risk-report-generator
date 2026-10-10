@@ -47,7 +47,7 @@ function refuse(error: unknown, res: Response) {
 }
 
 // Changes an observation's tags (CP-06) and note (CP-08): JSON with any of
-// copeDimension (null to uncategorise), severity, locationId, standard and
+// copeDimensions (null or [] to uncategorise), severity, locationId, standard and
 // note (null or '' to remove either). 400 lists the first problem with each
 // invalid field, as for capture.
 router.patch('/:id', requirePermission('assessments:edit'), async (req, res) => {

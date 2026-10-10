@@ -10,6 +10,18 @@ export type TranscriptionStatus = (typeof TRANSCRIPTION_STATUSES)[number]
 export const COPE_DIMENSIONS = ['Construction', 'Occupancy', 'Protection', 'Exposure'] as const
 export type CopeDimension = (typeof COPE_DIMENSIONS)[number]
 
+// An observation's COPE categories as stored: an engineer can file one finding
+// under several, and null means none yet (CP-02 AC4), never []. Observations
+// saved before multiple categories hold one string, which this reads as a list
+// of one, so nothing needs migrating before it can be read.
+export function copeDimensionsOf(
+  stored: CopeDimension | readonly CopeDimension[] | null | undefined,
+): CopeDimension[] | null {
+  if (!stored) return null
+  const list = typeof stored === 'string' ? [stored] : [...stored]
+  return list.length ? list : null
+}
+
 export const SEVERITIES = ['critical', 'high', 'moderate', 'low'] as const
 export type Severity = (typeof SEVERITIES)[number]
 
@@ -117,14 +129,15 @@ export interface IObservation {
   severity: Severity
   // Where on site: one of the assessment's locations, by its _id.
   location: Types.ObjectId
-  // Required on every document (see CLAUDE.md). The COPE dimension is the
-  // category the engineer picks when capturing; null means not categorised
-  // yet (CP-02 AC4).
+  // Required on every document (see CLAUDE.md). The COPE dimension holds the
+  // categories the engineer picks when capturing, one or more; null means not
+  // categorised yet (CP-02 AC4). Read it through copeDimensionsOf, since older
+  // observations hold a single string.
   metadata: {
     source_type: 'observation'
     jurisdiction: string
     facility_type: string
-    COPE_dimension: CopeDimension | null
+    COPE_dimension: CopeDimension[] | null
     effective_date: Date
   }
   // The latest change to its tags, note, a transcript, or its recordings and
@@ -226,8 +239,9 @@ const observationSchema = new Schema<IObservation>(
       source_type: { type: String, enum: ['observation'], required: true },
       jurisdiction: { type: String, required: true },
       facility_type: { type: String, required: true },
-      // Stored as null rather than left out, so the field is always present.
-      COPE_dimension: { type: String, enum: COPE_DIMENSIONS, default: null },
+      // Stored as null rather than left out or [], so the field is always
+      // present and an uncategorised observation reads the same either way.
+      COPE_dimension: { type: [{ type: String, enum: COPE_DIMENSIONS }], default: null },
       effective_date: { type: Date, required: true },
     },
     edited: { type: stampSchema },

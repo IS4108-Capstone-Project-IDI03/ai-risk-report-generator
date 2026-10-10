@@ -21,10 +21,12 @@ export interface IReportSection {
   // Up to three questions for the engineer about gaps the evidence leaves.
   questions: string[]
   // The observations the draft was given, as they were then: the record that a
-  // later edit to an observation cannot change.
+  // later edit to an observation cannot change. COPE_dimension lists its
+  // categories; drafts saved before an observation could have several hold
+  // one string, which copeDimensionsOf reads as a list of one.
   evidence: {
     id: string
-    COPE_dimension: CopeDimension
+    COPE_dimension: CopeDimension[]
     note: string | null
     transcripts: string[]
     severity: string
@@ -81,7 +83,11 @@ const reportSectionSchema = new Schema<IReportSection>(
       {
         _id: false,
         id: { type: String, required: true },
-        COPE_dimension: { type: String, enum: COPE_DIMENSIONS, required: true },
+        COPE_dimension: {
+          type: [{ type: String, enum: COPE_DIMENSIONS }],
+          default: undefined,
+          validate: [(v: string[]) => v.length > 0, 'Evidence needs a COPE category.'],
+        },
         note: { type: String, default: null },
         transcripts: { type: [String], default: [] },
         severity: { type: String, required: true },

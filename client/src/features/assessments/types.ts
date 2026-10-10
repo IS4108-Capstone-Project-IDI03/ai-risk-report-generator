@@ -26,7 +26,8 @@ export type AssessmentRow = {
 export type Observation = {
   icon: string
   color: string
-  cat: string
+  // Its COPE categories, in C-O-P-E order; empty when uncategorised.
+  cats: string[]
   time: string
   text: string
   area: string
@@ -164,7 +165,8 @@ export type WorkflowState = {
   lfError: string | null
   // The location waiting for the engineer to confirm removing it, by id.
   locRemove: string | null
-  fCat: string
+  // The COPE categories the next observation is filed under; none is uncategorised.
+  fCats: string[]
   fSev: string
   fStd: string
   // warn: a prompt to do something first, shown in the warning tone.
@@ -209,7 +211,7 @@ export type WorkflowState = {
   // its tags (CP-06) and note (CP-08); and why the last save failed.
   tagEdit: {
     key: string
-    cat: string
+    cats: string[]
     sev: string
     locationId: string
     std: string

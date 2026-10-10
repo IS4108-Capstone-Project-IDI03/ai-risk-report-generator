@@ -125,7 +125,7 @@ export const initialState: WorkflowState = {
   lfBusy: false,
   lfError: null,
   locRemove: null,
-  fCat: 'Protection',
+  fCats: ['Protection'],
   fSev: 'high',
   fStd: '',
   fToast: null,
@@ -133,7 +133,7 @@ export const initialState: WorkflowState = {
     {
       icon: 'camera',
       color: '#4f9aee',
-      cat: 'Protection',
+      cats: ['Protection'],
       time: '11 Apr 2026 09:22',
       text: 'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.',
       area: 'Bay 3 — north aisle',
@@ -161,7 +161,7 @@ export const initialState: WorkflowState = {
     {
       icon: 'mic',
       color: '#8f7dff',
-      cat: 'Protection',
+      cats: ['Protection'],
       time: '11 Apr 2026 11:05',
       text: 'Pump test certificate not produced on request. Site engineer believes it is held by the contractor.',
       area: 'Pump house',
@@ -177,7 +177,7 @@ export const initialState: WorkflowState = {
     {
       icon: 'sticky-note',
       color: '#f9ac10',
-      cat: 'Occupancy',
+      cats: ['Occupancy'],
       time: '11 Apr 2026 13:40',
       text: 'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.',
       area: 'Bay 1 — despatch',
@@ -360,14 +360,8 @@ export const ROWS: AssessmentRow[] = [
   },
 ]
 
-// The COPE categories an observation is filed under, by the value each is
-// stored as: the same values the knowledge base tags its chunks with.
-export const CAT_ICON: Record<string, string> = {
-  Construction: 'hard-hat',
-  Occupancy: 'factory',
-  Protection: 'flame',
-  Exposure: 'cloud-lightning',
-}
+// Defined with the rest of the category rules; kept exported here for the screens.
+export { CAT_ICON, UNCATEGORISED } from './categories'
 // The sample assessment's places on site, used when the gateway is not live.
 export const DEMO_LOCATIONS: SiteLocation[] = [
   { id: 'demo-bay-3', name: 'Bay 3 — north aisle', floor: 'Ground' },
@@ -377,9 +371,6 @@ export const DEMO_LOCATIONS: SiteLocation[] = [
   { id: 'demo-yard', name: 'External yard', floor: null },
   { id: 'demo-valve-room', name: 'Sprinkler valve room', floor: 'Ground' },
 ]
-// An observation may be saved before it is categorised (CP-02) and categorised
-// later by editing its tags (CP-06); report drafting leaves it out until then.
-export const UNCATEGORISED = 'Uncategorised'
 // Standards an observation can be tied to. The draft finds the clause itself.
 export const STANDARD_REFERENCES = [
   'NFPA 25 – 2026 Edition',

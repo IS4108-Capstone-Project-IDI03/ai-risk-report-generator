@@ -95,7 +95,7 @@ describe('/api/assessments/:reference/locations', () => {
         source_type: 'observation',
         jurisdiction: 'SG',
         facility_type: 'Warehouse',
-        COPE_dimension: 'Protection',
+        COPE_dimension: ['Protection'],
         effective_date: new Date(),
       },
     })

@@ -1,7 +1,9 @@
 import { Fragment } from 'react'
 import { Badge, Button, Callout, Icon, Select, Textarea } from '../../../design-system'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { categoryLabel } from '../categories'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
+import { CategoryPicker } from '../components/CategoryPicker'
 import { LocationSheet, RemoveLocationDialog } from '../components/LocationSheet'
 import { PhotoPickers, PhotoThumb, ReadyItem } from '../components/MediaPickers'
 
@@ -429,13 +431,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     gap: '14px 20px',
                   }}
                 >
-                  <Select
-                    label="COPE category"
-                    hint={v.catHint}
-                    options={v.catOptions}
-                    value={v.fCat}
-                    onChange={v.setFCat}
-                  ></Select>
+                  <CategoryPicker cats={v.fCats} onToggle={v.toggleFCat} />
                 </div>
                 <div>
                   <span
@@ -639,7 +635,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                             color: 'var(--text-primary)',
                           }}
                         >
-                          {o.cat}
+                          {categoryLabel(o.cats)}
                         </span>
                         <span
                           style={{

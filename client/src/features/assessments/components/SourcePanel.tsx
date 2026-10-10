@@ -161,8 +161,8 @@ function ObservationView({
       </ViewerHead>
       <h3>{o.location ?? 'Location not recorded'}</h3>
       <dl className="rv-meta">
-        <dt>Category</dt>
-        <dd>{o.copeDimension}</dd>
+        <dt>{o.copeDimensions.length > 1 ? 'Categories' : 'Category'}</dt>
+        <dd>{o.copeDimensions.join(', ')}</dd>
         <dt>Severity</dt>
         <dd>{severityLabel(o.severity)}</dd>
         {o.standard && (
@@ -199,8 +199,8 @@ function ObservationText({
   return (
     <>
       {/* One filed elsewhere is here because the draft cites it. */}
-      {!section.copeDimensions.includes(o.copeDimension) && (
-        <span className="rv-block rv-block-label">Filed under {o.copeDimension}</span>
+      {!o.copeDimensions.some((c) => section.copeDimensions.includes(c)) && (
+        <span className="rv-block rv-block-label">Filed under {o.copeDimensions.join(', ')}</span>
       )}
       {o.note && <span className="rv-block">{o.note}</span>}
       {o.transcripts.map((t, i) => (

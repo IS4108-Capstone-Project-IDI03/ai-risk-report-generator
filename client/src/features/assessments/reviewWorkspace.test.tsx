@@ -146,7 +146,7 @@ const CONSTRUCTION: ReviewSection = {
   observations: [
     {
       id: 'o1',
-      copeDimension: 'Construction',
+      copeDimensions: ['Construction'],
       note: 'Riser shaft not fire-stopped at L3.',
       transcripts: [],
       severity: 'high',
@@ -155,7 +155,7 @@ const CONSTRUCTION: ReviewSection = {
     },
     {
       id: 'o2',
-      copeDimension: 'Protection',
+      copeDimensions: ['Protection'],
       note: null,
       transcripts: ['Valve tags show weekly checks.'],
       severity: 'low',

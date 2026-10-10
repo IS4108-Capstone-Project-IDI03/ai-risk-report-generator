@@ -291,8 +291,11 @@ details and history back and answers 503, as it does for any failed relabel.
    usable when it has a note or a finished transcript; a transcript the
    engineer corrected is sent as corrected, and a removed recording is left
    out, including from the wait in step 3 (CP-08). Only those filed under
-   the section's own categories count towards the minimum; with too few, it
-   refuses with 422 and gives the count.
+   any of the section's own categories count towards the minimum, so one
+   filed under two categories counts in each of their sections; with too
+   few, it refuses with 422 and gives the count. Each observation's
+   `COPE_dimension` is sent as a list; S4 also reads a single string as a list
+   of one.
    - S4 puts the section's own observations in `<observations>` as the main
      evidence and the rest in `<other_observations>` as backup, used only
      where they concern the section.

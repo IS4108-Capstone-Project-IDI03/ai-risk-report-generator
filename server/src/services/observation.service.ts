@@ -5,6 +5,7 @@ import { AssessmentModel, type ILocation } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import {
   COPE_DIMENSIONS,
+  copeDimensionsOf,
   ObservationModel,
   SEVERITIES,
   type CopeDimension,
@@ -98,12 +99,21 @@ export function photoFormat(image: Buffer) {
 
 // The tags, shared by capture and by later tag edits so both accept only the
 // shared vocabulary (CP-06 AC3).
-const copeDimensionField = z
-  .enum(
-    COPE_DIMENSIONS,
-    'Choose a COPE category (Construction, Occupancy, Protection or Exposure), or null to leave it uncategorised.',
-  )
+// The COPE categories: one or more, kept in C-O-P-E order without repeats so
+// the same choice always saves the same list, and none (null or []) saved as
+// null, uncategorised.
+// Checked as a whole, so a wrong value is reported against copeDimensions.
+const copeDimensionsField = z
+  .array(z.string(), 'Choose COPE categories as a list, or null to leave it uncategorised.')
   .nullable()
+  .refine(
+    (list) => !list || list.every((d) => (COPE_DIMENSIONS as readonly string[]).includes(d)),
+    'Choose COPE categories from Construction, Occupancy, Protection and Exposure.',
+  )
+  .transform((list) => {
+    const chosen = COPE_DIMENSIONS.filter((d) => list?.includes(d))
+    return chosen.length ? chosen : null
+  })
 const severityField = z.enum(SEVERITIES, 'Choose a severity: critical, high, moderate or low.')
 const locationIdField = z
   .string('Choose a location.')
@@ -121,8 +131,8 @@ export const newObservationSchema = z.object({
     .optional()
     .transform((note) => (note?.trim() ? note : undefined)),
 
-  // Sent explicitly: null leaves the observation uncategorised (CP-02 AC4).
-  copeDimension: copeDimensionField,
+  // Sent explicitly: null or [] leaves the observation uncategorised (CP-02 AC4).
+  copeDimensions: copeDimensionsField,
   severity: severityField,
   locationId: locationIdField,
   standard: standardField.optional().transform((value) => value || undefined),
@@ -130,11 +140,11 @@ export const newObservationSchema = z.object({
 export type ObservationDetails = z.infer<typeof newObservationSchema>
 
 // The body of PATCH /api/observations/:id: its tags (CP-06) and note (CP-08).
-// A field left out stays as it is; null uncategorises the observation, and
+// A field left out stays as it is; null or [] uncategorises the observation, and
 // null or '' removes the standard. The note is stored exactly as written, and
 // null or a blank one removes it.
 export const observationChangesSchema = z.object({
-  copeDimension: copeDimensionField.optional(),
+  copeDimensions: copeDimensionsField.optional(),
   severity: severityField.optional(),
   locationId: locationIdField.optional(),
   standard: standardField
@@ -201,8 +211,8 @@ export type ObservationDto = {
   id: string
   engineer: string
   engineerId: string | null
-  // null when not categorised yet.
-  copeDimension: CopeDimension | null
+  // Its categories in C-O-P-E order; null when not categorised yet.
+  copeDimensions: CopeDimension[] | null
   standard: string | null
   severity: IObservation['severity']
   // null only if the location is no longer listed.
@@ -323,7 +333,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     id: String(o._id),
     engineer: o.engineer,
     engineerId: o.engineerId ? String(o.engineerId) : null,
-    copeDimension: o.metadata.COPE_dimension ?? null,
+    copeDimensions: copeDimensionsOf(o.metadata.COPE_dimension),
     standard: o.standard ?? null,
     severity: o.severity,
     location: location ? toLocationDto(location) : null,
@@ -407,7 +417,7 @@ export async function saveObservation(
         source_type: 'observation',
         jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
         facility_type: assessment.site?.facilityType ?? 'unknown',
-        COPE_dimension: details.copeDimension,
+        COPE_dimension: details.copeDimensions,
         effective_date: now,
       },
     }),
@@ -533,8 +543,11 @@ export async function updateObservation(
     if (next === null) unset[path] = 1
     else set[path] = next
   }
-  if (changes.copeDimension !== undefined && changes.copeDimension !== o.metadata.COPE_dimension)
-    set['metadata.COPE_dimension'] = changes.copeDimension
+  if (
+    changes.copeDimensions !== undefined &&
+    String(changes.copeDimensions) !== String(copeDimensionsOf(o.metadata.COPE_dimension))
+  )
+    set['metadata.COPE_dimension'] = changes.copeDimensions
   change('severity', o.severity, changes.severity)
   if (changes.locationId && !o.location.equals(changes.locationId))
     set.location = changes.locationId

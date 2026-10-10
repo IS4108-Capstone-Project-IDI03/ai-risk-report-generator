@@ -20,6 +20,14 @@ from app.generation.llm import complete
 PROMPT_VERSION = "gn01-v2.3"
 HERE = Path(__file__).parent
 TEMPLATE = json.loads((HERE / "sections.json").read_text())
+
+
+def filed_under(o, section: dict) -> bool:
+    """Whether an observation is the section's own evidence: filed under any of its
+    categories. One filed under several categories is own evidence in each section."""
+    return any(c in section["cope_dimensions"] for c in o.COPE_dimension)
+
+
 # Our version of Marsh's PRE drafting skill: voice, house conventions and evidence rules.
 # The only source of writing conventions; its header is for people, not the model.
 DRAFTING_GUIDE = re.sub(
@@ -92,7 +100,7 @@ def _observation_block(label: str, o) -> str:
     details = ", ".join(
         f"{label}: {value}"
         for label, value in (
-            ("category", o.COPE_dimension),
+            ("category", ", ".join(o.COPE_dimension)),
             ("severity", o.severity),
             ("location", o.location),
             ("standard", o.standard),
@@ -132,8 +140,8 @@ def draft_section(
 ) -> tuple[SectionDraft, str]:
     """Return the model's draft of one section, and the model that wrote it."""
     section = TEMPLATE["sections"][section_id]
-    own = [o for o in observations if o.COPE_dimension in section["cope_dimensions"]]
-    others = [o for o in observations if o.COPE_dimension not in section["cope_dimensions"]]
+    own = [o for o in observations if filed_under(o, section)]
+    others = [o for o in observations if not filed_under(o, section)]
 
     # Short label -> full citation ID, numbered in prompt order.
     full: dict[str, str] = {}

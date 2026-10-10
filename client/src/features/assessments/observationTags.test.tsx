@@ -16,7 +16,7 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
   return {
     id: 'o1',
     engineer: 'Alex Rowe',
-    copeDimension: 'Protection',
+    copeDimensions: ['Protection'],
     standard: null,
     severity: 'high',
     location: BAY_3,
@@ -35,14 +35,14 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
 const HOSE_REEL = observation()
 const STAIRWELL_DOOR = observation({
   id: 'o2',
-  copeDimension: 'Exposure',
+  copeDimensions: ['Exposure'],
   severity: 'low',
   location: STAIRWELL,
   note: 'Stairwell door wedged open.',
 })
 const VALVE = observation({
   id: 'o3',
-  copeDimension: null,
+  copeDimensions: null,
   severity: 'moderate',
   location: PUMP_HOUSE,
   note: 'Unlabelled valve in the pump house.',
@@ -86,7 +86,7 @@ function mockGateway() {
         o.id === id
           ? {
               ...o,
-              ...('copeDimension' in tags && { copeDimension: tags.copeDimension }),
+              ...('copeDimensions' in tags && { copeDimensions: tags.copeDimensions }),
               ...(tags.severity && { severity: tags.severity }),
               ...(location && { location }),
               ...('standard' in tags && { standard: tags.standard }),
@@ -175,6 +175,26 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
     }
   })
 
+  it('lists an observation under each of its categories', async () => {
+    const SHARED_WALL = observation({
+      id: 'o4',
+      copeDimensions: ['Construction', 'Exposure'],
+      note: 'Shared wall with the paint store next door.',
+    })
+    listed = [SHARED_WALL, HOSE_REEL]
+    await openObservations()
+    expect(screen.getByRole('button', { name: /Shared wall/ })).toHaveTextContent(
+      'Construction, Exposure',
+    )
+
+    for (const category of ['Construction', 'Exposure']) {
+      choose('Filter by category', category)
+      expect(shown(SHARED_WALL.note!, HOSE_REEL.note!)).toEqual([SHARED_WALL.note])
+    }
+    choose('Filter by category', 'Uncategorised')
+    expect(shown(SHARED_WALL.note!, HOSE_REEL.note!)).toEqual([])
+  })
+
   it('narrows by every label chosen, and says so when none match', async () => {
     await openObservations()
 
@@ -213,16 +233,20 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
   it('categorises an observation and keeps its new tags after reopening', async () => {
     await openObservations()
     const dialog = await editTags(VALVE.note!)
-    // The category comes from the shared vocabulary (AC3).
-    expect(optionLabels(select('COPE category', dialog))).toEqual([
+    // The categories come from the shared vocabulary (AC3); an uncategorised
+    // observation has none ticked.
+    const boxes = within(
+      within(dialog).getByRole('group', { name: 'COPE categories' }),
+    ).getAllByRole('checkbox')
+    expect(boxes.map((c) => c.closest('label')?.textContent)).toEqual([
       'Construction',
       'Occupancy',
       'Protection',
       'Exposure',
-      'Uncategorised',
     ])
+    expect(boxes.filter((c) => (c as HTMLInputElement).checked)).toEqual([])
 
-    choose('COPE category', 'Exposure', dialog)
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Exposure' }))
     choose('Severity', 'critical', dialog)
     choose('Location', 'l2', dialog)
     choose('Standard reference', 'NFPA 25 – 2026 Edition', dialog)
@@ -234,7 +258,7 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
       {
         id: 'o3',
         tags: {
-          copeDimension: 'Exposure',
+          copeDimensions: ['Exposure'],
           severity: 'critical',
           locationId: 'l2',
           standard: 'NFPA 25 – 2026 Edition',
@@ -271,11 +295,11 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     await screen.findByText('Changes saved.')
 
     dialog = await editTags(HOSE_REEL.note!)
-    choose('COPE category', 'Uncategorised', dialog)
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Protection' }))
     choose('Standard reference', '', dialog)
     expect(
       within(dialog).getByText(
-        'Report drafting leaves this observation out until it is categorised.',
+        'None chosen: report drafting leaves this observation out until it is categorised.',
       ),
     ).toBeInTheDocument()
     click('Save changes')
@@ -283,7 +307,7 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     await vi.waitFor(() =>
       expect(patches.map((p) => p.tags)).toEqual([
         { severity: 'low' },
-        { copeDimension: null, standard: null },
+        { copeDimensions: null, standard: null },
       ]),
     )
   })
@@ -315,7 +339,7 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     await openObservations()
     const dialog = await editTags(PUMP_TEST)
 
-    choose('COPE category', 'Exposure', dialog)
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Exposure' }))
     choose('Location', 'demo-office', dialog)
     click('Save changes')
 

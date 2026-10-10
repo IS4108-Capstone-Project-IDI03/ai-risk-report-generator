@@ -1,6 +1,6 @@
 import type { SessionUser } from './auth.service'
 import { AssessmentModel } from '../models/assessment.model'
-import type { CopeDimension } from '../models/observation.model'
+import { copeDimensionsOf, type CopeDimension } from '../models/observation.model'
 import { ReportSectionModel, type IReportSection } from '../models/report-section.model'
 import type { ISite } from '../models/site.model'
 import { NotAssignedError } from './assessment.service'
@@ -73,15 +73,20 @@ export function toDraftDto(s: IReportSection & { _id: unknown }): SectionDraftDt
   }
 }
 
-// A section's own evidence is what is filed under its COPE categories; it
-// decides whether there is enough to draft. Observations under other
-// categories go to the draft too, as backup, since one finding can concern
-// several sections. Uncategorised ones (null) stay out (CP-02 AC4).
+// A section's own evidence is what is filed under any of its COPE categories;
+// it decides whether there is enough to draft. An observation filed under
+// several categories is its own evidence in each of their sections, and counts
+// towards each one's minimum. Observations under other categories go to the
+// draft too, as backup, since one finding can concern several sections.
+// Uncategorised ones (null) stay out (CP-02 AC4).
 function categorised(observations: ObservationDto[]) {
-  return observations.filter((o) => o.copeDimension)
+  return observations.filter((o) => o.copeDimensions)
+}
+export function filedUnder(section: TemplateSection, categories: readonly string[]): boolean {
+  return categories.some((c) => section.cope_dimensions.includes(c))
 }
 function isFiledUnder(section: TemplateSection) {
-  return (o: ObservationDto) => section.cope_dimensions.includes(o.copeDimension!)
+  return (o: ObservationDto) => filedUnder(section, o.copeDimensions!)
 }
 
 // Usable evidence: a note, or a finished transcript, as the engineer corrected
@@ -102,7 +107,7 @@ export type Evidence = IReportSection['evidence'][number]
 function toEvidence(o: ObservationDto): Evidence {
   return {
     id: o.id,
-    COPE_dimension: o.copeDimension!,
+    COPE_dimension: o.copeDimensions!,
     note: o.note,
     transcripts: transcriptsOf(o),
     severity: o.severity,
@@ -116,8 +121,17 @@ function toEvidence(o: ObservationDto): Evidence {
 // uncategorised (CP-08 AC15).
 export type ChangeCounts = { added: number; changed: number; removed: number }
 const NO_CHANGES: ChangeCounts = { added: 0, changed: 0, removed: 0 }
+// A draft's evidence as it is compared with now: drafts saved before an
+// observation could have several categories hold one string, read here as a
+// list of one, so an unchanged observation doesn't count as changed.
+export function savedEvidence(evidence: Evidence[] | undefined): Evidence[] {
+  return (evidence ?? []).map((e) => ({
+    ...e,
+    COPE_dimension: copeDimensionsOf(e.COPE_dimension) ?? [],
+  }))
+}
 function changesSince(evidence: Evidence[] | undefined, now: Evidence[]): ChangeCounts {
-  const then = new Map((evidence ?? []).map((e) => [e.id, JSON.stringify(e)]))
+  const then = new Map(savedEvidence(evidence).map((e) => [e.id, JSON.stringify(e)]))
   const current = new Set(now.map((e) => e.id))
   return {
     added: now.filter((e) => !then.has(e.id)).length,
@@ -211,7 +225,7 @@ export async function draftSection(
   if (!section) throw new UnknownSectionError(sectionId)
 
   const evidence = await draftingEvidence(reference)
-  const own = evidence.filter((e) => section.cope_dimensions.includes(e.COPE_dimension)).length
+  const own = evidence.filter((e) => filedUnder(section, e.COPE_dimension)).length
   if (own < section.min_observations) {
     throw new InsufficientEvidenceError(own, section.min_observations)
   }

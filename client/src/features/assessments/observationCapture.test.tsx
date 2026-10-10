@@ -42,7 +42,7 @@ function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
   return {
     id: 'o1',
     engineer: 'Alex Rowe',
-    copeDimension: 'Protection',
+    copeDimensions: ['Protection'],
     standard: null,
     severity: 'high',
     location: BAY_3,
@@ -107,7 +107,7 @@ function mockGateway() {
 function echo(sent: Sent) {
   const saved = observation({
     note: (sent.details.note as string | undefined) ?? null,
-    copeDimension: sent.details.copeDimension as string | null,
+    copeDimensions: sent.details.copeDimensions as string[] | null,
     recordings: sent.recordings.map((file, i) => ({ ...recording('r' + i), name: file.name })),
     photos: sent.photos.map((file, i) => ({
       id: 'p' + i,
@@ -325,7 +325,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     // protection is filed as Protection.
     expect(saves[0].details).toEqual({
       note: text,
-      copeDimension: 'Protection',
+      copeDimensions: ['Protection'],
       severity: 'high',
       locationId: 'l1',
       standard: '',
@@ -390,18 +390,19 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
   it('saves an observation left uncategorised and says drafting leaves it out', async () => {
     allowMicrophone()
     await openCapture()
-    fireEvent.change(screen.getByLabelText(/COPE category/), {
-      target: { value: 'Uncategorised' },
-    })
+    // Protection is ticked by default; unticking it leaves none.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Protection' }))
     expect(
-      screen.getByText('Report drafting leaves this observation out until it is categorised.'),
+      screen.getByText(
+        'None chosen: report drafting leaves this observation out until it is categorised.',
+      ),
     ).toBeInTheDocument()
     await record()
 
     save()
 
     await screen.findByText(/Observation saved/)
-    expect(saves[0].details.copeDimension).toBeNull()
+    expect(saves[0].details.copeDimensions).toBeNull()
     expect(screen.getByText('Uncategorised', { selector: 'span' })).toBeInTheDocument()
   })
 
@@ -494,24 +495,42 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 describe('Tagging on the capture screen (CP-06 AC3)', () => {
   it('offers only the shared COPE vocabulary and saves each category as its shared value', async () => {
     await openCapture()
-    const category = () => screen.getByLabelText(/COPE category/)
+    const group = screen.getByRole('group', { name: 'COPE categories' })
+    const shared = ['Construction', 'Occupancy', 'Protection', 'Exposure']
     expect(
-      within(category())
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Construction', 'Occupancy', 'Protection', 'Exposure', 'Uncategorised'])
+      within(group)
+        .getAllByRole('checkbox')
+        .map((c) => c.closest('label')?.textContent),
+    ).toEqual(shared)
+    const box = (label: string) => screen.getByRole('checkbox', { name: label })
 
     // Each category is shown and stored as the value the knowledge base tags
     // its chunks with.
-    const shared = ['Construction', 'Occupancy', 'Protection', 'Exposure']
+    fireEvent.click(box('Protection'))
     for (const label of shared) {
-      fireEvent.change(category(), { target: { value: label } })
+      fireEvent.click(box(label))
       write('Hose reel H3 blocked by pallets.')
       save()
       // A saved note clears the box, so the next one starts after this save.
       await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(''))
+      fireEvent.click(box(label))
     }
-    expect(saves.map((s) => s.details.copeDimension)).toEqual(shared)
+    expect(saves.map((s) => s.details.copeDimensions)).toEqual(shared.map((c) => [c]))
+  })
+
+  it('files one observation under several categories, in C-O-P-E order', async () => {
+    await openCapture()
+    // Protection is ticked by default.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Exposure' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Construction' }))
+    write('Shared wall with the neighbouring paint store.')
+    save()
+
+    await vi.waitFor(() => expect(saves).toHaveLength(1))
+    expect(saves[0].details.copeDimensions).toEqual(['Construction', 'Protection', 'Exposure'])
+    expect(
+      await screen.findByText('Construction, Protection, Exposure', { selector: 'span' }),
+    ).toBeInTheDocument()
   })
 })
 

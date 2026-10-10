@@ -5,7 +5,12 @@ import { resolve } from 'path'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { connectDb } from '../models/db'
-import { ObservationModel, type CopeDimension, type Severity } from '../models/observation.model'
+import {
+  copeDimensionsOf,
+  ObservationModel,
+  type CopeDimension,
+  type Severity,
+} from '../models/observation.model'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
@@ -31,7 +36,8 @@ type Case = {
   }
   observations: {
     id: string
-    COPE_dimension: CopeDimension
+    // One category as a string, or several as a list.
+    COPE_dimension: CopeDimension | CopeDimension[]
     severity: Severity
     location: string
     note: string
@@ -98,7 +104,7 @@ async function seed(name: string) {
         source_type: 'observation',
         jurisdiction: site.jurisdiction,
         facility_type: site.facilityType,
-        COPE_dimension: o.COPE_dimension,
+        COPE_dimension: copeDimensionsOf(o.COPE_dimension),
         // A minute apart, in the case's order.
         effective_date: new Date(Date.UTC(2026, 8, 28, 9, i)),
       },
