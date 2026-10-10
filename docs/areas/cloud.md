@@ -100,10 +100,16 @@ AWS keys empty, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `OCR_PROVIDER=anthropic`.
 
 ### 4. Start
 
+Start the backend services only. A plain `docker compose up` would also start
+the client's dev server (~500 MB), which laptops run instead:
+
 ```bash
-docker compose up -d --build
-docker compose ps        # no mongo, chroma or ollama in cloud mode
+docker compose up -d --build redis server rag-service speech-ocr-service ingestion-service ingestion-worker
+docker compose ps        # no client, mongo, chroma or ollama
 ```
+
+The first build takes 10-20 minutes (npm, Python packages, Docling models);
+later builds reuse the cache.
 
 Laptops run only the client, against the instance:
 
@@ -116,7 +122,7 @@ $env:SERVER_URL = "http://<elastic-ip>:4000"; npm run dev
 
 ```bash
 cd ~/ai-risk-report-generator && git pull
-docker compose up -d --build
+docker compose up -d --build redis server rag-service speech-ocr-service ingestion-service ingestion-worker
 docker image prune -f    # old image layers; the disk is 30 GB
 ```
 
