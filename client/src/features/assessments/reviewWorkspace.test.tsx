@@ -494,7 +494,7 @@ it('opens referenced observation photos from Review citations without inline ima
   const observation = {
     id: 'o1',
     engineer: 'Alex',
-    copeDimension: 'Construction',
+    copeDimensions: ['Construction'],
     severity: 'high',
     standard: null,
     location: null,
