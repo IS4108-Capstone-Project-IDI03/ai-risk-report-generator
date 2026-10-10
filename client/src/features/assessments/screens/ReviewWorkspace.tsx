@@ -186,6 +186,7 @@ export function ReviewWorkspace({
         onCite={cite}
       />
       <SourcePanel
+        savedObservations={observations}
         section={section}
         numbers={numbers}
         focus={focus}

@@ -905,3 +905,51 @@ wall penetration is both Construction and Protection), and with one category
 an engineer had to pick a section to leave it out of.
 
 Stories: CP-02, CP-06, GN-01.
+
+## 2026-10-10 — Ingestion moves to one cloud instance; tables and formulas are read by Claude Haiku 5.5, several at once
+
+Chose:
+- The whole backend runs in Docker Compose on one free-tier EC2 m7i-flex.large
+  (2 vCPU, 8 GiB), with Atlas, Chroma Cloud and S3. Redis stays a container on
+  the instance, shared by the server and the worker (docs/areas/cloud.md).
+- Docling still parses and chunks, on the instance's CPU with RapidOCR. Its
+  models are built into the image.
+- Cropped tables and formulas are read by an API provider chosen by
+  `OCR_PROVIDER` (anthropic | gemini | glm). The default is Claude Haiku 5.5.
+  On FM-200's tables it read 99% of the printed numbers and invented none,
+  in about 4 s per table. Self-hosted GLM-OCR on CPU read 73% in about 150 s,
+  and its formula output was unusable (eval/ocr/results/2026-10-10.md).
+- The chunker queues every table/formula region while walking the document and
+  reads them `OCR_CONCURRENCY` (6) at a time. Order and chunk ids stay as before.
+  A table split across chunks is read once; if that read fails it is dropped,
+  not retried from the later chunk.
+- Each passage stores `bbox_pages`, the page of each box in `bbox`, so a region
+  can be cut out of the original PDF later. Passages indexed before this got
+  it by a one-off backfill. 13 multi-box table passages could not be placed
+  and wait for re-ingestion.
+- A number the OCR returns that the PDF's text layer lacks is logged with its
+  page, never corrected. A rejected key or unknown model fails the document
+  instead of dropping its tables.
+- `docker compose up` builds a lean cloud image (CPU-only torch, no GLM-OCR).
+  `docker-compose.local-ocr.yml` adds Ollama and GLM-OCR, and
+  `docker-compose.gpu.yml` adds CUDA and Nemotron on top. Mongo and Chroma
+  containers sit behind a `local-db` profile.
+
+Rejected:
+- A GPU instance for GLM-OCR: idle almost all the time at 2–3 documents a week,
+  and GLM read fewer numbers than Haiku.
+- Replacing Docling with a document-AI service (Textract, Mistral OCR): the
+  section, page and COPE logic is built on the DoclingDocument, and Textract
+  reads no formulas.
+- Gemini as the default: the team's key was rejected by Google. It stays
+  selectable with `OCR_PROVIDER=gemini`.
+- Fixing two-row table headings: retrieval only needs the gist, and drafts are
+  to read the original region through `bbox`/`bbox_pages`.
+- A separate `ocr` progress stage: it would need the gateway's and client's
+  stage lists changed for a step that takes seconds. OCR stays inside chunking.
+
+Known limit: until drafting reads the original region by bbox, a draft that
+quotes a table value relies on the OCR text. The numeric-guard log shows which
+pages to check.
+
+Stories: IN-12, IN-03, IN-06.

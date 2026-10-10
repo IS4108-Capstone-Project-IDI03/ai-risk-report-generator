@@ -7,6 +7,8 @@ handling are all exercised hermetically.
 """
 
 import base64
+import importlib
+import sys
 import threading
 
 import pytest
@@ -44,6 +46,8 @@ def fake_client(monkeypatch):
     """Swap in the recorder and guarantee a cold cache around every test."""
     _FakeClient.instances = []
     ocr_model.close_ocr_client()
+    # Explicit, so a developer's .env (loaded by other modules) can't pick another provider.
+    monkeypatch.setenv("OCR_PROVIDER", "glm")
     monkeypatch.setattr(ocr_model, "OCRClient", _FakeClient)
     yield _FakeClient
     ocr_model.close_ocr_client()
@@ -394,3 +398,17 @@ def test_token_budgets_are_ordered_and_bounded():
     assert budgets[0] == ocr_model.MAX_TOKENS
     assert budgets[-1] <= ocr_model.MAX_TOKENS_RETRY
     assert len(budgets) == ocr_model._ADAPTIVE_RETRIES + 1
+
+
+# --- running without GLM-OCR installed (the cloud image) ------------------------
+
+
+def test_module_imports_without_glmocr_and_names_the_fix_when_glm_is_used(monkeypatch):
+    for name in ("glmocr", "glmocr.config", "glmocr.ocr_client"):
+        monkeypatch.setitem(sys.modules, name, None)  # None makes the import fail
+    monkeypatch.delitem(sys.modules, "app.pipeline.chunking_helper.ocr_model")
+    cloud_ocr_model = importlib.import_module("app.pipeline.chunking_helper.ocr_model")
+    monkeypatch.setenv("OCR_PROVIDER", "glm")
+
+    with pytest.raises(RuntimeError, match="local-ocr"):
+        cloud_ocr_model.recognise(PNG, "table")

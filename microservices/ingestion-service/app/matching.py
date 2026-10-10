@@ -16,6 +16,7 @@ from app.labelling.decide import normalise
 from app.retrieval_config import COLLECTION, chroma_client
 
 TOP_N = 5  # nearest stored passages looked at for each new passage
+MAX_QUERY_EMBEDDINGS = 20  # Chroma Cloud's per-request query quota
 
 
 def similarity() -> float:
@@ -113,22 +114,24 @@ def _overlap(new_id: str, candidate_ids: list[str]) -> tuple[int, dict[str, dict
     new = collection.get(where={"doc_id": new_id}, include=["embeddings"])
     if len(new["ids"]) == 0:
         return 0, {}
-    found = collection.query(
-        query_embeddings=[list(v) for v in new["embeddings"]],
-        n_results=TOP_N,
-        where={"doc_id": {"$in": candidate_ids}},
-        include=["distances", "metadatas"],
-    )
     limit = 1 - similarity()
     hits: dict[str, dict] = {}
-    for i, (ids, distances, metas) in enumerate(
-        zip(found["ids"], found["distances"], found["metadatas"])
-    ):
-        for stored_id, distance, meta in zip(ids, distances, metas):
-            if distance <= limit:
-                entry = hits.setdefault(meta["doc_id"], {"new": set(), "stored": set()})
-                entry["new"].add(i)
-                entry["stored"].add(stored_id)
+    embeddings = [list(v) for v in new["embeddings"]]
+    for offset in range(0, len(embeddings), MAX_QUERY_EMBEDDINGS):
+        found = collection.query(
+            query_embeddings=embeddings[offset : offset + MAX_QUERY_EMBEDDINGS],
+            n_results=TOP_N,
+            where={"doc_id": {"$in": candidate_ids}},
+            include=["distances", "metadatas"],
+        )
+        for i, (ids, distances, metas) in enumerate(
+            zip(found["ids"], found["distances"], found["metadatas"])
+        ):
+            for stored_id, distance, meta in zip(ids, distances, metas):
+                if distance <= limit:
+                    entry = hits.setdefault(meta["doc_id"], {"new": set(), "stored": set()})
+                    entry["new"].add(offset + i)
+                    entry["stored"].add(stored_id)
     return len(new["ids"]), hits
 
 

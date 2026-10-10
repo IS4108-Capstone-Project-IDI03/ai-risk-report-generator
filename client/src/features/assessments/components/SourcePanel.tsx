@@ -1,3 +1,5 @@
+import { PhotoReferences } from './PhotoReferences'
+import type { SavedObservation } from '../api'
 import { useEffect, useRef } from 'react'
 import { Badge, EvidenceCitation, IconButton, IconRegistry } from '../../../design-system'
 import { calendarDate } from '../../knowledge-base/display'
@@ -218,6 +220,7 @@ function ObservationText({
 // draft cites, the original field observations (AC3), and every claim with
 // its citations (AC4).
 export function SourcePanel({
+  savedObservations = [],
   section,
   numbers,
   focus,
@@ -226,6 +229,7 @@ export function SourcePanel({
   onShowClaim,
   style,
 }: {
+  savedObservations?: SavedObservation[]
   section: ReviewSection
   numbers: Map<string, number>
   focus: ReviewFocus
@@ -345,7 +349,11 @@ export function SourcePanel({
         {observations.length ? (
           <ul className="rv-panel-list">
             {observations.map((o) => (
-              <li key={o.id}>
+              <li
+                key={o.id}
+                className="rv-observation-card"
+                style={open === `O:${o.id}` ? OPEN_STYLE : undefined}
+              >
                 <EvidenceCitation
                   index={numbers.get(`O:${o.id}`)}
                   kind="observation"
@@ -353,8 +361,25 @@ export function SourcePanel({
                   locator={severityLabel(o.severity)}
                   excerpt={<ObservationText observation={o} section={section} />}
                   onOpen={() => onCite(`O:${o.id}`, null)}
-                  style={open === `O:${o.id}` ? OPEN_STYLE : undefined}
+                  style={{ border: 'none', borderRadius: 0 }}
                 />
+                {numbers.has(`O:${o.id}`) &&
+                  savedObservations.some(
+                    (saved) => saved.id === o.id && !saved.deleted && saved.photos.length > 0,
+                  ) && (
+                    <div
+                      className="rv-observation-photos"
+                      aria-label={`Photos for observation ${numbers.get(`O:${o.id}`)}`}
+                    >
+                      <PhotoReferences
+                        context={`Observation ${numbers.get(`O:${o.id}`)} · ${o.location ?? 'Location not recorded'}`}
+                        photos={
+                          savedObservations.find((saved) => saved.id === o.id && !saved.deleted)
+                            ?.photos ?? []
+                        }
+                      />
+                    </div>
+                  )}
               </li>
             ))}
           </ul>

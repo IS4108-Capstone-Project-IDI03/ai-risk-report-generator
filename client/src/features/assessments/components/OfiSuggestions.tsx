@@ -377,13 +377,10 @@ export function OfiRow({
   reference,
   canDraft,
   observations,
-  columns,
 }: {
   reference: string
   canDraft: boolean
   observations: SavedObservation[]
-  // The sections table's column grid, so this row lines up with sections 7-12.
-  columns: string
 }) {
   const { ofis, setOfis, loadError } = useOfis(reference)
   const [open, setOpen] = useState(false)
@@ -440,9 +437,9 @@ export function OfiRow({
     <Fragment>
       <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <div
+          className="generation-row"
           style={{
             display: 'grid',
-            gridTemplateColumns: columns,
             alignItems: 'center',
             padding: '12px 20px',
           }}
@@ -457,9 +454,6 @@ export function OfiRow({
               <span style={{ fontSize: '16px', fontWeight: 500 }}>
                 Opportunities for Improvement
               </span>
-              <Badge tone={state.tone} icon={state.icon}>
-                {state.label}
-              </Badge>
             </span>
             {suggested > 0 && inReport > 0 && (
               <span style={{ ...note, color: 'var(--text-secondary)' }}>
@@ -479,6 +473,11 @@ export function OfiRow({
                 {failure}
               </span>
             )}
+          </span>
+          <span className="generation-status">
+            <Badge tone={state.tone} icon={state.icon}>
+              {state.label}
+            </Badge>
           </span>
           <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
             {plural(candidates, 'observation')}
