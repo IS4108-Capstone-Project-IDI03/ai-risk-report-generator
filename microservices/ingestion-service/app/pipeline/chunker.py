@@ -11,6 +11,7 @@ Docling chunk metadata is mapped as:
 ``headings`` is stored as the raw list (outermost -> nearest heading).
 ``page_start`` / ``page_end`` are ints (present only when page provenance is known)
 ``bbox`` is a flat list of float coordinates, in page order, when provenance is known.
+``bbox_pages`` names the page of each 4-number box in ``bbox``, in the same order.
 ``doc_id`` is the foreign key back to the source document BUT not implemented yet.
 
 Chunk sizing: Defaults to 512-token and triggers overflow, warnings on long chunks.
@@ -19,8 +20,11 @@ We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
+import os
 import re
-from functools import lru_cache
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache, partial
 from typing import Any
 
 from docling_core.transforms.chunker import HybridChunker
@@ -41,6 +45,9 @@ MAX_CHUNK_TOKENS = 1024
 # Adjust it for embeding model (Cohere embed)
 CHUNK_TOKENIZER_MODEL = "BAAI/bge-m3"
 _FIRST_PAGES_LIMIT = 10
+# Table/formula regions read at once (OCR_CONCURRENCY overrides). The calls are
+# network-bound, so threads suffice; keep it under the OCR provider's rate limit.
+OCR_CONCURRENCY = 6
 
 
 def _has_formula_chunk(dl_chunk) -> bool:
@@ -313,6 +320,11 @@ def _build_metadata(
     bbox_coordinates = _flatten_bboxes(bboxes)
     if bbox_coordinates:
         metadata["bbox"] = bbox_coordinates
+        # One page per box, in the same order, so a region can be cut out of the
+        # original PDF later (bbox alone can't say which page a box is on).
+        box_pages = [box.get("page") for box in bboxes]
+        if all(isinstance(page, int) for page in box_pages):
+            metadata["bbox_pages"] = box_pages
     return metadata
 
 
@@ -326,9 +338,9 @@ def _extract_table_chunk(
 ) -> dict | None:
     """Extract a table into a single index-ready chunk, or None.
 
-    Called IN SERIES the moment a table is detected during chunking, so its
-    result can be appended in document (reading) order rather than collected and
-    reconciled afterwards. `table_bboxes` carries one page + bounding box per
+    Runs as one pass-2 OCR job (see `chunk`): its slot was reserved in reading
+    order when the table was met, so it may finish in any order.
+    `table_bboxes` carries one page + bounding box per
     item in the mixed chunk (see `_detect_bboxes`). Only entries labelled as
     tables are sent to the table parser; other entries contribute their source
     text directly.
@@ -380,7 +392,7 @@ def _extract_table_chunk(
 def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> str:
     """Decode a formula chunk by cropping and parsing each page it spans.
 
-    Runs IN SERIES the moment a formula chunk is detected. A formula chunk can
+    Runs as one pass-2 OCR job (see `chunk`). A formula chunk can
     span multiple pages, so `chunk_bboxes` holds one box PER page (see
     `_chunk_bbox`). We decode every page in order and join the results — reading
     only the first box would silently drop everything after the first page.
@@ -456,14 +468,16 @@ def chunk(
     total_pages = parsed.page_count
     page_reached = 0
 
-    chunks: list[dict] = []
+    # Pass 1 walks the chunks in reading order. A table or formula chunk gets
+    # its slot in `chunks` now and its OCR job queued in `ocr_jobs`; pass 2 runs
+    # the jobs several at a time and fills the slots, so order and ids never
+    # depend on which OCR call finishes first.
+    chunks: list[dict | None] = []
+    ocr_jobs: list[tuple[int, str, Callable[[], Any]]] = []
     seen_chunk_bboxes: list[dict] = []
     try:
         for n, dl_chunk in enumerate(chunker.chunk(dl_doc=doc)):
-            if reporter:
-                check = getattr(reporter, "check_cancelled", None)
-                if check:
-                    check()
+            _check_cancelled(reporter)
             text = (dl_chunk.text or "").strip()
             if not text:
                 continue
@@ -476,16 +490,18 @@ def chunk(
 
             trail = _chunk_trail(dl_chunk, section_trails)
 
-            # Tables are handled IN SERIES here, not collected for later: the
-            # moment a table chunk is detected we grab its bounding box and run
-            # table extraction inline, so the table lands in reading order.
             if _is_table_chunk(dl_chunk):
                 # Docling's linearised table text is discarded on purpose — it
                 # has already lost the row/column structure.
                 table_bboxes = _unseen_bboxes(_detect_bboxes(None, dl_chunk), seen_chunk_bboxes)
                 if not table_bboxes:
                     continue
-                table_chunk = _extract_table_chunk(
+                # Counted as seen when queued (not when decoded), so a table
+                # split across chunks is read once even while OCR runs in
+                # parallel. A table that fails to decode is not retried later.
+                seen_chunk_bboxes.extend(table_bboxes)
+                job = partial(
+                    _extract_table_chunk,
                     table_bboxes,
                     doc_path=str(doc_path),
                     doc_id=resolved_doc_id,
@@ -493,20 +509,17 @@ def chunk(
                     meta=dl_chunk.meta,
                     headings=trail,
                 )
-                if table_chunk is not None:
-                    chunks.append(table_chunk)
-                    seen_chunk_bboxes.extend(table_bboxes)
+                ocr_jobs.append((len(chunks), "table", job))
+                chunks.append(None)  # filled (or dropped) in pass 2
                 continue
 
             chunk_bboxes: list[dict[Any, Any]] = _chunk_bbox(dl_chunk)
-            has_formula = _has_formula_chunk(dl_chunk)
-            if has_formula:
+            if _has_formula_chunk(dl_chunk):
                 # With formula enrichment OFF, formula text gets replaced with
-                #  <!-- formula-not-decoded -->
-                # formula process in series (appended in reading order when done).
-                formula_chunk = _extract_formula_chunk(chunk_bboxes, str(doc_path))
-                if formula_chunk:
-                    text = formula_chunk
+                #  <!-- formula-not-decoded -->; pass 2 re-reads the region and
+                # keeps Docling's text if nothing decodes.
+                job = partial(_extract_formula_chunk, chunk_bboxes, str(doc_path))
+                ocr_jobs.append((len(chunks), "formula", job))
             elif _is_first_pages(chunk_bboxes):
                 text = _clean_toc_leaders(text)
 
@@ -522,8 +535,46 @@ def chunk(
                     ),
                 }
             )
+
+        _run_ocr_jobs(ocr_jobs, chunks, reporter)
     finally:
         # Release the PDF handle even if a region blows up mid-document.
         close_document()
 
-    return chunks
+    return [c for c in chunks if c is not None]
+
+
+def _check_cancelled(reporter) -> None:
+    check = getattr(reporter, "check_cancelled", None)
+    if check:
+        check()
+
+
+def _ocr_concurrency() -> int:
+    value = os.getenv("OCR_CONCURRENCY", "").strip()
+    return max(1, int(value)) if value else OCR_CONCURRENCY
+
+
+def _run_ocr_jobs(jobs: list[tuple[int, str, Callable[[], Any]]], chunks: list, reporter) -> None:
+    """Pass 2: run queued table/formula OCR concurrently and fill their slots.
+
+    A table job returns its chunk (or None, which drops the slot); a formula job
+    returns decoded text, which replaces Docling's placeholder when not empty.
+    Cancellation is checked as each region finishes; queued regions are then
+    dropped and only the calls already in flight are waited for.
+    """
+    if not jobs:
+        return
+    pool = ThreadPoolExecutor(max_workers=_ocr_concurrency())
+    try:
+        futures = {pool.submit(job): (slot, kind) for slot, kind, job in jobs}
+        for future in as_completed(futures):
+            _check_cancelled(reporter)
+            slot, kind = futures[future]
+            result = future.result()
+            if kind == "table":
+                chunks[slot] = result
+            elif result:
+                chunks[slot]["text"] = result
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
