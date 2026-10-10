@@ -192,3 +192,44 @@ def test_parse_timeout_defaults_to_thirty_minutes(monkeypatch):
 
 def test_parse_timeout_comes_from_docling_document_timeout(monkeypatch):
     assert _pdf_timeout(monkeypatch, "2400") == 2400.0
+
+
+# --- a parse that runs out of time fails (IN-12) ------------------------------
+# Docling stops at document_timeout and returns the pages it finished as
+# PARTIAL_SUCCESS. Indexing that would leave the rest of the standard out of
+# search while the upload shows Complete.
+
+
+def test_a_parse_that_runs_out_of_time_fails_instead_of_indexing_part_of_it(monkeypatch):
+    from types import SimpleNamespace
+
+    from docling.datamodel.base_models import ConversionStatus, ErrorItem
+    from docling_core.types.doc import DoclingDocument
+
+    from app.pipeline import parser
+    from app.pipeline.errors import DocumentTimeoutError
+
+    try:
+        from docling.datamodel.base_models import DoclingComponentType, FailureCategory
+    except ImportError:  # older layout
+        from docling.datamodel.base_models import DoclingComponentType
+        from docling.datamodel.document import FailureCategory
+
+    timed_out = SimpleNamespace(
+        status=ConversionStatus.PARTIAL_SUCCESS,
+        document=DoclingDocument(name="manual"),
+        errors=[
+            ErrorItem(
+                component_type=DoclingComponentType.PIPELINE,
+                module_name="StandardPdfPipeline",
+                error_message="Pipeline stage timeout: processed 40/120 pages successfully",
+                category=FailureCategory.TIMEOUT,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        parser, "_converter", lambda: SimpleNamespace(convert=lambda *a, **k: timed_out)
+    )
+
+    with pytest.raises(DocumentTimeoutError, match="40/120"):
+        parser.parse(str(FIXTURE))

@@ -30,6 +30,7 @@ from pymongo import MongoClient, ReturnDocument
 from app.matching import find_match
 from app.notifications import notify_ingestion, review_reason
 from app.pipeline import IngestionCancelledError, UnparsableDocumentError, run
+from app.pipeline.errors import DocumentTimeoutError
 from app.pipeline.indexer import delete_passages, relabel
 from app.pipeline.progress import ProgressReporter
 
@@ -43,6 +44,10 @@ log = logging.getLogger("ingestion-worker")
 # step (docs/design-system.md "Errors"); the technical error goes to the log.
 UNREADABLE = "No text could be read from this PDF. Upload a copy with selectable text."
 SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. Upload it again."
+TIMED_OUT = (
+    "Reading this PDF took longer than the time limit, so nothing was indexed. "
+    "Raise DOCLING_DOCUMENT_TIMEOUT on the server and upload it again."
+)
 
 
 def cancellation_requested(collection, document_id: ObjectId) -> bool:
@@ -213,7 +218,12 @@ def ingest_document(document_id: str) -> None:
         reporter.finish()
         if failed_stage:
             jobs().update_one({"documentId": _id}, {"$set": {"failedStage": failed_stage}})
-        reason = UNREADABLE if isinstance(error, UnparsableDocumentError) else SYSTEM_ERROR
+        if isinstance(error, UnparsableDocumentError):
+            reason = UNREADABLE
+        elif isinstance(error, DocumentTimeoutError):
+            reason = TIMED_OUT
+        else:
+            reason = SYSTEM_ERROR
         failed = collection.find_one_and_update(
             {"_id": _id},
             {"$set": {"status": "failed", "error": reason, "finishedAt": datetime.now(UTC)}},

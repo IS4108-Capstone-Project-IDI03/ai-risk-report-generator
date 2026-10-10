@@ -33,7 +33,7 @@ from docling_core.types.doc import (
     TitleItem,
 )
 
-from app.pipeline.errors import UnparsableDocumentError
+from app.pipeline.errors import DocumentTimeoutError, UnparsableDocumentError
 from app.pipeline.ocr_config import get_ocr_options
 
 # Labels whose text is body content we want to keep and chunk. Page
@@ -294,6 +294,17 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
     if result.status in (ConversionStatus.FAILURE, ConversionStatus.SKIPPED):
         raise UnparsableDocumentError(
             str(file_path), f"Docling could not extract the document (status={result.status.value})"
+        )
+
+    timeouts = [
+        error
+        for error in getattr(result, "errors", None) or []
+        if getattr(getattr(error, "category", None), "value", None) == "timeout"
+    ]
+    if timeouts:
+        raise DocumentTimeoutError(
+            f"Docling stopped at the {_document_timeout():.0f} s limit "
+            f"(DOCLING_DOCUMENT_TIMEOUT): {timeouts[0].error_message}"
         )
 
     doc = getattr(result, "document", None)
