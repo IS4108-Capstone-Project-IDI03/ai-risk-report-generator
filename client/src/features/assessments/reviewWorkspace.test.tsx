@@ -390,11 +390,8 @@ it('moves between sections and shows one without a draft as not drafted', async 
   expect(within(editor()).getByRole('button', { name: 'Next' })).toBeDisabled()
   expect(within(panel()).getByText(/no draft, so nothing is cited yet/)).toBeInTheDocument()
   // Its button leads to drafting.
-  fireEvent.click(within(editor()).getByRole('button', { name: 'Go to Report generation' }))
-  expect(screen.getByRole('tab', { name: /Report generation/ })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  )
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Go to Generation' }))
+  expect(screen.getByRole('tab', { name: /Generation/ })).toHaveAttribute('aria-selected', 'true')
 }, 15_000)
 
 it('says when there is nothing to review yet', async () => {

@@ -88,7 +88,8 @@ function mockGateway() {
       saves.push(sent)
       return saveReply(sent)
     }
-    if (url === OBS_URL) return json(200, listed)
+    // The workspace lists deleted ones too, for the Deleted button's count.
+    if (url === OBS_URL || url === OBS_URL + '?include=deleted') return json(200, listed)
     if (url === LOCATIONS_URL) return json(200, [BAY_3])
     if (url.endsWith('/transcription/retry')) {
       retries.push(url)

@@ -39,7 +39,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Complete the required fields')
     await signIn()
-    expect(screen.getByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
     expect(screen.getAllByPlaceholderText('Search site, client or report ID')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
@@ -82,8 +82,8 @@ describe('Marsh prototype integration', () => {
       target: { value: 'Demo Client' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(await screen.findByRole('heading', { name: 'Your assessments' })).toBeInTheDocument()
-    expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
+    // A new assessment opens on its Overview.
+    expect(await screen.findByRole('heading', { name: 'Demo Warehouse' })).toBeInTheDocument()
     expect(screen.getByText(/exists only in this demo and is not saved/)).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     // The next assessment starts from a blank form.
@@ -94,9 +94,12 @@ describe('Marsh prototype integration', () => {
       target: { value: 'Second Client' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(await screen.findByText('Second Warehouse')).toBeInTheDocument()
-    expect(screen.getByText('Demo Warehouse')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Second Warehouse' })).toBeInTheDocument()
+    // Both are on the list.
+    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
     expect(screen.getByText('8 of 8 assessments')).toBeInTheDocument()
+    expect(screen.getAllByText('Demo Warehouse').length).toBeGreaterThan(0)
   })
   it('saves observations and displays them in the assessment', async () => {
     render(<App />)
@@ -120,7 +123,7 @@ describe('Marsh prototype integration', () => {
     render(<App />)
     await signIn()
     openAssessment()
-    tab(/Report generation/)
+    tab(/Generation/)
     fireEvent.click(screen.getByRole('button', { name: 'Stop generation' }))
     const dialog = screen.getByRole('dialog', { name: 'Stop generation?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Stop generation' }))
@@ -133,7 +136,7 @@ describe('Marsh prototype integration', () => {
     render(<App />)
     await signIn()
     openAssessment()
-    tab(/Validation and export/)
+    tab(/Export/)
     expect(screen.getByRole('button', { name: 'Export as DOCX' })).toBeDisabled()
     tab(/^Review/)
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
@@ -154,7 +157,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
-    tab(/Validation and export/)
+    tab(/Export/)
     expect(screen.getByRole('button', { name: 'Export as DOCX' })).toBeEnabled()
     fireEvent.click(screen.getByRole('radio', { name: /PDF/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Export as PDF' }))

@@ -73,7 +73,8 @@ const patches: { id: string; tags: Record<string, unknown> }[] = []
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     if (!reachable) return Promise.reject(new TypeError('Failed to fetch'))
-    if (url === OBS_URL) return json(200, listed)
+    // The workspace lists deleted ones too, for the Deleted button's count.
+    if (url === OBS_URL || url === OBS_URL + '?include=deleted') return json(200, listed)
     if (url === LOCATIONS_URL) return json(200, [BAY_3, STAIRWELL, PUMP_HOUSE])
     const patch = url.match(/^\/api\/observations\/(\w+)$/)
     if (patch && init.method === 'PATCH') {

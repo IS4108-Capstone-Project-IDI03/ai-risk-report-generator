@@ -31,7 +31,7 @@ export function TranscriptDialog({ v, dialog }: Props) {
   return (
     <Dialog
       className="ds-dialog-sheet"
-      title="Correct transcript"
+      title="Edit transcript"
       description={`${recording.name}. Report drafting uses your correction, and what Whisper wrote is kept.`}
       width={560}
       onClose={busy ? undefined : v.closeObsDialog}
@@ -115,7 +115,7 @@ export function DeleteDialog({ v, dialog }: Props) {
         {!!dialog.summary && <p style={quote}>{dialog.summary}</p>}
         <p style={{ margin: 0 }}>
           Report drafting leaves it out from now on. Drafts that cite it keep it as they were
-          drafted from, and you can restore it with Show deleted.
+          drafted from, and you can restore it from Deleted.
         </p>
       </div>
     </Dialog>

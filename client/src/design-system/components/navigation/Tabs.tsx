@@ -6,12 +6,15 @@ export type TabsProps = {
   items?: { value: string; label: string; icon?: string; count?: number; alert?: string }[]
   value?: string | number
   onChange?: (value: string) => void
+  // Icons only on narrow screens (styles.css): each tab keeps its name for
+  // screen readers.
+  compact?: boolean
   style?: React.CSSProperties
 }
-function Tabs({ items = [], value, onChange, style = {} }: TabsProps) {
+function Tabs({ items = [], value, onChange, compact = false, style = {} }: TabsProps) {
   return (
     <div
-      className="ds-tabs"
+      className={compact ? 'ds-tabs ds-tabs-compact' : 'ds-tabs'}
       role="tablist"
       aria-label="View"
       style={{
@@ -30,7 +33,14 @@ function Tabs({ items = [], value, onChange, style = {} }: TabsProps) {
             key={t.value}
             role="tab"
             aria-selected={active}
-            aria-label={t.alert ? `${t.label}, ${t.alert}` : undefined}
+            aria-label={
+              t.alert
+                ? `${t.label}, ${t.alert}`
+                : compact
+                  ? t.label + (t.count != null ? ' ' + t.count : '')
+                  : undefined
+            }
+            title={compact ? t.label : undefined}
             tabIndex={active ? 0 : -1}
             onKeyDown={(event) => {
               if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -66,7 +76,7 @@ function Tabs({ items = [], value, onChange, style = {} }: TabsProps) {
             }}
           >
             {t.icon ? <Icon name={t.icon} size={14} /> : null}
-            {t.label}
+            <span className="ds-tab-label">{t.label}</span>
             {t.count != null ? (
               <span
                 style={

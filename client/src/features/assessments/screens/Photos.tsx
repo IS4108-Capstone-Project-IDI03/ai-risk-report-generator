@@ -14,6 +14,16 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
         animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
       }}
     >
+      {/* Opened from the Observations tab's Photos box, so it leads back there. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        iconLeft="arrow-left"
+        onClick={v.goObservations}
+        style={{ marginBottom: '10px' }}
+      >
+        {'Back to observations'}
+      </Button>
       <div
         style={{
           display: 'flex',
@@ -33,12 +43,6 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
         >
           {'Site photographs'}
         </span>
-        <span style={{ flex: '1' }}></span>
-        {v.canEdit && v.canCapture && (
-          <Button variant="secondary" size="sm" iconLeft="camera" onClick={v.goField}>
-            {'New observation'}
-          </Button>
-        )}
       </div>
       <p
         style={{
