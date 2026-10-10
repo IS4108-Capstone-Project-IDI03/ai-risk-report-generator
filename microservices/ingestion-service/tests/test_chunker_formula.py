@@ -165,6 +165,7 @@ def test_chunk_replaces_formula_placeholder_and_keeps_bbox_metadata(monkeypatch)
                 "page_start": 5,
                 "page_end": 5,
                 "bbox": [40.0, 380.0, 160.0, 340.0],
+                "bbox_pages": [5],
             },
         }
     ]
