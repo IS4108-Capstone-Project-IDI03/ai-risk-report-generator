@@ -86,11 +86,12 @@ target-version = ["py311"]
 # Run them explicitly with:  pytest -m slow   (or -m "slow or not slow" for all)
 # -rs always prints skip reasons: the Docling fixtures skip on any environment
 # failure, and a bare "s" hides why (e.g. a TLS/model-download problem).
-addopts = "-rs -m 'not slow and not inspect and not model and not e2e and not chroma'"
+addopts = "-rs -m 'not slow and not inspect and not model and not e2e and not chroma and not live'"
 markers = [
     "slow: full-document Docling parse; opt in with -m slow (minutes on CPU)",
     "inspect: dumps chunk text/metadata for manual inspection; opt in with -m inspect -s",
     "model: requires local Docling model weights and the fixture PDF",
     "e2e: full pipeline end-to-end; requires Docling models and the fixture PDF",
     "chroma: needs the local Chroma server (docker compose up chroma); opt in with -m chroma",
+    "live: calls a paid OCR API (Gemini) with real crops; needs GEMINI_API_KEY; opt in with -m live -s",
 ]
