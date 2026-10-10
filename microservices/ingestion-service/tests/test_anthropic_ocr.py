@@ -90,3 +90,11 @@ def test_haiku_reads_crops_unless_ocr_model_names_another(claude):
     ocr_model.recognise(PNG, "formula")
 
     assert claude.requests[0]["model"] == "claude-haiku-5-5"
+
+
+def test_claude_reads_crops_when_no_provider_is_set(claude, monkeypatch):
+    # The GLM-vs-API comparison (eval/ocr/results/2026-10-10.md) settled the default.
+    monkeypatch.delenv("OCR_PROVIDER")
+    claude.replies.append(_answer(FormulaReading(latex="x")))
+
+    assert ocr_model.recognise(PNG, "formula") == "x"
