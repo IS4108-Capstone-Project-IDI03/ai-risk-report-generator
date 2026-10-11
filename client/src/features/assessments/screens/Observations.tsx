@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import type * as React from 'react'
 import {
   Badge,
@@ -12,6 +12,7 @@ import {
 import { AddMediaDialog } from '../components/AddMediaDialog'
 import { StatBox } from '../components/StatBox'
 import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
+import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import { TagDialog } from '../components/TagDialog'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import type { TranscriptionStatus } from '../api'
@@ -78,7 +79,29 @@ function ColumnHead({ children }: { children: React.ReactNode }) {
   )
 }
 
-function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['proposal']> }) {
+// A photo's name that opens the photo in a popup.
+function PhotoLink({ name, onClick }: { name: string; onClick: () => void }) {
+  return (
+    <Button
+      variant="link"
+      size="sm"
+      onClick={onClick}
+      style={{ height: 'auto', fontSize: 'inherit', fontWeight: 'inherit', whiteSpace: 'normal' }}
+    >
+      {name}
+    </Button>
+  )
+}
+
+function PhotoProposal({
+  o,
+  proposal,
+  onView,
+}: {
+  o: Row
+  proposal: NonNullable<Row['proposal']>
+  onView: (photo: ViewedPhoto) => void
+}) {
   if (proposal.status === 'unread')
     return (
       <section aria-label="Proposal from the photos" style={proposalSection}>
@@ -193,9 +216,10 @@ function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['pro
                 <Fragment key={index}>
                   {index > 0 && ', '}
                   {m.url ? (
-                    <a href={m.url} target="_blank" rel="noreferrer">
-                      {m.name}
-                    </a>
+                    <PhotoLink
+                      name={m.name}
+                      onClick={() => onView({ name: m.name, url: m.url!, context: o.where })}
+                    />
                   ) : (
                     m.name
                   )}
@@ -235,6 +259,7 @@ function PhotoProposal({ o, proposal }: { o: Row; proposal: NonNullable<Row['pro
 }
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
+  const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
   return (
     <>
       <div
@@ -759,20 +784,23 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                   }}
                                 >
                                   {m.url ? (
-                                    // The original photo, linked from its observation (CP-04 AC2).
-                                    <a
-                                      href={m.url}
-                                      target="_blank"
-                                      rel="noreferrer"
+                                    // The original photo, opened from its observation (CP-04 AC2).
+                                    <button
+                                      type="button"
                                       aria-label={'Open ' + m.name}
+                                      onClick={() =>
+                                        setViewing({ name: m.name, url: m.url!, context: o.where })
+                                      }
                                       style={{
                                         width: '132px',
+                                        padding: 0,
                                         border: '1px solid var(--border-default)',
                                         borderRadius: '5px',
                                         background: 'var(--surface-card)',
                                         overflow: 'hidden',
                                         color: 'var(--text-muted)',
-                                        textDecoration: 'none',
+                                        textAlign: 'left',
+                                        cursor: 'zoom-in',
                                       }}
                                     >
                                       {/* ponytail: loads the original; serve smaller copies if lists grow long. */}
@@ -795,7 +823,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                       >
                                         {m.name}
                                       </span>
-                                    </a>
+                                    </button>
                                   ) : (
                                     <div
                                       style={{
@@ -851,7 +879,9 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                 </p>
                               ))}
                             {/* What the photo service reads in them, beside the photos. */}
-                            {!!o.proposal && <PhotoProposal o={o} proposal={o.proposal} />}
+                            {!!o.proposal && (
+                              <PhotoProposal o={o} proposal={o.proposal} onView={setViewing} />
+                            )}
                           </div>
                         )}
                       </div>
@@ -887,9 +917,12 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                                     color="var(--text-muted)"
                                   ></Icon>
                                   {m.kind === 'photos' && m.url ? (
-                                    <a href={m.url} target="_blank" rel="noreferrer">
-                                      {m.name}
-                                    </a>
+                                    <PhotoLink
+                                      name={m.name}
+                                      onClick={() =>
+                                        setViewing({ name: m.name, url: m.url!, context: o.where })
+                                      }
+                                    />
                                   ) : (
                                     <span style={{ overflowWrap: 'anywhere' }}>{m.name}</span>
                                   )}
@@ -1039,6 +1072,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
           </div>
         </div>
       </div>
+      {viewing && <PhotoDialog photo={viewing} onClose={() => setViewing(null)} />}
       <TagDialog v={v} />
       {v.obsDialog?.kind === 'transcript' && !!v.obsDialog.recording && (
         <TranscriptDialog
