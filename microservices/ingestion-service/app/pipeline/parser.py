@@ -251,6 +251,41 @@ def _converter() -> DocumentConverter:
     )
 
 
+_BATCH_PAGES = 20
+
+
+def _batches(start: int, end: int) -> list[tuple[int, int]]:
+    """Split pages start..end (1-based, inclusive) into _BATCH_PAGES-page ranges."""
+    return [
+        (first, min(first + _BATCH_PAGES - 1, end))
+        for first in range(start, end + 1, _BATCH_PAGES)
+    ]
+
+
+def _checked_document(result, file_path: str) -> DoclingDocument:
+    """One convert call's document, or the error that call's outcome means."""
+    if result.status in (ConversionStatus.FAILURE, ConversionStatus.SKIPPED):
+        raise UnparsableDocumentError(
+            str(file_path), f"Docling could not extract the document (status={result.status.value})"
+        )
+
+    timeouts = [
+        error
+        for error in getattr(result, "errors", None) or []
+        if getattr(getattr(error, "category", None), "value", None) == "timeout"
+    ]
+    if timeouts:
+        raise DocumentTimeoutError(
+            f"Docling stopped at the {_document_timeout():.0f} s limit "
+            f"(DOCLING_DOCUMENT_TIMEOUT): {timeouts[0].error_message}"
+        )
+
+    doc = getattr(result, "document", None)
+    if doc is None:
+        raise UnparsableDocumentError(str(file_path), "Docling returned no document")
+    return doc
+
+
 def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDocument:
     """Parse a document into structured text blocks plus captured tables/images.
 
@@ -275,7 +310,6 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
     # carried on the result so chunking can report page progress.
     page_count = _page_count(source)
 
-    convert_kwargs: dict = {"raises_on_error": False}
     if page_range is not None:
         start, end = page_range
         if start < 1 or end <= start:
@@ -284,32 +318,25 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
             )
         if page_count is not None and end > page_count:
             raise ValueError(f"page_range end {end} exceeds document page count {page_count}")
-        convert_kwargs["page_range"] = (start, end)
+        batches: list[tuple[int, int] | None] = _batches(start, end)
+    elif page_count is not None:
+        batches = _batches(1, page_count)
+    else:
+        # Unreadable page count: one call, so Docling's own error handling decides.
+        batches = [None]
 
-    # raises_on_error=False so a per-document failure comes back as a status we
-    # can classify, instead of an exception we would have to distinguish from
-    # pipeline init errors.
-    result = _converter().convert(source, **convert_kwargs)
+    docs = []
+    for batch in batches:
+        # raises_on_error=False so a per-document failure comes back as a status
+        # we can classify, instead of an exception we would have to distinguish
+        # from pipeline init errors.
+        convert_kwargs: dict = {"raises_on_error": False}
+        if batch is not None:
+            convert_kwargs["page_range"] = batch
+        result = _converter().convert(source, **convert_kwargs)
+        docs.append(_checked_document(result, file_path))
 
-    if result.status in (ConversionStatus.FAILURE, ConversionStatus.SKIPPED):
-        raise UnparsableDocumentError(
-            str(file_path), f"Docling could not extract the document (status={result.status.value})"
-        )
-
-    timeouts = [
-        error
-        for error in getattr(result, "errors", None) or []
-        if getattr(getattr(error, "category", None), "value", None) == "timeout"
-    ]
-    if timeouts:
-        raise DocumentTimeoutError(
-            f"Docling stopped at the {_document_timeout():.0f} s limit "
-            f"(DOCLING_DOCUMENT_TIMEOUT): {timeouts[0].error_message}"
-        )
-
-    doc = getattr(result, "document", None)
-    if doc is None:
-        raise UnparsableDocumentError(str(file_path), "Docling returned no document")
+    doc = docs[0] if len(docs) == 1 else DoclingDocument.concatenate(docs)
 
     text_blocks, tables, images = _extract_text_blocks(doc)
 

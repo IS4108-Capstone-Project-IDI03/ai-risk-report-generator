@@ -233,3 +233,82 @@ def test_a_parse_that_runs_out_of_time_fails_instead_of_indexing_part_of_it(monk
 
     with pytest.raises(DocumentTimeoutError, match="40/120"):
         parser.parse(str(FIXTURE))
+
+
+# --- batched parsing: 20 pages per convert call -------------------------------
+# A fake converter stands in for Docling's models: each call returns a
+# DoclingDocument holding one paragraph on the first page of the requested range.
+
+
+def _blank_pdf(tmp_path, pages: int) -> str:
+    import pymupdf
+
+    path = tmp_path / f"blank-{pages}.pdf"
+    with pymupdf.open() as pdf:
+        for _ in range(pages):
+            pdf.new_page()
+        pdf.save(path)
+    return str(path)
+
+
+def _batch_document(start: int, end: int):
+    from docling_core.types.doc import (
+        BoundingBox,
+        DocItemLabel,
+        DoclingDocument,
+        ProvenanceItem,
+        Size,
+    )
+
+    doc = DoclingDocument(name="blank")
+    for page_no in range(start, end + 1):
+        doc.add_page(page_no=page_no, size=Size(width=612, height=792))
+    text = f"Paragraph from page {start}"
+    doc.add_text(
+        label=DocItemLabel.PARAGRAPH,
+        text=text,
+        prov=ProvenanceItem(
+            page_no=start,
+            bbox=BoundingBox(l=72, t=72, r=540, b=100),
+            charspan=(0, len(text)),
+        ),
+    )
+    return doc
+
+
+class _FakeConverter:
+    def __init__(self) -> None:
+        self.page_ranges: list[tuple[int, int]] = []
+
+    def convert(self, source, page_range=None, **kwargs):
+        from types import SimpleNamespace
+
+        from docling.datamodel.base_models import ConversionStatus
+
+        self.page_ranges.append(page_range)
+        return SimpleNamespace(
+            status=ConversionStatus.SUCCESS,
+            document=_batch_document(*page_range),
+            errors=[],
+            pages=[],
+        )
+
+
+@pytest.fixture
+def fake_converter(monkeypatch):
+    from app.pipeline import parser
+
+    converter = _FakeConverter()
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+    return converter
+
+
+def test_a_long_document_is_converted_twenty_pages_at_a_time(tmp_path, fake_converter):
+    result = parse(_blank_pdf(tmp_path, 45))
+
+    assert fake_converter.page_ranges == [(1, 20), (21, 40), (41, 45)]
+    assert [(b.text, b.page) for b in result.text_blocks] == [
+        ("Paragraph from page 1", 1),
+        ("Paragraph from page 21", 21),
+        ("Paragraph from page 41", 41),
+    ]
