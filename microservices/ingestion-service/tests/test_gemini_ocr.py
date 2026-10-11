@@ -10,7 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.pipeline.chunking_helper import gemini_ocr, ocr_model
+from app.pipeline.chunking_helper import gemini_ocr, ocr_model, rate_limit
+from app.pipeline.errors import OcrUnavailableError
 
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
 
@@ -40,9 +41,10 @@ class _FakeGemini:
 class _HttpError(Exception):
     """An HTTP failure as the interactions SDK reports it (`status_code`)."""
 
-    def __init__(self, status_code: int):
+    def __init__(self, status_code: int, body=None):
         super().__init__(f"HTTP {status_code}")
         self.status_code = status_code
+        self.body = body
 
 
 TABLE_ANSWER = json.dumps({"rows": [["Agent", "Qty"], ["FM-200", "2"]], "header": "row"})
@@ -51,9 +53,12 @@ TABLE_ANSWER = json.dumps({"rows": [["Agent", "Qty"], ["FM-200", "2"]], "header"
 @pytest.fixture
 def gemini(monkeypatch):
     monkeypatch.setenv("OCR_PROVIDER", "gemini")
-    monkeypatch.setattr(gemini_ocr, "BACKOFF_SECONDS", 0)
     fake = _FakeGemini()
     monkeypatch.setattr(gemini_ocr, "_client", lambda: fake)
+    # Waits are recorded, not slept.
+    monkeypatch.setattr(rate_limit, "_paused_until", 0.0)
+    fake.pauses = []
+    monkeypatch.setattr(rate_limit, "_pause", fake.pauses.append)
     return fake
 
 
@@ -93,15 +98,30 @@ def test_formula_crop_returns_the_latex_unchanged(gemini):
 
 
 def test_rate_limits_are_retried_until_an_answer_comes_back(gemini):
-    gemini.replies += [_HttpError(429), _HttpError(429), TABLE_ANSWER]
+    retry_info = {
+        "error": {
+            "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "37s"}]
+        }
+    }
+    gemini.replies += [_HttpError(429, retry_info), _HttpError(429), TABLE_ANSWER]
 
     assert ocr_model.recognise(PNG, "table") == "Agent: FM-200; Qty: 2"
+    assert len(gemini.pauses) == 2
+    assert gemini.pauses[0] == 37.0  # Gemini's retryDelay, when it sends one
 
 
-def test_a_region_gives_up_after_three_server_errors(gemini):
-    gemini.replies += [_HttpError(503), _HttpError(503), _HttpError(503)]
+def test_a_region_still_overloaded_after_every_wait_fails_the_document(gemini):
+    gemini.replies += [_HttpError(503)] * (rate_limit.MAX_WAITS + 1)
+
+    with pytest.raises(OcrUnavailableError):
+        ocr_model.recognise(PNG, "table")
+
+
+def test_a_rejected_request_leaves_the_region_unread(gemini):
+    gemini.replies.append(_HttpError(400))
 
     assert ocr_model.recognise(PNG, "table") is None
+    assert gemini.pauses == []
 
 
 def test_an_answer_without_text_leaves_the_region_unread(gemini, monkeypatch):

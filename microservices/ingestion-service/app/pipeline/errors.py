@@ -25,3 +25,12 @@ class DocumentTimeoutError(Exception):
     Docling returns the pages it finished as PARTIAL_SUCCESS; indexing those
     would leave the rest of the document out of search while it shows Complete.
     """
+
+
+class OcrUnavailableError(Exception):
+    """Raised when the OCR provider kept refusing a table or formula region (IN-12).
+
+    Rate limits and overloads are waited out first (`chunking_helper.rate_limit`).
+    Indexing without the region would show the document Complete with its
+    numbers missing from search.
+    """
