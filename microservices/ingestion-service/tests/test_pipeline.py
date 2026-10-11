@@ -44,7 +44,7 @@ def _install_fakes(monkeypatch, parsed, calls, *, chunks=None, sections=None):
         ]
     )
 
-    def fake_parse(file_path, page_range=None):
+    def fake_parse(file_path, page_range=None, reporter=None):
         calls.append(("parse", file_path, page_range))
         return parsed
 
@@ -104,7 +104,7 @@ def test_tables_and_images_are_not_indexed(monkeypatch):
 
 
 def test_unparsable_error_propagates(monkeypatch):
-    def boom(file_path, page_range=None):
+    def boom(file_path, page_range=None, reporter=None):
         raise UnparsableDocumentError(file_path, "corrupt")
 
     monkeypatch.setattr(pipeline, "parse", boom)
@@ -218,6 +218,24 @@ def test_reporter_sees_each_stage_in_order(monkeypatch):
     assert stages == ["parsing", "chunking", "anonymising", "indexing"]
 
 
+def test_pages_parsed_are_reported_during_the_parsing_stage(monkeypatch):
+    _install_fakes(monkeypatch, _parsed(), [])
+    parsed = _parsed()
+
+    def parse_reporting_a_batch(file_path, page_range=None, reporter=None):
+        if reporter is not None:
+            reporter.update_pages(20, 45)
+        return parsed
+
+    monkeypatch.setattr(pipeline, "parse", parse_reporting_a_batch)
+    reporter = RecordingReporter()
+
+    pipeline.run("some/report.pdf", reporter=reporter)
+
+    parsing = reporter.calls.index(("start_stage", "parsing"))
+    assert reporter.calls[parsing + 1] == ("update_pages", 20, 45)
+
+
 def test_reporter_finishes_after_indexing(monkeypatch):
     _install_fakes(monkeypatch, _parsed(), [])
     reporter = RecordingReporter()
@@ -231,7 +249,7 @@ def test_reporter_finishes_after_indexing(monkeypatch):
 
 
 def test_reporter_does_not_finish_when_parsing_fails(monkeypatch):
-    def boom(file_path, page_range=None):
+    def boom(file_path, page_range=None, reporter=None):
         raise UnparsableDocumentError(file_path, "corrupt")
 
     monkeypatch.setattr(pipeline, "parse", boom)

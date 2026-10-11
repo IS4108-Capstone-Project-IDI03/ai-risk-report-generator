@@ -151,11 +151,12 @@ export function UploadedDocuments({
     const p = d.status === 'processing' ? d.progress : undefined
     const stage = p && STAGE_LABELS[p.currentStage]
 
-    // "12 / 45 pages", or "12 pages" if the total couldn't be read, while
-    // chunking once a page with provenance is reached (E2b). The chunk count
-    // has no knowable total, so pages are shown instead of a progress bar.
+    // "12 / 45 pages", or "12 pages" if the total couldn't be read: while
+    // parsing, the pages parsed so far (in 20-page batches), and while
+    // chunking, the page reached (E2b). The chunk count has no knowable total,
+    // so pages are shown instead of a progress bar.
     const pageLabel =
-      p && p.currentStage === 'chunking' && p.pageCurrent
+      p && (p.currentStage === 'parsing' || p.currentStage === 'chunking') && p.pageCurrent
         ? p.pageTotal
           ? `${p.pageCurrent} / ${p.pageTotal} pages`
           : `${p.pageCurrent} pages`

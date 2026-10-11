@@ -324,6 +324,15 @@ describe('Ingestion stage tracking (E2)', () => {
     expect(within(region).getByText('12 / 45 pages')).toBeInTheDocument()
   })
 
+  it('shows the pages parsed so far for a parsing document', async () => {
+    mockGateway([processing({ currentStage: 'parsing', pageCurrent: 40, pageTotal: 500 })])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Parsing')).toBeInTheDocument()
+    expect(within(region).getByText('40 / 500 pages')).toBeInTheDocument()
+  })
+
   it('shows the page without a total when the page count is unknown', async () => {
     mockGateway([processing({ currentStage: 'chunking', pageCurrent: 12, pageTotal: null })])
     await openAddDocuments()

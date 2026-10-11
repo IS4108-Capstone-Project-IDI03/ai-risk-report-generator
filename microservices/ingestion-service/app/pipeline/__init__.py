@@ -113,7 +113,7 @@ def run(
 
     _check_cancelled(_reporter)
     _reporter.start_stage("parsing")
-    parsed = this.parse(file_path, page_range=page_range)
+    parsed = this.parse(file_path, page_range=page_range, reporter=_reporter)
 
     tables_captured = len(parsed.tables)
     images_captured = len(parsed.images)

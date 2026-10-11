@@ -616,9 +616,11 @@ gateway to enrich the `KnowledgeDocument` DTO (E2). Keyed by `documentId` (uniqu
 index → `knowledge_documents._id`), so the gateway finds a run with one query and
 no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
 `chunking`, `indexing`, `complete`, `failed`), `pageCurrent` and
-`pageTotal` (the page being chunked and the document's page count — progress is
-tracked by page because the chunk total is not knowable up front; both null until
-chunking reaches a page with provenance), `stageLog` (completed stages, each with
+`pageTotal` (the page reached and the document's page count: while parsing, the
+last page parsed, written after each 20-page batch; while chunking, the page being
+chunked — progress is tracked by page because the chunk total is not knowable up
+front; both set back to null at the start of every stage, so one stage's count
+never shows under the next), `stageLog` (completed stages, each with
 `stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
 progress when ingestion failed, written on failure so it need not be inferred
 from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),

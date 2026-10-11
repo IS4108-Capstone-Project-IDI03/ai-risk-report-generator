@@ -296,17 +296,37 @@ def _batch_document(start: int, end: int, failed_pages=frozenset(), headings=Non
 
 
 class _FakeConverter:
-    def __init__(self, failed_pages=frozenset(), headings=None) -> None:
+    def __init__(self, failed_pages=frozenset(), headings=None, timed_out_batch=None) -> None:
         self.page_ranges: list[tuple[int, int]] = []
         self.failed_pages = failed_pages
         self.headings = headings
+        self.timed_out_batch = timed_out_batch
 
     def convert(self, source, page_range=None, **kwargs):
         from types import SimpleNamespace
 
-        from docling.datamodel.base_models import ConversionStatus
+        from docling.datamodel.base_models import (
+            ConversionStatus,
+            DoclingComponentType,
+            ErrorItem,
+            FailureCategory,
+        )
 
         self.page_ranges.append(page_range)
+        if page_range == self.timed_out_batch:
+            return SimpleNamespace(
+                status=ConversionStatus.PARTIAL_SUCCESS,
+                document=_batch_document(*page_range),
+                errors=[
+                    ErrorItem(
+                        component_type=DoclingComponentType.PIPELINE,
+                        module_name="StandardPdfPipeline",
+                        error_message="Pipeline stage timeout: processed 12/20 pages successfully",
+                        category=FailureCategory.TIMEOUT,
+                    )
+                ],
+                pages=[],
+            )
         return SimpleNamespace(
             status=ConversionStatus.SUCCESS,
             document=_batch_document(*page_range, self.failed_pages, self.headings),
@@ -376,6 +396,36 @@ def test_pages_parsed_are_reported_after_each_batch(
     parse(_blank_pdf(tmp_path, pages), reporter=reporter)
 
     assert reporter.pages == expected_updates
+
+
+def test_a_stop_requested_during_parsing_ends_it_after_the_current_batch(
+    tmp_path, fake_converter
+):
+    from app.pipeline.progress import IngestionCancelledError
+
+    class _StopRequested:
+        def update_pages(self, current, total):
+            raise IngestionCancelledError()
+
+    with pytest.raises(IngestionCancelledError):
+        parse(_blank_pdf(tmp_path, 45), reporter=_StopRequested())
+
+    assert fake_converter.page_ranges == [(1, 20)]
+
+
+def test_a_batch_that_runs_out_of_time_fails_the_parse_without_converting_the_rest(
+    tmp_path, monkeypatch
+):
+    from app.pipeline import parser
+    from app.pipeline.errors import DocumentTimeoutError
+
+    converter = _FakeConverter(timed_out_batch=(21, 40))
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+
+    with pytest.raises(DocumentTimeoutError, match="12/20"):
+        parse(_blank_pdf(tmp_path, 45))
+
+    assert converter.page_ranges == [(1, 20), (21, 40)]
 
 
 def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, monkeypatch):

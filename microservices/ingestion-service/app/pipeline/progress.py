@@ -119,8 +119,9 @@ class ProgressReporter:
     def update_pages(self, current: int, total: int | None) -> None:
         """Update the page counter only, with no stage transition (E2b).
 
-        `current` is the page being chunked; `total` is the document's page
-        count (known up front from the parser). The chunk count has no knowable
+        `current` is the last page parsed (after each batch) or the page being
+        chunked; `total` is the document's page count (known up front from the
+        parser). The chunk count has no knowable
         total, so progress is tracked by page instead.
         """
         if not self._enabled():

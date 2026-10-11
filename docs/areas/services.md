@@ -96,7 +96,11 @@ eval.interpret_photos`).
    so chunk ids are `<id>:<n>` and every passage carries the document's
    labels (KB-01; an Unconfirmed one is left out, and `status` is
    `needs_review` until the match step below has finished) and its own `section`
-   (IN-05, the report section it sits in, `Not applicable` or `Undefined`). The `ProgressReporter` writes each stage transition to the
+   (IN-05, the report section it sits in, `Not applicable` or `Undefined`).
+   Parsing converts the PDF in 20-page batches (`DOCLING_DOCUMENT_TIMEOUT`
+   limits each batch), joins them, and then assigns heading levels in one pass
+   over the whole document with the PDF's bookmarks and font styles, so a
+   heading is ranked against those in every batch. The `ProgressReporter` writes each stage transition to the
    `ingestion_jobs` collection in MongoDB (E2), and the gateway merges this into
    the `KnowledgeDocument` DTO as `progress` while the document is `processing`.
    Then the worker runs the match step (IN-07, see "Matching" below) and gives
@@ -110,8 +114,8 @@ eval.interpret_photos`).
    redelivered by BullMQ and processed again.
 6. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
    document is queued or processing, showing each processing document's stage,
-   elapsed time and, while chunking, the page reached out of the document's page
-   total from `progress` (E2). Pages are shown rather than a chunk count because
+   elapsed time and, while parsing or chunking, the page reached out of the
+   document's page total from `progress` (E2). Pages are shown rather than a chunk count because
    the chunk total is not knowable up front.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
