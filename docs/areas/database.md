@@ -618,9 +618,16 @@ no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
 `chunking`, `indexing`, `complete`, `failed`), `pageCurrent` and
 `pageTotal` (the page reached and the document's page count: while parsing, the
 last page parsed, `0` as parsing starts, then written after each 20-page batch; while chunking, the page being
-chunked — progress is tracked by page because the chunk total is not knowable up
+chunked, set to the page count once every page has been walked (trailing blank or
+image-only pages yield no chunk); while indexing, the furthest page embedded after
+each Cohere batch, then the page count — progress is tracked by page because the
+chunk total is not knowable up
 front; both set back to null at the start of every stage, so one stage's count
-never shows under the next), `stageLog` (completed stages, each with
+never shows under the next), `ocrCurrent` and `ocrTotal` (during chunking's OCR
+pass, the table and formula regions read so far and the number queued: `0` of the
+total as the pass starts, then one more per region; counted by region because
+regions finish out of page order; null until the pass starts, when nothing needs
+OCR, and at the start of every stage), `stageLog` (completed stages, each with
 `stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
 progress when ingestion failed, written on failure so it need not be inferred
 from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),
