@@ -543,6 +543,16 @@ describe('GET /api/knowledge-documents', () => {
     expect(typeof progress.stageLog[0].startedAt).toBe('string')
   })
 
+  it('includes the table and formula OCR count while chunking reads its regions', async () => {
+    const { body: doc } = await upload(freshPdf(), { ...DETAILS, title: 'Reading OCR' })
+    await KnowledgeDocumentModel.updateOne({ _id: doc.id }, { status: 'processing' })
+    await seedJob(doc.id, { pageCurrent: 45, ocrCurrent: 3, ocrTotal: 17 })
+
+    const { body } = await api.get('/api/knowledge-documents')
+
+    expect(find(body, 'Reading OCR').progress).toMatchObject({ ocrCurrent: 3, ocrTotal: 17 })
+  })
+
   it('gives a queued document no progress field', async () => {
     const { body: doc } = await upload(freshPdf(), { ...DETAILS, title: 'Queued doc' })
     // Left as 'queued'; a job could exist, but progress is only read for processing.
