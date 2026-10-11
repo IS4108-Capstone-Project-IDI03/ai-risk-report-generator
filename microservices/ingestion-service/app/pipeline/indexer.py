@@ -32,6 +32,32 @@ Note: the embedding is NOT a chunk field — index_chunks computes it from `text
 MAX_DOCUMENT_BYTES = 16_000
 
 
+# Chroma Cloud's per-request caps: "Maximum number of records per write" and
+# "Maximum number of results returned" are both 300. The client's own pre-check
+# (get_max_batch_size, 1000) is looser, so writes are cut to this size and
+# reads are paged by it.
+CHROMA_BATCH_SIZE = 300
+
+
+def _batched(*columns: list):
+    """Yield slices of equal-length lists, CHROMA_BATCH_SIZE rows at a time."""
+    for start in range(0, len(columns[0]), CHROMA_BATCH_SIZE):
+        yield [column[start : start + CHROMA_BATCH_SIZE] for column in columns]
+
+
+def get_all(collection, where: dict, include: list) -> dict:
+    """`collection.get` paged past the 300-result cap, with the results concatenated."""
+    out = {"ids": [], **{field: [] for field in include}}
+    offset = 0
+    while True:
+        page = collection.get(where=where, include=include, limit=CHROMA_BATCH_SIZE, offset=offset)
+        for key, values in out.items():
+            values.extend(page[key])
+        if len(page["ids"]) < CHROMA_BATCH_SIZE:
+            return out
+        offset += CHROMA_BATCH_SIZE
+
+
 def _size(text: str) -> int:
     return len(text.encode("utf-8"))
 
@@ -97,12 +123,14 @@ def index_chunks(chunks: list[dict]) -> int:
         embedding_function=None,
         configuration={index_type: {"space": "cosine"}},
     )
-    collection.upsert(
-        ids=[chunk["id"] for chunk in chunks],
-        documents=texts,
-        embeddings=vectors,
-        metadatas=[chunk["metadata"] for chunk in chunks],
+    columns = (
+        [chunk["id"] for chunk in chunks],
+        texts,
+        vectors,
+        [chunk["metadata"] for chunk in chunks],
     )
+    for ids, documents, embeddings, metadatas in _batched(*columns):
+        collection.upsert(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
     return len(chunks)
 
 
@@ -117,13 +145,12 @@ def relabel(doc_id: str, labels: dict) -> int:
         collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
     except NotFoundError:  # nothing indexed yet
         return 0
-    found = collection.get(where={"doc_id": doc_id}, include=["metadatas"])
+    found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
     if not found["ids"]:
         return 0
-    collection.update(
-        ids=found["ids"],
-        metadatas=[{**metadata, **labels} for metadata in found["metadatas"]],
-    )
+    merged = [{**metadata, **labels} for metadata in found["metadatas"]]
+    for ids, metadatas in _batched(found["ids"], merged):
+        collection.update(ids=ids, metadatas=metadatas)
     return len(found["ids"])
 
 
@@ -133,8 +160,7 @@ def delete_passages(doc_id: str) -> int:
         collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
     except NotFoundError:
         return 0
-    found = collection.get(where={"doc_id": doc_id}, include=[])
-    ids = found["ids"]
-    if ids:
-        collection.delete(ids=ids)
+    ids = get_all(collection, where={"doc_id": doc_id}, include=[])["ids"]
+    for (batch,) in _batched(ids):
+        collection.delete(ids=batch)
     return len(ids)

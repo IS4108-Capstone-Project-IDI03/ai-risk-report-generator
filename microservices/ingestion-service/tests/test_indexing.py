@@ -209,3 +209,21 @@ def test_embed_splits_a_rate_limited_batch_in_half(monkeypatch):
 
     assert embedder.embed(chunks) == [[1.0], [2.0], [3.0], [4.0], [5.0]]  # order kept
     assert [len(c.kwargs["texts"]) for c in cohere.embed.call_args_list] == [5, 2, 3, 1, 2]
+
+
+# --- Chroma Cloud's 300-record cap per write and per read ----------------------
+
+
+def test_upsert_is_split_into_writes_of_at_most_300_records(monkeypatch):
+    upsert = _stored(monkeypatch)
+    chunks = [{"id": f"big:{n}", "text": f"Passage {n}.", "metadata": {}} for n in range(650)]
+
+    assert indexer.index_chunks(chunks) == 650
+
+    sizes = [len(call.kwargs["ids"]) for call in upsert.call_args_list]
+    assert sizes == [300, 300, 50]
+    stored_ids = [i for call in upsert.call_args_list for i in call.kwargs["ids"]]
+    assert stored_ids == [chunk["id"] for chunk in chunks]
+    assert all(
+        len(call.kwargs["embeddings"]) == len(call.kwargs["ids"]) for call in upsert.call_args_list
+    )
