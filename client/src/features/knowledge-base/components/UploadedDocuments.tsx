@@ -41,6 +41,9 @@ const STAGE_LABELS: Record<IngestionStage, string> = {
   failed: 'Failed',
 }
 
+// Stages that report the page reached (anonymising is too quick to need one).
+const PAGE_COUNTED_STAGES: IngestionStage[] = ['parsing', 'chunking', 'indexing']
+
 // Re-read too whenever a new upload is accepted (refreshKey). An unreachable
 // gateway leaves the last list showing.
 /** Returns the Recent uploads section. */
@@ -153,14 +156,18 @@ export function UploadedDocuments({
 
     // "12 / 45 pages", or "12 pages" if the total couldn't be read: while
     // parsing, the pages parsed so far (in 20-page batches), and while
-    // chunking, the page reached (E2b). The chunk count has no knowable total,
+    // chunking or indexing, the page reached (E2b). The chunk count has no knowable total,
     // so pages are shown instead of a progress bar.
+    // Once chunking's OCR pass starts, "3 / 17 OCR" (table and formula regions
+    // read) replaces the page count, which has already reached the last page.
     const pageLabel =
-      p && (p.currentStage === 'parsing' || p.currentStage === 'chunking') && p.pageCurrent != null
-        ? p.pageTotal
-          ? `${p.pageCurrent} / ${p.pageTotal} pages`
-          : `${p.pageCurrent} pages`
-        : null
+      p && p.currentStage === 'chunking' && p.ocrTotal != null
+        ? `${p.ocrCurrent ?? 0} / ${p.ocrTotal} OCR`
+        : p && PAGE_COUNTED_STAGES.includes(p.currentStage) && p.pageCurrent != null
+          ? p.pageTotal
+            ? `${p.pageCurrent} / ${p.pageTotal} pages`
+            : `${p.pageCurrent} pages`
+          : null
 
     return (
       <span className="kb-status">

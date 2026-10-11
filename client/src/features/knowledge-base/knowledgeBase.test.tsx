@@ -342,6 +342,32 @@ describe('Ingestion stage tracking (E2)', () => {
     expect(within(region).getByText('0 / 500 pages')).toBeInTheDocument()
   })
 
+  it('shows the regions read by OCR once chunking has walked every page', async () => {
+    mockGateway([
+      processing({
+        currentStage: 'chunking',
+        pageCurrent: 45,
+        pageTotal: 45,
+        ocrCurrent: 3,
+        ocrTotal: 17,
+      }),
+    ])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('3 / 17 OCR')).toBeInTheDocument()
+    expect(within(region).queryByText('45 / 45 pages')).not.toBeInTheDocument()
+  })
+
+  it('shows the page reached for an indexing document', async () => {
+    mockGateway([processing({ currentStage: 'indexing', pageCurrent: 300, pageTotal: 577 })])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Indexing')).toBeInTheDocument()
+    expect(within(region).getByText('300 / 577 pages')).toBeInTheDocument()
+  })
+
   it('shows the page without a total when the page count is unknown', async () => {
     mockGateway([processing({ currentStage: 'chunking', pageCurrent: 12, pageTotal: null })])
     await openAddDocuments()
