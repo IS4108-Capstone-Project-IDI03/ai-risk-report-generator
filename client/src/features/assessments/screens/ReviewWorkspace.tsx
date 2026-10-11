@@ -32,8 +32,7 @@ const NOTHING: ReviewFocus = { citation: null, statement: null }
 
 // The dialog open over the workspace, if any.
 type OpenDialog =
-  | { kind: 'edit' | 'reject'; claim: Claim }
-  | { kind: 'regenerate' | 'accept-replacement' }
+  { kind: 'edit' | 'reject'; claim: Claim } | { kind: 'regenerate' | 'accept-replacement' }
 
 // A replacement draft shown in the editor and source panel in place of the
 // saved one, read-only: decisions are made on it once it is accepted.
