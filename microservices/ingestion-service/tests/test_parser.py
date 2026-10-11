@@ -312,3 +312,46 @@ def test_a_long_document_is_converted_twenty_pages_at_a_time(tmp_path, fake_conv
         ("Paragraph from page 21", 21),
         ("Paragraph from page 41", 41),
     ]
+
+
+@pytest.mark.parametrize(
+    ("pages", "expected_batches"),
+    [
+        (7, [(1, 7)]),
+        (1, [(1, 1)]),
+        (20, [(1, 20)]),
+        (41, [(1, 20), (21, 40), (41, 41)]),
+    ],
+)
+def test_short_documents_and_single_page_tails_are_converted(
+    tmp_path, fake_converter, pages, expected_batches
+):
+    result = parse(_blank_pdf(tmp_path, pages))
+
+    assert fake_converter.page_ranges == expected_batches
+    assert result.page_count == pages
+
+
+class _PageRecorder:
+    def __init__(self) -> None:
+        self.pages: list[tuple[int, int | None]] = []
+
+    def update_pages(self, current: int, total: int | None) -> None:
+        self.pages.append((current, total))
+
+
+@pytest.mark.parametrize(
+    ("pages", "expected_updates"),
+    [
+        (45, [(20, 45), (40, 45), (45, 45)]),
+        (7, [(7, 7)]),
+    ],
+)
+def test_pages_parsed_are_reported_after_each_batch(
+    tmp_path, fake_converter, pages, expected_updates
+):
+    reporter = _PageRecorder()
+
+    parse(_blank_pdf(tmp_path, pages), reporter=reporter)
+
+    assert reporter.pages == expected_updates

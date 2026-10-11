@@ -35,6 +35,7 @@ from docling_core.types.doc import (
 
 from app.pipeline.errors import DocumentTimeoutError, UnparsableDocumentError
 from app.pipeline.ocr_config import get_ocr_options
+from app.pipeline.progress import NoOpReporter
 
 # Labels whose text is body content we want to keep and chunk. Page
 # headers/footers and captions are deliberately excluded from body text.
@@ -286,7 +287,11 @@ def _checked_document(result, file_path: str) -> DoclingDocument:
     return doc
 
 
-def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDocument:
+def parse(
+    file_path: str,
+    page_range: tuple[int, int] | None = None,
+    reporter=None,
+) -> ParsedDocument:
     """Parse a document into structured text blocks plus captured tables/images.
 
     Args:
@@ -295,6 +300,9 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
             parse instead of the whole document. Useful for fast smoke parses.
             ``start`` must be >= 1 and ``end`` must be greater than ``start``;
             ``end`` must also fall within the document's page count.
+        reporter: told the last page parsed after each batch, via
+            ``update_pages(page, page_count)``, which also checks for
+            cancellation. Defaults to a no-op.
 
     Raises:
         ValueError: if ``page_range`` is malformed (start < 1 or end <= start)
@@ -305,6 +313,7 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
             they propagate as-is.
     """
     source = Path(file_path)
+    reporter = reporter or NoOpReporter()
 
     # Read the total page count once (E2b): used to validate a page_range and
     # carried on the result so chunking can report page progress.
@@ -335,6 +344,8 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
             convert_kwargs["page_range"] = batch
         result = _converter().convert(source, **convert_kwargs)
         docs.append(_checked_document(result, file_path))
+        if batch is not None:
+            reporter.update_pages(batch[1], page_count)
 
     doc = docs[0] if len(docs) == 1 else DoclingDocument.concatenate(docs)
 
