@@ -56,7 +56,7 @@ def _install_fakes(monkeypatch, parsed, calls, *, chunks=None, sections=None):
         calls.append(("anonymise", chunk_list))
         return chunk_list
 
-    def fake_index(chunk_list):
+    def fake_index(chunk_list, reporter=None, page_total=None):
         calls.append(("index", chunk_list))
         return len(chunk_list)
 

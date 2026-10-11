@@ -536,6 +536,11 @@ def chunk(
                 }
             )
 
+        # Trailing pages with no chunk text (blank, image-only) never move the
+        # counter, but pass 1 has walked them: report the full count before OCR.
+        if reporter and total_pages and page_reached < total_pages:
+            reporter.update_pages(total_pages, total_pages)
+
         _run_ocr_jobs(ocr_jobs, chunks, reporter)
     finally:
         # Release the PDF handle even if a region blows up mid-document.
@@ -565,11 +570,16 @@ def _run_ocr_jobs(jobs: list[tuple[int, str, Callable[[], Any]]], chunks: list, 
     """
     if not jobs:
         return
+    # Regions finish out of page order, so progress is counted by region.
+    if reporter:
+        reporter.update_ocr(0, len(jobs))
     pool = ThreadPoolExecutor(max_workers=_ocr_concurrency())
     try:
         futures = {pool.submit(job): (slot, kind) for slot, kind, job in jobs}
-        for future in as_completed(futures):
+        for done, future in enumerate(as_completed(futures), start=1):
             _check_cancelled(reporter)
+            if reporter:
+                reporter.update_ocr(done, len(jobs))
             slot, kind = futures[future]
             result = future.result()
             if kind == "table":
