@@ -93,7 +93,8 @@ class ProgressReporter:
 
         Appends the previous stage (with its duration) to the stage log, sets
         the new current stage and its start time, and on the first call records
-        the overall job start.
+        the overall job start. Clears the page counter, which belongs to the
+        stage that wrote it.
         """
         if not self._enabled():
             return
@@ -110,6 +111,8 @@ class ProgressReporter:
                 "currentStageStartedAt": now,
                 "startedAt": self._started_at,
                 "stageLog": list(self._stage_log),
+                "pageCurrent": None,
+                "pageTotal": None,
             }
         )
 
