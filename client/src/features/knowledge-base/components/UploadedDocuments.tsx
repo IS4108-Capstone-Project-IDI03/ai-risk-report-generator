@@ -156,7 +156,7 @@ export function UploadedDocuments({
     // chunking, the page reached (E2b). The chunk count has no knowable total,
     // so pages are shown instead of a progress bar.
     const pageLabel =
-      p && (p.currentStage === 'parsing' || p.currentStage === 'chunking') && p.pageCurrent
+      p && (p.currentStage === 'parsing' || p.currentStage === 'chunking') && p.pageCurrent != null
         ? p.pageTotal
           ? `${p.pageCurrent} / ${p.pageTotal} pages`
           : `${p.pageCurrent} pages`

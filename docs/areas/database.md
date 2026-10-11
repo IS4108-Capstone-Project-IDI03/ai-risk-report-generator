@@ -617,7 +617,7 @@ index → `knowledge_documents._id`), so the gateway finds a run with one query 
 no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
 `chunking`, `indexing`, `complete`, `failed`), `pageCurrent` and
 `pageTotal` (the page reached and the document's page count: while parsing, the
-last page parsed, written after each 20-page batch; while chunking, the page being
+last page parsed, `0` as parsing starts, then written after each 20-page batch; while chunking, the page being
 chunked — progress is tracked by page because the chunk total is not knowable up
 front; both set back to null at the start of every stage, so one stage's count
 never shows under the next), `stageLog` (completed stages, each with

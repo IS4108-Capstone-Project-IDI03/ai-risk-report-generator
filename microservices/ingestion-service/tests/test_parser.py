@@ -384,8 +384,8 @@ class _PageRecorder:
 @pytest.mark.parametrize(
     ("pages", "expected_updates"),
     [
-        (45, [(20, 45), (40, 45), (45, 45)]),
-        (7, [(7, 7)]),
+        (45, [(0, 45), (20, 45), (40, 45), (45, 45)]),
+        (7, [(0, 7), (7, 7)]),
     ],
 )
 def test_pages_parsed_are_reported_after_each_batch(
@@ -403,7 +403,8 @@ def test_a_stop_requested_during_parsing_ends_it_after_the_current_batch(tmp_pat
 
     class _StopRequested:
         def update_pages(self, current, total):
-            raise IngestionCancelledError()
+            if current > 0:
+                raise IngestionCancelledError()
 
     with pytest.raises(IngestionCancelledError):
         parse(_blank_pdf(tmp_path, 45), reporter=_StopRequested())

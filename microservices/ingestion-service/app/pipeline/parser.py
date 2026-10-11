@@ -375,6 +375,9 @@ def parse(
         # Unreadable page count: one call, so Docling's own error handling decides.
         batches = [None]
 
+    if page_count is not None:
+        reporter.update_pages(0, page_count)
+
     docs = []
     parsed_pages: dict = {}
     for batch in batches:
