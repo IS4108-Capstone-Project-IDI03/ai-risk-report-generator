@@ -43,10 +43,22 @@ const REPLY = {
   },
 }
 
+const TEMPLATE = ['7', '8', '9', '10', '11', '12'].map((id) => ({
+  id,
+  title: `Title ${id}`,
+  cope_dimensions: ['Protection'],
+  min_observations: 1,
+}))
+
 beforeEach(() => {
   summaries.mockImplementation(() => json(REPLY))
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) =>
-    url.endsWith('/summary/draft') ? summaries(JSON.parse(String(init!.body))) : json({}),
+    url.endsWith('/summary/draft')
+      ? summaries(JSON.parse(String(init!.body)))
+      : // The template, for review decisions (RV-02), which check the section exists.
+        url.endsWith('/sections')
+        ? json({ sections: TEMPLATE })
+        : json({}),
   )
 })
 afterEach(() => {
@@ -72,8 +84,6 @@ async function assessment(
     client: 'Acme Holdings',
     surveyType: 'Property risk survey',
     siteVisitDate: new Date('2026-09-28'),
-    standards: ['NFPA 13', 'NFPA 25', 'FM Global 2-0'],
-    policyReference: 'POL-778',
     engineer: engineer._id,
     ...details,
   })
@@ -265,6 +275,56 @@ describe('Section 2 Executive Summary (GN-07 AC2-AC4)', () => {
       { id: '3', title: 'Opportunities for Improvement' },
       { id: '9', title: 'Fire Protection' },
     ])
+  })
+
+  // RV-02: a section's content is its saved draft with the engineer's decisions.
+  it('summarises the saved draft, not a replacement still waiting to be accepted', async () => {
+    const a = await assessment()
+    await completeReport(a._id)
+    await api.post(`${url}/draft`)
+    const saved = await ReportSectionModel.findOne({ assessment: a._id, sectionId: '9' }).lean()
+
+    // A replacement draft is the section's content only once the engineer accepts it.
+    await section(a._id, '9', 'A replacement not yet accepted.').then((r) =>
+      ReportSectionModel.updateOne({ _id: r._id }, { replacementFor: saved!._id }),
+    )
+
+    expect((await api.get(url)).body.executiveSummary.staleSections).toEqual([])
+    await api.post(`${url}/draft`)
+    const sent = summaries.mock.calls[1][0] as { sections: { id: string; text: string }[] }
+    expect(sent.sections.find((s) => s.id === '9')!.text).toBe('Narrative\nSection 9 text.')
+  })
+
+  it("sends the engineer's edits, leaves out rejected findings, and goes out of date on either", async () => {
+    const a = await assessment()
+    await completeReport(a._id)
+    const nine = await ReportSectionModel.findOne({ assessment: a._id, sectionId: '9' }).lean()
+    const eight = await ReportSectionModel.findOne({ assessment: a._id, sectionId: '8' }).lean()
+    await api.post(`${url}/draft`)
+    const decide = `/api/assessments/${REFERENCE}/sections`
+
+    expect(
+      (
+        await api
+          .put(`${decide}/9/findings/0.0`)
+          .send({ draftId: String(nine!._id), text: 'Sprinklers cover the whole tower.' })
+      ).status,
+    ).toBe(200)
+    expect(
+      (await api.post(`${decide}/8/findings/0.0/reject`).send({ draftId: String(eight!._id) }))
+        .status,
+    ).toBe(200)
+
+    // AC4: a decision changes what the section says, so the summary is out of date.
+    const stale = (await api.get(url)).body.executiveSummary.staleSections
+    expect(stale.map((s: { id: string }) => s.id)).toEqual(['8', '9'])
+    await api.post(`${url}/draft`)
+    const sent = summaries.mock.calls[1][0] as { sections: { id: string; text: string }[] }
+    expect(sent.sections.find((s) => s.id === '9')!.text).toBe(
+      'Narrative\nSprinklers cover the whole tower.',
+    )
+    expect(sent.sections.find((s) => s.id === '8')!.text).toBe('')
+    expect((await api.get(url)).body.executiveSummary.staleSections).toEqual([])
   })
 
   it('can be drafted only by the assigned engineer', async () => {

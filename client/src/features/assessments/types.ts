@@ -2,7 +2,6 @@ import type { Assessment, InterpretationStatus, MediaKind, Stamp, TranscriptionS
 
 export type AssessmentRow = {
   engineerId?: string | null
-  standards?: string[]
   // The saved assessment the row came from, which the edit form starts from.
   record?: Assessment
   id: string
@@ -105,6 +104,9 @@ export type GenerationSection = {
   ev: number
   conf: string
 }
+// The dashboard's date filters: reports past due, reports due within 7 days,
+// and site visits within 7 days.
+export type DateFilter = 'overdue' | 'due-soon' | 'visit-soon'
 export type WorkflowState = {
   screen: string
   tab: string
@@ -112,20 +114,22 @@ export type WorkflowState = {
   toastTone: string
   q: string
   fStatus: string
+  // The dashboard box filtering the list by date, or null for none.
+  fDate: DateFilter | null
   workSort: string
   createdRows: AssessmentRow[]
   cf: {
     site: string
     client: string
     addr: string
-    ref: string
     type: string
     survey: string
     date: string
     due: string
-    stds: string[]
     // The assigned engineer's user ID.
     eng: string
+    // Narrows the engineer list; not sent.
+    engQuery: string
     jurisdiction: string
   }
   // The assessment whose details the form is editing, or null when creating.
@@ -135,6 +139,8 @@ export type WorkflowState = {
   cfServerError: string | null
   // The assessment the Site observation screen captures for.
   captureTarget: { reference: string; site: string }
+  // The navigation's Recent list: assessments last opened, newest first.
+  recent: { reference: string; site: string }[]
   // Observations for assessments other than the demo one, by reference.
   captureObs: Record<string, Observation[]>
   fMode: string

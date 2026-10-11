@@ -57,7 +57,15 @@ const CONSTRUCTION: ReviewSection = {
       {
         heading: 'Construction Narrative',
         kind: 'narrative',
-        statements: [{ text: 'The hub is concrete.', citations: [], supported: true }],
+        statements: [
+          {
+            text: 'The hub is concrete.',
+            generatedText: 'The hub is concrete.',
+            citations: [],
+            supported: true,
+            review: { state: 'pending', at: null, by: null },
+          },
+        ],
       },
     ],
     questions: [],
@@ -67,6 +75,10 @@ const CONSTRUCTION: ReviewSection = {
   },
   sources: {},
   observations: [],
+  // RV-02's review state: one finding waiting, no replacement, no history.
+  findings: { total: 1, pending: 1, accepted: 0, edited: 0, rejected: 0 },
+  replacement: null,
+  history: [],
 }
 const PURPOSE = 'The purpose of this PRE report is to assist Straits Logistics.'
 const ACTIVITY = 'An exit meeting with management to develop a recommended action plan.'

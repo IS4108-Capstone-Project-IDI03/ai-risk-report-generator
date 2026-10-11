@@ -42,6 +42,7 @@ import {
 } from './observationFilters'
 import type {
   AssessmentRow,
+  DateFilter,
   Observation,
   ObservationFilters,
   PhotoFile,
@@ -71,7 +72,6 @@ import {
   DEMO_LOCATIONS,
   STANDARD_REFERENCES,
   SEV,
-  STANDARDS,
   TITLES,
   PLAIN,
   EVIDENCE,
@@ -100,10 +100,52 @@ const STATUS_LABEL: Record<AssessmentStatus, string> = {
   finalised: 'Finalised',
   archived: 'Archived',
 }
+// A new assessment's report is due this many days after its site visit.
+const REPORT_DUE_DAYS = 14
+// Today's local calendar day as YYYY-MM-DD, and the day a number of days after one.
+const localToday = () => new Date().toLocaleDateString('en-CA')
+function addDays(isoDay: string, days: number) {
+  const day = new Date(isoDay + 'T00:00:00')
+  day.setDate(day.getDate() + days)
+  return day.toLocaleDateString('en-CA')
+}
 // Past its report due date (local calendar day) and not finalised. Due today is not overdue.
 function isOverdue(r: AssessmentRow) {
   const today = new Date().toLocaleDateString('en-CA')
   return !!r.reportDueDate && r.reportDueDate < today && r.status !== STATUS_LABEL.finalised
+}
+// Local calendar days from today to an ISO day: 0 today, negative once past.
+function daysFromToday(isoDay: string) {
+  const today = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00')
+  return Math.round((new Date(isoDay + 'T00:00:00').getTime() - today.getTime()) / 86_400_000)
+}
+// From today to seven days from today, both included.
+function withinWeek(isoDay: string | null | undefined) {
+  if (!isoDay) return false
+  const days = daysFromToday(isoDay)
+  return days >= 0 && days <= 7
+}
+// The dashboard boxes count, and filter the list to, assessments still in
+// progress (neither finalised nor archived) by date.
+function inProgress(r: AssessmentRow) {
+  return r.status !== STATUS_LABEL.finalised && r.status !== STATUS_LABEL.archived
+}
+const DATE_FILTERS: Record<DateFilter, (r: AssessmentRow) => boolean> = {
+  overdue: (r) => inProgress(r) && isOverdue(r),
+  'due-soon': (r) => inProgress(r) && withinWeek(r.reportDueDate),
+  'visit-soon': (r) => inProgress(r) && withinWeek(r.siteVisitDate),
+}
+// A row's countdown to its report due date, counted as the Overview counts it:
+// amber within three days. Past due, the row shows its Overdue badge instead;
+// a finalised report is no longer counting down.
+function dueCountdown(r: AssessmentRow) {
+  if (!r.reportDueDate || r.status === STATUS_LABEL.finalised) return null
+  const days = daysFromToday(r.reportDueDate)
+  if (days < 0) return null
+  return {
+    text: days === 0 ? 'Due today' : 'Due in ' + days + (days === 1 ? ' day' : ' days'),
+    soon: days <= 3,
+  }
 }
 // Days left until the report is due, or days overdue, by local calendar day,
 // with the date as the note: amber within three days, red once overdue. A
@@ -113,10 +155,7 @@ function dueSummary(r: AssessmentRow | null | undefined): BoxContent {
   const note = formatDay(r.reportDueDate)
   if (r.status === STATUS_LABEL.finalised)
     return { value: 'Done', unit: 'finalised', note, tone: 'ok' }
-  const today = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00')
-  const days = Math.round(
-    (new Date(r.reportDueDate + 'T00:00:00').getTime() - today.getTime()) / 86_400_000,
-  )
+  const days = daysFromToday(r.reportDueDate)
   if (days < 0)
     return {
       value: String(-days),
@@ -152,7 +191,6 @@ function toRow(a: Assessment): AssessmentRow {
     reportDueDate: a.reportDueDate,
     eng: a.engineer?.name ?? 'Unassigned',
     engineerId: a.engineer?.id ?? null,
-    standards: a.standards,
     record: a,
     status: STATUS_LABEL[a.status],
     sev: 'low',
@@ -174,10 +212,16 @@ const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => 
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }))
 const NO_LOCATIONS: SiteLocation[] = []
+// The navigation's Recent list: how many it keeps, and how its entries'
+// values name an assessment ("recent:RPT-2026-0411").
+const RECENT_LIMIT = 3
+const RECENT_PREFIX = 'recent:'
 // "Stairwell B · Level 2"
 const locationLabel = (l: { name: string; floor?: string | null }) =>
   [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
+// The most engineers one search on the create form lists.
+const ENGINEER_MATCH_LIMIT = 8
 // "Alex Rowe · 07 Oct 2026 14:02", who changed something and when (CP-08).
 const stampLabel = (stamp: Stamp) => stamp.by.name + ' · ' + formatDayYearTime(new Date(stamp.at))
 // A recording added to a sample observation in this demo (CP-08): kept in the
@@ -298,8 +342,14 @@ function toEntry(o: SavedObservation): Observation {
 }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
-  // The create form as it first opens, assigned to the signed-in engineer.
-  const blankCreateForm = () => ({ ...structuredClone(initialState.cf), eng: session.user.id })
+  // The create form as it first opens: assigned to the signed-in engineer,
+  // visited today (or on the given day), its report due REPORT_DUE_DAYS later.
+  const blankCreateForm = (visit = localToday()) => ({
+    ...structuredClone(initialState.cf),
+    eng: session.user.id,
+    date: visit,
+    due: addDays(visit, REPORT_DUE_DAYS),
+  })
   // The screen comes from the URL (F-05), so a screen can be linked to and
   // reopened after signing in; '/' opens the role's home screen.
   const [state, updateState] = useState<WorkflowState>(() => ({
@@ -483,10 +533,39 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The workspace and capture both act on the assessment last opened from the list.
   // A blank create form, preselecting the signed-in engineer.
   function blankForm(): Partial<WorkflowState> {
-    return { cfEdit: null, cf: { ...structuredClone(initialState.cf), eng: session.user.id } }
+    return { cfEdit: null, cf: blankCreateForm() }
   }
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
+  }
+  // Opens an assessment's workspace on its Overview and puts it first in the
+  // navigation's Recent list.
+  function openAssessment(
+    target: { reference: string; site: string },
+    previous: WorkflowState,
+  ): Partial<WorkflowState> {
+    return {
+      screen: 'assessment',
+      tab: 'overview',
+      captureTarget: target,
+      recent: [target, ...previous.recent.filter((r) => r.reference !== target.reference)].slice(
+        0,
+        RECENT_LIMIT,
+      ),
+      // Filters name this assessment's locations and floors.
+      of: NO_FILTERS,
+      obsShowDeleted: false,
+      obsOpen: null,
+    }
+  }
+  // A navigation entry: a screen, or a Recent assessment. The one already
+  // open keeps its tab and filters.
+  function navigateTo(value: string): Partial<WorkflowState> {
+    if (!value.startsWith(RECENT_PREFIX)) return navigate(value)
+    const reference = value.slice(RECENT_PREFIX.length)
+    if (reference === state.captureTarget.reference) return navigate('assessment')
+    const target = state.recent.find((r) => r.reference === reference)
+    return target ? openAssessment(target, state) : {}
   }
   // A created assessment clears the form, so the next one starts blank. A form
   // left without creating keeps its draft.
@@ -500,14 +579,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       cfBusy: false,
       cfErr: false,
       ...(open
-        ? {
-            screen: 'assessment',
-            tab: 'overview',
-            captureTarget: { reference: row.id, site: row.site },
-            of: NO_FILTERS,
-            obsShowDeleted: false,
-            obsOpen: null,
-          }
+        ? openAssessment({ reference: row.id, site: row.site }, previous)
         : { screen: 'dashboard' }),
     }))
   }
@@ -1208,6 +1280,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // hides the actions once the work list shows they'd be refused, for the
     // sample observations too, which change in this browser only.
     const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
+    // New assessment and capture are actions on the Dashboard and workspace
+    // headers, so the navigation lists only places: the work list, and the
+    // assessments last opened. Only those still on the work list show, as the
+    // gateway limits it to the engineer's own. The live light marks the one
+    // being captured for.
+    const recentItems = s.recent.flatMap((r) => {
+      const row = rows.find((x) => x.id === r.reference)
+      if (!row) return []
+      return [
+        {
+          value: RECENT_PREFIX + r.reference,
+          label: row.site,
+          icon: 'file-pen',
+          live: !!liveCapture && r.reference === s.captureTarget.reference,
+        },
+      ]
+    })
     const navSections = [
       {
         label: 'Assessments',
@@ -1218,33 +1307,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             icon: 'inbox',
             count: rows.length,
           },
-          {
-            value: 'create',
-            label: 'New assessment',
-            icon: 'plus',
-          },
-          {
-            value: 'field',
-            label: 'Site observation',
-            icon: 'camera',
-            count: fieldSaved,
-            live: !!liveCapture,
-          },
-        ].filter((item) => item.value !== 'field' || canCapture),
+        ],
       },
-      {
-        label: 'Open assessment',
-        // Only one on the work list, as for capture above.
-        items: targetRow
-          ? [
-              {
-                value: 'assessment',
-                label: s.captureTarget.site,
-                icon: 'file-pen',
-              },
-            ]
-          : [],
-      },
+      { label: 'Recent', items: recentItems },
       {
         label: 'Administration',
         items: [
@@ -1267,12 +1332,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     ]
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => canOpen(item.value, session)),
+        items: section.items.filter((item) =>
+          canOpen(item.value.startsWith(RECENT_PREFIX) ? 'assessment' : item.value, session),
+        ),
       }))
       .filter((section) => section.items.length > 0)
 
     const q = s.q.trim().toLowerCase()
-    const openCount = (r: AssessmentRow) => (r.live ? open.length : r.open || 0)
     const filtered = rows
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
@@ -1281,6 +1347,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           s.fStatus === 'All statuses' ? r.status === STATUS_LABEL.archived : r.status !== s.fStatus
         )
           return false
+        if (s.fDate && !DATE_FILTERS[s.fDate](r)) return false
         return true
       })
       .sort((a, b) =>
@@ -1288,19 +1355,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? (a.reportDueDate || '9999-12-31').localeCompare(b.reportDueDate || '9999-12-31')
           : (b.siteVisitDate || '').localeCompare(a.siteVisitDate || ''),
       )
-      .map((r) => {
-        const n = openCount(r)
-        return {
-          ...r,
-          overdue: isOverdue(r),
-          sevIcon: SEV[r.sev].icon,
-          sevColor: SEV[r.sev].color,
-          stackMeta: r.client + ' · ' + r.type + ' · ' + r.eng,
-          hasOpen: n > 0,
-          noOpen: n === 0,
-          openLabel: n + (n === 1 ? ' open' : ' open'),
-        }
-      })
+      .map((r) => ({
+        ...r,
+        overdue: isOverdue(r),
+        sevIcon: SEV[r.sev].icon,
+        sevColor: SEV[r.sev].color,
+        stackMeta: r.client + ' · ' + r.type + ' · ' + r.eng,
+        dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
+        countdown: dueCountdown(r),
+      }))
 
     /* generation */
     const GST: Record<
@@ -1464,11 +1527,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         value: 'Confirmed',
         ok: true,
       },
-      {
-        label: 'Applicable standards recorded',
-        value: '3 documents',
-        ok: true,
-      },
     ].map((c) => ({
       ...c,
       icon: c.ok ? 'circle-check' : 'triangle-alert',
@@ -1482,12 +1540,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }))
 
     /* create form */
-    const standards = STANDARDS.map((t) => ({
-      ...t,
-      on: s.cf.stds.includes(t.name),
-    }))
-    const engineers = directory.map((e) => ({
-      ...e,
+    // Engineers are found by searching, never listed in full, so the form
+    // stays short however many there are.
+    const engQuery = s.cf.engQuery.trim().toLowerCase()
+    const engMatches = engQuery
+      ? directory.filter((e) =>
+          [e.name, e.staffId, e.jobTitle ?? ''].some((text) =>
+            text.toLowerCase().includes(engQuery),
+          ),
+        )
+      : []
+    const engChoice = (e: AssignableEngineer) => ({
+      id: e.id,
+      name: e.name,
       initials: e.name
         .split(' ')
         .map((part) => part[0])
@@ -1495,7 +1560,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         .join(''),
       role: [e.staffId, e.jobTitle].filter(Boolean).join(' · '),
       on: s.cf.eng === e.id,
-    }))
+      you: e.id === session.user.id,
+    })
+    const assignedEng = directory.find((e) => e.id === s.cf.eng)
 
     /* field */
     const waveBars = Array.from(
@@ -1540,7 +1607,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       /* chrome */
       navSections,
-      navValue: isAssessment ? 'assessment' : sc,
+      // The workspace and capture both highlight the assessment they are for.
+      navValue: isAssessment || sc === 'field' ? RECENT_PREFIX + s.captureTarget.reference : sc,
       navFooter: userFooter(),
       showSideNav: !phone && !s.navCollapsed,
       showTopBar: phone,
@@ -1564,7 +1632,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       goFromDrawer: (v: string) =>
         setState({
-          ...navigate(v),
+          ...navigateTo(v),
           navOpen: false,
           toast: null,
         }),
@@ -1613,7 +1681,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           } as React.CSSProperties),
       go: (v: string) => {
         setState({
-          ...navigate(v),
+          ...navigateTo(v),
           toast: null,
         })
       },
@@ -1628,6 +1696,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cfServerError: null,
           // Coming from an edit, start a new assessment from a blank form.
           ...(s.cfEdit && blankForm()),
+          // A blank form from an earlier day (a tab left open overnight)
+          // opens on today's dates; one the engineer has filled in is kept.
+          ...(!s.cfEdit &&
+            !!s.cf.date &&
+            s.cf.date !== localToday() &&
+            JSON.stringify(s.cf) === JSON.stringify(blankCreateForm(s.cf.date)) && {
+              cf: blankCreateForm(),
+            }),
         }),
       // Cancel leaves an edit for the workspace it came from, and a new
       // assessment for the work list.
@@ -1654,11 +1730,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             jurisdiction: a.site.jurisdiction,
             type: a.site.facilityType,
             client: a.client,
-            ref: a.policyReference ?? '',
             survey: a.surveyType,
             date: a.siteVisitDate ?? '',
             due: a.reportDueDate ?? '',
-            stds: [...a.standards],
             eng: a.engineer?.id ?? '',
           },
         })
@@ -1706,6 +1780,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             archiveOpen: false,
             archiveBusy: false,
             captureTarget: CAPTURE_ASSESSMENT,
+            // Archived, it is found under the work list's Archived filter.
+            recent: s.recent.filter((r) => r.reference !== reference),
           })
           toast(reference + ' archived. Filter by Archived to find it.')
         } catch (error: unknown) {
@@ -1785,12 +1861,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               value: openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set',
             },
             { label: 'Engineer', value: openRow.eng },
-            // Named to the drafting model as context; drafting can cite any
-            // standard in the knowledge base that suits the site.
-            {
-              label: 'Standards selected',
-              value: openRow.standards?.length ? openRow.standards.join(', ') : 'None selected',
-            },
           ]
         : [
             { label: 'Report', value: s.captureTarget.reference },
@@ -2176,32 +2246,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       filteredRows: filtered,
       noResults: filtered.length === 0,
       resultLabel: filtered.length + ' of ' + rows.length + ' assessments',
-      // The same open items the table's Items column shows, across your assessments.
-      openItemCount: rows.reduce((sum, r) => sum + openCount(r), 0),
-      // Observations captured in this browser that the gateway does not store yet.
-      unfiledCount: rows.reduce((sum, r) => sum + (s.captureObs[r.id]?.length ?? 0), 0),
-      reviewCount: rows.filter((row) => row.status === STATUS_LABEL.under_review).length,
+      // The boxes above the list: how many assessments each date filter matches,
+      // whatever the search and status filter, and the one filtering the list.
+      dateCounts: Object.fromEntries(
+        Object.entries(DATE_FILTERS).map(([key, matches]) => [key, rows.filter(matches).length]),
+      ) as Record<DateFilter, number>,
+      dateFilter: s.fDate,
+      // Selecting the box filtering the list again clears it.
+      toggleDateFilter: (filter: DateFilter) =>
+        setState({ fDate: s.fDate === filter ? null : filter }),
       listOffline: listFailed && !serverRows,
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id
         const row = rows.find((r) => r.id === id)
         if (row)
           setState({
-            screen: 'assessment',
-            tab: 'overview',
+            ...openAssessment({ reference: row.id, site: row.site }, s),
             toast: null,
-            captureTarget: { reference: row.id, site: row.site },
-            // Filters name this assessment's locations and floors.
-            of: NO_FILTERS,
-            obsShowDeleted: false,
-            obsOpen: null,
           })
       },
       /* create */
       cfSite: s.cf.site,
       cfClient: s.cf.client,
       cfAddr: s.cf.addr,
-      cfRef: s.cf.ref,
       cfType: s.cf.type,
       cfSurvey: s.cf.survey,
       cfDate: s.cf.date,
@@ -2234,15 +2301,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cf: {
             ...s.cf,
             addr: e.target.value,
-          },
-        }),
-      setCfRef: (
-        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) =>
-        setState({
-          cf: {
-            ...s.cf,
-            ref: e.target.value,
           },
         }),
       setCfType: (
@@ -2309,21 +2367,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         'Business interruption',
         'Natural hazard review',
       ],
-      standards,
-      engineers,
       directoryError: directoryStatus === 'error',
       directoryLoading: directoryStatus === 'loading',
-      stdCountLabel: s.cf.stds.length + ' of 6 selected',
-      toggleStd: (v: string) => {
-        const has = s.cf.stds.includes(v)
-        setState({
-          cf: {
-            ...s.cf,
-            stds: has ? s.cf.stds.filter((x) => x !== v) : s.cf.stds.concat([v]),
-          },
-        })
-      },
-      selectEng: (id: string) => setState({ cf: { ...s.cf, eng: id } }),
+      hasDirectory: directory.length > 0,
+      engAssigned: assignedEng ? engChoice(assignedEng) : null,
+      engQuery: s.cf.engQuery,
+      setEngQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
+        setState({ cf: { ...s.cf, engQuery: e.target.value } }),
+      engResults: engMatches.slice(0, ENGINEER_MATCH_LIMIT).map(engChoice),
+      engResultLabel: !engQuery
+        ? ''
+        : engMatches.length === 0
+          ? 'No engineer matches "' + s.cf.engQuery.trim() + '".'
+          : engMatches.length > ENGINEER_MATCH_LIMIT
+            ? 'Showing ' +
+              ENGINEER_MATCH_LIMIT +
+              ' of ' +
+              engMatches.length +
+              ' matches. Keep typing to narrow it down.'
+            : engMatches.length === 1
+              ? '1 match'
+              : engMatches.length + ' matches',
+      // Choosing closes the matches: the search has done its job.
+      selectEng: (id: string) => setState({ cf: { ...s.cf, eng: id, engQuery: '' } }),
       createAssessment: async () => {
         if (s.cfBusy) return
         if (!s.cf.site.trim() || !s.cf.client.trim()) {
@@ -2375,11 +2441,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               facilityType: s.cf.type,
             },
             client: s.cf.client,
-            policyReference: s.cf.ref,
             surveyType: s.cf.survey,
             siteVisitDate: s.cf.date,
             reportDueDate: s.cf.due,
-            standards: s.cf.stds,
             engineerId: s.cf.eng,
           })
           const mine = created.engineer?.id === session.user.id
@@ -2404,7 +2468,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 siteVisitDate: s.cf.date || null,
                 reportDueDate: s.cf.due || null,
                 engineerId: s.cf.eng || null,
-                standards: s.cf.stds,
                 eng: s.cf.eng
                   ? (directory.find((e) => e.id === s.cf.eng)?.name ??
                     (s.cf.eng === session.user.id ? session.user.name : 'Unassigned'))

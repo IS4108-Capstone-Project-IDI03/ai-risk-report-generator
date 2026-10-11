@@ -20,9 +20,10 @@ export interface IStageLogEntry {
 export interface IIngestionJob {
   documentId: Types.ObjectId
   currentStage: IngestionStage
-  // The page being chunked, and the document's total page count (E2b). The
-  // chunk count has no knowable total up front, so progress is tracked by
-  // page instead. Both null until chunking reaches a page with provenance.
+  // The page reached while parsing (pages parsed so far, in 20-page batches)
+  // or chunking, and the document's total page count (E2b). The chunk count
+  // has no knowable total up front, so progress is tracked by page instead.
+  // Both null at the start of each stage until it reports a page.
   pageCurrent: number | null
   pageTotal: number | null
   // Completed stages only, oldest first.

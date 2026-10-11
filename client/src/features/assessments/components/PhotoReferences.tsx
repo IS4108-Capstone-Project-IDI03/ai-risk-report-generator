@@ -2,6 +2,20 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, Dialog, IconRegistry } from '../../../design-system'
 import type { SavedPhoto } from '../api'
+import { ZoomablePhoto } from './ZoomablePhoto'
+
+export type ViewedPhoto = { name: string; url: string; context?: string }
+
+// One photo in a popup over the screen, to zoom into and move around without
+// leaving the assessment.
+export function PhotoDialog({ photo, onClose }: { photo: ViewedPhoto; onClose: () => void }) {
+  return createPortal(
+    <Dialog title={photo.name} description={photo.context} width={960} onClose={onClose}>
+      <ZoomablePhoto src={photo.url} alt={photo.name} />
+    </Dialog>,
+    document.body,
+  )
+}
 
 export function PhotoReferences({ photos, context }: { photos: SavedPhoto[]; context?: string }) {
   const [selected, setSelected] = useState<SavedPhoto | null>(null)
@@ -24,22 +38,9 @@ export function PhotoReferences({ photos, context }: { photos: SavedPhoto[]; con
           {photos.length === 1 ? 'View photo' : `View photo ${index + 1}`}
         </Button>
       ))}
-      {selected &&
-        createPortal(
-          <Dialog
-            title={selected.name}
-            description={context}
-            width={800}
-            onClose={() => setSelected(null)}
-          >
-            <img
-              src={selected.url}
-              alt={selected.name}
-              style={{ display: 'block', width: '100%', height: 'auto' }}
-            />
-          </Dialog>,
-          document.body,
-        )}
+      {selected && (
+        <PhotoDialog photo={{ ...selected, context }} onClose={() => setSelected(null)} />
+      )}
     </span>
   )
 }

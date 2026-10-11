@@ -83,19 +83,20 @@ export const initialState: WorkflowState = {
   toastTone: 'success',
   q: '',
   fStatus: 'All statuses',
+  fDate: null,
   workSort: 'Latest site visit',
   createdRows: [],
   cf: {
     site: '',
     client: '',
     addr: '',
-    ref: '',
     type: 'Distribution warehouse',
     survey: 'Property risk survey',
-    date: '2026-04-21',
-    due: '2026-05-02',
-    stds: ['FM Global 2-0', 'NFPA 13'],
+    // Set to today and two weeks on whenever a blank form is made.
+    date: '',
+    due: '',
     eng: '',
+    engQuery: '',
     jurisdiction: 'SG',
   },
   cfEdit: null,
@@ -103,6 +104,7 @@ export const initialState: WorkflowState = {
   cfBusy: false,
   cfServerError: null,
   captureTarget: CAPTURE_ASSESSMENT,
+  recent: [],
   captureObs: {},
   fMode: 'note',
   fNote: '',
@@ -397,33 +399,6 @@ export const SEV: Record<string, { icon: string; color: string }> = {
     color: 'var(--status-low-fg)',
   },
 }
-
-export const STANDARDS = [
-  {
-    name: 'FM Global 2-0',
-    desc: 'Installation of sprinkler systems',
-  },
-  {
-    name: 'NFPA 13',
-    desc: 'Standard for the installation of sprinkler systems',
-  },
-  {
-    name: 'NFPA 22',
-    desc: 'Water tanks for private fire protection',
-  },
-  {
-    name: 'FM Global 5-4',
-    desc: 'Transformers and electrical equipment',
-  },
-  {
-    name: 'ABI/BRE nat-haz guidance',
-    desc: 'Flood and windstorm exposure',
-  },
-  {
-    name: 'Client standard NL-04',
-    desc: 'Northgate Logistics internal fire strategy',
-  },
-]
 
 export const TITLES: Record<string, string> = {
   s1: '1.0 Site overview',

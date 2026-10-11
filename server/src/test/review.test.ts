@@ -54,7 +54,6 @@ async function assessment() {
     site: site._id,
     client: 'Northgate Logistics',
     surveyType: 'Property risk survey',
-    standards: ['FM Global 2-0'],
     engineer: engineer._id,
     locations: [{ _id: BAY_3, name: 'Bay 3', floor: 'Ground', key: 'bay 3|ground' }],
   })

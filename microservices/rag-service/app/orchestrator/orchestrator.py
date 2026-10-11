@@ -17,6 +17,7 @@ from app.generation.generator import (
     OFI_CONFIG,
     OFI_PROMPT_VERSION,
     PROMPT_VERSION,
+    REDRAFT_PROMPT_VERSION,
     SUMMARY_PROMPT_VERSION,
     TEMPLATE,
     draft_ofis,
@@ -117,8 +118,12 @@ def _nearest_first(per_observation: list[list[dict]]) -> dict[str, dict]:
     return standards
 
 
-def draft(section_id: str, assessment, observations) -> dict:
+def draft(section_id: str, assessment, observations, redraft=None) -> dict:
     """Draft one report section (GN-01): retrieve, generate, check citations.
+
+    `redraft`, when the engineer regenerates a section from the review workspace
+    (RV-02), holds the saved draft's findings with their decisions and the engineer's
+    instruction. Retrieval and the checks are the same; only the prompt adds them.
 
     Raises KeyError for a section that is not in the template.
     """
@@ -176,6 +181,7 @@ def draft(section_id: str, assessment, observations) -> dict:
         list(standards.values()),
         precedents,
         config.LLM_EFFORT,
+        redraft,
     )
 
     # The template, not the model, decides the subsections and their order (AC5).
@@ -216,9 +222,13 @@ def draft(section_id: str, assessment, observations) -> dict:
             "provider": config.LLM_PROVIDER,
             "model": model,
             "effort": config.LLM_EFFORT,
-            "prompt_version": PROMPT_VERSION,
+            # A redraft's prompt is the first draft's plus the redraft part (RV-02).
+            "prompt_version": PROMPT_VERSION
+            if redraft is None
+            else f"{PROMPT_VERSION}+{REDRAFT_PROMPT_VERSION}",
             "template_version": TEMPLATE["version"],
             "generated_at": datetime.now(UTC).isoformat(),
+            "instruction": (redraft.instruction or None) if redraft else None,
         },
     }
 

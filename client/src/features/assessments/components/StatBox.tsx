@@ -26,13 +26,15 @@ const TONE_ICON: Record<Tone, string> = {
 
 // A summary box, all built alike: an icon and label, a short figure with its
 // unit, and a note. One that summarises a view opens it, the whole card being
-// the button. Used by the Overview and the Observations tab.
+// the button; one given `pressed` instead filters a list on and off, ticked
+// while on. Used by the Overview, the Observations tab and the Dashboard.
 export function StatBox({
   icon,
   label,
   content,
   onOpen,
   opens,
+  pressed,
 }: {
   icon: string
   label: string
@@ -40,8 +42,11 @@ export function StatBox({
   onOpen?: () => void
   // The tab it opens, named for screen readers.
   opens?: string
+  // Whether its filter is on, for a box that filters rather than opens.
+  pressed?: boolean
 }) {
   const { value, unit, note, tone } = content
+  const toggles = pressed !== undefined
   const body = (
     <>
       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -77,7 +82,8 @@ export function StatBox({
         >
           {label}
         </span>
-        {onOpen && <Icon name="chevron-right" size={16} color="var(--text-muted)" />}
+        {onOpen && !toggles && <Icon name="chevron-right" size={16} color="var(--text-muted)" />}
+        {pressed && <Icon name="check" size={16} color="var(--border-focus)" />}
       </span>
       <span
         className="om-stat-figure"
@@ -132,6 +138,10 @@ export function StatBox({
     ...(tone === 'danger' && {
       boxShadow: 'inset 0 3px 0 ' + TONE_COLOUR.danger + ', var(--shadow-sm)',
     }),
+    ...(pressed && {
+      border: '1px solid var(--border-focus)',
+      background: 'var(--surface-selected)',
+    }),
   }
   const name = [label, value, unit, note].filter(Boolean).join(', ')
   return (
@@ -141,7 +151,8 @@ export function StatBox({
           type="button"
           className="om-overview-box"
           onClick={onOpen}
-          aria-label={name + '. Open ' + (opens ?? label)}
+          aria-pressed={pressed}
+          aria-label={name + (toggles ? '. Show only these' : '. Open ' + (opens ?? label))}
           style={{ ...style, cursor: 'pointer' }}
         >
           {body}

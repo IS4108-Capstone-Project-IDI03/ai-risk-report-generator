@@ -142,11 +142,9 @@ function assessment(engineer: { id: string; name: string }): Assessment {
     id: 'a1',
     reference: REF,
     client: 'Northgate Logistics',
-    policyReference: null,
     surveyType: 'Property risk survey',
     siteVisitDate: '2026-04-11',
     reportDueDate: null,
-    standards: [],
     engineer,
     status: 'capturing',
     captureStartedAt: '2026-04-11T08:00:00.000Z',
@@ -301,9 +299,13 @@ function mockGateway() {
 }
 
 async function openObservations() {
+  // A second render in one test starts on the work list, as a new test does.
+  window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  fireEvent.click(await screen.findByRole('button', { name: 'Tilbury Distribution Centre' }))
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
   if (!offline && listed.length)
@@ -424,8 +426,10 @@ describe('Proposals from photos (CP-05)', () => {
     expect(within(proposal).getByText('AI proposal')).toBeInTheDocument()
     expect(within(proposal).getByText('Protection · Sprinkler Installation')).toBeInTheDocument()
     expect(within(proposal).getByText('Proposed by gemini-3.8-flash')).toBeInTheDocument()
-    expect(within(proposal).getByRole('link', { name: 'IMG_0460.jpg' })).toHaveAttribute(
-      'href',
+    fireEvent.click(within(proposal).getByRole('button', { name: 'IMG_0460.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'src',
       '/api/observations/o6/photos/p1/image',
     )
   })
@@ -780,7 +784,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     // On the observation, with who added them and when.
     const clip = screen.getByRole('region', { name: 'valve.m4a' })
     expect(within(clip).getByText('Added by Alex Rowe · ' + at)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open IMG_0510.jpg' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open IMG_0510.jpg' })).toBeInTheDocument()
     expect(screen.getByText('IMG_0510.jpg added by Alex Rowe · ' + at)).toBeInTheDocument()
   })
 
@@ -862,7 +866,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(
       await screen.findByText(/^Photo removed\. It leaves the Photos tab\./),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Open IMG_0460.jpg' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open IMG_0460.jpg' })).not.toBeInTheDocument()
   })
 
   it('offers Remove only while something else stays captured', async () => {
@@ -914,7 +918,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(within(proposal).getByText('Read from an earlier set of photos')).toBeInTheDocument()
     // It names the photo it read, now removed.
     expect(
-      within(proposal).getByRole('link', { name: 'IMG_0400.jpg' }).parentElement,
+      within(proposal).getByRole('button', { name: 'IMG_0400.jpg' }).parentElement,
     ).toHaveTextContent('Read from IMG_0400.jpg (removed)')
     click('Read again')
 
@@ -983,16 +987,28 @@ describe('Site photographs (CP-04)', () => {
     deleted: STAMP,
   })
 
-  it('links each photo to its observation, opening the original (AC2)', async () => {
+  it('links each photo to its observation, opening the original in a popup (AC2)', async () => {
     listed = [PHOTOGRAPHED]
     await openObservations()
 
     fireEvent.click(row('Riser room door wedged open.'))
 
-    expect(screen.getByRole('link', { name: 'Open IMG_0460.jpg' })).toHaveAttribute(
-      'href',
+    fireEvent.click(screen.getByRole('button', { name: 'Open IMG_0460.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'src',
       IMAGE_URL,
     )
+    // It zooms in to look closer, and back to fit the window.
+    const zoomOut = within(popup).getByRole('button', { name: 'Zoom out' })
+    expect(zoomOut).toBeDisabled()
+    fireEvent.click(within(popup).getByRole('button', { name: 'Zoom in' }))
+    expect(popup).toHaveTextContent('150%')
+    expect(zoomOut).toBeEnabled()
+    fireEvent.click(within(popup).getByRole('button', { name: 'Fit to window' }))
+    expect(popup).toHaveTextContent('100%')
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getAllByText('Note and photo').length).toBeGreaterThan(0)
   })
 
@@ -1015,10 +1031,13 @@ describe('Site photographs (CP-04)', () => {
       'aria-selected',
       'true',
     )
-    expect(within(collection).getByRole('link', { name: 'Open IMG_0460.jpg' })).toHaveAttribute(
-      'href',
+    fireEvent.click(within(collection).getByRole('button', { name: 'Open IMG_0460.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'src',
       IMAGE_URL,
     )
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
     expect(within(collection).getByText('IMG_0442.jpg · 11 Apr 2026 09:22')).toBeInTheDocument()
     expect(within(collection).queryByText(/IMG_0999/)).not.toBeInTheDocument()
 
@@ -1029,6 +1048,6 @@ describe('Site photographs (CP-04)', () => {
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('link', { name: 'Open IMG_0460.jpg' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open IMG_0460.jpg' })).toBeInTheDocument()
   })
 })

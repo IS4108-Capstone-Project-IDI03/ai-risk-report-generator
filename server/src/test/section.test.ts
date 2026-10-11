@@ -88,7 +88,6 @@ async function assessment(status: CaptureSessionStatus = 'ready_for_generation',
     site: site._id,
     client: 'Northgate Logistics',
     surveyType: 'Property risk survey',
-    standards: ['FM Global 2-0'],
     engineer: engineer._id,
     locations: [{ _id: BAY_3, name: 'Bay 3', floor: 'Ground', key: 'bay 3|ground' }],
     ...extra,
@@ -154,7 +153,6 @@ describe('drafting a report section (GN-01)', () => {
       reference: REFERENCE,
       jurisdiction: 'SG',
       facility_type: 'Warehouse',
-      standards: ['FM Global 2-0'],
     })
     // Every usable categorised observation goes, other categories as backup
     // for S4 to place; no failed recording alone, no uncategorised one.

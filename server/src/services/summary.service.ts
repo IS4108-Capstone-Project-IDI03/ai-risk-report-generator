@@ -11,7 +11,13 @@ import type { ISite } from '../models/site.model'
 import { recordAiCalls } from './ai-usage.service'
 import { AssessmentNotFoundError } from './capture-session.service'
 import { requestSummaryDraft } from './rag.service'
-import { assessmentToDraft, toDraftDto, type SectionDraftDto } from './section.service'
+import { entriesFor, foldFindings } from './review-decision.service'
+import {
+  assessmentToDraft,
+  sectionDrafts,
+  toDraftDto,
+  type SectionDraftDto,
+} from './section.service'
 
 // Every section the Executive Summary summarises, in report order, with its
 // title in Marsh's template (Global PRE Report Template v2.0, contents page).
@@ -87,17 +93,19 @@ export function purposeAndScope(
   ]
 }
 
-// Each summarised section as it stands now: its text for S4, and a version
-// that changes whenever its content does (AC4). Sections 4-12: the newest
-// draft's id. Section 3: the accepted OFIs' ids. null version = incomplete.
+// Each summarised section as it stands now: its text for S4, and a version that
+// changes whenever its content does (AC4). Sections 4-12: the saved draft (RV-02:
+// a replacement only once accepted) with the engineer's decisions applied, so an
+// edit is summarised as edited and a rejected finding not at all; its version is
+// the draft's id and how many decisions it has. Section 3: the accepted OFIs' ids.
+// A null version means the section is not complete.
 async function currentSections(assessment: Types.ObjectId) {
   const [drafts, accepted] = await Promise.all([
-    // Only what the text and version need: older drafts' evidence is not.
-    ReportSectionModel.find({ assessment, sectionId: { $ne: '2' } }, 'sectionId subsections')
-      .sort({ createdAt: -1 })
-      .lean(),
+    sectionDrafts(assessment),
     ReportOfiModel.find({ assessment, state: 'accepted' }).sort({ acceptedAt: 1 }).lean(),
   ])
+  const saved = SUMMARISED_SECTIONS.flatMap((s) => drafts.get(s.id)?.saved ?? [])
+  const entries = await entriesFor(saved.map((d) => d._id))
   return SUMMARISED_SECTIONS.map((s) => {
     if (s.id === '3') {
       return {
@@ -111,15 +119,18 @@ async function currentSections(assessment: Types.ObjectId) {
         text: accepted.map((o) => `${o.priority} — ${o.title}: ${o.description}`).join('\n'),
       }
     }
-    const draft = drafts.find((d) => d.sectionId === s.id)
+    const draft = drafts.get(s.id)?.saved
+    if (!draft) return { ...s, version: null, text: '' }
+    const decisions = entries.filter((e) => String(e.draft) === String(draft._id)).length
+    // Each heading that still has a finding, then its findings' text now. Tables
+    // are filled from measured values (GN-03), never by a draft, so carry nothing.
+    const findings = foldFindings(draft, entries).filter((f) => f.state !== 'rejected')
+    const headings = [...new Set(findings.map((f) => f.heading))]
     return {
       ...s,
-      version: draft ? String(draft._id) : null,
-      // Each written subsection's heading, then its statements. Tables are
-      // filled from measured values (GN-03), never by a draft, so carry nothing.
-      text: (draft?.subsections ?? [])
-        .filter((sub) => sub.statements.length)
-        .flatMap((sub) => [sub.heading, ...sub.statements.map((st) => st.text)])
+      version: `${draft._id}:${decisions}`,
+      text: headings
+        .flatMap((h) => [h, ...findings.filter((f) => f.heading === h).map((f) => f.text)])
         .join('\n'),
     }
   })

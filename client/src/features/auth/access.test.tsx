@@ -128,12 +128,12 @@ describe('Route guard (F-05)', () => {
     expect(screen.queryByRole('button', { name: 'New assessment' })).not.toBeInTheDocument()
     expect(within(nav()).getByRole('button', { name: 'User accounts' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tilbury Distribution Centre' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent)
     expect(tabs.some((name) => name?.startsWith('Overview'))).toBe(true)
     expect(tabs.some((name) => name?.startsWith('Observations'))).toBe(true)
     expect(tabs.some((name) => name?.startsWith('Generation'))).toBe(false)
-    expect(screen.queryByRole('button', { name: /^Site observation/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
   })
 
   it('follows the browser back button between screens', async () => {

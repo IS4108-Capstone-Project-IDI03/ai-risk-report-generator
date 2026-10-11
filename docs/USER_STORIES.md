@@ -534,6 +534,8 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   1. Given a report contains multiple sections, when I regenerate one selected section, then only that section receives a replacement draft.
   2. Given a replacement section draft is ready, when I accept it, then it becomes the saved section content.
   3. Given a replacement section draft is ready, when I discard it, then the previously saved section content remains unchanged.
+
+  Merged into RV-02 (11 Oct 2026) as its AC10-AC12: regenerating, with the engineer's instruction, is done from the review workspace.
   </details>
 
 - [ ] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: GN-01, Sprint 4)
@@ -620,6 +622,11 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given a section contains pending findings, when I choose Bulk Accept, then all pending findings in that section become Accepted.
   8. Given a section contains rejected findings, when I choose Bulk Accept, then the rejected findings remain Rejected.
   9. Given a report contains accepted, edited and rejected findings, when I view the review summary, then the displayed totals match the saved review decisions.
+  10. Given a report contains multiple sections, when I regenerate one selected section, then only that section receives a replacement draft.
+  11. Given a replacement section draft is ready, when I accept it, then it becomes the saved section content.
+  12. Given a replacement section draft is ready, when I discard it, then the previously saved section content remains unchanged.
+
+  Goal also: regenerate an individual report section, with a prompt saying what to change, so a weak section can be improved without losing other review work. AC10-AC12 are GN-04's, merged here on 11 Oct 2026.
   </details>
 
 - [ ] **RV-03** — Discuss a specific draft passage (risk engineer, Could, 2 pts, deps: RV-01, Sprint 5)

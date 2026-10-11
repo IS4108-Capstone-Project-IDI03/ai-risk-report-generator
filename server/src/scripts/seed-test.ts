@@ -154,7 +154,6 @@ async function seedAndVerify(): Promise<void> {
         surveyType: 'Property risk survey',
         siteVisitDate: new Date('2026-04-11'),
         reportDueDate: new Date('2026-04-25'),
-        standards: ['FM Global 2-0', 'NFPA 13'],
         ...(await assignedTo('MRE-0001')),
       },
     },

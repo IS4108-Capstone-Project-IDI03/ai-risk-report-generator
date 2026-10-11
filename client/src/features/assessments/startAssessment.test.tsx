@@ -59,7 +59,9 @@ async function openApp() {
 // Opens or closes the assessment header's ⋯ menu.
 const moreActions = () => fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
 function openCapture() {
-  fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+  // Open the assessment from the work list; capture is its header's action.
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
 }
 
 beforeAll(() => {
@@ -98,7 +100,7 @@ describe('Capture session (CP-01)', () => {
 
     const notice = await screen.findByRole('status')
     await screen.findByText('Capture session started')
-    // The live light sits beside Site observation in the navigation.
+    // The live light sits beside the assessment in the navigation's Recent list.
     expect(screen.getByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
     expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
@@ -178,11 +180,9 @@ const CREATED = {
   id: '6ab3a1c0e45cf009e4507801',
   reference: 'RPT-2026-0001',
   client: 'Straits Logistics',
-  policyReference: null,
   surveyType: 'Property risk survey',
   siteVisitDate: '2026-04-21',
   reportDueDate: '2026-05-02',
-  standards: ['FM Global 2-0', 'NFPA 13'],
   engineer: { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' },
   status: 'not_started',
   createdAt: '2026-09-23T09:00:00.000Z',
@@ -221,6 +221,13 @@ const CREATED_NOTE = {
   photos: [],
   removedRecordings: [],
   removedPhotos: [],
+}
+
+// A local calendar day as YYYY-MM-DD, a number of days from today.
+function localDay(days = 0) {
+  const day = new Date()
+  day.setDate(day.getDate() + days)
+  return day.toLocaleDateString('en-CA')
 }
 
 function createFromForm() {
@@ -263,15 +270,16 @@ describe('Create assessment (CP-01)', () => {
         facilityType: 'Distribution warehouse',
       },
       client: 'Straits Logistics',
-      policyReference: '',
       surveyType: 'Property risk survey',
-      siteVisitDate: '2026-04-21',
-      reportDueDate: '2026-05-02',
-      standards: ['FM Global 2-0', 'NFPA 13'],
+      // A new form is dated today, its report due in two weeks.
+      siteVisitDate: localDay(),
+      reportDueDate: localDay(14),
       engineerId: '6ab39017e45cf009e4507731',
     })
 
     // The next assessment starts from a blank form, not this one's details.
+    // New assessment is the Dashboard's action.
+    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     expect(screen.getByLabelText(/Site name/)).toHaveValue('')
     expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
@@ -298,14 +306,12 @@ describe('Create assessment (CP-01)', () => {
     expect(
       screen.getByRole('heading', { name: 'Jurong Distribution Hub' }).parentElement,
     ).not.toHaveTextContent('RPT-2026-0001')
-    // The overview shows this assessment's own record, not the demo's samples,
-    // with the standards named in it.
+    // The overview shows this assessment's own record, not the demo's samples.
     expect(screen.getByRole('group', { name: 'Capture' })).toBeInTheDocument()
-    expect(screen.getByText('FM Global 2-0, NFPA 13')).toBeInTheDocument()
     expect(screen.queryByText('Tilbury survey 2023')).not.toBeInTheDocument()
     expect(screen.queryByText('Sections drafted')).not.toBeInTheDocument()
 
-    openCapture()
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
 
     expect(await screen.findByText('Capture session started')).toBeInTheDocument()
     expect(fetchMock.mock.calls[1][0]).toBe('/api/assessments/RPT-2026-0001/capture-session')
@@ -434,11 +440,82 @@ describe('Work list (RV-10)', () => {
     )
     expect(results()).toHaveTextContent('2 of 2 assessments')
     expect(screen.queryByText('Someone Else Depot')).not.toBeInTheDocument()
-    // The tiles come before the table, which also shows status names.
-    const tile = (label: string) => screen.getAllByText(label)[0].parentElement
-    expect(tile('Outstanding review items')).toHaveTextContent('0')
-    expect(tile('Under review')).toHaveTextContent('1')
-    expect(tile('Observations not yet filed')).toHaveTextContent('0')
+  })
+
+  it('counts overdue reports, reports due soon and site visits soon, and filters by each box', async () => {
+    const inDays = (days: number) => {
+      const day = new Date()
+      day.setDate(day.getDate() + days)
+      return day.toLocaleDateString('en-CA')
+    }
+    // [site, report due, site visit, status]: finalised and archived work is
+    // never counted, and within 7 days runs from today to a week from today.
+    const cases: [string, number, number, string][] = [
+      ['Late', -2, -20, 'draft'],
+      ['Soon', 3, -5, 'capturing'],
+      ['Today', 0, 0, 'capturing'],
+      ['Visit', 30, 7, 'not_started'],
+      ['Far', 8, 8, 'not_started'],
+      ['Done', -2, 1, 'finalised'],
+      ['Shelved', -2, 2, 'archived'],
+    ]
+    listReply = () =>
+      respond(
+        200,
+        cases.map(([name, due, visit, status], i) => ({
+          ...CREATED,
+          id: `case-${i}`,
+          reference: `RPT-CASE-${i}`,
+          site: { ...CREATED.site, name: `Case ${name}` },
+          reportDueDate: inDays(due),
+          siteVisitDate: inDays(visit),
+          status,
+        })),
+      )
+    mockGateway()
+    await openApp()
+    await screen.findByRole('button', { name: /^Case Late/ })
+    const overdue = screen.getByRole('button', {
+      name: 'Overdue, 1, report past due. Show only these',
+    })
+    const dueSoon = screen.getByRole('button', {
+      name: 'Due soon, 2, reports due within 7 days. Show only these',
+    })
+    const visits = screen.getByRole('button', {
+      name: 'Site visits, 2, visits within 7 days. Show only these',
+    })
+    const shown = () =>
+      screen.getAllByRole('button', { name: /^Case/ }).map((row) => row.getAttribute('data-id'))
+    expect(results()).toHaveTextContent('6 of 7 assessments')
+    for (const box of [overdue, dueSoon, visits])
+      expect(box).toHaveAttribute('aria-pressed', 'false')
+
+    // Each row counts down to its report due date, or is marked overdue.
+    const row = (name: string) => screen.getByRole('button', { name: new RegExp(`^Case ${name}`) })
+    expect(within(row('Late')).getByText('Overdue')).toBeInTheDocument()
+    expect(row('Soon')).toHaveTextContent('Due in 3 days')
+    expect(row('Today')).toHaveTextContent('Due today')
+    expect(row('Far')).toHaveTextContent('Due in 8 days')
+    expect(row('Done')).not.toHaveTextContent(/Due|Overdue/)
+
+    fireEvent.click(overdue)
+    expect(overdue).toHaveAttribute('aria-pressed', 'true')
+    expect(shown()).toEqual(['RPT-CASE-0'])
+    expect(results()).toHaveTextContent('1 of 7 assessments')
+
+    // Selecting another box moves the filter to it.
+    fireEvent.click(dueSoon)
+    expect(overdue).toHaveAttribute('aria-pressed', 'false')
+    expect(dueSoon).toHaveAttribute('aria-pressed', 'true')
+    expect(shown()).toEqual(['RPT-CASE-2', 'RPT-CASE-1'])
+
+    fireEvent.click(visits)
+    expect(shown()).toEqual(['RPT-CASE-3', 'RPT-CASE-2'])
+
+    // Selecting the ticked box again shows every assessment.
+    fireEvent.click(visits)
+    expect(visits).toHaveAttribute('aria-pressed', 'false')
+    expect(results()).toHaveTextContent('6 of 7 assessments')
   })
 
   it('filters by status and searches by site and client', async () => {
@@ -488,9 +565,14 @@ it('assigns one engineer by ID and keeps work assigned to someone else out of my
   })
   await openApp()
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  expect(await screen.findByRole('radio', { name: /Alex Rowe/ })).toBeChecked()
-  fireEvent.click(screen.getByRole('radio', { name: /Jide Okafor/ }))
-  expect(screen.getByRole('radio', { name: /Alex Rowe/ })).not.toBeChecked()
+  // Assigned to me until I choose someone else, whom I find by searching.
+  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search engineers' }), {
+    target: { value: 'jide' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: /Jide Okafor/ }))
+  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
+  expect(screen.queryByText('Alex Rowe (you)')).not.toBeInTheDocument()
   fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: CREATED.site.name } })
   fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
     target: { value: CREATED.client },
@@ -499,6 +581,123 @@ it('assigns one engineer by ID and keeps work assigned to someone else out of my
   await screen.findByText(/It will appear in the assigned engineer’s work list/)
   expect(submitted?.engineerId).toBe(other)
   expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
+})
+
+it('lists engineers only as search matches, by name, staff ID or job title', async () => {
+  vi.stubGlobal('fetch', (url: string) =>
+    url === '/api/assessments/engineers'
+      ? respond(200, [
+          {
+            id: '6ab39017e45cf009e4507731',
+            name: 'Alex Rowe',
+            staffId: 'MRE-0001',
+            jobTitle: null,
+          },
+          {
+            id: '6ab39017e45cf009e4507732',
+            name: 'Jide Okafor',
+            staffId: 'MRE-0002',
+            jobTitle: 'Senior risk engineer',
+          },
+          {
+            id: '6ab39017e45cf009e4507733',
+            name: 'Mei Tan',
+            staffId: 'MRE-0003',
+            jobTitle: 'Risk engineer',
+          },
+          ...Array.from({ length: 9 }, (_, n) => ({
+            id: `6ab39017e45cf009e450775${n}`,
+            name: `Field Engineer ${n + 1}`,
+            staffId: `MRE-01${n + 1}0`,
+            jobTitle: 'Graduate engineer',
+          })),
+        ])
+      : respond(200, []),
+  )
+  await openApp()
+  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+  // Only the assigned engineer shows until a search.
+  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
+  const matches = () => screen.queryByRole('list', { name: 'Matching engineers' })
+  const match = (name: RegExp) => within(matches()!).queryByRole('button', { name })
+  expect(matches()).not.toBeInTheDocument()
+  const searchBox = screen.getByRole('searchbox', { name: 'Search engineers' })
+  const search = (value: string) => fireEvent.change(searchBox, { target: { value } })
+
+  search('jide')
+  expect(match(/Jide Okafor/)).toBeInTheDocument()
+  expect(match(/Mei Tan/)).not.toBeInTheDocument()
+  expect(screen.getByText('1 match')).toBeInTheDocument()
+
+  search('mre-0003')
+  expect(match(/Mei Tan/)).toBeInTheDocument()
+  expect(match(/Jide Okafor/)).not.toBeInTheDocument()
+
+  search('SENIOR')
+  expect(match(/Jide Okafor/)).toBeInTheDocument()
+  expect(match(/Mei Tan/)).not.toBeInTheDocument()
+
+  // A broad search lists at most eight and asks for more letters.
+  search('engineer')
+  expect(within(matches()!).getAllByRole('button')).toHaveLength(8)
+  expect(
+    screen.getByText('Showing 8 of 11 matches. Keep typing to narrow it down.'),
+  ).toBeInTheDocument()
+
+  // The assigned engineer shows as chosen among the matches.
+  search('alex')
+  expect(match(/Alex Rowe \(you\)/)).toHaveAttribute('aria-pressed', 'true')
+
+  // Choosing closes the matches and keeps focus in the search.
+  search('jide')
+  fireEvent.click(match(/Jide Okafor/)!)
+  expect(matches()).not.toBeInTheDocument()
+  expect(searchBox).toHaveValue('')
+  expect(searchBox).toHaveFocus()
+  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
+  expect(screen.queryByText('Alex Rowe (you)')).not.toBeInTheDocument()
+
+  search('zzz')
+  expect(screen.getByText('No engineer matches "zzz".')).toBeInTheDocument()
+  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
+
+  search('')
+  expect(matches()).not.toBeInTheDocument()
+  expect(screen.queryByText(/No engineer matches/)).not.toBeInTheDocument()
+})
+
+it('dates a new form today with its report due in two weeks, and keeps a blank one current', async () => {
+  // Late in the month, so the due date falls in the next one.
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 25, 9, 0) })
+  try {
+    mockGateway()
+    await openApp()
+    const openForm = () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^Dashboard/ })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+    }
+    const visit = () => screen.getByLabelText(/Site visit date/)
+    const due = () => screen.getByLabelText(/Report due/)
+    openForm()
+    expect(visit()).toHaveValue('2026-10-25')
+    expect(due()).toHaveValue('2026-11-08')
+
+    // Left blank in a tab overnight, it opens on the next day's dates.
+    vi.setSystemTime(new Date(2026, 9, 26, 9, 0))
+    openForm()
+    expect(visit()).toHaveValue('2026-10-26')
+    expect(due()).toHaveValue('2026-11-09')
+
+    // One the engineer has started keeps its dates.
+    fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Draft site' } })
+    vi.setSystemTime(new Date(2026, 9, 27, 9, 0))
+    openForm()
+    expect(screen.getByLabelText(/Site name/)).toHaveValue('Draft site')
+    expect(visit()).toHaveValue('2026-10-26')
+    expect(due()).toHaveValue('2026-11-09')
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 it('reloads the engineer directory after failure and preserves the selected engineer', async () => {
@@ -530,7 +729,7 @@ it('reloads the engineer directory after failure and preserves the selected engi
     ]),
   )
 
-  expect(await screen.findByRole('radio', { name: /Alex Rowe/ })).toBeChecked()
+  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
   expect(screen.getByLabelText(/Site name/)).toHaveValue('Retained site')
   expect(screen.queryByText('Loading engineers…')).not.toBeInTheDocument()
   expect(directory).toHaveBeenCalledTimes(2)
@@ -594,8 +793,12 @@ it('archives my assessment from its workspace, then shows it only under Archived
   )
   await openApp()
   fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-  // Capture is offered in the navigation and once in the page header.
-  expect(screen.getAllByRole('button', { name: /^Site observation/ })).toHaveLength(1)
+  // Capture is the page header's action; the navigation lists the assessment
+  // under Recent.
+  expect(screen.getByRole('button', { name: 'Jurong Distribution Hub' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
 
   // Archive is one of the occasional actions behind More actions.
@@ -617,8 +820,6 @@ it('archives my assessment from its workspace, then shows it only under Archived
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 
   // An archived workspace offers neither capture nor another archive.
-  // Neither the header nor the side navigation offers capture.
-  expect(screen.queryAllByRole('button', { name: /^Site observation/ })).toHaveLength(0)
   expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
   moreActions()
   expect(screen.getByRole('button', { name: 'Version history' })).toBeInTheDocument()
@@ -662,8 +863,8 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
 
-it('edits my assessment details, keeping its engineer, policy reference and standards (RV-10 AC10, AC11)', async () => {
-  let record = { ...CREATED, policyReference: 'POL-00012345' }
+it('edits my assessment details, keeping its engineer (RV-10 AC10, AC11)', async () => {
+  let record = { ...CREATED }
   const saves: { body: Record<string, unknown>; reply: Response }[] = []
   const rejection = new Response(
     JSON.stringify({
@@ -699,13 +900,10 @@ it('edits my assessment details, keeping its engineer, policy reference and stan
   expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
-  // The form starts from the saved details, without the engineer, policy
-  // reference or standards.
+  // The form starts from the saved details, without the engineer.
   expect(screen.getByRole('heading', { name: 'Edit assessment details' })).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('Straits Logistics')
-  expect(screen.queryByLabelText(/Policy reference/)).not.toBeInTheDocument()
-  expect(screen.queryByRole('radio', { name: /Alex Rowe/ })).not.toBeInTheDocument()
-  expect(screen.queryByText('Applicable standards')).not.toBeInTheDocument()
+  expect(screen.queryByRole('searchbox', { name: 'Search engineers' })).not.toBeInTheDocument()
 
   fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
     target: { value: 'Straits Freight' },
@@ -719,18 +917,17 @@ it('edits my assessment details, keeping its engineer, policy reference and stan
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   await screen.findByText('Details saved for RPT-2026-0001.')
   expect(saves[1].body).toMatchObject({ client: 'Straits Freight' })
-  expect(saves[1].body).not.toHaveProperty('policyReference')
   expect(saves[1].body).not.toHaveProperty('engineerId')
-  expect(saves[1].body).not.toHaveProperty('standards')
   // Back in the workspace, the record shows the saved details (AC10).
   expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
   expect(screen.getAllByText('Straits Freight').length).toBeGreaterThan(0)
 
   // A new assessment then starts from a blank form, not the edited details.
+  fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
   expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
-  expect(screen.getByText('Applicable standards')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Create assessment' })).toBeInTheDocument()
 })
 
 it('shows a knowledge admin the same assessment record, read-only', async () => {
@@ -766,9 +963,8 @@ it('offers no capture when none of my assessments is capturing, not even the dem
   await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
 
   expect(screen.queryByRole('button', { name: /^Continue capture/ })).not.toBeInTheDocument()
-  // Tilbury, the demo default, is not on this engineer's list, so the
-  // navigation neither captures for it nor opens it.
-  expect(screen.queryByRole('button', { name: /^Site observation/ })).not.toBeInTheDocument()
+  // Tilbury, the demo default, is not on this engineer's list, so nothing
+  // opens it.
   expect(
     screen.queryByRole('button', { name: 'Tilbury Distribution Centre' }),
   ).not.toBeInTheDocument()

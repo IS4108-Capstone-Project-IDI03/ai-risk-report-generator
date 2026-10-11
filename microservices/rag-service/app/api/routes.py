@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
@@ -34,7 +34,6 @@ class Assessment(BaseModel):
     reference: str
     jurisdiction: str
     facility_type: str
-    standards: list[str] = []
 
 
 # One site observation as the gateway sends it, with only its finished voice transcripts.
@@ -64,11 +63,31 @@ class DraftOfisRequest(BaseModel):
     accepted: list[str] = []
 
 
+# One finding of the saved draft, with the engineer's decision on it (RV-02).
+class CurrentStatement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    heading: str
+    text: str
+    decision: Literal["pending", "accepted", "edited", "rejected"]
+
+
+# A regenerated draft (RV-02): the saved draft's findings and decisions, and what the
+# engineer asked to change, if anything.
+Instruction = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
+
+
+class Redraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    instruction: Instruction | None = None
+    current: list[CurrentStatement] = []
+
+
 class DraftSectionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     section_id: str
     assessment: Assessment
     observations: list[Observation] = Field(min_length=1)
+    redraft: Redraft | None = None
 
 
 # One report section as the gateway sends it for the Executive Summary: its text, flattened.
@@ -122,7 +141,7 @@ def draft_section(request: DraftSectionRequest) -> dict:
     if request.section_id not in TEMPLATE["sections"]:
         raise HTTPException(404, f"Section {request.section_id} is not in the report template")
     try:
-        return draft(request.section_id, request.assessment, request.observations)
+        return draft(request.section_id, request.assessment, request.observations, request.redraft)
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 

@@ -64,11 +64,9 @@ const assessmentDetails = z.object({
     'Site details are required.',
   ),
   client: required('Client'),
-  policyReference: optional('Policy reference'),
   surveyType: required('Assessment type'),
   siteVisitDate: optionalDate('Site visit date'),
   reportDueDate: optionalDate('Report due date'),
-  standards: z.array(required('Standard')).max(50).default([]),
 })
 const dueOnOrAfterVisit = (a: { siteVisitDate?: string; reportDueDate?: string }) =>
   !a.siteVisitDate || !a.reportDueDate || a.reportDueDate >= a.siteVisitDate
@@ -86,11 +84,9 @@ export const newAssessmentSchema = assessmentDetails
   })
   .refine(dueOnOrAfterVisit, dueDateRule)
 
-// Request body for PUT /api/assessments/:reference. The engineer, policy
-// reference and standards are not part of it: they stay as created.
-export const assessmentDetailsSchema = assessmentDetails
-  .omit({ policyReference: true, standards: true })
-  .refine(dueOnOrAfterVisit, dueDateRule)
+// Request body for PUT /api/assessments/:reference. The engineer is not part
+// of it: it stays as created.
+export const assessmentDetailsSchema = assessmentDetails.refine(dueOnOrAfterVisit, dueDateRule)
 
 export type NewAssessment = z.infer<typeof newAssessmentSchema>
 export type AssessmentDetails = z.infer<typeof assessmentDetailsSchema>
@@ -115,11 +111,9 @@ export type AssessmentDto = {
   id: string
   reference: string
   client: string
-  policyReference: string | null
   surveyType: string
   siteVisitDate: string | null
   reportDueDate: string | null
-  standards: string[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
   // When its latest capture session started; null before capture starts. The
@@ -159,12 +153,10 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
           reference,
           site: site._id,
           client: input.client,
-          policyReference: input.policyReference,
           surveyType: input.surveyType,
           // 'YYYY-MM-DD' parses as UTC midnight, so the calendar day is kept.
           siteVisitDate: input.siteVisitDate ? new Date(input.siteVisitDate) : undefined,
           reportDueDate: input.reportDueDate ? new Date(input.reportDueDate) : undefined,
-          standards: input.standards,
           engineer: engineer._id,
         }),
     )
@@ -228,8 +220,8 @@ async function assignedAssessment(reference: string, user: SessionUser) {
 
 // Corrects an assessment's details and its site's (RV-10 AC10): only its
 // assigned engineer can, and not once it is archived, which keeps it read-only.
-// A date left empty is cleared. The engineer, policy reference, standards
-// and report reference never change.
+// A date left empty is cleared. The engineer and report reference never
+// change.
 export async function updateAssessment(
   reference: string,
   input: AssessmentDetails,
@@ -323,11 +315,9 @@ function toDto(
     id: String(assessment._id),
     reference: assessment.reference,
     client: assessment.client,
-    policyReference: assessment.policyReference ?? null,
     surveyType: assessment.surveyType,
     siteVisitDate: isoDay(assessment.siteVisitDate),
     reportDueDate: isoDay(assessment.reportDueDate),
-    standards: [...assessment.standards],
     engineer: engineer ? { id: String(engineer._id), name: engineer.name } : null,
     status,
     captureStartedAt,
