@@ -8,6 +8,7 @@ import { formatDay } from '../format'
 import {
   claimsOf,
   excerpt,
+  FINDING_BADGE,
   pageLocator,
   pages,
   severityLabel,
@@ -218,7 +219,9 @@ function ObservationText({
 // The reference source panel of the review workspace (RV-01 AC2), beside the
 // draft. A selected citation opens at the top. Below it are every passage the
 // draft cites, the original field observations (AC3), and every claim with
-// its citations (AC4).
+// its citations (AC4). Rejected findings are out of the draft (RV-02), so
+// what only they cite is not listed. `children`, e.g. the review history,
+// comes last.
 export function SourcePanel({
   savedObservations = [],
   section,
@@ -228,6 +231,7 @@ export function SourcePanel({
   onCite,
   onShowClaim,
   style,
+  children,
 }: {
   savedObservations?: SavedObservation[]
   section: ReviewSection
@@ -237,6 +241,7 @@ export function SourcePanel({
   onCite: (citation: string | null, statement: string | null) => void
   onShowClaim: (claim: string) => void
   style: React.CSSProperties
+  children?: React.ReactNode
 }) {
   const viewer = useRef<HTMLElement>(null)
   const open = focus.citation
@@ -246,10 +251,17 @@ export function SourcePanel({
   }, [open])
 
   const numberOf = (id: string) => numbers.get(id) ?? LAST
-  const passages = Object.values(section.sources).sort((a, b) => numberOf(a.id) - numberOf(b.id))
-  const observations = [...section.observations].sort(
-    (a, b) => numberOf(`O:${a.id}`) - numberOf(`O:${b.id}`),
-  )
+  const passages = Object.values(section.sources)
+    .filter((p) => numbers.has(p.id))
+    .sort((a, b) => numberOf(a.id) - numberOf(b.id))
+  // The section's own observations, and any other a finding in the draft cites.
+  const observations = section.observations
+    .filter(
+      (o) =>
+        numbers.has(`O:${o.id}`) ||
+        o.copeDimensions.some((c) => section.copeDimensions.includes(c)),
+    )
+    .sort((a, b) => numberOf(`O:${a.id}`) - numberOf(`O:${b.id}`))
   const claims = section.draft ? claimsOf(section.draft) : []
   const unsupported = claims.filter((c) => !c.supported).length
   const close = () => onCite(null, focus.statement)
@@ -402,18 +414,26 @@ export function SourcePanel({
         </div>
         {claims.length ? (
           <ol className="rv-panel-list">
-            {claims.map((c, n) => (
+            {claims.map((c) => (
               <li
                 key={c.key}
                 className={'rv-claim' + (focus.statement === c.key ? ' is-active' : '')}
               >
                 <div className="rv-claim-heading">
                   <span>
-                    {n + 1}. {c.heading}
+                    {c.number}. {c.heading}
                   </span>
                   {!c.supported && (
                     <Badge tone="moderate" icon="triangle-alert">
                       Unsupported
+                    </Badge>
+                  )}
+                  {c.review.state !== 'pending' && (
+                    <Badge
+                      tone={FINDING_BADGE[c.review.state].tone}
+                      icon={FINDING_BADGE[c.review.state].icon}
+                    >
+                      {FINDING_BADGE[c.review.state].label}
                     </Badge>
                   )}
                 </div>
@@ -444,6 +464,7 @@ export function SourcePanel({
           <p className="rv-muted">{section.draft ? 'The draft makes no claims.' : 'None yet.'}</p>
         )}
       </section>
+      {children}
     </aside>
   )
 }

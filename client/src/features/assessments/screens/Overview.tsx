@@ -100,8 +100,8 @@ function draftingBox(report: Report): BoxContent {
 }
 
 // Drafts needing a closer look: statements without support, withdrawn sources,
-// or observations changed since drafting. There is no sign-off yet, so a draft
-// with none of those is an AI draft still to be read.
+// or observations changed since drafting. Without those, how many drafts the
+// engineer has finished reviewing: every finding decided (RV-02).
 function reviewBox(report: Report): BoxContent {
   if (!report)
     return { value: '—', unit: 'not available', note: 'Needs the assessment on the server' }
@@ -111,11 +111,17 @@ function reviewBox(report: Report): BoxContent {
   if (!drafted.length)
     return { value: '—', unit: 'no drafts yet', note: 'Draft a section to review it' }
   const flagged = drafted.filter((s) => s.review.state === 'needs_review')
+  const reviewed = drafted.filter((s) => s.review.state === 'reviewed').length
   if (!flagged.length)
     return {
       value: '0',
       unit: 'drafts flagged',
-      note: plural(drafted.length, 'AI draft') + ' to read',
+      note:
+        reviewed === drafted.length
+          ? 'All drafts reviewed'
+          : reviewed
+            ? reviewed + ' of ' + plural(drafted.length, 'draft') + ' reviewed'
+            : plural(drafted.length, 'AI draft') + ' to read',
       tone: 'ok',
     }
   const sum = (key: 'unsupportedStatements' | 'withdrawnSources') =>

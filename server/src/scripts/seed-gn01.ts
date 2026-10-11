@@ -13,6 +13,7 @@ import {
   type Severity,
 } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
+import { ReviewAuditModel } from '../models/review-audit.model'
 import { SiteModel } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { locationKey } from '../services/location.service'
@@ -23,7 +24,8 @@ import { putObject } from '../services/storage.service'
 // on site (terse, abbreviated, some dictated), so a draft has to turn them into
 // report prose rather than copy them. Run `npm run seed` first for the
 // accounts, then this. Re-running resets this one assessment's observations,
-// capture sessions and drafts, so every test starts from the same evidence.
+// capture sessions, drafts and review decisions, so every test starts from the
+// same evidence.
 // Sign in as alex.rowe@example.com and open RPT-2026-0901 > Report generation.
 // Section 9 Fire Protection is the richest: its FM-200 observations match the
 // FM-200 manual in the knowledge base. Section 10 has no evidence on purpose.
@@ -160,10 +162,13 @@ async function seed() {
     { upsert: true, returnDocument: 'after' },
   )
 
-  // Start this sample afresh: its evidence, sessions and drafts only.
+  // Start this sample afresh: its evidence, sessions, drafts and their review.
   await ObservationModel.deleteMany({ assessment: assessment._id })
   await CaptureSessionModel.deleteMany({ assessment: assessment._id })
   await ReportSectionModel.deleteMany({ assessment: assessment._id })
+  // The review log is append-only through its model (RV-02); a reset sample's
+  // drafts are gone, so their decisions go too, through the driver.
+  await ReviewAuditModel.collection.deleteMany({ assessment: assessment._id })
 
   const session = await CaptureSessionModel.create({ assessment: assessment._id })
   const locationId = (at: keyof typeof LOCATIONS) =>

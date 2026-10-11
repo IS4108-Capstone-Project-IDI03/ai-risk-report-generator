@@ -89,7 +89,11 @@ to its assigned engineer only, and stay in the demo for a sample one. A saved as
 its Review tab is the review workspace (RV-01): each section's completion and
 review state, its draft, and beside it each cited passage with its page,
 document title, edition, effective date and any withdrawal, the original
-observations and every claim.
+observations and every claim. There the assigned engineer accepts, edits or
+rejects each finding, bulk accepts a section's pending findings, and
+regenerates a section with an instruction as a replacement to accept or
+discard (RV-02); every decision is kept in an append-only audit log, shown as
+each section's review history, and the rail totals the decisions.
 
 ## Running the stack locally
 

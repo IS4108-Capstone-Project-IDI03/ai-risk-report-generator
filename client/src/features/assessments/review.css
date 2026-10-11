@@ -412,3 +412,187 @@
 .rv-observation-photos {
   padding: 0 var(--space-6) var(--space-4) calc(var(--space-6) + 18px + var(--space-5));
 }
+
+/* Findings and their review decisions (RV-02). A finding waiting for a
+   decision keeps the AI rule; once accepted or edited the rule goes neutral. */
+.rv-finding {
+  padding-left: 12px;
+  border-left: 2px solid var(--border-subtle);
+}
+.rv-finding.is-pending {
+  border-left-color: var(--ai-border);
+}
+.rv-finding + .rv-finding {
+  margin-top: 16px;
+}
+.rv-finding-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 6px;
+  font-family: var(--font-sans);
+}
+.rv-finding-by {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.rv-finding-gap {
+  flex: 1;
+}
+.rv-finding-original {
+  margin-top: 6px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-secondary);
+}
+.rv-finding-original summary {
+  cursor: pointer;
+  color: var(--text-link);
+}
+.rv-finding-original p {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--ai-border);
+  background: var(--ai-bg);
+  font-family: var(--font-serif);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-body);
+  white-space: pre-wrap;
+}
+
+/* The section's review controls above its draft. */
+.rv-review-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-review-bar:empty {
+  display: none;
+}
+.rv-review-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.rv-review-counts {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+.rv-review-counts .rv-label {
+  display: inline;
+  margin-right: 6px;
+}
+.rv-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rv-replacement-row {
+  margin-top: 12px;
+}
+.rv-replacement-row .rv-segmented {
+  flex: 1;
+}
+.rv-segmented {
+  display: flex;
+  gap: 4px;
+}
+.rv-instruction {
+  margin: 6px 0 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--ai-border);
+  font-family: var(--font-serif);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The review summary at the top of the section rail. */
+.rv-summary {
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rv-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 8px;
+}
+.rv-summary-grid div {
+  padding: 6px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+.rv-summary-grid dt {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-muted);
+}
+.rv-summary-grid dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.rv-summary .rv-muted {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+
+/* The review history in the source panel. */
+.rv-history-item {
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+.rv-history-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-primary);
+}
+.rv-history-where {
+  margin: 2px 0 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-secondary);
+}
+.rv-history-by {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.rv-history-item .rv-passage {
+  max-height: 30vh;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+}
+.rv-history-actions {
+  margin-top: 10px;
+}
+
+/* What the draft says, beside the engineer's edit. */
+.rv-dialog-ai {
+  padding: 12px 14px;
+  border: 1px solid var(--ai-border);
+  border-radius: var(--radius-lg);
+  background: var(--ai-bg);
+}

@@ -35,6 +35,22 @@ import {
 } from '../services/observation.service'
 import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
 import { RagServiceError } from '../services/rag.service'
+import {
+  bulkAccept,
+  ConcurrentDecisionError,
+  decideFinding,
+  decideReplacement,
+  draftChoiceSchema,
+  findingEditSchema,
+  FindingNotFoundError,
+  FindingStateError,
+  NotDraftedError,
+  regenerateSchema,
+  regenerateSection,
+  ReplacementNotFoundError,
+  ReplacementPendingError,
+  StaleDraftError,
+} from '../services/review-decision.service'
 import { getReviewWorkspace } from '../services/review.service'
 import {
   draftSection,
@@ -327,8 +343,9 @@ router.get('/:reference/sections', requirePermission('assessments:view'), async 
   }
 })
 
-// The review workspace (RV-01) is read-only and available to anyone who can
-// view the assessment.
+// The review workspace (RV-01) is available to anyone who can view the
+// assessment. Its decisions (RV-02) are the routes below, for the assigned
+// engineer.
 router.get('/:reference/review', requirePermission('assessments:view'), async (req, res) => {
   try {
     res.json(await getReviewWorkspace(req.params.reference))
@@ -386,6 +403,168 @@ router.post(
     }
   },
 )
+
+// What every review decision (RV-02) answers for each failure: 404 (unknown
+// assessment, section, finding or waiting replacement), 403 for anyone but
+// the assigned engineer, 409 when the decision no longer applies (archived,
+// not drafted, the saved draft changed since it was opened, a rejected
+// finding, a decision saved at the same moment, a replacement already
+// waiting, a transcription in progress), 422 when regenerating lacks
+// evidence, 503 when S4 fails (not 502, which the client reads as the
+// gateway being down).
+function reviewFailure(error: unknown, res: Response) {
+  if (
+    error instanceof AssessmentNotFoundError ||
+    error instanceof UnknownSectionError ||
+    error instanceof FindingNotFoundError ||
+    error instanceof ReplacementNotFoundError
+  ) {
+    res.status(404).json({ error: error.message })
+  } else if (error instanceof NotAssignedError) {
+    res.status(403).json({ error: error.message })
+  } else if (
+    error instanceof AssessmentArchivedError ||
+    error instanceof NotDraftedError ||
+    error instanceof StaleDraftError ||
+    error instanceof FindingStateError ||
+    error instanceof ConcurrentDecisionError ||
+    error instanceof ReplacementPendingError ||
+    error instanceof TranscriptionInProgressError
+  ) {
+    res.status(409).json({ error: error.message })
+  } else if (error instanceof InsufficientEvidenceError) {
+    res.status(422).json({ error: error.message, found: error.found, needed: error.needed })
+  } else if (error instanceof RagServiceError) {
+    res.status(503).json({ error: error.message })
+  } else {
+    throw error
+  }
+}
+
+// Accepts (AC1), rejects (AC5) or restores one finding of a section's saved
+// draft, named by `draftId`. 200 with the review workspace as it now stands.
+for (const action of ['accept', 'reject', 'restore'] as const) {
+  router.post(
+    `/:reference/sections/:sectionId/findings/:finding/${action}`,
+    requirePermission('reports:generate'),
+    async (req, res) => {
+      const parsed = draftChoiceSchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Say which draft the decision is about.' })
+        return
+      }
+      const { reference, sectionId, finding } = req.params
+      try {
+        const user = res.locals.user!
+        await decideFinding(reference, sectionId, finding, parsed.data.draftId, { action }, user)
+        res.json(await getReviewWorkspace(reference))
+      } catch (error: unknown) {
+        reviewFailure(error, res)
+      }
+    },
+  )
+}
+
+// Saves the engineer's wording of one finding (AC2), recording the text
+// before and after with who changed it when (AC3, AC4). 400 names the field.
+router.put(
+  '/:reference/sections/:sectionId/findings/:finding',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    const parsed = findingEditSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'The edited finding is invalid.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    const { reference, sectionId, finding } = req.params
+    try {
+      await decideFinding(
+        reference,
+        sectionId,
+        finding,
+        parsed.data.draftId,
+        { action: 'edit', text: parsed.data.text },
+        res.locals.user!,
+      )
+      res.json(await getReviewWorkspace(reference))
+    } catch (error: unknown) {
+      reviewFailure(error, res)
+    }
+  },
+)
+
+// Bulk accept (AC7, AC8): every pending finding of the section's saved draft.
+router.post(
+  '/:reference/sections/:sectionId/bulk-accept',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    const parsed = draftChoiceSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Say which draft the decision is about.' })
+      return
+    }
+    const { reference, sectionId } = req.params
+    try {
+      await bulkAccept(reference, sectionId, parsed.data.draftId, res.locals.user!)
+      res.json(await getReviewWorkspace(reference))
+    } catch (error: unknown) {
+      reviewFailure(error, res)
+    }
+  },
+)
+
+// Regenerates one section as a replacement draft (AC10), with an optional
+// instruction saying what to change: 201 with the review workspace, in which
+// the section's `replacement` waits beside its saved draft.
+router.post(
+  '/:reference/sections/:sectionId/regenerate',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    const parsed = regenerateSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'The instruction is invalid.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    const { reference, sectionId } = req.params
+    try {
+      await regenerateSection(reference, sectionId, parsed.data.instruction, res.locals.user!)
+      res.status(201).json(await getReviewWorkspace(reference))
+    } catch (error: unknown) {
+      reviewFailure(error, res)
+    }
+  },
+)
+
+// Accepts the waiting replacement as the section's saved content (AC11), or
+// discards it, leaving the saved draft as it was (AC12). 200 with the
+// review workspace.
+for (const [action, accept] of [
+  ['accept', true],
+  ['discard', false],
+] as const) {
+  router.post(
+    `/:reference/sections/:sectionId/replacement/${action}`,
+    requirePermission('reports:generate'),
+    async (req, res) => {
+      const parsed = draftChoiceSchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Say which replacement draft the decision is about.' })
+        return
+      }
+      const { reference, sectionId } = req.params
+      try {
+        await decideReplacement(reference, sectionId, parsed.data.draftId, accept, res.locals.user!)
+        res.json(await getReviewWorkspace(reference))
+      } catch (error: unknown) {
+        reviewFailure(error, res)
+      }
+    },
+  )
+}
 
 router.use(tooLarge)
 

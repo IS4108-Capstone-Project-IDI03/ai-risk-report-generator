@@ -36,6 +36,9 @@
   and knowledge documents have no `COPE_dimension`: each passage carries its
   own `section` instead (a template section, `Appendix`, `Not applicable` or
   `Undefined`; IN-05).
+- `review_audit_log` (RV-02) is append-only: never update or delete an entry.
+  A finding's review state is read from it, and drafts in `report_sections`
+  are never changed. See docs/areas/database.md.
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

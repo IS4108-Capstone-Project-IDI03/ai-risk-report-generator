@@ -1,10 +1,20 @@
 import { SourcePanel } from './components/SourcePanel'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
-import type { AcceptedOfi, OfiList, ReviewSection, SourcePassage } from './api'
+import { ReviewWorkspace as ReviewWorkspaceScreen } from './screens/ReviewWorkspace'
+import type {
+  AcceptedOfi,
+  FindingCounts,
+  FindingState,
+  OfiList,
+  ReviewSection,
+  ReviewStatement,
+  ReviewWorkspace,
+  SourcePassage,
+} from './api'
 
 // jsdom does not implement native modal dialogs.
 beforeAll(() => {
@@ -105,6 +115,34 @@ const PRECEDENT = passage({
   },
 })
 
+// A finding as the gateway sends it (RV-02): pending review unless a test decides it.
+const PENDING: ReviewStatement['review'] = { state: 'pending', at: null, by: null }
+const finding = (
+  text: string,
+  citations: string[],
+  supported = true,
+  review: ReviewStatement['review'] = PENDING,
+  generatedText = text,
+): ReviewStatement => ({ text, generatedText, citations, supported, review })
+const counts = (fields: Partial<FindingCounts> = {}): FindingCounts => {
+  const c = { pending: 0, accepted: 0, edited: 0, rejected: 0, ...fields }
+  return { total: c.pending + c.accepted + c.edited + c.rejected, ...c }
+}
+// The review workspace as the gateway sends it, its summary counted from the sections.
+function workspace(sections: ReviewSection[], asOf = '2026-10-11T06:00:00.000Z'): ReviewWorkspace {
+  const sum = (state: FindingState) => sections.reduce((n, s) => n + s.findings[state], 0)
+  return {
+    sections,
+    summary: counts({
+      pending: sum('pending'),
+      accepted: sum('accepted'),
+      edited: sum('edited'),
+      rejected: sum('rejected'),
+    }),
+    asOf,
+  }
+}
+
 const CONSTRUCTION: ReviewSection = {
   id: '7',
   title: 'Construction',
@@ -126,21 +164,9 @@ const CONSTRUCTION: ReviewSection = {
         heading: 'Construction Narrative',
         kind: 'narrative',
         statements: [
-          {
-            text: 'Riser penetrations were not fire-stopped at Level 3.',
-            citations: ['O:o1', 'C:fm121:4'],
-            supported: true,
-          },
-          {
-            text: 'Sprinkler control valves are inspected weekly.',
-            citations: ['O:o2', 'C:nfpa25:2'],
-            supported: true,
-          },
-          {
-            text: 'The building is of fire-resistive construction.',
-            citations: ['P:rep:9'],
-            supported: false,
-          },
+          finding('Riser penetrations were not fire-stopped at Level 3.', ['O:o1', 'C:fm121:4']),
+          finding('Sprinkler control valves are inspected weekly.', ['O:o2', 'C:nfpa25:2']),
+          finding('The building is of fire-resistive construction.', ['P:rep:9'], false),
         ],
       },
       { heading: 'Construction Table', kind: 'table', statements: [] },
@@ -151,6 +177,9 @@ const CONSTRUCTION: ReviewSection = {
     provenance: PROVENANCE,
     createdAt: '2026-10-03T06:00:00.000Z',
   },
+  findings: counts({ pending: 3 }),
+  replacement: null,
+  history: [],
   sources: { [STANDARD.id]: STANDARD, [WITHDRAWN.id]: WITHDRAWN, [PRECEDENT.id]: PRECEDENT },
   observations: [
     {
@@ -195,11 +224,12 @@ const FIRE: ReviewSection = {
       {
         heading: 'Sprinkler Protection',
         kind: 'narrative',
-        statements: [{ text: 'Valves are checked weekly.', citations: ['O:o2'], supported: true }],
+        statements: [finding('Valves are checked weekly.', ['O:o2'])],
       },
     ],
     questions: [],
   },
+  findings: counts({ pending: 1 }),
   sources: {},
   observations: [CONSTRUCTION.observations[1]],
 }
@@ -215,9 +245,12 @@ const EXPOSURES: ReviewSection = {
     changesSinceDraft: 0,
     changeCounts: { added: 0, changed: 0, removed: 0 },
   },
+  findings: counts(),
   draft: null,
   sources: {},
   observations: [],
+  replacement: null,
+  history: [],
 }
 
 const json = (status: number, body: unknown) =>
@@ -231,8 +264,23 @@ const json = (status: number, body: unknown) =>
 // Section 3's OFIs (GN-05); none unless a test sets them.
 let ofis: OfiList = { suggestions: [], accepted: [] }
 
+// A review decision (RV-02) the gateway received: its method, path and body.
+type Sent = { method: string; url: string; body: unknown }
+let decide: (sent: Sent) => Promise<Response> = () => json(500, { error: 'Not expected.' })
+const sent: Sent[] = []
+
 function mockGateway(review: () => Promise<Response>) {
-  vi.stubGlobal('fetch', (url: string) => {
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    // Review decisions; anything else written, e.g. a capture session, is answered as before.
+    if (init?.method && init.method !== 'GET' && url.includes('/sections/')) {
+      const request = {
+        method: init.method,
+        url,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      }
+      sent.push(request)
+      return decide(request)
+    }
     if (url === '/api/assessments') return json(200, [RECORD])
     if (url === `/api/assessments/${REF}/ofis`) return json(200, ofis)
     if (url === `/api/assessments/${REF}/review`) return review()
@@ -241,7 +289,7 @@ function mockGateway(review: () => Promise<Response>) {
   })
 }
 
-async function openReview(review = () => json(200, { sections: [CONSTRUCTION, FIRE, EXPOSURES] })) {
+async function openReview(review = () => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES]))) {
   mockGateway(review)
   render(<App />)
   await signIn()
@@ -262,6 +310,8 @@ const detail = (scope: HTMLElement, label: string) =>
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  sent.length = 0
+  decide = () => json(500, { error: 'Not expected.' })
 })
 
 it('shows the draft editor with its sources, observations and claims beside it (AC1-AC4)', async () => {
@@ -404,7 +454,7 @@ it('moves between sections and shows one without a draft as not drafted', async 
 }, 15_000)
 
 it('says when there is nothing to review yet', async () => {
-  await openReview(() => json(200, { sections: [EXPOSURES] }))
+  await openReview(() => json(200, workspace([EXPOSURES])))
   expect(await screen.findByText('No sections drafted yet')).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Draft editor' })).toBeNull()
 }, 15_000)
@@ -537,4 +587,457 @@ it('opens referenced observation photos from Review citations without inline ima
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   view.rerender(<SourcePanel {...props} numbers={new Map()} />)
   expect(screen.queryByRole('button', { name: 'View photo' })).not.toBeInTheDocument()
+})
+
+// Reviewing generated findings (RV-02).
+
+const ALEX = { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' }
+// 11 Oct 2026 14:02 in the browser's own time zone, as the screen shows it.
+const AT = new Date(2026, 9, 11, 14, 2).toISOString()
+const LATER = '2026-10-11T06:05:00.000Z'
+const LATEST = '2026-10-11T06:10:00.000Z'
+const decided = (state: FindingState): ReviewStatement['review'] => ({ state, at: AT, by: ALEX })
+const [RISER, VALVES, ROOF] = CONSTRUCTION.draft!.subsections[0].statements
+const EDITED = 'Control valves are locked open and checked weekly.'
+
+// Section 7 with these findings, counted as the gateway counts them.
+function seven(statements: ReviewStatement[], extra: Partial<ReviewSection> = {}): ReviewSection {
+  const n = (state: FindingState) => statements.filter((s) => s.review.state === state).length
+  const [narrative, ...rest] = CONSTRUCTION.draft!.subsections
+  return {
+    ...CONSTRUCTION,
+    // The only unsupported finding is rejected in most of these tests.
+    review: {
+      ...CONSTRUCTION.review,
+      unsupportedStatements: statements.filter((s) => !s.supported && s.review.state !== 'rejected')
+        .length,
+    },
+    draft: { ...CONSTRUCTION.draft!, subsections: [{ ...narrative, statements }, ...rest] },
+    findings: counts({
+      pending: n('pending'),
+      accepted: n('accepted'),
+      edited: n('edited'),
+      rejected: n('rejected'),
+    }),
+    ...extra,
+  }
+}
+const entry = (
+  fields: Partial<ReviewSection['history'][number]> &
+    Pick<ReviewSection['history'][number], 'action'>,
+): ReviewSection['history'][number] => ({
+  id: `h-${fields.action}-${fields.finding}`,
+  draftId: 'd7',
+  finding: null,
+  heading: 'Construction Narrative',
+  before: null,
+  after: null,
+  citations: [],
+  instruction: null,
+  bulk: false,
+  by: ALEX,
+  at: AT,
+  ...fields,
+})
+const REJECTION = entry({
+  action: 'reject',
+  finding: '0.2',
+  before: ROOF.text,
+  citations: ['P:rep:9'],
+})
+const reply =
+  (sections: ReviewSection[], asOf = LATER) =>
+  () =>
+    json(200, workspace(sections, asOf))
+const findingOf = (n: number) => within(editor()).getByRole('group', { name: `Finding ${n}` })
+const nav = () => screen.getByRole('navigation', { name: 'Report sections' })
+const rowOf = (name: RegExp) => within(nav()).getByRole('button', { name })
+
+it('shows each finding’s decision, leaves rejected ones out of the draft and totals the saved decisions (AC3-AC6, AC9)', async () => {
+  const reviewed = seven(
+    [
+      { ...RISER, review: decided('accepted') },
+      { ...VALVES, text: EDITED, review: decided('edited') },
+      { ...ROOF, review: decided('rejected') },
+    ],
+    {
+      history: [
+        REJECTION,
+        entry({ action: 'edit', finding: '0.1', before: VALVES.text, after: EDITED }),
+        entry({ action: 'accept', finding: '0.0', before: RISER.text }),
+      ],
+    },
+  )
+  await openReview(reply([reviewed, FIRE, EXPOSURES]))
+  await screen.findByRole('region', { name: 'Draft editor' })
+
+  // The review summary counts the saved decisions across the report (AC9).
+  const summary = within(nav()).getByRole('region', { name: 'Review summary' })
+  expect(detail(summary, 'Accepted')).toHaveTextContent('1')
+  expect(detail(summary, 'Edited')).toHaveTextContent('1')
+  expect(detail(summary, 'Rejected')).toHaveTextContent('1')
+  expect(detail(summary, 'Pending')).toHaveTextContent('1')
+  expect(within(summary).getByText('3 of 4 findings decided')).toBeInTheDocument()
+  expect(
+    within(editor()).getByText('1 accepted · 1 edited · 1 rejected · 0 pending'),
+  ).toBeInTheDocument()
+
+  // A rejected finding is out of the visible draft and its claims (AC5).
+  expect(within(editor()).queryByText(ROOF.text)).toBeNull()
+  expect(within(editor()).getAllByRole('group', { name: /^Finding \d+$/ })).toHaveLength(2)
+  const claims = within(panel()).getByRole('region', { name: 'Claims' })
+  expect(within(claims).getAllByRole('listitem')).toHaveLength(2)
+  expect(within(claims).queryByText(ROOF.text)).toBeNull()
+
+  // Each finding shows its decision, and who made it when.
+  expect(within(findingOf(1)).getByText('Accepted')).toBeInTheDocument()
+  expect(within(findingOf(1)).getByText('Alex Rowe · 11 Oct 2026 14:02')).toBeInTheDocument()
+  expect(within(findingOf(2)).getByText(EDITED)).toBeInTheDocument()
+  expect(within(findingOf(2)).getByText('Edited')).toBeInTheDocument()
+  // What the draft said stays one click away.
+  expect(within(findingOf(2)).getByText('Drafted text')).toBeInTheDocument()
+  expect(within(findingOf(2)).getByText(VALVES.text)).toBeInTheDocument()
+
+  // The history keeps the rejected finding's content (AC6), and an edit's text
+  // before and after (AC3), each with who made it and when (AC4).
+  const history = within(panel()).getByRole('region', { name: 'Review history' })
+  const [rejection, edit, acceptance] = within(history).getAllByRole('listitem')
+  expect(within(rejection).getByText('Rejected')).toBeInTheDocument()
+  expect(within(rejection).getByText(ROOF.text)).toBeInTheDocument()
+  expect(within(rejection).getByRole('button', { name: 'Restore finding' })).toBeInTheDocument()
+  expect(within(edit).getByText(VALVES.text)).toBeInTheDocument()
+  expect(within(edit).getByText(EDITED)).toBeInTheDocument()
+  expect(within(edit).getByText('Alex Rowe · 11 Oct 2026 14:02')).toBeInTheDocument()
+  expect(within(acceptance).getByText('Accepted')).toBeInTheDocument()
+}, 15_000)
+
+it('accepts a pending finding (AC1)', async () => {
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
+  expect(within(findingOf(1)).getByText('Pending review')).toBeInTheDocument()
+  decide = reply([
+    seven([{ ...RISER, review: decided('accepted') }, VALVES, ROOF]),
+    FIRE,
+    EXPOSURES,
+  ])
+
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Accept finding 1' }))
+
+  await waitFor(() => expect(within(findingOf(1)).getByText('Accepted')).toBeInTheDocument())
+  expect(sent).toEqual([
+    {
+      method: 'POST',
+      url: `/api/assessments/${REF}/sections/7/findings/0.0/accept`,
+      body: { draftId: 'd7' },
+    },
+  ])
+  expect(within(findingOf(1)).queryByRole('button', { name: 'Accept finding 1' })).toBeNull()
+  expect(within(findingOf(2)).getByText('Pending review')).toBeInTheDocument()
+}, 15_000)
+
+it('saves an edited finding’s text, keeping the dialog open with the reason when refused (AC2)', async () => {
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Edit finding 2' }))
+  const dialog = screen.getByRole('dialog', { name: 'Edit finding 2' })
+  // What the draft says stays beside the engineer's wording.
+  expect(
+    within(within(dialog).getByRole('region', { name: 'What the draft says' })).getByText(
+      VALVES.text,
+    ),
+  ).toBeInTheDocument()
+  // The label also holds the hint beneath the box, so it is matched by its start.
+  fireEvent.change(within(dialog).getByLabelText(/^Your wording/), { target: { value: EDITED } })
+
+  decide = () =>
+    json(409, {
+      error:
+        "This section's saved draft has changed since you opened it. Reload the review workspace and decide again.",
+    })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save edit' }))
+  expect(await within(dialog).findByText(/has changed since you opened it/)).toBeInTheDocument()
+
+  decide = reply([
+    seven([RISER, { ...VALVES, text: EDITED, review: decided('edited') }, ROOF]),
+    FIRE,
+    EXPOSURES,
+  ])
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save edit' }))
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(within(findingOf(2)).getByText(EDITED)).toBeInTheDocument()
+  // Edited, it can still be accepted.
+  expect(within(findingOf(2)).getByRole('button', { name: 'Accept finding 2' })).toBeEnabled()
+  expect(sent.at(-1)).toEqual({
+    method: 'PUT',
+    url: `/api/assessments/${REF}/sections/7/findings/0.1`,
+    body: { draftId: 'd7', text: EDITED },
+  })
+}, 15_000)
+
+it('accepts an edited finding, keeping the engineer’s wording', async () => {
+  const edited = { ...VALVES, text: EDITED, review: decided('edited') }
+  await openReview(reply([seven([RISER, edited, ROOF]), FIRE, EXPOSURES]))
+  await screen.findByRole('region', { name: 'Draft editor' })
+  decide = reply(
+    [seven([RISER, { ...edited, review: decided('accepted') }, ROOF]), FIRE, EXPOSURES],
+    LATEST,
+  )
+
+  fireEvent.click(within(findingOf(2)).getByRole('button', { name: 'Accept finding 2' }))
+
+  await waitFor(() =>
+    expect(within(findingOf(2)).getByText('Accepted with edits')).toBeInTheDocument(),
+  )
+  expect(sent).toEqual([
+    {
+      method: 'POST',
+      url: `/api/assessments/${REF}/sections/7/findings/0.1/accept`,
+      body: { draftId: 'd7' },
+    },
+  ])
+  expect(within(findingOf(2)).getByText(EDITED)).toBeInTheDocument()
+  // What the draft said stays one click away.
+  expect(within(findingOf(2)).getByText('Drafted text')).toBeInTheDocument()
+  expect(within(findingOf(2)).queryByRole('button', { name: 'Accept finding 2' })).toBeNull()
+}, 15_000)
+
+it('rejects a finding only once confirmed, and restores it from the history (AC5, AC6)', async () => {
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
+
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Reject finding 3' }))
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Reject this finding?' })).getByRole('button', {
+      name: 'Cancel',
+    }),
+  )
+  expect(sent).toHaveLength(0)
+  expect(within(editor()).getByText(ROOF.text)).toBeInTheDocument()
+
+  decide = reply([
+    seven([RISER, VALVES, { ...ROOF, review: decided('rejected') }], { history: [REJECTION] }),
+    FIRE,
+    EXPOSURES,
+  ])
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Reject finding 3' }))
+  const dialog = screen.getByRole('dialog', { name: 'Reject this finding?' })
+  expect(within(dialog).getByText(ROOF.text)).toBeInTheDocument()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Reject finding' }))
+
+  await waitFor(() => expect(within(editor()).queryByText(ROOF.text)).toBeNull())
+  expect(sent).toEqual([
+    {
+      method: 'POST',
+      url: `/api/assessments/${REF}/sections/7/findings/0.2/reject`,
+      body: { draftId: 'd7' },
+    },
+  ])
+  // The unsupported finding is out, so the section no longer says it has one.
+  expect(within(editor()).queryByText('Some statements need review')).toBeNull()
+
+  decide = reply([CONSTRUCTION, FIRE, EXPOSURES], LATEST)
+  const history = within(panel()).getByRole('region', { name: 'Review history' })
+  fireEvent.click(within(history).getByRole('button', { name: 'Restore finding' }))
+  await waitFor(() => expect(within(editor()).getByText(ROOF.text)).toBeInTheDocument())
+  expect(sent.at(-1)?.url).toBe(`/api/assessments/${REF}/sections/7/findings/0.2/restore`)
+}, 15_000)
+
+it('bulk accepts the section’s pending findings and leaves edited and rejected ones (AC7, AC8)', async () => {
+  const edited = { ...VALVES, text: EDITED, review: decided('edited') }
+  const rejected = { ...ROOF, review: decided('rejected') }
+  await openReview(reply([seven([RISER, edited, rejected]), FIRE, EXPOSURES]))
+  await screen.findByRole('region', { name: 'Draft editor' })
+  decide = reply([
+    seven([{ ...RISER, review: decided('accepted') }, edited, rejected]),
+    FIRE,
+    EXPOSURES,
+  ])
+
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Bulk accept 1 pending finding' }))
+
+  await waitFor(() =>
+    expect(
+      within(editor()).getByText('1 accepted · 1 edited · 1 rejected · 0 pending'),
+    ).toBeInTheDocument(),
+  )
+  expect(sent).toEqual([
+    {
+      method: 'POST',
+      url: `/api/assessments/${REF}/sections/7/bulk-accept`,
+      body: { draftId: 'd7' },
+    },
+  ])
+  expect(within(findingOf(1)).getByText('Accepted')).toBeInTheDocument()
+  expect(within(findingOf(2)).getByText('Edited')).toBeInTheDocument()
+  expect(within(editor()).queryByText(ROOF.text)).toBeNull()
+  expect(
+    within(editor()).getByRole('button', { name: 'Bulk accept 0 pending findings' }),
+  ).toBeDisabled()
+}, 15_000)
+
+// A regenerated section 7 waiting beside its saved draft (AC10).
+const REPLACEMENT_TEXT = 'Level 3 riser penetrations lack fire stopping.'
+const REPLACEMENT_DRAFT = {
+  ...CONSTRUCTION.draft!,
+  id: 'r7',
+  questions: [],
+  subsections: [
+    {
+      heading: 'Construction Narrative',
+      kind: 'narrative' as const,
+      statements: [finding(REPLACEMENT_TEXT, ['O:o1'])],
+    },
+  ],
+  provenance: {
+    ...PROVENANCE,
+    prompt_version: 'gn01-v2.4+rv02-v1',
+    instruction: 'Name the riser.',
+  },
+}
+const WAITING: ReviewSection = {
+  ...CONSTRUCTION,
+  replacement: {
+    draft: REPLACEMENT_DRAFT,
+    sources: {},
+    observations: [CONSTRUCTION.observations[0]],
+    instruction: 'Name the riser.',
+    requestedBy: ALEX,
+    requestedAt: AT,
+  },
+}
+
+it('regenerates one section with an instruction and makes an accepted replacement its content (AC10, AC11)', async () => {
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
+  let finish: (response: Response) => void = () => {}
+  decide = () => new Promise((resolve) => (finish = resolve))
+
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Regenerate' }))
+  const dialog = screen.getByRole('dialog', { name: 'Regenerate 7. Construction?' })
+  fireEvent.change(within(dialog).getByLabelText(/What should change/), {
+    target: { value: ' Name the riser. ' },
+  })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate section' }))
+
+  // Review goes on while it drafts.
+  expect(await within(editor()).findByText('Regenerating section 7')).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(within(rowOf(/Construction/)).getByText('Regenerating')).toBeInTheDocument()
+  expect(sent).toEqual([
+    {
+      method: 'POST',
+      url: `/api/assessments/${REF}/sections/7/regenerate`,
+      body: { instruction: 'Name the riser.' },
+    },
+  ])
+  finish(
+    new Response(JSON.stringify(workspace([WAITING, FIRE, EXPOSURES], LATER)), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  )
+
+  // Only that section gets a replacement, and its saved draft still shows.
+  expect(await within(editor()).findByText('A replacement draft is ready')).toBeInTheDocument()
+  expect(within(editor()).getByText('Name the riser.')).toBeInTheDocument()
+  expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
+  expect(within(rowOf(/Construction/)).getByText('Replacement ready')).toBeInTheDocument()
+  expect(within(rowOf(/Fire Protection/)).queryByText('Replacement ready')).toBeNull()
+
+  // The replacement can be read, but not decided on, before it is accepted.
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Replacement' }))
+  expect(within(editor()).getByText(REPLACEMENT_TEXT)).toBeInTheDocument()
+  expect(within(editor()).queryByText(RISER.text)).toBeNull()
+  expect(within(editor()).getByText(/prompt gn01-v2\.4\+rv02-v1/)).toBeInTheDocument()
+  expect(within(editor()).queryByRole('button', { name: /^Accept finding/ })).toBeNull()
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Saved draft' }))
+  expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
+
+  const adopted: ReviewSection = {
+    ...CONSTRUCTION,
+    draft: REPLACEMENT_DRAFT,
+    findings: counts({ pending: 1 }),
+    sources: {},
+    observations: [CONSTRUCTION.observations[0]],
+    review: { ...CONSTRUCTION.review, unsupportedStatements: 0, withdrawnSources: 0 },
+  }
+  decide = reply([adopted, FIRE, EXPOSURES], LATEST)
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Accept replacement' }))
+  const confirm = screen.getByRole('dialog', { name: 'Accept the replacement draft?' })
+  fireEvent.click(within(confirm).getByRole('button', { name: 'Accept replacement' }))
+
+  await waitFor(() =>
+    expect(within(editor()).queryByText('A replacement draft is ready')).toBeNull(),
+  )
+  expect(within(editor()).getByText(REPLACEMENT_TEXT)).toBeInTheDocument()
+  expect(within(editor()).queryByText(RISER.text)).toBeNull()
+  expect(sent.at(-1)).toEqual({
+    method: 'POST',
+    url: `/api/assessments/${REF}/sections/7/replacement/accept`,
+    body: { draftId: 'r7' },
+  })
+}, 15_000)
+
+it('keeps the saved section content when the replacement is discarded (AC12)', async () => {
+  await openReview(reply([WAITING, FIRE, EXPOSURES]))
+  expect(await screen.findByText('A replacement draft is ready')).toBeInTheDocument()
+  decide = reply([CONSTRUCTION, FIRE, EXPOSURES])
+
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Discard replacement' }))
+
+  await waitFor(() =>
+    expect(within(editor()).queryByText('A replacement draft is ready')).toBeNull(),
+  )
+  expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
+  expect(within(editor()).queryByText(REPLACEMENT_TEXT)).toBeNull()
+  expect(sent).toEqual([
+    {
+      method: 'POST',
+      url: `/api/assessments/${REF}/sections/7/replacement/discard`,
+      body: { draftId: 'r7' },
+    },
+  ])
+}, 15_000)
+
+it('says why a regeneration failed, leaving the saved draft', async () => {
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
+  decide = () => json(503, { error: 'The model declined to draft this section.' })
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Regenerate' }))
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Regenerate 7. Construction?' })).getByRole(
+      'button',
+      { name: 'Regenerate section' },
+    ),
+  )
+  expect(await within(editor()).findByText('The section was not regenerated')).toBeInTheDocument()
+  expect(
+    within(editor()).getByText(/The model declined to draft this section\./),
+  ).toBeInTheDocument()
+  expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
+  expect(sent[0].body).toEqual({ instruction: '' })
+}, 15_000)
+
+it('shows decisions without the actions to whoever may not decide', async () => {
+  mockGateway(reply([WAITING, FIRE, EXPOSURES]))
+  render(
+    <ReviewWorkspaceScreen
+      reference={REF}
+      canReview={false}
+      wrapStyle={{}}
+      railStyle={{}}
+      panelStyle={{}}
+      onGenerate={() => {}}
+    />,
+  )
+  await screen.findByRole('region', { name: 'Draft editor' })
+  expect(within(findingOf(1)).getByText('Pending review')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^(Accept|Edit|Reject) finding/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: /^Bulk accept/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Regenerate' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Accept replacement' })).toBeNull()
+  // The replacement can still be read.
+  fireEvent.click(screen.getByRole('button', { name: 'Replacement' }))
+  expect(within(editor()).getByText(REPLACEMENT_TEXT)).toBeInTheDocument()
 })
