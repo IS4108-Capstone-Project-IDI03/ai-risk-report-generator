@@ -82,7 +82,6 @@ async function assessment() {
     client: 'Client',
     surveyType: 'Property risk survey',
     siteVisitDate: new Date('2026-09-28'),
-    standards: ['NFPA 25'],
     engineer: engineer._id,
     locations: [{ _id: BAY, name: 'Fire pump room', floor: 'Basement 1', key: 'fpr|b1' }],
   })

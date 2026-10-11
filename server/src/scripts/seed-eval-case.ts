@@ -32,7 +32,6 @@ type Case = {
     reference: string
     jurisdiction: string
     facility_type: string
-    standards: string[]
   }
   observations: {
     id: string
@@ -74,7 +73,6 @@ async function seed(name: string) {
         surveyType: 'Property risk survey',
         siteVisitDate: new Date('2026-09-28'),
         reportDueDate: new Date('2026-10-16'),
-        standards: c.assessment.standards,
         engineer: alex._id,
         locations: places.map((p) => ({ name: p, key: locationKey(p) })),
       },

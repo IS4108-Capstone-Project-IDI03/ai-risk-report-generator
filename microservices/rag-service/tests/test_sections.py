@@ -30,7 +30,6 @@ REQUEST = {
         "reference": "RPT-2026-0001",
         "jurisdiction": "Singapore",
         "facility_type": "Office",
-        "standards": ["FM Global 2-0"],
     },
     "observations": [
         {
@@ -127,7 +126,7 @@ def test_draft_follows_the_template_order_and_records_provenance(monkeypatch):
     assert body["guardrail"] == {"passed": True, "unsupported_count": 0}
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"] == "gn01-v2.3"
+    assert provenance["prompt_version"] == "gn01-v2.4"
     assert provenance["template_version"] == "global-pre-v2.0-2026-02"
     assert provenance["effort"] == "high"
     assert provenance["generated_at"]

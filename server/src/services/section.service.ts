@@ -237,7 +237,6 @@ export async function draftSection(
       reference,
       jurisdiction: site.jurisdiction,
       facility_type: site.facilityType,
-      standards: assessment.standards,
     },
     observations: evidence,
   })

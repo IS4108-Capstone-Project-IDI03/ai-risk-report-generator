@@ -21,11 +21,9 @@ export interface IAssessment {
   reference: string
   site: Types.ObjectId
   client: string
-  policyReference?: string
   surveyType: string
   siteVisitDate?: Date
   reportDueDate?: Date
-  standards: string[]
   // The one assigned engineer's account; their name is read from it, so a
   // rename shows everywhere. The work list matches on it (RV-10).
   engineer?: Types.ObjectId
@@ -56,10 +54,6 @@ const assessmentSchema = new Schema<IAssessment>(
       required: true,
       trim: true,
     },
-    policyReference: {
-      type: String,
-      trim: true,
-    },
     surveyType: {
       type: String,
       required: true,
@@ -67,10 +61,6 @@ const assessmentSchema = new Schema<IAssessment>(
     },
     siteVisitDate: Date,
     reportDueDate: Date,
-    standards: {
-      type: [String],
-      default: [],
-    },
     engineer: { type: Schema.Types.ObjectId, ref: 'User', index: true },
     reportStatus: {
       type: String,

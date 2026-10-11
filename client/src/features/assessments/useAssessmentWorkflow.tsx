@@ -72,7 +72,6 @@ import {
   DEMO_LOCATIONS,
   STANDARD_REFERENCES,
   SEV,
-  STANDARDS,
   TITLES,
   PLAIN,
   EVIDENCE,
@@ -100,6 +99,15 @@ const STATUS_LABEL: Record<AssessmentStatus, string> = {
   under_review: 'Under review',
   finalised: 'Finalised',
   archived: 'Archived',
+}
+// A new assessment's report is due this many days after its site visit.
+const REPORT_DUE_DAYS = 14
+// Today's local calendar day as YYYY-MM-DD, and the day a number of days after one.
+const localToday = () => new Date().toLocaleDateString('en-CA')
+function addDays(isoDay: string, days: number) {
+  const day = new Date(isoDay + 'T00:00:00')
+  day.setDate(day.getDate() + days)
+  return day.toLocaleDateString('en-CA')
 }
 // Past its report due date (local calendar day) and not finalised. Due today is not overdue.
 function isOverdue(r: AssessmentRow) {
@@ -183,7 +191,6 @@ function toRow(a: Assessment): AssessmentRow {
     reportDueDate: a.reportDueDate,
     eng: a.engineer?.name ?? 'Unassigned',
     engineerId: a.engineer?.id ?? null,
-    standards: a.standards,
     record: a,
     status: STATUS_LABEL[a.status],
     sev: 'low',
@@ -213,6 +220,8 @@ const RECENT_PREFIX = 'recent:'
 const locationLabel = (l: { name: string; floor?: string | null }) =>
   [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
+// The most engineers one search on the create form lists.
+const ENGINEER_MATCH_LIMIT = 8
 // "Alex Rowe · 07 Oct 2026 14:02", who changed something and when (CP-08).
 const stampLabel = (stamp: Stamp) => stamp.by.name + ' · ' + formatDayYearTime(new Date(stamp.at))
 // A recording added to a sample observation in this demo (CP-08): kept in the
@@ -333,8 +342,14 @@ function toEntry(o: SavedObservation): Observation {
 }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
-  // The create form as it first opens, assigned to the signed-in engineer.
-  const blankCreateForm = () => ({ ...structuredClone(initialState.cf), eng: session.user.id })
+  // The create form as it first opens: assigned to the signed-in engineer,
+  // visited today (or on the given day), its report due REPORT_DUE_DAYS later.
+  const blankCreateForm = (visit = localToday()) => ({
+    ...structuredClone(initialState.cf),
+    eng: session.user.id,
+    date: visit,
+    due: addDays(visit, REPORT_DUE_DAYS),
+  })
   // The screen comes from the URL (F-05), so a screen can be linked to and
   // reopened after signing in; '/' opens the role's home screen.
   const [state, updateState] = useState<WorkflowState>(() => ({
@@ -518,7 +533,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The workspace and capture both act on the assessment last opened from the list.
   // A blank create form, preselecting the signed-in engineer.
   function blankForm(): Partial<WorkflowState> {
-    return { cfEdit: null, cf: { ...structuredClone(initialState.cf), eng: session.user.id } }
+    return { cfEdit: null, cf: blankCreateForm() }
   }
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
@@ -1512,11 +1527,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         value: 'Confirmed',
         ok: true,
       },
-      {
-        label: 'Applicable standards recorded',
-        value: '3 documents',
-        ok: true,
-      },
     ].map((c) => ({
       ...c,
       icon: c.ok ? 'circle-check' : 'triangle-alert',
@@ -1530,12 +1540,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }))
 
     /* create form */
-    const standards = STANDARDS.map((t) => ({
-      ...t,
-      on: s.cf.stds.includes(t.name),
-    }))
-    const engineers = directory.map((e) => ({
-      ...e,
+    // Engineers are found by searching, never listed in full, so the form
+    // stays short however many there are.
+    const engQuery = s.cf.engQuery.trim().toLowerCase()
+    const engMatches = engQuery
+      ? directory.filter((e) =>
+          [e.name, e.staffId, e.jobTitle ?? ''].some((text) =>
+            text.toLowerCase().includes(engQuery),
+          ),
+        )
+      : []
+    const engChoice = (e: AssignableEngineer) => ({
+      id: e.id,
+      name: e.name,
       initials: e.name
         .split(' ')
         .map((part) => part[0])
@@ -1543,7 +1560,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         .join(''),
       role: [e.staffId, e.jobTitle].filter(Boolean).join(' · '),
       on: s.cf.eng === e.id,
-    }))
+      you: e.id === session.user.id,
+    })
+    const assignedEng = directory.find((e) => e.id === s.cf.eng)
 
     /* field */
     const waveBars = Array.from(
@@ -1677,6 +1696,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cfServerError: null,
           // Coming from an edit, start a new assessment from a blank form.
           ...(s.cfEdit && blankForm()),
+          // A blank form from an earlier day (a tab left open overnight)
+          // opens on today's dates; one the engineer has filled in is kept.
+          ...(!s.cfEdit &&
+            !!s.cf.date &&
+            s.cf.date !== localToday() &&
+            JSON.stringify(s.cf) === JSON.stringify(blankCreateForm(s.cf.date)) && {
+              cf: blankCreateForm(),
+            }),
         }),
       // Cancel leaves an edit for the workspace it came from, and a new
       // assessment for the work list.
@@ -1703,11 +1730,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             jurisdiction: a.site.jurisdiction,
             type: a.site.facilityType,
             client: a.client,
-            ref: a.policyReference ?? '',
             survey: a.surveyType,
             date: a.siteVisitDate ?? '',
             due: a.reportDueDate ?? '',
-            stds: [...a.standards],
             eng: a.engineer?.id ?? '',
           },
         })
@@ -1836,12 +1861,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               value: openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set',
             },
             { label: 'Engineer', value: openRow.eng },
-            // Named to the drafting model as context; drafting can cite any
-            // standard in the knowledge base that suits the site.
-            {
-              label: 'Standards selected',
-              value: openRow.standards?.length ? openRow.standards.join(', ') : 'None selected',
-            },
           ]
         : [
             { label: 'Report', value: s.captureTarget.reference },
@@ -2250,7 +2269,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       cfSite: s.cf.site,
       cfClient: s.cf.client,
       cfAddr: s.cf.addr,
-      cfRef: s.cf.ref,
       cfType: s.cf.type,
       cfSurvey: s.cf.survey,
       cfDate: s.cf.date,
@@ -2283,15 +2301,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cf: {
             ...s.cf,
             addr: e.target.value,
-          },
-        }),
-      setCfRef: (
-        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) =>
-        setState({
-          cf: {
-            ...s.cf,
-            ref: e.target.value,
           },
         }),
       setCfType: (
@@ -2358,21 +2367,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         'Business interruption',
         'Natural hazard review',
       ],
-      standards,
-      engineers,
       directoryError: directoryStatus === 'error',
       directoryLoading: directoryStatus === 'loading',
-      stdCountLabel: s.cf.stds.length + ' of 6 selected',
-      toggleStd: (v: string) => {
-        const has = s.cf.stds.includes(v)
-        setState({
-          cf: {
-            ...s.cf,
-            stds: has ? s.cf.stds.filter((x) => x !== v) : s.cf.stds.concat([v]),
-          },
-        })
-      },
-      selectEng: (id: string) => setState({ cf: { ...s.cf, eng: id } }),
+      hasDirectory: directory.length > 0,
+      engAssigned: assignedEng ? engChoice(assignedEng) : null,
+      engQuery: s.cf.engQuery,
+      setEngQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
+        setState({ cf: { ...s.cf, engQuery: e.target.value } }),
+      engResults: engMatches.slice(0, ENGINEER_MATCH_LIMIT).map(engChoice),
+      engResultLabel: !engQuery
+        ? ''
+        : engMatches.length === 0
+          ? 'No engineer matches "' + s.cf.engQuery.trim() + '".'
+          : engMatches.length > ENGINEER_MATCH_LIMIT
+            ? 'Showing ' +
+              ENGINEER_MATCH_LIMIT +
+              ' of ' +
+              engMatches.length +
+              ' matches. Keep typing to narrow it down.'
+            : engMatches.length === 1
+              ? '1 match'
+              : engMatches.length + ' matches',
+      // Choosing closes the matches: the search has done its job.
+      selectEng: (id: string) => setState({ cf: { ...s.cf, eng: id, engQuery: '' } }),
       createAssessment: async () => {
         if (s.cfBusy) return
         if (!s.cf.site.trim() || !s.cf.client.trim()) {
@@ -2424,11 +2441,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               facilityType: s.cf.type,
             },
             client: s.cf.client,
-            policyReference: s.cf.ref,
             surveyType: s.cf.survey,
             siteVisitDate: s.cf.date,
             reportDueDate: s.cf.due,
-            standards: s.cf.stds,
             engineerId: s.cf.eng,
           })
           const mine = created.engineer?.id === session.user.id
@@ -2453,7 +2468,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 siteVisitDate: s.cf.date || null,
                 reportDueDate: s.cf.due || null,
                 engineerId: s.cf.eng || null,
-                standards: s.cf.stds,
                 eng: s.cf.eng
                   ? (directory.find((e) => e.id === s.cf.eng)?.name ??
                     (s.cf.eng === session.user.id ? session.user.name : 'Unassigned'))

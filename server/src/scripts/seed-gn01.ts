@@ -149,7 +149,6 @@ async function seed() {
         surveyType: 'Property risk survey',
         siteVisitDate: new Date('2026-09-28'),
         reportDueDate: new Date('2026-10-16'),
-        standards: ['FM-200 Design and Installation Manual', 'NFPA 2001'],
         engineer: alex._id,
         locations: Object.values(LOCATIONS).map((l) => ({
           ...l,
