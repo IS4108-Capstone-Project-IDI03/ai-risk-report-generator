@@ -22,7 +22,6 @@ ASSESSMENT = {
     "reference": "RPT-2026-0901",
     "jurisdiction": "SG",
     "facility_type": "Office",
-    "standards": ["NFPA 25"],
 }
 VALVE = {
     "id": "valve",

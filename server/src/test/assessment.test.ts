@@ -45,11 +45,9 @@ function body(overrides: Record<string, unknown> = {}) {
   return {
     site: SITE,
     client: 'Straits Logistics',
-    policyReference: 'POL-00012345',
     surveyType: 'Property risk survey',
     siteVisitDate: '2026-10-05',
     reportDueDate: '2026-10-19',
-    standards: ['FM Global 2-0', 'NFPA 13'],
     engineerId: String(actor._id),
     ...overrides,
   }
@@ -67,11 +65,9 @@ describe('POST /api/assessments', () => {
     expect(response.body).toMatchObject({
       reference: `RPT-${YEAR}-0001`,
       client: 'Straits Logistics',
-      policyReference: 'POL-00012345',
       surveyType: 'Property risk survey',
       siteVisitDate: '2026-10-05',
       reportDueDate: '2026-10-19',
-      standards: ['FM Global 2-0', 'NFPA 13'],
       engineer: { id: String(actor._id), name: 'Alex Rowe' },
       site: { code: 'SITE-0001', ...SITE },
     })
@@ -125,19 +121,15 @@ describe('POST /api/assessments', () => {
     const response = await create(
       body({
         site: { ...SITE, address: '' },
-        policyReference: '',
         siteVisitDate: '',
         reportDueDate: '',
-        standards: [],
       }),
     )
 
     expect(response.status).toBe(201)
     expect(response.body).toMatchObject({
-      policyReference: null,
       siteVisitDate: null,
       reportDueDate: null,
-      standards: [],
       site: { address: null },
     })
   })
@@ -342,16 +334,14 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
   const edit = (reference: string, changes: Record<string, unknown>, as = api) =>
     as.put(`/api/assessments/${reference}`).send({ ...body(), ...changes })
 
-  it('lets the assigned engineer correct the details, keeping policy reference and standards', async () => {
+  it('lets the assigned engineer correct the details, keeping the engineer', async () => {
     const { reference } = (await create(body())).body
 
     const saved = await edit(reference, {
       site: { ...SITE, name: 'Jurong Hub East', address: '' },
       client: 'Straits Freight',
-      policyReference: 'POL-CHANGED',
       siteVisitDate: '',
       reportDueDate: '2026-10-30',
-      standards: ['NFPA 13'],
     })
     expect(saved.status).toBe(204)
 
@@ -359,12 +349,8 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
     expect(listed).toMatchObject({
       reference,
       client: 'Straits Freight',
-      // Not editable: an edit leaves the policy reference as it was created.
-      policyReference: 'POL-00012345',
       siteVisitDate: null,
       reportDueDate: '2026-10-30',
-      // Not editable: standards stay as chosen at creation.
-      standards: ['FM Global 2-0', 'NFPA 13'],
       // The engineer stays the one the assessment was created for.
       engineer: { id: String(actor._id), name: 'Alex Rowe' },
       site: { name: 'Jurong Hub East', address: null },

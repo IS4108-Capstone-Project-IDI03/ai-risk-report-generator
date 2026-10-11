@@ -4,12 +4,10 @@
 export type NewAssessment = {
   site: { name: string; address?: string; jurisdiction: string; facilityType: string }
   client: string
-  policyReference?: string
   surveyType: string
   // YYYY-MM-DD, or '' when not scheduled.
   siteVisitDate?: string
   reportDueDate?: string
-  standards: string[]
   // The assigned engineer's user ID.
   engineerId: string
 }
@@ -29,11 +27,9 @@ export type Assessment = {
   id: string
   reference: string
   client: string
-  policyReference: string | null
   surveyType: string
   siteVisitDate: string | null
   reportDueDate: string | null
-  standards: string[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
   // When its latest capture session started; null before capture starts.
@@ -233,9 +229,9 @@ export async function listAssignableEngineers(signal?: AbortSignal): Promise<Ass
 }
 
 // Creates the assessment and its site; the server allocates the reference.
-// Corrects an assessment's details (RV-10 AC10). The engineer, policy
-// reference and standards are not part of it: they stay as created.
-export type AssessmentDetails = Omit<NewAssessment, 'engineerId' | 'policyReference' | 'standards'>
+// Corrects an assessment's details (RV-10 AC10). The engineer is not part of
+// it: it stays as created.
+export type AssessmentDetails = Omit<NewAssessment, 'engineerId'>
 export async function updateAssessment(
   reference: string,
   details: AssessmentDetails,

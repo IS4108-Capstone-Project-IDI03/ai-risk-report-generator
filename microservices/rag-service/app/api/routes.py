@@ -34,7 +34,6 @@ class Assessment(BaseModel):
     reference: str
     jurisdiction: str
     facility_type: str
-    standards: list[str] = []
 
 
 # One site observation as the gateway sends it, with only its finished voice transcripts.

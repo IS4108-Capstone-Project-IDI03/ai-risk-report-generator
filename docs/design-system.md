@@ -170,10 +170,10 @@ The engineer's home. Every assessment assigned to them, with the work outstandin
 
 ### Create assessment
 
-Four decisions: where, what kind, against which standards, and who signs it.
+Three decisions: where, what kind, and who signs it.
 
 - **3. Site before everything.** Site and client are the only required fields. Everything else can be completed after the visit, so an engineer standing in a car park can open an assessment in seconds.
-- **4. Standards are a closed drafting set.** Only clauses from the selected standards can be cited in the generated report. Choosing the set here is what makes every later citation traceable to a document the engineer approved.
+- **4. Drafting chooses the standards, not the form.** There is no standards picker. Drafting searches the whole knowledge base for the site's jurisdiction and facility type, and every citation names the document it came from, so a reviewer can still trace each one.
 - **5. The first engineer is the lead.** The lead engineer badge follows the first person selected. Sign-off is recorded against that name at export.
 - **6. Validation states cause, then next step.** Submitting with an empty site or client shows one callout naming both fields and colours their borders, rather than a modal. Correct them and create again.
 

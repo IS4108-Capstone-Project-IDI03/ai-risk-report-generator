@@ -113,7 +113,6 @@ export async function draftOfis(reference: string, user: SessionUser) {
       reference,
       jurisdiction: site.jurisdiction,
       facility_type: site.facilityType,
-      standards: assessment.standards,
     },
     observations: evidence,
     accepted: accepted.map((o) => o.title),

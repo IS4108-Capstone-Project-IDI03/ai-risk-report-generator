@@ -2,7 +2,6 @@ import type { Assessment, InterpretationStatus, MediaKind, Stamp, TranscriptionS
 
 export type AssessmentRow = {
   engineerId?: string | null
-  standards?: string[]
   // The saved assessment the row came from, which the edit form starts from.
   record?: Assessment
   id: string
@@ -123,14 +122,14 @@ export type WorkflowState = {
     site: string
     client: string
     addr: string
-    ref: string
     type: string
     survey: string
     date: string
     due: string
-    stds: string[]
     // The assigned engineer's user ID.
     eng: string
+    // Narrows the engineer list; not sent.
+    engQuery: string
     jurisdiction: string
   }
   // The assessment whose details the form is editing, or null when creating.

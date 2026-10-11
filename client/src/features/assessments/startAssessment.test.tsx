@@ -180,11 +180,9 @@ const CREATED = {
   id: '6ab3a1c0e45cf009e4507801',
   reference: 'RPT-2026-0001',
   client: 'Straits Logistics',
-  policyReference: null,
   surveyType: 'Property risk survey',
   siteVisitDate: '2026-04-21',
   reportDueDate: '2026-05-02',
-  standards: ['FM Global 2-0', 'NFPA 13'],
   engineer: { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' },
   status: 'not_started',
   createdAt: '2026-09-23T09:00:00.000Z',
@@ -223,6 +221,13 @@ const CREATED_NOTE = {
   photos: [],
   removedRecordings: [],
   removedPhotos: [],
+}
+
+// A local calendar day as YYYY-MM-DD, a number of days from today.
+function localDay(days = 0) {
+  const day = new Date()
+  day.setDate(day.getDate() + days)
+  return day.toLocaleDateString('en-CA')
 }
 
 function createFromForm() {
@@ -265,11 +270,10 @@ describe('Create assessment (CP-01)', () => {
         facilityType: 'Distribution warehouse',
       },
       client: 'Straits Logistics',
-      policyReference: '',
       surveyType: 'Property risk survey',
-      siteVisitDate: '2026-04-21',
-      reportDueDate: '2026-05-02',
-      standards: ['FM Global 2-0', 'NFPA 13'],
+      // A new form is dated today, its report due in two weeks.
+      siteVisitDate: localDay(),
+      reportDueDate: localDay(14),
       engineerId: '6ab39017e45cf009e4507731',
     })
 
@@ -302,10 +306,8 @@ describe('Create assessment (CP-01)', () => {
     expect(
       screen.getByRole('heading', { name: 'Jurong Distribution Hub' }).parentElement,
     ).not.toHaveTextContent('RPT-2026-0001')
-    // The overview shows this assessment's own record, not the demo's samples,
-    // with the standards named in it.
+    // The overview shows this assessment's own record, not the demo's samples.
     expect(screen.getByRole('group', { name: 'Capture' })).toBeInTheDocument()
-    expect(screen.getByText('FM Global 2-0, NFPA 13')).toBeInTheDocument()
     expect(screen.queryByText('Tilbury survey 2023')).not.toBeInTheDocument()
     expect(screen.queryByText('Sections drafted')).not.toBeInTheDocument()
 
@@ -563,9 +565,14 @@ it('assigns one engineer by ID and keeps work assigned to someone else out of my
   })
   await openApp()
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  expect(await screen.findByRole('radio', { name: /Alex Rowe/ })).toBeChecked()
-  fireEvent.click(screen.getByRole('radio', { name: /Jide Okafor/ }))
-  expect(screen.getByRole('radio', { name: /Alex Rowe/ })).not.toBeChecked()
+  // Assigned to me until I choose someone else, whom I find by searching.
+  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search engineers' }), {
+    target: { value: 'jide' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: /Jide Okafor/ }))
+  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
+  expect(screen.queryByText('Alex Rowe (you)')).not.toBeInTheDocument()
   fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: CREATED.site.name } })
   fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
     target: { value: CREATED.client },
@@ -574,6 +581,123 @@ it('assigns one engineer by ID and keeps work assigned to someone else out of my
   await screen.findByText(/It will appear in the assigned engineer’s work list/)
   expect(submitted?.engineerId).toBe(other)
   expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
+})
+
+it('lists engineers only as search matches, by name, staff ID or job title', async () => {
+  vi.stubGlobal('fetch', (url: string) =>
+    url === '/api/assessments/engineers'
+      ? respond(200, [
+          {
+            id: '6ab39017e45cf009e4507731',
+            name: 'Alex Rowe',
+            staffId: 'MRE-0001',
+            jobTitle: null,
+          },
+          {
+            id: '6ab39017e45cf009e4507732',
+            name: 'Jide Okafor',
+            staffId: 'MRE-0002',
+            jobTitle: 'Senior risk engineer',
+          },
+          {
+            id: '6ab39017e45cf009e4507733',
+            name: 'Mei Tan',
+            staffId: 'MRE-0003',
+            jobTitle: 'Risk engineer',
+          },
+          ...Array.from({ length: 9 }, (_, n) => ({
+            id: `6ab39017e45cf009e450775${n}`,
+            name: `Field Engineer ${n + 1}`,
+            staffId: `MRE-01${n + 1}0`,
+            jobTitle: 'Graduate engineer',
+          })),
+        ])
+      : respond(200, []),
+  )
+  await openApp()
+  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+  // Only the assigned engineer shows until a search.
+  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
+  const matches = () => screen.queryByRole('list', { name: 'Matching engineers' })
+  const match = (name: RegExp) => within(matches()!).queryByRole('button', { name })
+  expect(matches()).not.toBeInTheDocument()
+  const searchBox = screen.getByRole('searchbox', { name: 'Search engineers' })
+  const search = (value: string) => fireEvent.change(searchBox, { target: { value } })
+
+  search('jide')
+  expect(match(/Jide Okafor/)).toBeInTheDocument()
+  expect(match(/Mei Tan/)).not.toBeInTheDocument()
+  expect(screen.getByText('1 match')).toBeInTheDocument()
+
+  search('mre-0003')
+  expect(match(/Mei Tan/)).toBeInTheDocument()
+  expect(match(/Jide Okafor/)).not.toBeInTheDocument()
+
+  search('SENIOR')
+  expect(match(/Jide Okafor/)).toBeInTheDocument()
+  expect(match(/Mei Tan/)).not.toBeInTheDocument()
+
+  // A broad search lists at most eight and asks for more letters.
+  search('engineer')
+  expect(within(matches()!).getAllByRole('button')).toHaveLength(8)
+  expect(
+    screen.getByText('Showing 8 of 11 matches. Keep typing to narrow it down.'),
+  ).toBeInTheDocument()
+
+  // The assigned engineer shows as chosen among the matches.
+  search('alex')
+  expect(match(/Alex Rowe \(you\)/)).toHaveAttribute('aria-pressed', 'true')
+
+  // Choosing closes the matches and keeps focus in the search.
+  search('jide')
+  fireEvent.click(match(/Jide Okafor/)!)
+  expect(matches()).not.toBeInTheDocument()
+  expect(searchBox).toHaveValue('')
+  expect(searchBox).toHaveFocus()
+  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
+  expect(screen.queryByText('Alex Rowe (you)')).not.toBeInTheDocument()
+
+  search('zzz')
+  expect(screen.getByText('No engineer matches "zzz".')).toBeInTheDocument()
+  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
+
+  search('')
+  expect(matches()).not.toBeInTheDocument()
+  expect(screen.queryByText(/No engineer matches/)).not.toBeInTheDocument()
+})
+
+it('dates a new form today with its report due in two weeks, and keeps a blank one current', async () => {
+  // Late in the month, so the due date falls in the next one.
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 25, 9, 0) })
+  try {
+    mockGateway()
+    await openApp()
+    const openForm = () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^Dashboard/ })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+    }
+    const visit = () => screen.getByLabelText(/Site visit date/)
+    const due = () => screen.getByLabelText(/Report due/)
+    openForm()
+    expect(visit()).toHaveValue('2026-10-25')
+    expect(due()).toHaveValue('2026-11-08')
+
+    // Left blank in a tab overnight, it opens on the next day's dates.
+    vi.setSystemTime(new Date(2026, 9, 26, 9, 0))
+    openForm()
+    expect(visit()).toHaveValue('2026-10-26')
+    expect(due()).toHaveValue('2026-11-09')
+
+    // One the engineer has started keeps its dates.
+    fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Draft site' } })
+    vi.setSystemTime(new Date(2026, 9, 27, 9, 0))
+    openForm()
+    expect(screen.getByLabelText(/Site name/)).toHaveValue('Draft site')
+    expect(visit()).toHaveValue('2026-10-26')
+    expect(due()).toHaveValue('2026-11-09')
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 it('reloads the engineer directory after failure and preserves the selected engineer', async () => {
@@ -605,7 +729,7 @@ it('reloads the engineer directory after failure and preserves the selected engi
     ]),
   )
 
-  expect(await screen.findByRole('radio', { name: /Alex Rowe/ })).toBeChecked()
+  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
   expect(screen.getByLabelText(/Site name/)).toHaveValue('Retained site')
   expect(screen.queryByText('Loading engineers…')).not.toBeInTheDocument()
   expect(directory).toHaveBeenCalledTimes(2)
@@ -739,8 +863,8 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
 
-it('edits my assessment details, keeping its engineer, policy reference and standards (RV-10 AC10, AC11)', async () => {
-  let record = { ...CREATED, policyReference: 'POL-00012345' }
+it('edits my assessment details, keeping its engineer (RV-10 AC10, AC11)', async () => {
+  let record = { ...CREATED }
   const saves: { body: Record<string, unknown>; reply: Response }[] = []
   const rejection = new Response(
     JSON.stringify({
@@ -776,13 +900,10 @@ it('edits my assessment details, keeping its engineer, policy reference and stan
   expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
-  // The form starts from the saved details, without the engineer, policy
-  // reference or standards.
+  // The form starts from the saved details, without the engineer.
   expect(screen.getByRole('heading', { name: 'Edit assessment details' })).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('Straits Logistics')
-  expect(screen.queryByLabelText(/Policy reference/)).not.toBeInTheDocument()
-  expect(screen.queryByRole('radio', { name: /Alex Rowe/ })).not.toBeInTheDocument()
-  expect(screen.queryByText('Applicable standards')).not.toBeInTheDocument()
+  expect(screen.queryByRole('searchbox', { name: 'Search engineers' })).not.toBeInTheDocument()
 
   fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
     target: { value: 'Straits Freight' },
@@ -796,9 +917,7 @@ it('edits my assessment details, keeping its engineer, policy reference and stan
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   await screen.findByText('Details saved for RPT-2026-0001.')
   expect(saves[1].body).toMatchObject({ client: 'Straits Freight' })
-  expect(saves[1].body).not.toHaveProperty('policyReference')
   expect(saves[1].body).not.toHaveProperty('engineerId')
-  expect(saves[1].body).not.toHaveProperty('standards')
   // Back in the workspace, the record shows the saved details (AC10).
   expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
@@ -808,7 +927,7 @@ it('edits my assessment details, keeping its engineer, policy reference and stan
   fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
   expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
-  expect(screen.getByText('Applicable standards')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Create assessment' })).toBeInTheDocument()
 })
 
 it('shows a knowledge admin the same assessment record, read-only', async () => {

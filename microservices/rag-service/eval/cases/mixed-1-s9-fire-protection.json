@@ -6,10 +6,7 @@
   "assessment": {
     "reference": "EVAL-MIXED-1",
     "jurisdiction": "SG",
-    "facility_type": "Mixed-use development",
-    "standards": [
-      "CP52:2004"
-    ]
+    "facility_type": "Mixed-use development"
   },
   "observations": [
     {

@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
-PROMPT_VERSION = "gn01-v2.3"
+PROMPT_VERSION = "gn01-v2.4"
 HERE = Path(__file__).parent
 TEMPLATE = json.loads((HERE / "sections.json").read_text())
 
@@ -155,8 +155,7 @@ def draft_section(
     user = "\n\n".join(
         [
             f"Assessment {assessment.reference}: {assessment.facility_type} in "
-            f"{assessment.jurisdiction}. Standards selected for this assessment: "
-            f"{', '.join(assessment.standards) or 'none'}.",
+            f"{assessment.jurisdiction}.",
             _block("observations", blocks[: len(own)]),
             _block("other_observations", blocks[len(own) :]),
             _block(

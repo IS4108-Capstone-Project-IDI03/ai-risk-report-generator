@@ -44,10 +44,9 @@ Python service ports to loopback; do not expose them publicly as-is.
 ## Assessments and capture sessions
 
 `assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
-`RPT-2026-0411`), a `site` reference, `client`, optional `policyReference`,
-`surveyType`, optional `siteVisitDate` and `reportDueDate`, and the selected
-`standards`, and `engineer`: the assigned engineer's user ID (one per assessment). The
-engineer's name is read from their account, so a rename shows everywhere.
+`RPT-2026-0411`), a `site` reference, `client`, `surveyType`, optional
+`siteVisitDate` and `reportDueDate`, and `engineer`: the assigned engineer's user ID
+(one per assessment). The engineer's name is read from their account, so a rename shows everywhere.
 Extend it rather than creating a parallel assessment schema.
 
 `POST /api/assessments` creates an assessment and a new site for it (the site
@@ -110,8 +109,7 @@ staff IDs and job titles for assignment. Creating an assessment requires
 `PUT /api/assessments/:reference` corrects an assessment's details (RV-10 AC10):
 its site's name, address, jurisdiction and facility type, and its client,
 assessment type and dates, with the same validation as creating one (AC11).
-The engineer, policy reference and standards are not editable: they stay as
-the assessment was created. A date left empty is cleared. Only the assigned engineer
+The engineer is not editable: it stays as the assessment was created. A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
 
 `POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a
