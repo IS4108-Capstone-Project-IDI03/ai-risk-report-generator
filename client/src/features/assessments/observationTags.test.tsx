@@ -250,7 +250,8 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     expect(boxes.filter((c) => (c as HTMLInputElement).checked)).toEqual([])
 
     fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Exposure' }))
-    choose('Severity', 'critical', dialog)
+    // The same four severity chips as capture.
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Critical' }))
     choose('Location', 'l2', dialog)
     choose('Standard reference', 'NFPA 25 – 2026 Edition', dialog)
     click('Save changes')
@@ -291,9 +292,9 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
 
     let dialog = await editTags(HOSE_REEL.note!)
     // Opens on the observation's current tags.
-    expect(select('Severity', dialog)).toHaveValue('high')
+    expect(within(dialog).getByRole('radio', { name: 'High' })).toBeChecked()
     expect(select('Location', dialog)).toHaveValue('l1')
-    choose('Severity', 'low', dialog)
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Low' }))
     click('Save changes')
     await screen.findByText('Changes saved.')
 

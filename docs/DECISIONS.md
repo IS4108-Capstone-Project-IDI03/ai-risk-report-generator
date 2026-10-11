@@ -954,6 +954,79 @@ pages to check.
 
 Stories: IN-12, IN-03, IN-06.
 
+## 2026-10-12 — Capture is a page of the Observations tab, left by its back button; the Observations tab is the one list
+
+Chose:
+- The workspace header's Capture button is now Add observation, named after
+  the tab it feeds. An empty Observations tab offers it too. The capture
+  screen keeps its own URL (`/site-observation`), so Back still works.
+- Capture keeps the workspace's header and tabs, with Observations chosen,
+  so the engineer never seems to leave the assessment; the tab's count
+  rises with each save. Above the form, a Back to observations link and the
+  heading New observation are the way back, as on any sub-page. Choosing any
+  tab leaves for that tab. On a phone the workspace header and tabs are
+  hidden during capture, and the top bar becomes ← New observation, its ← in
+  place of the menu. The header's Add observation and ⋯ menu are hidden
+  while capturing.
+- On wider screens the location picker drops down from the location bar
+  (the shared Popover) with no backdrop, so the header and tabs stay clear
+  and usable; on phones it stays a bottom sheet. Either opens by itself until
+  a location is chosen, and either can now be closed without one: the bar
+  then reads Choose a location, and Save asks for one and opens it again.
+  Leave capture is gone from the sheet. This revises the 2026-09-29 sheet,
+  which could not be closed until a location was chosen.
+- At 1080px and wider, the tags and Save sit in a 344px panel beside the
+  form, which stays in view while it scrolls; narrower, it is one column with
+  Save pinned to the bottom. Save is the only action there. Cancel, Captured
+  today, the explanatory paragraph and Open the assessment workspace are
+  gone.
+- The capture session notice shows only when no session could be started
+  (Showing sample data, with Try again). Starting, started and resumed say
+  nothing: the header names the assessment and the navigation's live light
+  marks the session. Save waits while the session starts, so an observation
+  is never kept in the browser by being saved a moment too soon.
+- The Note, Voice and Photo switcher stays and shows what each mode holds.
+  Each mode lists its own recordings or photos; the combined Ready to save
+  list and the Add note step are gone, as Save already used the typed note.
+- Leaving by the back button or a tab with anything unsaved asks Leave
+  without saving? first, then goes where was chosen. Leaving by the
+  navigation or Back keeps the draft and stops a recording in progress.
+  Opening another assessment, or archiving this one, discards the draft.
+- Category and severity start empty and reset after each save. Severity must
+  be chosen before saving. The severity chips are one SeverityPicker, shared
+  with the Edit dialog in place of its dropdown.
+- Capture no longer asks for a standard. Drafting finds one, and Edit can
+  still name one.
+
+Rejected:
+- Capture as a workspace tab of its own: opening capture starts a capture
+  session (CP-01), so browsing the tabs would start sessions and the
+  dashboard would offer to continue captures nobody began. Capture is a page
+  within the Observations tab instead, opened only by Add observation.
+- One editor for adding and editing, as a panel over the Observations list:
+  the most direct, and it removes the second form, but it needs a large
+  refactor, a new URL pattern for the panel and rules for the list behind
+  it. A story of its own if adding and editing are to share one form.
+- A Done button, in the header or beside Save: it read as finishing the page
+  or the assessment rather than going back to the list.
+- Keeping the workspace header on phones: with the tabs and title fixed above
+  the form, a phone kept about 300px for the form itself.
+- A back row between the tabs and the form: it read as a stray toolbar, and
+  repeated the name of the tab just above it.
+- Keeping the location picker a modal on wider screens: a modal's backdrop
+  covers the whole window, so the tabs were dimmed and out of reach.
+- Removing the switcher for one long form: the switcher keeps one kind of
+  input on screen at a time, which suits a phone, and its counts now show
+  what the other modes hold.
+- A notice each time capture opens: it repeated the header, and said nothing
+  the engineer had to act on.
+
+Reason: capture duplicated the Observations tab (a second list, a second set
+of the same fields), felt like a separate place, left to the dashboard, and
+kept a draft that could be saved to whichever assessment was opened next,
+with Protection and High pre-selected for every observation.
+
+Stories: CP-01, CP-02, CP-03, CP-04, CP-08.
 ## 2026-10-11 — Review decisions are an append-only log; drafts never change, and Regenerate makes a replacement to accept or discard
 
 Chose:

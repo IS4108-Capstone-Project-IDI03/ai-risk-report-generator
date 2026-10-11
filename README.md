@@ -64,7 +64,7 @@ Creating an assessment, the dashboard list and capturing on site are the
 exceptions. The dashboard lists assessments from the gateway, with the sample
 rows as a fallback when it cannot be reached, and shows only the assessments
 the engineer is assigned to. New assessment saves the assessment through the
-gateway; opening it from the dashboard opens its workspace, and Site observation
+gateway; opening it from the dashboard opens its workspace, and Add observation
 from there starts its capture session. Only `RPT-2026-0411` has sample workspace
 content; seed it with `npm --prefix server run seed`. Without the gateway, a new assessment is kept in
 the demo only and capture shows sample data, and both say so. Capture starts by

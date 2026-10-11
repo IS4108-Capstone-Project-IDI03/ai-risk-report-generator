@@ -145,8 +145,10 @@ export type WorkflowState = {
   captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
-  // The note is in the Ready to save list rather than being written.
-  fNoteListed: boolean
+  // Capture was left with something unsaved: the Leave without saving?
+  // dialog, and the workspace tab leaving goes to.
+  fLeaveOpen: boolean
+  fLeaveTo: string
   // An observation being saved to the gateway, and why the last save failed.
   fSaving: boolean
   fSaveError: { title: string; message: string } | null
@@ -161,9 +163,11 @@ export type WorkflowState = {
   fPhotos: PhotoFile[]
   // Why a chosen file was not added as a photo (CP-04 AC4).
   fPhotoError: string | null
-  // The location the engineer is capturing in, and the location sheet.
+  // The location the engineer is capturing in, and the location picker. It
+  // opens by itself until a location is chosen, unless closed this visit.
   fLocationId: string | null
   locOpen: boolean
+  locDismissed: boolean
   locQuery: string
   locAdding: boolean
   lf: { name: string; floor: string }
@@ -173,8 +177,8 @@ export type WorkflowState = {
   locRemove: string | null
   // The COPE categories the next observation is filed under; none is uncategorised.
   fCats: string[]
+  // Its severity, '' until the engineer picks one. Both reset after each save.
   fSev: string
-  fStd: string
   // warn: a prompt to do something first, shown in the warning tone.
   fToast: { text: string; warn?: boolean } | null
   fRecent: Observation[]
