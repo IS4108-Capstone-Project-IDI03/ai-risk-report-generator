@@ -366,7 +366,10 @@ def parse(
         batch_doc = _checked_document(result, file_path)
         docs.append(batch_doc)
         if batch is not None:
-            _pad_missing_pages(batch_doc, source, *batch)
+            # The first batch is padded from page 1 too, so a page_range
+            # starting later isn't renumbered from 1 by concatenate.
+            first_page = 1 if len(docs) == 1 else batch[0]
+            _pad_missing_pages(batch_doc, source, first_page, batch[1])
             reporter.update_pages(batch[1], page_count)
 
     doc = docs[0] if len(docs) == 1 else DoclingDocument.concatenate(docs)

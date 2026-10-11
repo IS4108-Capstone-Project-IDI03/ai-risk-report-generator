@@ -379,3 +379,15 @@ def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, 
     assert sorted(result.docling_document.pages) == [
         n for n in range(1, 46)
     ]
+
+
+def test_a_page_range_not_starting_at_page_one_keeps_its_page_numbers(
+    tmp_path, fake_converter
+):
+    result = parse(_blank_pdf(tmp_path, 80), page_range=(45, 70))
+
+    assert fake_converter.page_ranges == [(45, 64), (65, 70)]
+    assert [(b.text, b.page) for b in result.text_blocks] == [
+        ("Paragraph from page 45", 45),
+        ("Paragraph from page 65", 65),
+    ]
