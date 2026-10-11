@@ -2,7 +2,10 @@ import { Schema, Types, model } from 'mongoose'
 import { COPE_DIMENSIONS, type CopeDimension } from './observation.model'
 
 // One generated draft of one report section (GN-01). Each request saves a new
-// document, so earlier drafts stay as they were; the newest is the current one.
+// document, so earlier drafts stay as they were, and none is ever changed: the
+// engineer's decisions on its findings are in the review audit log (RV-02).
+// The section's saved content is its newest draft, except that a replacement
+// (see `replacementFor`) counts only once accepted, and from when it was.
 export interface IReportSection {
   assessment: Types.ObjectId
   // The template's section number, '7' to '12'.
@@ -34,7 +37,9 @@ export interface IReportSection {
     standard: string | null
   }[]
   guardrail: { passed: boolean; unsupported_count: number }
-  // The configuration that wrote the draft (AC7).
+  // The configuration that wrote the draft (AC7). `instruction` is what the
+  // engineer asked a regenerated draft to change (RV-02), part of its prompt;
+  // absent or null otherwise.
   provenance: {
     provider: string
     model: string
@@ -42,7 +47,13 @@ export interface IReportSection {
     prompt_version: string
     template_version: string
     generated_at: Date
+    instruction?: string | null
   }
+  // Set on a replacement draft, made by Regenerate in the review workspace
+  // (RV-02): the saved draft it was made to replace. It is not the section's
+  // content until the engineer accepts it, and once discarded it never is;
+  // both decisions are in the review audit log. Absent on a GN-01 draft.
+  replacementFor?: Types.ObjectId
   createdBy: Types.ObjectId
   // Required on every document (see CLAUDE.md). COPE_dimension is the
   // section's one category, or 'all' when it draws on several.
@@ -106,7 +117,9 @@ const reportSectionSchema = new Schema<IReportSection>(
       prompt_version: { type: String, required: true },
       template_version: { type: String, required: true },
       generated_at: { type: Date, required: true },
+      instruction: { type: String, default: null },
     },
+    replacementFor: { type: Schema.Types.ObjectId, ref: 'ReportSection' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     metadata: {
       source_type: { type: String, enum: ['report_section'], required: true },

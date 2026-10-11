@@ -13,6 +13,7 @@ import {
 } from '../models/observation.model'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
+import { ReviewAuditModel } from '../models/review-audit.model'
 import { SiteModel } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { locationKey } from '../services/location.service'
@@ -81,10 +82,13 @@ async function seed(name: string) {
     { upsert: true, returnDocument: 'after' },
   )
 
-  // Start this assessment afresh: its evidence, sessions and drafts only.
+  // Start this assessment afresh: its evidence, sessions, drafts and their review.
   await ObservationModel.deleteMany({ assessment: assessment._id })
   await CaptureSessionModel.deleteMany({ assessment: assessment._id })
   await ReportSectionModel.deleteMany({ assessment: assessment._id })
+  // The review log is append-only through its model (RV-02); a reset sample's
+  // drafts are gone, so their decisions go too, through the driver.
+  await ReviewAuditModel.collection.deleteMany({ assessment: assessment._id })
   await ReportOfiModel.deleteMany({ assessment: assessment._id })
 
   const session = await CaptureSessionModel.create({ assessment: assessment._id })

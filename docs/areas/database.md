@@ -1,6 +1,6 @@
 # Storage and retrieval
 
-- MongoDB stores application records: sites, assessments, capture sessions, observations, report section drafts and user accounts.
+- MongoDB stores application records: sites, assessments, capture sessions, observations, report section drafts, the review audit log and user accounts.
 - AWS S3 stores original uploaded files.
 - Chroma stores anonymised chunk text, vectors, and citation/filter metadata. Chroma replaces the planned Atlas Vector Search role.
 
@@ -352,7 +352,10 @@ filters, it is built in the browser from the observation list.
 
 `report_sections` holds one document per generated draft of a report section
 (7-12). Drafting the same section again adds a new document, so earlier drafts
-are kept; the newest is current. Each document has:
+are kept. No draft is ever changed: the engineer's decisions on its findings
+are in the [review audit log](#review-audit-log-rv-02). The section's saved
+content is its newest draft, except that a replacement draft counts only once
+accepted, and from when it was accepted. Each document has:
 
 - `assessment` and `sectionId` (`'7'`), and the template's `title`.
 - `subsections`, in the template's order. Each has a `heading` and a `kind`
@@ -374,7 +377,12 @@ are kept; the newest is current. Each document has:
   for CP-14's snapshot, which the team dropped.
 - `guardrail`: `{ passed, unsupported_count }`.
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
-  `template_version`, `generated_at` (AC7).
+  `template_version`, `generated_at` (AC7), and `instruction`: what the
+  engineer asked a regenerated draft to change, or `null` (RV-02). A
+  regenerated draft's `prompt_version` is `gn01-v2.4+rv02-v1`.
+- `replacementFor`: set only on a replacement draft made by Regenerate in the
+  review workspace (RV-02), the `_id` of the saved draft it was made to
+  replace. It waits until accepted or discarded, decisions held in the log.
 - `createdBy`, the engineer's user `_id`.
 - `metadata` with the five required fields:
   - `source_type: 'report_section'`;
@@ -387,9 +395,66 @@ The first draft sets the assessment's `reportStatus` to `draft`.
 
 | Route | Does |
 | --- | --- |
-| `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (or `null`) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks, holds in an older form, or holds that are no longer evidence (deleted or uncategorised, CP-08), which a redraft would bring up to date; and `changeCounts` `{ added, changed, removed }`, the same total by kind, which the screens name, leaving out any kind with none. 404, or 503 when S4 cannot be reached. |
+| `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (the saved draft, or `null`; a replacement waiting for a decision is not it) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks, holds in an older form, or holds that are no longer evidence (deleted or uncategorised, CP-08), which a redraft would bring up to date; and `changeCounts` `{ added, changed, removed }`, the same total by kind, which the screens name, leaving out any kind with none. 404, or 503 when S4 cannot be reached. |
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
-| `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources`, `changesSinceDraft` and its `changeCounts`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under any of the section's categories, plus any other it cites, each with `copeDimensions`). Read-only. 404, or 503 when S4 cannot be reached. |
+| `GET /api/assessments/:reference/review` | The review workspace (RV-01, RV-02): `{ sections, summary, asOf }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections that keep a finding not rejected, and `tables`), `review` (`state`: `not_drafted`, `ai_draft`, `in_review`, `reviewed`, or `needs_review`, which wins; with `unsupportedStatements` and `withdrawnSources` counting only findings still in the draft, `changesSinceDraft` and its `changeCounts`), `findings` (`{ total, pending, accepted, edited, rejected }`), the saved `draft` without its raw `sources`, each statement with its current `text`, `generatedText` and `review` (`state`, `at`, `by`), `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record), `observations` (the draft's `evidence` filed under any of the section's categories, plus any other it cites, each with `copeDimensions`), `replacement` (a regenerated draft waiting for a decision, with its own `draft`, `sources` and `observations`, and `instruction`, `requestedBy`, `requestedAt`; or `null`) and `history` (the section's audit log entries, newest first). `summary` totals `findings` over the saved drafts; `asOf` is when it was read. 404, or 503 when S4 cannot be reached. |
+
+## Review audit log (RV-02)
+
+`review_audit_log` holds one entry per review decision on a section's draft.
+It is append-only: the model (`review-audit.model.ts`) refuses every update,
+replace and delete, and the gateway only adds entries. A finding's state and
+text are read from it (`review-decision.service.foldFindings`), never stored
+on the draft. Each entry has:
+
+- `assessment`, `sectionId`, and `draft`: the `report_sections` `_id` decided
+  on.
+- `finding`: the statement as `<subsection index>.<statement index>`, e.g.
+  `0.2`; `null` for a decision on a whole draft.
+- `sequence`: 0, 1, 2… per draft and finding. `{ draft, finding, sequence }`
+  is unique, so of two decisions made at once on one finding only one is
+  saved.
+- `action`: `accept`, `edit`, `reject`, `restore` (a finding), or
+  `regenerate`, `accept_replacement`, `discard_replacement` (a replacement
+  draft, on its own `_id`).
+- `heading` (the finding's subsection), `before` (its text when decided: what
+  was accepted, edited or rejected), `after` (the engineer's text, for an
+  edit), `citations` (its citations then), `instruction` (for a regenerated
+  draft), `bulk` (accepted by Bulk accept).
+- `by` `{ id, name }`, the signed-in user as they were then, and `at`.
+- `metadata` with the five required fields: `source_type: 'review_decision'`,
+  `jurisdiction`, `facility_type` and `COPE_dimension` from the draft, and
+  `effective_date` (when decided).
+
+A finding starts `pending`. `accept` makes it `accepted` (from pending, or
+from edited, keeping the engineer's text), `edit` makes it `edited` with the
+new text, `reject` makes it `rejected` (out of the draft), and `restore`
+returns it to its state before rejection. A decision that changes nothing
+records nothing.
+
+Indexes: the unique `{ draft, finding, sequence }`, and
+`{ assessment, sectionId, at: -1 }` for a section's history.
+
+Every route below needs `reports:generate`, the assigned engineer and an
+assessment not archived, names the draft decided on in the body as
+`draftId`, and answers with the review workspace as `GET …/review` does.
+Errors: 400 (invalid body, with `fields`), 403, 404 (unknown assessment,
+section, finding, or no waiting replacement of that id), 409 (archived; not
+drafted; the saved draft is not `draftId`; a rejected finding accepted or
+edited; a decision saved at the same moment; a replacement already waiting;
+a transcription in progress), 422 (too little evidence to regenerate), 503
+(S4 failed or could not be reached; nothing is saved).
+
+| Route | Does |
+| --- | --- |
+| `POST /api/assessments/:reference/sections/:sectionId/findings/:finding/accept` | Accepts a pending finding (AC1), or an edited one, which keeps the engineer's text. Accepting an accepted one records nothing. |
+| `PUT /api/assessments/:reference/sections/:sectionId/findings/:finding` | `{ draftId, text }` (1-2,000 characters, trimmed): the engineer's wording replaces the finding's text (AC2); the entry keeps the text before and after (AC3) and who and when (AC4). |
+| `POST /api/assessments/:reference/sections/:sectionId/findings/:finding/reject` | Takes the finding out of the draft; the entry keeps its text and citations (AC5, AC6). |
+| `POST /api/assessments/:reference/sections/:sectionId/findings/:finding/restore` | Returns a rejected finding to its state before rejection. |
+| `POST /api/assessments/:reference/sections/:sectionId/bulk-accept` | Accepts every pending finding of the saved draft, one entry each with `bulk: true`; rejected and edited ones keep their decisions (AC7, AC8). |
+| `POST /api/assessments/:reference/sections/:sectionId/regenerate` | `{ instruction? }` (up to 1,000 characters): drafts the section again through S4 as a replacement for its saved draft (AC10). 201. Only one replacement waits at a time. |
+| `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11), every finding pending. |
+| `POST /api/assessments/:reference/sections/:sectionId/replacement/discard` | Leaves the saved draft and its decisions as they were (AC12). |
 
 ## Opportunities for Improvement (GN-05)
 

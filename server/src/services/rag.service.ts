@@ -67,6 +67,8 @@ export type SectionDraftResult = {
     prompt_version: string
     template_version: string
     generated_at: string
+    // What the engineer asked a regenerated draft to change (RV-02), or null.
+    instruction?: string | null
   }
 }
 

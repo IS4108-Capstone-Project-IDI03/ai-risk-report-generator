@@ -446,6 +446,8 @@ export type SectionDraft = {
     prompt_version: string
     template_version: string
     generated_at: string
+    // What the engineer asked a regenerated draft to change (RV-02), or null.
+    instruction?: string | null
   }
   createdAt: string
 }
@@ -545,7 +547,63 @@ export async function draftSection(reference: string, sectionId: string): Promis
 }
 
 export type CompletionState = 'not_started' | 'partial' | 'complete'
-export type ReviewState = 'not_drafted' | 'ai_draft' | 'needs_review'
+// `needs_review` comes from the draft's own checks and wins over the rest;
+// otherwise the engineer's decisions (RV-02) decide: `ai_draft` while every
+// finding is pending, `in_review` once some are decided, `reviewed` once none
+// is pending.
+export type ReviewState = 'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'needs_review'
+
+// A generated finding's review decision (RV-02). Rejected findings are out of
+// the draft, kept in the review history.
+export type FindingState = 'pending' | 'accepted' | 'edited' | 'rejected'
+export type FindingCounts = { total: number } & Record<FindingState, number>
+
+// One finding: a statement of the draft with the engineer's decision on it.
+export type ReviewStatement = {
+  // The text now: the engineer's wording once edited.
+  text: string
+  // What the draft says.
+  generatedText: string
+  citations: string[]
+  supported: boolean
+  // at and by are null while no decision has been made.
+  review: { state: FindingState; at: string | null; by: { id: string; name: string } | null }
+}
+export type ReviewDraft = Omit<SectionDraft, 'sources' | 'subsections'> & {
+  subsections: {
+    heading: string
+    kind: 'narrative' | 'fields' | 'table'
+    statements: ReviewStatement[]
+  }[]
+}
+
+// One entry of the immutable review audit log (RV-02).
+export type ReviewAction =
+  | 'accept'
+  | 'edit'
+  | 'reject'
+  | 'restore'
+  | 'regenerate'
+  | 'accept_replacement'
+  | 'discard_replacement'
+export type ReviewHistoryEntry = {
+  id: string
+  // The draft decided on: the saved one, a replacement, or an earlier draft.
+  draftId: string
+  action: ReviewAction
+  // `<subsection>.<statement>` of the finding; null for a whole draft.
+  finding: string | null
+  heading: string | null
+  // The text before the decision, and the engineer's text for an edit.
+  before: string | null
+  after: string | null
+  citations: string[]
+  instruction: string | null
+  // Accepted by Bulk accept.
+  bulk: boolean
+  by: { id: string; name: string }
+  at: string
+}
 
 export type SourcePassage = {
   id: string
@@ -577,6 +635,16 @@ export type FieldObservation = {
   standard: string | null
 }
 
+// A regenerated draft waiting to be accepted or discarded (RV-02).
+export type ReviewReplacement = {
+  draft: ReviewDraft
+  sources: Record<string, SourcePassage>
+  observations: FieldObservation[]
+  instruction: string | null
+  requestedBy: { id: string; name: string } | null
+  requestedAt: string
+}
+
 export type ReviewSection = {
   id: string
   title: string
@@ -589,21 +657,114 @@ export type ReviewSection = {
     changesSinceDraft: number
     changeCounts: ChangeCounts
   }
-  draft: Omit<SectionDraft, 'sources'> | null
+  // The saved draft's findings by state (RV-02).
+  findings: FindingCounts
+  // The saved draft: the section's content.
+  draft: ReviewDraft | null
   sources: Record<string, SourcePassage>
   observations: FieldObservation[]
+  replacement: ReviewReplacement | null
+  // The section's review audit log, newest first.
+  history: ReviewHistoryEntry[]
 }
+
+export type ReviewWorkspace = {
+  sections: ReviewSection[]
+  // Every saved draft's findings by state: the review summary (RV-02).
+  summary: FindingCounts
+  // When the gateway read it, to keep the newest of overlapping responses.
+  asOf: string
+}
+
+const reviewPath = (reference: string) => `/api/assessments/${encodeURIComponent(reference)}`
+const sectionPath = (reference: string, sectionId: string) =>
+  `${sectionsPath(reference)}/${encodeURIComponent(sectionId)}`
 
 export async function getReviewWorkspace(
   reference: string,
   signal?: AbortSignal,
-): Promise<ReviewSection[]> {
+): Promise<ReviewWorkspace> {
   return (
-    await request<{ sections: ReviewSection[] }>(
-      'GET',
-      `/api/assessments/${encodeURIComponent(reference)}/review`,
-      undefined,
-      signal,
+    await request<ReviewWorkspace>('GET', `${reviewPath(reference)}/review`, undefined, signal)
+  ).data
+}
+
+// Review decisions (RV-02). Each names the saved draft the engineer was looking
+// at, and returns the review workspace as it now stands. Only the assigned
+// engineer may make them.
+export type FindingAction = 'accept' | 'reject' | 'restore'
+export async function decideFinding(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+  finding: string,
+  action: FindingAction,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>(
+      'POST',
+      `${sectionPath(reference, sectionId)}/findings/${encodeURIComponent(finding)}/${action}`,
+      { draftId },
     )
-  ).data.sections
+  ).data
+}
+
+// Saves the engineer's wording of a finding; its citations stay with it.
+export async function editFinding(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+  finding: string,
+  text: string,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>(
+      'PUT',
+      `${sectionPath(reference, sectionId)}/findings/${encodeURIComponent(finding)}`,
+      { draftId, text },
+    )
+  ).data
+}
+
+// Accepts every pending finding of the section's saved draft.
+export async function bulkAccept(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>('POST', `${sectionPath(reference, sectionId)}/bulk-accept`, {
+      draftId,
+    })
+  ).data
+}
+
+// Drafts the section again as a replacement for its saved draft, with what
+// the engineer wants changed, if anything.
+export async function regenerateSection(
+  reference: string,
+  sectionId: string,
+  instruction: string,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>('POST', `${sectionPath(reference, sectionId)}/regenerate`, {
+      instruction,
+    })
+  ).data
+}
+
+// Accepts the waiting replacement as the section's content, or discards it.
+export async function decideReplacement(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+  action: 'accept' | 'discard',
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>(
+      'POST',
+      `${sectionPath(reference, sectionId)}/replacement/${action}`,
+      { draftId },
+    )
+  ).data
 }
