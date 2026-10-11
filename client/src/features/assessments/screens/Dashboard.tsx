@@ -7,27 +7,26 @@ import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 const COLUMNS =
   'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,1fr)'
 // The boxes above the list, each filtering it by date while selected.
-const DATE_BOXES: { filter: DateFilter; icon: string; label: string; units: [string, string] }[] =
-  [
-    {
-      filter: 'overdue',
-      icon: 'circle-alert',
-      label: 'Overdue',
-      units: ['report past due', 'reports past due'],
-    },
-    {
-      filter: 'due-soon',
-      icon: 'calendar-clock',
-      label: 'Due soon',
-      units: ['report due within 7 days', 'reports due within 7 days'],
-    },
-    {
-      filter: 'visit-soon',
-      icon: 'map-pin',
-      label: 'Site visits',
-      units: ['visit within 7 days', 'visits within 7 days'],
-    },
-  ]
+const DATE_BOXES: { filter: DateFilter; icon: string; label: string; units: [string, string] }[] = [
+  {
+    filter: 'overdue',
+    icon: 'circle-alert',
+    label: 'Overdue',
+    units: ['report past due', 'reports past due'],
+  },
+  {
+    filter: 'due-soon',
+    icon: 'calendar-clock',
+    label: 'Due soon',
+    units: ['report due within 7 days', 'reports due within 7 days'],
+  },
+  {
+    filter: 'visit-soon',
+    icon: 'map-pin',
+    label: 'Site visits',
+    units: ['visit within 7 days', 'visits within 7 days'],
+  },
+]
 const DATE_CELL = {
   fontFamily: 'var(--font-mono)',
   fontSize: '13px',
@@ -125,7 +124,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 placeholder="Search site, client or report ID"
                 value={v.q}
                 onChange={v.setQ}
-              ></Input>
+              />
             </div>
             <div style={{ flex: '0 1 180px', minWidth: '150px' }}>
               <Select
@@ -134,7 +133,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 options={v.statusOptions}
                 value={v.fStatus}
                 onChange={v.setStatus}
-              ></Select>
+              />
             </div>
             <div style={{ flex: '0 1 220px', minWidth: '180px' }}>
               <Select
@@ -143,9 +142,9 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 options={v.sortOptions}
                 value={v.workSort}
                 onChange={v.setWorkSort}
-              ></Select>
+              />
             </div>
-            <span style={{ flex: '1' }}></span>
+            <span style={{ flex: '1' }} />
             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{v.resultLabel}</span>
           </div>
           {!!v.wideTable && (
@@ -259,7 +258,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                         gap: '6px',
                       }}
                     >
-                      <StatusIcon status={r.status} showLabel={true} size={15}></StatusIcon>
+                      <StatusIcon status={r.status} showLabel={true} size={15} />
                     </span>
                     <span
                       style={{
@@ -358,7 +357,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                         marginTop: '2px',
                       }}
                     >
-                      <StatusIcon status={r.status} showLabel={true} size={15}></StatusIcon>
+                      <StatusIcon status={r.status} showLabel={true} size={15} />
                       <DueNote r={r} />
                     </div>
                   </div>
@@ -377,7 +376,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                       ? 'Select the ticked box again, clear the search or widen the status filter to see your assigned assessments.'
                       : 'Clear the search or widen the status filter to see your assigned assessments.'
                   }
-                ></EmptyState>
+                />
               </div>
             </>
           )}
