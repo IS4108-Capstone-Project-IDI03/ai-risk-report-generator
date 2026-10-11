@@ -212,6 +212,29 @@ const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => 
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }))
 const NO_LOCATIONS: SiteLocation[] = []
+// An empty capture form: no note, recordings or photos, and no tags chosen.
+// The location stays, as the engineer is still standing in it.
+const BLANK_DRAFT = {
+  fNote: '',
+  fClips: [],
+  fPhotos: [],
+  fCats: [],
+  fSev: '',
+  fRec: false,
+  fSecs: 0,
+  fTrans: false,
+  fTransBusy: false,
+  fVoiceError: null,
+  fPhotoError: null,
+  fSaveError: null,
+  fToast: null,
+  fLeaveOpen: false,
+} satisfies Partial<WorkflowState>
+// Recorders stopped to be thrown away with the draft they were recording for.
+const discarded = new WeakSet<MediaRecorder>()
+// The demo's simulated recording, transcribed.
+const SAMPLE_TRANSCRIPT =
+  'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.'
 // The navigation's Recent list: how many it keeps, and how its entries'
 // values name an assessment ("recent:RPT-2026-0411").
 const RECENT_LIMIT = 3
@@ -379,6 +402,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         screen: screenForPath(window.location.pathname, session),
         navOpen: false,
         toast: null,
+        // Back from capture is a way of leaving it too.
+        fLeaveOpen: false,
       }))
     window.addEventListener('popstate', follow)
     return () => window.removeEventListener('popstate', follow)
@@ -408,6 +433,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The recorder in progress, and a counter naming the clips it makes.
   const [media] = useState(() => ({ recorder: null as MediaRecorder | null, clips: 0, photos: 0 }))
   useEffect(() => () => media.recorder?.stream.getTracks().forEach((t) => t.stop()), [media])
+  // Leaving capture, by Done, the navigation or Back, stops a recording in
+  // progress; its clip stays in the draft for when the engineer returns.
+  useEffect(() => {
+    if (!onField) media.recorder?.stop()
+  }, [onField, media])
   // The work list from the gateway (RV-10); null until it loads, and when the
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
@@ -507,15 +537,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       850,
     )
+    // The recording clock; a simulated recording stops once capture is left.
     const recorder = setInterval(
       () =>
         updateState((previous) =>
-          previous.fRec
-            ? {
-                ...previous,
-                fSecs: previous.fSecs + 1,
-              }
-            : previous,
+          !previous.fRec
+            ? previous
+            : previous.screen === 'field'
+              ? { ...previous, fSecs: previous.fSecs + 1 }
+              : { ...previous, fRec: false, fSecs: 0 },
         ),
       1000,
     )
@@ -539,7 +569,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     return { screen }
   }
   // Opens an assessment's workspace on its Overview and puts it first in the
-  // navigation's Recent list.
+  // navigation's Recent list. A capture draft is for the assessment it was
+  // started on, so opening another clears it (call releaseDraft first), and
+  // it can never be saved to the wrong site.
   function openAssessment(
     target: { reference: string; site: string },
     previous: WorkflowState,
@@ -556,22 +588,43 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       of: NO_FILTERS,
       obsShowDeleted: false,
       obsOpen: null,
+      ...(target.reference !== previous.captureTarget.reference && {
+        ...BLANK_DRAFT,
+        fLocationId: null,
+      }),
     }
   }
+  // Drops the capture draft's recording in progress and releases its
+  // previews; the caller clears the draft from the form.
+  function dropDraftFiles() {
+    if (media.recorder) {
+      // Marked first, so its clip is not added when it stops (startRecording).
+      discarded.add(media.recorder)
+      media.recorder.stop()
+    }
+    for (const file of [...state.fClips, ...state.fPhotos]) URL.revokeObjectURL(file.url)
+  }
+  // Before another assessment opens: its draft is about to be cleared.
+  function releaseDraft(reference: string) {
+    if (reference !== state.captureTarget.reference) dropDraftFiles()
+  }
   // A navigation entry: a screen, or a Recent assessment. The one already
-  // open keeps its tab and filters.
+  // open keeps its tab and filters. Call it only from an event handler.
   function navigateTo(value: string): Partial<WorkflowState> {
     if (!value.startsWith(RECENT_PREFIX)) return navigate(value)
     const reference = value.slice(RECENT_PREFIX.length)
     if (reference === state.captureTarget.reference) return navigate('assessment')
     const target = state.recent.find((r) => r.reference === reference)
-    return target ? openAssessment(target, state) : {}
+    if (!target) return {}
+    releaseDraft(target.reference)
+    return openAssessment(target, state)
   }
   // A created assessment clears the form, so the next one starts blank. A form
   // left without creating keeps its draft.
   // A new assessment opens on its Overview when it is the creator's own; one
   // assigned to someone else is not on their list, so they return to it.
   function addCreatedRow(row: AssessmentRow, open: boolean) {
+    if (open) releaseDraft(row.id)
     updateState((previous) => ({
       ...previous,
       createdRows: [row, ...previous.createdRows],
@@ -636,26 +689,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     if (!liveSections().length) return true
     return reviewedCount() < liveSections().length || openItems().length > 0
   }
-  function chipStyle(on: boolean, tone: string) {
-    return {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '44px',
-      padding: '0 4px',
-      borderRadius: '5px',
-      fontFamily: 'inherit',
-      fontSize: '14px',
-      fontWeight: '500',
-      cursor: 'pointer',
-      transition: 'background 120ms cubic-bezier(.2,0,.2,1)',
-      border: '1px solid ' + (on ? 'var(--status-' + tone + '-fg)' : 'var(--border-default)'),
-      background: on ? 'var(--status-' + tone + '-bg)' : 'var(--surface-card)',
-      color: on ? 'var(--status-' + tone + '-fg)' : 'var(--text-secondary)',
-    } as React.CSSProperties
-  }
   function modeStyle(on: boolean) {
     return {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
       height: '46px',
       border: 'none',
       borderBottom: '2px solid ' + (on ? 'var(--action-primary)' : 'transparent'),
@@ -758,8 +797,20 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const liveVoice = !!liveCapture
     // Capture starts from a location; the sheet stays open until one is chosen.
     const currentLocation = places.locations.find((l) => l.id === s.fLocationId) ?? null
+    // It opens by itself while none is chosen, unless closed this visit.
     const locSheetOpen =
-      sc === 'field' && capture.state?.status !== 'starting' && (s.locOpen || !currentLocation)
+      sc === 'field' &&
+      capture.state?.status !== 'starting' &&
+      (s.locOpen || (!currentLocation && !s.locDismissed))
+    // Closed without choosing, the bar stays highlighted until one is, and
+    // Save opens the picker again.
+    const pickerClosed: Partial<WorkflowState> = {
+      locOpen: false,
+      locDismissed: true,
+      locQuery: '',
+      lfError: null,
+      locRemove: null,
+    }
     const query = s.locQuery.trim().toLowerCase()
     // A recording is named by its number; an uploaded file keeps its own name.
     const addClip = (audio: Blob, name: string | null, length: string | null) => {
@@ -780,10 +831,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fClips: previous.fClips.filter((c) => c.id !== clip.id),
       }))
     }
-    // Everything in the Ready to save list becomes one observation, filed under
-    // what the form shows: the note exactly as typed (CP-02), each recording
-    // with its one transcription (CP-03 AC3) and each photo (CP-04). If it
-    // fails, everything stays listed for another try.
+    // Everything in the form becomes one observation, filed under the tags
+    // it shows: the note exactly as typed (CP-02), each recording with its one
+    // transcription (CP-03 AC3) and each photo (CP-04). If it fails,
+    // everything stays for another try. The standard is left to drafting;
+    // the engineer can name one later through Edit.
     async function saveToGateway(
       location: SiteLocation,
       note: string | undefined,
@@ -791,6 +843,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       photos: PhotoFile[],
     ) {
       const reference = s.captureTarget.reference
+      const { fCats: cats, fSev: severity } = s
       setState({ fSaving: true, fSaveError: null })
       let observation
       try {
@@ -798,10 +851,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           reference,
           {
             note,
-            copeDimensions: copeDimensionsOf(s.fCats),
-            severity: s.fSev,
+            copeDimensions: copeDimensionsOf(cats),
+            severity,
             locationId: location.id,
-            standard: s.fStd,
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
           photos.map((p) => ({ name: p.name, image: p.image })),
@@ -827,14 +879,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       if (clips.length) captured.reload()
       // The gateway now serves them; the previews in this browser are done.
       for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
-      // Keep anything added while the observation was saving.
+      // Keep anything added or changed while the observation was saving. The
+      // tags start again empty, so the next observation's are chosen for it.
       updateState((previous) => ({
         ...previous,
         fSaving: false,
         fNote: previous.fNote === note ? '' : previous.fNote,
-        fNoteListed: previous.fNote === note ? false : previous.fNoteListed,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
+        fCats: sameCategories(previous.fCats, cats) ? [] : previous.fCats,
+        fSev: previous.fSev === severity ? '' : previous.fSev,
         fToast: {
           text:
             'Observation saved to ' +
@@ -1228,10 +1282,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }
     async function startRecording() {
       try {
-        media.recorder = await record((audio, length) => {
-          media.recorder = null
+        const recorder = await record((audio, length) => {
+          if (media.recorder === recorder) media.recorder = null
+          // Discarded with its draft (dropDraftFiles): the clip goes nowhere.
+          if (discarded.has(recorder)) return
+          // Stopped here or by leaving capture: the clock goes back to 00:00.
+          updateState((previous) => ({ ...previous, fRec: false, fSecs: 0 }))
           addClip(audio, null, length)
         })
+        media.recorder = recorder
       } catch (error: unknown) {
         setState({
           fVoiceError: { title: 'Microphone unavailable', message: microphoneProblem(error) },
@@ -1585,6 +1644,36 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     )
     const mm = String(Math.floor(s.fSecs / 60)).padStart(2, '0')
     const ss = String(s.fSecs % 60).padStart(2, '0')
+    // What the capture draft holds, shown on the mode switcher. The demo's
+    // sample transcript stands in for a recording.
+    const noteWritten = !!s.fNote.trim()
+    const voiceCount = s.fClips.length + (s.fTrans ? 1 : 0)
+    // What Done would discard, a recording still running included: "a note,
+    // 2 recordings and 1 photo".
+    const recordings = voiceCount + (s.fRec || s.fTransBusy ? 1 : 0)
+    const unsaved = [
+      noteWritten ? 'a note' : '',
+      recordings ? plural(recordings, 'recording') : '',
+      s.fPhotos.length ? plural(s.fPhotos.length, 'photo') : '',
+    ].filter(Boolean)
+    const unsavedLabel =
+      unsaved.length > 1
+        ? unsaved.slice(0, -1).join(', ') + ' and ' + unsaved[unsaved.length - 1]
+        : (unsaved[0] ?? '')
+    // Leaving capture goes to a tab of the assessment it is part of: by its
+    // back button to the Observations tab, unfiltered, where what was just
+    // saved is listed; or to whichever tab is chosen.
+    const toTab = (tab: string): Partial<WorkflowState> => ({
+      screen: 'assessment',
+      tab,
+      obsShowDeleted: false,
+      obsOpen: null,
+      locOpen: false,
+      ...(tab === 'observations' && { of: NO_FILTERS }),
+    })
+    // First asking Leave without saving? when something would be lost.
+    const leaveCapture = (tab: string) =>
+      setState(unsaved.length ? { fLeaveOpen: true, fLeaveTo: tab } : toTab(tab))
     return {
       /* access (F-05) */
       routeBlocked,
@@ -1611,6 +1700,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       navValue: isAssessment || sc === 'field' ? RECENT_PREFIX + s.captureTarget.reference : sc,
       navFooter: userFooter(),
       showSideNav: !phone && !s.navCollapsed,
+      phone,
       showTopBar: phone,
       showHeaderMenu: !phone,
       toggleNav: () =>
@@ -1685,10 +1775,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           toast: null,
         })
       },
-      goDash: () =>
-        setState({
-          screen: 'dashboard',
-        }),
       goCreate: () =>
         setState({
           screen: 'create',
@@ -1738,9 +1824,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })
       },
       isEditing: !!s.cfEdit,
+      // Each visit to capture starts by asking where, until a location is chosen.
       goField: () =>
         setState({
           screen: 'field',
+          locDismissed: false,
         }),
       canCapture,
       canArchive: isMine && canCapture,
@@ -1774,9 +1862,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({ archiveBusy: true })
         try {
           await requestArchive(reference)
-          // Back to the work list, which reloads; capture falls back to the demo.
+          // Back to the work list, which reloads; capture falls back to the
+          // demo, and the archived one's draft is dropped, as it takes no more.
+          dropDraftFiles()
           setState({
             ...navigate('dashboard'),
+            ...BLANK_DRAFT,
+            fLocationId: null,
             archiveOpen: false,
             archiveBusy: false,
             captureTarget: CAPTURE_ASSESSMENT,
@@ -1794,7 +1886,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           )
         }
       },
-      goAssessment: () => setState(navigate('assessment')),
       goReview: () =>
         setState({
           tab: 'review',
@@ -1811,7 +1902,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // The photo collection is a view of the Observations tab, opened from
       // its Photos box, so that tab stays selected while it shows.
       isPhotos: isAssessment && s.tab === 'photos',
-      tabValue: s.tab === 'photos' ? 'observations' : s.tab,
+      // Capture is part of the Observations tab, which stays highlighted.
+      tabValue: sc === 'field' || s.tab === 'photos' ? 'observations' : s.tab,
       goPhotos: () => setState({ tab: 'photos' }),
       goObservations: () => setState({ tab: 'observations' }),
       // The Observations tab's boxes: what the observations not deleted hold.
@@ -2033,6 +2125,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsFilters: s.of,
       obsFiltering: filtersActive(s.of),
       obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
+      // Nothing captured yet: the list offers Add observation instead.
+      obsNone: !s.obsShowDeleted && obsRows.length === 0,
       setObsFilter: (key: keyof ObservationFilters) => (e: React.ChangeEvent<HTMLSelectElement>) =>
         setState({ of: { ...s.of, [key]: e.target.value } }),
       clearObsFilters: () => setState({ of: NO_FILTERS }),
@@ -2094,7 +2188,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       toggleTagCat: (cat: string) =>
         s.tagEdit &&
         setState({ tagEdit: { ...s.tagEdit, cats: toggleCategory(s.tagEdit.cats, cat) } }),
-      tagSevOptions: SEVERITY_OPTIONS,
+      setTagSev: (sev: string) => s.tagEdit && setState({ tagEdit: { ...s.tagEdit, sev } }),
       tagLocOptions: [
         // A location not on the assessment's list can be kept, not chosen again.
         ...(tagRow && !places.locations.some((l) => l.id === s.tagEdit?.locationId)
@@ -2115,7 +2209,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })),
       ],
       setTag:
-        (field: 'sev' | 'locationId' | 'std' | 'note') =>
+        (field: 'locationId' | 'std' | 'note') =>
         (e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement>) =>
           s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
       closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
@@ -2123,6 +2217,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isGenerate: isAssessment && s.tab === 'generate',
       isReview: isAssessment && s.tab === 'review',
       isExport: isAssessment && s.tab === 'export',
+      // Capture is part of the workspace, so it keeps the workspace's header,
+      // named from the capture session when one is live.
       eyebrow:
         sc === 'dashboard'
           ? 'Risk engineering'
@@ -2130,13 +2226,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ? s.cfEdit
               ? 'Assessment workspace'
               : 'New assessment'
-            : sc === 'field'
-              ? 'On site'
-              : sc === 'users' || sc === 'knowledge'
-                ? 'Administration'
-                : sc === 'usage'
-                  ? 'Reporting'
-                  : 'Assessment workspace',
+            : sc === 'users' || sc === 'knowledge'
+              ? 'Administration'
+              : sc === 'usage'
+                ? 'Reporting'
+                : 'Assessment workspace',
       title:
         sc === 'dashboard'
           ? 'Assessments'
@@ -2145,7 +2239,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ? 'Edit assessment details'
               : 'Create assessment'
             : sc === 'field'
-              ? 'Site observation'
+              ? captureSite
               : sc === 'users'
                 ? 'User accounts'
                 : sc === 'knowledge'
@@ -2158,21 +2252,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? rows.length + ' assessments · ' + session.user.name
           : sc === 'create'
             ? 'Opening an assessment creates the report record and its drafting set.'
-            : sc === 'field'
-              ? captureSite +
-                ' · ' +
-                captureRef +
-                ' · ' +
-                fieldSaved +
-                (fieldSaved === 1 ? ' observation captured' : ' observations captured')
-              : sc === 'users'
-                ? 'Add your team’s accounts, and keep their details and roles up to date.'
-                : sc === 'knowledge'
-                  ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
-                  : sc === 'usage'
-                    ? 'What the AI calls cost, how much they were used, and how fast they ran.'
-                    : // An assessment shows only its name; its details are in its Overview.
-                      '',
+            : sc === 'users'
+              ? 'Add your team’s accounts, and keep their details and roles up to date.'
+              : sc === 'knowledge'
+                ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
+                : sc === 'usage'
+                  ? 'What the AI calls cost, how much they were used, and how fast they ran.'
+                  : // An assessment shows only its name; its details are in its Overview.
+                    '',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
@@ -2259,11 +2346,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id
         const row = rows.find((r) => r.id === id)
-        if (row)
-          setState({
-            ...openAssessment({ reference: row.id, site: row.site }, s),
-            toast: null,
-          })
+        if (!row) return
+        releaseDraft(row.id)
+        setState({
+          ...openAssessment({ reference: row.id, site: row.site }, s),
+          toast: null,
+        })
       },
       /* create */
       cfSite: s.cf.site,
@@ -2499,9 +2587,27 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       /* field */
       capture: capture.state,
       retryCapture: capture.retry,
+      // Save waits for the session, so nothing is kept in this browser by
+      // being saved a moment too soon.
+      captureStarting: capture.state?.status === 'starting',
+      // Wide enough for the tags and Save in a panel beside the form.
+      captureSplit: !narrow,
       captureRef,
-      fSavedLabel: fieldSaved + ' saved',
-      fieldEmptyLabel: 'No observations captured for ' + captureRef + ' yet.',
+      // Back to the Observations tab, or to the workspace tab chosen.
+      leaveCapture: () => leaveCapture('observations'),
+      leaveCaptureTo: leaveCapture,
+      leaveOpen: sc === 'field' && s.fLeaveOpen,
+      unsavedLabel,
+      closeLeave: () => setState({ fLeaveOpen: false }),
+      discardAndLeave: () => {
+        dropDraftFiles()
+        setState({ ...BLANK_DRAFT, ...toTab(s.fLeaveTo) })
+      },
+      // The switcher shows what each mode holds, so nothing waits unseen
+      // behind another mode.
+      noteWritten,
+      voiceCount,
+      photoCount: s.fPhotos.length,
       isNoteMode: s.fMode === 'note',
       isVoiceMode: s.fMode === 'voice',
       isPhotoMode: s.fMode === 'photo',
@@ -2520,17 +2626,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           fMode: 'photo',
         }),
+      // One note per observation, saved exactly as typed in the box.
       fNote: s.fNote,
-      fNoteListed: s.fNoteListed,
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
-      // One note per observation: adding it moves it into the Ready to save list.
-      addNote: () =>
-        s.fNote.trim()
-          ? setState({ fNoteListed: true })
-          : setState({ fToast: { text: 'Write a note first.', warn: true } }),
-      editNote: () => setState({ fNoteListed: false, fMode: 'note' }),
-      removeNote: () => setState({ fNote: '', fNoteListed: false }),
       setFNote: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
@@ -2549,8 +2648,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             : 'Start recording',
       recHint: liveVoice
         ? s.fRec
-          ? 'Recording. Stop when you are done; it is added to the list below.'
-          : 'Record or upload as many as you need. Each one is transcribed when the observation is saved.'
+          ? 'Recording. Stop to add it below.'
+          : 'Each recording is transcribed once you save.'
         : s.fRec
           ? 'Simulating recording; your microphone is not accessed.'
           : s.fTransBusy
@@ -2596,12 +2695,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             fRec: false,
             fTransBusy: true,
           })
+          // Unless the draft was discarded in the meantime.
           later(
             () =>
-              setState({
-                fTransBusy: false,
-                fTrans: true,
-              }),
+              updateState((previous) =>
+                previous.fTransBusy ? { ...previous, fTransBusy: false, fTrans: true } : previous,
+              ),
             1200,
           )
         } else
@@ -2612,20 +2711,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })
       },
       hasTranscript: s.fTrans,
-      fTranscriptText:
-        'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.',
+      fTranscriptText: SAMPLE_TRANSCRIPT,
       transcriptToNote: () =>
         setState({
           fMode: 'note',
           fTrans: false,
-          fNoteListed: false,
-          fNote:
-            'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.',
+          fNote: SAMPLE_TRANSCRIPT,
         }),
       fPhotos: s.fPhotos,
       fPhotoError: s.fPhotoError,
       photoHint: liveCapture
-        ? 'Take a photograph or choose ones already on this device, as JPG or PNG. Each is stored exactly as taken; read them on the Observations tab for a proposed description.'
+        ? 'JPG or PNG, stored exactly as taken.'
         : 'No capture session, so photographs stay in this browser and are not uploaded.',
       // Photos taken on the device or chosen from it (CP-04 AC6). Anything
       // but a JPG or PNG is refused here with the gateway's reason (AC4); the
@@ -2655,15 +2751,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fPhotos: previous.fPhotos.filter((p) => p.id !== photo.id),
         }))
       },
-      readyCount: (s.fNoteListed ? 1 : 0) + s.fClips.length + s.fPhotos.length,
       /* location */
       locationLabel: currentLocation ? locationLabel(currentLocation) : null,
       locSheetOpen,
-      // Closing needs a location to go back to; otherwise the engineer leaves capture.
-      canCloseLocations: !!currentLocation,
       openLocations: () => setState({ locOpen: true }),
-      closeLocations: () =>
-        setState({ locOpen: false, locQuery: '', lfError: null, locRemove: null }),
+      closeLocations: () => setState(pickerClosed),
+      // The location bar opens the picker, or closes the dropdown it anchors.
+      toggleLocations: () => setState(locSheetOpen ? pickerClosed : { locOpen: true }),
       locQuery: s.locQuery,
       setLocQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
         setState({ locQuery: e.target.value }),
@@ -2707,50 +2801,39 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       submitLocation: () => void submitLocation(),
       fCats: s.fCats,
       toggleFCat: (cat: string) => setState({ fCats: toggleCategory(s.fCats, cat) }),
-      sevCriticalStyle: chipStyle(s.fSev === 'critical', 'critical'),
-      sevHighStyle: chipStyle(s.fSev === 'high', 'high'),
-      sevModerateStyle: chipStyle(s.fSev === 'moderate', 'moderate'),
-      sevLowStyle: chipStyle(s.fSev === 'low', 'low'),
-      setFSev: (e: React.MouseEvent<HTMLElement>) =>
-        setState({
-          fSev: e.currentTarget.dataset.v || 'low',
-        }),
-      fStd: s.fStd,
-      stdOptions: [
-        { value: '', label: 'None, let the draft find it' },
-        ...STANDARD_REFERENCES.map((name) => ({ value: name, label: name })),
-      ],
-      setFStd: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
-        setState({
-          fStd: e.target.value,
-        }),
+      fSev: s.fSev,
+      setFSev: (fSev: string) => setState({ fSev }),
       fToast: s.fToast,
-      fRecent: fieldRecent,
       saveObservation: () => {
-        if (s.fSaving || s.fRec) return
+        if (s.fSaving || s.fRec || capture.state?.status === 'starting') return
         if (!currentLocation) {
           setState({ fToast: { text: 'Choose a location first.', warn: true }, locOpen: true })
           return
         }
         // With a capture session live, the note, recordings and photos are
-        // saved on the server as one observation.
+        // saved on the server as one observation; otherwise in this demo.
         const note = s.fNote.trim() ? s.fNote : undefined
-        if (liveCapture && (note || s.fClips.length || s.fPhotos.length)) {
-          void saveToGateway(currentLocation, note, s.fClips, s.fPhotos)
-          return
-        }
+        const live = !!liveCapture && !!(note || s.fClips.length || s.fPhotos.length)
         const text =
           s.fNote.trim() ||
-          (s.fTrans
-            ? 'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.'
-            : '') ||
+          (s.fTrans ? SAMPLE_TRANSCRIPT : '') ||
           (s.fPhotos.length
             ? plural(s.fPhotos.length, 'photograph') + ' captured at ' + currentLocation.name + '.'
             : '')
-        if (!text) {
+        if (!live && !text) {
           setState({
             fToast: { text: 'Add a note, recording or photograph first.', warn: true },
           })
+          return
+        }
+        // Severity is what the report grades the finding by (CP-02), so it is
+        // always chosen, never assumed.
+        if (!s.fSev) {
+          setState({ fToast: { text: 'Choose a severity first.', warn: true } })
+          return
+        }
+        if (live) {
+          void saveToGateway(currentLocation, note, s.fClips, s.fPhotos)
           return
         }
         const entry: Observation = {
@@ -2763,7 +2846,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           locationId: currentLocation.id,
           floor: currentLocation.floor,
           sev: s.fSev,
-          std: s.fStd,
+          std: '',
           // Kept in this browser: the preview stays, as the demo never uploads it.
           // Its photos are read only when the engineer asks (CP-05).
           media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
@@ -2775,9 +2858,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ? { fRecent: [entry].concat(s.fRecent) }
             : { captureObs: { ...s.captureObs, [reference]: [entry].concat(localRecent) } }),
           fNote: '',
-          fNoteListed: false,
           fPhotos: [],
           fTrans: false,
+          fCats: [],
+          fSev: '',
           fToast: { text: 'Observation added to ' + reference + '. It is kept in this demo only.' },
         })
         later(

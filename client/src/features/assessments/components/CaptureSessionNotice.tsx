@@ -1,6 +1,5 @@
 import type * as React from 'react'
 import { Button, Callout } from '../../../design-system'
-import { formatDayTime } from '../format'
 import type { CaptureSessionState } from '../useCaptureSession'
 
 const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' }
@@ -32,6 +31,10 @@ function unavailableCause(
   }
 }
 
+// Says so only when no capture session could be started, as saves then stay
+// in this demo. A session starting or running needs no notice: the header
+// names the assessment, the navigation's live light marks the session, and
+// Save waits while it starts.
 export function CaptureSessionNotice({
   capture,
   reference,
@@ -41,33 +44,10 @@ export function CaptureSessionNotice({
   reference: string
   onRetry: () => void
 }) {
-  if (!capture) return null
-  let notice: React.ReactNode
-  if (capture.status === 'starting') {
-    notice = (
-      <Callout tone="info" title="Starting capture session">
-        {'Opening the capture session for '}
-        <span style={mono}>{reference}</span>
-        {'.'}
-      </Callout>
-    )
-  } else if (capture.status === 'live') {
-    const { assessment, session, resumed } = capture
-    notice = (
-      <Callout
-        tone={resumed ? 'info' : 'success'}
-        title={resumed ? 'Capture session resumed' : 'Capture session started'}
-      >
-        {(assessment.site?.name ?? 'Site not recorded') + ' · ' + assessment.client + ' · '}
-        <span style={mono}>{assessment.reference}</span>
-        {'. Started '}
-        <span style={mono}>{formatDayTime(new Date(session.startedAt))}</span>
-        {'. Notes, recordings and photos are stored on the server, and recordings are transcribed.'}
-      </Callout>
-    )
-  } else {
-    const { cause, next } = unavailableCause(capture.httpStatus, reference)
-    notice = (
+  if (capture?.status !== 'unavailable') return null
+  const { cause, next } = unavailableCause(capture.httpStatus, reference)
+  return (
+    <div role="status">
       <Callout
         tone="warning"
         title="Showing sample data"
@@ -81,7 +61,6 @@ export function CaptureSessionNotice({
         {cause}
         {`. Observations saved here stay in this demo. ${next}`}
       </Callout>
-    )
-  }
-  return <div role="status">{notice}</div>
+    </div>
+  )
 }

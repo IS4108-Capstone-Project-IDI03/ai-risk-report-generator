@@ -64,10 +64,10 @@ function mockGateway() {
 async function openCapture() {
   render(<App />)
   await signIn()
-  // Open the assessment from the work list; capture is its header's action.
+  // Open the assessment from the work list; Add observation is its header's action.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
-  await screen.findByText('Capture session started')
+  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  await screen.findByRole('img', { name: 'live' })
 }
 const sheet = () => screen.getByRole('dialog', { name: 'Where are you?' })
 function addLocation(name: string, floor = '') {
@@ -177,14 +177,33 @@ describe('Choosing where observations are captured', () => {
     expect(within(sheet()).getByRole('textbox', { name: /^Name/ })).toHaveValue('stairwell b')
   })
 
-  it('lets the engineer leave capture before choosing a location', async () => {
+  it('drops down from the bar, leaving the workspace tabs clear and usable', async () => {
+    await openCapture()
+
+    // Not a modal dialog on a wider screen, so nothing behind it is dimmed.
+    expect((await screen.findByRole('dialog', { name: 'Where are you?' })).tagName).toBe('DIV')
+    expect(locationBar()).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: /^Overview/ }))
+
+    expect(screen.getByRole('tab', { name: /^Overview/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('can be closed before choosing a location, which the bar then asks for', async () => {
     await openCapture()
     await screen.findByRole('dialog', { name: 'Where are you?' })
 
-    fireEvent.click(within(sheet()).getByRole('button', { name: 'Leave capture' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
+    expect(locationBar()).toHaveAccessibleName('Choose a location')
+    // Saving asks for one, and opens the picker again.
+    fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
+    expect(screen.getByText('Choose a location first.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Where are you?' })).toBeInTheDocument()
+    // The back link above the form leaves, as from any capture.
+    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+    expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
   })
 
   it('removes a location added by mistake, but not one with observations', async () => {
@@ -260,11 +279,9 @@ describe('Choosing where observations are captured', () => {
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Remove Lift A · Ground' }))
     await confirmRemove()
 
-    // No location is chosen now, so the sheet cannot be closed.
-    await vi.waitFor(() =>
-      expect(within(sheet()).queryByRole('button', { name: 'Close' })).toBeNull(),
-    )
+    // No location is chosen now, so the picker stays open, asking for one.
+    await vi.waitFor(() => expect(locationBar()).toHaveAccessibleName('Choose a location'))
     expect(removed).toEqual(['l1'])
-    expect(within(sheet()).getByRole('button', { name: 'Leave capture' })).toBeInTheDocument()
+    expect(within(sheet()).getByText('Roof')).toBeInTheDocument()
   })
 })

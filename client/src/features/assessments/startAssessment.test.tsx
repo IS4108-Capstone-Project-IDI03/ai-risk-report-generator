@@ -59,9 +59,9 @@ async function openApp() {
 // Opens or closes the assessment header's ⋯ menu.
 const moreActions = () => fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
 function openCapture() {
-  // Open the assessment from the work list; capture is its header's action.
+  // Open the assessment from the work list; Add observation is its header's action.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
 }
 
 beforeAll(() => {
@@ -87,9 +87,12 @@ describe('Capture session (CP-01)', () => {
 
     openCapture()
 
-    expect(await screen.findByText('Capture session started')).toBeInTheDocument()
+    // The live light sits beside the assessment in the navigation's Recent list.
+    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(CAPTURE_URL, expect.objectContaining({ method: 'POST' }))
+    // A session that started needs no notice.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('identifies the assessment from the session', async () => {
@@ -98,16 +101,24 @@ describe('Capture session (CP-01)', () => {
 
     openCapture()
 
-    const notice = await screen.findByRole('status')
-    await screen.findByText('Capture session started')
-    // The live light sits beside the assessment in the navigation's Recent list.
+    await screen.findByRole('img', { name: 'live' })
+    // The workspace header names the assessment the session is for.
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Harbourside Cold Store')
+    expect(screen.getByRole('heading', { name: 'New observation' })).toBeInTheDocument()
+  })
+
+  it('waits for the session before saving, so nothing stays in the browser by mistake', async () => {
+    let start: (response: Response) => void = () => {}
+    mockGateway(() => new Promise<Response>((resolve) => (start = resolve)))
+    await openApp()
+
+    openCapture()
+
+    const save = screen.getByRole('button', { name: 'Save observation' })
+    expect(save).toBeDisabled()
+    start(await respond(201))
+    await vi.waitFor(() => expect(save).toBeEnabled())
     expect(screen.getByRole('img', { name: 'live' })).toBeInTheDocument()
-    expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
-    expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
-    expect(notice).toHaveTextContent('Notes, recordings and photos are stored on the server')
-    expect(
-      screen.getByText('Harbourside Cold Store · RPT-2026-0411 · 3 observations captured'),
-    ).toBeInTheDocument()
   })
 
   it('resumes the session in progress when capture reopens', async () => {
@@ -117,15 +128,16 @@ describe('Capture session (CP-01)', () => {
     )
     await openApp()
     openCapture()
-    await screen.findByText('Capture session started')
+    await screen.findByRole('img', { name: 'live' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    // Back on the dashboard, only its own gateway notice may show.
-    expect(screen.queryByText('Capture session started')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+    expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     openCapture()
 
-    expect(await screen.findByText('Capture session resumed')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // The same session carries on, with no notice either way.
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('keeps sample data usable when the gateway cannot be reached, then retries', async () => {
@@ -142,20 +154,28 @@ describe('Capture session (CP-01)', () => {
     expect(notice).toHaveTextContent(
       'No capture session was started: the gateway could not be reached.',
     )
-    expect(
-      screen.getByText('Tilbury Distribution Centre · RPT-2026-0411 · 3 observations captured'),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Tilbury Distribution Centre',
+    )
+    // The Observations tab, still on show, counts what is saved.
+    expect(screen.getByRole('tab', { name: 'Observations 3' })).toBeInTheDocument()
     // Without the gateway, the sample assessment offers its sample locations.
     fireEvent.click(screen.getByRole('button', { name: /^Pump house/ }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Offline sprinkler observation' },
     })
+    fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(screen.getByText('Offline sprinkler observation')).toBeInTheDocument()
+    expect(
+      screen.getByText('Observation added to RPT-2026-0411. It is kept in this demo only.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Observations 4' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
-    expect(await screen.findByText('Capture session started')).toBeInTheDocument()
+    // Once the session starts, the warning goes.
+    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
+    expect(screen.queryByText('Showing sample data')).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -258,7 +278,7 @@ describe('Create assessment (CP-01)', () => {
     // It opens on its Overview, ready to capture, rather than back on the list.
     expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/assessments')
     expect(init.method).toBe('POST')
@@ -311,14 +331,18 @@ describe('Create assessment (CP-01)', () => {
     expect(screen.queryByText('Tilbury survey 2023')).not.toBeInTheDocument()
     expect(screen.queryByText('Sections drafted')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
+    // With nothing captured yet, its Observations tab offers to add one too.
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    expect(screen.getByText('No observations yet')).toBeInTheDocument()
+    const [, addFromList] = screen.getAllByRole('button', { name: 'Add observation' })
+    fireEvent.click(addFromList)
 
-    expect(await screen.findByText('Capture session started')).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(fetchMock.mock.calls[1][0]).toBe('/api/assessments/RPT-2026-0001/capture-session')
-    expect(
-      screen.getByText('Jurong Distribution Hub · RPT-2026-0001 · 0 observations captured'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('No observations captured for RPT-2026-0001 yet.')).toBeInTheDocument()
+    // Capture keeps the workspace's header, which names the assessment.
+    expect(screen.getByRole('heading', { name: 'New observation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Jurong Distribution Hub')
+    expect(screen.getByRole('tab', { name: 'Observations 0' })).toBeInTheDocument()
 
     // A new assessment has no locations yet, so capture starts by adding one.
     fireEvent.change(await screen.findByRole('textbox', { name: /^Name/ }), {
@@ -333,15 +357,19 @@ describe('Create assessment (CP-01)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Sprinkler control valve chained open' },
     })
+    fireEvent.click(screen.getByRole('radio', { name: 'High' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
     // With the session live, the observation is saved to the gateway (CP-02).
     expect(await screen.findByText('Observation saved to RPT-2026-0001.')).toBeInTheDocument()
     expect(fetchMock.mock.calls[3][0]).toBe('/api/assessments/RPT-2026-0001/observations')
+    expect(screen.getByRole('tab', { name: 'Observations 1' })).toBeInTheDocument()
+
+    // Back on the Observations tab, it is listed.
+    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+    expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     expect(screen.getByText('Sprinkler control valve chained open')).toBeInTheDocument()
-    expect(
-      screen.getByText('Jurong Distribution Hub · RPT-2026-0001 · 1 observation captured'),
-    ).toBeInTheDocument()
+    expect(screen.queryByText('No observations yet')).not.toBeInTheDocument()
   })
 
   it('shows the reasons when the server rejects the details', async () => {
@@ -793,13 +821,13 @@ it('archives my assessment from its workspace, then shows it only under Archived
   )
   await openApp()
   fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-  // Capture is the page header's action; the navigation lists the assessment
+  // Add observation is the page header's action; the navigation lists the assessment
   // under Recent.
   expect(screen.getByRole('button', { name: 'Jurong Distribution Hub' })).toHaveAttribute(
     'aria-current',
     'page',
   )
-  expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
 
   // Archive is one of the occasional actions behind More actions.
   moreActions()
@@ -820,7 +848,7 @@ it('archives my assessment from its workspace, then shows it only under Archived
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 
   // An archived workspace offers neither capture nor another archive.
-  expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
   moreActions()
   expect(screen.getByRole('button', { name: 'Version history' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
@@ -949,7 +977,7 @@ it('shows a knowledge admin the same assessment record, read-only', async () => 
     expect(screen.getByText('Alex Rowe')).toBeInTheDocument()
     // Only the assigned engineer edits, archives or captures.
     expect(screen.queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
     moreActions()
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   } finally {
@@ -1079,14 +1107,15 @@ describe('Overview', () => {
     ).toBeInTheDocument()
 
     // The capture box opens the observations it counts; capturing is the
-    // header's button.
+    // header's button, and the empty list's.
     fireEvent.click(screen.getByRole('button', { name: /^Capture, 0, observations/ }))
     expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
-    expect(await screen.findByRole('heading', { name: 'Site observation' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Add observation' })).toHaveLength(2)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add observation' })[0])
+    expect(await screen.findByRole('heading', { name: 'New observation' })).toBeInTheDocument()
   })
 
   it('opens Generation from the drafting box', async () => {
@@ -1102,7 +1131,7 @@ describe('Overview', () => {
   it('says when the report is overdue, and offers capture before any is captured', async () => {
     await openOverview({ status: 'not_started', reportDueDate: inDays(-2) })
     expect(box('Report due')).toHaveTextContent('2days overdue')
-    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
   })
 
   it('says when no due date is set', async () => {
@@ -1160,6 +1189,6 @@ describe('Overview', () => {
       await screen.findByText('The report sections can’t be loaded right now.'),
     ).toBeInTheDocument()
     expect(box('Drafting')).toHaveTextContent('unavailable')
-    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
   })
 })

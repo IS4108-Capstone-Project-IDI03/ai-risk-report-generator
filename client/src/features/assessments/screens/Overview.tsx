@@ -168,7 +168,7 @@ function OverviewLayout({ v, report }: { v: AssessmentWorkflow; report: Report }
           {/* Two to a row, or four where there is room, never three and one
               (workflow.css). */}
           <div className="om-overview-boxes">
-            {/* Capturing is the header's Capture observations; this box
+            {/* Capturing is the header's Add observation; this box
                 opens the observations it counts. */}
             <StatBox
               icon="camera"

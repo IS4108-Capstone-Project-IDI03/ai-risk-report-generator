@@ -1050,6 +1050,23 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               ></EmptyState>
             </div>
           )}
+          {!!v.obsNone && (
+            <div style={{ padding: '48px 18px' }}>
+              <EmptyState
+                icon="camera"
+                title="No observations yet"
+                description="Observations captured on site are listed here, with their notes, recordings and photos."
+                action={
+                  v.canEdit &&
+                  v.canCapture && (
+                    <Button variant="secondary" iconLeft="plus" onClick={v.goField}>
+                      {'Add observation'}
+                    </Button>
+                  )
+                }
+              ></EmptyState>
+            </div>
+          )}
           <div
             style={{
               display: 'flex',
