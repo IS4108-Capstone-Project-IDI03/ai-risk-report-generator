@@ -77,7 +77,7 @@ def test_embed_single_call_and_skips_empty(monkeypatch):
 
 
 @pytest.mark.model
-def test_embed_waits_one_minute_and_retries_rate_limited_batch(monkeypatch):
+def test_embed_waits_five_minutes_and_retries_rate_limited_batch(monkeypatch):
     cohere = Mock()
     cohere.embed.side_effect = [
         TooManyRequestsError({"message": "rate limited"}),
@@ -90,7 +90,7 @@ def test_embed_waits_one_minute_and_retries_rate_limited_batch(monkeypatch):
     assert embedder.embed(["chunk"]) == [[0.1]]
 
     assert cohere.embed.call_count == 2
-    sleep.assert_called_once_with(70)  # IN-11 raised the wait to 70 s (Cohere limit)
+    sleep.assert_called_once_with(300)  # trial token limit outlasts a minute's wait
 
 
 def test_embed_reraises_rate_limit_after_retry_limit(monkeypatch):
@@ -104,9 +104,40 @@ def test_embed_reraises_rate_limit_after_retry_limit(monkeypatch):
     with pytest.raises(TooManyRequestsError):
         embedder.embed(["chunk"])
 
-    assert cohere.embed.call_count == 6
-    assert sleep.call_count == 5
-    sleep.assert_called_with(70)
+    assert cohere.embed.call_count == 11
+    assert sleep.call_count == 10
+    sleep.assert_called_with(300)
+
+
+def test_embed_splits_batches_by_token_budget_and_waits_out_the_minute(monkeypatch):
+    cohere = Mock()
+    cohere.embed.side_effect = lambda **kw: SimpleNamespace(
+        embeddings=SimpleNamespace(float_=[[0.1]] * len(kw["texts"]))
+    )
+    sleep = Mock()
+    monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
+    monkeypatch.setattr(time, "sleep", sleep)
+    # ~30k estimated tokens each: two fit the 80k budget, a third does not.
+    chunks = ["x" * 90_000] * 3
+
+    assert embedder.embed(chunks) == [[0.1]] * 3
+
+    assert [len(c.kwargs["texts"]) for c in cohere.embed.call_args_list] == [2, 1]
+    sleep.assert_called_once()
+    assert 0 < sleep.call_args.args[0] <= 60
+
+
+def test_embed_sends_an_over_budget_text_on_its_own(monkeypatch):
+    cohere = Mock()
+    cohere.embed.side_effect = lambda **kw: SimpleNamespace(
+        embeddings=SimpleNamespace(float_=[[0.1]] * len(kw["texts"]))
+    )
+    monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
+    monkeypatch.setattr(time, "sleep", Mock())
+
+    embedder.embed(["short", "x" * 300_000, "short"])
+
+    assert [len(c.kwargs["texts"]) for c in cohere.embed.call_args_list] == [1, 1, 1]
 
 
 def test_missing_key_has_actionable_error(monkeypatch):
