@@ -617,7 +617,7 @@ index → `knowledge_documents._id`), so the gateway finds a run with one query 
 no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
 `chunking`, `indexing`, `complete`, `failed`), `pageCurrent` and
 `pageTotal` (the page reached and the document's page count: while parsing, the
-last page parsed, `0` as parsing starts, then written after each 20-page batch; while chunking, the page being
+last page parsed, `0` as parsing starts, then written after each 10-page batch; while chunking, the page being
 chunked, set to the page count once every page has been walked (trailing blank or
 image-only pages yield no chunk); while indexing, the furthest page embedded after
 each Cohere batch, then the page count — progress is tracked by page because the

@@ -275,7 +275,7 @@ def _converter() -> DocumentConverter:
     )
 
 
-_BATCH_PAGES = 20
+_BATCH_PAGES = 10
 
 
 def _batches(start: int, end: int) -> list[tuple[int, int]]:
