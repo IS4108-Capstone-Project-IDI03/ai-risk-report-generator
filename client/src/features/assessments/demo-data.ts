@@ -83,6 +83,7 @@ export const initialState: WorkflowState = {
   toastTone: 'success',
   q: '',
   fStatus: 'All statuses',
+  fDate: null,
   workSort: 'Latest site visit',
   createdRows: [],
   cf: {

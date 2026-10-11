@@ -438,11 +438,82 @@ describe('Work list (RV-10)', () => {
     )
     expect(results()).toHaveTextContent('2 of 2 assessments')
     expect(screen.queryByText('Someone Else Depot')).not.toBeInTheDocument()
-    // The tiles come before the table, which also shows status names.
-    const tile = (label: string) => screen.getAllByText(label)[0].parentElement
-    expect(tile('Outstanding review items')).toHaveTextContent('0')
-    expect(tile('Under review')).toHaveTextContent('1')
-    expect(tile('Observations not yet filed')).toHaveTextContent('0')
+  })
+
+  it('counts overdue reports, reports due soon and site visits soon, and filters by each box', async () => {
+    const inDays = (days: number) => {
+      const day = new Date()
+      day.setDate(day.getDate() + days)
+      return day.toLocaleDateString('en-CA')
+    }
+    // [site, report due, site visit, status]: finalised and archived work is
+    // never counted, and within 7 days runs from today to a week from today.
+    const cases: [string, number, number, string][] = [
+      ['Late', -2, -20, 'draft'],
+      ['Soon', 3, -5, 'capturing'],
+      ['Today', 0, 0, 'capturing'],
+      ['Visit', 30, 7, 'not_started'],
+      ['Far', 8, 8, 'not_started'],
+      ['Done', -2, 1, 'finalised'],
+      ['Shelved', -2, 2, 'archived'],
+    ]
+    listReply = () =>
+      respond(
+        200,
+        cases.map(([name, due, visit, status], i) => ({
+          ...CREATED,
+          id: `case-${i}`,
+          reference: `RPT-CASE-${i}`,
+          site: { ...CREATED.site, name: `Case ${name}` },
+          reportDueDate: inDays(due),
+          siteVisitDate: inDays(visit),
+          status,
+        })),
+      )
+    mockGateway()
+    await openApp()
+    await screen.findByRole('button', { name: /^Case Late/ })
+    const overdue = screen.getByRole('button', {
+      name: 'Overdue, 1, report past due. Show only these',
+    })
+    const dueSoon = screen.getByRole('button', {
+      name: 'Due soon, 2, reports due within 7 days. Show only these',
+    })
+    const visits = screen.getByRole('button', {
+      name: 'Site visits, 2, visits within 7 days. Show only these',
+    })
+    const shown = () =>
+      screen.getAllByRole('button', { name: /^Case/ }).map((row) => row.getAttribute('data-id'))
+    expect(results()).toHaveTextContent('6 of 7 assessments')
+    for (const box of [overdue, dueSoon, visits])
+      expect(box).toHaveAttribute('aria-pressed', 'false')
+
+    // Each row counts down to its report due date, or is marked overdue.
+    const row = (name: string) => screen.getByRole('button', { name: new RegExp(`^Case ${name}`) })
+    expect(within(row('Late')).getByText('Overdue')).toBeInTheDocument()
+    expect(row('Soon')).toHaveTextContent('Due in 3 days')
+    expect(row('Today')).toHaveTextContent('Due today')
+    expect(row('Far')).toHaveTextContent('Due in 8 days')
+    expect(row('Done')).not.toHaveTextContent(/Due|Overdue/)
+
+    fireEvent.click(overdue)
+    expect(overdue).toHaveAttribute('aria-pressed', 'true')
+    expect(shown()).toEqual(['RPT-CASE-0'])
+    expect(results()).toHaveTextContent('1 of 7 assessments')
+
+    // Selecting another box moves the filter to it.
+    fireEvent.click(dueSoon)
+    expect(overdue).toHaveAttribute('aria-pressed', 'false')
+    expect(dueSoon).toHaveAttribute('aria-pressed', 'true')
+    expect(shown()).toEqual(['RPT-CASE-2', 'RPT-CASE-1'])
+
+    fireEvent.click(visits)
+    expect(shown()).toEqual(['RPT-CASE-3', 'RPT-CASE-2'])
+
+    // Selecting the ticked box again shows every assessment.
+    fireEvent.click(visits)
+    expect(visits).toHaveAttribute('aria-pressed', 'false')
+    expect(results()).toHaveTextContent('6 of 7 assessments')
   })
 
   it('filters by status and searches by site and client', async () => {

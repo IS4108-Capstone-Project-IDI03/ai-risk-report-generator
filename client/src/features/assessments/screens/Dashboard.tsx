@@ -1,17 +1,32 @@
 import { Fragment } from 'react'
-import {
-  Badge,
-  Callout,
-  EmptyState,
-  Input,
-  MetricStat,
-  Select,
-  StatusIcon,
-} from '../../../design-system'
+import { Badge, Callout, EmptyState, Input, Select, StatusIcon } from '../../../design-system'
+import { StatBox } from '../components/StatBox'
+import type { DateFilter } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 const COLUMNS =
-  'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.5fr) minmax(0,0.6fr)'
+  'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,1fr)'
+// The boxes above the list, each filtering it by date while selected.
+const DATE_BOXES: { filter: DateFilter; icon: string; label: string; units: [string, string] }[] = [
+  {
+    filter: 'overdue',
+    icon: 'circle-alert',
+    label: 'Overdue',
+    units: ['report past due', 'reports past due'],
+  },
+  {
+    filter: 'due-soon',
+    icon: 'calendar-clock',
+    label: 'Due soon',
+    units: ['report due within 7 days', 'reports due within 7 days'],
+  },
+  {
+    filter: 'visit-soon',
+    icon: 'map-pin',
+    label: 'Site visits',
+    units: ['visit within 7 days', 'visits within 7 days'],
+  },
+]
 const DATE_CELL = {
   fontFamily: 'var(--font-mono)',
   fontSize: '13px',
@@ -19,6 +34,24 @@ const DATE_CELL = {
   paddingRight: '12px',
   whiteSpace: 'nowrap',
 } as const
+
+// A row's report deadline beside its due date: the Overdue badge once past
+// due, otherwise the countdown, amber within three days.
+function DueNote({ r }: { r: AssessmentWorkflow['filteredRows'][number] }) {
+  if (r.overdue) return <Badge tone="high">Overdue</Badge>
+  if (!r.countdown) return null
+  return (
+    <span
+      style={{
+        fontSize: '13px',
+        fontWeight: r.countdown.soon ? '500' : '400',
+        color: r.countdown.soon ? 'var(--status-moderate-fg)' : 'var(--text-muted)',
+      }}
+    >
+      {r.countdown.text}
+    </span>
+  )
+}
 
 export function Dashboard({ v }: { v: AssessmentWorkflow }) {
   return (
@@ -37,47 +70,23 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
             marginBottom: '20px',
           }}
         >
-          <div
-            style={{
-              background: 'var(--surface-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '8px',
-              padding: '16px 18px',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <MetricStat
-              label="Outstanding review items"
-              value={v.openItemCount}
-              size="lg"
-            ></MetricStat>
-          </div>
-          <div
-            style={{
-              background: 'var(--surface-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '8px',
-              padding: '16px 18px',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <MetricStat label="Under review" value={v.reviewCount} size="lg"></MetricStat>
-          </div>
-          <div
-            style={{
-              background: 'var(--surface-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '8px',
-              padding: '16px 18px',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <MetricStat
-              label="Observations not yet filed"
-              value={v.unfiledCount}
-              size="lg"
-            ></MetricStat>
-          </div>
+          {DATE_BOXES.map((box) => {
+            const count = v.dateCounts[box.filter]
+            return (
+              <StatBox
+                key={box.filter}
+                icon={box.icon}
+                label={box.label}
+                content={{
+                  value: String(count),
+                  unit: box.units[count === 1 ? 0 : 1],
+                  ...(box.filter === 'overdue' && count > 0 && { tone: 'danger' as const }),
+                }}
+                onOpen={() => v.toggleDateFilter(box.filter)}
+                pressed={v.dateFilter === box.filter}
+              />
+            )
+          })}
         </div>
         {v.listOffline && (
           <div role="status" style={{ marginBottom: '20px' }}>
@@ -115,7 +124,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 placeholder="Search site, client or report ID"
                 value={v.q}
                 onChange={v.setQ}
-              ></Input>
+              />
             </div>
             <div style={{ flex: '0 1 180px', minWidth: '150px' }}>
               <Select
@@ -124,7 +133,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 options={v.statusOptions}
                 value={v.fStatus}
                 onChange={v.setStatus}
-              ></Select>
+              />
             </div>
             <div style={{ flex: '0 1 220px', minWidth: '180px' }}>
               <Select
@@ -133,9 +142,9 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 options={v.sortOptions}
                 value={v.workSort}
                 onChange={v.setWorkSort}
-              ></Select>
+              />
             </div>
-            <span style={{ flex: '1' }}></span>
+            <span style={{ flex: '1' }} />
             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{v.resultLabel}</span>
           </div>
           {!!v.wideTable && (
@@ -162,7 +171,7 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 <span style={{ paddingRight: '12px' }}>{'Site visit'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Engineer'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Status'}</span>
-                <span style={{ textAlign: 'right' }}>{'Items'}</span>
+                <span>{'Report due'}</span>
               </div>
               {v.filteredRows.map((r, index) => (
                 <Fragment key={index}>
@@ -249,30 +258,19 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                         gap: '6px',
                       }}
                     >
-                      <StatusIcon status={r.status} showLabel={true} size={15}></StatusIcon>
-                      {r.overdue && <Badge tone="high">Overdue</Badge>}
+                      <StatusIcon status={r.status} showLabel={true} size={15} />
                     </span>
-                    <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      {!!r.hasOpen && (
-                        <>
-                          <Badge tone="moderate" icon="triangle-alert">
-                            {r.openLabel}
-                          </Badge>
-                        </>
-                      )}
-                      {!!r.noOpen && (
-                        <>
-                          <span
-                            style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: '13px',
-                              color: 'var(--text-muted)',
-                            }}
-                          >
-                            {'0'}
-                          </span>
-                        </>
-                      )}
+                    <span
+                      style={{
+                        minWidth: '0',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: '2px',
+                      }}
+                    >
+                      <span style={{ ...DATE_CELL, paddingRight: '0' }}>{r.dueDate}</span>
+                      <DueNote r={r} />
                     </span>
                   </div>
                 </Fragment>
@@ -359,15 +357,8 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                         marginTop: '2px',
                       }}
                     >
-                      <StatusIcon status={r.status} showLabel={true} size={15}></StatusIcon>
-                      {r.overdue && <Badge tone="high">Overdue</Badge>}
-                      {!!r.hasOpen && (
-                        <>
-                          <Badge tone="moderate" icon="triangle-alert">
-                            {r.openLabel}
-                          </Badge>
-                        </>
-                      )}
+                      <StatusIcon status={r.status} showLabel={true} size={15} />
+                      <DueNote r={r} />
                     </div>
                   </div>
                 </Fragment>
@@ -380,8 +371,12 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 <EmptyState
                   icon="inbox"
                   title="No assessments match those filters"
-                  description="Clear the search or widen the status filter to see your assigned assessments."
-                ></EmptyState>
+                  description={
+                    v.dateFilter
+                      ? 'Select the ticked box again, clear the search or widen the status filter to see your assigned assessments.'
+                      : 'Clear the search or widen the status filter to see your assigned assessments.'
+                  }
+                />
               </div>
             </>
           )}

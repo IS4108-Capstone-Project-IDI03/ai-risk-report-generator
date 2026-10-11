@@ -42,6 +42,7 @@ import {
 } from './observationFilters'
 import type {
   AssessmentRow,
+  DateFilter,
   Observation,
   ObservationFilters,
   PhotoFile,
@@ -105,6 +106,39 @@ function isOverdue(r: AssessmentRow) {
   const today = new Date().toLocaleDateString('en-CA')
   return !!r.reportDueDate && r.reportDueDate < today && r.status !== STATUS_LABEL.finalised
 }
+// Local calendar days from today to an ISO day: 0 today, negative once past.
+function daysFromToday(isoDay: string) {
+  const today = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00')
+  return Math.round((new Date(isoDay + 'T00:00:00').getTime() - today.getTime()) / 86_400_000)
+}
+// From today to seven days from today, both included.
+function withinWeek(isoDay: string | null | undefined) {
+  if (!isoDay) return false
+  const days = daysFromToday(isoDay)
+  return days >= 0 && days <= 7
+}
+// The dashboard boxes count, and filter the list to, assessments still in
+// progress (neither finalised nor archived) by date.
+function inProgress(r: AssessmentRow) {
+  return r.status !== STATUS_LABEL.finalised && r.status !== STATUS_LABEL.archived
+}
+const DATE_FILTERS: Record<DateFilter, (r: AssessmentRow) => boolean> = {
+  overdue: (r) => inProgress(r) && isOverdue(r),
+  'due-soon': (r) => inProgress(r) && withinWeek(r.reportDueDate),
+  'visit-soon': (r) => inProgress(r) && withinWeek(r.siteVisitDate),
+}
+// A row's countdown to its report due date, counted as the Overview counts it:
+// amber within three days. Past due, the row shows its Overdue badge instead;
+// a finalised report is no longer counting down.
+function dueCountdown(r: AssessmentRow) {
+  if (!r.reportDueDate || r.status === STATUS_LABEL.finalised) return null
+  const days = daysFromToday(r.reportDueDate)
+  if (days < 0) return null
+  return {
+    text: days === 0 ? 'Due today' : 'Due in ' + days + (days === 1 ? ' day' : ' days'),
+    soon: days <= 3,
+  }
+}
 // Days left until the report is due, or days overdue, by local calendar day,
 // with the date as the note: amber within three days, red once overdue. A
 // finalised report is no longer counting down.
@@ -113,10 +147,7 @@ function dueSummary(r: AssessmentRow | null | undefined): BoxContent {
   const note = formatDay(r.reportDueDate)
   if (r.status === STATUS_LABEL.finalised)
     return { value: 'Done', unit: 'finalised', note, tone: 'ok' }
-  const today = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00')
-  const days = Math.round(
-    (new Date(r.reportDueDate + 'T00:00:00').getTime() - today.getTime()) / 86_400_000,
-  )
+  const days = daysFromToday(r.reportDueDate)
   if (days < 0)
     return {
       value: String(-days),
@@ -1293,7 +1324,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       .filter((section) => section.items.length > 0)
 
     const q = s.q.trim().toLowerCase()
-    const openCount = (r: AssessmentRow) => (r.live ? open.length : r.open || 0)
     const filtered = rows
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
@@ -1302,6 +1332,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           s.fStatus === 'All statuses' ? r.status === STATUS_LABEL.archived : r.status !== s.fStatus
         )
           return false
+        if (s.fDate && !DATE_FILTERS[s.fDate](r)) return false
         return true
       })
       .sort((a, b) =>
@@ -1309,19 +1340,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? (a.reportDueDate || '9999-12-31').localeCompare(b.reportDueDate || '9999-12-31')
           : (b.siteVisitDate || '').localeCompare(a.siteVisitDate || ''),
       )
-      .map((r) => {
-        const n = openCount(r)
-        return {
-          ...r,
-          overdue: isOverdue(r),
-          sevIcon: SEV[r.sev].icon,
-          sevColor: SEV[r.sev].color,
-          stackMeta: r.client + ' · ' + r.type + ' · ' + r.eng,
-          hasOpen: n > 0,
-          noOpen: n === 0,
-          openLabel: n + (n === 1 ? ' open' : ' open'),
-        }
-      })
+      .map((r) => ({
+        ...r,
+        overdue: isOverdue(r),
+        sevIcon: SEV[r.sev].icon,
+        sevColor: SEV[r.sev].color,
+        stackMeta: r.client + ' · ' + r.type + ' · ' + r.eng,
+        dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
+        countdown: dueCountdown(r),
+      }))
 
     /* generation */
     const GST: Record<
@@ -2200,11 +2227,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       filteredRows: filtered,
       noResults: filtered.length === 0,
       resultLabel: filtered.length + ' of ' + rows.length + ' assessments',
-      // The same open items the table's Items column shows, across your assessments.
-      openItemCount: rows.reduce((sum, r) => sum + openCount(r), 0),
-      // Observations captured in this browser that the gateway does not store yet.
-      unfiledCount: rows.reduce((sum, r) => sum + (s.captureObs[r.id]?.length ?? 0), 0),
-      reviewCount: rows.filter((row) => row.status === STATUS_LABEL.under_review).length,
+      // The boxes above the list: how many assessments each date filter matches,
+      // whatever the search and status filter, and the one filtering the list.
+      dateCounts: Object.fromEntries(
+        Object.entries(DATE_FILTERS).map(([key, matches]) => [key, rows.filter(matches).length]),
+      ) as Record<DateFilter, number>,
+      dateFilter: s.fDate,
+      // Selecting the box filtering the list again clears it.
+      toggleDateFilter: (filter: DateFilter) =>
+        setState({ fDate: s.fDate === filter ? null : filter }),
       listOffline: listFailed && !serverRows,
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id
