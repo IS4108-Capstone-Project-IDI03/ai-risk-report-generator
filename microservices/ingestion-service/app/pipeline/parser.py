@@ -27,7 +27,6 @@ from docling.models.stages.heading_hierarchy.heading_hierarchy_model import (
     HeadingHierarchyModel,
 )
 from docling.utils.pdf_outline import extract_outline_from_docling_parse
-from docling_parse.pdf_parser import DoclingPdfParser
 from docling_core.types.doc import (
     DocItemLabel,
     DoclingDocument,
@@ -38,6 +37,7 @@ from docling_core.types.doc import (
     TextItem,
     TitleItem,
 )
+from docling_parse.pdf_parser import DoclingPdfParser
 
 from app.pipeline.errors import DocumentTimeoutError, UnparsableDocumentError
 from app.pipeline.ocr_config import get_ocr_options
@@ -281,8 +281,7 @@ _BATCH_PAGES = 20
 def _batches(start: int, end: int) -> list[tuple[int, int]]:
     """Split pages start..end (1-based, inclusive) into _BATCH_PAGES-page ranges."""
     return [
-        (first, min(first + _BATCH_PAGES - 1, end))
-        for first in range(start, end + 1, _BATCH_PAGES)
+        (first, min(first + _BATCH_PAGES - 1, end)) for first in range(start, end + 1, _BATCH_PAGES)
     ]
 
 

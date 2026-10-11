@@ -398,9 +398,7 @@ def test_pages_parsed_are_reported_after_each_batch(
     assert reporter.pages == expected_updates
 
 
-def test_a_stop_requested_during_parsing_ends_it_after_the_current_batch(
-    tmp_path, fake_converter
-):
+def test_a_stop_requested_during_parsing_ends_it_after_the_current_batch(tmp_path, fake_converter):
     from app.pipeline.progress import IngestionCancelledError
 
     class _StopRequested:
@@ -443,14 +441,10 @@ def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, 
         ("Paragraph from page 22", 22),
         ("Paragraph from page 41", 41),
     ]
-    assert sorted(result.docling_document.pages) == [
-        n for n in range(1, 46)
-    ]
+    assert sorted(result.docling_document.pages) == [n for n in range(1, 46)]
 
 
-def test_a_page_range_not_starting_at_page_one_keeps_its_page_numbers(
-    tmp_path, fake_converter
-):
+def test_a_page_range_not_starting_at_page_one_keeps_its_page_numbers(tmp_path, fake_converter):
     result = parse(_blank_pdf(tmp_path, 80), page_range=(45, 70))
 
     assert fake_converter.page_ranges == [(45, 64), (65, 70)]
@@ -460,18 +454,14 @@ def test_a_page_range_not_starting_at_page_one_keeps_its_page_numbers(
     ]
 
 
-def test_heading_levels_are_assigned_across_batches_from_the_pdf_bookmarks(
-    tmp_path, monkeypatch
-):
+def test_heading_levels_are_assigned_across_batches_from_the_pdf_bookmarks(tmp_path, monkeypatch):
     from docling_core.types.doc import SectionHeaderItem
 
     from app.pipeline import parser
 
     # "Section A.1" (page 25, second batch) sits under "Chapter A" (page 1,
     # first batch) in the PDF's bookmarks.
-    pdf = _blank_pdf(
-        tmp_path, 45, bookmarks=[[1, "Chapter A", 1], [2, "Section A.1", 25]]
-    )
+    pdf = _blank_pdf(tmp_path, 45, bookmarks=[[1, "Chapter A", 1], [2, "Section A.1", 25]])
     converter = _FakeConverter(headings={1: "Chapter A", 25: "Section A.1"})
     monkeypatch.setattr(parser, "_converter", lambda: converter)
 
