@@ -251,7 +251,9 @@ def _blank_pdf(tmp_path, pages: int) -> str:
     return str(path)
 
 
-def _batch_document(start: int, end: int):
+def _batch_document(start: int, end: int, failed_pages=frozenset()):
+    """A batch's document: its pages (less any that failed) and one paragraph
+    on its first page that didn't fail."""
     from docling_core.types.doc import (
         BoundingBox,
         DocItemLabel,
@@ -261,14 +263,15 @@ def _batch_document(start: int, end: int):
     )
 
     doc = DoclingDocument(name="blank")
-    for page_no in range(start, end + 1):
+    kept = [n for n in range(start, end + 1) if n not in failed_pages]
+    for page_no in kept:
         doc.add_page(page_no=page_no, size=Size(width=612, height=792))
-    text = f"Paragraph from page {start}"
+    text = f"Paragraph from page {kept[0]}"
     doc.add_text(
         label=DocItemLabel.PARAGRAPH,
         text=text,
         prov=ProvenanceItem(
-            page_no=start,
+            page_no=kept[0],
             bbox=BoundingBox(l=72, t=72, r=540, b=100),
             charspan=(0, len(text)),
         ),
@@ -277,8 +280,9 @@ def _batch_document(start: int, end: int):
 
 
 class _FakeConverter:
-    def __init__(self) -> None:
+    def __init__(self, failed_pages=frozenset()) -> None:
         self.page_ranges: list[tuple[int, int]] = []
+        self.failed_pages = failed_pages
 
     def convert(self, source, page_range=None, **kwargs):
         from types import SimpleNamespace
@@ -288,7 +292,7 @@ class _FakeConverter:
         self.page_ranges.append(page_range)
         return SimpleNamespace(
             status=ConversionStatus.SUCCESS,
-            document=_batch_document(*page_range),
+            document=_batch_document(*page_range, self.failed_pages),
             errors=[],
             pages=[],
         )
@@ -355,3 +359,23 @@ def test_pages_parsed_are_reported_after_each_batch(
     parse(_blank_pdf(tmp_path, pages), reporter=reporter)
 
     assert reporter.pages == expected_updates
+
+
+def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, monkeypatch):
+    from app.pipeline import parser
+
+    # Docling leaves a failed page out of the batch's document: here page 21,
+    # the first page of the second batch, and page 40, the last.
+    converter = _FakeConverter(failed_pages={21, 40})
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+
+    result = parse(_blank_pdf(tmp_path, 45))
+
+    assert [(b.text, b.page) for b in result.text_blocks] == [
+        ("Paragraph from page 1", 1),
+        ("Paragraph from page 22", 22),
+        ("Paragraph from page 41", 41),
+    ]
+    assert sorted(result.docling_document.pages) == [
+        n for n in range(1, 46)
+    ]

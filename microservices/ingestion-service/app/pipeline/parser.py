@@ -28,6 +28,7 @@ from docling_core.types.doc import (
     DoclingDocument,
     PictureItem,
     SectionHeaderItem,
+    Size,
     TableItem,
     TextItem,
     TitleItem,
@@ -263,6 +264,25 @@ def _batches(start: int, end: int) -> list[tuple[int, int]]:
     ]
 
 
+def _pad_missing_pages(doc: DoclingDocument, source: Path, first: int, last: int) -> None:
+    """Give `doc` a page entry for every page first..last.
+
+    Docling leaves a failed page out of `doc.pages`, and
+    `DoclingDocument.concatenate` renumbers the pages of each document that
+    doesn't start right after the previous one ends, so a gap would shift every
+    later page number.
+    """
+    missing = [n for n in range(first, last + 1) if n not in doc.pages]
+    if not missing:
+        return
+    import pymupdf
+
+    with pymupdf.open(source) as pdf:
+        for page_no in missing:
+            rect = pdf[page_no - 1].rect
+            doc.add_page(page_no=page_no, size=Size(width=rect.width, height=rect.height))
+
+
 def _checked_document(result, file_path: str) -> DoclingDocument:
     """One convert call's document, or the error that call's outcome means."""
     if result.status in (ConversionStatus.FAILURE, ConversionStatus.SKIPPED):
@@ -343,8 +363,10 @@ def parse(
         if batch is not None:
             convert_kwargs["page_range"] = batch
         result = _converter().convert(source, **convert_kwargs)
-        docs.append(_checked_document(result, file_path))
+        batch_doc = _checked_document(result, file_path)
+        docs.append(batch_doc)
         if batch is not None:
+            _pad_missing_pages(batch_doc, source, *batch)
             reporter.update_pages(batch[1], page_count)
 
     doc = docs[0] if len(docs) == 1 else DoclingDocument.concatenate(docs)
