@@ -240,20 +240,25 @@ def test_a_parse_that_runs_out_of_time_fails_instead_of_indexing_part_of_it(monk
 # DoclingDocument holding one paragraph on the first page of the requested range.
 
 
-def _blank_pdf(tmp_path, pages: int) -> str:
+def _blank_pdf(tmp_path, pages: int, bookmarks=None) -> str:
+    """A blank PDF, optionally with bookmarks as pymupdf [level, title, page] rows."""
     import pymupdf
 
     path = tmp_path / f"blank-{pages}.pdf"
     with pymupdf.open() as pdf:
         for _ in range(pages):
             pdf.new_page()
+        if bookmarks:
+            pdf.set_toc(bookmarks)
         pdf.save(path)
     return str(path)
 
 
-def _batch_document(start: int, end: int, failed_pages=frozenset()):
-    """A batch's document: its pages (less any that failed) and one paragraph
-    on its first page that didn't fail."""
+def _batch_document(start: int, end: int, failed_pages=frozenset(), headings=None):
+    """A batch's document: its pages (less any that failed), any `headings`
+    ({page: text}) in its range as level-1 section headers, as Docling gives
+    them with heading levels off, and one paragraph on its first page that
+    didn't fail."""
     from docling_core.types.doc import (
         BoundingBox,
         DocItemLabel,
@@ -266,6 +271,17 @@ def _batch_document(start: int, end: int, failed_pages=frozenset()):
     kept = [n for n in range(start, end + 1) if n not in failed_pages]
     for page_no in kept:
         doc.add_page(page_no=page_no, size=Size(width=612, height=792))
+    for page_no, heading in sorted((headings or {}).items()):
+        if page_no in kept:
+            doc.add_heading(
+                text=heading,
+                level=1,
+                prov=ProvenanceItem(
+                    page_no=page_no,
+                    bbox=BoundingBox(l=72, t=40, r=540, b=60),
+                    charspan=(0, len(heading)),
+                ),
+            )
     text = f"Paragraph from page {kept[0]}"
     doc.add_text(
         label=DocItemLabel.PARAGRAPH,
@@ -280,9 +296,10 @@ def _batch_document(start: int, end: int, failed_pages=frozenset()):
 
 
 class _FakeConverter:
-    def __init__(self, failed_pages=frozenset()) -> None:
+    def __init__(self, failed_pages=frozenset(), headings=None) -> None:
         self.page_ranges: list[tuple[int, int]] = []
         self.failed_pages = failed_pages
+        self.headings = headings
 
     def convert(self, source, page_range=None, **kwargs):
         from types import SimpleNamespace
@@ -292,7 +309,7 @@ class _FakeConverter:
         self.page_ranges.append(page_range)
         return SimpleNamespace(
             status=ConversionStatus.SUCCESS,
-            document=_batch_document(*page_range, self.failed_pages),
+            document=_batch_document(*page_range, self.failed_pages, self.headings),
             errors=[],
             pages=[],
         )
@@ -391,3 +408,61 @@ def test_a_page_range_not_starting_at_page_one_keeps_its_page_numbers(
         ("Paragraph from page 45", 45),
         ("Paragraph from page 65", 65),
     ]
+
+
+def test_heading_levels_are_assigned_across_batches_from_the_pdf_bookmarks(
+    tmp_path, monkeypatch
+):
+    from docling_core.types.doc import SectionHeaderItem
+
+    from app.pipeline import parser
+
+    # "Section A.1" (page 25, second batch) sits under "Chapter A" (page 1,
+    # first batch) in the PDF's bookmarks.
+    pdf = _blank_pdf(
+        tmp_path, 45, bookmarks=[[1, "Chapter A", 1], [2, "Section A.1", 25]]
+    )
+    converter = _FakeConverter(headings={1: "Chapter A", 25: "Section A.1"})
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+
+    result = parse(pdf)
+
+    headings = [
+        (item.text, item.level)
+        for item in result.docling_document.texts
+        if isinstance(item, SectionHeaderItem)
+    ]
+    assert headings == [("Chapter A", 1), ("Section A.1", 2)]
+
+
+@pytest.mark.slow
+@pytest.mark.model
+def test_batched_heading_levels_match_a_single_conversion_of_the_real_manual():
+    """Pages 15-45 parse as two batches (15-34, 35-45); their headings must
+    come out as one convert call with Docling's own heading pass gives them."""
+    from docling.datamodel.base_models import InputFormat
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+    from docling_core.types.doc import SectionHeaderItem
+
+    from app.pipeline import parser
+
+    def headings(doc):
+        return [
+            (item.text, item.level, item.prov[0].page_no if item.prov else None)
+            for item in doc.texts
+            if isinstance(item, SectionHeaderItem)
+        ]
+
+    page_range = (15, 45)
+    batched = _parse_fixture(page_range)
+
+    options = parser._converter().format_to_options[InputFormat.PDF].pipeline_options
+    single_options = options.model_copy(
+        update={"heading_hierarchy_options": parser._HEADING_OPTIONS}
+    )
+    single = DocumentConverter(
+        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=single_options)}
+    ).convert(str(FIXTURE), page_range=page_range)
+
+    assert headings(batched.docling_document), "expected headings in pages 15-45"
+    assert headings(batched.docling_document) == headings(single.document)

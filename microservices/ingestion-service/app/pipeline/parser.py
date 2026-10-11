@@ -23,6 +23,11 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.models.stages.heading_hierarchy.heading_hierarchy_model import (
+    HeadingHierarchyModel,
+)
+from docling.utils.pdf_outline import extract_outline_from_docling_parse
+from docling_parse.pdf_parser import DoclingPdfParser
 from docling_core.types.doc import (
     DocItemLabel,
     DoclingDocument,
@@ -217,6 +222,21 @@ def _document_timeout() -> float:
     return float(value) if value else _DOCUMENT_TIMEOUT_SECONDS
 
 
+_HEADING_OPTIONS = HeadingHierarchyOptions(enabled=True, max_level=6, use_numbering=False)
+
+
+def _document_outline(source: Path) -> list:
+    """The PDF's bookmarks, read as Docling's default PDF backend reads them
+    (docling-parse: titles and nesting, no target page)."""
+    dp_doc = DoclingPdfParser(loglevel="fatal").load(path_or_stream=source, lazy=True)
+    if dp_doc is None:
+        return []
+    try:
+        return extract_outline_from_docling_parse(dp_doc)
+    finally:
+        dp_doc.unload()
+
+
 @lru_cache(maxsize=1)
 def _converter() -> DocumentConverter:
     """Build (once) the Docling converter with a dynamically selected OCR engine.
@@ -241,8 +261,11 @@ def _converter() -> DocumentConverter:
         do_formula_enrichment=do_formula_enrichment,
         ocr_options=ocr_options,
     )
-    pipeline_options.heading_hierarchy_options = HeadingHierarchyOptions(
-        enabled=True, max_level=6, use_numbering=False
+    # Heading levels are assigned once over the joined batches (see parse), so
+    # each batch is converted without them. Parsed pages are kept because that
+    # final pass reads the headings' font styles from them.
+    pipeline_options.heading_hierarchy_options = _HEADING_OPTIONS.model_copy(
+        update={"enabled": False}
     )
     pipeline_options.generate_parsed_pages = True
 
@@ -355,6 +378,7 @@ def parse(
         batches = [None]
 
     docs = []
+    parsed_pages: dict = {}
     for batch in batches:
         # raises_on_error=False so a per-document failure comes back as a status
         # we can classify, instead of an exception we would have to distinguish
@@ -365,6 +389,9 @@ def parse(
         result = _converter().convert(source, **convert_kwargs)
         batch_doc = _checked_document(result, file_path)
         docs.append(batch_doc)
+        parsed_pages.update(
+            {p.page_no: p.parsed_page for p in result.pages if p.parsed_page is not None}
+        )
         if batch is not None:
             # The first batch is padded from page 1 too, so a page_range
             # starting later isn't renumbered from 1 by concatenate.
@@ -373,6 +400,11 @@ def parse(
             reporter.update_pages(batch[1], page_count)
 
     doc = docs[0] if len(docs) == 1 else DoclingDocument.concatenate(docs)
+    # One pass over the whole document, so a heading is ranked against those
+    # in every batch, as a single convert call would.
+    HeadingHierarchyModel(_HEADING_OPTIONS).assign_heading_levels(
+        doc, parsed_pages=parsed_pages, outline=_document_outline(source)
+    )
 
     text_blocks, tables, images = _extract_text_blocks(doc)
 
