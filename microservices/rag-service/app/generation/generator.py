@@ -317,3 +317,47 @@ def draft_ofis(
         o.standards = [full.get(c, c) for c in o.standards]
         o.precedent = full.get(o.precedent, o.precedent) if o.precedent else None
     return result, model
+
+
+# Section 2 Executive Summary (GN-07): summarises the report's own sections, so nothing is
+# retrieved. Bump SUMMARY_PROMPT_VERSION whenever the prompt changes.
+SUMMARY_PROMPT_VERSION = "gn07-v1"
+
+
+class SummaryDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    statements: list[Statement]
+
+
+def _summary_system_prompt() -> str:
+    return f"""You draft the Executive Summary in Section 2 of a Marsh Property Risk \
+Evaluation (PRE) report. A risk engineer reviews it before it is used.
+
+Summarise only what the report's <sections> say: the site's main exposures and the \
+highest-priority Opportunities for Improvement. Add no fact, figure, standard or \
+judgement the sections do not state.
+
+Follow this drafting guide:
+
+{DRAFTING_GUIDE}
+
+Output: `citations` lists the labels of the sections a statement rests on, for example \
+"S3" or "S9". Keep the labels out of the text. Every statement cites at least one section."""
+
+
+def draft_summary(assessment, sections, effort: str) -> tuple[SummaryDraft, str]:
+    """Return the model's Executive Summary over these sections, labels mapped to `S:<id>`
+    (an unknown label stays as written, so the citation check flags it), and the model."""
+    blocks = [f"[S{s.id}] {s.title}\n{s.text}" for s in sections]
+    user = "\n\n".join(
+        [
+            f"Assessment {assessment.reference}: {assessment.facility_type} in "
+            f"{assessment.jurisdiction}.",
+            _block("sections", blocks),
+        ]
+    )
+    result, model = complete(_summary_system_prompt(), user, SummaryDraft, effort)
+    known = {f"S{s.id}" for s in sections}
+    for statement in result.statements:
+        statement.citations = [f"S:{c[1:]}" if c in known else c for c in statement.citations]
+    return result, model

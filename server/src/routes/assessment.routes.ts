@@ -33,6 +33,12 @@ import {
   saveObservation,
   UnknownLocationError,
 } from '../services/observation.service'
+import {
+  appendixSchema,
+  getAppendix,
+  saveAppendix,
+  UnknownPhotoError,
+} from '../services/appendix.service'
 import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
 import { RagServiceError } from '../services/rag.service'
 import {
@@ -52,6 +58,7 @@ import {
   StaleDraftError,
 } from '../services/review-decision.service'
 import { getReviewWorkspace } from '../services/review.service'
+import { draftSummary, getSummary, IncompleteSectionsError } from '../services/summary.service'
 import {
   draftSection,
   InsufficientEvidenceError,
@@ -567,6 +574,86 @@ for (const [action, accept] of [
 }
 
 router.use(tooLarge)
+
+// Sections 1 and 2 (GN-07): Purpose and Scope, and the Executive Summary with
+// what it still needs or what changed since it was drafted. Read-only.
+router.get('/:reference/summary', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await getSummary(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Drafts the Executive Summary (GN-07): 201 with the draft, 422 with the
+// sections still to complete (AC3), and otherwise as for a section draft.
+router.post(
+  '/:reference/summary/draft',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    try {
+      res.status(201).json(await draftSummary(req.params.reference, res.locals.user!))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+      } else if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+      } else if (error instanceof AssessmentArchivedError) {
+        res.status(409).json({ error: error.message })
+      } else if (error instanceof IncompleteSectionsError) {
+        res.status(422).json({ error: error.message, missing: error.missing })
+      } else if (error instanceof RagServiceError) {
+        res.status(503).json({ error: error.message })
+      } else {
+        throw error
+      }
+    }
+  },
+)
+
+// Appendix A site photos (GN-07): the chosen photos in order, and every photo
+// of the report to choose from. Read-only, so anyone who can view sees it.
+router.get('/:reference/appendix', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await getAppendix(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Replaces the appendix's photos with the ordered list given: 200 with the
+// appendix, 400 for a photo not the report's or given twice, 403 for anyone
+// but the assigned engineer, 404, 409 once archived.
+router.put('/:reference/appendix', requirePermission('assessments:edit'), async (req, res) => {
+  const parsed = appendixSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: 'The appendix is invalid.', fields: fieldErrors(parsed.error) })
+    return
+  }
+  try {
+    res.json(await saveAppendix(req.params.reference, parsed.data, res.locals.user!))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+    } else if (error instanceof UnknownPhotoError) {
+      res.status(400).json({ error: error.message })
+    } else if (error instanceof NotAssignedError) {
+      res.status(403).json({ error: error.message })
+    } else if (error instanceof AssessmentArchivedError) {
+      res.status(409).json({ error: error.message })
+    } else {
+      throw error
+    }
+  }
+})
 
 // Section 3 Opportunities for Improvement (GN-05): suggestions and the
 // accepted OFIs in report order. Read-only, so a knowledge admin can open it.

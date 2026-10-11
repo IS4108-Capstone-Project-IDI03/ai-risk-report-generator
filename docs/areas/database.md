@@ -98,6 +98,19 @@ were added. Adding one needs no capture session. `DELETE
 location; editing an observation's tags (CP-06) moves it elsewhere. `npm --prefix server run seed`
 gives `RPT-2026-0411` six sample locations when it has none.
 
+`appendixPhotos` (GN-07) is Appendix A's photos in report order: each a
+`photo` (the `_id` of one of the assessment's observations' photos) and the
+`caption` shown under it (up to 200 characters). Embedded for the same reason
+as `locations`. `GET /api/assessments/:reference/appendix` returns `{ selected,
+available }`: the chosen photos with their details and caption, leaving out any
+whose observation was deleted since, and every photo of the assessment's
+non-deleted observations (`photoId`, `observationId`, `name`, `url`,
+`location`, `category`, `note`, `selected`). `PUT` on the same path (JSON
+`photos: [{ photoId, caption }]`, assigned engineer only) replaces the list:
+200 with the same shape, 400 for a photo not the assessment's, one given
+twice, or a caption over 200 characters, 403, 404, 409 archived. The export
+(EX-01) is to read it.
+
 `GET /api/assessments` returns assessments assigned to the authenticated risk
 engineer's user ID; knowledge admins receive all assessments. The derived status
 and sort order (most recent site visit first) are unchanged. Site/client/report-ID
@@ -393,10 +406,27 @@ accepted, and from when it was accepted. Each document has:
 
 The first draft sets the assessment's `reportStatus` to `draft`.
 
+**Section 2, Executive Summary (GN-07)** is saved here too, as `sectionId:
+'2'`, drafted by S4 from the text of Sections 3-12 alone. Its three
+subsections are the template's: "Executive Summary" (the statements, each
+citing the sections it rests on as `S:<id>`), and "Changes Since Previous
+Survey" and "Planned Changes / Projects", left empty for the engineer.
+`evidence` and `sources` are empty. `summarised` records the version of each
+section it read (`{ sectionId, version }`: for 4-12, the saved draft's `_id`
+and its number of review decisions, as `<_id>:<n>`; for 3, the sorted accepted
+OFI `_id`s), so a new draft, an accepted replacement, an edit or a rejection
+marks it out of date. It summarises each section's saved draft as reviewed
+(RV-02): an edited finding as edited, a rejected one not at all, and a
+replacement only once accepted.
+`metadata.COPE_dimension` is `all`. Section 1, Purpose and Scope, is not
+stored: the gateway fills Marsh's standard wording from the assessment and site on each read.
+
 | Route | Does |
 | --- | --- |
 | `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (the saved draft, or `null`; a replacement waiting for a decision is not it) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks, holds in an older form, or holds that are no longer evidence (deleted or uncategorised, CP-08), which a redraft would bring up to date; and `changeCounts` `{ added, changed, removed }`, the same total by kind, which the screens name, leaving out any kind with none. 404, or 503 when S4 cannot be reached. |
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
+| `GET /api/assessments/:reference/summary` | Sections 1 and 2 (GN-07): `{ purposeAndScope, executiveSummary: { draft, missing, staleSections } }`. `purposeAndScope` is Marsh's standard Section 1 wording filled in with the client, site and locations: paragraphs, with the visit activities as a nested list. `missing` lists the sections of 3-12 not yet complete (3: no accepted OFI; 4-12: no draft), `staleSections` those changed since the summary was drafted, each `{ id, title }` in report order. 404. |
+| `POST /api/assessments/:reference/summary/draft` | Drafts and saves Section 2 (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404, 409 archived, 422 `{ error, missing }` while a section is incomplete (no S4 call), 503 (drafting failed). |
 | `GET /api/assessments/:reference/review` | The review workspace (RV-01, RV-02): `{ sections, summary, asOf }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections that keep a finding not rejected, and `tables`), `review` (`state`: `not_drafted`, `ai_draft`, `in_review`, `reviewed`, or `needs_review`, which wins; with `unsupportedStatements` and `withdrawnSources` counting only findings still in the draft, `changesSinceDraft` and its `changeCounts`), `findings` (`{ total, pending, accepted, edited, rejected }`), the saved `draft` without its raw `sources`, each statement with its current `text`, `generatedText` and `review` (`state`, `at`, `by`), `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record), `observations` (the draft's `evidence` filed under any of the section's categories, plus any other it cites, each with `copeDimensions`), `replacement` (a regenerated draft waiting for a decision, with its own `draft`, `sources` and `observations`, and `instruction`, `requestedBy`, `requestedAt`; or `null`) and `history` (the section's audit log entries, newest first). `summary` totals `findings` over the saved drafts; `asOf` is when it was read. 404, or 503 when S4 cannot be reached. |
 
 ## Review audit log (RV-02)

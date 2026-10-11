@@ -116,3 +116,20 @@ export async function requestOfiDraft(body: unknown): Promise<OfiDraftResult> {
     body: JSON.stringify(body),
   })
 }
+
+// What S4 sends back for Section 2's Executive Summary (see rag-service POST
+// /summary/draft, GN-07): its statements, each citing sections as `S:<id>`.
+export type SummaryDraftResult = {
+  statements: { text: string; citations: string[]; supported: boolean }[]
+  guardrail: SectionDraftResult['guardrail']
+  usage?: unknown
+  provenance: SectionDraftResult['provenance']
+}
+
+export async function requestSummaryDraft(body: unknown): Promise<SummaryDraftResult> {
+  return callRag<SummaryDraftResult>('/summary/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

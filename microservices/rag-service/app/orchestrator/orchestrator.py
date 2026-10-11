@@ -18,9 +18,11 @@ from app.generation.generator import (
     OFI_PROMPT_VERSION,
     PROMPT_VERSION,
     REDRAFT_PROMPT_VERSION,
+    SUMMARY_PROMPT_VERSION,
     TEMPLATE,
     draft_ofis,
     draft_section,
+    draft_summary,
     filed_under,
     generate,
     ram_priority,
@@ -336,4 +338,26 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
         "sources": sources,
         "provenance": {**provenance, "model": model},
         "usage": paid_calls,
+    }
+
+
+def draft_summary_for(assessment, sections) -> dict:
+    """Draft Section 2's Executive Summary (GN-07 AC2) from the report's other sections:
+    generate, then check that each statement cites a section it was given."""
+    paid_calls = usage.start()
+    result, model = draft_summary(assessment, sections, config.LLM_EFFORT)
+    statements = [s.model_dump() for s in result.statements]
+    guardrail = check_citations([{"statements": statements}], {f"S:{s.id}" for s in sections})
+    return {
+        "statements": statements,
+        "guardrail": guardrail,
+        "usage": paid_calls,
+        "provenance": {
+            "provider": config.LLM_PROVIDER,
+            "model": model,
+            "effort": config.LLM_EFFORT,
+            "prompt_version": SUMMARY_PROMPT_VERSION,
+            "template_version": TEMPLATE["version"],
+            "generated_at": datetime.now(UTC).isoformat(),
+        },
     }

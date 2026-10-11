@@ -9,7 +9,11 @@ import {
   type ReviewSection,
   type ReviewWorkspace as Workspace,
 } from '../api'
+import { AppendixPhotos } from '../components/AppendixPhotos'
 import { DraftEditor, type FindingActions } from '../components/DraftEditor'
+import { ExecutiveSummary } from '../components/ExecutiveSummary'
+import { PurposeScope } from '../components/PurposeScope'
+import { ReportPart } from '../components/ReportPart'
 import { OfiBlock } from '../components/OfiSuggestions'
 import {
   AcceptReplacementDialog,
@@ -26,9 +30,12 @@ import { formatDayTime } from '../format'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
+import { useSummary } from '../useSummary'
 import '../review.css'
 
 const NOTHING: ReviewFocus = { citation: null, statement: null }
+// The rail's rows that are not one of sections 7-12.
+const OPENING = new Set(['1', '2', '3', 'A'])
 
 // The dialog open over the workspace, if any.
 type OpenDialog =
@@ -63,6 +70,7 @@ function replacementView(section: ReviewSection): ReviewSection {
 // section's pending findings at once, and regenerates a section as a
 // replacement to accept or discard (RV-02); the review summary in the rail
 // counts the saved decisions, and each section's review history beside it.
+// Sections 1 and 2 lead the rail and Appendix A ends it (GN-07).
 export function ReviewWorkspace({
   reference,
   canReview = false,
@@ -73,6 +81,7 @@ export function ReviewWorkspace({
 }: {
   reference: string
   // The assigned engineer, on an assessment not archived: others only read.
+  // Also who may change Appendix A (GN-07); the gateway checks both too.
   canReview?: boolean
   wrapStyle: React.CSSProperties
   railStyle: React.CSSProperties
@@ -81,6 +90,7 @@ export function ReviewWorkspace({
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis } = useOfis(reference)
+  const { summary, loadError: summaryError } = useSummary(reference)
   // For each OFI's sources, as on Generation.
   const { observations } = useObservations(reference, true)
   // Only a list from the gateway counts; anything else reads as no OFIs yet.
@@ -111,30 +121,17 @@ export function ReviewWorkspace({
     return <p style={{ padding: '24px 28px', margin: 0 }}>Loading the report sections…</p>
 
   const drafted = sections.filter((s) => s.draft)
-  if (!drafted.length)
-    return (
-      <EmptyState
-        icon="file-text"
-        title="No sections drafted yet"
-        description="Drafted sections appear here for review. Draft them on the Generation tab."
-        action={
-          <Button variant="primary" iconLeft="sparkles" onClick={onGenerate}>
-            Go to Generation
-          </Button>
-        }
-      />
-    )
-
   // The first drafted section opens until another is chosen.
   const index = Math.max(
     0,
-    sections.findIndex((s) => s.id === (selected ?? drafted[0].id)),
+    sections.findIndex((s) => s.id === (selected ?? drafted[0]?.id)),
   )
-  const saved = sections[index]
-  const showing = view === 'replacement' && saved.replacement ? 'replacement' : 'saved'
-  const section = showing === 'replacement' ? replacementView(saved) : saved
-  const numbers = section.draft ? citationNumbers(section.draft) : new Map<string, number>()
-  const describe = (citation: string) => describeCitation(section, citation)
+  // undefined only when the template lists no sections (S4 not answering).
+  const saved = sections[index] as (typeof sections)[number] | undefined
+  const showing = view === 'replacement' && saved?.replacement ? 'replacement' : 'saved'
+  const section = saved && (showing === 'replacement' ? replacementView(saved) : saved)
+  const numbers = section?.draft ? citationNumbers(section.draft) : new Map<string, number>()
+  const describe = (citation: string) => describeCitation(section!, citation)
   const select = (id: string) => {
     setSelected(id)
     setFocus(NOTHING)
@@ -150,12 +147,83 @@ export function ReviewWorkspace({
       sections={sections}
       summary={workspace.summary}
       regenerating={regenerating}
-      selected={selected === '3' ? '3' : saved.id}
+      selected={selected && OPENING.has(selected) ? selected : (saved?.id ?? '')}
       onSelect={select}
       inReport={accepted.length}
+      executiveSummary={summary?.executiveSummary ?? null}
       style={railStyle}
     />
   )
+  const last = sections[sections.length - 1]
+
+  // Sections 1 and 2, and Appendix A: one view each, with a side panel that
+  // says where its content comes from.
+  const part = (
+    title: string,
+    body: React.ReactNode,
+    note: string,
+    nav: { onPrevious?: () => void; onNext?: () => void },
+  ) => (
+    <div style={wrapStyle}>
+      {rail}
+      <ReportPart title={title} {...nav}>
+        {body}
+      </ReportPart>
+      <aside aria-label={`${title} notes`} className="om-scroll" style={panelStyle}>
+        <div className="rv-panel-section">
+          <div className="rv-viewer is-empty">
+            <p className="rv-muted">{note}</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  )
+  if (selected === '1')
+    return part(
+      '1. Purpose and Scope',
+      <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} />,
+      'Section 1 is filled in from the assessment and site details, with no AI drafting. It always matches them.',
+      { onNext: () => select('2') },
+    )
+  if (selected === '2')
+    return part(
+      '2. Executive Summary',
+      <ExecutiveSummary
+        summary={summary?.executiveSummary ?? null}
+        error={summaryError}
+        onGenerate={onGenerate}
+      />,
+      'The Executive Summary is drafted only from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
+      { onPrevious: () => select('1'), onNext: () => select('3') },
+    )
+  if (selected === 'A')
+    return part(
+      'Appendix A. Site Photos',
+      <AppendixPhotos reference={reference} canEdit={canReview} />,
+      'The export (EX-01) shows only these photos, in this order, with their captions.',
+      { onPrevious: last && (() => select(last.id)) },
+    )
+
+  // Nothing drafted yet: the rail stays, so Sections 1 and 2 and Appendix A
+  // (which need no draft of 7-12) can still be opened (GN-07 AC1, AC5).
+  if (!saved || !section || (!drafted.length && selected !== '3'))
+    return (
+      <div style={wrapStyle}>
+        {rail}
+        <section className="om-scroll rv-editor">
+          <EmptyState
+            icon="file-text"
+            title="No sections drafted yet"
+            description="Drafted sections appear here for review. Draft them on the Generation tab."
+            action={
+              <Button variant="primary" iconLeft="sparkles" onClick={onGenerate}>
+                Go to Generation
+              </Button>
+            }
+          />
+        </section>
+      </div>
+    )
 
   // Section 3: the OFIs in the report, laid out like a section's draft: the editor
   // bar, the provenance of their drafting, then each OFI in an AI draft box.
@@ -169,13 +237,14 @@ export function ReviewWorkspace({
           <div className="rv-editor-inner">
             <div className="rv-editor-bar">
               <p className="rv-label">Draft editor · 1 of {sections.length + 1}</p>
-              <Button variant="ghost" size="sm" iconLeft="chevron-left" disabled>
+              <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={() => select('2')}>
                 Previous
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 iconRight="chevron-right"
+                disabled={!sections.length}
                 onClick={() => select(sections[0].id)}
               >
                 Next

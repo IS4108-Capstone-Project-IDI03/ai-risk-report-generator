@@ -565,6 +565,28 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a displayed risk-quality category has a supporting rule result, when I inspect its basis, then that rule result is identifiable.
   </details>
 
+- [ ] **GN-07** — Draft Sections 1 and 2, and choose Appendix A site photos (risk engineer, Should, deps: GN-01, GN-05, CP-04, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: open the report with Purpose and Scope and an accurate Executive Summary without writing them from scratch, and control which photos Appendix A shows. Combines the backlog candidates GN-10 and EX-04 (10 Oct).
+
+  1. Given an assessment has been recorded, when Section 1 is assembled, then it states the purpose and scope using the assessment's own details.
+  2. Given the report's other sections are complete, when the Executive Summary is drafted, then it summarises only content already present in those sections.
+  3. Given sections are still incomplete, when I request the Executive Summary, then I am told which sections must be completed first.
+  4. Given the Executive Summary has been drafted, when a section it summarises is later changed, then the summary is marked out of date.
+  5. Given images have been tagged to the report, when I open the appendix image selection, then I can view all images associated with the report.
+  6. Given the available report images are displayed, when I select an image, then that image is marked for inclusion in the appendix.
+  7. Given an image has been selected, when I deselect it, then the image is removed from the appendix selection.
+  8. Given I have selected one or more images, when I view the appendix, then I can see the selected images that will be displayed.
+  9. Given no images have been selected, when I view the appendix, then no report images are displayed.
+  10. Given an image is available for selection, when I view the image, then relevant metadata such as its name, tag, or description is displayed where available.
+  11. Given I have selected images, when the document is generated or exported, then only the selected images are displayed in the appendix. (Waits for EX-01.)
+  12. Given I have selected appendix images, when I reorder them, then the appendix and the export reflect that order.
+  13. Given an OFI rests on observations that have photos, when the OFI is shown, then those photos appear whole in its Observation row, leaving out a deleted observation's. (Added 10 Oct.)
+
+  "Complete" means Sections 3-12 each have a saved draft (3: an accepted OFI), so the Executive Summary can't be drafted until Sections 4-6 can. Appendix B (site map) was dropped: Marsh's template has none.
+  </details>
+
 ## E7 — Engineer Review & Editing
 
 - [ ] **RV-01** — Review report sections alongside their evidence (risk engineer, Must, 8 pts, deps: GN-01, IN-04 (heading parsing), Sprint 2)
