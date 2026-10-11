@@ -103,6 +103,7 @@ export const initialState: WorkflowState = {
   cfBusy: false,
   cfServerError: null,
   captureTarget: CAPTURE_ASSESSMENT,
+  recent: [],
   captureObs: {},
   fMode: 'note',
   fNote: '',

@@ -153,7 +153,9 @@ async function openApp() {
 // Opens capture and picks the location, as the engineer does first.
 async function openCapture() {
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+  // Open the assessment from the work list; capture is its header's action.
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
   await screen.findByText('Capture session started')
   fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
 }
@@ -273,7 +275,9 @@ describe('Reading photos only when asked (CP-05)', () => {
       return Promise.reject(new TypeError('Failed to fetch'))
     })
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+    // Open the assessment from the work list; capture is its header's action.
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
     await screen.findByText('Showing sample data')
     fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
     click('Photo')
@@ -281,7 +285,7 @@ describe('Reading photos only when asked (CP-05)', () => {
     save()
     expect(await screen.findByText(/kept in this demo only/)).toBeInTheDocument()
 
-    // The side navigation's Open assessment entry is named after the site.
+    // The navigation's Recent entry is named after the site.
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
     fireEvent.click(screen.getByRole('button', { name: /1 photograph captured at Bay 3/ }))
@@ -538,7 +542,7 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
 describe('Observations tab (CP-03)', () => {
   async function openObservations() {
     await openApp()
-    fireEvent.click(screen.getByRole('button', { name: 'Tilbury Distribution Centre' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   }
 

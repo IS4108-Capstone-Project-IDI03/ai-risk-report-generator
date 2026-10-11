@@ -59,7 +59,9 @@ async function openApp() {
 // Opens or closes the assessment header's ⋯ menu.
 const moreActions = () => fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
 function openCapture() {
-  fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+  // Open the assessment from the work list; capture is its header's action.
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
 }
 
 beforeAll(() => {
@@ -98,7 +100,7 @@ describe('Capture session (CP-01)', () => {
 
     const notice = await screen.findByRole('status')
     await screen.findByText('Capture session started')
-    // The live light sits beside Site observation in the navigation.
+    // The live light sits beside the assessment in the navigation's Recent list.
     expect(screen.getByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(notice).toHaveTextContent('Harbourside Cold Store · Harbourside Foods · RPT-2026-0411')
     expect(notice).toHaveTextContent(/Started \d{2} [A-Z][a-z]{2} \d{2}:\d{2}\./)
@@ -272,6 +274,8 @@ describe('Create assessment (CP-01)', () => {
     })
 
     // The next assessment starts from a blank form, not this one's details.
+    // New assessment is the Dashboard's action.
+    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     expect(screen.getByLabelText(/Site name/)).toHaveValue('')
     expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
@@ -305,7 +309,7 @@ describe('Create assessment (CP-01)', () => {
     expect(screen.queryByText('Tilbury survey 2023')).not.toBeInTheDocument()
     expect(screen.queryByText('Sections drafted')).not.toBeInTheDocument()
 
-    openCapture()
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
 
     expect(await screen.findByText('Capture session started')).toBeInTheDocument()
     expect(fetchMock.mock.calls[1][0]).toBe('/api/assessments/RPT-2026-0001/capture-session')
@@ -594,8 +598,12 @@ it('archives my assessment from its workspace, then shows it only under Archived
   )
   await openApp()
   fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-  // Capture is offered in the navigation and once in the page header.
-  expect(screen.getAllByRole('button', { name: /^Site observation/ })).toHaveLength(1)
+  // Capture is the page header's action; the navigation lists the assessment
+  // under Recent.
+  expect(screen.getByRole('button', { name: 'Jurong Distribution Hub' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
 
   // Archive is one of the occasional actions behind More actions.
@@ -617,8 +625,6 @@ it('archives my assessment from its workspace, then shows it only under Archived
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 
   // An archived workspace offers neither capture nor another archive.
-  // Neither the header nor the side navigation offers capture.
-  expect(screen.queryAllByRole('button', { name: /^Site observation/ })).toHaveLength(0)
   expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
   moreActions()
   expect(screen.getByRole('button', { name: 'Version history' })).toBeInTheDocument()
@@ -728,6 +734,7 @@ it('edits my assessment details, keeping its engineer, policy reference and stan
   expect(screen.getAllByText('Straits Freight').length).toBeGreaterThan(0)
 
   // A new assessment then starts from a blank form, not the edited details.
+  fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
   expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
   expect(screen.getByText('Applicable standards')).toBeInTheDocument()
@@ -766,9 +773,8 @@ it('offers no capture when none of my assessments is capturing, not even the dem
   await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
 
   expect(screen.queryByRole('button', { name: /^Continue capture/ })).not.toBeInTheDocument()
-  // Tilbury, the demo default, is not on this engineer's list, so the
-  // navigation neither captures for it nor opens it.
-  expect(screen.queryByRole('button', { name: /^Site observation/ })).not.toBeInTheDocument()
+  // Tilbury, the demo default, is not on this engineer's list, so nothing
+  // opens it.
   expect(
     screen.queryByRole('button', { name: 'Tilbury Distribution Centre' }),
   ).not.toBeInTheDocument()

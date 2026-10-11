@@ -64,7 +64,9 @@ function mockGateway() {
 async function openCapture() {
   render(<App />)
   await signIn()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+  // Open the assessment from the work list; capture is its header's action.
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
   await screen.findByText('Capture session started')
 }
 const sheet = () => screen.getByRole('dialog', { name: 'Where are you?' })
