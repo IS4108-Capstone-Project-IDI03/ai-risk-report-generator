@@ -142,6 +142,51 @@ it('is a section row with its state and evidence; a suggestion shows its precede
   ).toBeInTheDocument()
 })
 
+it('shows the photos of the observations an OFI rests on, whole, in its Observation row (GN-07 AC14)', async () => {
+  const photo = (id: string, name: string) => ({
+    type: 'Photo' as const,
+    id,
+    name,
+    contentType: 'image/jpeg' as const,
+    size: 10,
+    url: `/api/observations/o/photos/${id}/image`,
+    added: null,
+  })
+  const valve = { ...VALVE, photos: [photo('p1', 'valve-shut.jpg'), photo('p2', 'valve-tag.jpg')] }
+  // A deleted observation the OFI also rests on: its photo stays out.
+  const gone = {
+    ...VALVE,
+    id: 'o3',
+    photos: [photo('p3', 'gone.jpg')],
+    deleted: { at: '2026-10-01T00:00:00.000Z', by: { id: 'u1', name: 'Alex Rowe' } },
+  }
+  // PANEL's photo is not cited by the OFI, so it stays out too.
+  const panel = { ...PANEL, photos: [photo('p4', 'panel.jpg')] }
+  mockGateway([{ ...SUGGESTION, observations: ['o1', 'o3'] }])
+  render(<OfiRow reference={REF} canDraft observations={[valve, gone, panel]} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
+
+  const row = screen.getByRole('rowheader', { name: 'Observation' }).closest('tr')!
+  expect(within(row).getByText(SUGGESTION.observation)).toBeInTheDocument()
+  const images = within(row).getAllByRole('img')
+  expect(images.map((i) => i.getAttribute('alt'))).toEqual(['valve-shut.jpg', 'valve-tag.jpg'])
+  expect(images[0]).toHaveAttribute('src', '/api/observations/o/photos/p1/image')
+  // Whole, at its own aspect ratio (never cropped), at most 360 px wide, and never
+  // stretched past its own size, so a wide table does not blow it up.
+  expect(images[0]).toHaveStyle({ width: 'auto', maxWidth: 'min(100%, 360px)', height: 'auto' })
+  expect(images[0].style.objectFit).toBe('')
+})
+
+it("draws a suggested OFI's table as wide as one in the report, not at prose width", async () => {
+  mockGateway([SUGGESTION])
+  renderRow()
+  fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
+
+  const table = screen.getByText(SUGGESTION.title).closest('table')!
+  // The AI draft box's body, which caps prose at a reading width.
+  expect(table.parentElement).toHaveStyle({ maxWidth: 'none' })
+})
+
 it('accepts several suggestions, one at a time, into the report in report order (AC4)', async () => {
   const calls = mockGateway([SUGGESTION, SECOND])
   renderRow()

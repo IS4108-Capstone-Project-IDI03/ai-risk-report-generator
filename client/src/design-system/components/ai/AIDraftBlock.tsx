@@ -17,6 +17,8 @@ export type AIDraftBlockProps = {
   onEdit?: () => void
   onShowEvidence?: () => void
   style?: React.CSSProperties
+  // Lets the body use the box's full width, for a table rather than prose.
+  fullWidth?: boolean
 }
 import { useState } from 'react'
 const STATUS: Record<string, { tone: string; label: string; icon: string }> = {
@@ -53,6 +55,7 @@ function AIDraftBlock({
   onEdit,
   onShowEvidence,
   style = {},
+  fullWidth = false,
 }: AIDraftBlockProps) {
   const [hover, setHover] = useState(false)
   const s = STATUS[status] || STATUS.draft
@@ -110,7 +113,7 @@ function AIDraftBlock({
           fontSize: 'var(--text-body-lg-size)',
           lineHeight: 'var(--text-body-lg-lh)',
           color: 'var(--text-body)',
-          maxWidth: 'var(--measure-prose)',
+          maxWidth: fullWidth ? 'none' : 'var(--measure-prose)',
         }}
       >
         {children}
