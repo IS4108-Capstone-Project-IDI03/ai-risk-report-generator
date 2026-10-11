@@ -105,6 +105,9 @@ export type GenerationSection = {
   ev: number
   conf: string
 }
+// The dashboard's date filters: reports past due, reports due within 7 days,
+// and site visits within 7 days.
+export type DateFilter = 'overdue' | 'due-soon' | 'visit-soon'
 export type WorkflowState = {
   screen: string
   tab: string
@@ -112,6 +115,8 @@ export type WorkflowState = {
   toastTone: string
   q: string
   fStatus: string
+  // The dashboard box filtering the list by date, or null for none.
+  fDate: DateFilter | null
   workSort: string
   createdRows: AssessmentRow[]
   cf: {
