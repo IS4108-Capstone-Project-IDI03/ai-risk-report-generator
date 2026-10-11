@@ -112,11 +112,28 @@ def _storable(chunks: list[dict]) -> list[dict]:
     return out
 
 
-def index_chunks(chunks: list[dict]) -> int:
-    """Embed and upsert chunks; return how many passages were stored."""
+def index_chunks(chunks: list[dict], reporter=None, page_total: int | None = None) -> int:
+    """Embed and upsert chunks; return how many passages were stored.
+
+    reporter: an optional ProgressReporter, told the page reached after each
+        embedding batch against `page_total`. Chunks arrive in reading order, so
+        the furthest `page_end` embedded so far is the page reached.
+    """
     chunks = _storable(chunks)
     texts = [chunk["text"] for chunk in chunks]
-    vectors = embed(texts)
+    # Furthest page_end among the first n chunks, for each n.
+    page_reached, furthest = [0], 0
+    for chunk in chunks:
+        page_end = (chunk.get("metadata") or {}).get("page_end")
+        if isinstance(page_end, int):
+            furthest = max(furthest, page_end)
+        page_reached.append(furthest)
+
+    def on_batch(embedded: int) -> None:
+        if reporter and page_reached[embedded]:
+            reporter.update_pages(page_reached[embedded], page_total)
+
+    vectors = embed(texts, on_batch=on_batch)
     index_type = "spann" if os.getenv("CHROMA_MODE", "local").strip().lower() == "cloud" else "hnsw"
     collection = chroma_client().get_or_create_collection(
         name=COLLECTION,
@@ -131,6 +148,9 @@ def index_chunks(chunks: list[dict]) -> int:
     )
     for ids, documents, embeddings, metadatas in _batched(*columns):
         collection.upsert(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
+    # Trailing pages with no passage never move the counter; indexing is done with them.
+    if reporter and page_total and furthest < page_total:
+        reporter.update_pages(page_total, page_total)
     return len(chunks)
 
 

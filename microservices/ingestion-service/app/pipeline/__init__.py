@@ -139,7 +139,9 @@ def run(
 
     _reporter.start_stage("indexing")
     _check_cancelled(_reporter)
-    chunks_indexed = index_chunks(chunks) if chunks else 0
+    chunks_indexed = (
+        index_chunks(chunks, reporter=_reporter, page_total=parsed.page_count) if chunks else 0
+    )
 
     _reporter.finish()
 
