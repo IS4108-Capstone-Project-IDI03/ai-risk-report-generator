@@ -77,7 +77,7 @@ def test_embed_single_call_and_skips_empty(monkeypatch):
 
 
 @pytest.mark.model
-def test_embed_waits_five_minutes_and_retries_rate_limited_batch(monkeypatch):
+def test_embed_waits_out_the_minute_and_retries_rate_limited_batch(monkeypatch):
     cohere = Mock()
     cohere.embed.side_effect = [
         TooManyRequestsError({"message": "rate limited"}),
@@ -90,7 +90,7 @@ def test_embed_waits_five_minutes_and_retries_rate_limited_batch(monkeypatch):
     assert embedder.embed(["chunk"]) == [[0.1]]
 
     assert cohere.embed.call_count == 2
-    sleep.assert_called_once_with(300)  # trial token limit outlasts a minute's wait
+    sleep.assert_called_once_with(90)  # past the per-minute window
 
 
 def test_embed_reraises_rate_limit_after_retry_limit(monkeypatch):
@@ -106,7 +106,7 @@ def test_embed_reraises_rate_limit_after_retry_limit(monkeypatch):
 
     assert cohere.embed.call_count == 11
     assert sleep.call_count == 10
-    sleep.assert_called_with(300)
+    sleep.assert_called_with(90)
 
 
 def test_embed_splits_batches_by_token_budget_and_waits_out_the_minute(monkeypatch):
@@ -118,7 +118,7 @@ def test_embed_splits_batches_by_token_budget_and_waits_out_the_minute(monkeypat
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
     monkeypatch.setattr(time, "sleep", sleep)
     # ~30k estimated tokens each: two fit the 80k budget, a third does not.
-    chunks = ["x" * 90_000] * 3
+    chunks = ["x" * 60_000] * 3
 
     assert embedder.embed(chunks) == [[0.1]] * 3
 
@@ -135,7 +135,7 @@ def test_embed_sends_an_over_budget_text_on_its_own(monkeypatch):
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
     monkeypatch.setattr(time, "sleep", Mock())
 
-    embedder.embed(["short", "x" * 300_000, "short"])
+    embedder.embed(["short", "x" * 200_000, "short"])
 
     assert [len(c.kwargs["texts"]) for c in cohere.embed.call_args_list] == [1, 1, 1]
 
@@ -189,3 +189,23 @@ def test_a_single_line_over_the_limit_is_split_at_spaces():
     assert len(parts) == 3
     assert all(len(p.encode("utf-8")) <= 16384 for p in parts)
     assert " ".join(parts) == line
+
+
+def test_embed_splits_a_rate_limited_batch_in_half(monkeypatch):
+    # A batch whose real token count exceeds the limit fails however long the
+    # wait, so it is halved instead of retried as is.
+    def embed(**kw):
+        if len(kw["texts"]) > 2:
+            raise TooManyRequestsError({"message": "trial token rate limit exceeded"})
+        return SimpleNamespace(
+            embeddings=SimpleNamespace(float_=[[float(len(t))] for t in kw["texts"]])
+        )
+
+    cohere = Mock()
+    cohere.embed.side_effect = embed
+    monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
+    monkeypatch.setattr(time, "sleep", Mock())
+    chunks = ["a", "bb", "ccc", "dddd", "eeeee"]
+
+    assert embedder.embed(chunks) == [[1.0], [2.0], [3.0], [4.0], [5.0]]  # order kept
+    assert [len(c.kwargs["texts"]) for c in cohere.embed.call_args_list] == [5, 2, 3, 1, 2]
