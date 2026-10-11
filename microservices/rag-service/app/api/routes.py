@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
-from app.orchestrator.orchestrator import draft, draft_ofis_for, run
+from app.orchestrator.orchestrator import draft, draft_ofis_for, draft_summary_for, run
 from app.retrieval.retriever import retrieve
 
 router = APIRouter()
@@ -71,6 +71,20 @@ class DraftSectionRequest(BaseModel):
     observations: list[Observation] = Field(min_length=1)
 
 
+# One report section as the gateway sends it for the Executive Summary: its text, flattened.
+class ReportSectionText(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    title: str
+    text: str
+
+
+class DraftSummaryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assessment: Assessment
+    sections: list[ReportSectionText] = Field(min_length=1)
+
+
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "rag"}
@@ -118,5 +132,14 @@ def draft_ofis(request: DraftOfisRequest) -> dict:
     """Draft Section 3 Opportunities for Improvement (GN-05) for the gateway to save."""
     try:
         return draft_ofis_for(request.assessment, request.observations, request.accepted)
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+@router.post("/summary/draft")
+def draft_summary(request: DraftSummaryRequest) -> dict:
+    """Draft Section 2's Executive Summary (GN-07) from the sections the gateway sends."""
+    try:
+        return draft_summary_for(request.assessment, request.sections)
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
