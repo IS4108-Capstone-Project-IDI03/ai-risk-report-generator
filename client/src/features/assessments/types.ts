@@ -135,6 +135,8 @@ export type WorkflowState = {
   cfServerError: string | null
   // The assessment the Site observation screen captures for.
   captureTarget: { reference: string; site: string }
+  // The navigation's Recent list: assessments last opened, newest first.
+  recent: { reference: string; site: string }[]
   // Observations for assessments other than the demo one, by reference.
   captureObs: Record<string, Observation[]>
   fMode: string

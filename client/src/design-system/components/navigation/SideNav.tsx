@@ -91,6 +91,8 @@ function SideNav({
         {sections.map((sec) => (
           <div
             key={sec.label || 'default'}
+            role={sec.label ? 'group' : undefined}
+            aria-label={sec.label || undefined}
             style={{
               marginBottom: 'var(--space-7)',
             }}
@@ -143,9 +145,16 @@ function SideNav({
                     }}
                   >
                     <Icon name={it.icon || 'circle'} size={15} />
+                    {/* A long label, such as a site name, ends in an ellipsis;
+                        the tooltip gives it whole. */}
                     <span
+                      title={it.label}
                       style={{
                         flex: 1,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {it.label}

@@ -104,9 +104,11 @@ function mockGateway() {
 }
 
 async function openObservations() {
+  // A second render in one test starts on the work list, as a new test does.
+  window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  fireEvent.click(screen.getByRole('button', { name: 'Tilbury Distribution Centre' }))
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
   if (reachable && listed.length) await screen.findByText(listed[0].note!)

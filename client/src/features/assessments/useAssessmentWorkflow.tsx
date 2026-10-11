@@ -174,6 +174,10 @@ const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => 
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }))
 const NO_LOCATIONS: SiteLocation[] = []
+// The navigation's Recent list: how many it keeps, and how its entries'
+// values name an assessment ("recent:RPT-2026-0411").
+const RECENT_LIMIT = 3
+const RECENT_PREFIX = 'recent:'
 // "Stairwell B · Level 2"
 const locationLabel = (l: { name: string; floor?: string | null }) =>
   [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
@@ -488,6 +492,35 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
   }
+  // Opens an assessment's workspace on its Overview and puts it first in the
+  // navigation's Recent list.
+  function openAssessment(
+    target: { reference: string; site: string },
+    previous: WorkflowState,
+  ): Partial<WorkflowState> {
+    return {
+      screen: 'assessment',
+      tab: 'overview',
+      captureTarget: target,
+      recent: [target, ...previous.recent.filter((r) => r.reference !== target.reference)].slice(
+        0,
+        RECENT_LIMIT,
+      ),
+      // Filters name this assessment's locations and floors.
+      of: NO_FILTERS,
+      obsShowDeleted: false,
+      obsOpen: null,
+    }
+  }
+  // A navigation entry: a screen, or a Recent assessment. The one already
+  // open keeps its tab and filters.
+  function navigateTo(value: string): Partial<WorkflowState> {
+    if (!value.startsWith(RECENT_PREFIX)) return navigate(value)
+    const reference = value.slice(RECENT_PREFIX.length)
+    if (reference === state.captureTarget.reference) return navigate('assessment')
+    const target = state.recent.find((r) => r.reference === reference)
+    return target ? openAssessment(target, state) : {}
+  }
   // A created assessment clears the form, so the next one starts blank. A form
   // left without creating keeps its draft.
   // A new assessment opens on its Overview when it is the creator's own; one
@@ -500,14 +533,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       cfBusy: false,
       cfErr: false,
       ...(open
-        ? {
-            screen: 'assessment',
-            tab: 'overview',
-            captureTarget: { reference: row.id, site: row.site },
-            of: NO_FILTERS,
-            obsShowDeleted: false,
-            obsOpen: null,
-          }
+        ? openAssessment({ reference: row.id, site: row.site }, previous)
         : { screen: 'dashboard' }),
     }))
   }
@@ -1208,6 +1234,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // hides the actions once the work list shows they'd be refused, for the
     // sample observations too, which change in this browser only.
     const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
+    // New assessment and capture are actions on the Dashboard and workspace
+    // headers, so the navigation lists only places: the work list, and the
+    // assessments last opened. Only those still on the work list show, as the
+    // gateway limits it to the engineer's own. The live light marks the one
+    // being captured for.
+    const recentItems = s.recent.flatMap((r) => {
+      const row = rows.find((x) => x.id === r.reference)
+      if (!row) return []
+      return [
+        {
+          value: RECENT_PREFIX + r.reference,
+          label: row.site,
+          icon: 'file-pen',
+          live: !!liveCapture && r.reference === s.captureTarget.reference,
+        },
+      ]
+    })
     const navSections = [
       {
         label: 'Assessments',
@@ -1218,33 +1261,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             icon: 'inbox',
             count: rows.length,
           },
-          {
-            value: 'create',
-            label: 'New assessment',
-            icon: 'plus',
-          },
-          {
-            value: 'field',
-            label: 'Site observation',
-            icon: 'camera',
-            count: fieldSaved,
-            live: !!liveCapture,
-          },
-        ].filter((item) => item.value !== 'field' || canCapture),
+        ],
       },
-      {
-        label: 'Open assessment',
-        // Only one on the work list, as for capture above.
-        items: targetRow
-          ? [
-              {
-                value: 'assessment',
-                label: s.captureTarget.site,
-                icon: 'file-pen',
-              },
-            ]
-          : [],
-      },
+      { label: 'Recent', items: recentItems },
       {
         label: 'Administration',
         items: [
@@ -1267,7 +1286,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     ]
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => canOpen(item.value, session)),
+        items: section.items.filter((item) =>
+          canOpen(item.value.startsWith(RECENT_PREFIX) ? 'assessment' : item.value, session),
+        ),
       }))
       .filter((section) => section.items.length > 0)
 
@@ -1540,7 +1561,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       /* chrome */
       navSections,
-      navValue: isAssessment ? 'assessment' : sc,
+      // The workspace and capture both highlight the assessment they are for.
+      navValue: isAssessment || sc === 'field' ? RECENT_PREFIX + s.captureTarget.reference : sc,
       navFooter: userFooter(),
       showSideNav: !phone && !s.navCollapsed,
       showTopBar: phone,
@@ -1564,7 +1586,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       goFromDrawer: (v: string) =>
         setState({
-          ...navigate(v),
+          ...navigateTo(v),
           navOpen: false,
           toast: null,
         }),
@@ -1613,7 +1635,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           } as React.CSSProperties),
       go: (v: string) => {
         setState({
-          ...navigate(v),
+          ...navigateTo(v),
           toast: null,
         })
       },
@@ -1706,6 +1728,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             archiveOpen: false,
             archiveBusy: false,
             captureTarget: CAPTURE_ASSESSMENT,
+            // Archived, it is found under the work list's Archived filter.
+            recent: s.recent.filter((r) => r.reference !== reference),
           })
           toast(reference + ' archived. Filter by Archived to find it.')
         } catch (error: unknown) {
@@ -2187,14 +2211,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         const row = rows.find((r) => r.id === id)
         if (row)
           setState({
-            screen: 'assessment',
-            tab: 'overview',
+            ...openAssessment({ reference: row.id, site: row.site }, s),
             toast: null,
-            captureTarget: { reference: row.id, site: row.site },
-            // Filters name this assessment's locations and floors.
-            of: NO_FILTERS,
-            obsShowDeleted: false,
-            obsOpen: null,
           })
       },
       /* create */

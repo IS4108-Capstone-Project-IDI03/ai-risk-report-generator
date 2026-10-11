@@ -26,7 +26,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 function openAssessment() {
-  fireEvent.click(screen.getByRole('button', { name: 'Tilbury Distribution Centre' }))
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
 }
 function tab(name: RegExp) {
   fireEvent.click(screen.getByRole('tab', { name }))
@@ -85,6 +85,8 @@ describe('Marsh prototype integration', () => {
     // A new assessment opens on its Overview.
     expect(await screen.findByRole('heading', { name: 'Demo Warehouse' })).toBeInTheDocument()
     expect(screen.getByText(/exists only in this demo and is not saved/)).toBeInTheDocument()
+    // New assessment is the Dashboard's action.
+    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     // The next assessment starts from a blank form.
     expect(screen.getByLabelText(/Site name/)).toHaveValue('')
@@ -101,10 +103,40 @@ describe('Marsh prototype integration', () => {
     expect(screen.getByText('8 of 8 assessments')).toBeInTheDocument()
     expect(screen.getAllByText('Demo Warehouse').length).toBeGreaterThan(0)
   })
+  it('lists the last three assessments opened under Recent, newest first', async () => {
+    render(<App />)
+    await signIn()
+    const recent = () =>
+      within(screen.getByRole('group', { name: 'Recent' }))
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    // Nothing is listed until an assessment is opened.
+    expect(screen.queryByRole('group', { name: 'Recent' })).not.toBeInTheDocument()
+    const openFromList = (id: string) => {
+      fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+      fireEvent.click(document.querySelector(`[data-id="${id}"]`)!)
+    }
+    openFromList('RPT-2026-0411')
+    openFromList('RPT-2026-0408')
+    openFromList('RPT-2026-0402')
+    openFromList('RPT-2026-0331')
+    // The fourth pushes the oldest out.
+    expect(recent()).toEqual(['Bilbao Terminal', 'Rotterdam Plant 2', 'Leeds Cold Store'])
+    // The open one is highlighted; another opens from Recent and moves first.
+    expect(screen.getByRole('button', { name: 'Bilbao Terminal' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Leeds Cold Store' }))
+    expect(screen.getByRole('heading', { name: 'Leeds Cold Store' })).toBeInTheDocument()
+    expect(recent()).toEqual(['Leeds Cold Store', 'Bilbao Terminal', 'Rotterdam Plant 2'])
+  })
   it('saves observations and displays them in the assessment', async () => {
     render(<App />)
     await signIn()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Site observation/ })[0])
+    // Open the assessment from the work list; capture is its header's action.
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
     // Capture starts by choosing where the engineer is.
     fireEvent.click(await screen.findByRole('button', { name: /^Pump house/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
@@ -181,6 +213,10 @@ describe('Marsh prototype integration', () => {
       fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
       expect(screen.queryByRole('dialog', { name: 'Navigation' })).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+      // The drawer navigates, then closes.
+      const reopened = screen.getByRole('dialog', { name: 'Navigation' })
+      fireEvent.click(within(reopened).getByRole('button', { name: /^Dashboard/ }))
+      expect(screen.queryByRole('dialog', { name: 'Navigation' })).not.toBeInTheDocument()
     }
     openAssessment()
     expect(screen.getByRole('heading', { name: 'Tilbury Distribution Centre' })).toBeInTheDocument()
