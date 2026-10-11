@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button, Callout, EmptyState } from '../../../design-system'
+import { AppendixPhotos } from '../components/AppendixPhotos'
 import { DraftEditor } from '../components/DraftEditor'
 import { ExecutiveSummary } from '../components/ExecutiveSummary'
 import { PurposeScope } from '../components/PurposeScope'
@@ -17,22 +18,26 @@ import '../review.css'
 
 const NOTHING: ReviewFocus = { citation: null, statement: null }
 // The rail's rows that are not one of sections 7-12.
-const OPENING = new Set(['1', '2', '3'])
+const OPENING = new Set(['1', '2', '3', 'A'])
 
 // The Review tab for a saved assessment (RV-01): sections 7-12 down the side
 // with their completion and review states, the selected section's draft in
 // the middle, and its sources, original observations and claims beside it.
 // Section 3 (GN-05) shows the OFIs accepted into the report, in Marsh's tables.
-// Sections 1 and 2 lead the rail (GN-07).
+// Sections 1 and 2 lead the rail and Appendix A ends it (GN-07).
 // Read-only until the review stories add decisions on findings (RV-02).
 export function ReviewWorkspace({
   reference,
+  canEdit,
   wrapStyle,
   railStyle,
   panelStyle,
   onGenerate,
 }: {
   reference: string
+  // Whether this user may change the appendix: the assigned engineer, while
+  // the assessment is open. The gateway checks it too.
+  canEdit: boolean
   wrapStyle: React.CSSProperties
   railStyle: React.CSSProperties
   panelStyle: React.CSSProperties
@@ -88,7 +93,9 @@ export function ReviewWorkspace({
       style={railStyle}
     />
   )
-  // Sections 1 and 2: one view each, with a side panel that
+  const last = sections[sections.length - 1]
+
+  // Sections 1 and 2, and Appendix A: one view each, with a side panel that
   // says where its content comes from.
   const part = (
     title: string,
@@ -128,8 +135,16 @@ export function ReviewWorkspace({
       'The Executive Summary is drafted only from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
       { onPrevious: () => select('1'), onNext: () => select('3') },
     )
-  // Nothing drafted yet: the rail stays, so Sections 1 and 2 (which need no
-  // draft of 7-12) can still be opened (GN-07 AC1).
+  if (selected === 'A')
+    return part(
+      'Appendix A. Site Photos',
+      <AppendixPhotos reference={reference} canEdit={canEdit} />,
+      'The export (EX-01) shows only these photos, in this order, with their captions.',
+      { onPrevious: last && (() => select(last.id)) },
+    )
+
+  // Nothing drafted yet: the rail stays, so Sections 1 and 2 and Appendix A
+  // (which need no draft of 7-12) can still be opened (GN-07 AC1, AC5).
   if (!section || (!drafted.length && selected !== '3'))
     return (
       <div style={wrapStyle}>

@@ -637,3 +637,35 @@ export async function getSummary(reference: string, signal?: AbortSignal): Promi
 export async function draftSummary(reference: string): Promise<SectionDraft> {
   return (await request<SectionDraft>('POST', `${summaryPath(reference)}/draft`)).data
 }
+
+// Appendix A (GN-07): every photo of the report, and the chosen ones in order
+// with their captions.
+export type AppendixPhoto = {
+  photoId: string
+  observationId: string
+  name: string
+  url: string
+  location: string | null
+  category: string | null
+  note: string | null
+  selected: boolean
+}
+export type AppendixList = {
+  selected: (Omit<AppendixPhoto, 'selected'> & { caption: string })[]
+  available: AppendixPhoto[]
+}
+
+const appendixPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/appendix`
+
+export async function getAppendix(reference: string, signal?: AbortSignal): Promise<AppendixList> {
+  return (await request<AppendixList>('GET', appendixPath(reference), undefined, signal)).data
+}
+
+// Replaces the appendix with this ordered list.
+export async function saveAppendix(
+  reference: string,
+  photos: { photoId: string; caption: string }[],
+): Promise<AppendixList> {
+  return (await request<AppendixList>('PUT', appendixPath(reference), { photos })).data
+}

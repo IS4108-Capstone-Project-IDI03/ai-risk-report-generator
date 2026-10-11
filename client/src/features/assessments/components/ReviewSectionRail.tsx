@@ -6,7 +6,7 @@ import { completionLabel, plural, REVIEW_BADGE } from '../reviewDisplay'
 // with how much of it the draft writes (AC5) and where it stands in review
 // (AC6). Selecting one changes the draft and the source panel together.
 // Section 3's OFIs (GN-05) come first, with how many are in the report.
-// Sections 1 and 2 lead the rail (GN-07).
+// Sections 1 and 2 lead the rail and Appendix A ends it (GN-07).
 export function ReviewSectionRail({
   sections,
   selected,
@@ -135,6 +135,7 @@ export function ReviewSectionRail({
             </li>
           )
         })}
+        {row('A', 'A', 'Site Photos', <span className="rv-rail-completion">Appendix A</span>)}
       </ul>
       <p className="rv-rail-legend">
         A section needs review when a statement is unsupported, a source it cites has been

@@ -1,11 +1,11 @@
-// Sections 1 and 2 in the Review and Generation tabs
+// Sections 1 and 2 and Appendix A in the Review and Generation tabs
 // (GN-07). The gateway is a stubbed fetch, so nothing is drafted for real.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
-import type { ReviewSection, SectionDraft, Summary } from './api'
+import type { AppendixList, ReviewSection, SectionDraft, Summary } from './api'
 
 const REF = 'RPT-2026-0001'
 const RECORD = {
@@ -97,6 +97,17 @@ const SUMMARY_DRAFT: SectionDraft = {
   createdAt: '2026-10-10T06:00:00.000Z',
 }
 
+const photo = (id: string, name: string, selected = false) => ({
+  photoId: id,
+  observationId: 'o1',
+  name,
+  url: `/api/observations/o1/photos/${id}/image`,
+  location: 'Pump room, B1',
+  category: 'Protection',
+  note: 'Fire pump controller in auto.',
+  selected,
+})
+
 const json = (status: number, body: unknown) =>
   Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -108,10 +119,13 @@ const json = (status: number, body: unknown) =>
 let summary: Summary
 // The review workspace's sections 7-12; one drafted unless a test empties it.
 let reviewSections: ReviewSection[] = [CONSTRUCTION]
+let appendix: AppendixList
+// Each PUT to the appendix, as sent.
+const puts: unknown[] = []
 const posts: string[] = []
 
 function mockGateway() {
-  vi.stubGlobal('fetch', (url: string) => {
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (url === '/api/assessments') return json(200, [RECORD])
     if (url === `/api/assessments/${REF}/review`) return json(200, { sections: reviewSections })
     if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
@@ -124,6 +138,23 @@ function mockGateway() {
       return json(201, SUMMARY_DRAFT)
     }
     if (url === `/api/assessments/${REF}/summary`) return json(200, summary)
+    if (url === `/api/assessments/${REF}/appendix`) {
+      if (init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body)) as {
+          photos: { photoId: string; caption: string }[]
+        }
+        puts.push(body)
+        const byId = new Map(appendix.available.map((p) => [p.photoId, p]))
+        appendix = {
+          selected: body.photos.map((p) => ({ ...byId.get(p.photoId)!, caption: p.caption })),
+          available: appendix.available.map((p) => ({
+            ...p,
+            selected: body.photos.some((b) => b.photoId === p.photoId),
+          })),
+        }
+      }
+      return json(200, appendix)
+    }
     return json(200, [])
   })
 }
@@ -144,6 +175,7 @@ const editor = () => screen.getByRole('region', { name: 'Draft editor' })
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  puts.length = 0
   posts.length = 0
   reviewSections = [CONSTRUCTION]
 })
@@ -156,6 +188,7 @@ function reset(
     purposeAndScope: [PURPOSE, [ACTIVITY]],
     executiveSummary: { draft, missing: draft ? [] : MISSING, staleSections },
   }
+  appendix = { selected: [], available: [photo('p1', 'pump.jpg'), photo('p2', 'panel.jpg')] }
 }
 
 it('shows Section 1 assembled from the assessment details (AC1)', async () => {
@@ -201,12 +234,69 @@ it('shows the drafted Executive Summary citing sections, and marks it out of dat
   expect(within(editor()).getAllByText(/Left for the engineer to write/)).toHaveLength(2)
 }, 15_000)
 
-it('opens Section 1 before any section is drafted (AC1)', async () => {
+it('chooses, orders, captions and removes Appendix A photos (AC5-AC10, AC12)', async () => {
+  reset()
+  await openTab(/^Review/)
+  fireEvent.click(within(await nav()).getByRole('button', { name: /Site Photos/ }))
+  const chosen = await screen.findByRole('region', { name: 'In Appendix A' })
+  const available = screen.getByRole('region', { name: 'Available photos' })
+
+  // AC9: nothing is shown until chosen. AC5, AC10: every photo with its details.
+  expect(within(chosen).getByText('No photos in Appendix A')).toBeVisible()
+  expect(within(available).getAllByRole('listitem')).toHaveLength(2)
+  expect(within(available).getAllByText('Pump room, B1')).toHaveLength(2)
+  expect(within(available).getAllByText('Protection')).toHaveLength(2)
+
+  // AC6: added with a default caption, then a second.
+  fireEvent.click(within(available).getByRole('button', { name: 'Add pump.jpg to the appendix' }))
+  await waitFor(() => expect(puts).toHaveLength(1))
+  fireEvent.click(within(available).getByRole('button', { name: 'Add panel.jpg to the appendix' }))
+  await waitFor(() => expect(puts).toHaveLength(2))
+  expect(puts[1]).toEqual({
+    photos: [
+      { photoId: 'p1', caption: 'Pump room, B1 — Protection' },
+      { photoId: 'p2', caption: 'Pump room, B1 — Protection' },
+    ],
+  })
+  // AC8: the chosen photos show, in order.
+  await waitFor(() => expect(within(chosen).getAllByRole('listitem')).toHaveLength(2))
+
+  // AC12: reorder.
+  fireEvent.click(within(chosen).getByRole('button', { name: 'Move panel.jpg up' }))
+  await waitFor(() => expect(puts).toHaveLength(3))
+  expect((puts[2] as { photos: { photoId: string }[] }).photos.map((p) => p.photoId)).toEqual([
+    'p2',
+    'p1',
+  ])
+
+  // A caption saves when the field is left.
+  const caption = await within(chosen).findByRole('textbox', { name: 'Caption for pump.jpg' })
+  fireEvent.change(caption, { target: { value: 'Fire pump controller' } })
+  fireEvent.blur(caption)
+  await waitFor(() => expect(puts).toHaveLength(4))
+  expect(puts[3]).toEqual({
+    photos: [
+      { photoId: 'p2', caption: 'Pump room, B1 — Protection' },
+      { photoId: 'p1', caption: 'Fire pump controller' },
+    ],
+  })
+
+  // AC7: removed.
+  fireEvent.click(
+    within(chosen).getByRole('button', { name: 'Remove panel.jpg from the appendix' }),
+  )
+  await waitFor(() => expect(puts).toHaveLength(5))
+  expect(puts[4]).toEqual({ photos: [{ photoId: 'p1', caption: 'Fire pump controller' }] })
+}, 20_000)
+
+it('opens Section 1 and Appendix A before any section is drafted (AC1, AC5)', async () => {
   reset()
   reviewSections = [{ ...CONSTRUCTION, draft: null }]
   await openTab(/^Review/)
   expect(await screen.findByText('No sections drafted yet')).toBeInTheDocument()
 
+  fireEvent.click(within(await nav()).getByRole('button', { name: /Site Photos/ }))
+  expect(await screen.findByRole('region', { name: 'Available photos' })).toBeVisible()
   fireEvent.click(within(await nav()).getByRole('button', { name: /Purpose and Scope/ }))
   expect(await within(editor()).findByText(PURPOSE)).toBeVisible()
 }, 15_000)

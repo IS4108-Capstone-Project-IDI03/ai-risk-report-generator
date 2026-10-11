@@ -341,6 +341,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       (v.liveReference ? (
                         <ReviewWorkspace
                           reference={v.liveReference}
+                          canEdit={v.canEditDetails}
                           wrapStyle={v.reviewWrapStyle}
                           railStyle={v.reviewRailStyle}
                           panelStyle={v.reviewEvidenceStyle}

@@ -99,6 +99,19 @@ were added. Adding one needs no capture session. `DELETE
 location; editing an observation's tags (CP-06) moves it elsewhere. `npm --prefix server run seed`
 gives `RPT-2026-0411` six sample locations when it has none.
 
+`appendixPhotos` (GN-07) is Appendix A's photos in report order: each a
+`photo` (the `_id` of one of the assessment's observations' photos) and the
+`caption` shown under it (up to 200 characters). Embedded for the same reason
+as `locations`. `GET /api/assessments/:reference/appendix` returns `{ selected,
+available }`: the chosen photos with their details and caption, leaving out any
+whose observation was deleted since, and every photo of the assessment's
+non-deleted observations (`photoId`, `observationId`, `name`, `url`,
+`location`, `category`, `note`, `selected`). `PUT` on the same path (JSON
+`photos: [{ photoId, caption }]`, assigned engineer only) replaces the list:
+200 with the same shape, 400 for a photo not the assessment's, one given
+twice, or a caption over 200 characters, 403, 404, 409 archived. The export
+(EX-01) is to read it.
+
 `GET /api/assessments` returns assessments assigned to the authenticated risk
 engineer's user ID; knowledge admins receive all assessments. The derived status
 and sort order (most recent site visit first) are unchanged. Site/client/report-ID

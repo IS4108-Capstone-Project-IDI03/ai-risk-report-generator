@@ -412,3 +412,94 @@
 .rv-observation-photos {
   padding: 0 var(--space-6) var(--space-4) calc(var(--space-6) + 18px + var(--space-5));
 }
+
+/* Appendix A site photos (GN-07) */
+.rv-appendix-list,
+.rv-appendix-grid {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.rv-appendix-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.rv-appendix-row:first-child {
+  border-top: none;
+}
+.rv-appendix-row img {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+.rv-appendix-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.rv-appendix-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+}
+.rv-appendix-input:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.rv-appendix-controls {
+  display: flex;
+  gap: 4px;
+}
+.rv-appendix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.rv-appendix-photo {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+.rv-appendix-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.rv-appendix-photo figcaption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.rv-appendix-name {
+  font-size: 14px;
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.rv-appendix-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
