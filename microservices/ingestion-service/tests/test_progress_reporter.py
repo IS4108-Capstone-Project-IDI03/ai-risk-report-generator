@@ -75,6 +75,19 @@ def test_update_pages_sets_only_page_fields():
     assert "currentStage" not in update
 
 
+def test_starting_a_stage_clears_the_previous_stages_page_count():
+    collection = MagicMock()
+    reporter = ProgressReporter(collection, DOC_ID)
+    reporter.start_stage("parsing")
+    reporter.update_pages(40, 45)
+
+    reporter.start_stage("chunking")
+
+    update = last_set(collection)
+    assert update["pageCurrent"] is None
+    assert update["pageTotal"] is None
+
+
 def test_finish_moves_the_current_stage_to_the_log():
     collection = MagicMock()
     reporter = ProgressReporter(collection, DOC_ID)

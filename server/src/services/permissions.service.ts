@@ -10,7 +10,8 @@ export const PERMISSIONS = [
   // and change, delete or restore observations. Changing an assessment's own
   // observations also needs its assigned engineer (RV-10, CP-08).
   'assessments:edit',
-  // Draft report sections (RAG).
+  // Draft report sections (RAG), and decide on their findings: accept, edit,
+  // reject, regenerate (RV-02). Also needs the assigned engineer.
   'reports:generate',
   // List knowledge documents and open their original files, e.g. a citation.
   'knowledge:view',

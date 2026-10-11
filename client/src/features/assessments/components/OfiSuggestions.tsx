@@ -135,8 +135,10 @@ export function OfiBlock({
         onAccept={onAccept}
         acceptLabel={`Accept ${ofi.title}`}
         acceptDisabled={busy}
+        // A table, not prose: as wide as an OFI in the report (OfisInReport).
+        fullWidth
       >
-        <OfiTable number={number} title={ofi.title} rows={templateRows(ofi)} />
+        <OfiTable number={number} title={ofi.title} rows={templateRows(ofi, observations)} />
       </AIDraftBlock>
       {/* The precedent, outside the box since it is not part of the draft (AC2). */}
       {precedent && (
@@ -242,7 +244,41 @@ function OfiTable({
 // filled says so; loss figures are never the model's (backlog rule), so they stay open.
 const OPEN = 'To be completed'
 
-function templateRows(ofi: Ofi): Cell[][] {
+// The Observation row (GN-07 AC14): the OFI's own wording, then each photo of the
+// observations it rests on, whole and at its own aspect ratio, as the report shows
+// evidence. A deleted observation's photos are left out, as everywhere else.
+// Capped at 360 px and never stretched past its own size: the table is full width,
+// so a photo sized to the cell would fill the screen and blur.
+function observationCell(ofi: Ofi, observations: SavedObservation[]) {
+  const photos = observations
+    .filter((o) => ofi.observations.includes(o.id) && !o.deleted)
+    .flatMap((o) => o.photos)
+  return (
+    <>
+      {ofi.observation}
+      {photos.length > 0 && (
+        <span style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+          {photos.map((p) => (
+            <img
+              key={p.id}
+              src={p.url}
+              alt={p.name}
+              loading="lazy"
+              style={{
+                display: 'block',
+                width: 'auto',
+                maxWidth: 'min(100%, 360px)',
+                height: 'auto',
+              }}
+            />
+          ))}
+        </span>
+      )}
+    </>
+  )
+}
+
+function templateRows(ofi: Ofi, observations: SavedObservation[]): Cell[][] {
   const date = ofi.issueDate ? formatDay(new Date(ofi.issueDate)) : OPEN
   const head: Cell[][] = [
     [
@@ -264,14 +300,14 @@ function templateRows(ofi: Ofi): Cell[][] {
     return [
       ...head,
       [['Description', ofi.description]],
-      [['Observation', ofi.observation]],
+      [['Observation', observationCell(ofi, observations)]],
       [['Effort of implementation', ofi.effort]],
     ]
   return [
     ...head,
     [['Related RTM ID', OPEN]],
     [['Description', ofi.description]],
-    [['Observation', ofi.observation]],
+    [['Observation', observationCell(ofi, observations)]],
     [['Client response', OPEN]],
     [['Marsh advisory comment', OPEN]],
     [['Loss expectancy (current, in US$)', LOSS_FIGURES]],
@@ -282,17 +318,24 @@ function templateRows(ofi: Ofi): Cell[][] {
 }
 
 // One accepted OFI with Marsh's fields, as it reads in the report (AC4, AC5).
-function ReportOfi({ ofi }: { ofi: AcceptedOfi }) {
+function ReportOfi({ ofi, observations }: { ofi: AcceptedOfi; observations: SavedObservation[] }) {
   return (
     <div style={{ marginTop: '12px' }}>
-      <OfiTable number={ofi.number} title={ofi.title} rows={templateRows(ofi)} />
+      <OfiTable number={ofi.number} title={ofi.title} rows={templateRows(ofi, observations)} />
     </div>
   )
 }
 
 // Section 3 as the report has it: the accepted OFIs under their categories, in
 // report order. Shared by the Generation row and the Review tab.
-export function OfisInReport({ accepted }: { accepted: AcceptedOfi[] }) {
+export function OfisInReport({
+  accepted,
+  observations,
+}: {
+  accepted: AcceptedOfi[]
+  // For each OFI's photos (GN-07 AC14).
+  observations: SavedObservation[]
+}) {
   if (!accepted.length)
     return (
       <p style={muted}>
@@ -305,7 +348,7 @@ export function OfisInReport({ accepted }: { accepted: AcceptedOfi[] }) {
       {accepted
         .filter((o) => o.category === c)
         .map((o) => (
-          <ReportOfi key={o.id} ofi={o} />
+          <ReportOfi key={o.id} ofi={o} observations={observations} />
         ))}
     </div>
   ))
@@ -367,7 +410,7 @@ function OfiPanel({
       ))}
       <section aria-label="Opportunities for Improvement in the report" style={card}>
         <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 500 }}>In the report</h4>
-        <OfisInReport accepted={ofis.accepted} />
+        <OfisInReport accepted={ofis.accepted} observations={observations} />
       </section>
     </section>
   )
@@ -377,10 +420,13 @@ export function OfiRow({
   reference,
   canDraft,
   observations,
+  onAccepted,
 }: {
   reference: string
   canDraft: boolean
   observations: SavedObservation[]
+  // Told after an accept changes the report's Section 3 (GN-07: Section 2 summarises it).
+  onAccepted?: () => void
 }) {
   const { ofis, setOfis, loadError } = useOfis(reference)
   const [open, setOpen] = useState(false)
@@ -416,6 +462,8 @@ export function OfiRow({
     } catch (error: unknown) {
       setFailure(error instanceof GatewayError ? error.message : 'A suggestion was not accepted.')
     }
+    // Even after a failure, since the accepts before it went through.
+    onAccepted?.()
     setAccepting(false)
   }
 

@@ -1,0 +1,548 @@
+{
+  "_about": "A whole report for testing Section 2, the Executive Summary (GN-07): observations for Sections 7-12, saved drafts of Sections 4-12 written from them, and one accepted OFI. Observations off5-1 to off5-8 are Office Sample 5's (rag-service eval/cases/office-5-s7-construction.json); the rest, and every draft, are made up for testing and are not from a Marsh report. Kept out of rag-service eval/cases, which judge_sections.py drafts and judges in full. Run: npm run seed:case -- office-5-full-report",
+  "name": "Office Sample 5, full report (seed for GN-07)",
+  "source": "Office Sample 5 - Full report seed, Sections 3-12",
+  "assessment": {
+    "reference": "EVAL-OFFICE-5-FULL",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "standards": ["NFPA 13", "NFPA 25", "NFPA 2001"]
+  },
+  "observations": [
+    {
+      "id": "off5-1",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "46 storeys + 3 bsmts. RC cols/beams, RC slabs, flat conc roof. internal walls masonry, core RC."
+    },
+    {
+      "id": "off5-2",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Facade",
+      "note": "facade - unitised alu curtain wall, dbl glazed low-E / toughened. alu spandrels w 50mm rockwool. slab edge gap filled 135mm rockwool, 2hr. no combustible insulation on facade"
+    },
+    {
+      "id": "off5-3",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Office floors",
+      "note": "office partitions drywall - gypsum, alu studs, rockwool infill"
+    },
+    {
+      "id": "off5-4",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Basement 2 car park",
+      "note": "link to next bldg at B2 carpark, 2hr fire shutter. link not used, shutter perm shut"
+    },
+    {
+      "id": "off5-5",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Electrical rooms",
+      "note": "so the office floors are open plan, no separation within a floor except the utility rooms. elec rooms are 2 hour walls and floors with 2 hour doors, and every elec room we went into had the cable penetrations sealed"
+    },
+    {
+      "id": "off5-6",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Risers",
+      "note": "telecom risers triple vol, fire stopped every 3 flrs - the ones we saw ok. riser doors 1hr"
+    },
+    {
+      "id": "off5-7",
+      "COPE_dimension": "Construction",
+      "severity": "moderate",
+      "location": "Tenant floors",
+      "note": "internal stairs L27-29, L34-35, L40-41, L45-46. smoke det activated 2hr roller shutters round each stair"
+    },
+    {
+      "id": "off5-8",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Basements",
+      "note": "carpark all 3 bsmts, 351 lots + 6 accessible"
+    },
+    {
+      "id": "off5-9",
+      "COPE_dimension": "Occupancy",
+      "severity": "moderate",
+      "location": "Level 5 server room",
+      "note": "tenant server room L5, approx 40 racks. UPS room next door, VRLA batteries. diesel genset at roof, 2 x 2000 kVA, day tank 1000 L, tested monthly on load per FM"
+    },
+    {
+      "id": "off5-10",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Basement 3 plant room",
+      "note": "3 x water cooled chillers B3, cooling towers on roof. 22 kV incomer from SP, 2 x transformers B1. no boilers. no hazardous storage apart from genset diesel"
+    },
+    {
+      "id": "off5-11",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "wet pipe sprinklers throughout incl car park, OH1 office / OH2 carpark. sprinkler tanks B3 2 x 300 m3. jockey + duty elec + standby diesel pump"
+    },
+    {
+      "id": "off5-12",
+      "COPE_dimension": "Protection",
+      "severity": "high",
+      "location": "B3 service corridor",
+      "note": "few sprinkler heads recessed >50% into ceiling at B3 service corridor - obstructs spray pattern. FM said ceiling was lowered last yr"
+    },
+    {
+      "id": "off5-13",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Level 5 server room",
+      "note": "FM-200 in server room, last discharge/room integrity test 2023 - over due. no VESDA, only point smoke detectors"
+    },
+    {
+      "id": "off5-14",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Fire command centre",
+      "note": "addressable fire alarm, monitored 24/7 by FCC on L1, direct link to SCDF. hose reels + extinguishers every floor, wet riser"
+    },
+    {
+      "id": "off5-15",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Fire pump room",
+      "note": "weekly pump churn test logs ok but last annual flow test record not available. diesel pump fuel tank 3/4 full"
+    },
+    {
+      "id": "off5-16",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Site boundary",
+      "note": "bounded by public roads N and E, MRT station S (underground link closed off), 30 storey office W approx 25 m away"
+    },
+    {
+      "id": "off5-17",
+      "COPE_dimension": "Exposure",
+      "severity": "moderate",
+      "location": "Basements",
+      "note": "low lying area, PUB flood map - in flood prone zone. flood barriers at carpark ramp, manual, deployed by security on heavy rain warning. no flood since 2010 per FM"
+    },
+    {
+      "id": "off5-18",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Lobby",
+      "note": "security 24/7, 6 guards per shift. CCTV ~300 cams recorded 30 days, monitored at FCC. card access turnstiles at lobby, lift destination control"
+    },
+    {
+      "id": "off5-19",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Loading bay",
+      "note": "loading bay manned 7am-10pm, after hours shutter locked + intruder alarm. carpark barrier + LPR"
+    },
+    {
+      "id": "off5-20",
+      "COPE_dimension": ["Occupancy", "Exposure"],
+      "severity": "moderate",
+      "location": "Whole building",
+      "note": "multi-tenant office, ~4000 occupants. building ERP exists, reviewed 2025, fire drill twice a yr. no BCP for the building itself - left to tenants. server room tenant has own DR site"
+    },
+    {
+      "id": "off5-21",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Site boundary",
+      "note": "CBD location, flat site approx 8,000 m2. SCDF fire stn ~2 km, response under 10 min per FM. hydrants on Rd N and E"
+    },
+    {
+      "id": "off5-22",
+      "COPE_dimension": "Exposure",
+      "severity": "moderate",
+      "location": "Site boundary",
+      "note": "construction site to the S across the road - 2 tower cranes, hot works on going. approx 40 m from our facade"
+    },
+    {
+      "id": "off5-23",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Roof",
+      "note": "lightning protection on roof, last tested 2025. windstorm - SG no typhoons, but sumatra squalls; roof plant tied down, curtain wall designed for wind load per FM"
+    },
+    {
+      "id": "off5-24",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "earthquake - SG low seismic zone, only tremors felt from sumatra quakes. no damage history. no seismic bracing on sprinkler pipes"
+    },
+    {
+      "id": "off5-25",
+      "COPE_dimension": "Exposure",
+      "severity": "moderate",
+      "location": "Basement 3 plant room",
+      "note": "B3 plant room + transformers in B1 below flood level. sump pumps x2 in B3, on genset supply, but no high water alarm to FCC"
+    }
+  ],
+  "ofis": [
+    {
+      "title": "Rectify Recessed Sprinkler Heads at B3 Service Corridor",
+      "category": "Physical Protection",
+      "type": "Sprinkler Installation",
+      "description": "Reposition the recessed sprinkler heads at the B3 service corridor so that their deflectors sit below the ceiling, as per NFPA 13, and check any other area where the ceiling was lowered.",
+      "observation": "As observed at the B3 service corridor, a few sprinkler heads were recessed more than 50% into the ceiling, which obstructs their spray pattern.",
+      "likelihood": "Possible",
+      "consequence": "Major",
+      "effort": "Minor Capital",
+      "observations": ["off5-12"]
+    }
+  ],
+  "sections": {
+    "4": {
+      "title": "Risk Quality Ratings and Comments",
+      "subsections": [
+        {
+          "heading": "Risk Quality Ratings and Comments",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "Construction is rated Good: the building is of fire-resistive reinforced concrete construction with no combustible insulation on the facade.",
+              "citations": ["off5-1", "off5-2"]
+            },
+            {
+              "text": "Fire protection is rated Above Average: the building is fully sprinklered with an automatic fire alarm monitored around the clock, although some sprinkler heads in the B3 service corridor are recessed into the ceiling.",
+              "citations": ["off5-11", "off5-12", "off5-14"]
+            },
+            {
+              "text": "Management programs are rated Average: the server room's gaseous system is overdue for its room integrity test, and no annual pump flow test record was available.",
+              "citations": ["off5-13", "off5-15"]
+            },
+            {
+              "text": "External exposure is rated Average: the basements lie in a flood-prone zone protected only by manually deployed barriers, and an active construction site with hot work lies about 40 m to the south.",
+              "citations": ["off5-17", "off5-22", "off5-25"]
+            }
+          ]
+        }
+      ]
+    },
+    "5": {
+      "title": "Loss Estimates",
+      "subsections": [
+        {
+          "heading": "Loss Estimates",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "The main loss scenario considered is a fire in the Level 5 server room spreading to the adjoining UPS room, given the room's overdue gaseous system test and point-type smoke detection only.",
+              "citations": ["off5-9", "off5-13"]
+            },
+            {
+              "text": "A second scenario is flooding of the three basement levels, which hold the car park, chillers and transformers.",
+              "citations": ["off5-8", "off5-10", "off5-17"]
+            },
+            {
+              "text": "Loss figures are to be completed by the engineer from the site values.",
+              "citations": ["off5-1"]
+            }
+          ]
+        }
+      ]
+    },
+    "6": {
+      "title": "Management Programs",
+      "subsections": [
+        {
+          "heading": "Management Program Comments",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "The building has an emergency response plan, last reviewed in 2025, and fire drills are held twice a year.",
+              "citations": ["off5-20"]
+            },
+            {
+              "text": "Fire pumps are churn tested weekly with satisfactory logs, but the record of the last annual flow test was not available.",
+              "citations": ["off5-15"]
+            },
+            {
+              "text": "The standby generators are tested monthly on load.",
+              "citations": ["off5-9"]
+            },
+            {
+              "text": "There is no business continuity plan for the building itself; continuity planning is left to the tenants.",
+              "citations": ["off5-20"]
+            }
+          ]
+        }
+      ]
+    },
+    "7": {
+      "title": "Construction",
+      "subsections": [
+        {
+          "heading": "Construction Narrative",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "The building comprises 46 storeys above ground and 3 basement levels, of reinforced concrete columns, beams and slabs with a flat concrete roof, and is of non-combustible construction.",
+              "citations": ["off5-1"]
+            },
+            {
+              "text": "The facade is a unitised aluminium curtain wall with double-glazed glass; the slab edge gaps are filled with 135 mm rockwool to a 2-hour fire rating, and no combustible insulation was noted.",
+              "citations": ["off5-2"]
+            },
+            {
+              "text": "Office partitions are of drywall with gypsum board on aluminium studs and rockwool infill.",
+              "citations": ["off5-3"]
+            }
+          ]
+        },
+        {
+          "heading": "Construction Table",
+          "kind": "table",
+          "statements": []
+        },
+        {
+          "heading": "Compartmentalization and Fire Divisions",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "Electrical rooms are enclosed by 2-hour fire-rated walls, floors and doors, and cable penetrations were sealed in every room entered.",
+              "citations": ["off5-5"]
+            },
+            {
+              "text": "Telecom risers are fire-stopped every three floors, and smoke-detector-activated 2-hour roller shutters enclose the internal stairs between tenant floors.",
+              "citations": ["off5-6", "off5-7"]
+            },
+            {
+              "text": "The Basement 2 link to the neighbouring building is closed off by a permanently shut 2-hour fire shutter.",
+              "citations": ["off5-4"]
+            }
+          ]
+        },
+        {
+          "heading": "Details on Combustible Construction",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "No combustible construction materials were noted.",
+              "citations": ["off5-2", "off5-3"]
+            }
+          ]
+        }
+      ]
+    },
+    "8": {
+      "title": "Occupancy, Hazards, and Utilities",
+      "subsections": [
+        {
+          "heading": "Occupancy",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Occupancy: Multi-tenant office building with about 4,000 occupants and a three-level basement car park.",
+              "citations": ["off5-20", "off5-8"]
+            }
+          ]
+        },
+        {
+          "heading": "Special Hazards",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Server rooms: A tenant server room on Level 5 of about 40 racks, beside a UPS room with VRLA batteries.",
+              "citations": ["off5-9"]
+            }
+          ]
+        },
+        {
+          "heading": "Back-up Power",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "Two 2,000 kVA diesel generators on the roof, with a 1,000 L day tank, provide back-up power.",
+              "citations": ["off5-9"]
+            }
+          ]
+        },
+        {
+          "heading": "Refrigeration / Chillers / Cooling towers",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "Three water-cooled chillers in the Basement 3 plant room serve cooling towers on the roof.",
+              "citations": ["off5-10"]
+            }
+          ]
+        }
+      ]
+    },
+    "9": {
+      "title": "Fire Protection",
+      "subsections": [
+        {
+          "heading": "Automatic Sprinkler Protection Comments",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "Wet pipe sprinklers protect the whole building, including the car park.",
+              "citations": ["off5-11"]
+            },
+            {
+              "text": "Several sprinkler heads in the B3 service corridor are recessed more than 50% into a ceiling lowered last year, which obstructs their spray pattern.",
+              "citations": ["off5-12"]
+            }
+          ]
+        },
+        {
+          "heading": "Special Extinguishing Systems",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "The Level 5 server room is protected by an FM-200 system whose last room integrity test was in 2023 and is overdue.",
+              "citations": ["off5-13"]
+            }
+          ]
+        },
+        {
+          "heading": "Fire / Booster Pump Comments",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "A jockey pump, a duty electric pump and a standby diesel pump draw from two 300 m3 tanks in Basement 3; no annual flow test record was available.",
+              "citations": ["off5-11", "off5-15"]
+            }
+          ]
+        },
+        {
+          "heading": "Fire Alarm Monitoring",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "An addressable fire alarm is monitored around the clock from the fire command centre on Level 1, with a direct link to the fire service.",
+              "citations": ["off5-14"]
+            }
+          ]
+        }
+      ]
+    },
+    "10": {
+      "title": "External Exposures",
+      "subsections": [
+        {
+          "heading": "Location Details",
+          "kind": "table",
+          "statements": []
+        },
+        {
+          "heading": "Boundary Exposures",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "North and East: Public roads, with public hydrants along both.",
+              "citations": ["off5-16", "off5-21"]
+            },
+            {
+              "text": "South: An active construction site about 40 m away across the road, with two tower cranes and ongoing hot work.",
+              "citations": ["off5-22"]
+            },
+            {
+              "text": "West: A 30-storey office building about 25 m away.",
+              "citations": ["off5-16"]
+            },
+            {
+              "text": "Public fire service: The nearest fire station is about 2 km away, with a response time under 10 minutes.",
+              "citations": ["off5-21"]
+            }
+          ]
+        },
+        {
+          "heading": "Natural Catastrophe Exposures",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Flood: The site lies in a flood-prone zone; manual flood barriers at the car park ramp are deployed by security on heavy rain warnings.",
+              "citations": ["off5-17"]
+            },
+            {
+              "text": "Flood: The Basement 3 plant room and Basement 1 transformers sit below flood level; two sump pumps run on generator power, but there is no high water alarm to the fire command centre.",
+              "citations": ["off5-25"]
+            },
+            {
+              "text": "Windstorm: No typhoon exposure; roof plant is tied down against squalls and the curtain wall is designed for wind load.",
+              "citations": ["off5-23"]
+            },
+            {
+              "text": "Lightning: Lightning protection is installed on the roof and was last tested in 2025.",
+              "citations": ["off5-23"]
+            },
+            {
+              "text": "Earthquake: Low seismic zone with no damage history; sprinkler pipework has no seismic bracing.",
+              "citations": ["off5-24"]
+            }
+          ]
+        }
+      ]
+    },
+    "11": {
+      "title": "Security",
+      "subsections": [
+        {
+          "heading": "Security Staff / Guards",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Guards: Six guards per shift, around the clock.",
+              "citations": ["off5-18"]
+            }
+          ]
+        },
+        {
+          "heading": "CCTV",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "About 300 CCTV cameras are recorded for 30 days and monitored from the fire command centre.",
+              "citations": ["off5-18"]
+            }
+          ]
+        },
+        {
+          "heading": "Access Monitored",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Access: Card-access turnstiles in the lobby, and a car park barrier with licence plate recognition.",
+              "citations": ["off5-18", "off5-19"]
+            }
+          ]
+        }
+      ]
+    },
+    "12": {
+      "title": "Business Interruption",
+      "subsections": [
+        {
+          "heading": "Utilities, Infrastructure & Services",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Power: A 22 kV incomer feeds two transformers in Basement 1, with roof-top diesel generators as back-up.",
+              "citations": ["off5-10", "off5-9"]
+            }
+          ]
+        },
+        {
+          "heading": "Business Continuity / Disaster Recovery Planning",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Business Continuity Plans available?: No building-level plan; continuity is left to the tenants, and the server room tenant has its own disaster recovery site.",
+              "citations": ["off5-20"]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

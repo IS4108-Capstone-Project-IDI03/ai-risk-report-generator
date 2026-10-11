@@ -32,6 +32,9 @@ export interface IAssessment {
   // that hides it from the work list and keeps everything it holds.
   archivedAt?: Date
   locations: ILocation[]
+  // Appendix A's photos (GN-07), in report order, each one of its observations'
+  // photos with the caption shown under it. See appendix.service.ts.
+  appendixPhotos: { photo: Types.ObjectId; caption: string }[]
   createdAt: Date
   updatedAt: Date
 }
@@ -73,6 +76,14 @@ const assessmentSchema = new Schema<IAssessment>(
         name: { type: String, required: true, trim: true, maxlength: 100 },
         floor: { type: String, trim: true, maxlength: 40 },
         key: { type: String, required: true },
+      },
+    ],
+    // Embedded for the same reason: a short list, always read with its assessment.
+    appendixPhotos: [
+      {
+        _id: false,
+        photo: { type: Schema.Types.ObjectId, required: true },
+        caption: { type: String, trim: true, maxlength: 200, default: '' },
       },
     ],
   },

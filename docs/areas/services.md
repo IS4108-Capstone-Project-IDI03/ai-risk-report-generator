@@ -96,7 +96,11 @@ eval.interpret_photos`).
    so chunk ids are `<id>:<n>` and every passage carries the document's
    labels (KB-01; an Unconfirmed one is left out, and `status` is
    `needs_review` until the match step below has finished) and its own `section`
-   (IN-05, the report section it sits in, `Not applicable` or `Undefined`). The `ProgressReporter` writes each stage transition to the
+   (IN-05, the report section it sits in, `Not applicable` or `Undefined`).
+   Parsing converts the PDF in 20-page batches (`DOCLING_DOCUMENT_TIMEOUT`
+   limits each batch), joins them, and then assigns heading levels in one pass
+   over the whole document with the PDF's bookmarks and font styles, so a
+   heading is ranked against those in every batch. The `ProgressReporter` writes each stage transition to the
    `ingestion_jobs` collection in MongoDB (E2), and the gateway merges this into
    the `KnowledgeDocument` DTO as `progress` while the document is `processing`.
    Then the worker runs the match step (IN-07, see "Matching" below) and gives
@@ -110,8 +114,8 @@ eval.interpret_photos`).
    redelivered by BullMQ and processed again.
 6. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
    document is queued or processing, showing each processing document's stage,
-   elapsed time and, while chunking, the page reached out of the document's page
-   total from `progress` (E2). Pages are shown rather than a chunk count because
+   elapsed time and, while parsing or chunking, the page reached out of the
+   document's page total from `progress` (E2). Pages are shown rather than a chunk count because
    the chunk total is not knowable up front.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
@@ -385,10 +389,10 @@ the sample reports (AC7).
    - completion: how many of the template's prose and field subsections the
      draft writes (`not_started`, `partial`, `complete`). Tables are counted
      apart, since GN-03 fills them.
-   - review state: `not_drafted`, `ai_draft`, or `needs_review` when a
-     statement is unsupported, a cited document is withdrawn, or observations
-     changed since drafting. The engineer's own decisions (accept, edit,
-     reject) are RV-02.
+   - review state: `not_drafted`; `needs_review` when a finding still in the
+     draft is unsupported, a source one cites is withdrawn, or observations
+     changed since drafting; otherwise, from the engineer's decisions (RV-02,
+     below), `ai_draft`, `in_review` or `reviewed`.
    - the observations to show: the draft's own `evidence` (GN-01 AC11),
      limited to those filed under the section's categories plus any other it
      cites.
@@ -398,8 +402,55 @@ the sample reports (AC7).
    date), and a Withdrawn label, plus a link to the original PDF at that page
    (`/api/knowledge-documents/:id/file#page=n`, `knowledge:view`).
 
-Nothing is written: the workspace only reads. A 503 means S4 could not be
-reached for the template's sections.
+Reading writes nothing. A 503 means S4 could not be reached for the
+template's sections.
+
+## Reviewing findings and regenerating sections (RV-02)
+
+Each statement of a saved draft is a finding the assigned engineer accepts,
+edits or rejects in the draft editor (`screens/ReviewWorkspace.tsx`,
+`components/DraftEditor.tsx`). The gateway (`review-decision.service.ts`)
+records each decision as one entry in the append-only review audit log (see
+[database](database.md#review-audit-log-rv-02)); drafts are never changed.
+
+1. Every decision names the saved draft the engineer was looking at. The
+   gateway checks the assigned engineer, the assessment not archived, the
+   section in S4's template (so nothing is saved while S4 is down), and that
+   `draftId` is still the section's saved draft (409 if not).
+2. It folds the draft's log entries into each finding's state and text, and
+   refuses a decision that no longer applies (e.g. editing a rejected
+   finding, 409). A decision that changes nothing records nothing.
+3. It adds the entry with the finding's next `sequence`; a clash on the
+   unique index means another decision came first (409).
+4. It answers with the whole review workspace, read again. The browser keeps
+   the response read last (`asOf`), since a regeneration can finish after a
+   later decision.
+
+Bulk accept adds one `accept` entry per pending finding. Rejected findings
+leave the editor and the claims; the review history in the source panel
+keeps their text, with Restore.
+
+Regenerate:
+
+1. `POST …/sections/:sectionId/regenerate` with an optional instruction. The
+   gateway refuses (409) a section with no saved draft or with a replacement
+   already waiting, then drafts as GN-01 does (`section.service.writeDraft`:
+   the same evidence and minimum), adding `redraft` to S4's request: the
+   instruction and each finding of the saved draft as `{ heading, text,
+   decision }`, edited ones in the engineer's wording.
+2. S4 (`orchestrator.draft`, `generator.draft_section`) retrieves and checks
+   citations exactly as for a first draft. Only the prompt changes: the
+   system prompt adds `REDRAFT_RULES`, and the user message adds
+   `<current_draft>` (each finding marked with its decision) and
+   `<engineer_instruction>` after the evidence. The model keeps accepted and
+   edited findings where the evidence supports them, leaves out rejected
+   ones, and never cites either block. Provenance records
+   `gn01-v2.4+rv02-v1` and the instruction.
+3. The gateway saves the result as a `report_sections` document with
+   `replacementFor`, and logs `regenerate`. The saved draft stays the
+   section's content; the workspace shows the replacement beside it, to read
+   and then accept (it becomes the saved draft, every finding pending) or
+   discard (nothing else changes).
 
 ## Password reset email (F-06)
 

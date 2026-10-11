@@ -1027,3 +1027,81 @@ kept a draft that could be saved to whichever assessment was opened next,
 with Protection and High pre-selected for every observation.
 
 Stories: CP-01, CP-02, CP-03, CP-04, CP-08.
+## 2026-10-11 — Review decisions are an append-only log; drafts never change, and Regenerate makes a replacement to accept or discard
+
+Chose:
+- A finding is one statement of a section's draft, named by where it sits:
+  `<subsection index>.<statement index>`. A draft's statements are never
+  reordered or removed, so the name holds.
+- Every review decision is one entry added to `review_audit_log`: accept,
+  edit, reject or restore a finding, and regenerate, accept or discard a
+  replacement draft. Each entry keeps the text before (and after, for an
+  edit), the citations, the signed-in user's id and name, and the time.
+  The model refuses every update and delete, so the log is immutable through
+  the gateway (AC3, AC4, AC6).
+- Drafts in `report_sections` are never changed. A finding's state and
+  current text are read from the log (`foldFindings`), and the review summary
+  is counted from the same reads (AC9). An edit replaces the text shown and
+  sent onwards (AC2); what the draft said stays beside it.
+- Two decisions on one finding at once cannot both be saved: each entry takes
+  the next `sequence` number for its draft and finding, and that is a unique
+  index. The loser gets a 409 and reloads.
+- A decision names the draft the engineer was looking at (`draftId`). If the
+  section's saved draft has changed since, it is refused (409), so a decision
+  never lands on a different draft's finding of the same name.
+- A section is `needs_review` while a finding still in the draft is
+  unsupported, a source it cites is withdrawn, or observations changed since
+  drafting; otherwise `ai_draft` until a decision is made, `in_review` while
+  some findings are pending, and `reviewed` when none is. An unsupported
+  finding can be accepted, but it stays flagged until rejected: the decision
+  is recorded, and the evidence gap is not hidden. GN-02 and RV-04 resolve it.
+- Rejected findings leave the visible draft and its claims (AC5), and can be
+  restored from the review history to the state they were rejected from.
+- An edited finding can still be accepted, keeping the engineer's wording; it
+  then shows as Accepted with edits and counts as accepted in the summary.
+- Bulk accept accepts only pending findings, one entry each marked `bulk`, so
+  rejected and edited findings keep their decisions (AC7, AC8).
+- Regenerate (GN-04, merged into RV-02 as AC10-AC12) drafts the section again
+  as a replacement: a `report_sections` document with `replacementFor` set to
+  the saved draft. It is not the section's content until accepted (AC11);
+  discarding it leaves the saved draft and its decisions as they were (AC12).
+  Other sections are untouched (AC10). One replacement waits at a time. A
+  replacement becomes current from when it was accepted, even over a GN-01
+  redraft made while it waited.
+- S4 is given the saved draft's findings with each decision and the
+  engineer's optional instruction (`redraft`), after the evidence. It keeps
+  accepted and edited findings where the evidence supports them, leaves out
+  rejected ones, and follows the instruction within the drafting guide.
+  Retrieval and the citation check are unchanged: the saved draft and the
+  instruction are never evidence. The first-draft prompt is unchanged, so
+  `gn01-v2.4` stays; a redraft records `gn01-v2.4+rv02-v1`, and its
+  `instruction` is saved in its provenance.
+- Decisions need `reports:generate` and the assigned engineer, on an
+  assessment not archived, as drafting does. Anyone who can view the
+  assessment reads the decisions and history.
+
+Rejected:
+- Review fields on each statement of `report_sections`, updated in place: the
+  state and the audit entry would be two writes with no transaction, so a
+  decision could be saved without its record, or the reverse, and the draft
+  would no longer be what the model wrote.
+- Deriving the state from the log but also caching it on the draft: two
+  places to keep in step, for a read that is one indexed query.
+- Blocking Accept on unsupported findings: AC1 and AC7 accept every pending
+  finding, and a hidden button would not tell the engineer why.
+- Regenerating with only the instruction: "shorten the second point" means
+  nothing without the draft it refers to, and the redraft would repeat what
+  the engineer rejected.
+- Making the Generation tab's redraft a replacement too: GN-01 AC12 expects a
+  redraft to replace the draft. A redraft there starts the section's review
+  again; Regenerate is the way to compare first.
+- Physical immutability (a MongoDB role without update or delete on the
+  collection): the right end state on Atlas, but outside the code. The
+  dev seeds reset a sample's log through the driver, as they reset its drafts.
+
+Reason: RV-02 makes the engineer's judgement control the report, which needs
+every decision recorded as made, by whom and when, and never rewritten. A
+log that is also the source of the state cannot disagree with it. EV-02
+(acceptance rates by section) and RV-07 (resume a review) read the same log.
+
+Stories: RV-02, GN-04 (merged), GN-01.

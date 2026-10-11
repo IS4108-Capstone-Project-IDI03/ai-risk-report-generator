@@ -23,18 +23,25 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.models.stages.heading_hierarchy.heading_hierarchy_model import (
+    HeadingHierarchyModel,
+)
+from docling.utils.pdf_outline import extract_outline_from_docling_parse
 from docling_core.types.doc import (
     DocItemLabel,
     DoclingDocument,
     PictureItem,
     SectionHeaderItem,
+    Size,
     TableItem,
     TextItem,
     TitleItem,
 )
+from docling_parse.pdf_parser import DoclingPdfParser
 
 from app.pipeline.errors import DocumentTimeoutError, UnparsableDocumentError
 from app.pipeline.ocr_config import get_ocr_options
+from app.pipeline.progress import NoOpReporter
 
 # Labels whose text is body content we want to keep and chunk. Page
 # headers/footers and captions are deliberately excluded from body text.
@@ -204,15 +211,29 @@ def _fallback_extract(file_path: str) -> tuple[list[CapturedItem], list[Captured
     raise NotImplementedError("PyMuPDF table/image fallback is not implemented yet")
 
 
-# Bound a single document's processing time so a pathological file cannot hang
-# the pipeline indefinitely (seconds). DOCLING_DOCUMENT_TIMEOUT overrides it; 30
-# minutes leaves room for a large standard on a 2-vCPU cloud instance.
+# Bound each 20-page batch's processing time so a pathological file cannot hang
+# the pipeline indefinitely (seconds). DOCLING_DOCUMENT_TIMEOUT overrides it.
 _DOCUMENT_TIMEOUT_SECONDS = 1800.0
 
 
 def _document_timeout() -> float:
     value = os.getenv("DOCLING_DOCUMENT_TIMEOUT", "").strip()
     return float(value) if value else _DOCUMENT_TIMEOUT_SECONDS
+
+
+_HEADING_OPTIONS = HeadingHierarchyOptions(enabled=True, max_level=6, use_numbering=False)
+
+
+def _document_outline(source: Path) -> list:
+    """The PDF's bookmarks, read as Docling's default PDF backend reads them
+    (docling-parse: titles and nesting, no target page)."""
+    dp_doc = DoclingPdfParser(loglevel="fatal").load(path_or_stream=source, lazy=True)
+    if dp_doc is None:
+        return []
+    try:
+        return extract_outline_from_docling_parse(dp_doc)
+    finally:
+        dp_doc.unload()
 
 
 @lru_cache(maxsize=1)
@@ -239,8 +260,11 @@ def _converter() -> DocumentConverter:
         do_formula_enrichment=do_formula_enrichment,
         ocr_options=ocr_options,
     )
-    pipeline_options.heading_hierarchy_options = HeadingHierarchyOptions(
-        enabled=True, max_level=6, use_numbering=False
+    # Heading levels are assigned once over the joined batches (see parse), so
+    # each batch is converted without them. Parsed pages are kept because that
+    # final pass reads the headings' font styles from them.
+    pipeline_options.heading_hierarchy_options = _HEADING_OPTIONS.model_copy(
+        update={"enabled": False}
     )
     pipeline_options.generate_parsed_pages = True
 
@@ -251,46 +275,37 @@ def _converter() -> DocumentConverter:
     )
 
 
-def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDocument:
-    """Parse a document into structured text blocks plus captured tables/images.
+_BATCH_PAGES = 20
 
-    Args:
-        file_path: path to the document to parse.
-        page_range: optional 1-based, inclusive ``(start, end)`` page window to
-            parse instead of the whole document. Useful for fast smoke parses.
-            ``start`` must be >= 1 and ``end`` must be greater than ``start``;
-            ``end`` must also fall within the document's page count.
 
-    Raises:
-        ValueError: if ``page_range`` is malformed (start < 1 or end <= start)
-            or falls outside the document's page count.
-        UnparsableDocumentError: if Docling could not extract the document
-            (bad/corrupt/empty content). Carries the source path so a later OCR
-            path can pick it up. Environment/model-init errors are NOT wrapped;
-            they propagate as-is.
+def _batches(start: int, end: int) -> list[tuple[int, int]]:
+    """Split pages start..end (1-based, inclusive) into _BATCH_PAGES-page ranges."""
+    return [
+        (first, min(first + _BATCH_PAGES - 1, end)) for first in range(start, end + 1, _BATCH_PAGES)
+    ]
+
+
+def _pad_missing_pages(doc: DoclingDocument, source: Path, first: int, last: int) -> None:
+    """Give `doc` a page entry for every page first..last.
+
+    Docling leaves a failed page out of `doc.pages`, and
+    `DoclingDocument.concatenate` renumbers the pages of each document that
+    doesn't start right after the previous one ends, so a gap would shift every
+    later page number.
     """
-    source = Path(file_path)
+    missing = [n for n in range(first, last + 1) if n not in doc.pages]
+    if not missing:
+        return
+    import pymupdf
 
-    # Read the total page count once (E2b): used to validate a page_range and
-    # carried on the result so chunking can report page progress.
-    page_count = _page_count(source)
+    with pymupdf.open(source) as pdf:
+        for page_no in missing:
+            rect = pdf[page_no - 1].rect
+            doc.add_page(page_no=page_no, size=Size(width=rect.width, height=rect.height))
 
-    convert_kwargs: dict = {"raises_on_error": False}
-    if page_range is not None:
-        start, end = page_range
-        if start < 1 or end <= start:
-            raise ValueError(
-                f"page_range must satisfy start >= 1 and end > start, got {page_range}"
-            )
-        if page_count is not None and end > page_count:
-            raise ValueError(f"page_range end {end} exceeds document page count {page_count}")
-        convert_kwargs["page_range"] = (start, end)
 
-    # raises_on_error=False so a per-document failure comes back as a status we
-    # can classify, instead of an exception we would have to distinguish from
-    # pipeline init errors.
-    result = _converter().convert(source, **convert_kwargs)
-
+def _checked_document(result, file_path: str) -> DoclingDocument:
+    """One convert call's document, or the error that call's outcome means."""
     if result.status in (ConversionStatus.FAILURE, ConversionStatus.SKIPPED):
         raise UnparsableDocumentError(
             str(file_path), f"Docling could not extract the document (status={result.status.value})"
@@ -310,6 +325,87 @@ def parse(file_path: str, page_range: tuple[int, int] | None = None) -> ParsedDo
     doc = getattr(result, "document", None)
     if doc is None:
         raise UnparsableDocumentError(str(file_path), "Docling returned no document")
+    return doc
+
+
+def parse(
+    file_path: str,
+    page_range: tuple[int, int] | None = None,
+    reporter=None,
+) -> ParsedDocument:
+    """Parse a document into structured text blocks plus captured tables/images.
+
+    Args:
+        file_path: path to the document to parse.
+        page_range: optional 1-based, inclusive ``(start, end)`` page window to
+            parse instead of the whole document. Useful for fast smoke parses.
+            ``start`` must be >= 1 and ``end`` must be greater than ``start``;
+            ``end`` must also fall within the document's page count.
+        reporter: told the last page parsed after each batch, via
+            ``update_pages(page, page_count)``, which also checks for
+            cancellation. Defaults to a no-op.
+
+    Raises:
+        ValueError: if ``page_range`` is malformed (start < 1 or end <= start)
+            or falls outside the document's page count.
+        UnparsableDocumentError: if Docling could not extract the document
+            (bad/corrupt/empty content). Carries the source path so a later OCR
+            path can pick it up. Environment/model-init errors are NOT wrapped;
+            they propagate as-is.
+    """
+    source = Path(file_path)
+    reporter = reporter or NoOpReporter()
+
+    # Read the total page count once (E2b): used to validate a page_range and
+    # carried on the result so chunking can report page progress.
+    page_count = _page_count(source)
+
+    if page_range is not None:
+        start, end = page_range
+        if start < 1 or end <= start:
+            raise ValueError(
+                f"page_range must satisfy start >= 1 and end > start, got {page_range}"
+            )
+        if page_count is not None and end > page_count:
+            raise ValueError(f"page_range end {end} exceeds document page count {page_count}")
+        batches: list[tuple[int, int] | None] = _batches(start, end)
+    elif page_count is not None:
+        batches = _batches(1, page_count)
+    else:
+        # Unreadable page count: one call, so Docling's own error handling decides.
+        batches = [None]
+
+    if page_count is not None:
+        reporter.update_pages(0, page_count)
+
+    docs = []
+    parsed_pages: dict = {}
+    for batch in batches:
+        # raises_on_error=False so a per-document failure comes back as a status
+        # we can classify, instead of an exception we would have to distinguish
+        # from pipeline init errors.
+        convert_kwargs: dict = {"raises_on_error": False}
+        if batch is not None:
+            convert_kwargs["page_range"] = batch
+        result = _converter().convert(source, **convert_kwargs)
+        batch_doc = _checked_document(result, file_path)
+        docs.append(batch_doc)
+        parsed_pages.update(
+            {p.page_no: p.parsed_page for p in result.pages if p.parsed_page is not None}
+        )
+        if batch is not None:
+            # The first batch is padded from page 1 too, so a page_range
+            # starting later isn't renumbered from 1 by concatenate.
+            first_page = 1 if len(docs) == 1 else batch[0]
+            _pad_missing_pages(batch_doc, source, first_page, batch[1])
+            reporter.update_pages(batch[1], page_count)
+
+    doc = docs[0] if len(docs) == 1 else DoclingDocument.concatenate(docs)
+    # One pass over the whole document, so a heading is ranked against those
+    # in every batch, as a single convert call would.
+    HeadingHierarchyModel(_HEADING_OPTIONS).assign_heading_levels(
+        doc, parsed_pages=parsed_pages, outline=_document_outline(source)
+    )
 
     text_blocks, tables, images = _extract_text_blocks(doc)
 

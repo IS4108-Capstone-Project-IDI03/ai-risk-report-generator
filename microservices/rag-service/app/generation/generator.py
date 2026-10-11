@@ -18,6 +18,10 @@ from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
 PROMPT_VERSION = "gn01-v2.4"
+# The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
+# and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
+# redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
+REDRAFT_PROMPT_VERSION = "rv02-v1"
 HERE = Path(__file__).parent
 TEMPLATE = json.loads((HERE / "sections.json").read_text())
 
@@ -74,7 +78,23 @@ def _structure(section: dict) -> str:
     return "\n".join(lines)
 
 
-def _system_prompt(section_id: str, section: dict) -> str:
+# Added to the system prompt for a regenerated draft (RV-02). The saved draft is context,
+# never evidence: the citation check only accepts the labels of the evidence below it.
+REDRAFT_RULES = """This is a redraft. The engineer reviewing the section asked for it to be \
+written again.
+- <current_draft> is the saved draft, one statement per line, each marked with the \
+engineer's decision: accepted, edited (now the engineer's own wording), pending (not yet \
+reviewed) or rejected. Keep the substance of accepted and edited statements, in their \
+wording where it suits, as long as the evidence below still supports them. Do not repeat \
+what rejected statements say.
+- <engineer_instruction>, when given, says what the engineer wants changed. Follow it \
+within the drafting guide. It never permits a statement the observations and standards \
+below do not support, an opinion, or a recommendation.
+- <current_draft> and <engineer_instruction> are not evidence: never cite them. Cite only \
+the labels of the observations and standards, as for any draft."""
+
+
+def _system_prompt(section_id: str, section: dict, redraft=None) -> str:
     return f"""You draft Section {section_id}, "{section["title"]}", of a Marsh Property Risk \
 Evaluation (PRE) report. A risk engineer reviews the draft before it is used.
 
@@ -93,7 +113,18 @@ labels out of the text.
 - Where a standards passage explains or supports a statement, cite it alongside the \
 observation. Never cite a passage that does not bear on the statement.
 - A subsection the evidence does not cover gets no statements.
-- `questions` holds up to three questions for the engineer, or none."""
+- `questions` holds up to three questions for the engineer, or none.""" + (
+        f"\n\n{REDRAFT_RULES}" if redraft is not None else ""
+    )
+
+
+def _redraft_blocks(redraft) -> list[str]:
+    """The saved draft with the engineer's decisions, and their instruction (RV-02)."""
+    current = [f"[{s.decision}] {s.heading}: {s.text}" for s in redraft.current]
+    return [
+        _block("current_draft", current),
+        _block("engineer_instruction", [redraft.instruction] if redraft.instruction else []),
+    ]
 
 
 def _observation_block(label: str, o) -> str:
@@ -137,8 +168,13 @@ def draft_section(
     standards: list[dict],
     precedents: list[dict],
     effort: str,
+    redraft=None,
 ) -> tuple[SectionDraft, str]:
-    """Return the model's draft of one section, and the model that wrote it."""
+    """Return the model's draft of one section, and the model that wrote it.
+
+    `redraft` (RV-02) adds the saved draft with the engineer's decisions and their
+    instruction after the evidence, and the rules for using them to the system prompt.
+    """
     section = TEMPLATE["sections"][section_id]
     own = [o for o in observations if filed_under(o, section)]
     others = [o for o in observations if not filed_under(o, section)]
@@ -166,9 +202,12 @@ def draft_section(
                 "past_reports",
                 [_chunk_block(label("P", n, c["id"]), c) for n, c in enumerate(precedents, 1)],
             ),
+            *(_redraft_blocks(redraft) if redraft is not None else []),
         ]
     )
-    draft, model = complete(_system_prompt(section_id, section), user, SectionDraft, effort)
+    draft, model = complete(
+        _system_prompt(section_id, section, redraft), user, SectionDraft, effort
+    )
     # An unknown label stays as written, so the citation check flags it.
     for sub in draft.subsections:
         for statement in sub.statements:
@@ -277,4 +316,48 @@ def draft_ofis(
         o.observations = [full.get(c, c) for c in o.observations]
         o.standards = [full.get(c, c) for c in o.standards]
         o.precedent = full.get(o.precedent, o.precedent) if o.precedent else None
+    return result, model
+
+
+# Section 2 Executive Summary (GN-07): summarises the report's own sections, so nothing is
+# retrieved. Bump SUMMARY_PROMPT_VERSION whenever the prompt changes.
+SUMMARY_PROMPT_VERSION = "gn07-v1"
+
+
+class SummaryDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    statements: list[Statement]
+
+
+def _summary_system_prompt() -> str:
+    return f"""You draft the Executive Summary in Section 2 of a Marsh Property Risk \
+Evaluation (PRE) report. A risk engineer reviews it before it is used.
+
+Summarise only what the report's <sections> say: the site's main exposures and the \
+highest-priority Opportunities for Improvement. Add no fact, figure, standard or \
+judgement the sections do not state.
+
+Follow this drafting guide:
+
+{DRAFTING_GUIDE}
+
+Output: `citations` lists the labels of the sections a statement rests on, for example \
+"S3" or "S9". Keep the labels out of the text. Every statement cites at least one section."""
+
+
+def draft_summary(assessment, sections, effort: str) -> tuple[SummaryDraft, str]:
+    """Return the model's Executive Summary over these sections, labels mapped to `S:<id>`
+    (an unknown label stays as written, so the citation check flags it), and the model."""
+    blocks = [f"[S{s.id}] {s.title}\n{s.text}" for s in sections]
+    user = "\n\n".join(
+        [
+            f"Assessment {assessment.reference}: {assessment.facility_type} in "
+            f"{assessment.jurisdiction}.",
+            _block("sections", blocks),
+        ]
+    )
+    result, model = complete(_summary_system_prompt(), user, SummaryDraft, effort)
+    known = {f"S{s.id}" for s in sections}
+    for statement in result.statements:
+        statement.citations = [f"S:{c[1:]}" if c in known else c for c in statement.citations]
     return result, model
