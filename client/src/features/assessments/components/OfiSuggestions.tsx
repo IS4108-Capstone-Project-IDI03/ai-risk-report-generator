@@ -377,10 +377,13 @@ export function OfiRow({
   reference,
   canDraft,
   observations,
+  onAccepted,
 }: {
   reference: string
   canDraft: boolean
   observations: SavedObservation[]
+  // Told after an accept changes the report's Section 3 (GN-07: Section 2 summarises it).
+  onAccepted?: () => void
 }) {
   const { ofis, setOfis, loadError } = useOfis(reference)
   const [open, setOpen] = useState(false)
@@ -416,6 +419,8 @@ export function OfiRow({
     } catch (error: unknown) {
       setFailure(error instanceof GatewayError ? error.message : 'A suggestion was not accepted.')
     }
+    // Even after a failure, since the accepts before it went through.
+    onAccepted?.()
     setAccepting(false)
   }
 

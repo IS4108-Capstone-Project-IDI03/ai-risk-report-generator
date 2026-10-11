@@ -387,10 +387,23 @@ are kept; the newest is current. Each document has:
 
 The first draft sets the assessment's `reportStatus` to `draft`.
 
+**Section 2, Executive Summary (GN-07)** is saved here too, as `sectionId:
+'2'`, drafted by S4 from the text of Sections 3-12 alone. Its three
+subsections are the template's: "Executive Summary" (the statements, each
+citing the sections it rests on as `S:<id>`), and "Changes Since Previous
+Survey" and "Planned Changes / Projects", left empty for the engineer.
+`evidence` and `sources` are empty. `summarised` records the version of each
+section it read (`{ sectionId, version }`: the newest draft's `_id` for 4-12,
+the sorted accepted OFI `_id`s for 3), so a change to one marks it out of date.
+`metadata.COPE_dimension` is `all`. Section 1, Purpose and Scope, is not
+stored: the gateway fills Marsh's standard wording from the assessment and site on each read.
+
 | Route | Does |
 | --- | --- |
 | `GET /api/assessments/:reference/sections` | Sections 7-12 from the template, each with `copeDimensions`, `minObservations`, `usableObservations`, `latestDraft` (or `null`) and `changesSinceDraft`: how many observations the newest draft's `evidence` lacks, holds in an older form, or holds that are no longer evidence (deleted or uncategorised, CP-08), which a redraft would bring up to date; and `changeCounts` `{ added, changed, removed }`, the same total by kind, which the screens name, leaving out any kind with none. 404, or 503 when S4 cannot be reached. |
 | `POST /api/assessments/:reference/sections/:sectionId/draft` | Drafts and saves the section (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404 (unknown assessment or section), 409 (a transcription in progress, or archived), 422 `{ error, found, needed }` (not enough usable evidence), 503 (drafting failed, with the reason). |
+| `GET /api/assessments/:reference/summary` | Sections 1 and 2 (GN-07): `{ purposeAndScope, executiveSummary: { draft, missing, staleSections } }`. `purposeAndScope` is Marsh's standard Section 1 wording filled in with the client, site and locations: paragraphs, with the visit activities as a nested list. `missing` lists the sections of 3-12 not yet complete (3: no accepted OFI; 4-12: no draft), `staleSections` those changed since the summary was drafted, each `{ id, title }` in report order. 404. |
+| `POST /api/assessments/:reference/summary/draft` | Drafts and saves Section 2 (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404, 409 archived, 422 `{ error, missing }` while a section is incomplete (no S4 call), 503 (drafting failed). |
 | `GET /api/assessments/:reference/review` | The review workspace (RV-01): `{ sections }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections, and `tables`), `review` (`state`: `not_drafted`, `ai_draft` or `needs_review`, with `unsupportedStatements`, `withdrawnSources`, `changesSinceDraft` and its `changeCounts`), the newest `draft` without its raw `sources`, `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record) and `observations` (the draft's `evidence` filed under any of the section's categories, plus any other it cites, each with `copeDimensions`). Read-only. 404, or 503 when S4 cannot be reached. |
 
 ## Opportunities for Improvement (GN-05)

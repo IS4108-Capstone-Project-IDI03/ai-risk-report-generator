@@ -611,3 +611,29 @@ export async function getReviewWorkspace(
     )
   ).data.sections
 }
+
+// Sections 1 and 2 (GN-07): Purpose and Scope, assembled by the gateway from
+// the assessment's details, and the Executive Summary drafted from Sections
+// 3-12, with the sections it still needs (AC3) or that changed since (AC4).
+export type SectionRef = { id: string; title: string }
+export type Summary = {
+  // Marsh's Purpose and Scope: paragraphs, and the list of visit activities as an array.
+  purposeAndScope: (string | string[])[]
+  executiveSummary: {
+    draft: SectionDraft | null
+    missing: SectionRef[]
+    staleSections: SectionRef[]
+  }
+}
+
+const summaryPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/summary`
+
+export async function getSummary(reference: string, signal?: AbortSignal): Promise<Summary> {
+  return (await request<Summary>('GET', summaryPath(reference), undefined, signal)).data
+}
+
+// Drafts the Executive Summary; the gateway saves it as Section 2.
+export async function draftSummary(reference: string): Promise<SectionDraft> {
+  return (await request<SectionDraft>('POST', `${summaryPath(reference)}/draft`)).data
+}

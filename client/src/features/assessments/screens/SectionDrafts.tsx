@@ -17,6 +17,7 @@ import {
 import { ObservationExcerpt } from '../components/ObservationExcerpt'
 import { describeChanges } from '../reviewDisplay'
 import { OfiRow } from '../components/OfiSuggestions'
+import { SummaryRow } from '../components/SummaryRow'
 import { useObservations } from '../useObservations'
 import { useSections } from '../useSections'
 
@@ -228,6 +229,8 @@ export function SectionDrafts({
   const [selected, setSelected] = useState<string | null>(null)
   // Sections redrafted while this tab is open, so their row says so (CP-08).
   const [redrafted, setRedrafted] = useState<Record<string, boolean>>({})
+  // Counts OFI accepts, which Section 2's row must hear of (GN-07 AC3, AC4).
+  const [ofiChanges, setOfiChanges] = useState(0)
   const stop = useRef(false)
   const { observations } = useObservations(reference, true)
 
@@ -373,8 +376,19 @@ export function SectionDrafts({
               <span>Evidence</span>
               <span />
             </div>
+            {/* Section 2 opens the report's drafted sections (GN-07). */}
+            <SummaryRow
+              reference={reference}
+              canDraft={canDraft}
+              refreshKey={`${ofiChanges}|${(sections ?? []).map((s) => s.latestDraft?.id).join()}`}
+            />
             {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
-            <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
+            <OfiRow
+              reference={reference}
+              canDraft={canDraft}
+              observations={observations ?? []}
+              onAccepted={() => setOfiChanges((n) => n + 1)}
+            />
             {sections.map((s) => {
               const state = stateOf(s)
               const failed = failures[s.id]

@@ -1,11 +1,12 @@
 import { Schema, Types, model } from 'mongoose'
 import { COPE_DIMENSIONS, type CopeDimension } from './observation.model'
 
-// One generated draft of one report section (GN-01). Each request saves a new
+// One generated draft of one report section (GN-01), or of Section 2's
+// Executive Summary (GN-07). Each request saves a new
 // document, so earlier drafts stay as they were; the newest is the current one.
 export interface IReportSection {
   assessment: Types.ObjectId
-  // The template's section number, '7' to '12'.
+  // The template's section number: '7' to '12', or '2' for the Executive Summary.
   sectionId: string
   title: string
   // In the template's order. A statement cites observations (`O:<id>`) or
@@ -34,6 +35,9 @@ export interface IReportSection {
     standard: string | null
   }[]
   guardrail: { passed: boolean; unsupported_count: number }
+  // Section 2 only (GN-07 AC4): the version of each section it summarised, to
+  // tell when one has changed since. See summary.service.ts.
+  summarised?: { sectionId: string; version: string }[]
   // The configuration that wrote the draft (AC7).
   provenance: {
     provider: string
@@ -98,6 +102,10 @@ const reportSectionSchema = new Schema<IReportSection>(
     guardrail: {
       passed: { type: Boolean, required: true },
       unsupported_count: { type: Number, required: true },
+    },
+    summarised: {
+      type: [{ _id: false, sectionId: String, version: String }],
+      default: undefined,
     },
     provenance: {
       provider: { type: String, required: true },

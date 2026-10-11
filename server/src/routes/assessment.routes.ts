@@ -36,6 +36,7 @@ import {
 import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
 import { RagServiceError } from '../services/rag.service'
 import { getReviewWorkspace } from '../services/review.service'
+import { draftSummary, getSummary, IncompleteSectionsError } from '../services/summary.service'
 import {
   draftSection,
   InsufficientEvidenceError,
@@ -388,6 +389,46 @@ router.post(
 )
 
 router.use(tooLarge)
+
+// Sections 1 and 2 (GN-07): Purpose and Scope, and the Executive Summary with
+// what it still needs or what changed since it was drafted. Read-only.
+router.get('/:reference/summary', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await getSummary(req.params.reference))
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Drafts the Executive Summary (GN-07): 201 with the draft, 422 with the
+// sections still to complete (AC3), and otherwise as for a section draft.
+router.post(
+  '/:reference/summary/draft',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    try {
+      res.status(201).json(await draftSummary(req.params.reference, res.locals.user!))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+      } else if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+      } else if (error instanceof AssessmentArchivedError) {
+        res.status(409).json({ error: error.message })
+      } else if (error instanceof IncompleteSectionsError) {
+        res.status(422).json({ error: error.message, missing: error.missing })
+      } else if (error instanceof RagServiceError) {
+        res.status(503).json({ error: error.message })
+      } else {
+        throw error
+      }
+    }
+  },
+)
 
 // Section 3 Opportunities for Improvement (GN-05): suggestions and the
 // accepted OFIs in report order. Read-only, so a knowledge admin can open it.
