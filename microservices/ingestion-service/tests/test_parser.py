@@ -235,7 +235,7 @@ def test_a_parse_that_runs_out_of_time_fails_instead_of_indexing_part_of_it(monk
         parser.parse(str(FIXTURE))
 
 
-# --- batched parsing: 20 pages per convert call -------------------------------
+# --- batched parsing: 10 pages per convert call -------------------------------
 # A fake converter stands in for Docling's models: each call returns a
 # DoclingDocument holding one paragraph on the first page of the requested range.
 
@@ -321,7 +321,7 @@ class _FakeConverter:
                     ErrorItem(
                         component_type=DoclingComponentType.PIPELINE,
                         module_name="StandardPdfPipeline",
-                        error_message="Pipeline stage timeout: processed 12/20 pages successfully",
+                        error_message="Pipeline stage timeout: processed 6/10 pages successfully",
                         category=FailureCategory.TIMEOUT,
                     )
                 ],
@@ -344,13 +344,15 @@ def fake_converter(monkeypatch):
     return converter
 
 
-def test_a_long_document_is_converted_twenty_pages_at_a_time(tmp_path, fake_converter):
+def test_a_long_document_is_converted_ten_pages_at_a_time(tmp_path, fake_converter):
     result = parse(_blank_pdf(tmp_path, 45))
 
-    assert fake_converter.page_ranges == [(1, 20), (21, 40), (41, 45)]
+    assert fake_converter.page_ranges == [(1, 10), (11, 20), (21, 30), (31, 40), (41, 45)]
     assert [(b.text, b.page) for b in result.text_blocks] == [
         ("Paragraph from page 1", 1),
+        ("Paragraph from page 11", 11),
         ("Paragraph from page 21", 21),
+        ("Paragraph from page 31", 31),
         ("Paragraph from page 41", 41),
     ]
 
@@ -360,8 +362,8 @@ def test_a_long_document_is_converted_twenty_pages_at_a_time(tmp_path, fake_conv
     [
         (7, [(1, 7)]),
         (1, [(1, 1)]),
-        (20, [(1, 20)]),
-        (41, [(1, 20), (21, 40), (41, 41)]),
+        (20, [(1, 10), (11, 20)]),
+        (41, [(1, 10), (11, 20), (21, 30), (31, 40), (41, 41)]),
     ],
 )
 def test_short_documents_and_single_page_tails_are_converted(
@@ -384,7 +386,7 @@ class _PageRecorder:
 @pytest.mark.parametrize(
     ("pages", "expected_updates"),
     [
-        (45, [(0, 45), (20, 45), (40, 45), (45, 45)]),
+        (45, [(0, 45), (10, 45), (20, 45), (30, 45), (40, 45), (45, 45)]),
         (7, [(0, 7), (7, 7)]),
     ],
 )
@@ -409,7 +411,7 @@ def test_a_stop_requested_during_parsing_ends_it_after_the_current_batch(tmp_pat
     with pytest.raises(IngestionCancelledError):
         parse(_blank_pdf(tmp_path, 45), reporter=_StopRequested())
 
-    assert fake_converter.page_ranges == [(1, 20)]
+    assert fake_converter.page_ranges == [(1, 10)]
 
 
 def test_a_batch_that_runs_out_of_time_fails_the_parse_without_converting_the_rest(
@@ -418,13 +420,13 @@ def test_a_batch_that_runs_out_of_time_fails_the_parse_without_converting_the_re
     from app.pipeline import parser
     from app.pipeline.errors import DocumentTimeoutError
 
-    converter = _FakeConverter(timed_out_batch=(21, 40))
+    converter = _FakeConverter(timed_out_batch=(21, 30))
     monkeypatch.setattr(parser, "_converter", lambda: converter)
 
-    with pytest.raises(DocumentTimeoutError, match="12/20"):
+    with pytest.raises(DocumentTimeoutError, match="6/10"):
         parse(_blank_pdf(tmp_path, 45))
 
-    assert converter.page_ranges == [(1, 20), (21, 40)]
+    assert converter.page_ranges == [(1, 10), (11, 20), (21, 30)]
 
 
 def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, monkeypatch):
@@ -439,7 +441,9 @@ def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, 
 
     assert [(b.text, b.page) for b in result.text_blocks] == [
         ("Paragraph from page 1", 1),
+        ("Paragraph from page 11", 11),
         ("Paragraph from page 22", 22),
+        ("Paragraph from page 31", 31),
         ("Paragraph from page 41", 41),
     ]
     assert sorted(result.docling_document.pages) == [n for n in range(1, 46)]
@@ -448,9 +452,10 @@ def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, 
 def test_a_page_range_not_starting_at_page_one_keeps_its_page_numbers(tmp_path, fake_converter):
     result = parse(_blank_pdf(tmp_path, 80), page_range=(45, 70))
 
-    assert fake_converter.page_ranges == [(45, 64), (65, 70)]
+    assert fake_converter.page_ranges == [(45, 54), (55, 64), (65, 70)]
     assert [(b.text, b.page) for b in result.text_blocks] == [
         ("Paragraph from page 45", 45),
+        ("Paragraph from page 55", 55),
         ("Paragraph from page 65", 65),
     ]
 

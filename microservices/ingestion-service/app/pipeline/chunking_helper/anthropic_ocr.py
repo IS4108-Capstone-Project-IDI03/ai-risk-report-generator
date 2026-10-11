@@ -2,8 +2,10 @@
 
 Uses the official SDK's structured outputs (`messages.parse` with a pydantic
 schema), so the answer arrives already validated. The SDK itself retries rate
-limits, server errors and dropped connections (`MAX_RETRIES`); after that the
-region is left unread (None), the same contract as the other providers.
+limits, server errors and dropped connections a few times (`MAX_RETRIES`);
+after that `rate_limit` waits them out, and a region still refused fails the
+document (OcrUnavailableError). Any other API error leaves the region unread
+(None), the same contract as the other providers.
 """
 
 import base64
@@ -14,6 +16,11 @@ import anthropic
 from pydantic import BaseModel
 
 from app.pipeline.chunking_helper.ocr_prompts import TASKS
+from app.pipeline.chunking_helper.rate_limit import (
+    call_with_waits,
+    is_transient_status,
+    parse_seconds,
+)
 
 log = logging.getLogger(__name__)
 
@@ -54,12 +61,27 @@ def _ask(prompt: str, schema: type[BaseModel], data: str):
     )
 
 
+def _is_transient(error: Exception) -> bool:
+    """Rate limits (429), overloads (529), server errors and dropped connections."""
+    if isinstance(error, anthropic.APIConnectionError):  # timeouts included
+        return True
+    return isinstance(error, anthropic.APIStatusError) and is_transient_status(error.status_code)
+
+
+def _hint(error: Exception) -> float | None:
+    """Seconds from the `retry-after` header Anthropic sends with a 429."""
+    response = getattr(error, "response", None)
+    return parse_seconds(response.headers.get("retry-after")) if response is not None else None
+
+
 def recognise(image_png: bytes, task: str) -> str | None:
     """Read one cropped region; same contract as `ocr_model.recognise`."""
     prompt, schema, to_text = TASKS[task]
     data = base64.standard_b64encode(image_png).decode("ascii")
     try:
-        response = _ask(prompt, schema, data)
+        response = call_with_waits(
+            lambda: _ask(prompt, schema, data), _is_transient, _hint, "Claude", task
+        )
     except (
         anthropic.AuthenticationError,
         anthropic.PermissionDeniedError,

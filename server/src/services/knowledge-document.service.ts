@@ -131,12 +131,15 @@ const ISSUING_BODY: Record<SourceType, string> = {
 // Elapsed times are computed on read so they are never stale.
 type ProgressDto = {
   currentStage: IngestionStage
-  // The page reached while parsing (pages parsed so far, in 20-page batches)
-  // or chunking, and the document's page total (E2b). The chunk count has no
+  // The page reached while parsing (pages parsed so far, in 20-page batches),
+  // chunking or indexing, and the document's page total (E2b). The chunk count has no
   // knowable total up front, so progress is tracked by page. Both null at the
   // start of each stage until it reports a page.
   pageCurrent: number | null
   pageTotal: number | null
+  // Table and formula regions read of those queued, during chunking's OCR pass.
+  ocrCurrent: number | null
+  ocrTotal: number | null
   elapsedMs: number
   currentStageElapsedMs: number
   stageLog: { stage: string; startedAt: string; durationMs: number }[]
@@ -233,6 +236,8 @@ function toProgressDto(job: IIngestionJob): ProgressDto {
     currentStage: job.currentStage,
     pageCurrent: job.pageCurrent,
     pageTotal: job.pageTotal,
+    ocrCurrent: job.ocrCurrent ?? null,
+    ocrTotal: job.ocrTotal ?? null,
     elapsedMs: now - job.startedAt.getTime(),
     currentStageElapsedMs: now - job.currentStageStartedAt.getTime(),
     stageLog: job.stageLog.map((entry) => ({

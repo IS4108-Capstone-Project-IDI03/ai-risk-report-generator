@@ -11,7 +11,7 @@ from bson import ObjectId
 
 from app import worker
 from app.pipeline import UnparsableDocumentError
-from app.pipeline.errors import DocumentTimeoutError
+from app.pipeline.errors import DocumentTimeoutError, OcrUnavailableError
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
@@ -260,6 +260,19 @@ def test_a_parse_that_ran_out_of_time_is_failed_with_the_limit_to_raise(document
         "Reading this PDF took longer than the time limit, so nothing was indexed. "
         "Raise DOCLING_DOCUMENT_TIMEOUT on the server and upload it again."
     )
+
+
+def test_an_ocr_provider_that_kept_refusing_fails_with_a_reason_to_retry(documents, monkeypatch):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        raise OcrUnavailableError("Claude OCR kept refusing a table region after 8 waits")
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    with pytest.raises(OcrUnavailableError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert documents.doc["error"] == worker.OCR_BUSY
 
 
 def test_a_system_error_is_failed_with_a_plain_reason_not_the_technical_one(documents, monkeypatch):

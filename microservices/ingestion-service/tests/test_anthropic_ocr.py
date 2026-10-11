@@ -11,8 +11,9 @@ import anthropic
 import httpx
 import pytest
 
-from app.pipeline.chunking_helper import anthropic_ocr, ocr_model
+from app.pipeline.chunking_helper import anthropic_ocr, ocr_model, rate_limit
 from app.pipeline.chunking_helper.ocr_prompts import FormulaReading, TableReading
+from app.pipeline.errors import OcrUnavailableError
 
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
 
@@ -33,6 +34,12 @@ class _FakeClaude:
         return reply
 
 
+def _status_error(status: int, headers=None):
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx.Response(status, request=request, headers=headers or {})
+    return anthropic.APIStatusError(f"HTTP {status}", response=response, body=None)
+
+
 def _answer(parsed, stop_reason="end_turn"):
     return SimpleNamespace(parsed_output=parsed, stop_reason=stop_reason)
 
@@ -43,6 +50,10 @@ def claude(monkeypatch):
     monkeypatch.delenv("OCR_MODEL", raising=False)
     fake = _FakeClaude()
     monkeypatch.setattr(anthropic_ocr, "_client", lambda: fake)
+    # Waits are recorded, not slept.
+    monkeypatch.setattr(rate_limit, "_paused_until", 0.0)
+    fake.pauses = []
+    monkeypatch.setattr(rate_limit, "_pause", fake.pauses.append)
     return fake
 
 
@@ -60,10 +71,31 @@ def test_a_refused_region_is_left_unread(claude):
     assert ocr_model.recognise(PNG, "table") is None
 
 
-def test_an_api_failure_after_the_sdk_retries_leaves_the_region_unread(claude):
-    claude.replies.append(anthropic.APIConnectionError(request=httpx.Request("POST", "https://x")))
+def test_a_rejected_request_leaves_the_region_unread(claude):
+    claude.replies.append(_status_error(400))
 
     assert ocr_model.recognise(PNG, "formula") is None
+    assert claude.pauses == []
+
+
+def test_rate_limits_are_waited_out_for_as_long_as_retry_after_says(claude):
+    claude.replies += [
+        _status_error(429, {"retry-after": "37"}),
+        _status_error(529),  # overloaded
+        anthropic.APIConnectionError(request=httpx.Request("POST", "https://x")),
+        _answer(FormulaReading(latex="x")),
+    ]
+
+    assert ocr_model.recognise(PNG, "formula") == "x"
+    assert len(claude.pauses) == 3
+    assert claude.pauses[0] == 37.0
+
+
+def test_a_region_still_rate_limited_after_every_wait_fails_the_document(claude):
+    claude.replies += [_status_error(429)] * (rate_limit.MAX_WAITS + 1)
+
+    with pytest.raises(OcrUnavailableError):
+        ocr_model.recognise(PNG, "table")
 
 
 def test_a_rejected_api_key_fails_loudly_instead_of_dropping_every_table(claude):

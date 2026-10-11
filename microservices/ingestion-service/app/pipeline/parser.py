@@ -211,7 +211,7 @@ def _fallback_extract(file_path: str) -> tuple[list[CapturedItem], list[Captured
     raise NotImplementedError("PyMuPDF table/image fallback is not implemented yet")
 
 
-# Bound each 20-page batch's processing time so a pathological file cannot hang
+# Bound each 10-page batch's processing time so a pathological file cannot hang
 # the pipeline indefinitely (seconds). DOCLING_DOCUMENT_TIMEOUT overrides it.
 _DOCUMENT_TIMEOUT_SECONDS = 1800.0
 
@@ -275,7 +275,7 @@ def _converter() -> DocumentConverter:
     )
 
 
-_BATCH_PAGES = 20
+_BATCH_PAGES = 10
 
 
 def _batches(start: int, end: int) -> list[tuple[int, int]]:

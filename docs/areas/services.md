@@ -97,7 +97,7 @@ eval.interpret_photos`).
    labels (KB-01; an Unconfirmed one is left out, and `status` is
    `needs_review` until the match step below has finished) and its own `section`
    (IN-05, the report section it sits in, `Not applicable` or `Undefined`).
-   Parsing converts the PDF in 20-page batches (`DOCLING_DOCUMENT_TIMEOUT`
+   Parsing converts the PDF in 10-page batches (`DOCLING_DOCUMENT_TIMEOUT`
    limits each batch), joins them, and then assigns heading levels in one pass
    over the whole document with the PDF's bookmarks and font styles, so a
    heading is ranked against those in every batch. The `ProgressReporter` writes each stage transition to the

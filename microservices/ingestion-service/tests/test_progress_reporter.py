@@ -88,6 +88,34 @@ def test_starting_a_stage_clears_the_previous_stages_page_count():
     assert update["pageTotal"] is None
 
 
+def test_update_ocr_sets_only_ocr_fields():
+    collection = MagicMock()
+    reporter = ProgressReporter(collection, DOC_ID)
+    reporter.start_stage("chunking")
+    collection.find_one_and_update.reset_mock()
+
+    reporter.update_ocr(3, 17)
+
+    update = last_set(collection)
+    assert update["ocrCurrent"] == 3
+    assert update["ocrTotal"] == 17
+    assert "currentStage" not in update
+    assert "pageCurrent" not in update
+
+
+def test_starting_a_stage_clears_the_previous_stages_ocr_count():
+    collection = MagicMock()
+    reporter = ProgressReporter(collection, DOC_ID)
+    reporter.start_stage("chunking")
+    reporter.update_ocr(17, 17)
+
+    reporter.start_stage("anonymising")
+
+    update = last_set(collection)
+    assert update["ocrCurrent"] is None
+    assert update["ocrTotal"] is None
+
+
 def test_finish_moves_the_current_stage_to_the_log():
     collection = MagicMock()
     reporter = ProgressReporter(collection, DOC_ID)
@@ -108,6 +136,7 @@ def test_every_method_is_a_no_op_without_a_document_id():
 
     reporter.start_stage("parsing")
     reporter.update_pages(12, 45)
+    reporter.update_ocr(3, 17)
     reporter.finish()
 
     collection.find_one_and_update.assert_not_called()
