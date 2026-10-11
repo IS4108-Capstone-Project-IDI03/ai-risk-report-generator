@@ -124,9 +124,9 @@ def stub_document_ocr(request):
 
     _real_parse = parser_module.parse
 
-    def _stubbed_parse(file_path, page_range=None):
+    def _stubbed_parse(file_path, page_range=None, reporter=None):
         try:
-            return _real_parse(file_path, page_range=page_range)
+            return _real_parse(file_path, page_range=page_range, reporter=reporter)
         except UnparsableDocumentError:
             return ParsedDocument(
                 doc_name=str(file_path).rsplit("/", 1)[-1].rsplit("\\", 1)[-1],
