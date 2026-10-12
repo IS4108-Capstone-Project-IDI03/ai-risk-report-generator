@@ -30,13 +30,14 @@ import {
 import { formatDayYearTime } from './format'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
-  buildingOf,
   filtersActive,
   labelValues,
   matchesFilters,
+  matchesPlace,
   NO_FILTERS,
   OBSERVATION_STATUSES,
   OBSERVATION_TYPES,
+  placeFilter,
   statusOf,
   typeLabel,
   typesOf,
@@ -819,6 +820,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       )
     const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
     const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
+    // The Location filter offers where the listed observations are, and the
+    // place chosen even when only the other list (deleted or not) holds it.
+    const placeOptions = placeFilter(
+      allRows
+        .filter(
+          (r) => obsRows.includes(r) || (!!s.of.place && matchesPlace(r.o, s.of.place)),
+        )
+        .map(({ o }) => o),
+    )
     const tagRow = s.tagEdit && allRows.find((r) => r.key === s.tagEdit!.key)
     const dialogRow = s.obsDialog && allRows.find((r) => r.key === s.obsDialog!.key)
     const obsNoun = s.obsShowDeleted ? 'deleted observation' : 'observation'
@@ -2355,8 +2365,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsLandingRow: landingRow,
       /* by location (CP-16): buildings, levels and locations, each with its
          observations, Add observation, and Edit and Remove */
-      obsSort: s.obsSort,
-      setObsSort: (obsSort: WorkflowState['obsSort']) => setState({ obsSort, obsOpen: null }),
+      // Newest first unless grouped by location, one switch (CP-08 AC1, CP-16).
+      toggleObsByLocation: () =>
+        setState({ obsSort: s.obsSort === 'location' ? 'newest' : 'location', obsOpen: null }),
       obsByLocation,
       obsGroups: obsGroups.map((g) => {
         const count = g.levels.reduce(
@@ -2437,29 +2448,27 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsTypeFilterOptions: [{ value: '', label: 'All types' }, ...OBSERVATION_TYPES],
       obsCatFilterOptions: [{ value: '', label: 'All categories' }, ...CATEGORY_OPTIONS],
       obsSevFilterOptions: [{ value: '', label: 'All severities' }, ...SEVERITY_OPTIONS],
-      // Building (Elsewhere on site among them), level and location (CP-16).
-      obsBuildingFilterOptions: [
-        { value: '', label: 'All buildings' },
-        ...labelValues(
-          obsRows.map(({ o }) => (o.locationName ? buildingOf(o) : null)),
-          s.of.building,
-        ),
-      ],
-      obsFloorFilterOptions: [
-        { value: '', label: 'All levels' },
-        ...labelValues(
-          obsRows.map(({ o }) => o.floor),
-          s.of.floor,
-        ),
-      ],
-      obsLocFilterOptions: [
-        { value: '', label: 'All locations' },
-        ...labelValues(
-          obsRows.map(({ o }) => o.locationName),
-          s.of.loc,
-        ),
-      ],
+      // A building, a level of it or one location, grouped by building (CP-16).
+      obsPlaceFilterOptions: [{ value: '', label: 'All locations' }, ...placeOptions.options],
       obsStatusFilterOptions: [{ value: '', label: 'All statuses' }, ...OBSERVATION_STATUSES],
+      // Each filter set, as a chip that removes it, in the panel's order.
+      obsFilterChips: (
+        [
+          ['place', 'Location', placeOptions.labels[s.of.place]],
+          ['type', 'Type', s.of.type],
+          ['cat', 'Category', s.of.cat],
+          ['sev', 'Severity', SEVERITY_OPTIONS.find((x) => x.value === s.of.sev)?.label],
+          ['status', 'Status', s.of.status],
+        ] as const
+      )
+        .filter(([key]) => s.of[key])
+        .map(([key, name, value]) => ({
+          key,
+          label: name + ': ' + (value ?? s.of[key]),
+          remove: () => setState({ of: { ...s.of, [key]: '' } }),
+        })),
+      // The phone's Filters sheet closes on this, saying what it shows.
+      obsShowLabel: 'Show ' + plural(shownRows.length, obsNoun),
       /* Show deleted (CP-08 AC14): the deleted observations instead */
       obsShowDeleted: s.obsShowDeleted,
       // How many are deleted, shown on the button that lists them.

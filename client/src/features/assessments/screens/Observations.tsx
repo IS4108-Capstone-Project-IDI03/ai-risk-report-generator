@@ -9,9 +9,10 @@ import {
   Icon,
   IconButton,
   IconRegistry,
-  Select,
+  Tag,
 } from '../../../design-system'
 import { AddMediaDialog } from '../components/AddMediaDialog'
+import { FilterMenu } from '../components/FilterMenu'
 import { LocationForm, RemoveLocationDialog } from '../components/LocationSheet'
 import { StatBox } from '../components/StatBox'
 import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
@@ -966,7 +967,7 @@ function ObservationPlace({
       aria-label={l.label}
       data-landing={l.landing || undefined}
       tabIndex={l.landing ? -1 : undefined}
-      // The card clips, so the focus ring is drawn inside it.
+      // The focus ring is drawn inside, clear of the headings around it.
       style={{ scrollMarginTop: '16px', outlineOffset: '-2px' }}
     >
       <div
@@ -1063,144 +1064,72 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
             />
           </div>
         </div>
+        {/* The card no longer clips, so the Filters panel can hang below a
+            short list; its footer rounds the bottom corners instead. */}
         <div
           style={{
             background: 'var(--surface-card)',
             border: '1px solid var(--border-default)',
             borderRadius: '8px',
             boxShadow: 'var(--shadow-sm)',
-            overflow: 'hidden',
           }}
         >
-          {/* By building, level and location, or newest first; and a location
-              added without capturing (CP-16). The deleted ones are listed
-              newest first. */}
-          {!v.obsShowDeleted && (
+          {/* Newest first unless grouped by location, the filters behind one
+              button, the deleted ones, and a location added without capturing
+              (CP-08, CP-16). The deleted ones are always newest first. */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: '12px',
-                padding: '14px 18px 0',
+                gap: '8px',
+                padding: '14px 18px',
               }}
             >
-              <div
-                role="group"
-                aria-label="Sort observations"
-                style={{ display: 'flex', gap: '6px' }}
+              {/* Says what pressing it does, so its text changes with the list. */}
+              {!v.obsShowDeleted && (
+                <Button size="sm" variant="secondary" onClick={v.toggleObsByLocation}>
+                  {v.obsByLocation ? 'Show newest first' : 'Group by location'}
+                </Button>
+              )}
+              <FilterMenu v={v} />
+              {/* Swaps the list for the deleted observations and back (CP-08 AC14). */}
+              <Button
+                variant={v.obsShowDeleted ? 'tonal' : 'secondary'}
+                size="sm"
+                iconLeft={v.obsShowDeleted ? 'arrow-left' : IconRegistry.action.discard}
+                onClick={() => v.setObsShowDeleted(!v.obsShowDeleted)}
               >
-                {(
-                  [
-                    ['location', 'By location'],
-                    ['newest', 'Newest first'],
-                  ] as const
-                ).map(([sort, label]) => (
-                  <Button
-                    key={sort}
-                    size="sm"
-                    variant={v.obsSort === sort ? 'tonal' : 'secondary'}
-                    aria-pressed={v.obsSort === sort}
-                    onClick={() => v.setObsSort(sort)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
+                {v.obsShowDeleted ? 'Back to observations' : `Deleted (${v.obsDeletedCount})`}
+              </Button>
               <span style={{ flex: '1' }}></span>
-              {!!v.obsAddLocation && (
+              {!v.obsShowDeleted && !!v.obsAddLocation && (
                 <Button variant="secondary" size="sm" iconLeft="map-pin" onClick={v.obsAddLocation}>
                   {'Add location'}
                 </Button>
               )}
             </div>
-          )}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '12px',
-              padding: '14px 18px',
-              borderBottom: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by type"
-                options={v.obsTypeFilterOptions}
-                value={v.obsFilters.type}
-                onChange={v.setObsFilter('type')}
-              ></Select>
-            </div>
-            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by category"
-                options={v.obsCatFilterOptions}
-                value={v.obsFilters.cat}
-                onChange={v.setObsFilter('cat')}
-              ></Select>
-            </div>
-            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by severity"
-                options={v.obsSevFilterOptions}
-                value={v.obsFilters.sev}
-                onChange={v.setObsFilter('sev')}
-              ></Select>
-            </div>
-            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by building"
-                options={v.obsBuildingFilterOptions}
-                value={v.obsFilters.building}
-                onChange={v.setObsFilter('building')}
-              ></Select>
-            </div>
-            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by level"
-                options={v.obsFloorFilterOptions}
-                value={v.obsFilters.floor}
-                onChange={v.setObsFilter('floor')}
-              ></Select>
-            </div>
-            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by location"
-                options={v.obsLocFilterOptions}
-                value={v.obsFilters.loc}
-                onChange={v.setObsFilter('loc')}
-              ></Select>
-            </div>
-            <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by status"
-                options={v.obsStatusFilterOptions}
-                value={v.obsFilters.status}
-                onChange={v.setObsFilter('status')}
-              ></Select>
-            </div>
-            {/* Swaps the list for the deleted observations and back (CP-08 AC14). */}
-            <Button
-              variant={v.obsShowDeleted ? 'tonal' : 'secondary'}
-              size="sm"
-              iconLeft={v.obsShowDeleted ? 'arrow-left' : IconRegistry.action.discard}
-              onClick={() => v.setObsShowDeleted(!v.obsShowDeleted)}
-            >
-              {v.obsShowDeleted ? 'Back to observations' : `Deleted (${v.obsDeletedCount})`}
-            </Button>
-            {!!v.obsFiltering && (
-              <Button variant="ghost" size="sm" onClick={v.clearObsFilters}>
-                {'Clear filters'}
-              </Button>
+            {/* What the filters are set to, each removable, while any is. */}
+            {v.obsFilterChips.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  padding: '0 18px 14px',
+                }}
+              >
+                {v.obsFilterChips.map((chip) => (
+                  <Tag key={chip.key} onRemove={chip.remove} removeLabel={'Remove ' + chip.label}>
+                    {chip.label}
+                  </Tag>
+                ))}
+                <Button variant="ghost" size="sm" onClick={v.clearObsFilters}>
+                  {'Clear filters'}
+                </Button>
+              </div>
             )}
           </div>
           {!!v.obsWide && v.obsList.length > 0 && (
@@ -1281,6 +1210,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               padding: '12px 16px',
               background: 'var(--surface-sunken)',
               borderTop: '1px solid var(--border-subtle)',
+              borderRadius: '0 0 8px 8px',
             }}
           >
             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{v.obsCountLabel}</span>

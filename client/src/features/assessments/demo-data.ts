@@ -287,7 +287,7 @@ export const initialState: WorkflowState = {
   obsOpen: null,
   of: NO_FILTERS,
   obsShowDeleted: false,
-  obsSort: 'location',
+  obsSort: 'newest',
   obsFolded: {},
   obsLocForm: false,
   obsReturn: null,

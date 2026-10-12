@@ -464,8 +464,9 @@ describe('Changing a location (CP-16)', () => {
     // The observation saved there now reads the new name.
     fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
-    const staircase = await screen.findByRole('group', { name: 'Block A · Level 2 · Staircase' })
-    expect(within(staircase).getByText('Pump test certificate missing.')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /Pump test certificate missing/ }),
+    ).toHaveTextContent('Block A · Level 2 · Staircase')
   })
 
   it('moves a location without a building into one, and keeps a clash out', async () => {
@@ -776,11 +777,18 @@ describe('Checking building and location names against the usual ones (CP-16)', 
 })
 
 describe('The Observations tab by location (CP-16)', () => {
-  async function openObservations() {
+  // The tab as it opens: newest first, once the gateway's observation is listed.
+  async function openTab() {
     render(<App />)
     await signIn()
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
+    return screen.findByRole('button', { name: /Pump test certificate missing/ })
+  }
+  // The tab by building, level and location.
+  async function openObservations() {
+    await openTab()
+    fireEvent.click(screen.getByRole('button', { name: 'Group by location' }))
     await screen.findByRole('group', { name: 'Elsewhere on site · Guardhouse' })
   }
   const placeGroup = (name: string) => screen.getByRole('group', { name })
@@ -822,19 +830,21 @@ describe('The Observations tab by location (CP-16)', () => {
     expect(screen.queryByRole('group', { name: /^Block A · / })).toBeNull()
   })
 
-  it('sorts newest first on request, naming each location in its row', async () => {
-    await openObservations()
+  it('opens newest first, naming each location in its row, and groups them on request', async () => {
+    const row = await openTab()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Newest first' }))
-
-    expect(screen.getByRole('button', { name: 'Newest first' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(row).toHaveTextContent('Block A · Level 2 · Staircase')
     expect(screen.queryByRole('group', { name: 'Elsewhere on site · Guardhouse' })).toBeNull()
-    expect(screen.getByRole('button', { name: /Pump test certificate missing/ })).toHaveTextContent(
-      'Block A · Level 2 · Staircase',
-    )
+
+    // One button, its text saying what pressing it does.
+    const order = screen.getByRole('button', { name: 'Group by location' })
+    expect(order).not.toHaveAttribute('aria-pressed')
+    fireEvent.click(order)
+    expect(order).toHaveAccessibleName('Show newest first')
+    expect(placeGroup('Elsewhere on site · Guardhouse')).toHaveTextContent('No observations')
+    fireEvent.click(order)
+    expect(order).toHaveAccessibleName('Group by location')
+    expect(screen.queryByRole('group', { name: 'Elsewhere on site · Guardhouse' })).toBeNull()
   })
 
   it('adds a location without capturing', async () => {
@@ -932,8 +942,7 @@ describe('The Observations tab by location (CP-16)', () => {
   })
 
   it('newest first, returns to the newest observation saved', async () => {
-    await openObservations()
-    fireEvent.click(screen.getByRole('button', { name: 'Newest first' }))
+    await openTab()
     await captureAt('Block A', /^Block A · Level 1 · Lobby/)
     await saveNote('Fire door wedged open.')
     back()

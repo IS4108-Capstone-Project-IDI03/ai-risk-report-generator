@@ -261,10 +261,8 @@ export type ObservationFilters = {
   type: string
   cat: string
   sev: string
-  // Building (or Elsewhere on site), level and location name (CP-16).
-  building: string
-  floor: string
-  loc: string
+  // A building (or Elsewhere on site), a level of it, or one location (CP-16).
+  place: string
   status: string
 }
 

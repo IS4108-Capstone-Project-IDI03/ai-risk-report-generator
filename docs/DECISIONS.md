@@ -1216,3 +1216,48 @@ back to the top of the list and had to find the location again to see what
 they had saved.
 
 Stories: CP-16, CP-03.
+
+## 2026-10-12 — The Observations tab opens newest first, with its filters behind one Filters button
+
+Chose:
+- The list opens newest first (CP-08 AC1), each row naming its location.
+  Group by location, first in the toolbar, groups it and then reads Show
+  newest first: one button whose text says what pressing it does. This
+  revises the CP-16 entry above, which made By location the default, with a
+  two-button switch.
+- The filters sit behind one Filters button, which counts those set
+  (Filters · 2). Its panel drops down from it (the shared Popover); below
+  760px it is a bottom sheet with larger controls, closed by Show n
+  observations. Each filter applies as it is chosen.
+- While any filter is set, each shows as a chip under the toolbar, whose ✕
+  removes it, beside Clear filters, so nothing narrows the list out of sight.
+- Building, Level and Location are one Location dropdown, grouped by building
+  in the list's order, then Elsewhere on site; All of a building, and a
+  level, appear only where they hold more than one location. A level or a
+  location name now means that building's: Level 2 no longer matches Level 2
+  in every building, nor Lobby every Lobby.
+- The toolbar reads Group by location (or Show newest first), Filters,
+  Deleted (n), then Add location at its end. The deleted list hides the
+  first and the last.
+- Shared components: Select takes option groups (a native optgroup); Tag's
+  remove is a real button with its own name, so the keyboard reaches it.
+- The card no longer clips, so the panel can hang below a short list; its
+  footer rounds the bottom corners instead.
+
+Rejected:
+- The five dropdowns inline on desktop, with the button only below 1080px:
+  fewer clicks for whoever filters most, but two patterns to keep, and the
+  chips already keep what is set in view.
+- A toggle highlighted while on (By location, or a pressed Newest first):
+  which way the list ran was easy to miss; the button's text now says it.
+- Filters in the table's column headings: there are none below 1080px, and
+  type and location have no column of their own.
+- One list for both orders (location groups ordered by latest activity, or a
+  Recent strip above them): groups would jump after each save, empty
+  locations would sink, and a strip would list each observation twice.
+
+Reason: the toolbar held seven dropdowns, two sort buttons, Deleted and Add
+location, and wrapped to three rows on a laptop and more on a phone before
+the first observation.
+
+Stories: CP-08, CP-06, CP-16.
