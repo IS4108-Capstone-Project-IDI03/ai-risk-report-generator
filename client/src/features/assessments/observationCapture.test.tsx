@@ -606,11 +606,12 @@ describe('Leaving capture', () => {
 
     leave()
 
-    const bay = await screen.findByRole('group', { name: /^Warehouse · Ground · Bay 3/ })
-    await vi.waitFor(() => expect(bay).toHaveFocus())
+    // Newest first, so it lands on the newest one saved.
+    const newest = await screen.findByRole('button', { name: /Hose reel H2 blocked/ })
+    await vi.waitFor(() => expect(newest).toHaveFocus())
     for (const note of [/Exit sign E4 unlit/, /Hose reel H2 blocked/])
       expect(
-        within(within(bay).getByRole('button', { name: note })).getByText('New'),
+        within(screen.getByRole('button', { name: note })).getByText('New'),
       ).toBeInTheDocument()
     // The samples were there before.
     expect(screen.getAllByText('New')).toHaveLength(2)
@@ -815,13 +816,10 @@ describe('Observations tab (CP-03)', () => {
     await openObservations()
 
     const row = await screen.findByRole('button', { name: /Racking is new\./ })
-    // Severity and location are what the engineer picked; it is listed
-    // under its location (CP-16).
+    // Severity and location are what the engineer picked; newest first, the
+    // row names its location (CP-16).
     expect(row).toHaveTextContent('High')
-    expect(row.closest('[role=group]')).toHaveAttribute(
-      'aria-label',
-      'Warehouse · Ground · Bay 3 — north aisle',
-    )
+    expect(row).toHaveTextContent('Warehouse · Ground · Bay 3 — north aisle')
     fireEvent.click(row)
 
     const clip = screen.getByRole('region', { name: 'Recording 1' })
