@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Button, Dialog, Icon, SideNav, Tabs, Toast } from '../../design-system'
 import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
@@ -18,6 +19,10 @@ import { Photos } from './screens/Photos'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 import { UsageCosts } from '../usage/screens/UsageCosts'
+// Loaded on first open: the chat screen brings OpenUI, which every other screen can skip.
+const KnowledgeAssistant = lazy(() =>
+  import('../chat/screens/KnowledgeAssistant').then((m) => ({ default: m.KnowledgeAssistant })),
+)
 import { AccessDenied } from '../auth/AccessDenied'
 
 export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
@@ -345,6 +350,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
 
                     {v.isUsage && <UsageCosts isAdmin={v.isAdmin} />}
+
+                    {v.isChat && (
+                      <Suspense fallback={null}>
+                        <KnowledgeAssistant />
+                      </Suspense>
+                    )}
 
                     {v.isOverview && <Overview v={v} />}
 

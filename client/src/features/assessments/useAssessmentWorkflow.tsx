@@ -1368,6 +1368,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
         ],
       },
+      {
+        label: 'Knowledge',
+        items: [{ value: 'chat', label: 'Ask the knowledge base', icon: 'message-square' }],
+      },
       { label: 'Recent', items: recentItems },
       {
         label: 'Administration',
@@ -1896,6 +1900,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isUsers: sc === 'users',
       isKnowledge: sc === 'knowledge',
       isUsage: sc === 'usage',
+      isChat: sc === 'chat',
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
@@ -2230,7 +2235,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ? 'Administration'
               : sc === 'usage'
                 ? 'Reporting'
-                : 'Assessment workspace',
+                : sc === 'chat'
+                  ? 'Knowledge'
+                  : 'Assessment workspace',
       title:
         sc === 'dashboard'
           ? 'Assessments'
@@ -2246,7 +2253,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   ? 'Knowledge base'
                   : sc === 'usage'
                     ? 'Usage and costs'
-                    : s.captureTarget.site,
+                    : sc === 'chat'
+                      ? 'Ask the knowledge base'
+                      : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · ' + session.user.name
@@ -2258,8 +2267,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
                 : sc === 'usage'
                   ? 'What the AI calls cost, how much they were used, and how fast they ran.'
-                  : // An assessment shows only its name; its details are in its Overview.
-                    '',
+                  : sc === 'chat'
+                    ? 'Answers come from the standards and past reports in the knowledge base.'
+                    : // An assessment shows only its name; its details are in its Overview.
+                      '',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
