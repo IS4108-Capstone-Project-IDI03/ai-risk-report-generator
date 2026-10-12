@@ -8,6 +8,7 @@ import knowledgeDocumentRoutes from './routes/knowledge-document.routes'
 import assessmentRoutes from './routes/assessment.routes'
 import authRoutes from './routes/auth.routes'
 import ragRoutes from './routes/rag.routes'
+import chatRoutes from './routes/chat.routes'
 import observationRoutes from './routes/observation.routes'
 import {
   failInterruptedInterpretations,
@@ -35,6 +36,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/knowledge-documents', requireAuth, knowledgeDocumentRoutes)
 app.use('/api/rag', requireAuth, ragRoutes)
+app.use('/api/chat', requireAuth, chatRoutes)
 app.use('/api/observations', requireAuth, observationRoutes)
 app.use('/api/users', requireAuth, userRoutes)
 app.use('/api/usage', requireAuth, usageRoutes)
