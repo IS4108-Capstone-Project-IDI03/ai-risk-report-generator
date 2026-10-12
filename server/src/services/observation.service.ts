@@ -18,7 +18,7 @@ import {
 import type { ISite } from '../models/site.model'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
-import { toLocationDto, type LocationDto } from './location.service'
+import { locationText, toLocationDto, type LocationDto } from './location.service'
 import { interpret, transcribe } from './speech.service'
 import * as storage from './storage.service'
 
@@ -971,7 +971,7 @@ export async function runInterpretation(id: string): Promise<void> {
   try {
     const result = await interpret({
       s3Keys: photos.map((p) => p.key),
-      location: place ? [place.name, place.floor].filter(Boolean).join(' · ') : null,
+      location: place ? locationText(place) : null,
       note: observation.note ?? null,
     })
     outcome = {

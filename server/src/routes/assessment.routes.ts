@@ -20,10 +20,11 @@ import {
 import {
   addLocation,
   DuplicateLocationError,
+  editLocation,
   listLocations,
   LocationInUseError,
   LocationNotFoundError,
-  newLocationSchema,
+  locationSchema,
   removeLocation,
 } from '../services/location.service'
 import {
@@ -197,9 +198,9 @@ router.get('/:reference/locations', requirePermission('assessments:view'), async
   }
 })
 
-// Adds a location. 409 when the same name and floor is already listed.
+// Adds a location. 409 when the same name, level and building is already listed.
 router.post('/:reference/locations', requirePermission('assessments:edit'), async (req, res) => {
-  const parsed = newLocationSchema.safeParse(req.body)
+  const parsed = locationSchema.safeParse(req.body)
   if (!parsed.success) {
     res
       .status(400)
@@ -220,6 +221,46 @@ router.post('/:reference/locations', requirePermission('assessments:edit'), asyn
     throw error
   }
 })
+
+// Changes a location's building, level or name (CP-16): 200 with it, 400
+// naming each invalid field, 403 for anyone but the assigned engineer, 404, or
+// 409 once archived or when another location already has those details.
+router.patch(
+  '/:reference/locations/:id',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = locationSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'The location details are invalid.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res.json(
+        await editLocation(req.params.reference, req.params.id, parsed.data, res.locals.user!),
+      )
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError || error instanceof LocationNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+        return
+      }
+      if (error instanceof AssessmentArchivedError) {
+        res.status(409).json({ error: error.message })
+        return
+      }
+      if (error instanceof DuplicateLocationError) {
+        res.status(409).json({ error: error.message, fields: { name: error.message } })
+        return
+      }
+      throw error
+    }
+  },
+)
 
 // Removes a location with no observations: 204, 404, or 409 while it has some.
 router.delete(

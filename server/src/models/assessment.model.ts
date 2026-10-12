@@ -5,13 +5,19 @@ import { Schema, Types, model } from 'mongoose'
 export const REPORT_STATUSES = ['draft', 'under_review', 'finalised'] as const
 export type ReportStatus = (typeof REPORT_STATUSES)[number]
 
-// A place on the site the engineer records observations in, e.g. "Stairwell B"
-// on "Level 2". Added by the engineer during capture.
+// A place on the site the engineer records observations in (CP-16): in a
+// building, e.g. "Staircase" on "Level 2" of "Block A" (the level is optional,
+// for the whole building, e.g. its facade), or elsewhere on site, with a name
+// only, e.g. "Fire access route". Added by the engineer during capture. One
+// saved before CP-16 may have a floor but no building.
 export interface ILocation {
   _id: Types.ObjectId
+  building?: string
   name: string
+  // Its level, shown as Level.
   floor?: string
-  // Lowercased name and floor, so "stairwell b" on "level 2" is the same place.
+  // Lowercased name, floor and building, so "staircase" on "level 2" of
+  // "block a" is the same place. See locationKey.
   key: string
 }
 
@@ -73,6 +79,7 @@ const assessmentSchema = new Schema<IAssessment>(
     // Embedded: a short list, always read with its assessment.
     locations: [
       {
+        building: { type: String, trim: true, maxlength: 100 },
         name: { type: String, required: true, trim: true, maxlength: 100 },
         floor: { type: String, trim: true, maxlength: 40 },
         key: { type: String, required: true },

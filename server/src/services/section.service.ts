@@ -7,6 +7,7 @@ import { ReviewAuditModel } from '../models/review-audit.model'
 import type { ISite } from '../models/site.model'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
+import { locationText } from './location.service'
 import { listObservations, type ObservationDto } from './observation.service'
 import { recordAiCalls } from './ai-usage.service'
 import { listTemplateSections, requestSectionDraft, type TemplateSection } from './rag.service'
@@ -113,7 +114,7 @@ function toEvidence(o: ObservationDto): Evidence {
     note: o.note,
     transcripts: transcriptsOf(o),
     severity: o.severity,
-    location: o.location && [o.location.name, o.location.floor].filter(Boolean).join(', '),
+    location: o.location && locationText(o.location),
     standard: o.standard,
   }
 }
