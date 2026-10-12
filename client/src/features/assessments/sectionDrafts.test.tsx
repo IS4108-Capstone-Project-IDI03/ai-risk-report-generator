@@ -44,7 +44,7 @@ const RISER: SavedObservation = {
   copeDimensions: ['Construction'],
   standard: null,
   severity: 'high',
-  location: { id: 'l1', name: 'Riser B', floor: 'Level 3' },
+  location: { id: 'l1', building: null, name: 'Riser B', floor: 'Level 3' },
   note: 'Riser shaft not fire-stopped at L3.',
   recordings: [
     {

@@ -159,8 +159,10 @@ describe('Capture session (CP-01)', () => {
     )
     // The Observations tab, still on show, counts what is saved.
     expect(screen.getByRole('tab', { name: 'Observations 3' })).toBeInTheDocument()
-    // Without the gateway, the sample assessment offers its sample locations.
-    fireEvent.click(screen.getByRole('button', { name: /^Pump house/ }))
+    // Without the gateway, the sample assessment offers its sample locations,
+    // by building, then elsewhere on site (CP-16).
+    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site/, expanded: false }))
+    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site · Pump house/ }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Offline sprinkler observation' },
     })
@@ -227,14 +229,14 @@ const CREATED_CAPTURE = {
     site: { code: 'SITE-0001', name: 'Jurong Distribution Hub' },
   },
 }
-const LOADING_DOCK = { id: 'l1', name: 'Loading dock', floor: null }
+const LOADING_DOCK = { id: 'l1', building: 'Warehouse', name: 'Loading dock', floor: 'Ground' }
 const CREATED_NOTE = {
   id: '6ab3a1e0e45cf009e4507803',
   engineer: 'A. Rowe',
   copeDimensions: ['Protection'],
   standard: null,
   severity: 'high',
-  location: { id: 'l1', name: 'Loading dock', floor: null },
+  location: LOADING_DOCK,
   recordedAt: '2026-09-23T09:10:00.000Z',
   note: 'Sprinkler control valve chained open',
   recordings: [],
@@ -344,15 +346,30 @@ describe('Create assessment (CP-01)', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Jurong Distribution Hub')
     expect(screen.getByRole('tab', { name: 'Observations 0' })).toBeInTheDocument()
 
-    // A new assessment has no locations yet, so capture starts by adding one.
-    fireEvent.change(await screen.findByRole('textbox', { name: /^Name/ }), {
-      target: { value: 'Loading dock' },
-    })
+    // A new assessment has no locations yet, so capture starts by adding one:
+    // in a building, with its level (CP-16).
+    expect(
+      await screen.findByText(
+        'Add the first location you’re inspecting. Observations are saved to it.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'In a building' })).toBeChecked()
+    for (const [field, value] of [
+      [/^Building/, 'Warehouse'],
+      [/^Level/, 'Ground'],
+      [/^Location/, 'Loading dock'],
+    ] as const)
+      fireEvent.change(screen.getByLabelText(field), { target: { value } })
     fireEvent.click(screen.getByRole('button', { name: 'Add location' }))
     expect(
-      await screen.findByRole('button', { name: /Location: Loading dock/ }),
+      await screen.findByRole('button', { name: /Location: Warehouse · Ground · Loading dock/ }),
     ).toBeInTheDocument()
     expect(fetchMock.mock.calls[2][0]).toBe('/api/assessments/RPT-2026-0001/locations')
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({
+      building: 'Warehouse',
+      floor: 'Ground',
+      name: 'Loading dock',
+    })
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Sprinkler control valve chained open' },

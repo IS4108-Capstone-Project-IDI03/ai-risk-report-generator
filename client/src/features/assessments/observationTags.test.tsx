@@ -8,9 +8,9 @@ import type { SavedObservation } from './api'
 const REF = 'RPT-2026-0411'
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
-const BAY_3 = { id: 'l1', name: 'Bay 3 — north aisle', floor: 'Ground' }
-const STAIRWELL = { id: 'l2', name: 'Stairwell B', floor: 'Level 2' }
-const PUMP_HOUSE = { id: 'l3', name: 'Pump house', floor: null }
+const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
+const STAIRWELL = { id: 'l2', building: 'Block A', name: 'Stairwell B', floor: 'Level 2' }
+const PUMP_HOUSE = { id: 'l3', building: null, name: 'Pump house', floor: null }
 
 function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
   return {
@@ -129,6 +129,8 @@ async function editTags(summary: string) {
   click('Edit')
   return screen.findByRole('dialog', { name: 'Edit observation' })
 }
+// The location an observation's row is listed under (CP-16).
+const placeOf = (row: HTMLElement) => row.closest('[role=group]')?.getAttribute('aria-label')
 const optionLabels = (select: HTMLElement) =>
   within(select)
     .getAllByRole('option')
@@ -164,10 +166,12 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
       ['Filter by category', 'Uncategorised', [VALVE.note]],
       ['Filter by category', 'Protection', [HOSE_REEL.note, RACKING, PUMP_TEST]],
       ['Filter by severity', 'moderate', [VALVE.note, SORTATION]],
-      // The location's name is its zone; the same zone on any floor matches.
+      // Building, level and location are filters of their own (CP-16).
+      ['Filter by building', 'Warehouse', [HOSE_REEL.note, RACKING, SORTATION]],
+      ['Filter by building', 'Elsewhere on site', [VALVE.note, PUMP_TEST]],
+      ['Filter by level', 'Level 2', [STAIRWELL_DOOR.note]],
+      ['Filter by level', 'Ground', [HOSE_REEL.note, RACKING, SORTATION]],
       ['Filter by location', 'Pump house', [VALVE.note, PUMP_TEST]],
-      ['Filter by floor', 'Level 2', [STAIRWELL_DOOR.note]],
-      ['Filter by floor', 'Ground', [HOSE_REEL.note, RACKING, SORTATION]],
     ] as const
     for (const [filter, value, expected] of cases) {
       choose(filter, value)
@@ -210,7 +214,7 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
     expect(screen.getByText('No observations match those filters')).toBeInTheDocument()
   })
 
-  it('offers the shared category vocabulary, and the locations and floors on file', async () => {
+  it('offers the shared category vocabulary, and the buildings, levels and locations on file', async () => {
     await openObservations()
 
     expect(optionLabels(select('Filter by category'))).toEqual([
@@ -221,6 +225,13 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
       'Exposure',
       'Uncategorised',
     ])
+    expect(optionLabels(select('Filter by building'))).toEqual([
+      'All buildings',
+      'Warehouse',
+      'Block A',
+      'Elsewhere on site',
+    ])
+    expect(optionLabels(select('Filter by level'))).toEqual(['All levels', 'Ground', 'Level 2'])
     expect(optionLabels(select('Filter by location'))).toEqual([
       'All locations',
       'Bay 3 — north aisle',
@@ -228,11 +239,11 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
       'Pump house',
       'Bay 1 — despatch',
     ])
-    expect(optionLabels(select('Filter by floor'))).toEqual(['All floors', 'Ground', 'Level 2'])
   })
 }, 10000)
 
 describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
+  // Renders the app twice, so it is given as long as the filtering tests.
   it('categorises an observation and keeps its new tags after reopening', async () => {
     await openObservations()
     const dialog = await editTags(VALVE.note!)
@@ -273,7 +284,7 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     const row = screen.getByRole('button', { name: /Unlabelled valve/ })
     expect(row).toHaveTextContent('Exposure')
     expect(row).toHaveTextContent('Critical')
-    expect(row).toHaveTextContent('Stairwell B · Level 2')
+    expect(placeOf(row)).toBe('Block A · Level 2 · Stairwell B')
 
     // Reopening reads the observation back from the gateway.
     cleanup()
@@ -281,10 +292,10 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     const reopened = await screen.findByRole('button', { name: /Unlabelled valve/ })
     expect(reopened).toHaveTextContent('Exposure')
     expect(reopened).toHaveTextContent('Critical')
-    expect(reopened).toHaveTextContent('Stairwell B · Level 2')
+    expect(placeOf(reopened)).toBe('Block A · Level 2 · Stairwell B')
     fireEvent.click(reopened)
     expect(screen.getByRole('button', { name: 'NFPA 25 – 2026 Edition' })).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('sends only the tags that changed, and can uncategorise and remove the standard', async () => {
     listed = [observation({ standard: 'NFPA 13 – 2022 Edition' })]
@@ -333,8 +344,8 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     )
     expect(select('Location', dialog)).toHaveValue('l3')
     // Nothing changed on screen.
-    expect(screen.getByRole('button', { name: /Hose reel/ })).toHaveTextContent(
-      'Bay 3 — north aisle · Ground',
+    expect(placeOf(screen.getByRole('button', { name: /Hose reel/ }))).toBe(
+      'Warehouse · Ground · Bay 3 — north aisle',
     )
   })
 
@@ -353,8 +364,8 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     expect(patches).toEqual([])
     const row = screen.getByRole('button', { name: /Pump test certificate/ })
     expect(row).toHaveTextContent('Exposure')
-    expect(row).toHaveTextContent('Office annexe · Level 1')
-    choose('Filter by floor', 'Level 1')
+    expect(placeOf(row)).toBe('Office annexe · Level 1 · Open-plan office')
+    choose('Filter by level', 'Level 1')
     expect(shown(RACKING, PUMP_TEST, SORTATION)).toEqual([PUMP_TEST])
   })
 })

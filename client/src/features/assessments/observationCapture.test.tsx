@@ -9,7 +9,7 @@ const REF = 'RPT-2026-0411'
 const CAPTURE_URL = `/api/assessments/${REF}/capture-session`
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
-const BAY_3 = { id: 'l1', name: 'Bay 3 — north aisle', floor: 'Ground' }
+const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
 const CAPTURE = {
   session: { id: 's1', status: 'active', startedAt: '2026-09-29T08:00:00.000Z' },
   assessment: {
@@ -157,7 +157,9 @@ async function openCapture() {
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
   await screen.findByRole('img', { name: 'live' })
-  fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+  )
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
 // The Note, Voice and Photo modes, named with what each holds ("Voice, 2 recordings").
@@ -291,7 +293,11 @@ describe('Reading photos only when asked (CP-05)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
     await screen.findByText('Showing sample data')
-    fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
+    // The sample site has several buildings; each opens to list its locations (CP-16).
+    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+    )
     mode('Photo')
     addPhotos(photo('IMG_0470.jpg'))
     grade('Low')
@@ -576,7 +582,9 @@ describe('Leaving capture', () => {
     await screen.findByRole('img', { name: 'live' })
     expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Location: Bay 3/ })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /^Location: Warehouse · Ground · Bay 3/ }),
+    ).toBeInTheDocument()
   })
 
   it('leaves for any workspace tab, which stays on show with Observations chosen', async () => {
@@ -676,7 +684,12 @@ describe('Capture layout', () => {
       expect(sheet.tagName).toBe('DIALOG')
       expect(within(sheet).getByRole('button', { name: 'Close' })).toBeInTheDocument()
       expect(within(sheet).queryByRole('button', { name: 'Leave capture' })).not.toBeInTheDocument()
-      fireEvent.click(within(sheet).getByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
+      // Once the assessment's locations have loaded.
+      fireEvent.click(
+        await within(sheet).findByRole('button', {
+          name: /^Warehouse · Ground · Bay 3 — north aisle/,
+        }),
+      )
 
       // The top bar names the page, with ← in place of the menu; no workspace
       // header or tabs take the screen.
@@ -773,9 +786,13 @@ describe('Observations tab (CP-03)', () => {
     await openObservations()
 
     const row = await screen.findByRole('button', { name: /Racking is new\./ })
-    // Severity and location are what the engineer picked.
+    // Severity and location are what the engineer picked; it is listed
+    // under its location (CP-16).
     expect(row).toHaveTextContent('High')
-    expect(row).toHaveTextContent('Bay 3 — north aisle')
+    expect(row.closest('[role=group]')).toHaveAttribute(
+      'aria-label',
+      'Warehouse · Ground · Bay 3 — north aisle',
+    )
     fireEvent.click(row)
 
     const clip = screen.getByRole('region', { name: 'Recording 1' })
