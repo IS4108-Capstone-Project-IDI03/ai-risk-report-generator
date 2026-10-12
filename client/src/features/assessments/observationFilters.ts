@@ -1,14 +1,20 @@
 import { hasCategory } from './categories'
+import { ELSEWHERE } from './locations'
 import type { Observation, ObservationFilters } from './types'
 
 export const NO_FILTERS: ObservationFilters = {
   type: '',
   cat: '',
   sev: '',
-  loc: '',
+  building: '',
   floor: '',
+  loc: '',
   status: '',
 }
+
+// The building an observation is filtered under: Elsewhere on site when it
+// has no building or level (CP-16).
+export const buildingOf = (o: Observation) => o.building || (o.floor ? null : ELSEWHERE)
 
 // The observation types (CP-08, CP-04). One with a note and a recording is both.
 export const OBSERVATION_TYPES = ['Note', 'Voice', 'Photo']
@@ -45,16 +51,17 @@ export const statusOf = (o: Observation) =>
 
 // An observation matches when every filter that is set matches its label, so
 // any one label on its own returns every observation carrying it (CP-06 AC2,
-// CP-08 AC3). The location filter is by name, the zone; the floor is its own
-// filter. An observation of both types matches either, and one filed under
+// CP-08 AC3). The building, level and location name are filters of their own
+// (CP-16). An observation of both types matches either, and one filed under
 // several categories matches any of them.
 export function matchesFilters(o: Observation, f: ObservationFilters) {
   return (
     (!f.type || typesOf(o).includes(f.type)) &&
     (!f.cat || hasCategory(o.cats, f.cat)) &&
     (!f.sev || o.sev === f.sev) &&
-    (!f.loc || o.area === f.loc) &&
+    (!f.building || buildingOf(o) === f.building) &&
     (!f.floor || o.floor === f.floor) &&
+    (!f.loc || o.locationName === f.loc) &&
     (!f.status || statusOf(o) === f.status)
   )
 }

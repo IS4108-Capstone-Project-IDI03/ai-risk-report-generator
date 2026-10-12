@@ -177,7 +177,7 @@ describe('Section 1 Purpose and Scope (GN-07 AC1)', () => {
         'time of our survey. The report should be used for risk management and insurance ' +
         'placement purposes only.',
       'The visit comprised an inspection of the main areas of the site, including the Fire ' +
-        'pump room (B1) and Level 5 server room.',
+        'pump room (B1) and the Level 5 server room.',
       'Our visits used National Fire Protection Association (NFPA), FM Global and local ' +
         'guidelines as technical references. Each site visit included the following activities:',
       [
@@ -194,6 +194,25 @@ describe('Section 1 Purpose and Scope (GN-07 AC1)', () => {
         'testing, and maintenance of fire protection systems and equipment; impairments to ' +
         'these systems; and fire emergency planning.',
     ])
+  })
+
+  it('names the buildings, then the places elsewhere on site (CP-16)', async () => {
+    await assessment({
+      locations: [
+        { name: 'Guardhouse', key: 'guardhouse|' },
+        { building: 'Block B', floor: 'Level 1', name: 'Lobby', key: 'lobby|level 1|block b' },
+        { building: 'Block A', floor: 'B1', name: 'Pump room', key: 'pump room|b1|block a' },
+        { building: 'block a', name: 'Facade', key: 'facade||block a' },
+        { name: 'Fire access route', key: 'fire access route|' },
+      ],
+    })
+
+    const paragraphs = (await api.get(url)).body.purposeAndScope as (string | string[])[]
+
+    expect(paragraphs[1]).toBe(
+      'The visit comprised an inspection of the main areas of the site, including Block A, ' +
+        'Block B, the Guardhouse and the Fire access route.',
+    )
   })
 
   it('names the usual areas when no location is recorded, and claims no tests', async () => {

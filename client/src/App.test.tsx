@@ -137,8 +137,10 @@ describe('Marsh prototype integration', () => {
     // Open the assessment from the work list; Add observation is its header's action.
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
-    // Capture starts by choosing where the engineer is.
-    fireEvent.click(await screen.findByRole('button', { name: /^Pump house/ }))
+    // Capture starts by choosing where the engineer is: by building, or
+    // elsewhere on site (CP-16).
+    fireEvent.click(await screen.findByRole('button', { name: /^Elsewhere on site, / }))
+    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site · Pump house/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
     expect(screen.getByText('Add a note, recording or photograph first.')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {

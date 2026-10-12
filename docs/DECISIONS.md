@@ -1105,3 +1105,82 @@ log that is also the source of the state cannot disagree with it. EV-02
 (acceptance rates by section) and RV-07 (resume a review) read the same log.
 
 Stories: RV-02, GN-04 (merged), GN-01.
+
+## 2026-10-12 — Locations are organised by building and level, or elsewhere on site, and can be changed in place
+
+Chose:
+- A location is either in a building (a building, an optional level, and its
+  name, e.g. Staircase, Store room, Lobby) or elsewhere on site (a name only:
+  roads, car parks, fire access routes, a guardhouse, a sprinkler tank). No
+  level means the whole building, e.g. its facade or roof, listed first under
+  Whole building. A structure with levels worth recording is a building.
+- One flat list on the assessment, as before, with an optional `building` on
+  each location. The level stays in `floor` (shown as Level). Observations
+  keep pointing at the same location ids, so nothing is migrated. A location
+  saved before this with a floor but no building is listed under Building not
+  recorded until it is edited into a building.
+- "Location" stays the word, on screen and in code; the whole property is the
+  site.
+- The key is `name|floor`, with `|building` added only when there is one, so
+  old keys still match. A building or level differing from a listed one only
+  in case takes the listed spelling.
+- The picker groups by building (in name order), then Elsewhere on site, each
+  building's levels lowest first (basements, ground, numbered levels, a
+  mezzanine above Level 1, the roof; names it doesn't know last, as added).
+  Groups fold away when there are several; the one the engineer is in starts
+  open, and a search opens every match. The add form suggests the buildings
+  and levels already used, plus the usual level names, and starts from where
+  the engineer is, so the next location on the same level is one field.
+- `PATCH /api/assessments/:reference/locations/:id` changes a location in
+  place, for the assigned engineer only and not once archived, as for
+  observations (CP-08). Adding and removing keep their CP-15 rules.
+- Reports word a location most specific first ("Staircase, Level 2, Block
+  A"), one formatter (`locationText`) for drafting evidence, Appendix A and
+  the photo reading. One without a building reads as before, so drafts made
+  before this still compare equal; otherwise every draft would count all its
+  observations as changed. Section 1 names the buildings, then the places
+  elsewhere on site, not every location, so it stays short on a large site.
+- Levels stay free text, but one the app recognises is saved in a standard
+  spelling ("L2", "lvl 2" and "2nd floor" as Level 2, "B1" as Basement 1), on
+  the client and the gateway, so shorthand never splits a level in two. Before
+  saving a level it doesn't recognise, or a building or location name one slip
+  from a usual one (a short list: Block, Tower, Staircase, Lobby, Fire pump
+  room...) or from one already on the site, the form asks "Did you mean ...?"
+  with the likely name and Keep as typed. A usual name is never pulled towards
+  a mistyped one on the site, and words under five letters are not judged, so
+  Hall is never taken for Mall. A short or numbered word must match
+  exactly, so Block B is never taken for Block A. A name already on the site
+  is never asked about again.
+- The Observations tab lists observations by building, level and location by
+  default, with each location's Add observation (capture opens there),
+  Edit and Remove, and Add location above the list, which needs no capture
+  session; locations with no observations are listed too. A switch shows
+  them newest first instead, as CP-08 AC1 lists them.
+
+Rejected:
+- A nested tree (buildings holding levels holding locations): every
+  observation's location id would have to be migrated, and adding and
+  removing could no longer be one atomic update on the list.
+- A location type field (road, car park, fire access route): the name already
+  says it, as the 2026-09-29 decision found; "elsewhere on site" covers
+  places that are neither in a building nor open ground.
+- "Area" for the place within a level: clearer for the last field alone, but
+  renaming `location` through the API, the database, saved drafts and the
+  drafting and photo services would change stored evidence for no change the
+  engineer sees, and two words for one thing confuse more.
+- A required level in a building: the facade, the roof or a building-wide
+  system would need a made-up level.
+- A fixed list of levels: it stops typos, but not the names sites really use
+  (Podium, Transfer level, Plant deck); asking about an unknown name catches
+  the typo and keeps the real one.
+- Only the grouped list on the Observations tab: newest first stays the quick
+  way to review what was just captured, so it is one switch away.
+- Renaming a whole building or level at once, and merging locations:
+  follow-ups if needed.
+
+Reason: on a large site the flat list of names became hard to scan, and
+places outside buildings had nowhere natural to go. Engineers walk a site
+building by building and level by level, so the picker follows that, and the
+report can say exactly where a finding was made.
+
+Stories: CP-16, CP-15, CP-08.

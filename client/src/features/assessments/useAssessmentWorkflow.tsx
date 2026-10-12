@@ -30,6 +30,7 @@ import {
 import { formatDayYearTime } from './format'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
+  buildingOf,
   filtersActive,
   labelValues,
   matchesFilters,
@@ -40,9 +41,27 @@ import {
   typeLabel,
   typesOf,
 } from './observationFilters'
+import {
+  BUILDING_WORDS,
+  correctName,
+  groupKey,
+  groupLocations,
+  isStandardName,
+  LEVEL_SUGGESTIONS,
+  levelRank,
+  LOCATION_NAMES,
+  locationLabel,
+  sameName,
+  similarName,
+  standardLevel,
+  suggestLevel,
+  suggestions,
+} from './locations'
 import type {
   AssessmentRow,
   DateFilter,
+  LocationForm,
+  NameCheck,
   Observation,
   ObservationFilters,
   PhotoFile,
@@ -239,9 +258,16 @@ const SAMPLE_TRANSCRIPT =
 // values name an assessment ("recent:RPT-2026-0411").
 const RECENT_LIMIT = 3
 const RECENT_PREFIX = 'recent:'
-// "Stairwell B · Level 2"
-const locationLabel = (l: { name: string; floor?: string | null }) =>
-  [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
+// Where an observation was captured, e.g. "Block A · Level 2 · Staircase";
+// empty when its location is no longer listed.
+const placeOf = (o: Observation) =>
+  o.locationName
+    ? locationLabel({ building: o.building, floor: o.floor, name: o.locationName })
+    : ''
+// The picker's form, empty, adding a location in a building.
+const BLANK_LOCATION: LocationForm = { kind: 'building', building: '', floor: '', name: '' }
+// The form with nothing refused, asked about or kept as typed.
+const FORM_CLEAR = { lfErrors: {}, lfCheck: null, lfKept: {} } satisfies Partial<WorkflowState>
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
 // The most engineers one search on the create form lists.
 const ENGINEER_MATCH_LIMIT = 8
@@ -303,7 +329,8 @@ function toEntry(o: SavedObservation): Observation {
     cats: o.copeDimensions ?? [],
     time: formatDayYearTime(new Date(o.recordedAt)),
     text,
-    area: o.location?.name ?? '',
+    locationName: o.location?.name ?? '',
+    building: o.location?.building ?? null,
     locationId: o.location?.id,
     floor: o.location?.floor ?? null,
     sev: o.severity,
@@ -775,7 +802,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           key: key + '/' + i,
           name: photo.name,
           url: photo.url,
-          where: locationLabel({ name: o.area, floor: o.floor }),
+          where: placeOf(o),
           cat: categoryLabel(o.cats),
           time: o.time,
           openObservation: () =>
@@ -787,12 +814,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const tagRow = s.tagEdit && allRows.find((r) => r.key === s.tagEdit!.key)
     const dialogRow = s.obsDialog && allRows.find((r) => r.key === s.obsDialog!.key)
     const obsNoun = s.obsShowDeleted ? 'deleted observation' : 'observation'
+    // The Observations tab by building, level and location (CP-16), unless
+    // sorted newest first; the deleted ones are always newest first.
+    const obsByLocation = s.obsSort === 'location' && !s.obsShowDeleted
     // Shared by the Observations tab's header and rows: category and type,
     // location, summary, severity, status, and when it was captured (CP-08 AC2).
+    // By location, the headings say where, so there is no Location column.
     // The capture time wraps after its year: "11 Apr 2026" over "09:22".
     const obsCols = narrow
       ? '36px minmax(0,1fr) 90px'
-      : '40px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.8fr) 110px 150px 96px'
+      : obsByLocation
+        ? '40px minmax(0,1.3fr) minmax(0,2.8fr) 110px 150px 96px'
+        : '40px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.8fr) 110px 150px 96px'
     // Real recording needs a capture session on the server; without one, voice stays simulated.
     const liveVoice = !!liveCapture
     // Capture starts from a location; the sheet stays open until one is chosen.
@@ -808,10 +841,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       locOpen: false,
       locDismissed: true,
       locQuery: '',
-      lfError: null,
+      locAdding: false,
+      locEdit: null,
+      ...FORM_CLEAR,
       locRemove: null,
     }
     const query = s.locQuery.trim().toLowerCase()
+    // The picker's groups, of the locations the search matches (CP-16).
+    const locationGroups = groupLocations(
+      places.locations.filter((l) => !query || locationLabel(l).toLowerCase().includes(query)),
+    )
+    const currentGroup = currentLocation && groupKey(currentLocation)
     // A recording is named by its number; an uploaded file keeps its own name.
     const addClip = (audio: Blob, name: string | null, length: string | null) => {
       const id = ++media.clips
@@ -950,7 +990,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             sev: edit.sev,
             std: edit.std,
             ...(location && {
-              area: location.name,
+              locationName: location.name,
+              building: location.building,
               floor: location.floor,
               locationId: location.id,
             }),
@@ -1191,30 +1232,118 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           (item.kind === 'recordings' ? ' Report drafting uses its transcript again.' : ''),
       )
     }
-    // Adds the location typed into the sheet and captures in it straight away.
-    async function submitLocation() {
-      const name = s.lf.name.trim()
-      if (!name) return setState({ lfError: 'Name the location.' })
-      const floor = s.lf.floor.trim()
-      setState({ lfBusy: true, lfError: null })
-      let location
+    // Adds the location the picker's form describes and captures in it
+    // straight away, or saves the changes to the one being edited (CP-16): in
+    // a building, with an optional level, or elsewhere on site, a name only.
+    // A level is saved in its standard spelling ("L2" as Level 2). A building
+    // or level new to the site that looks mistyped is asked about first,
+    // unless the engineer chose to keep it as typed (`kept`).
+    async function submitLocation(form = s.lf, kept = s.lfKept) {
+      const editing = s.locEdit
+      const inBuilding = form.kind === 'building'
+      const building = inBuilding ? form.building.trim() : ''
+      const typedFloor = inBuilding ? form.floor.trim() : ''
+      const floor = typedFloor && (standardLevel(typedFloor) ?? typedFloor)
+      const details = {
+        name: form.name.trim(),
+        ...(building && { building }),
+        ...(floor && { floor }),
+      }
+      const missing = {
+        ...(inBuilding && !building && { building: 'Name the building.' }),
+        ...(!details.name && { name: 'Name the location.' }),
+      }
+      if (Object.keys(missing).length) return setState({ lf: form, lfErrors: missing })
+      const others = places.locations.filter((l) => l.id !== editing)
+      const isNew = (field: NameCheck['field'], name: string) =>
+        !!name && kept[field] !== name && !others.some((l) => sameName(l[field], name))
+      // The name a building or location was probably meant to be: a standard
+      // one a slip away ("blcok a" as Block A), else one already on the site,
+      // unless what was typed is itself standard, so a correct spelling is
+      // never pulled towards a mistyped one.
+      const guess = (field: 'building' | 'name', typed: string, standard: string[]) =>
+        isNew(field, typed)
+          ? (correctName(typed, standard) ??
+            (isStandardName(typed, standard)
+              ? null
+              : similarName(
+                  typed,
+                  others.map((l) => l[field]),
+                )))
+          : null
+      // A building or location is asked about only when it looks mistyped; a
+      // level, whenever it is not one the app knows.
+      const buildingGuess = guess('building', building, BUILDING_WORDS)
+      const nameGuess = guess('name', details.name, LOCATION_NAMES)
+      const lfCheck: NameCheck | null = buildingGuess
+        ? { field: 'building', typed: building, suggestion: buildingGuess }
+        : isNew('floor', floor) && levelRank(floor) === null
+          ? {
+              field: 'floor',
+              typed: floor,
+              suggestion:
+                suggestLevel(floor) ??
+                similarName(
+                  floor,
+                  others.map((l) => l.floor),
+                ),
+            }
+          : nameGuess
+            ? { field: 'name', typed: details.name, suggestion: nameGuess }
+            : null
+      if (lfCheck) return setState({ lf: form, lfKept: kept, lfErrors: {}, lfCheck })
+      setState({ lf: form, lfBusy: true, lfErrors: {}, lfCheck: null })
+      let location: SiteLocation
       try {
-        location = await places.add({ name, floor })
+        location = editing ? await places.edit(editing, details) : await places.add(details)
       } catch (error: unknown) {
-        const reason =
-          error instanceof GatewayError
-            ? (Object.values(error.fields)[0] ?? error.message)
-            : 'The location could not be added.'
-        return setState({ lfBusy: false, lfError: reason })
+        const fields = error instanceof GatewayError ? error.fields : {}
+        const lfErrors = Object.keys(fields).length
+          ? fields
+          : {
+              name:
+                error instanceof GatewayError
+                  ? error.message
+                  : editing
+                    ? 'The location could not be changed.'
+                    : 'The location could not be added.',
+            }
+        return setState({ lfBusy: false, lfErrors })
       }
       setState({
         lfBusy: false,
-        lf: { name: '', floor: '' },
+        lf: BLANK_LOCATION,
+        lfKept: {},
         locAdding: false,
+        locEdit: null,
+        obsLocForm: false,
         locQuery: '',
-        locOpen: false,
-        fLocationId: location.id,
+        // A new location is where the engineer is now; an edited one changes
+        // nothing about where they are.
+        ...(!editing && { locOpen: false, fLocationId: location.id }),
       })
+      if (!editing) return
+      // Every observation saved there follows it: the gateway's are listed
+      // again, and those kept in this browser take the new details.
+      if (places.live) captured.reload()
+      const follow = (list: Observation[]) =>
+        list.map((o) =>
+          o.locationId === location.id
+            ? {
+                ...o,
+                locationName: location.name,
+                building: location.building,
+                floor: location.floor,
+              }
+            : o,
+        )
+      updateState((previous) => ({
+        ...previous,
+        fRecent: follow(previous.fRecent),
+        captureObs: Object.fromEntries(
+          Object.entries(previous.captureObs).map(([ref, list]) => [ref, follow(list)]),
+        ),
+      }))
     }
     // Removes the location the Remove this location? dialog confirms. The
     // gateway refuses one with observations, and the dialog shows its reason.
@@ -1275,7 +1404,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setState(
         changeLocal(key, (x) => ({
           ...x,
-          interpretation: sampleInterpretation(x.cats[0] ?? UNCATEGORISED, x.area),
+          interpretation: sampleInterpretation(x.cats[0] ?? UNCATEGORISED, x.locationName),
         })),
       )
       later(settleSamples, 2000)
@@ -1678,6 +1807,234 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // First asking Leave without saving? when something would be lost.
     const leaveCapture = (tab: string) =>
       setState(unsaved.length ? { fLeaveOpen: true, fLeaveTo: tab } : toTab(tab))
+    // The Observations tab's rows, as the filters show them.
+    const obsList = shownRows.map(({ o, key }) => {
+      const open = s.obsOpen === key
+      const sev = o.sev || 'low'
+      const status = statusOf(o)
+      // A deleted observation changes only by being restored.
+      const canChange = canChangeObs
+      // Opens the Edit dialog on its tags and note as they are now, or with
+      // a proposal's wording or category already filled in (CP-05).
+      const openEdit = (change: { note?: string; cats?: string[] } = {}) =>
+        setState({
+          tagEdit: {
+            key,
+            cats: o.cats,
+            sev,
+            locationId: o.locationId ?? '',
+            std: o.std,
+            note: o.detail ?? '',
+            ...change,
+          },
+          tagError: null,
+        })
+      const reading = o.interpretation
+      const proposed = reading?.status === 'interpreted' ? reading : null
+      // Its photos are read only when a risk engineer asks (CP-05), through
+      // the gateway, or in this demo for a sample observation.
+      const read =
+        canEdit && !o.deleted ? (o.id ? () => void readSaved(o.id!) : () => readSample(key)) : null
+      // Recordings and photos can be added by whoever may change it, and
+      // removed while something else stays captured (CP-08).
+      const changing = canChange && !o.deleted
+      const held =
+        (o.detail?.trim() ? 1 : 0) +
+        (o.audio ? 1 : 0) +
+        (o.recordings?.length ?? 0) +
+        o.media.length
+      const removing = (kind: MediaKind, id: string, name: string) =>
+        changing && held > 1
+          ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
+          : null
+      return {
+        ...o,
+        key,
+        open,
+        // Its building, level and location, e.g. "Warehouse · Ground · Bay 3".
+        where: placeOf(o),
+        // What it holds and where its recordings and photos stand (CP-08 AC2).
+        typeLabel: typeLabel(o),
+        status,
+        statusTone:
+          status === 'Transcribing' || status === 'Interpreting'
+            ? 'info'
+            : status.endsWith('failed')
+              ? 'high'
+              : null,
+        canChange: canChange && !o.deleted,
+        canRestore: canChange && !!o.deleted,
+        editedLabel: o.edited ? 'Edited by ' + stampLabel(o.edited) : null,
+        deletedLabel: o.deleted ? 'Deleted by ' + stampLabel(o.deleted) : null,
+        deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
+        restoreObs: () => void restoreRow(key, o),
+        editTags: () => openEdit(),
+        addMedia: changing ? () => setState({ obsDialog: { kind: 'addMedia', key } }) : null,
+        // Its photos, each opening the original, with who added any later.
+        media: o.media.map((m) => ({
+          ...m,
+          addedLabel: m.added ? m.name + ' added by ' + stampLabel(m.added) : null,
+          remove: removing('photos', m.id ?? m.name, m.name),
+        })),
+        removedMedia: (o.removedMedia ?? []).map((m) => ({
+          ...m,
+          removedLabel: 'Removed by ' + stampLabel(m.removed),
+          restore: changing ? () => void restoreItem(key, o, m) : null,
+        })),
+        // What the vision model proposes from its photos (CP-05), and what
+        // the engineer can do with it. Neither action saves anything by
+        // itself: each opens Edit, filled in, for the engineer to save.
+        // Photos not read yet offer only Read photos; a reading of photos
+        // since added or removed offers Read again (CP-08).
+        proposal: !o.media.length
+          ? null
+          : !reading
+            ? { status: 'unread' as const, read }
+            : {
+                ...reading,
+                // "Protection · Sprinkler Installation"
+                summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
+                retry: read,
+                useAsNote:
+                  canChange && !o.deleted && proposed?.description
+                    ? () =>
+                        openEdit({
+                          note: o.detail
+                            ? o.detail + '\n\n' + proposed.description
+                            : proposed.description!,
+                        })
+                    : null,
+                // Offered only when the proposal is not one of its categories,
+                // added to those it has.
+                addCategory:
+                  canChange &&
+                  !o.deleted &&
+                  proposed?.category &&
+                  !o.cats.includes(proposed.category)
+                    ? () => openEdit({ cats: withCategory(o.cats, proposed.category!) })
+                    : null,
+              },
+        icon: categoryIcon(o.cats),
+        catLabel: categoryLabel(o.cats),
+        color: 'var(--text-secondary)',
+        chevron: open ? 'chevron-down' : 'chevron-right',
+        // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
+        clock: o.time || '',
+        sev,
+        sevLabel: sev.charAt(0).toUpperCase() + sev.slice(1),
+        // Each recording shows its transcript, as corrected, or where its
+        // transcription stands. Only a finished one can be corrected (AC10).
+        recordings: (o.recordings ?? []).map((r) => ({
+          ...r,
+          retry: () => void retryVoice(o.id!, r.id),
+          // A recording added in the demo has no transcript to correct.
+          canCorrect: canChange && !o.deleted && r.status === 'transcribed' && !!o.id,
+          correct: () => setState({ obsDialog: { kind: 'transcript', key, recordingId: r.id } }),
+          correctedLabel: r.correction ? 'Corrected by ' + stampLabel(r.correction) : null,
+          addedLabel: r.added ? 'Added by ' + stampLabel(r.added) : null,
+          remove: removing('recordings', r.id, r.name),
+        })),
+        // A saved observation's recordings carry their own text below its note.
+        detail: o.recordings ? o.detail : o.detail || o.text,
+        hasAudio: !!o.audio,
+        audioLabel: 'Audio note (' + (o.audio || '') + ')',
+        hasStd: !!o.std,
+        rowStyle: {
+          display: 'grid',
+          gridTemplateColumns: obsCols,
+          alignItems: narrow ? 'flex-start' : 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          cursor: 'pointer',
+          borderBottom: '1px solid var(--border-subtle)',
+          transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
+          background: open ? 'var(--surface-selected)' : 'var(--surface-card)',
+        } as React.CSSProperties,
+      }
+    })
+    // The Observations tab by building, level and location (CP-16): every
+    // listed location with the observations the filters show there, newest
+    // first. With a filter set, only locations with a match. An observation
+    // whose location is no longer listed is kept under the details it was
+    // saved with, or under Location not recorded.
+    type ObsItem = (typeof obsList)[number]
+    const listed = (id: string) => places.locations.some((l) => l.id === id)
+    // Its listed location; else one listed with the same name, level and
+    // building (a sample observation's, say); else the details it was saved with.
+    const placeKey = (o: ObsItem) =>
+      (o.locationId && listed(o.locationId) ? o.locationId : null) ??
+      places.locations.find(
+        (l) =>
+          sameName(l.name, o.locationName) &&
+          sameName(l.floor, o.floor) &&
+          sameName(l.building, o.building),
+      )?.id ??
+      o.locationId ??
+      'unlisted:' + o.locationName
+    const obsPlaces: SiteLocation[] = [...places.locations]
+    for (const o of obsList)
+      if (o.locationName && !obsPlaces.some((l) => l.id === placeKey(o)))
+        obsPlaces.push({
+          id: placeKey(o),
+          building: o.building ?? null,
+          floor: o.floor ?? null,
+          name: o.locationName,
+        })
+    const unrecorded = obsList.filter((o) => !o.locationName)
+    const obsGroups = [
+      ...groupLocations(
+        obsPlaces.map((l) => ({ ...l, items: obsList.filter((o) => placeKey(o) === l.id) })),
+      ),
+      ...(unrecorded.length
+        ? [
+            {
+              key: 'unrecorded',
+              title: 'Location not recorded',
+              levels: [
+                {
+                  title: null,
+                  locations: [
+                    {
+                      id: 'unrecorded',
+                      building: null,
+                      floor: null,
+                      name: 'Location not recorded',
+                      items: unrecorded,
+                    },
+                  ],
+                },
+              ],
+            },
+          ]
+        : []),
+    ]
+      .map((g) => ({
+        ...g,
+        levels: g.levels
+          .map((level) => ({
+            ...level,
+            locations: level.locations.filter((l) => !filtersActive(s.of) || l.items.length),
+          }))
+          .filter((level) => level.locations.length),
+      }))
+      .filter((g) => g.levels.length)
+    // Opens the Add or Edit location dialog on the Observations tab (CP-16),
+    // the same form as the capture picker's.
+    const openLocationForm = (l?: SiteLocation) =>
+      setState({
+        obsLocForm: true,
+        locAdding: true,
+        locEdit: l?.id ?? null,
+        ...FORM_CLEAR,
+        lf: l
+          ? {
+              kind: l.building || l.floor ? 'building' : 'elsewhere',
+              building: l.building ?? '',
+              floor: l.floor ?? '',
+              name: l.name,
+            }
+          : BLANK_LOCATION,
+      })
     return {
       /* access (F-05) */
       routeBlocked,
@@ -1966,154 +2323,63 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsWide: !narrow,
       obsStack: narrow,
       obsCols,
-      obsList: shownRows.map(({ o, key }) => {
-        const open = s.obsOpen === key
-        const sev = o.sev || 'low'
-        const status = statusOf(o)
-        // A deleted observation changes only by being restored.
-        const canChange = canChangeObs
-        // Opens the Edit dialog on its tags and note as they are now, or with
-        // a proposal's wording or category already filled in (CP-05).
-        const openEdit = (change: { note?: string; cats?: string[] } = {}) =>
-          setState({
-            tagEdit: {
-              key,
-              cats: o.cats,
-              sev,
-              locationId: o.locationId ?? '',
-              std: o.std,
-              note: o.detail ?? '',
-              ...change,
-            },
-            tagError: null,
-          })
-        const reading = o.interpretation
-        const proposed = reading?.status === 'interpreted' ? reading : null
-        // Its photos are read only when a risk engineer asks (CP-05), through
-        // the gateway, or in this demo for a sample observation.
-        const read =
-          canEdit && !o.deleted
-            ? o.id
-              ? () => void readSaved(o.id!)
-              : () => readSample(key)
-            : null
-        // Recordings and photos can be added by whoever may change it, and
-        // removed while something else stays captured (CP-08).
-        const changing = canChange && !o.deleted
-        const held =
-          (o.detail?.trim() ? 1 : 0) +
-          (o.audio ? 1 : 0) +
-          (o.recordings?.length ?? 0) +
-          o.media.length
-        const removing = (kind: MediaKind, id: string, name: string) =>
-          changing && held > 1
-            ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
-            : null
+      obsList,
+      /* by location (CP-16): buildings, levels and locations, each with its
+         observations, Add observation, and Edit and Remove */
+      obsSort: s.obsSort,
+      setObsSort: (obsSort: WorkflowState['obsSort']) => setState({ obsSort, obsOpen: null }),
+      obsByLocation,
+      obsGroups: obsGroups.map((g) => {
+        const count = g.levels.reduce(
+          (n, level) => n + level.locations.reduce((m, l) => m + l.items.length, 0),
+          0,
+        )
+        const open = !s.obsFolded[g.key]
         return {
-          ...o,
-          key,
+          key: g.key,
+          title: g.title,
+          countLabel: plural(count, 'observation'),
           open,
-          // The zone and floor, e.g. "Bay 3 — north aisle · Ground".
-          where: locationLabel({ name: o.area, floor: o.floor }),
-          // What it holds and where its recordings and photos stand (CP-08 AC2).
-          typeLabel: typeLabel(o),
-          status,
-          statusTone:
-            status === 'Transcribing' || status === 'Interpreting'
-              ? 'info'
-              : status.endsWith('failed')
-                ? 'high'
-                : null,
-          canChange: canChange && !o.deleted,
-          canRestore: canChange && !!o.deleted,
-          editedLabel: o.edited ? 'Edited by ' + stampLabel(o.edited) : null,
-          deletedLabel: o.deleted ? 'Deleted by ' + stampLabel(o.deleted) : null,
-          deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
-          restoreObs: () => void restoreRow(key, o),
-          editTags: () => openEdit(),
-          addMedia: changing ? () => setState({ obsDialog: { kind: 'addMedia', key } }) : null,
-          // Its photos, each opening the original, with who added any later.
-          media: o.media.map((m) => ({
-            ...m,
-            addedLabel: m.added ? m.name + ' added by ' + stampLabel(m.added) : null,
-            remove: removing('photos', m.id ?? m.name, m.name),
+          toggle: () => setState({ obsFolded: { ...s.obsFolded, [g.key]: open } }),
+          levels: g.levels.map((level) => ({
+            title: level.title,
+            locations: level.locations.map((l) => {
+              const isListed = listed(l.id)
+              // Deleted ones count too, as the gateway refuses to remove a
+              // location any observation is saved in (CP-08).
+              const held = allRows.some(({ o }) => o.locationId === l.id)
+              return {
+                id: l.id,
+                name: l.name,
+                label: l.id === 'unrecorded' ? l.name : locationLabel(l),
+                items: l.items,
+                countLabel: l.items.length
+                  ? plural(l.items.length, 'observation')
+                  : 'No observations',
+                // Capture opens there, with no need to choose where.
+                addObservation:
+                  isListed && canEdit && canCapture
+                    ? () =>
+                        setState({
+                          screen: 'field',
+                          fLocationId: l.id,
+                          locOpen: false,
+                          locDismissed: false,
+                        })
+                    : undefined,
+                edit: isListed && canChangeObs ? () => openLocationForm(l) : undefined,
+                remove:
+                  isListed && canEdit && canCapture && !held
+                    ? () => setState({ locRemove: l.id })
+                    : undefined,
+              }
+            }),
           })),
-          removedMedia: (o.removedMedia ?? []).map((m) => ({
-            ...m,
-            removedLabel: 'Removed by ' + stampLabel(m.removed),
-            restore: changing ? () => void restoreItem(key, o, m) : null,
-          })),
-          // What the vision model proposes from its photos (CP-05), and what
-          // the engineer can do with it. Neither action saves anything by
-          // itself: each opens Edit, filled in, for the engineer to save.
-          // Photos not read yet offer only Read photos; a reading of photos
-          // since added or removed offers Read again (CP-08).
-          proposal: !o.media.length
-            ? null
-            : !reading
-              ? { status: 'unread' as const, read }
-              : {
-                  ...reading,
-                  // "Protection · Sprinkler Installation"
-                  summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
-                  retry: read,
-                  useAsNote:
-                    canChange && !o.deleted && proposed?.description
-                      ? () =>
-                          openEdit({
-                            note: o.detail
-                              ? o.detail + '\n\n' + proposed.description
-                              : proposed.description!,
-                          })
-                      : null,
-                  // Offered only when the proposal is not one of its categories,
-                  // added to those it has.
-                  addCategory:
-                    canChange &&
-                    !o.deleted &&
-                    proposed?.category &&
-                    !o.cats.includes(proposed.category)
-                      ? () => openEdit({ cats: withCategory(o.cats, proposed.category!) })
-                      : null,
-                },
-          icon: categoryIcon(o.cats),
-          catLabel: categoryLabel(o.cats),
-          color: 'var(--text-secondary)',
-          chevron: open ? 'chevron-down' : 'chevron-right',
-          // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
-          clock: o.time || '',
-          sev,
-          sevLabel: sev.charAt(0).toUpperCase() + sev.slice(1),
-          // Each recording shows its transcript, as corrected, or where its
-          // transcription stands. Only a finished one can be corrected (AC10).
-          recordings: (o.recordings ?? []).map((r) => ({
-            ...r,
-            retry: () => void retryVoice(o.id!, r.id),
-            // A recording added in the demo has no transcript to correct.
-            canCorrect: canChange && !o.deleted && r.status === 'transcribed' && !!o.id,
-            correct: () => setState({ obsDialog: { kind: 'transcript', key, recordingId: r.id } }),
-            correctedLabel: r.correction ? 'Corrected by ' + stampLabel(r.correction) : null,
-            addedLabel: r.added ? 'Added by ' + stampLabel(r.added) : null,
-            remove: removing('recordings', r.id, r.name),
-          })),
-          // A saved observation's recordings carry their own text below its note.
-          detail: o.recordings ? o.detail : o.detail || o.text,
-          hasAudio: !!o.audio,
-          audioLabel: 'Audio note (' + (o.audio || '') + ')',
-          hasStd: !!o.std,
-          rowStyle: {
-            display: 'grid',
-            gridTemplateColumns: obsCols,
-            alignItems: narrow ? 'flex-start' : 'center',
-            gap: '12px',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            borderBottom: '1px solid var(--border-subtle)',
-            transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-            background: open ? 'var(--surface-selected)' : 'var(--surface-card)',
-          } as React.CSSProperties,
         }
       }),
+      // Adds a location without capturing, e.g. before the visit (CP-16).
+      obsAddLocation: canEdit && canCapture ? () => openLocationForm() : undefined,
+      obsLocFormOpen: s.obsLocForm,
       toggleObs: (e: React.MouseEvent<HTMLElement>) => {
         const k = e.currentTarget.dataset.i ?? null
         setState({
@@ -2130,26 +2396,35 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsFilters: s.of,
       obsFiltering: filtersActive(s.of),
       obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
-      // Nothing captured yet: the list offers Add observation instead.
-      obsNone: !s.obsShowDeleted && obsRows.length === 0,
+      // Nothing captured yet, and no locations to list by: the list offers
+      // Add observation instead.
+      obsNone: !s.obsShowDeleted && obsRows.length === 0 && !(obsByLocation && obsGroups.length),
       setObsFilter: (key: keyof ObservationFilters) => (e: React.ChangeEvent<HTMLSelectElement>) =>
         setState({ of: { ...s.of, [key]: e.target.value } }),
       clearObsFilters: () => setState({ of: NO_FILTERS }),
       obsTypeFilterOptions: [{ value: '', label: 'All types' }, ...OBSERVATION_TYPES],
       obsCatFilterOptions: [{ value: '', label: 'All categories' }, ...CATEGORY_OPTIONS],
       obsSevFilterOptions: [{ value: '', label: 'All severities' }, ...SEVERITY_OPTIONS],
-      obsLocFilterOptions: [
-        { value: '', label: 'All locations' },
+      // Building (Elsewhere on site among them), level and location (CP-16).
+      obsBuildingFilterOptions: [
+        { value: '', label: 'All buildings' },
         ...labelValues(
-          obsRows.map(({ o }) => o.area),
-          s.of.loc,
+          obsRows.map(({ o }) => (o.locationName ? buildingOf(o) : null)),
+          s.of.building,
         ),
       ],
       obsFloorFilterOptions: [
-        { value: '', label: 'All floors' },
+        { value: '', label: 'All levels' },
         ...labelValues(
           obsRows.map(({ o }) => o.floor),
           s.of.floor,
+        ),
+      ],
+      obsLocFilterOptions: [
+        { value: '', label: 'All locations' },
+        ...labelValues(
+          obsRows.map(({ o }) => o.locationName),
+          s.of.loc,
         ),
       ],
       obsStatusFilterOptions: [{ value: '', label: 'All statuses' }, ...OBSERVATION_STATUSES],
@@ -2172,7 +2447,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               // What the Add media dialog adds to (CP-08): where it was
               // captured, whether the gateway holds it, and the number its
               // next recording takes after those it has, removed ones included.
-              where: locationLabel({ name: dialogRow.o.area, floor: dialogRow.o.floor }),
+              where: placeOf(dialogRow.o),
               saved: !!dialogRow.o.id,
               nextRecording:
                 (dialogRow.o.recordings?.length ?? 0) +
@@ -2200,11 +2475,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? [
               {
                 value: s.tagEdit!.locationId,
-                label: locationLabel({ name: tagRow.o.area, floor: tagRow.o.floor }),
+                label: placeOf(tagRow.o),
               },
             ]
           : []),
-        ...places.locations.map((l) => ({ value: l.id, label: locationLabel(l) })),
+        // In the picker's order: by building, then level (CP-16).
+        ...groupLocations(places.locations).flatMap((g) =>
+          g.levels.flatMap((level) =>
+            level.locations.map((l) => ({ value: l.id, label: locationLabel(l) })),
+          ),
+        ),
       ],
       tagStdOptions: [
         { value: '', label: 'None, let the draft find it' },
@@ -2772,36 +3052,132 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       locQuery: s.locQuery,
       setLocQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
         setState({ locQuery: e.target.value }),
-      locations: places.locations
-        .filter((l) => !query || locationLabel(l).toLowerCase().includes(query))
-        .map((l) => {
-          const count = fieldRecent.filter((o) =>
-            o.locationId ? o.locationId === l.id : o.area === l.name,
-          ).length
-          return {
-            id: l.id,
-            label: locationLabel(l),
-            detail: count ? plural(count, 'observation') : '',
-            selected: l.id === s.fLocationId,
-            // Only a location with nothing saved in it can be removed, once confirmed.
-            remove: count ? undefined : () => setState({ locRemove: l.id }),
-          }
-        }),
+      // By building, then level, then elsewhere on site (CP-16). A group
+      // opens where the engineer is, or as they last left it this visit;
+      // while searching, every group with a match is open. One group alone
+      // has nothing to fold.
+      locationGroups: locationGroups.map((g) => {
+        const open =
+          !!query || locationGroups.length === 1 || (s.locGroups[g.key] ?? g.key === currentGroup)
+        return {
+          key: g.key,
+          title: g.title,
+          count: g.levels.reduce((n, level) => n + level.locations.length, 0),
+          open,
+          collapsible: !query && locationGroups.length > 1,
+          toggle: () => setState({ locGroups: { ...s.locGroups, [g.key]: !open } }),
+          levels: g.levels.map((level) => ({
+            title: level.title,
+            locations: level.locations.map((l) => {
+              const count = fieldRecent.filter((o) =>
+                o.locationId ? o.locationId === l.id : o.locationName === l.name,
+              ).length
+              return {
+                id: l.id,
+                name: l.name,
+                label: locationLabel(l),
+                detail: count ? plural(count, 'observation') : '',
+                selected: l.id === s.fLocationId,
+                // Only a location with nothing saved in it can be removed, once confirmed.
+                remove: count ? undefined : () => setState({ locRemove: l.id }),
+                // Changed by the assigned engineer, as observations are (CP-16).
+                edit: canChangeObs
+                  ? () =>
+                      setState({
+                        locAdding: true,
+                        locEdit: l.id,
+                        ...FORM_CLEAR,
+                        lf: {
+                          kind: l.building || l.floor ? 'building' : 'elsewhere',
+                          building: l.building ?? '',
+                          floor: l.floor ?? '',
+                          name: l.name,
+                        },
+                      })
+                  : undefined,
+              }
+            }),
+          })),
+        }
+      }),
+      locNoMatch: !!query && locationGroups.length === 0,
       noLocations: places.locations.length === 0,
+      // Choosing one leaves any half-filled form behind.
       chooseLocation: (id: string) =>
-        setState({ fLocationId: id, locOpen: false, locQuery: '', lfError: null }),
+        setState({
+          fLocationId: id,
+          locOpen: false,
+          locQuery: '',
+          locAdding: false,
+          locEdit: null,
+          ...FORM_CLEAR,
+        }),
       locAdding: s.locAdding || places.locations.length === 0,
+      locEditing: !!s.locEdit,
+      locEditId: s.locEdit,
+      // Starts from where the engineer is: the next location on the same
+      // level is one field to type. The search becomes its name.
       startAddLocation: () =>
         setState({
           locAdding: true,
-          lf: { ...s.lf, name: s.lf.name || s.locQuery.trim() },
-          lfError: null,
+          locEdit: null,
+          ...FORM_CLEAR,
+          lf: {
+            ...BLANK_LOCATION,
+            ...(currentLocation?.building
+              ? { building: currentLocation.building, floor: currentLocation.floor ?? '' }
+              : currentLocation && !currentLocation.floor && { kind: 'elsewhere' as const }),
+            name: s.locQuery.trim(),
+          },
+        }),
+      cancelLocationForm: () =>
+        setState({
+          locAdding: false,
+          locEdit: null,
+          lf: BLANK_LOCATION,
+          obsLocForm: false,
+          ...FORM_CLEAR,
         }),
       lf: s.lf,
-      setLf: (field: 'name' | 'floor') => (e: React.ChangeEvent<HTMLInputElement>) =>
-        setState({ lf: { ...s.lf, [field]: e.target.value }, lfError: null }),
+      setLfKind: (kind: LocationForm['kind']) =>
+        setState({ lf: { ...s.lf, kind }, lfErrors: {}, lfCheck: null }),
+      // Typing again drops the question about that field, and any choice to keep it.
+      setLf: (field: 'building' | 'floor' | 'name') => (e: React.ChangeEvent<HTMLInputElement>) =>
+        setState({
+          lf: { ...s.lf, [field]: e.target.value },
+          lfErrors: {},
+          lfCheck: null,
+          lfKept: { ...s.lfKept, [field]: undefined },
+        }),
+      // The question about a new building or level that looks mistyped: use
+      // the name it was probably meant to be, keep it as typed, or change it.
+      // Either of the first two carries on saving.
+      lfCheck: s.lfCheck,
+      acceptCheckedSuggestion: () =>
+        s.lfCheck?.suggestion &&
+        void submitLocation({ ...s.lf, [s.lfCheck.field]: s.lfCheck.suggestion }),
+      keepCheckedName: () =>
+        s.lfCheck && void submitLocation(s.lf, { ...s.lfKept, [s.lfCheck.field]: s.lfCheck.typed }),
+      changeCheckedName: () => setState({ lfCheck: null }),
+      // Names already used, so a building or level is spelt one way; for a
+      // level, those in the building typed first, then the usual ones.
+      buildingSuggestions: suggestions(places.locations.map((l) => l.building)),
+      levelSuggestions: suggestions(
+        [
+          ...places.locations
+            .filter((l) => sameName(l.building, s.lf.building))
+            .map((l) => l.floor),
+          ...places.locations.map((l) => l.floor),
+        ],
+        LEVEL_SUGGESTIONS,
+      ),
+      // Names already used on the site, then the usual ones (CP-16).
+      locationNameSuggestions: suggestions(
+        places.locations.map((l) => l.name),
+        LOCATION_NAMES,
+      ),
       lfBusy: s.lfBusy,
-      lfError: s.lfError,
+      lfErrors: s.lfErrors,
       /* the Remove this location? dialog */
       locRemoveLabel: (() => {
         const l = places.locations.find((x) => x.id === s.locRemove)
@@ -2853,7 +3229,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cats: s.fCats,
           time: formatDayYearTime(new Date()),
           text,
-          area: currentLocation.name,
+          locationName: currentLocation.name,
+          building: currentLocation.building,
           locationId: currentLocation.id,
           floor: currentLocation.floor,
           sev: s.fSev,

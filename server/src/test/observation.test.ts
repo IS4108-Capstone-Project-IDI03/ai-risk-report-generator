@@ -161,6 +161,7 @@ describe('POST /api/assessments/:reference/observations', () => {
     expect(String(stored?.location)).toBe(String(PUMP_HOUSE))
     expect(response.body.location).toEqual({
       id: String(PUMP_HOUSE),
+      building: null,
       name: 'Pump house',
       floor: null,
     })
@@ -437,7 +438,7 @@ describe('PATCH /api/observations/:id', () => {
     expect(reopened).toMatchObject({
       id: saved.id,
       severity: 'critical',
-      location: { id: String(PUMP_HOUSE), name: 'Pump house', floor: null },
+      location: { id: String(PUMP_HOUSE), building: null, name: 'Pump house', floor: null },
       standard: 'FM 2.0 – Last published April 2026',
       // Left out of the request, so unchanged.
       copeDimensions: ['Protection'],
@@ -1009,7 +1010,7 @@ describe('photo interpretation (CP-05)', () => {
     await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
     expect(vision).toHaveBeenCalledWith({
       s3_keys: stored!.photos!.map((p) => p.key),
-      location: 'Bay 3 — north aisle · Ground',
+      location: 'Bay 3 — north aisle, Ground',
       note: 'Racking under the heads.',
     })
     expect(speech).not.toHaveBeenCalled()

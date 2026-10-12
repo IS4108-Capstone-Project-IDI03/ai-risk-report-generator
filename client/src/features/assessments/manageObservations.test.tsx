@@ -18,8 +18,8 @@ import { formatDayYearTime } from './format'
 const REF = 'RPT-2026-0411'
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
-const BAY_3 = { id: 'l1', name: 'Bay 3 — north aisle', floor: 'Ground' }
-const PUMP_HOUSE = { id: 'l3', name: 'Pump house', floor: null }
+const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
+const PUMP_HOUSE = { id: 'l3', building: null, name: 'Pump house', floor: null }
 // The signed-in risk engineer (test/session.ts), and someone else.
 const ME = { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' }
 const OTHER = { id: '6ab39017e45cf009e4507799', name: 'Jide Okafor' }

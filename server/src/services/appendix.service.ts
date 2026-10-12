@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { SessionUser } from './auth.service'
 import { AssessmentModel } from '../models/assessment.model'
 import { AssessmentNotFoundError } from './capture-session.service'
+import { locationText } from './location.service'
 import { listObservations } from './observation.service'
 import { assessmentToDraft } from './section.service'
 
@@ -44,7 +45,7 @@ async function reportPhotos(reference: string) {
       observationId: o.id,
       name: p.name,
       url: p.url,
-      location: o.location && [o.location.name, o.location.floor].filter(Boolean).join(', '),
+      location: o.location && locationText(o.location),
       // An observation can be filed under several categories; none when uncategorised.
       category: o.copeDimensions?.length ? o.copeDimensions.join(', ') : null,
       note: o.note,

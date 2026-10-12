@@ -84,19 +84,47 @@ copied onto the assessment, so there is one source of truth:
 | `draft` / `under_review` / `finalised` | `reportStatus`, which wins when set |
 
 `locations` lists the places on site the engineer records observations in, as
-the engineer adds them during capture: each has an `_id`, a `name` (up to 100
-characters), and an optional `floor` (up to 40), plus a
-`key` of the lowercased name and floor. They are embedded because the list is
-short and always read with its assessment. `POST
-/api/assessments/:reference/locations` (JSON `name`, `floor`) returns
-201, 400 `{ error, fields }`, 404, or 409 with `fields.name` when the same name
-and floor is already listed; matching on `key` in the same update keeps two
-taps from adding it twice. `GET` on the same path lists them in the order they
-were added. Adding one needs no capture session. `DELETE
+the engineer adds them during capture (CP-15), organised by building and level
+(CP-16). Each has an `_id`, a `name` (up to 100 characters), an optional
+`building` (up to 100) and an optional `floor` (up to 40, shown as Level),
+plus a `key`. A location is either in a building, with a `building` and
+optionally a `floor` (none means the whole building, e.g. its facade), or
+elsewhere on site (roads, car parks, a guardhouse, a sprinkler tank), with a
+`name` only. One saved before CP-16 may have a `floor` but no `building`; the
+picker lists it under Building not recorded until it is edited into a
+building. The `key` is the lowercased name and floor, `name|floor`, with
+`|building` added only when there is one, so keys saved before CP-16 still
+match. They are embedded because the list is short and always read with its
+assessment. `POST /api/assessments/:reference/locations` (JSON `name`,
+`building`, `floor`) returns 201, 400 `{ error, fields }` (also for a `floor`
+without a `building`), 404, or 409 with `fields.name` when the same name,
+level and building is already listed; matching on `key` in the same update
+keeps two taps from adding it twice. A building or level that differs from
+one already listed only in case is saved in the listed spelling, so "block a"
+joins "Block A". A level the gateway recognises is saved in its standard
+spelling (`standardLevel`): "L2", "lvl 2" and "2nd floor" are Level 2, "B1"
+Basement 1 and "GF" Ground, so shorthand never splits a level in two; any other
+name, e.g. Podium, is kept as given. The client asks before saving one of those
+(see the design system). `GET` on the same path lists them in the order they were
+added; the client groups them. Adding one needs no capture session. `PATCH
+/api/assessments/:reference/locations/:id` (the same JSON) changes a location in
+place, so every observation saved there follows it: 200 with the location, 400,
+403 for anyone but the assessment's assigned engineer, 404, or 409 once the
+assessment is archived or when another location already has those details. A
+report draft keeps the location as it was drafted from in its `evidence`, so a
+changed one counts in `changesSinceDraft`. `DELETE
 /api/assessments/:reference/locations/:id` removes one added by mistake: 204,
 404, or 409 while any observation is saved there, so no observation loses its
 location; editing an observation's tags (CP-06) moves it elsewhere. `npm --prefix server run seed`
-gives `RPT-2026-0411` six sample locations when it has none.
+gives `RPT-2026-0411` eight sample locations, in two buildings and elsewhere on
+site, when it has none.
+
+Where a report names a location (drafting `evidence`, Appendix A captions,
+the photo reading's prompt), `locationText` in `location.service.ts` words it
+most specific first: "Staircase, Level 2, Block A". A location without a
+building reads "Pump room, B1", exactly as before CP-16, so drafts made
+before it still compare equal. Section 1 names each building, then each place
+elsewhere on site.
 
 `appendixPhotos` (GN-07) is Appendix A's photos in report order: each a
 `photo` (the `_id` of one of the assessment's observations' photos) and the
@@ -176,7 +204,7 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio and photos | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry and reading photos; tag and note edits, transcript corrections, deletes and restores, and adding, removing and restoring recordings and photos (the assessment's assigned engineer only, CP-08) | yes | no |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, and adding, removing and restoring recordings and photos (the assessment's assigned engineer only, CP-08) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
@@ -218,7 +246,8 @@ the observation to (e.g. `NFPA 25 – 2026 Edition`); only the standard is
 stored, and the draft finds the clause. The category, severity, location and
 standard are stored once and cover the note and every recording. The location
 is stored by id rather than name, so renaming a location later does not split
-its observations; responses include it as `location: { id, name, floor }`.
+its observations; responses include it as
+`location: { id, building, floor, name }`.
 
 `note` is stored exactly as written, untrimmed, up to 5,000 characters; a blank
 note counts as none. An observation may be saved uncategorised: its
@@ -241,10 +270,10 @@ made the latest change; a save that changes nothing records nothing. The
 observation keeps no history of its own: report section drafts cite
 observations by `_id`, and each draft keeps the observations as it was given
 them in its `evidence`, so a draft can always be checked against what it was
-drafted from. There is no zone field: the location's `name` is its zone and
-its `floor` the floor, so choosing a location tags both. The Observations tab
-filters by type (Note, Voice, Photo), category (an observation filed under
-several matches any of them), severity, location, floor and status
+drafted from. There is no zone field: choosing a location tags its building,
+level and name (CP-16). The Observations tab filters by type (Note, Voice,
+Photo), category (an observation filed under several matches any of them),
+severity, building (Elsewhere on site among them), level, location and status
 (Transcribing, Interpreting, Transcription failed, Interpretation failed,
 Complete) in the browser, like the dashboard.
 

@@ -15,6 +15,7 @@ import {
   type SavedObservation,
 } from '../api'
 import { formatDay } from '../format'
+import { locationText } from '../locations'
 import { useOfis } from '../useOfis'
 import { ObservationExcerpt } from './ObservationExcerpt'
 
@@ -66,9 +67,7 @@ function Sources({ ofi, observations }: { ofi: Ofi; observations: SavedObservati
     if (o)
       cards.push({
         kind: 'observation',
-        source: o.location
-          ? [o.location.name, o.location.floor].filter(Boolean).join(', ')
-          : 'Site observation',
+        source: o.location ? locationText(o.location) : 'Site observation',
         locator: o.copeDimensions?.join(', '),
         excerpt: <ObservationExcerpt observation={o} />,
       })
