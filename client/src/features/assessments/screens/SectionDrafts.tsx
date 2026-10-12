@@ -15,6 +15,7 @@ import {
   type SectionDraft,
 } from '../api'
 import { ObservationExcerpt } from '../components/ObservationExcerpt'
+import { locationText } from '../locations'
 import { describeChanges } from '../reviewDisplay'
 import { OfiRow } from '../components/OfiSuggestions'
 import { SummaryRow } from '../components/SummaryRow'
@@ -39,9 +40,7 @@ function resolve(id: string, draft: SectionDraft, observations: SavedObservation
     if (o) {
       return {
         kind: 'observation',
-        source: o.location
-          ? [o.location.name, o.location.floor].filter(Boolean).join(', ')
-          : 'Site observation',
+        source: o.location ? locationText(o.location) : 'Site observation',
         locator: o.copeDimensions?.join(', '),
         excerpt: <ObservationExcerpt observation={o} />,
       }

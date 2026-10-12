@@ -11,7 +11,7 @@ const VALVE = {
   copeDimensions: ['Protection'],
   standard: null,
   severity: 'critical',
-  location: { id: 'l1', name: 'Fire pump room', floor: 'Basement 1' },
+  location: { id: 'l1', building: null, name: 'Fire pump room', floor: 'Basement 1' },
   note: 'B1 spk CV found SHUT',
   recordings: [],
   photos: [],

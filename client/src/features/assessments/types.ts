@@ -29,7 +29,9 @@ export type Observation = {
   cats: string[]
   time: string
   text: string
-  area: string
+  // Where it was captured (CP-16): the location's name, building and level.
+  locationName: string
+  building?: string | null
   sev: string
   std: string
   // Its photographs (CP-04): url opens the original, or is null for a sample
@@ -46,8 +48,7 @@ export type Observation = {
   }[]
   detail: string
   audio?: string
-  // Where it was captured, when known by id rather than only by name, and the
-  // location's floor. The location's name (area) is its zone (CP-06).
+  // The location by id, when known rather than only by name, and its level.
   locationId?: string
   floor?: string | null
   // Set on observations saved on the server.
@@ -169,10 +170,21 @@ export type WorkflowState = {
   locOpen: boolean
   locDismissed: boolean
   locQuery: string
+  // The form adding a location, or changing the one locEdit names (CP-16).
   locAdding: boolean
-  lf: { name: string; floor: string }
+  locEdit: string | null
+  lf: LocationForm
   lfBusy: boolean
-  lfError: string | null
+  // Why the form was refused, by field: building, floor or name.
+  lfErrors: Partial<Record<'building' | 'floor' | 'name', string>>
+  // A new building, level or location name the form asks about before
+  // saving, as it is probably mistyped (CP-16), and those the engineer chose
+  // to keep as typed.
+  lfCheck: NameCheck | null
+  lfKept: Partial<Record<NameCheck['field'], string>>
+  // Picker groups opened or closed this visit, by key (CP-16); others follow
+  // where the engineer is.
+  locGroups: Record<string, boolean>
   // The location waiting for the engineer to confirm removing it, by id.
   locRemove: string | null
   // The COPE categories the next observation is filed under; none is uncategorised.
@@ -208,6 +220,12 @@ export type WorkflowState = {
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).
   obsShowDeleted: boolean
+  // The Observations tab by building, level and location, or newest first;
+  // the buildings folded away this visit; and its Add or Edit location
+  // dialog (CP-16).
+  obsSort: 'location' | 'newest'
+  obsFolded: Record<string, boolean>
+  obsLocForm: boolean
   // The observation being changed on the Observations tab, by row key: a
   // recording's transcript, its deletion, adding recordings and photos, or
   // removing one of them (CP-08).
@@ -237,9 +255,28 @@ export type ObservationFilters = {
   type: string
   cat: string
   sev: string
-  loc: string
+  // Building (or Elsewhere on site), level and location name (CP-16).
+  building: string
   floor: string
+  loc: string
   status: string
+}
+
+// A building, level or location name as typed, not yet on the site, and the
+// name it was probably meant to be, if any (CP-16).
+export type NameCheck = {
+  field: 'building' | 'floor' | 'name'
+  typed: string
+  suggestion: string | null
+}
+
+// The picker's add and edit form (CP-16): a location in a building, with an
+// optional level, or one elsewhere on site, with a name only.
+export type LocationForm = {
+  kind: 'building' | 'elsewhere'
+  building: string
+  floor: string
+  name: string
 }
 
 // A recording or audio file held in the browser until Save observation uploads it.
