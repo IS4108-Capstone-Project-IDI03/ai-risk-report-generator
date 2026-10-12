@@ -824,9 +824,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // place chosen even when only the other list (deleted or not) holds it.
     const placeOptions = placeFilter(
       allRows
-        .filter(
-          (r) => obsRows.includes(r) || (!!s.of.place && matchesPlace(r.o, s.of.place)),
-        )
+        .filter((r) => obsRows.includes(r) || (!!s.of.place && matchesPlace(r.o, s.of.place)))
         .map(({ o }) => o),
     )
     const tagRow = s.tagEdit && allRows.find((r) => r.key === s.tagEdit!.key)
