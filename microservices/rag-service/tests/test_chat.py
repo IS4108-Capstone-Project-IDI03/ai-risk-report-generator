@@ -18,6 +18,7 @@ client = TestClient(app)
 def no_word_delay(monkeypatch):
     monkeypatch.setattr("app.chat.placeholder.WORD_DELAY_SECONDS", 0)
 
+
 PASSAGE = {
     "id": "doc1:4",
     "text": "Sprinklers shall be installed throughout.",
