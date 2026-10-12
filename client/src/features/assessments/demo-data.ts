@@ -290,6 +290,7 @@ export const initialState: WorkflowState = {
   obsSort: 'location',
   obsFolded: {},
   obsLocForm: false,
+  obsReturn: null,
   obsDialog: null,
   tagEdit: null,
   tagBusy: false,

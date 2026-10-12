@@ -587,6 +587,35 @@ describe('Leaving capture', () => {
     ).toBeInTheDocument()
   })
 
+  it('returns to where the engineer saved, marking what was saved New (CP-16)', async () => {
+    // No gateway: the observations stay in the demo, beside its samples.
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    await screen.findByText('Showing sample data')
+    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+    )
+    for (const note of ['Exit sign E4 unlit.', 'Hose reel H2 blocked.']) {
+      write(note)
+      grade('Low')
+      save()
+    }
+
+    leave()
+
+    const bay = await screen.findByRole('group', { name: /^Warehouse · Ground · Bay 3/ })
+    await vi.waitFor(() => expect(bay).toHaveFocus())
+    for (const note of [/Exit sign E4 unlit/, /Hose reel H2 blocked/])
+      expect(
+        within(within(bay).getByRole('button', { name: note })).getByText('New'),
+      ).toBeInTheDocument()
+    // The samples were there before.
+    expect(screen.getAllByText('New')).toHaveLength(2)
+  })
+
   it('leaves for any workspace tab, which stays on show with Observations chosen', async () => {
     await openCapture()
     // Capture is part of the Observations tab.

@@ -1184,3 +1184,35 @@ building by building and level by level, so the picker follows that, and the
 report can say exactly where a finding was made.
 
 Stories: CP-16, CP-15, CP-08.
+
+## 2026-10-12 — Capture stays a page, and returns to where the engineer was
+
+Chose:
+- Capture stays a page of the Observations tab (2026-10-12 above). Leaving it
+  for the Observations tab, by its back button, the tab or Back, scrolls the
+  list to the location it was opened at (a location's Add observation) or
+  last saved in, unfolds that building, and puts focus there; newest first,
+  to the newest observation saved. Opened from the header with nothing saved,
+  the list opens at the top as before.
+- Each observation saved on that visit is marked New (an info badge and a 3px
+  ink left rule) until the engineer leaves the tab or captures again. Nothing
+  is stored: the marks are the gateway's ids, and a count for the demo's
+  local rows, which are listed newest first.
+
+Rejected:
+- Add observation as a pop-up over the list: capture saves one observation
+  after another in the same place, keeping the location; it holds a live
+  recorder, the camera and photo previews, and fills a phone's screen anyway.
+  A dialog closes on Escape, a click outside or Android's back gesture, which
+  would lose recordings and photos, where the page's URL keeps the draft and
+  Leave without saving? guards the rest.
+- Adding observations only from a location's row: Save already needs a
+  location, and a new assessment's capture opens on Add the first location.
+  Walking a site on a phone, changing room would cost a trip back to the list
+  instead of one tap on the location bar (2026-09-29).
+
+Reason: from the grouped list, capture felt like leaving it: the engineer came
+back to the top of the list and had to find the location again to see what
+they had saved.
+
+Stories: CP-16, CP-03.

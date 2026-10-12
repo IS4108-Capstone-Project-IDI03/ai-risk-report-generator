@@ -67,6 +67,17 @@ function mockGateway() {
       captureStarts++
       return json(201, CAPTURE)
     }
+    // A saved observation is listed first, at its location.
+    if (url === `/api/assessments/${REF}/observations` && init.method === 'POST') {
+      const details = JSON.parse(String((init.body as FormData).get('details')))
+      const location = stored.find((l) => l.id === details.locationId)!
+      const saved = {
+        ...observationAt(location, 'o' + (observations.length + 1)),
+        note: details.note,
+      }
+      observations = [saved, ...observations]
+      return json(201, saved)
+    }
     if (url.startsWith(`/api/assessments/${REF}/observations`)) return json(200, observations)
     const id = url.startsWith(LOCATIONS_URL + '/') ? url.slice(LOCATIONS_URL.length + 1) : null
     if (id && init.method === 'DELETE') {
@@ -149,6 +160,8 @@ const observationAt = (location: SiteLocation, id = 'o1') => ({
   recordedAt: '2026-09-29T08:10:00.000Z',
 })
 
+// Each element scrolled into view, as jsdom does not scroll.
+let scrolled: Element[] = []
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
@@ -156,8 +169,12 @@ beforeAll(() => {
   HTMLDialogElement.prototype.close = function () {
     this.removeAttribute('open')
   }
+  Element.prototype.scrollIntoView = function () {
+    scrolled.push(this)
+  }
 })
 beforeEach(() => {
+  scrolled = []
   stored = []
   observations = []
   workList = null
@@ -855,6 +872,87 @@ describe('The Observations tab by location (CP-16)', () => {
     ).toBeInTheDocument()
     // Where is already chosen, so the picker stays closed.
     expect(screen.queryByRole('dialog', { name: 'Where are you?' })).toBeNull()
+  })
+
+  // Capture from the header's Add observation, choosing where in the picker.
+  async function captureAt(building: string, location: RegExp) {
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    await screen.findByRole('dialog', { name: 'Where are you?' })
+    fireEvent.click(group(building))
+    press(location)
+  }
+  // Writes a note, grades it and saves it once the capture session is live.
+  async function saveNote(note: string) {
+    await screen.findByRole('img', { name: 'live' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: note } })
+    fireEvent.click(screen.getByRole('radio', { name: 'High' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
+    await screen.findByText('Observation saved to ' + REF + '.')
+  }
+  const back = () => fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+
+  it('returns from capture to the location, with what was saved there marked New', async () => {
+    await openObservations()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Add observation at Block A · Level 1 · Lobby' }),
+    )
+    await saveNote('Fire door wedged open.')
+    back()
+
+    const lobby = await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
+    await vi.waitFor(() => expect(lobby).toHaveFocus())
+    expect(scrolled).toEqual([lobby])
+    const saved = within(lobby).getByRole('button', { name: /Fire door wedged open/ })
+    expect(within(saved).getByText('New')).toBeInTheDocument()
+    // Saved before this visit, so not marked.
+    expect(within(placeGroup('Block A · Level 2 · Staircase')).queryByText('New')).toBeNull()
+
+    // Marked only until the engineer leaves the tab.
+    fireEvent.click(screen.getByRole('tab', { name: /^Overview/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
+    await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
+    expect(screen.queryByText('New')).toBeNull()
+    expect(scrolled).toHaveLength(1)
+  })
+
+  it('returns to the location last saved in, opening its folded building', async () => {
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'Block A, 1 observation' }))
+    await captureAt('Block A', /^Block A · Level 1 · Lobby/)
+    await saveNote('Fire door wedged open.')
+    back()
+
+    const lobby = await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
+    expect(screen.getByRole('button', { name: 'Block A, 2 observations' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    await vi.waitFor(() => expect(lobby).toHaveFocus())
+    expect(within(lobby).getByText('New')).toBeInTheDocument()
+  })
+
+  it('newest first, returns to the newest observation saved', async () => {
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'Newest first' }))
+    await captureAt('Block A', /^Block A · Level 1 · Lobby/)
+    await saveNote('Fire door wedged open.')
+    back()
+
+    const saved = await screen.findByRole('button', { name: /Fire door wedged open/ })
+    await vi.waitFor(() => expect(saved).toHaveFocus())
+    expect(scrolled).toEqual([saved])
+    expect(within(saved).getByText('New')).toBeInTheDocument()
+  })
+
+  it('stays at the top when capture was opened from the header and saved nothing', async () => {
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    await screen.findByRole('dialog', { name: 'Where are you?' })
+    back()
+
+    await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
+    expect(scrolled).toEqual([])
+    expect(screen.queryByText('New')).toBeNull()
   })
 
   it('changes and removes a location from the list', async () => {
