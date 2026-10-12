@@ -34,11 +34,12 @@ import { putObject } from '../services/storage.service'
 // in, so no Whisper call is made. One shows a failed transcription.
 const REFERENCE = 'RPT-2026-0901'
 
+// All in the tower (CP-16).
 const LOCATIONS = {
-  server: { name: 'Main server room', floor: 'Level 5' },
-  riser: { name: 'Electrical riser B', floor: 'Level 3' },
-  pumps: { name: 'Fire pump room', floor: 'Basement 1' },
-  fcc: { name: 'Fire command centre', floor: 'Level 1' },
+  server: { building: 'Office tower', name: 'Main server room', floor: 'Level 5' },
+  riser: { building: 'Office tower', name: 'Electrical riser B', floor: 'Level 3' },
+  pumps: { building: 'Office tower', name: 'Fire pump room', floor: 'Basement 1' },
+  fcc: { building: 'Office tower', name: 'Fire command centre', floor: 'Level 1' },
 }
 
 const OBSERVATIONS: {
@@ -154,7 +155,7 @@ async function seed() {
         engineer: alex._id,
         locations: Object.values(LOCATIONS).map((l) => ({
           ...l,
-          key: locationKey(l.name, l.floor),
+          key: locationKey(l.name, l.floor, l.building),
         })),
       },
       $unset: { reportStatus: 1, archivedAt: 1 },
