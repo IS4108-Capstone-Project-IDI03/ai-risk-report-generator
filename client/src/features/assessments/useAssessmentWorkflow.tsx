@@ -465,6 +465,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   useEffect(() => {
     if (!onField) media.recorder?.stop()
   }, [onField, media])
+  // Where capture returns to is for the Observations tab it returns to; once
+  // the engineer is anywhere else, however they got there (a tab, the
+  // navigation, Back), it is forgotten (CP-16). Cleared while rendering, as
+  // React allows for state that depends on other state, so a later visit to
+  // the tab never shows it.
+  const returning =
+    state.screen === 'field' || (state.screen === 'assessment' && state.tab === 'observations')
+  if (!returning && state.obsReturn) setState({ obsReturn: null })
   // The work list from the gateway (RV-10); null until it loads, and when the
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
@@ -921,8 +929,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
       // Keep anything added or changed while the observation was saving. The
       // tags start again empty, so the next observation's are chosen for it.
+      // The Observations tab is to open here, with this one marked New.
       updateState((previous) => ({
         ...previous,
+        obsReturn: {
+          locationId: location.id,
+          ids: [...(previous.obsReturn?.ids ?? []), observation.id],
+          local: previous.obsReturn?.local ?? 0,
+        },
+        obsFolded: { ...previous.obsFolded, [groupKey(location)]: false },
         fSaving: false,
         fNote: previous.fNote === note ? '' : previous.fNote,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
@@ -1847,10 +1862,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         changing && held > 1
           ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
           : null
+      // Saved on the visit to capture just left (CP-16).
+      const isNew =
+        !!s.obsReturn &&
+        (s.obsReturn.ids.includes(key) ||
+          (key.startsWith('local-') && Number(key.slice('local-'.length)) < s.obsReturn.local))
       return {
         ...o,
         key,
         open,
+        isNew,
         // Its building, level and location, e.g. "Warehouse · Ground · Bay 3".
         where: placeOf(o),
         // What it holds and where its recordings and photos stand (CP-08 AC2).
@@ -1949,9 +1970,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           borderBottom: '1px solid var(--border-subtle)',
           transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
           background: open ? 'var(--surface-selected)' : 'var(--surface-card)',
+          boxShadow: isNew ? 'inset 3px 0 0 var(--action-primary)' : undefined,
+          scrollMarginTop: '16px',
         } as React.CSSProperties,
       }
     })
+    // Back from capture, the list opens where the engineer was (CP-16): at
+    // the location, or newest first at the newest observation saved.
+    const landingRow = obsByLocation ? null : (obsList.find((o) => o.isNew)?.key ?? null)
     // The Observations tab by building, level and location (CP-16): every
     // listed location with the observations the filters show there, newest
     // first. With a filter set, only locations with a match. An observation
@@ -2190,6 +2216,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           screen: 'field',
           locDismissed: false,
+          obsReturn: null,
         }),
       canCapture,
       canArchive: isMine && canCapture,
@@ -2324,6 +2351,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsStack: narrow,
       obsCols,
       obsList,
+      obsReturning: !!s.obsReturn,
+      obsLandingRow: landingRow,
       /* by location (CP-16): buildings, levels and locations, each with its
          observations, Add observation, and Edit and Remove */
       obsSort: s.obsSort,
@@ -2356,7 +2385,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 countLabel: l.items.length
                   ? plural(l.items.length, 'observation')
                   : 'No observations',
-                // Capture opens there, with no need to choose where.
+                // Capture opens there, with no need to choose where, and
+                // returns there.
                 addObservation:
                   isListed && canEdit && canCapture
                     ? () =>
@@ -2365,8 +2395,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                           fLocationId: l.id,
                           locOpen: false,
                           locDismissed: false,
+                          obsReturn: { locationId: l.id, ids: [], local: 0 },
                         })
                     : undefined,
+                landing: s.obsReturn?.locationId === l.id,
                 edit: isListed && canChangeObs ? () => openLocationForm(l) : undefined,
                 remove:
                   isListed && canEdit && canCapture && !held
@@ -3245,6 +3277,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ...(isDemoCapture
             ? { fRecent: [entry].concat(s.fRecent) }
             : { captureObs: { ...s.captureObs, [reference]: [entry].concat(localRecent) } }),
+          // Listed first, as local-0, so the Observations tab marks it New.
+          obsReturn: {
+            locationId: currentLocation.id,
+            ids: s.obsReturn?.ids ?? [],
+            local: (s.obsReturn?.local ?? 0) + 1,
+          },
+          obsFolded: { ...s.obsFolded, [groupKey(currentLocation)]: false },
           fNote: '',
           fPhotos: [],
           fTrans: false,

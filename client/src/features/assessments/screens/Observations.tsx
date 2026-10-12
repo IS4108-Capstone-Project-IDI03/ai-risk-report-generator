@@ -1,4 +1,4 @@
-import { Fragment, useId, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import type * as React from 'react'
 import {
   Badge,
@@ -275,6 +275,7 @@ function ObservationRow({
     <div>
       <div
         data-i={o.key}
+        data-landing={o.key === v.obsLandingRow || undefined}
         onClick={v.toggleObs}
         style={o.rowStyle}
         role="button"
@@ -313,6 +314,7 @@ function ObservationRow({
               {o.catLabel}
             </span>
             {!!o.deleted && <Badge tone="danger">Deleted</Badge>}
+            {!!o.isNew && <Badge tone="info">New</Badge>}
           </span>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{o.typeLabel}</span>
           {!!v.obsStack && (
@@ -947,7 +949,8 @@ function ObservationGroup({
 
 // A location: its name and how many observations it holds, Add observation
 // (capture opens there), Edit for the assigned engineer and Remove while
-// nothing is saved there, then its observations, newest first (CP-16).
+// nothing is saved there, then its observations, newest first (CP-16). Back
+// from capture, the one it returns to takes focus.
 function ObservationPlace({
   v,
   place: l,
@@ -958,7 +961,14 @@ function ObservationPlace({
   onView: (photo: ViewedPhoto) => void
 }) {
   return (
-    <div role="group" aria-label={l.label}>
+    <div
+      role="group"
+      aria-label={l.label}
+      data-landing={l.landing || undefined}
+      tabIndex={l.landing ? -1 : undefined}
+      // The card clips, so the focus ring is drawn inside it.
+      style={{ scrollMarginTop: '16px', outlineOffset: '-2px' }}
+    >
       <div
         style={{
           display: 'flex',
@@ -1000,9 +1010,22 @@ function ObservationPlace({
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
+  // Back from capture, the list scrolls once to where the engineer was, as
+  // soon as it is listed, and focus goes there (CP-16).
+  const page = useRef<HTMLDivElement>(null)
+  const landed = useRef(false)
+  useEffect(() => {
+    if (landed.current || !v.obsReturning) return
+    const target = page.current?.querySelector<HTMLElement>('[data-landing]')
+    if (!target) return
+    landed.current = true
+    target.scrollIntoView?.({ block: 'start' })
+    target.focus({ preventScroll: true })
+  })
   return (
     <>
       <div
+        ref={page}
         style={{
           padding: '24px clamp(16px,2vw,28px) 40px',
           animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',

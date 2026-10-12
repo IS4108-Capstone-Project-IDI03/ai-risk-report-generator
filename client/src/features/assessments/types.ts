@@ -226,6 +226,12 @@ export type WorkflowState = {
   obsSort: 'location' | 'newest'
   obsFolded: Record<string, boolean>
   obsLocForm: boolean
+  // Where the Observations tab opens after capture (CP-16): the location
+  // capture was opened at or last saved in, and the observations saved
+  // there this visit, marked New. ids: those the gateway saved; local: how
+  // many were kept in this browser, the newest local-<n> rows. Kept only
+  // while capture or the Observations tab shows.
+  obsReturn: { locationId: string; ids: string[]; local: number } | null
   // The observation being changed on the Observations tab, by row key: a
   // recording's transcript, its deletion, adding recordings and photos, or
   // removing one of them (CP-08).
