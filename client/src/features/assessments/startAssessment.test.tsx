@@ -506,7 +506,7 @@ describe('A client’s sites (CP-17)', () => {
   const clientField = () => screen.getByRole('combobox', { name: /^Client/ })
   const type = (field: HTMLElement, value: string) => fireEvent.change(field, { target: { value } })
 
-  it('offers every client, then its sites, copying the chosen one’s latest visit (AC1, AC2, AC3)', async () => {
+  it('offers every client, then its sites, copying the chosen one’s latest visit (AC3, AC4, AC5)', async () => {
     const posts = gateway()
     await openApp()
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
@@ -543,7 +543,7 @@ describe('A client’s sites (CP-17)', () => {
     expect(posts[0]).not.toHaveProperty('client')
   })
 
-  it('adds a new site for a listed client, refusing one it already has (AC8, AC9)', async () => {
+  it('adds a new site for a listed client, refusing one it already has (AC10, AC11)', async () => {
     const posts = gateway()
     await openApp()
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
@@ -574,7 +574,7 @@ describe('A client’s sites (CP-17)', () => {
     expect(posts[0]).toMatchObject({ clientId: 'c1', site: { name: 'Outram campus' } })
   })
 
-  it('asks about a new client named like a listed one, and keeps it when told to (AC9)', async () => {
+  it('asks about a new client named like a listed one, and keeps it when told to (AC11)', async () => {
     const posts = gateway()
     await openApp()
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
@@ -844,7 +844,7 @@ describe('Work list by client (CP-17)', () => {
     return posts
   }
 
-  it('groups my assessments by client, then site, in name order (AC7)', async () => {
+  it('groups my assessments by client, then site, in name order (AC9)', async () => {
     await grouped()
 
     // The button now says what pressing it again does.
@@ -953,7 +953,7 @@ describe('Work list by client (CP-17)', () => {
     expect(screen.getByRole('button', { name: 'Archived (1)' })).toBeInTheDocument()
   })
 
-  it('starts a new visit to a site on its client, copying its last visit (AC4)', async () => {
+  it('starts a new visit to a site on its client, copying its last visit (AC6)', async () => {
     const posts = await grouped()
     // A site not linked to a client can't be visited again from here.
     expect(screen.queryByRole('button', { name: 'New visit to Old Site' })).not.toBeInTheDocument()
@@ -1335,7 +1335,7 @@ it('edits my assessment details, keeping its engineer (RV-10 AC10, AC11)', async
 
   fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
   // The form starts from the saved details, without the engineer. The client
-  // stays as created (CP-17 AC6).
+  // stays as created (CP-17 AC8).
   expect(screen.getByRole('heading', { name: 'Edit assessment details' })).toBeInTheDocument()
   const client = screen.getByRole('combobox', { name: /^Client/ })
   expect(client).toHaveValue('Straits Logistics')
@@ -1368,7 +1368,7 @@ it('edits my assessment details, keeping its engineer (RV-10 AC10, AC11)', async
   expect(screen.getByRole('heading', { name: 'Create assessment' })).toBeInTheDocument()
 })
 
-it('locks a shared site’s details, leaving the rest editable (CP-17 AC6)', async () => {
+it('locks a shared site’s details, leaving the rest editable (CP-17 AC8)', async () => {
   vi.stubGlobal('fetch', (url: string) =>
     respond(200, url === '/api/assessments' ? [{ ...CREATED, siteShared: true }] : []),
   )

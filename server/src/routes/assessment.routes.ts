@@ -150,7 +150,7 @@ router.post(
 // Corrects an assessment's details (RV-10 AC10): 204 when saved, 400 naming
 // each invalid field (AC11) or a site name the client already has, 403 for
 // anyone but its assigned engineer, 409 once it is archived or when changing
-// a shared site's details (CP-17 AC6).
+// a shared site's details (CP-17 AC8).
 router.put('/:reference', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = assessmentDetailsSchema.safeParse(req.body)
   if (!parsed.success) {

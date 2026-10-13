@@ -260,7 +260,7 @@ function StackedRow({ v, r }: { v: AssessmentWorkflow; r: WorkRow }) {
 
 // A client, folding away under its heading as a building does on the
 // Observations tab, then each site, like a location there, with its visits
-// and New visit (CP-17 AC4, AC7).
+// and New visit (CP-17 AC6, AC9).
 function ClientGroup({ v, group }: { v: AssessmentWorkflow; group: WorkGroup }) {
   const id = useId()
   return (

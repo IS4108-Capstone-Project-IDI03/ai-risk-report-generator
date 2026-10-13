@@ -507,31 +507,36 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   9. Given a likely typo in a level, building or location name, when a location is saved, then the app suggests the correct name and the engineer can use it or keep theirs (e.g. Blcok A → Block A), to prevent references to the same location being saved differently.
   </details>
 
-- [ ] **CP-17** — Manage clients and sites in the Client-Site-Assessment hierarchy (risk engineer, Should, 5 pts, deps: CP-01, CP-16, RV-10, Sprint 4)
+- [ ] **CP-17** — Manage clients and sites in the Client-Site-Assessment hierarchy (risk engineer, Should, 5→8 pts, deps: CP-01, CP-16, RV-10, Sprint 4)
   <details><summary>Goal / AC</summary>
 
-  Goal: choose, add, copy, edit, group, view and check the clients, sites and visits of my assessments in the Client-Site-Assessment hierarchy, so repeat visits to the same facility are linked and start from the buildings, levels and locations already recorded there.
+  Goal: link, add, edit, group, view and check the clients, sites and visits of my assessments in the Client-Site-Assessment hierarchy, so each repeat visit to a facility starts from the buildings, levels and locations already recorded there.
+
+  Structure
+
+  1. Given a client with several sites, when an assessment is saved on one of them, then it sits in the full Client → Site → Assessment → Building → Level → Location → Observation hierarchy: the site belongs to that one client, the assessment to its site, and its buildings, levels, locations and observations (CP-16) to the assessment.
+  2. Given assessments created before this story, when the migration runs, then client names matching whatever their case and spacing become one client, and each site is linked to its client without merging sites, while every assessment still shows the same client and site. Running it again changes nothing.
 
   Adding
 
-  1. Given a client recorded by any engineer, when the engineer types part of its name on the create form, then it is offered, whatever its case. A name not listed adds a new client.
-  2. Given a chosen client, when the site is chosen, then the client's sites are listed, each with its latest assessment's reference and visit date. When Add a new site is chosen, it adds one for that client.
-  3. Given a site with an earlier assessment that is not archived, when it is chosen, then the latest one's locations are offered for copying, ticked (e.g. Copy 6 locations from RPT-2026-0411), and added in the same buildings and levels without observations. Unticked, the assessment starts with none.
-  4. Given a site on the grouped work list, when New visit is chosen, then the create form opens with that client and site chosen.
+  3. Given a client recorded by any engineer, when the engineer types part of its name on the create form, then it is offered, whatever its case. A name not listed adds a new client.
+  4. Given a chosen client, when the site is chosen, then the client's sites are listed, each with its latest assessment's reference and visit date. When Add a new site is chosen, it adds one for that client.
+  5. Given a site with an earlier assessment that is not archived, when it is chosen, then the latest one's locations are offered for copying, ticked (e.g. Copy 6 locations from RPT-2026-0411), and added in the same buildings and levels without observations. Unticked, the assessment starts with none.
+  6. Given a site on the grouped work list, when New visit is chosen, then the create form opens with that client and site chosen.
 
   Editing
 
-  5. Given a copied location, when it is edited or removed, then the earlier assessment's locations do not change.
-  6. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments.
+  7. Given a copied location, when it is edited or removed, then the earlier assessment's locations do not change.
+  8. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments.
 
   Grouping
 
-  7. Given the work list, when the engineer chooses Group by client, then their assessments are listed under each client, then each site, in name order, with each client's number of sites and assessments and each site's address and number of visits.
+  9. Given the work list, when the engineer chooses Group by client, then their assessments are listed under each client, then each site, in name order, with each client's number of sites and assessments and each site's address and number of visits.
 
   Checks
 
-  8. Given a site name the client already has, whatever its case, when a new site is added, then it is refused, to prevent the same site being recorded twice.
-  9. Given a likely typo of a recorded client or one of the client's sites, when it is added, then the app suggests the recorded name and the engineer can use it or keep theirs (e.g. Northgate Logistic → Northgate Logistics), to prevent the same client or site being saved differently.
+  10. Given a site name the client already has, whatever its case, when a new site is added, then it is refused, to prevent the same site being recorded twice.
+  11. Given a likely typo of a recorded client or one of the client's sites, when it is added, then the app suggests the recorded name and the engineer can use it or keep theirs (e.g. Northgate Logistic → Northgate Logistics), to prevent the same client or site being saved differently.
   </details>
 
 - [ ] **CP-18** — Edit clients and sites (risk engineer, Could, 3 pts, deps: CP-17, Sprint 5)
