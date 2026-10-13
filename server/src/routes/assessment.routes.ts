@@ -18,6 +18,12 @@ import {
   startCaptureSession,
 } from '../services/capture-session.service'
 import {
+  DuplicateSiteError,
+  SiteSharedError,
+  UnknownClientError,
+  UnknownSiteError,
+} from '../services/client.service'
+import {
   addLocation,
   DuplicateLocationError,
   editLocation,
@@ -82,8 +88,9 @@ router.get('/engineers', requirePermission('assessments:edit'), async (_req, res
   res.json(await listAssignableEngineers())
 })
 
-// Creates an assessment (and its site). 400 lists the first problem with each
-// invalid field.
+// Creates an assessment, on a listed site or a new one (CP-17). 400 lists the
+// first problem with each invalid field, including an unknown client, a site
+// of another client, and a new site named like one the client has.
 router.post('/', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = newAssessmentSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -97,6 +104,20 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
   } catch (error) {
     if (error instanceof InvalidEngineersError) {
       res.status(400).json({ error: error.message, fields: { engineerId: error.message } })
+      return
+    }
+    const field =
+      error instanceof UnknownClientError
+        ? 'clientId'
+        : error instanceof UnknownSiteError
+          ? 'siteId'
+          : error instanceof DuplicateSiteError
+            ? 'site.name'
+            : null
+    if (field) {
+      res
+        .status(400)
+        .json({ error: (error as Error).message, fields: { [field]: (error as Error).message } })
       return
     }
     throw error
@@ -127,8 +148,9 @@ router.post(
 )
 
 // Corrects an assessment's details (RV-10 AC10): 204 when saved, 400 naming
-// each invalid field (AC11), 403 for anyone but its assigned engineer, 409
-// once it is archived.
+// each invalid field (AC11) or a site name the client already has, 403 for
+// anyone but its assigned engineer, 409 once it is archived or when changing
+// a shared site's details (CP-17 AC6).
 router.put('/:reference', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = assessmentDetailsSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -143,6 +165,14 @@ router.put('/:reference', requirePermission('assessments:edit'), async (req, res
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof DuplicateSiteError) {
+      res.status(400).json({ error: error.message, fields: { 'site.name': error.message } })
+      return
+    }
+    if (error instanceof SiteSharedError) {
+      res.status(409).json({ error: error.message })
       return
     }
     if (error instanceof NotAssignedError) {

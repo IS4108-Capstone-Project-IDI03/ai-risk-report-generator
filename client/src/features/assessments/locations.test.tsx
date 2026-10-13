@@ -517,6 +517,7 @@ describe('Changing a location (CP-16)', () => {
         id: 'a1',
         reference: REF,
         client: 'Northgate Logistics',
+        clientId: null,
         surveyType: 'Property risk survey',
         siteVisitDate: '2026-04-11',
         reportDueDate: null,
@@ -524,7 +525,9 @@ describe('Changing a location (CP-16)', () => {
         status: 'capturing',
         captureStartedAt: '2026-04-11T08:00:00.000Z',
         createdAt: '2026-04-01T00:00:00.000Z',
+        siteShared: false,
         site: {
+          id: 'site1',
           code: 'SITE-0001',
           name: 'Tilbury Distribution Centre',
           address: null,

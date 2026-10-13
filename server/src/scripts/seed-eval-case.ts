@@ -15,6 +15,7 @@ import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { ReviewAuditModel } from '../models/review-audit.model'
 import { SiteModel } from '../models/site.model'
+import { findOrCreateClient } from '../services/client.service'
 import { UserModel } from '../models/user.model'
 import { locationKey } from '../services/location.service'
 import { draftingEvidence } from '../services/section.service'
@@ -101,6 +102,7 @@ async function seed(name: string) {
         name: `${c.source.split(',')[0].replace(/\.pdf$/, '')} (eval case)`,
         jurisdiction: c.assessment.jurisdiction,
         facilityType: c.assessment.facility_type,
+        client: (await findOrCreateClient('Eval case client'))._id,
       },
     },
     { upsert: true, returnDocument: 'after' },

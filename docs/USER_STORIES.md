@@ -480,25 +480,76 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given a location with observations, when the engineer tries to remove it, then removal is refused and the number of observations is shown.
   </details>
 
-- [ ] **CP-16** — Manage site locations by building and level (risk engineer, Should, 5 pts, deps: CP-15, Sprint 3)
+- [x] **CP-16** — Manage site locations in the Site-Building-Level-Location hierarchy (risk engineer, Must, 5 pts, deps: CP-15, CP-08, GN-07, Sprint 3)
   <details><summary>Goal / AC</summary>
 
-  Goal: add, group, check and edit the site's locations by building and level, and find and capture observations by location, so every observation records exactly where on site it was found and the report names it accurately.
+  Goal: add, edit, group, view and check the locations recorded for an assessment in the Site-Building-Level-Location hierarchy, so report drafting works from evidence that states in detail exactly where on site each finding was made.
 
-  Terms: a location is in a building (a building, an optional level, and its name, e.g. Staircase, Store room, Lobby; no level is the whole building, e.g. its facade) or elsewhere on site (a name only, e.g. a road, a car park, a fire access route, a guardhouse). The site is the whole property.
+  Adding
 
-  1. Given a building, an optional level and a name, or a name only, when the engineer adds a location, then it is saved in that building and level, or as elsewhere on site; the same name and level may exist in different buildings.
-  2. Given locations in several buildings, when the picker is shown or the Observations tab is grouped by location, then locations are grouped by building, then level (lowest first), then Elsewhere on site; in the picker, the engineer's building starts open and the others fold away.
-  3. Given level shorthand such as L2 or B1, when a location is saved, then the level is saved as Level 2 or Basement 1.
-  4. Given a likely typo in a level, building or location name, when a location is saved, then the app suggests the correct name and the engineer can use it or keep theirs.
-  5. Given the assigned engineer and an assessment not archived, when a location is edited, then every observation saved there shows the change; anyone else, or an edit matching another location, is refused.
-  6. Given the Observations tab, when the engineer chooses Group by location, then each observation is listed under its location, with locations that have no observations listed too.
+  1. Given a building, optional level and name, or a name only, when the engineer adds a location, then it is saved in that building and level, or as elsewhere on site. The same name and level may exist in different buildings.
+  2. Given a location on the Observations tab, when Add observation is chosen, then capture opens at that location. When Add location is clicked, it adds one without starting capture.
+  3. Given observations were just saved in capture, when the engineer goes back, then the Observations tab opens where they were saved (their location, or the newest one when listed newest first), with them marked New.
+
+  Editing
+
+  4. Given an assessment, when a location is edited, then every observation saved there shows the change.
+
+  Grouping and filtering
+
+  5. Given locations in several buildings, locations are grouped by building, then level (lowest first), then Elsewhere on site.
+  6. Given the Observations tab, when the engineer chooses Group by location, then each observation is listed under its location, including locations with no observations.
   7. Given observations in several buildings, when the Location filter is set to a building, then only that building's observations are shown.
-  8. Given a location on the Observations tab, when the engineer chooses its Add observation, then capture opens at that location; Add location adds a location without starting capture.
-  9. Given observations were just saved in capture, when the engineer goes back, then the Observations tab opens where they were saved (their location, or the newest one when listed newest first), with them marked New.
-  10. Given recorded locations, when Section 1 is shown, then it names each building and each place elsewhere on site.
 
-  Already covered elsewhere, so not repeated here: choosing a location before capturing, selecting a new one, refusing a duplicate name and floor, and removing a location (CP-15); listing observations newest first, and filtering by location and level (CP-08).
+  Checks
+
+  8. Given level shorthand such as L2 or B1, when a location is saved, then the level is saved as Level 2 or Basement 1, to prevent references to the same level being saved differently.
+  9. Given a likely typo in a level, building or location name, when a location is saved, then the app suggests the correct name and the engineer can use it or keep theirs (e.g. Blcok A → Block A), to prevent references to the same location being saved differently.
+  </details>
+
+- [ ] **CP-17** — Manage clients and sites in the Client-Site-Assessment hierarchy (risk engineer, Should, 5 pts, deps: CP-01, CP-16, RV-10, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: choose, add, copy, edit, group, view and check the clients, sites and visits of my assessments in the Client-Site-Assessment hierarchy, so repeat visits to the same facility are linked and start from the buildings, levels and locations already recorded there.
+
+  Adding
+
+  1. Given a client recorded by any engineer, when the engineer types part of its name on the create form, then it is offered, whatever its case. A name not listed adds a new client.
+  2. Given a chosen client, when the site is chosen, then the client's sites are listed, each with its latest assessment's reference and visit date. When Add a new site is chosen, it adds one for that client.
+  3. Given a site with an earlier assessment that is not archived, when it is chosen, then the latest one's locations are offered for copying, ticked (e.g. Copy 6 locations from RPT-2026-0411), and added in the same buildings and levels without observations. Unticked, the assessment starts with none.
+  4. Given a site on the grouped work list, when New visit is chosen, then the create form opens with that client and site chosen.
+
+  Editing
+
+  5. Given a copied location, when it is edited or removed, then the earlier assessment's locations do not change.
+  6. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments.
+
+  Grouping
+
+  7. Given the work list, when the engineer chooses Group by client, then their assessments are listed under each client, then each site, in name order, with each client's number of sites and assessments and each site's address and number of visits.
+
+  Checks
+
+  8. Given a site name the client already has, whatever its case, when a new site is added, then it is refused, to prevent the same site being recorded twice.
+  9. Given a likely typo of a recorded client or one of the client's sites, when it is added, then the app suggests the recorded name and the engineer can use it or keep theirs (e.g. Northgate Logistic → Northgate Logistics), to prevent the same client or site being saved differently.
+  </details>
+
+- [ ] **CP-18** — Edit clients and sites (risk engineer, Could, 3 pts, deps: CP-17, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: view, rename and correct clients and their sites outside any assessment, so a shared site's details, locked on its assessments by CP-17, can still be fixed in one place.
+
+  Viewing
+
+  1. Given recorded clients, when the engineer opens Clients and sites, then each client is listed with its sites, and each site with how many assessments it has and the latest one's reference and visit date.
+
+  Editing
+
+  2. Given a client, when the engineer renames it, then every assessment for it shows the new name; a name matching another client, whatever its case, is refused.
+  3. Given a site, when the engineer edits its name, address, jurisdiction or facility type, then every assessment for it shows the change, and observations keep the jurisdiction and facility type they were saved with.
+  4. Given a site, when its jurisdiction or facility type is changed, then the engineer is told how many assessments it affects before saving.
+
+  Not in this story: merging duplicate clients or sites; deleting a client or site; moving a site to another client.
   </details>
 
 ## E6 — Report Generation & Guardrails

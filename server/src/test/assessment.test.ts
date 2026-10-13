@@ -5,6 +5,7 @@ import { UserModel } from '../models/user.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { SiteModel } from '../models/site.model'
+import { ClientModel } from '../models/client.model'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole, signedInAs } from './auth-test-helpers'
 
@@ -57,6 +58,9 @@ function create(payload: unknown) {
   return api.post('/api/assessments').send(payload as object)
 }
 
+// Another site of the same client: one client can't have two of one name (CP-17).
+const ANOTHER_SITE = { site: { ...SITE, name: 'Jurong Hub East' } }
+
 describe('POST /api/assessments', () => {
   it('creates the assessment and its site', async () => {
     const response = await create(body())
@@ -76,6 +80,19 @@ describe('POST /api/assessments', () => {
     expect(await SiteModel.countDocuments({ code: 'SITE-0001' })).toBe(1)
   })
 
+  it("links the site to its client, one client whatever the name's case or spacing (CP-17)", async () => {
+    await create(body())
+    await create(body({ client: '  straits   LOGISTICS ', ...ANOTHER_SITE }))
+
+    const clients = await ClientModel.find().lean()
+    expect(clients).toMatchObject([{ name: 'Straits Logistics', key: 'straits logistics' }])
+    const sites = await SiteModel.find().lean()
+    expect(sites.map((s) => String(s.client))).toEqual([
+      String(clients[0]._id),
+      String(clients[0]._id),
+    ])
+  })
+
   it('requires one engineer', async () => {
     for (const engineerId of [undefined, '', [String(actor._id)]]) {
       const rejected = await create(body({ engineerId }))
@@ -86,7 +103,7 @@ describe('POST /api/assessments', () => {
 
   it('numbers references in sequence', async () => {
     const first = await create(body())
-    const second = await create(body())
+    const second = await create(body(ANOTHER_SITE))
 
     expect([first.body.reference, second.body.reference]).toEqual([
       `RPT-${YEAR}-0001`,
@@ -110,7 +127,10 @@ describe('POST /api/assessments', () => {
   })
 
   it('gives concurrent creates distinct references', async () => {
-    const responses = await Promise.all(Array.from({ length: 5 }, () => create(body())))
+    // Each its own site: one client can't have two of one name (CP-17 AC8).
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => create(body({ site: { ...SITE, name: `Hub ${i}` } }))),
+    )
 
     expect(responses.map((r) => r.status)).toEqual([201, 201, 201, 201, 201])
     expect(new Set(responses.map((r) => r.body.reference)).size).toBe(5)
@@ -263,7 +283,7 @@ describe('GET /api/assessments', () => {
 describe('Assignment identity (RV-10)', () => {
   it('scopes each engineer by ID despite duplicate or changed names', async () => {
     const first = await create(body({ engineerId: String(actor._id) }))
-    const second = await create(body({ engineerId: String(other._id) }))
+    const second = await create(body({ engineerId: String(other._id), ...ANOTHER_SITE }))
     const renamed = signedInAs(app, { ...actor, name: other.name })
     const otherApi = signedInAs(app, other)
     const refs = (items: { reference: string }[]) => items.map((a) => a.reference).sort()
@@ -334,11 +354,12 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
   const edit = (reference: string, changes: Record<string, unknown>, as = api) =>
     as.put(`/api/assessments/${reference}`).send({ ...body(), ...changes })
 
-  it('lets the assigned engineer correct the details, keeping the engineer', async () => {
-    const { reference } = (await create(body())).body
+  it('lets the assigned engineer correct the details, keeping the engineer, client and site', async () => {
+    const { reference, site } = (await create(body())).body
 
     const saved = await edit(reference, {
       site: { ...SITE, name: 'Jurong Hub East', address: '' },
+      // The client can't change (CP-17 AC6): it is not part of an edit.
       client: 'Straits Freight',
       siteVisitDate: '',
       reportDueDate: '2026-10-30',
@@ -348,35 +369,42 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
     const [listed] = (await api.get('/api/assessments')).body
     expect(listed).toMatchObject({
       reference,
-      client: 'Straits Freight',
+      client: 'Straits Logistics',
       siteVisitDate: null,
       reportDueDate: '2026-10-30',
       // The engineer stays the one the assessment was created for.
       engineer: { id: String(actor._id), name: 'Alex Rowe' },
-      site: { name: 'Jurong Hub East', address: null },
+      site: { id: site.id, name: 'Jurong Hub East', address: null },
     })
+    expect(await ClientModel.countDocuments()).toBe(1)
   })
 
   it('names each invalid field and changes nothing', async () => {
     const { reference } = (await create(body())).body
 
-    const rejected = await edit(reference, { client: '', reportDueDate: '2026-10-01' })
+    const rejected = await edit(reference, {
+      site: { ...SITE, name: '' },
+      reportDueDate: '2026-10-01',
+    })
     expect(rejected.status).toBe(400)
     expect(rejected.body.fields).toEqual({
-      client: 'Client is required.',
+      'site.name': 'Site name is required.',
       reportDueDate: 'The report due date must be on or after the site visit date.',
     })
     const [listed] = (await api.get('/api/assessments')).body
-    expect(listed).toMatchObject({ client: 'Straits Logistics', reportDueDate: '2026-10-19' })
+    expect(listed).toMatchObject({ site: { name: SITE.name }, reportDueDate: '2026-10-19' })
   })
 
   it('refuses anyone but the assigned engineer, and an archived assessment', async () => {
     const { reference } = (await create(body())).body
+    const change = { surveyType: 'X' }
 
-    expect((await edit(reference, { client: 'X' }, signedInAs(app, other))).status).toBe(403)
-    expect((await edit('RPT-NONE', { client: 'X' })).status).toBe(404)
+    expect((await edit(reference, change, signedInAs(app, other))).status).toBe(403)
+    expect((await edit('RPT-NONE', change)).status).toBe(404)
     await api.post(`/api/assessments/${reference}/archive`)
-    expect((await edit(reference, { client: 'X' })).status).toBe(409)
-    expect((await AssessmentModel.findOne({ reference }).lean())?.client).toBe('Straits Logistics')
+    expect((await edit(reference, change)).status).toBe(409)
+    expect((await AssessmentModel.findOne({ reference }).lean())?.surveyType).toBe(
+      'Property risk survey',
+    )
   })
 })

@@ -5,6 +5,7 @@ import { AssessmentModel } from '../models/assessment.model'
 import { connectDb } from '../models/db'
 import { SiteModel } from '../models/site.model'
 import { locationKey } from '../services/location.service'
+import { findOrCreateClient } from '../services/client.service'
 import { UserModel, type IUser } from '../models/user.model'
 
 // Dev-only default password for every seeded account (F-04). Never used
@@ -131,6 +132,27 @@ async function seedAndVerify(): Promise<void> {
     return { engineer: user._id }
   }
 
+  // The client a sample site belongs to (CP-17).
+  async function clientOf(name: string) {
+    return { client: (await findOrCreateClient(name))._id }
+  }
+
+  // A sample assessment's places, by building and level or elsewhere on site
+  // (CP-16), added only once so ones added on screen stay.
+  async function locate(
+    reference: string,
+    places: { building?: string; floor?: string; name: string }[],
+  ) {
+    await AssessmentModel.updateOne(
+      { reference, 'locations.0': { $exists: false } },
+      {
+        $set: {
+          locations: places.map((l) => ({ ...l, key: locationKey(l.name, l.floor, l.building) })),
+        },
+      },
+    )
+  }
+
   // Sample assessment for the capture screen (CP-01). Matches the client's
   // demo assessment, so live and demo views name the same site.
   const tilbury = await SiteModel.findOneAndUpdate(
@@ -141,6 +163,7 @@ async function seedAndVerify(): Promise<void> {
         address: 'Ferry Lane, Tilbury RM18 7HR',
         jurisdiction: 'UK',
         facilityType: 'Distribution warehouse',
+        ...(await clientOf('Northgate Logistics')),
       },
     },
     { upsert: true, returnDocument: 'after' },
@@ -159,28 +182,46 @@ async function seedAndVerify(): Promise<void> {
     },
     { upsert: true },
   )
-  // The places the client's demo lists (DEMO_LOCATIONS), by building and level
-  // or elsewhere on site (CP-16), added only once so ones added on screen stay.
+  // The places the client's demo lists (DEMO_LOCATIONS).
+  await locate('RPT-2026-0411', [
+    { building: 'Warehouse', floor: 'Ground', name: 'Bay 3 — north aisle' },
+    { building: 'Warehouse', floor: 'Ground', name: 'Bay 1 — despatch' },
+    { building: 'Warehouse', floor: 'Ground', name: 'Sprinkler valve room' },
+    { building: 'Warehouse', name: 'Roof cladding' },
+    { building: 'Office annexe', floor: 'Level 1', name: 'Open-plan office' },
+    { name: 'Pump house' },
+    { name: 'External yard' },
+    { name: 'Fire access route' },
+  ])
+  console.log('Sample assessment RPT-2026-0411 is available.')
+
+  // Last year's visit to the same site (CP-17), finalised, by another
+  // engineer: Tilbury has two visits, so a new assessment there offers to
+  // copy the latest one's locations.
   await AssessmentModel.updateOne(
-    { reference: 'RPT-2026-0411', 'locations.0': { $exists: false } },
+    { reference: 'RPT-2025-0414' },
     {
       $set: {
-        locations: (
-          [
-            { building: 'Warehouse', floor: 'Ground', name: 'Bay 3 — north aisle' },
-            { building: 'Warehouse', floor: 'Ground', name: 'Bay 1 — despatch' },
-            { building: 'Warehouse', floor: 'Ground', name: 'Sprinkler valve room' },
-            { building: 'Warehouse', name: 'Roof cladding' },
-            { building: 'Office annexe', floor: 'Level 1', name: 'Open-plan office' },
-            { name: 'Pump house' },
-            { name: 'External yard' },
-            { name: 'Fire access route' },
-          ] as { building?: string; floor?: string; name: string }[]
-        ).map((l) => ({ ...l, key: locationKey(l.name, l.floor, l.building) })),
+        site: tilbury._id,
+        client: 'Northgate Logistics',
+        surveyType: 'Property risk survey',
+        siteVisitDate: new Date('2025-04-14'),
+        reportDueDate: new Date('2025-04-28'),
+        reportStatus: 'finalised',
+        ...(await assignedTo('MRE-0002')),
       },
     },
+    { upsert: true },
   )
-  console.log('Sample assessment RPT-2026-0411 is available.')
+  await locate('RPT-2025-0414', [
+    { building: 'Warehouse', floor: 'Ground', name: 'Bay 3 — north aisle' },
+    { building: 'Warehouse', floor: 'Ground', name: 'Sprinkler valve room' },
+    { building: 'Warehouse', name: 'Roof cladding' },
+    { building: 'Office annexe', floor: 'Level 1', name: 'Open-plan office' },
+    { name: 'Pump house' },
+    { name: 'Fire access route' },
+  ])
+  console.log('Earlier visit RPT-2025-0414 to the same site is available.')
 
   // Two more for the work list (RV-10), with reports at later stages so the
   // status filter and site/client search have something to narrow.
@@ -205,7 +246,13 @@ async function seedAndVerify(): Promise<void> {
   for (const { site, siteVisitDate, lead, ...assessment } of extras) {
     const stored = await SiteModel.findOneAndUpdate(
       { code: site.code },
-      { $set: { ...site, jurisdiction: site.code.slice(4, 6) } },
+      {
+        $set: {
+          ...site,
+          jurisdiction: site.code.slice(4, 6),
+          ...(await clientOf(assessment.client)),
+        },
+      },
       { upsert: true, returnDocument: 'after' },
     )
     await AssessmentModel.updateOne(

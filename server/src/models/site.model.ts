@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose'
+import { Schema, Types, model } from 'mongoose'
 
 export interface ISite {
   code: string
@@ -6,6 +6,9 @@ export interface ISite {
   jurisdiction: string
   facilityType: string
   address?: string
+  // The client it belongs to (CP-17). Every site created since has one; one
+  // created before gets it from `npm run migrate:clients`.
+  client?: Types.ObjectId
 }
 
 const siteSchema = new Schema<ISite>(
@@ -35,6 +38,7 @@ const siteSchema = new Schema<ISite>(
       type: String,
       trim: true,
     },
+    client: { type: Schema.Types.ObjectId, ref: 'Client', index: true },
   },
   {
     timestamps: true,
