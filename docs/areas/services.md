@@ -472,6 +472,19 @@ Regenerate:
 ## Idle sign-out (F-07)
 
 The gateway ends a session after 15 idle minutes. The browser also runs its own 15-minute timer (`client/src/features/auth/useIdleTimeout.ts`), because the gateway can't tell an idle page its session ended. The two values must match.
+## Chat usage (CB-01, EV-03)
+
+`POST /api/chat` (`server/src/routes/chat.routes.ts`) streams S4's `POST /chat`
+answer events (AG-UI, server-sent events) to the chat screen. S4 ends every
+answer with one more event, `{"type": "CUSTOM", "name": "usage", "value": [...]}`,
+listing the answer's paid calls (today the placeholder's one Cohere embed; an
+empty list when no paid call was made). `openChatStream` in `rag.service.ts`
+saves those calls to `ai_calls` as feature `chat` with the signed-in user's
+`userId` (no report), and does not pass the event on, so the browser never
+sees it. Every other byte passes through unchanged. S4 starts collecting in
+the same generator step as the search, because Starlette runs each step of a
+streaming generator in a fresh copy of the context.
+
 ## Usage and costs report (EV-04)
 
 `GET /api/usage/summary?reportId=` and `GET /api/usage/export.csv?reportId=&groupBy=feature|service` (`server/src/routes/usage.routes.ts`, `usage-report.service.ts`), shown on the **Usage and costs** screen (`/usage-costs`, `client/src/features/usage/`). Both read the `ai_calls` collection written by EV-03 and need `usage:view`.

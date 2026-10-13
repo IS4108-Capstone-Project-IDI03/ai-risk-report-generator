@@ -2,7 +2,8 @@
 
 Lets the chat screen and stored conversations be built before real answers
 exist. CB-01 replaces this with real cited answers in the same event shape.
-Called by POST /chat in app/api/routes.py; the gateway's /api/chat streams it on.
+Called by POST /chat in app/api/routes.py; the gateway's /api/chat streams it on,
+recording and removing the final `usage` event.
 AG-UI is the event format OpenUI's chat screen reads (SSE lines of JSON).
 """
 
@@ -12,6 +13,7 @@ import time
 import uuid
 from collections.abc import Iterator
 
+from app import usage
 from app.retrieval.retriever import search
 
 SEARCH_TOOL = "search_knowledge_base"
@@ -71,6 +73,10 @@ def placeholder_events(question: str, context: list[str]) -> Iterator[str]:
     yield _sse({"type": "TOOL_CALL_END", "toolCallId": call_id})
     # "unanswerable" in a question stands in for "no passage supports it".
     declined = "unanswerable" in question.lower()
+    # Collect the paid calls (EV-03). Started in the same step as the search:
+    # Starlette runs each step of this generator in a fresh copy of the
+    # context, so a list started before a `yield` would not see them.
+    calls = usage.start()
     passages = [] if declined else _closest_passage(question)
     result = {"passages": passages, "declined": declined}
     yield _sse({"type": "TOOL_CALL_RESULT", "toolCallId": call_id, "content": json.dumps(result)})
@@ -82,3 +88,7 @@ def placeholder_events(question: str, context: list[str]) -> Iterator[str]:
         time.sleep(WORD_DELAY_SECONDS)
         yield _sse({"type": "TEXT_MESSAGE_CONTENT", "messageId": message_id, "delta": word + " "})
     yield _sse({"type": "TEXT_MESSAGE_END", "messageId": message_id})
+
+    # 3. What the answer's paid calls used, last, for the gateway to record
+    #    and remove before the stream reaches the browser (EV-03).
+    yield _sse({"type": "CUSTOM", "name": "usage", "value": calls})

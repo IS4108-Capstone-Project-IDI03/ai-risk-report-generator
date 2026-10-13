@@ -1365,3 +1365,22 @@ Reason: EV-03 asks for every AI call to be measured, and EV-04 for costs per
 feature including the chatbot and per billed service.
 
 Stories: EV-03, EV-04.
+
+## 2026-10-13 — Chat usage travels in the answer stream and is saved for the user who asked
+
+Chose: S4 ends each chat answer with an AG-UI `CUSTOM` event named `usage`,
+carrying the same usage items drafting returns. The gateway, which already
+relays the stream, saves them as `chat` calls with the session's `userId` and
+drops the event, so the chat screen never sees it. Chat has no assessment, so
+the cost report shows a user's chat cost under that user and, when grouping
+by assessment, as one "Chatbot" group.
+
+Rejected: a second request after the answer to fetch its usage, which needs
+S4 to keep state between requests; and keeping the event in the stream for
+the browser to ignore, which would leak billing detail and tie OpenUI to an
+event it does not know.
+
+Reason: EV-04 AC1 asks for cost per feature including the chatbot, and a chat
+answer is a stream, not a JSON body the gateway can read a `usage` list from.
+
+Stories: EV-03, EV-04, CB-01.
