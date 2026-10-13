@@ -273,7 +273,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                     color: 'var(--text-muted)',
                   }}
                 >
-                  {o.area}
+                  {o.location}
                 </span>
               </div>
             </div>

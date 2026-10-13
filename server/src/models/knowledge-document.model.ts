@@ -2,7 +2,13 @@ import { Schema, model, type Types } from 'mongoose'
 
 // Where a knowledge document is in ingestion. The gateway sets `queued`; the
 // ingestion worker moves it on (see microservices/ingestion-service/app/worker.py).
-export const INGESTION_STATUSES = ['queued', 'processing', 'complete', 'failed'] as const
+export const INGESTION_STATUSES = [
+  'queued',
+  'processing',
+  'complete',
+  'failed',
+  'cancelled',
+] as const
 export type IngestionStatus = (typeof INGESTION_STATUSES)[number]
 
 export const SOURCE_TYPES = ['fm_standard', 'nfpa_standard', 'marsh_report'] as const
@@ -77,6 +83,11 @@ export interface IKnowledgeDocument {
   result?: { chunksIndexed: number; tablesCaptured: number; imagesCaptured: number }
   startedAt?: Date
   finishedAt?: Date
+  // Set by the gateway when an active worker should stop at its next safe
+  // checkpoint. A queued document can move straight to `cancelled`.
+  cancelRequestedAt?: Date
+  // Set when cancellation cleanup has completed and the document is terminal.
+  cancelledAt?: Date
   // The document's details. A detail labelling could not confirm (IN-05) is
   // null. Knowledge documents carry no COPE_dimension because each passage
   // carries its own report section (IN-05, Sprint 3).
@@ -152,6 +163,8 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
     result: { chunksIndexed: Number, tablesCaptured: Number, imagesCaptured: Number },
     startedAt: Date,
     finishedAt: Date,
+    cancelRequestedAt: Date,
+    cancelledAt: Date,
     metadata: metadataSchema,
     unconfirmed: { type: [String], default: [] },
     labelling: {
@@ -217,8 +230,8 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
   { timestamps: true, collection: 'knowledge_documents' },
 )
 
-// One stored copy of each file (IN-07 AC1). A failed document is outside the
-// index so its file can be uploaded again; without this index, two identical
+// One stored copy of each file (IN-07 AC1). Failed and cancelled documents are
+// outside the index so their files can be uploaded again; without this index, two identical
 // files uploaded together would both pass the upload's fingerprint lookup.
 knowledgeDocumentSchema.index(
   { 'file.sha256': 1 },

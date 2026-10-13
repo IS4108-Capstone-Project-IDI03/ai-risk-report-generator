@@ -1,10 +1,11 @@
 // Recent uploads with their ingestion status (IN-01), read from the gateway
 // (the server's record, not this browser's): in progress, plus complete for 24
-// hours and failed for 7 days (the gateway decides). Re-read every 3 seconds
+// hours and failed/cancelled for 7 days (the gateway decides). Re-read every 3 seconds
 // while any is still queued or processing. Used by screens/AddDocuments.tsx.
 import { useEffect, useState } from 'react'
 import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
 import {
+  cancelIngestion,
   listKnowledgeDocuments,
   retryIngestion,
   type IngestionStage,
@@ -27,6 +28,7 @@ const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   processing: { label: 'Processing', tone: 'info' },
   complete: { label: 'Complete', tone: 'low' },
   failed: { label: 'Failed', tone: 'critical' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
 }
 
 // What each stage reads as in the status badge (E2).
@@ -38,6 +40,9 @@ const STAGE_LABELS: Record<IngestionStage, string> = {
   complete: 'Complete',
   failed: 'Failed',
 }
+
+// Stages that report the page reached (anonymising is too quick to need one).
+const PAGE_COUNTED_STAGES: IngestionStage[] = ['parsing', 'chunking', 'indexing']
 
 // Re-read too whenever a new upload is accepted (refreshKey). An unreachable
 // gateway leaves the last list showing.
@@ -63,6 +68,8 @@ export function UploadedDocuments({
   // flag and refreshes, which shows the document's real current status.
   const [retrying, setRetrying] = useState<Record<string, boolean>>({})
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState<Record<string, boolean>>({})
+  const [cancelError, setCancelError] = useState<string | null>(null)
 
   // Re-reads the list (and, because a retried document is now queued, restarts
   // the 3s polling loop). Bumping `attempt` re-runs the load effect.
@@ -77,6 +84,19 @@ export function UploadedDocuments({
       setRetryError('The retry could not be started. Check the connection, then try again.')
     } finally {
       setRetrying((r) => ({ ...r, [id]: false }))
+      refresh()
+    }
+  }
+
+  const cancel = async (id: string) => {
+    setCancelling((c) => ({ ...c, [id]: true }))
+    setCancelError(null)
+    try {
+      await cancelIngestion(id)
+    } catch {
+      setCancelError('The stop request could not be sent. Check the connection, then try again.')
+    } finally {
+      setCancelling((c) => ({ ...c, [id]: false }))
       refresh()
     }
   }
@@ -134,15 +154,20 @@ export function UploadedDocuments({
     const p = d.status === 'processing' ? d.progress : undefined
     const stage = p && STAGE_LABELS[p.currentStage]
 
-    // "Pg 12 / 45", or "Pg 12" if the total couldn't be read, while
-    // chunking once a page with provenance is reached (E2b). The chunk count
-    // has no knowable total, so pages are shown instead of a progress bar.
+    // "12 / 45 pages", or "12 pages" if the total couldn't be read: while
+    // parsing, the pages parsed so far (in 20-page batches), and while
+    // chunking or indexing, the page reached (E2b). The chunk count has no knowable total,
+    // so pages are shown instead of a progress bar.
+    // Once chunking's OCR pass starts, "3 / 17 OCR" (table and formula regions
+    // read) replaces the page count, which has already reached the last page.
     const pageLabel =
-      p && p.currentStage === 'chunking' && p.pageCurrent
-        ? p.pageTotal
-          ? `| Pg ${p.pageCurrent} / ${p.pageTotal}`
-          : `| Pg ${p.pageCurrent}`
-        : null
+      p && p.currentStage === 'chunking' && p.ocrTotal != null
+        ? `${p.ocrCurrent ?? 0} / ${p.ocrTotal} OCR`
+        : p && PAGE_COUNTED_STAGES.includes(p.currentStage) && p.pageCurrent != null
+          ? p.pageTotal
+            ? `${p.pageCurrent} / ${p.pageTotal} pages`
+            : `${p.pageCurrent} pages`
+          : null
 
     return (
       <span className="kb-status">
@@ -154,27 +179,45 @@ export function UploadedDocuments({
           ) : (
             <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
           )}
-          {d.status === 'failed' && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft="refresh-cw"
-              disabled={retrying[d.id]}
-              onClick={() => retry(d.id)}
-            >
-              {retrying[d.id] ? 'Retrying…' : 'Retry'}
-            </Button>
-          )}
         </span>
         {p && (
           <span className="kb-stage-detail">
-            <span className="kb-elapsed">{formatDuration(p.elapsedMs)}</span>
             {pageLabel && <span className="kb-page-count">{pageLabel}</span>}
+            <span className="kb-elapsed">{formatDuration(p.elapsedMs)} elapsed</span>
           </span>
         )}
         {d.error && <span className="kb-status-reason">{d.error}</span>}
       </span>
     )
+  }
+  const action = (d: KnowledgeDocument) => {
+    if (d.status === 'failed' || d.status === 'cancelled') {
+      return (
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft="refresh-cw"
+          disabled={retrying[d.id]}
+          onClick={() => retry(d.id)}
+        >
+          {retrying[d.id] ? 'Retrying…' : 'Retry'}
+        </Button>
+      )
+    }
+    if (d.status === 'queued' || d.status === 'processing') {
+      return (
+        <Button
+          variant="danger-tonal"
+          size="sm"
+          iconLeft="x"
+          disabled={cancelling[d.id]}
+          onClick={() => cancel(d.id)}
+        >
+          {cancelling[d.id] ? 'Stopping…' : 'Stop'}
+        </Button>
+      )
+    }
+    return null
   }
   const original = (d: KnowledgeDocument) => (
     <a
@@ -192,11 +235,18 @@ export function UploadedDocuments({
     <section className="kb-uploaded" aria-labelledby="kb-uploaded-title">
       <header className="kb-uploaded-head">
         <h2 id="kb-uploaded-title">Recent uploads</h2>
-        <p>Complete uploads leave this list after 24 hours, failed ones after 7 days.</p>
+        <p>
+          Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.
+        </p>
       </header>
       {retryError && (
         <Callout tone="danger" title="Retry not started">
           {retryError}
+        </Callout>
+      )}
+      {cancelError && (
+        <Callout tone="danger" title="Stop not started">
+          {cancelError}
         </Callout>
       )}
       {unreachable && (
@@ -233,7 +283,10 @@ export function UploadedDocuments({
               {status(d)}
               <span className="kb-stack-meta">
                 <span className="kb-mono">{dateTime(d.uploadedAt)}</span>
-                {original(d)}
+                <span className="kb-stack-actions">
+                  {action(d)}
+                  {original(d)}
+                </span>
               </span>
             </li>
           ))}
@@ -243,7 +296,8 @@ export function UploadedDocuments({
           columns={[
             { key: 'document', header: 'Document' },
             { key: 'uploaded', header: 'Uploaded' },
-            { key: 'status', header: 'Status', align: 'center' },
+            { key: 'status', header: 'Status' },
+            { key: 'action', header: 'Action', align: 'right' },
             { key: 'original', header: 'Original' },
           ]}
           rows={documents.map((d) => ({
@@ -251,6 +305,7 @@ export function UploadedDocuments({
             document: title(d),
             uploaded: <span className="kb-mono">{dateTime(d.uploadedAt)}</span>,
             status: status(d),
+            action: action(d),
             original: original(d),
           }))}
         />

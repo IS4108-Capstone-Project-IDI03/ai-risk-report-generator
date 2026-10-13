@@ -17,7 +17,9 @@ pytestmark = pytest.mark.slow
 
 SERVICE = Path(__file__).resolve().parents[1]
 GOLDEN = SERVICE / "eval/labelling/golden.json"
-PDFS = SERVICE.parents[1] / ".local-docs/golden/pdfs"
+# The repo root holds .local-docs; in the container image (tests at /app/tests)
+# there is no repo root, and the test skips for want of PDFs.
+PDFS = (SERVICE.parents[1] if len(SERVICE.parents) > 1 else SERVICE) / ".local-docs/golden/pdfs"
 
 
 def expected_label(sections: list[dict], page: int) -> str:

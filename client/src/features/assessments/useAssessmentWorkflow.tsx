@@ -33,20 +33,52 @@ import {
   filtersActive,
   labelValues,
   matchesFilters,
+  matchesPlace,
   NO_FILTERS,
   OBSERVATION_STATUSES,
   OBSERVATION_TYPES,
+  placeFilter,
   statusOf,
   typeLabel,
+  typesOf,
 } from './observationFilters'
+import {
+  BUILDING_WORDS,
+  correctName,
+  groupKey,
+  groupLocations,
+  isStandardName,
+  LEVEL_SUGGESTIONS,
+  levelRank,
+  LOCATION_NAMES,
+  locationLabel,
+  sameName,
+  similarName,
+  standardLevel,
+  suggestLevel,
+  suggestions,
+} from './locations'
 import type {
   AssessmentRow,
+  DateFilter,
+  LocationForm,
+  NameCheck,
   Observation,
   ObservationFilters,
   PhotoFile,
   VoiceClip,
   WorkflowState,
 } from './types'
+import {
+  categoryIcon,
+  categoryLabel,
+  copeDimensionsOf,
+  sameCategories,
+  toggleCategory,
+  UNCATEGORISED,
+  withCategory,
+} from './categories'
+import type { BoxContent } from './components/StatBox'
 import { useCaptureSession } from './useCaptureSession'
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
@@ -57,11 +89,9 @@ import {
   JURISDICTIONS,
   ROWS,
   CAT_ICON,
-  UNCATEGORISED,
   DEMO_LOCATIONS,
   STANDARD_REFERENCES,
   SEV,
-  STANDARDS,
   TITLES,
   PLAIN,
   EVIDENCE,
@@ -90,10 +120,76 @@ const STATUS_LABEL: Record<AssessmentStatus, string> = {
   finalised: 'Finalised',
   archived: 'Archived',
 }
+// A new assessment's report is due this many days after its site visit.
+const REPORT_DUE_DAYS = 14
+// Today's local calendar day as YYYY-MM-DD, and the day a number of days after one.
+const localToday = () => new Date().toLocaleDateString('en-CA')
+function addDays(isoDay: string, days: number) {
+  const day = new Date(isoDay + 'T00:00:00')
+  day.setDate(day.getDate() + days)
+  return day.toLocaleDateString('en-CA')
+}
 // Past its report due date (local calendar day) and not finalised. Due today is not overdue.
 function isOverdue(r: AssessmentRow) {
   const today = new Date().toLocaleDateString('en-CA')
   return !!r.reportDueDate && r.reportDueDate < today && r.status !== STATUS_LABEL.finalised
+}
+// Local calendar days from today to an ISO day: 0 today, negative once past.
+function daysFromToday(isoDay: string) {
+  const today = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00')
+  return Math.round((new Date(isoDay + 'T00:00:00').getTime() - today.getTime()) / 86_400_000)
+}
+// From today to seven days from today, both included.
+function withinWeek(isoDay: string | null | undefined) {
+  if (!isoDay) return false
+  const days = daysFromToday(isoDay)
+  return days >= 0 && days <= 7
+}
+// The dashboard boxes count, and filter the list to, assessments still in
+// progress (neither finalised nor archived) by date.
+function inProgress(r: AssessmentRow) {
+  return r.status !== STATUS_LABEL.finalised && r.status !== STATUS_LABEL.archived
+}
+const DATE_FILTERS: Record<DateFilter, (r: AssessmentRow) => boolean> = {
+  overdue: (r) => inProgress(r) && isOverdue(r),
+  'due-soon': (r) => inProgress(r) && withinWeek(r.reportDueDate),
+  'visit-soon': (r) => inProgress(r) && withinWeek(r.siteVisitDate),
+}
+// A row's countdown to its report due date, counted as the Overview counts it:
+// amber within three days. Past due, the row shows its Overdue badge instead;
+// a finalised report is no longer counting down.
+function dueCountdown(r: AssessmentRow) {
+  if (!r.reportDueDate || r.status === STATUS_LABEL.finalised) return null
+  const days = daysFromToday(r.reportDueDate)
+  if (days < 0) return null
+  return {
+    text: days === 0 ? 'Due today' : 'Due in ' + days + (days === 1 ? ' day' : ' days'),
+    soon: days <= 3,
+  }
+}
+// Days left until the report is due, or days overdue, by local calendar day,
+// with the date as the note: amber within three days, red once overdue. A
+// finalised report is no longer counting down.
+function dueSummary(r: AssessmentRow | null | undefined): BoxContent {
+  if (!r?.reportDueDate) return { value: '—', unit: 'no due date set' }
+  const note = formatDay(r.reportDueDate)
+  if (r.status === STATUS_LABEL.finalised)
+    return { value: 'Done', unit: 'finalised', note, tone: 'ok' }
+  const days = daysFromToday(r.reportDueDate)
+  if (days < 0)
+    return {
+      value: String(-days),
+      unit: (days === -1 ? 'day' : 'days') + ' overdue',
+      note,
+      tone: 'danger',
+    }
+  if (days === 0) return { value: 'Today', unit: 'due', note, tone: 'warning' }
+  return {
+    value: String(days),
+    unit: (days === 1 ? 'day' : 'days') + ' left',
+    note,
+    ...(days <= 3 && { tone: 'warning' as const }),
+  }
 }
 function formatDay(isoDay: string | null) {
   return isoDay
@@ -115,7 +211,6 @@ function toRow(a: Assessment): AssessmentRow {
     reportDueDate: a.reportDueDate,
     eng: a.engineer?.name ?? 'Unassigned',
     engineerId: a.engineer?.id ?? null,
-    standards: a.standards,
     record: a,
     status: STATUS_LABEL[a.status],
     sev: 'low',
@@ -129,20 +224,54 @@ const TRANSCRIPTION_TEXT = {
   transcribing: 'Transcribing the recording…',
   failed: 'The recording could not be transcribed.',
 }
-// The categories an observation can be filed under: the shared COPE vocabulary
+// The categories the Observations tab filters by: the shared COPE vocabulary
 // (CP-08 AC7), shown as the values they are stored as, or Uncategorised.
 const CATEGORY_OPTIONS = [...Object.keys(CAT_ICON), UNCATEGORISED]
-// The category to store for one chosen on screen: Uncategorised is null.
-const copeDimensionOf = (category: string) => (category === UNCATEGORISED ? null : category)
 const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }))
 const NO_LOCATIONS: SiteLocation[] = []
-// "Stairwell B · Level 2"
-const locationLabel = (l: { name: string; floor?: string | null }) =>
-  [l.name, l.floor].filter(Boolean).join(' \u00b7 ')
+// An empty capture form: no note, recordings or photos, and no tags chosen.
+// The location stays, as the engineer is still standing in it.
+const BLANK_DRAFT = {
+  fNote: '',
+  fClips: [],
+  fPhotos: [],
+  fCats: [],
+  fSev: '',
+  fRec: false,
+  fSecs: 0,
+  fTrans: false,
+  fTransBusy: false,
+  fVoiceError: null,
+  fPhotoError: null,
+  fSaveError: null,
+  fToast: null,
+  fLeaveOpen: false,
+} satisfies Partial<WorkflowState>
+// Recorders stopped to be thrown away with the draft they were recording for.
+const discarded = new WeakSet<MediaRecorder>()
+// The demo's simulated recording, transcribed.
+const SAMPLE_TRANSCRIPT =
+  'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.'
+// The navigation's Recent list: how many it keeps, and how its entries'
+// values name an assessment ("recent:RPT-2026-0411").
+const RECENT_LIMIT = 3
+const RECENT_PREFIX = 'recent:'
+// Where an observation was captured, e.g. "Block A · Level 2 · Staircase";
+// empty when its location is no longer listed.
+const placeOf = (o: Observation) =>
+  o.locationName
+    ? locationLabel({ building: o.building, floor: o.floor, name: o.locationName })
+    : ''
+// The picker's form, empty, adding a location in a building.
+const BLANK_LOCATION: LocationForm = { kind: 'building', building: '', floor: '', name: '' }
+// The form with nothing refused, asked about or kept as typed.
+const FORM_CLEAR = { lfErrors: {}, lfCheck: null, lfKept: {} } satisfies Partial<WorkflowState>
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
+// The most engineers one search on the create form lists.
+const ENGINEER_MATCH_LIMIT = 8
 // "Alex Rowe · 07 Oct 2026 14:02", who changed something and when (CP-08).
 const stampLabel = (stamp: Stamp) => stamp.by.name + ' · ' + formatDayYearTime(new Date(stamp.at))
 // A recording added to a sample observation in this demo (CP-08): kept in the
@@ -198,10 +327,11 @@ function toEntry(o: SavedObservation): Observation {
     id: o.id,
     icon: o.note ? 'sticky-note' : recordings.length ? 'mic' : 'camera',
     color: o.note ? '#f9ac10' : recordings.length ? '#8f7dff' : '#4f9aee',
-    cat: o.copeDimension ?? UNCATEGORISED,
+    cats: o.copeDimensions ?? [],
     time: formatDayYearTime(new Date(o.recordedAt)),
     text,
-    area: o.location?.name ?? '',
+    locationName: o.location?.name ?? '',
+    building: o.location?.building ?? null,
     locationId: o.location?.id,
     floor: o.location?.floor ?? null,
     sev: o.severity,
@@ -263,8 +393,14 @@ function toEntry(o: SavedObservation): Observation {
 }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
-  // The create form as it first opens, assigned to the signed-in engineer.
-  const blankCreateForm = () => ({ ...structuredClone(initialState.cf), eng: session.user.id })
+  // The create form as it first opens: assigned to the signed-in engineer,
+  // visited today (or on the given day), its report due REPORT_DUE_DAYS later.
+  const blankCreateForm = (visit = localToday()) => ({
+    ...structuredClone(initialState.cf),
+    eng: session.user.id,
+    date: visit,
+    due: addDays(visit, REPORT_DUE_DAYS),
+  })
   // The screen comes from the URL (F-05), so a screen can be linked to and
   // reopened after signing in; '/' opens the role's home screen.
   const [state, updateState] = useState<WorkflowState>(() => ({
@@ -294,6 +430,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         screen: screenForPath(window.location.pathname, session),
         navOpen: false,
         toast: null,
+        // Back from capture is a way of leaving it too.
+        fLeaveOpen: false,
       }))
     window.addEventListener('popstate', follow)
     return () => window.removeEventListener('popstate', follow)
@@ -307,8 +445,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const captured = useObservations(
     state.captureTarget.reference,
     onField || onWorkspace,
-    // Show deleted on the Observations tab reads the deleted ones too (CP-08).
-    onWorkspace && state.obsShowDeleted,
+    // The workspace reads the deleted ones too (CP-08), so the Observations
+    // tab's Deleted button can say how many there are.
+    onWorkspace,
   )
   // The Observations tab needs them too, to move an observation (CP-06).
   const places = useLocations(
@@ -322,6 +461,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The recorder in progress, and a counter naming the clips it makes.
   const [media] = useState(() => ({ recorder: null as MediaRecorder | null, clips: 0, photos: 0 }))
   useEffect(() => () => media.recorder?.stream.getTracks().forEach((t) => t.stop()), [media])
+  // Leaving capture, by Done, the navigation or Back, stops a recording in
+  // progress; its clip stays in the draft for when the engineer returns.
+  useEffect(() => {
+    if (!onField) media.recorder?.stop()
+  }, [onField, media])
+  // Where capture returns to is for the Observations tab it returns to; once
+  // the engineer is anywhere else, however they got there (a tab, the
+  // navigation, Back), it is forgotten (CP-16). Cleared while rendering, as
+  // React allows for state that depends on other state, so a later visit to
+  // the tab never shows it.
+  const returning =
+    state.screen === 'field' || (state.screen === 'assessment' && state.tab === 'observations')
+  if (!returning && state.obsReturn) setState({ obsReturn: null })
   // The work list from the gateway (RV-10); null until it loads, and when the
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
@@ -421,15 +573,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       850,
     )
+    // The recording clock; a simulated recording stops once capture is left.
     const recorder = setInterval(
       () =>
         updateState((previous) =>
-          previous.fRec
-            ? {
-                ...previous,
-                fSecs: previous.fSecs + 1,
-              }
-            : previous,
+          !previous.fRec
+            ? previous
+            : previous.screen === 'field'
+              ? { ...previous, fSecs: previous.fSecs + 1 }
+              : { ...previous, fRec: false, fSecs: 0 },
         ),
       1000,
     )
@@ -447,21 +599,77 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The workspace and capture both act on the assessment last opened from the list.
   // A blank create form, preselecting the signed-in engineer.
   function blankForm(): Partial<WorkflowState> {
-    return { cfEdit: null, cf: { ...structuredClone(initialState.cf), eng: session.user.id } }
+    return { cfEdit: null, cf: blankCreateForm() }
   }
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
   }
+  // Opens an assessment's workspace on its Overview and puts it first in the
+  // navigation's Recent list. A capture draft is for the assessment it was
+  // started on, so opening another clears it (call releaseDraft first), and
+  // it can never be saved to the wrong site.
+  function openAssessment(
+    target: { reference: string; site: string },
+    previous: WorkflowState,
+  ): Partial<WorkflowState> {
+    return {
+      screen: 'assessment',
+      tab: 'overview',
+      captureTarget: target,
+      recent: [target, ...previous.recent.filter((r) => r.reference !== target.reference)].slice(
+        0,
+        RECENT_LIMIT,
+      ),
+      // Filters name this assessment's locations and floors.
+      of: NO_FILTERS,
+      obsShowDeleted: false,
+      obsOpen: null,
+      ...(target.reference !== previous.captureTarget.reference && {
+        ...BLANK_DRAFT,
+        fLocationId: null,
+      }),
+    }
+  }
+  // Drops the capture draft's recording in progress and releases its
+  // previews; the caller clears the draft from the form.
+  function dropDraftFiles() {
+    if (media.recorder) {
+      // Marked first, so its clip is not added when it stops (startRecording).
+      discarded.add(media.recorder)
+      media.recorder.stop()
+    }
+    for (const file of [...state.fClips, ...state.fPhotos]) URL.revokeObjectURL(file.url)
+  }
+  // Before another assessment opens: its draft is about to be cleared.
+  function releaseDraft(reference: string) {
+    if (reference !== state.captureTarget.reference) dropDraftFiles()
+  }
+  // A navigation entry: a screen, or a Recent assessment. The one already
+  // open keeps its tab and filters. Call it only from an event handler.
+  function navigateTo(value: string): Partial<WorkflowState> {
+    if (!value.startsWith(RECENT_PREFIX)) return navigate(value)
+    const reference = value.slice(RECENT_PREFIX.length)
+    if (reference === state.captureTarget.reference) return navigate('assessment')
+    const target = state.recent.find((r) => r.reference === reference)
+    if (!target) return {}
+    releaseDraft(target.reference)
+    return openAssessment(target, state)
+  }
   // A created assessment clears the form, so the next one starts blank. A form
   // left without creating keeps its draft.
-  function addCreatedRow(row: AssessmentRow) {
+  // A new assessment opens on its Overview when it is the creator's own; one
+  // assigned to someone else is not on their list, so they return to it.
+  function addCreatedRow(row: AssessmentRow, open: boolean) {
+    if (open) releaseDraft(row.id)
     updateState((previous) => ({
       ...previous,
       createdRows: [row, ...previous.createdRows],
-      screen: 'dashboard',
       cf: blankCreateForm(),
       cfBusy: false,
       cfErr: false,
+      ...(open
+        ? openAssessment({ reference: row.id, site: row.site }, previous)
+        : { screen: 'dashboard' }),
     }))
   }
   function openItems() {
@@ -517,26 +725,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     if (!liveSections().length) return true
     return reviewedCount() < liveSections().length || openItems().length > 0
   }
-  function chipStyle(on: boolean, tone: string) {
-    return {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '44px',
-      padding: '0 4px',
-      borderRadius: '5px',
-      fontFamily: 'inherit',
-      fontSize: '14px',
-      fontWeight: '500',
-      cursor: 'pointer',
-      transition: 'background 120ms cubic-bezier(.2,0,.2,1)',
-      border: '1px solid ' + (on ? 'var(--status-' + tone + '-fg)' : 'var(--border-default)'),
-      background: on ? 'var(--status-' + tone + '-bg)' : 'var(--surface-card)',
-      color: on ? 'var(--status-' + tone + '-fg)' : 'var(--text-secondary)',
-    } as React.CSSProperties
-  }
   function modeStyle(on: boolean) {
     return {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
       height: '46px',
       border: 'none',
       borderBottom: '2px solid ' + (on ? 'var(--action-primary)' : 'transparent'),
@@ -617,8 +811,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           key: key + '/' + i,
           name: photo.name,
           url: photo.url,
-          where: locationLabel({ name: o.area, floor: o.floor }),
-          cat: o.cat,
+          where: placeOf(o),
+          cat: categoryLabel(o.cats),
           time: o.time,
           openObservation: () =>
             setState({ tab: 'observations', obsOpen: key, obsShowDeleted: false, of: NO_FILTERS }),
@@ -626,22 +820,54 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       )
     const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
     const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
+    // The Location filter offers where the listed observations are, and the
+    // place chosen even when only the other list (deleted or not) holds it.
+    const placeOptions = placeFilter(
+      allRows
+        .filter((r) => obsRows.includes(r) || (!!s.of.place && matchesPlace(r.o, s.of.place)))
+        .map(({ o }) => o),
+    )
     const tagRow = s.tagEdit && allRows.find((r) => r.key === s.tagEdit!.key)
     const dialogRow = s.obsDialog && allRows.find((r) => r.key === s.obsDialog!.key)
     const obsNoun = s.obsShowDeleted ? 'deleted observation' : 'observation'
+    // The Observations tab by building, level and location (CP-16), unless
+    // sorted newest first; the deleted ones are always newest first.
+    const obsByLocation = s.obsSort === 'location' && !s.obsShowDeleted
     // Shared by the Observations tab's header and rows: category and type,
     // location, summary, severity, status, and when it was captured (CP-08 AC2).
+    // By location, the headings say where, so there is no Location column.
     // The capture time wraps after its year: "11 Apr 2026" over "09:22".
     const obsCols = narrow
       ? '36px minmax(0,1fr) 90px'
-      : '40px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.8fr) 110px 150px 96px'
+      : obsByLocation
+        ? '40px minmax(0,1.3fr) minmax(0,2.8fr) 110px 150px 96px'
+        : '40px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.8fr) 110px 150px 96px'
     // Real recording needs a capture session on the server; without one, voice stays simulated.
     const liveVoice = !!liveCapture
     // Capture starts from a location; the sheet stays open until one is chosen.
     const currentLocation = places.locations.find((l) => l.id === s.fLocationId) ?? null
+    // It opens by itself while none is chosen, unless closed this visit.
     const locSheetOpen =
-      sc === 'field' && capture.state?.status !== 'starting' && (s.locOpen || !currentLocation)
+      sc === 'field' &&
+      capture.state?.status !== 'starting' &&
+      (s.locOpen || (!currentLocation && !s.locDismissed))
+    // Closed without choosing, the bar stays highlighted until one is, and
+    // Save opens the picker again.
+    const pickerClosed: Partial<WorkflowState> = {
+      locOpen: false,
+      locDismissed: true,
+      locQuery: '',
+      locAdding: false,
+      locEdit: null,
+      ...FORM_CLEAR,
+      locRemove: null,
+    }
     const query = s.locQuery.trim().toLowerCase()
+    // The picker's groups, of the locations the search matches (CP-16).
+    const locationGroups = groupLocations(
+      places.locations.filter((l) => !query || locationLabel(l).toLowerCase().includes(query)),
+    )
+    const currentGroup = currentLocation && groupKey(currentLocation)
     // A recording is named by its number; an uploaded file keeps its own name.
     const addClip = (audio: Blob, name: string | null, length: string | null) => {
       const id = ++media.clips
@@ -661,10 +887,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fClips: previous.fClips.filter((c) => c.id !== clip.id),
       }))
     }
-    // Everything in the Ready to save list becomes one observation, filed under
-    // what the form shows: the note exactly as typed (CP-02), each recording
-    // with its one transcription (CP-03 AC3) and each photo (CP-04). If it
-    // fails, everything stays listed for another try.
+    // Everything in the form becomes one observation, filed under the tags
+    // it shows: the note exactly as typed (CP-02), each recording with its one
+    // transcription (CP-03 AC3) and each photo (CP-04). If it fails,
+    // everything stays for another try. The standard is left to drafting;
+    // the engineer can name one later through Edit.
     async function saveToGateway(
       location: SiteLocation,
       note: string | undefined,
@@ -672,6 +899,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       photos: PhotoFile[],
     ) {
       const reference = s.captureTarget.reference
+      const { fCats: cats, fSev: severity } = s
       setState({ fSaving: true, fSaveError: null })
       let observation
       try {
@@ -679,10 +907,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           reference,
           {
             note,
-            copeDimension: copeDimensionOf(s.fCat),
-            severity: s.fSev,
+            copeDimensions: copeDimensionsOf(cats),
+            severity,
             locationId: location.id,
-            standard: s.fStd,
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
           photos.map((p) => ({ name: p.name, image: p.image })),
@@ -708,14 +935,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       if (clips.length) captured.reload()
       // The gateway now serves them; the previews in this browser are done.
       for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
-      // Keep anything added while the observation was saving.
+      // Keep anything added or changed while the observation was saving. The
+      // tags start again empty, so the next observation's are chosen for it.
+      // The Observations tab is to open here, with this one marked New.
       updateState((previous) => ({
         ...previous,
+        obsReturn: {
+          locationId: location.id,
+          ids: [...(previous.obsReturn?.ids ?? []), observation.id],
+          local: previous.obsReturn?.local ?? 0,
+        },
+        obsFolded: { ...previous.obsFolded, [groupKey(location)]: false },
         fSaving: false,
         fNote: previous.fNote === note ? '' : previous.fNote,
-        fNoteListed: previous.fNote === note ? false : previous.fNoteListed,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
+        fCats: sameCategories(previous.fCats, cats) ? [] : previous.fCats,
+        fSev: previous.fSev === severity ? '' : previous.fSev,
         fToast: {
           text:
             'Observation saved to ' +
@@ -773,11 +1009,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           ...changeLocal(edit.key, (x) => ({
             ...x,
-            cat: edit.cat,
+            cats: edit.cats,
             sev: edit.sev,
             std: edit.std,
             ...(location && {
-              area: location.name,
+              locationName: location.name,
+              building: location.building,
               floor: location.floor,
               locationId: location.id,
             }),
@@ -793,8 +1030,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         return
       }
       const changes = {
-        ...(edit.cat !== o.cat && {
-          copeDimension: copeDimensionOf(edit.cat),
+        ...(!sameCategories(edit.cats, o.cats) && {
+          copeDimensions: copeDimensionsOf(edit.cats),
         }),
         ...(edit.sev !== o.sev && { severity: edit.sev }),
         ...(location && location.id !== o.locationId && { locationId: location.id }),
@@ -842,7 +1079,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           obsDialog: null,
           obsOpen: null,
         })
-        return toast('Observation deleted in this demo only. Choose Show deleted to restore it.')
+        return toast('Observation deleted in this demo only. Choose Deleted to restore it.')
       }
       let saved
       try {
@@ -852,7 +1089,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       }
       captured.replace(saved)
       setState({ obsDialog: null, obsOpen: null })
-      toast('Observation deleted. Report drafting leaves it out; Show deleted can restore it.')
+      toast('Observation deleted. Report drafting leaves it out; Deleted can restore it.')
     }
     // Restores a deleted observation to the list and drafting (AC14).
     async function restoreRow(key: string, o: Observation) {
@@ -1018,30 +1255,118 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           (item.kind === 'recordings' ? ' Report drafting uses its transcript again.' : ''),
       )
     }
-    // Adds the location typed into the sheet and captures in it straight away.
-    async function submitLocation() {
-      const name = s.lf.name.trim()
-      if (!name) return setState({ lfError: 'Name the location.' })
-      const floor = s.lf.floor.trim()
-      setState({ lfBusy: true, lfError: null })
-      let location
+    // Adds the location the picker's form describes and captures in it
+    // straight away, or saves the changes to the one being edited (CP-16): in
+    // a building, with an optional level, or elsewhere on site, a name only.
+    // A level is saved in its standard spelling ("L2" as Level 2). A building
+    // or level new to the site that looks mistyped is asked about first,
+    // unless the engineer chose to keep it as typed (`kept`).
+    async function submitLocation(form = s.lf, kept = s.lfKept) {
+      const editing = s.locEdit
+      const inBuilding = form.kind === 'building'
+      const building = inBuilding ? form.building.trim() : ''
+      const typedFloor = inBuilding ? form.floor.trim() : ''
+      const floor = typedFloor && (standardLevel(typedFloor) ?? typedFloor)
+      const details = {
+        name: form.name.trim(),
+        ...(building && { building }),
+        ...(floor && { floor }),
+      }
+      const missing = {
+        ...(inBuilding && !building && { building: 'Name the building.' }),
+        ...(!details.name && { name: 'Name the location.' }),
+      }
+      if (Object.keys(missing).length) return setState({ lf: form, lfErrors: missing })
+      const others = places.locations.filter((l) => l.id !== editing)
+      const isNew = (field: NameCheck['field'], name: string) =>
+        !!name && kept[field] !== name && !others.some((l) => sameName(l[field], name))
+      // The name a building or location was probably meant to be: a standard
+      // one a slip away ("blcok a" as Block A), else one already on the site,
+      // unless what was typed is itself standard, so a correct spelling is
+      // never pulled towards a mistyped one.
+      const guess = (field: 'building' | 'name', typed: string, standard: string[]) =>
+        isNew(field, typed)
+          ? (correctName(typed, standard) ??
+            (isStandardName(typed, standard)
+              ? null
+              : similarName(
+                  typed,
+                  others.map((l) => l[field]),
+                )))
+          : null
+      // A building or location is asked about only when it looks mistyped; a
+      // level, whenever it is not one the app knows.
+      const buildingGuess = guess('building', building, BUILDING_WORDS)
+      const nameGuess = guess('name', details.name, LOCATION_NAMES)
+      const lfCheck: NameCheck | null = buildingGuess
+        ? { field: 'building', typed: building, suggestion: buildingGuess }
+        : isNew('floor', floor) && levelRank(floor) === null
+          ? {
+              field: 'floor',
+              typed: floor,
+              suggestion:
+                suggestLevel(floor) ??
+                similarName(
+                  floor,
+                  others.map((l) => l.floor),
+                ),
+            }
+          : nameGuess
+            ? { field: 'name', typed: details.name, suggestion: nameGuess }
+            : null
+      if (lfCheck) return setState({ lf: form, lfKept: kept, lfErrors: {}, lfCheck })
+      setState({ lf: form, lfBusy: true, lfErrors: {}, lfCheck: null })
+      let location: SiteLocation
       try {
-        location = await places.add({ name, floor })
+        location = editing ? await places.edit(editing, details) : await places.add(details)
       } catch (error: unknown) {
-        const reason =
-          error instanceof GatewayError
-            ? (Object.values(error.fields)[0] ?? error.message)
-            : 'The location could not be added.'
-        return setState({ lfBusy: false, lfError: reason })
+        const fields = error instanceof GatewayError ? error.fields : {}
+        const lfErrors = Object.keys(fields).length
+          ? fields
+          : {
+              name:
+                error instanceof GatewayError
+                  ? error.message
+                  : editing
+                    ? 'The location could not be changed.'
+                    : 'The location could not be added.',
+            }
+        return setState({ lfBusy: false, lfErrors })
       }
       setState({
         lfBusy: false,
-        lf: { name: '', floor: '' },
+        lf: BLANK_LOCATION,
+        lfKept: {},
         locAdding: false,
+        locEdit: null,
+        obsLocForm: false,
         locQuery: '',
-        locOpen: false,
-        fLocationId: location.id,
+        // A new location is where the engineer is now; an edited one changes
+        // nothing about where they are.
+        ...(!editing && { locOpen: false, fLocationId: location.id }),
       })
+      if (!editing) return
+      // Every observation saved there follows it: the gateway's are listed
+      // again, and those kept in this browser take the new details.
+      if (places.live) captured.reload()
+      const follow = (list: Observation[]) =>
+        list.map((o) =>
+          o.locationId === location.id
+            ? {
+                ...o,
+                locationName: location.name,
+                building: location.building,
+                floor: location.floor,
+              }
+            : o,
+        )
+      updateState((previous) => ({
+        ...previous,
+        fRecent: follow(previous.fRecent),
+        captureObs: Object.fromEntries(
+          Object.entries(previous.captureObs).map(([ref, list]) => [ref, follow(list)]),
+        ),
+      }))
     }
     // Removes the location the Remove this location? dialog confirms. The
     // gateway refuses one with observations, and the dialog shows its reason.
@@ -1100,16 +1425,24 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // here, so a labelled sample proposal stands in (CP-05).
     function readSample(key: string) {
       setState(
-        changeLocal(key, (x) => ({ ...x, interpretation: sampleInterpretation(x.cat, x.area) })),
+        changeLocal(key, (x) => ({
+          ...x,
+          interpretation: sampleInterpretation(x.cats[0] ?? UNCATEGORISED, x.locationName),
+        })),
       )
       later(settleSamples, 2000)
     }
     async function startRecording() {
       try {
-        media.recorder = await record((audio, length) => {
-          media.recorder = null
+        const recorder = await record((audio, length) => {
+          if (media.recorder === recorder) media.recorder = null
+          // Discarded with its draft (dropDraftFiles): the clip goes nowhere.
+          if (discarded.has(recorder)) return
+          // Stopped here or by leaving capture: the clock goes back to 00:00.
+          updateState((previous) => ({ ...previous, fRec: false, fSecs: 0 }))
           addClip(audio, null, length)
         })
+        media.recorder = recorder
       } catch (error: unknown) {
         setState({
           fVoiceError: { title: 'Microphone unavailable', message: microphoneProblem(error) },
@@ -1130,8 +1463,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const rows = serverRows
       ? [...visibleCreated.filter((r) => !serverIds.has(r.id)), ...serverRows]
       : [...visibleCreated, ...ROWS]
-    // Only the demo assessment has sample workspace content; others show their own details.
-    const openRow = isDemoCapture ? null : rows.find((r) => r.id === s.captureTarget.reference)
+    // Every assessment shows its own record, the demo one included. The demo
+    // keeps sample drafting and review only while it is not on the server.
+    const openRow = rows.find((r) => r.id === s.captureTarget.reference)
+    // The Overview counts what the server holds for an assessment on it, so the
+    // count agrees with the report sections; sample observations kept in this
+    // browser show only on the Observations tab. Offline, the browser's are all
+    // there is.
+    const savedCount = openRow?.persisted ? captured.observations.length : fieldSaved
 
     /* nav */
     // The route guard (F-05): screens the role cannot open are left out of
@@ -1152,17 +1491,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // hides the actions once the work list shows they'd be refused, for the
     // sample observations too, which change in this browser only.
     const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
-    // The dashboard's way back into capture, named on its button: the
-    // engineer's own capture in progress, the most recently started if there
-    // are several, or the demo assessment when the gateway cannot be reached.
-    const [latestCapture] = (serverRows ?? [])
-      .filter((r) => r.status === STATUS_LABEL.capturing && r.engineerId === session.user.id)
-      .sort((a, b) => (b.captureStartedAt ?? '').localeCompare(a.captureStartedAt ?? ''))
-    const continueTarget = latestCapture
-      ? { reference: latestCapture.id, site: latestCapture.site }
-      : listFailed && !serverRows
-        ? CAPTURE_ASSESSMENT
-        : null
+    // New assessment and capture are actions on the Dashboard and workspace
+    // headers, so the navigation lists only places: the work list, and the
+    // assessments last opened. Only those still on the work list show, as the
+    // gateway limits it to the engineer's own. The live light marks the one
+    // being captured for.
+    const recentItems = s.recent.flatMap((r) => {
+      const row = rows.find((x) => x.id === r.reference)
+      if (!row) return []
+      return [
+        {
+          value: RECENT_PREFIX + r.reference,
+          label: row.site,
+          icon: 'file-pen',
+          live: !!liveCapture && r.reference === s.captureTarget.reference,
+        },
+      ]
+    })
     const navSections = [
       {
         label: 'Assessments',
@@ -1173,33 +1518,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             icon: 'inbox',
             count: rows.length,
           },
-          {
-            value: 'create',
-            label: 'New assessment',
-            icon: 'plus',
-          },
-          {
-            value: 'field',
-            label: 'Site observation',
-            icon: 'camera',
-            count: fieldSaved,
-            live: !!liveCapture,
-          },
-        ].filter((item) => item.value !== 'field' || canCapture),
+        ],
       },
       {
-        label: 'Open assessment',
-        // Only one on the work list, as for capture above.
-        items: targetRow
-          ? [
-              {
-                value: 'assessment',
-                label: s.captureTarget.site,
-                icon: 'file-pen',
-              },
-            ]
-          : [],
+        label: 'Knowledge',
+        items: [{ value: 'chat', label: 'Ask the knowledge base', icon: 'message-square' }],
       },
+      { label: 'Recent', items: recentItems },
       {
         label: 'Administration',
         items: [
@@ -1222,12 +1547,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     ]
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => canOpen(item.value, session)),
+        items: section.items.filter((item) =>
+          canOpen(item.value.startsWith(RECENT_PREFIX) ? 'assessment' : item.value, session),
+        ),
       }))
       .filter((section) => section.items.length > 0)
 
     const q = s.q.trim().toLowerCase()
-    const openCount = (r: AssessmentRow) => (r.live ? open.length : r.open || 0)
     const filtered = rows
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
@@ -1236,6 +1562,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           s.fStatus === 'All statuses' ? r.status === STATUS_LABEL.archived : r.status !== s.fStatus
         )
           return false
+        if (s.fDate && !DATE_FILTERS[s.fDate](r)) return false
         return true
       })
       .sort((a, b) =>
@@ -1243,19 +1570,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? (a.reportDueDate || '9999-12-31').localeCompare(b.reportDueDate || '9999-12-31')
           : (b.siteVisitDate || '').localeCompare(a.siteVisitDate || ''),
       )
-      .map((r) => {
-        const n = openCount(r)
-        return {
-          ...r,
-          overdue: isOverdue(r),
-          sevIcon: SEV[r.sev].icon,
-          sevColor: SEV[r.sev].color,
-          stackMeta: r.client + ' · ' + r.type + ' · ' + r.eng,
-          hasOpen: n > 0,
-          noOpen: n === 0,
-          openLabel: n + (n === 1 ? ' open' : ' open'),
-        }
-      })
+      .map((r) => ({
+        ...r,
+        overdue: isOverdue(r),
+        sevIcon: SEV[r.sev].icon,
+        sevColor: SEV[r.sev].color,
+        stackMeta: r.client + ' · ' + r.type + ' · ' + r.eng,
+        dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
+        countdown: dueCountdown(r),
+      }))
 
     /* generation */
     const GST: Record<
@@ -1419,11 +1742,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         value: 'Confirmed',
         ok: true,
       },
-      {
-        label: 'Applicable standards recorded',
-        value: '3 documents',
-        ok: true,
-      },
     ].map((c) => ({
       ...c,
       icon: c.ok ? 'circle-check' : 'triangle-alert',
@@ -1437,12 +1755,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }))
 
     /* create form */
-    const standards = STANDARDS.map((t) => ({
-      ...t,
-      on: s.cf.stds.includes(t.name),
-    }))
-    const engineers = directory.map((e) => ({
-      ...e,
+    // Engineers are found by searching, never listed in full, so the form
+    // stays short however many there are.
+    const engQuery = s.cf.engQuery.trim().toLowerCase()
+    const engMatches = engQuery
+      ? directory.filter((e) =>
+          [e.name, e.staffId, e.jobTitle ?? ''].some((text) =>
+            text.toLowerCase().includes(engQuery),
+          ),
+        )
+      : []
+    const engChoice = (e: AssignableEngineer) => ({
+      id: e.id,
+      name: e.name,
       initials: e.name
         .split(' ')
         .map((part) => part[0])
@@ -1450,7 +1775,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         .join(''),
       role: [e.staffId, e.jobTitle].filter(Boolean).join(' · '),
       on: s.cf.eng === e.id,
-    }))
+      you: e.id === session.user.id,
+    })
+    const assignedEng = directory.find((e) => e.id === s.cf.eng)
 
     /* field */
     const waveBars = Array.from(
@@ -1473,6 +1800,275 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     )
     const mm = String(Math.floor(s.fSecs / 60)).padStart(2, '0')
     const ss = String(s.fSecs % 60).padStart(2, '0')
+    // What the capture draft holds, shown on the mode switcher. The demo's
+    // sample transcript stands in for a recording.
+    const noteWritten = !!s.fNote.trim()
+    const voiceCount = s.fClips.length + (s.fTrans ? 1 : 0)
+    // What Done would discard, a recording still running included: "a note,
+    // 2 recordings and 1 photo".
+    const recordings = voiceCount + (s.fRec || s.fTransBusy ? 1 : 0)
+    const unsaved = [
+      noteWritten ? 'a note' : '',
+      recordings ? plural(recordings, 'recording') : '',
+      s.fPhotos.length ? plural(s.fPhotos.length, 'photo') : '',
+    ].filter(Boolean)
+    const unsavedLabel =
+      unsaved.length > 1
+        ? unsaved.slice(0, -1).join(', ') + ' and ' + unsaved[unsaved.length - 1]
+        : (unsaved[0] ?? '')
+    // Leaving capture goes to a tab of the assessment it is part of: by its
+    // back button to the Observations tab, unfiltered, where what was just
+    // saved is listed; or to whichever tab is chosen.
+    const toTab = (tab: string): Partial<WorkflowState> => ({
+      screen: 'assessment',
+      tab,
+      obsShowDeleted: false,
+      obsOpen: null,
+      locOpen: false,
+      ...(tab === 'observations' && { of: NO_FILTERS }),
+    })
+    // First asking Leave without saving? when something would be lost.
+    const leaveCapture = (tab: string) =>
+      setState(unsaved.length ? { fLeaveOpen: true, fLeaveTo: tab } : toTab(tab))
+    // The Observations tab's rows, as the filters show them.
+    const obsList = shownRows.map(({ o, key }) => {
+      const open = s.obsOpen === key
+      const sev = o.sev || 'low'
+      const status = statusOf(o)
+      // A deleted observation changes only by being restored.
+      const canChange = canChangeObs
+      // Opens the Edit dialog on its tags and note as they are now, or with
+      // a proposal's wording or category already filled in (CP-05).
+      const openEdit = (change: { note?: string; cats?: string[] } = {}) =>
+        setState({
+          tagEdit: {
+            key,
+            cats: o.cats,
+            sev,
+            locationId: o.locationId ?? '',
+            std: o.std,
+            note: o.detail ?? '',
+            ...change,
+          },
+          tagError: null,
+        })
+      const reading = o.interpretation
+      const proposed = reading?.status === 'interpreted' ? reading : null
+      // Its photos are read only when a risk engineer asks (CP-05), through
+      // the gateway, or in this demo for a sample observation.
+      const read =
+        canEdit && !o.deleted ? (o.id ? () => void readSaved(o.id!) : () => readSample(key)) : null
+      // Recordings and photos can be added by whoever may change it, and
+      // removed while something else stays captured (CP-08).
+      const changing = canChange && !o.deleted
+      const held =
+        (o.detail?.trim() ? 1 : 0) +
+        (o.audio ? 1 : 0) +
+        (o.recordings?.length ?? 0) +
+        o.media.length
+      const removing = (kind: MediaKind, id: string, name: string) =>
+        changing && held > 1
+          ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
+          : null
+      // Saved on the visit to capture just left (CP-16).
+      const isNew =
+        !!s.obsReturn &&
+        (s.obsReturn.ids.includes(key) ||
+          (key.startsWith('local-') && Number(key.slice('local-'.length)) < s.obsReturn.local))
+      return {
+        ...o,
+        key,
+        open,
+        isNew,
+        // Its building, level and location, e.g. "Warehouse · Ground · Bay 3".
+        where: placeOf(o),
+        // What it holds and where its recordings and photos stand (CP-08 AC2).
+        typeLabel: typeLabel(o),
+        status,
+        statusTone:
+          status === 'Transcribing' || status === 'Interpreting'
+            ? 'info'
+            : status.endsWith('failed')
+              ? 'high'
+              : null,
+        canChange: canChange && !o.deleted,
+        canRestore: canChange && !!o.deleted,
+        editedLabel: o.edited ? 'Edited by ' + stampLabel(o.edited) : null,
+        deletedLabel: o.deleted ? 'Deleted by ' + stampLabel(o.deleted) : null,
+        deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
+        restoreObs: () => void restoreRow(key, o),
+        editTags: () => openEdit(),
+        addMedia: changing ? () => setState({ obsDialog: { kind: 'addMedia', key } }) : null,
+        // Its photos, each opening the original, with who added any later.
+        media: o.media.map((m) => ({
+          ...m,
+          addedLabel: m.added ? m.name + ' added by ' + stampLabel(m.added) : null,
+          remove: removing('photos', m.id ?? m.name, m.name),
+        })),
+        removedMedia: (o.removedMedia ?? []).map((m) => ({
+          ...m,
+          removedLabel: 'Removed by ' + stampLabel(m.removed),
+          restore: changing ? () => void restoreItem(key, o, m) : null,
+        })),
+        // What the vision model proposes from its photos (CP-05), and what
+        // the engineer can do with it. Neither action saves anything by
+        // itself: each opens Edit, filled in, for the engineer to save.
+        // Photos not read yet offer only Read photos; a reading of photos
+        // since added or removed offers Read again (CP-08).
+        proposal: !o.media.length
+          ? null
+          : !reading
+            ? { status: 'unread' as const, read }
+            : {
+                ...reading,
+                // "Protection · Sprinkler Installation"
+                summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
+                retry: read,
+                useAsNote:
+                  canChange && !o.deleted && proposed?.description
+                    ? () =>
+                        openEdit({
+                          note: o.detail
+                            ? o.detail + '\n\n' + proposed.description
+                            : proposed.description!,
+                        })
+                    : null,
+                // Offered only when the proposal is not one of its categories,
+                // added to those it has.
+                addCategory:
+                  canChange &&
+                  !o.deleted &&
+                  proposed?.category &&
+                  !o.cats.includes(proposed.category)
+                    ? () => openEdit({ cats: withCategory(o.cats, proposed.category!) })
+                    : null,
+              },
+        icon: categoryIcon(o.cats),
+        catLabel: categoryLabel(o.cats),
+        color: 'var(--text-secondary)',
+        chevron: open ? 'chevron-down' : 'chevron-right',
+        // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
+        clock: o.time || '',
+        sev,
+        sevLabel: sev.charAt(0).toUpperCase() + sev.slice(1),
+        // Each recording shows its transcript, as corrected, or where its
+        // transcription stands. Only a finished one can be corrected (AC10).
+        recordings: (o.recordings ?? []).map((r) => ({
+          ...r,
+          retry: () => void retryVoice(o.id!, r.id),
+          // A recording added in the demo has no transcript to correct.
+          canCorrect: canChange && !o.deleted && r.status === 'transcribed' && !!o.id,
+          correct: () => setState({ obsDialog: { kind: 'transcript', key, recordingId: r.id } }),
+          correctedLabel: r.correction ? 'Corrected by ' + stampLabel(r.correction) : null,
+          addedLabel: r.added ? 'Added by ' + stampLabel(r.added) : null,
+          remove: removing('recordings', r.id, r.name),
+        })),
+        // A saved observation's recordings carry their own text below its note.
+        detail: o.recordings ? o.detail : o.detail || o.text,
+        hasAudio: !!o.audio,
+        audioLabel: 'Audio note (' + (o.audio || '') + ')',
+        hasStd: !!o.std,
+        rowStyle: {
+          display: 'grid',
+          gridTemplateColumns: obsCols,
+          alignItems: narrow ? 'flex-start' : 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          cursor: 'pointer',
+          borderBottom: '1px solid var(--border-subtle)',
+          transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
+          background: open ? 'var(--surface-selected)' : 'var(--surface-card)',
+          boxShadow: isNew ? 'inset 3px 0 0 var(--action-primary)' : undefined,
+          scrollMarginTop: '16px',
+        } as React.CSSProperties,
+      }
+    })
+    // Back from capture, the list opens where the engineer was (CP-16): at
+    // the location, or newest first at the newest observation saved.
+    const landingRow = obsByLocation ? null : (obsList.find((o) => o.isNew)?.key ?? null)
+    // The Observations tab by building, level and location (CP-16): every
+    // listed location with the observations the filters show there, newest
+    // first. With a filter set, only locations with a match. An observation
+    // whose location is no longer listed is kept under the details it was
+    // saved with, or under Location not recorded.
+    type ObsItem = (typeof obsList)[number]
+    const listed = (id: string) => places.locations.some((l) => l.id === id)
+    // Its listed location; else one listed with the same name, level and
+    // building (a sample observation's, say); else the details it was saved with.
+    const placeKey = (o: ObsItem) =>
+      (o.locationId && listed(o.locationId) ? o.locationId : null) ??
+      places.locations.find(
+        (l) =>
+          sameName(l.name, o.locationName) &&
+          sameName(l.floor, o.floor) &&
+          sameName(l.building, o.building),
+      )?.id ??
+      o.locationId ??
+      'unlisted:' + o.locationName
+    const obsPlaces: SiteLocation[] = [...places.locations]
+    for (const o of obsList)
+      if (o.locationName && !obsPlaces.some((l) => l.id === placeKey(o)))
+        obsPlaces.push({
+          id: placeKey(o),
+          building: o.building ?? null,
+          floor: o.floor ?? null,
+          name: o.locationName,
+        })
+    const unrecorded = obsList.filter((o) => !o.locationName)
+    const obsGroups = [
+      ...groupLocations(
+        obsPlaces.map((l) => ({ ...l, items: obsList.filter((o) => placeKey(o) === l.id) })),
+      ),
+      ...(unrecorded.length
+        ? [
+            {
+              key: 'unrecorded',
+              title: 'Location not recorded',
+              levels: [
+                {
+                  title: null,
+                  locations: [
+                    {
+                      id: 'unrecorded',
+                      building: null,
+                      floor: null,
+                      name: 'Location not recorded',
+                      items: unrecorded,
+                    },
+                  ],
+                },
+              ],
+            },
+          ]
+        : []),
+    ]
+      .map((g) => ({
+        ...g,
+        levels: g.levels
+          .map((level) => ({
+            ...level,
+            locations: level.locations.filter((l) => !filtersActive(s.of) || l.items.length),
+          }))
+          .filter((level) => level.locations.length),
+      }))
+      .filter((g) => g.levels.length)
+    // Opens the Add or Edit location dialog on the Observations tab (CP-16),
+    // the same form as the capture picker's.
+    const openLocationForm = (l?: SiteLocation) =>
+      setState({
+        obsLocForm: true,
+        locAdding: true,
+        locEdit: l?.id ?? null,
+        ...FORM_CLEAR,
+        lf: l
+          ? {
+              kind: l.building || l.floor ? 'building' : 'elsewhere',
+              building: l.building ?? '',
+              floor: l.floor ?? '',
+              name: l.name,
+            }
+          : BLANK_LOCATION,
+      })
     return {
       /* access (F-05) */
       routeBlocked,
@@ -1495,9 +2091,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       /* chrome */
       navSections,
-      navValue: isAssessment ? 'assessment' : sc,
+      // The workspace and capture both highlight the assessment they are for.
+      navValue: isAssessment || sc === 'field' ? RECENT_PREFIX + s.captureTarget.reference : sc,
       navFooter: userFooter(),
       showSideNav: !phone && !s.navCollapsed,
+      phone,
       showTopBar: phone,
       showHeaderMenu: !phone,
       toggleNav: () =>
@@ -1519,7 +2117,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       goFromDrawer: (v: string) =>
         setState({
-          ...navigate(v),
+          ...navigateTo(v),
           navOpen: false,
           toast: null,
         }),
@@ -1568,14 +2166,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           } as React.CSSProperties),
       go: (v: string) => {
         setState({
-          ...navigate(v),
+          ...navigateTo(v),
           toast: null,
         })
       },
-      goDash: () =>
-        setState({
-          screen: 'dashboard',
-        }),
       goCreate: () =>
         setState({
           screen: 'create',
@@ -1583,6 +2177,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cfServerError: null,
           // Coming from an edit, start a new assessment from a blank form.
           ...(s.cfEdit && blankForm()),
+          // A blank form from an earlier day (a tab left open overnight)
+          // opens on today's dates; one the engineer has filled in is kept.
+          ...(!s.cfEdit &&
+            !!s.cf.date &&
+            s.cf.date !== localToday() &&
+            JSON.stringify(s.cf) === JSON.stringify(blankCreateForm(s.cf.date)) && {
+              cf: blankCreateForm(),
+            }),
         }),
       // Cancel leaves an edit for the workspace it came from, and a new
       // assessment for the work list.
@@ -1609,32 +2211,21 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             jurisdiction: a.site.jurisdiction,
             type: a.site.facilityType,
             client: a.client,
-            ref: a.policyReference ?? '',
             survey: a.surveyType,
             date: a.siteVisitDate ?? '',
             due: a.reportDueDate ?? '',
-            stds: [...a.standards],
             eng: a.engineer?.id ?? '',
           },
         })
       },
       isEditing: !!s.cfEdit,
+      // Each visit to capture starts by asking where, until a location is chosen.
       goField: () =>
         setState({
           screen: 'field',
+          locDismissed: false,
+          obsReturn: null,
         }),
-      continueCaptureLabel: continueTarget && 'Continue capture · ' + continueTarget.site,
-      continueCapture: () => {
-        if (continueTarget)
-          setState({
-            screen: 'field',
-            captureTarget: continueTarget,
-            // Filters name the previous assessment's locations and floors.
-            of: NO_FILTERS,
-            obsShowDeleted: false,
-            obsOpen: null,
-          })
-      },
       canCapture,
       canArchive: isMine && canCapture,
       canRestore: isMine && !canCapture,
@@ -1667,12 +2258,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({ archiveBusy: true })
         try {
           await requestArchive(reference)
-          // Back to the work list, which reloads; capture falls back to the demo.
+          // Back to the work list, which reloads; capture falls back to the
+          // demo, and the archived one's draft is dropped, as it takes no more.
+          dropDraftFiles()
           setState({
             ...navigate('dashboard'),
+            ...BLANK_DRAFT,
+            fLocationId: null,
             archiveOpen: false,
             archiveBusy: false,
             captureTarget: CAPTURE_ASSESSMENT,
+            // Archived, it is found under the work list's Archived filter.
+            recent: s.recent.filter((r) => r.reference !== reference),
           })
           toast(reference + ' archived. Filter by Archived to find it.')
         } catch (error: unknown) {
@@ -1685,7 +2282,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           )
         }
       },
-      goAssessment: () => setState(navigate('assessment')),
       goReview: () =>
         setState({
           tab: 'review',
@@ -1696,37 +2292,42 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isUsers: sc === 'users',
       isKnowledge: sc === 'knowledge',
       isUsage: sc === 'usage',
+      isChat: sc === 'chat',
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
+      // The photo collection is a view of the Observations tab, opened from
+      // its Photos box, so that tab stays selected while it shows.
       isPhotos: isAssessment && s.tab === 'photos',
+      // Capture is part of the Observations tab, which stays highlighted.
+      tabValue: sc === 'field' || s.tab === 'photos' ? 'observations' : s.tab,
+      goPhotos: () => setState({ tab: 'photos' }),
+      goObservations: () => setState({ tab: 'observations' }),
+      // The Observations tab's boxes: what the observations not deleted hold.
+      obsCounts: (() => {
+        const kept = allRows.filter(({ o }) => !o.deleted).map(({ o }) => o)
+        return {
+          notes: kept.filter((o) => typesOf(o).includes('Note')).length,
+          recordings: kept.reduce(
+            (n, o) => n + (o.recordings ? o.recordings.length : o.audio ? 1 : 0),
+            0,
+          ),
+          photos: photoCollection.length,
+        }
+      })(),
       photoCollection,
       goGenerate: () =>
         setState({
           tab: 'generate',
         }),
-      // A real assessment shows its own record; only the demo one shows samples.
-      ovMetrics: openRow
-        ? [
-            { label: 'Status', value: openRow.status },
-            { label: 'Observations on file', value: fieldSaved },
-            { label: 'Standards', value: openRow.standards?.length ?? 0 },
-            {
-              label: 'Report due',
-              value: openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set',
-              note: isOverdue(openRow) ? 'Overdue' : undefined,
-            },
-          ]
-        : [
-            {
-              label: 'Sections drafted',
-              value: s.gsecs.filter((x) => x.st === 'done').length + ' of ' + s.gsecs.length,
-            },
-            { label: 'Open review items', value: open.length + 3 },
-            { label: 'Observations on file', value: fieldSaved },
-            { label: 'Evidence sources', value: 24 },
-          ],
-      showReviewProgress: !openRow,
+      // The Overview's boxes (the drafting and review ones load their own data).
+      ovCapture: {
+        count: savedCount,
+        note: savedCount ? undefined : 'None captured yet',
+      },
+      ovDue: dueSummary(openRow),
+      canOpenGenerate: canOpenTab('generate', session),
+      canOpenReview: canOpenTab('review', session),
       ovFacts: openRow
         ? [
             { label: 'Report', value: openRow.id },
@@ -1751,181 +2352,75 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             { label: 'Engineer', value: openRow.eng },
           ]
         : [
-            {
-              label: 'Report',
-              value: 'RPT-2026-0411',
-            },
-            {
-              label: 'Site',
-              value: 'Tilbury Distribution Centre, Ferry Lane, Tilbury RM18 7HR',
-            },
-            {
-              label: 'Client',
-              value: 'Northgate Logistics',
-            },
-            {
-              label: 'Assessment type',
-              value: 'Property risk survey',
-            },
-            {
-              label: 'Site visit',
-              value: '11 Apr 2026',
-            },
-            {
-              label: 'Report due',
-              value: '25 Apr 2026',
-            },
-            {
-              label: 'Engineer',
-              value: 'A. Rowe',
-            },
+            { label: 'Report', value: s.captureTarget.reference },
+            { label: 'Site', value: s.captureTarget.site },
           ],
       obsWide: !narrow,
       obsStack: narrow,
       obsCols,
-      obsList: shownRows.map(({ o, key }) => {
-        const open = s.obsOpen === key
-        const sev = o.sev || 'low'
-        const status = statusOf(o)
-        // A deleted observation changes only by being restored.
-        const canChange = canChangeObs
-        // Opens the Edit dialog on its tags and note as they are now, or with
-        // a proposal's wording or category already filled in (CP-05).
-        const openEdit = (change: { note?: string; cat?: string } = {}) =>
-          setState({
-            tagEdit: {
-              key,
-              cat: o.cat,
-              sev,
-              locationId: o.locationId ?? '',
-              std: o.std,
-              note: o.detail ?? '',
-              ...change,
-            },
-            tagError: null,
-          })
-        const reading = o.interpretation
-        const proposed = reading?.status === 'interpreted' ? reading : null
-        // Its photos are read only when a risk engineer asks (CP-05), through
-        // the gateway, or in this demo for a sample observation.
-        const read =
-          canEdit && !o.deleted
-            ? o.id
-              ? () => void readSaved(o.id!)
-              : () => readSample(key)
-            : null
-        // Recordings and photos can be added by whoever may change it, and
-        // removed while something else stays captured (CP-08).
-        const changing = canChange && !o.deleted
-        const held =
-          (o.detail?.trim() ? 1 : 0) +
-          (o.audio ? 1 : 0) +
-          (o.recordings?.length ?? 0) +
-          o.media.length
-        const removing = (kind: MediaKind, id: string, name: string) =>
-          changing && held > 1
-            ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
-            : null
+      obsList,
+      obsReturning: !!s.obsReturn,
+      obsLandingRow: landingRow,
+      /* by location (CP-16): buildings, levels and locations, each with its
+         observations, Add observation, and Edit and Remove */
+      // Newest first unless grouped by location, one switch (CP-08 AC1, CP-16).
+      toggleObsByLocation: () =>
+        setState({ obsSort: s.obsSort === 'location' ? 'newest' : 'location', obsOpen: null }),
+      obsByLocation,
+      obsGroups: obsGroups.map((g) => {
+        const count = g.levels.reduce(
+          (n, level) => n + level.locations.reduce((m, l) => m + l.items.length, 0),
+          0,
+        )
+        const open = !s.obsFolded[g.key]
         return {
-          ...o,
-          key,
+          key: g.key,
+          title: g.title,
+          countLabel: plural(count, 'observation'),
           open,
-          // The zone and floor, e.g. "Bay 3 — north aisle · Ground".
-          where: locationLabel({ name: o.area, floor: o.floor }),
-          // What it holds and where its recordings and photos stand (CP-08 AC2).
-          typeLabel: typeLabel(o),
-          status,
-          statusTone:
-            status === 'Transcribing' || status === 'Interpreting'
-              ? 'info'
-              : status.endsWith('failed')
-                ? 'high'
-                : null,
-          canChange: canChange && !o.deleted,
-          canRestore: canChange && !!o.deleted,
-          editedLabel: o.edited ? 'Edited by ' + stampLabel(o.edited) : null,
-          deletedLabel: o.deleted ? 'Deleted by ' + stampLabel(o.deleted) : null,
-          deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
-          restoreObs: () => void restoreRow(key, o),
-          editTags: () => openEdit(),
-          addMedia: changing ? () => setState({ obsDialog: { kind: 'addMedia', key } }) : null,
-          // Its photos, each opening the original, with who added any later.
-          media: o.media.map((m) => ({
-            ...m,
-            addedLabel: m.added ? m.name + ' added by ' + stampLabel(m.added) : null,
-            remove: removing('photos', m.id ?? m.name, m.name),
+          toggle: () => setState({ obsFolded: { ...s.obsFolded, [g.key]: open } }),
+          levels: g.levels.map((level) => ({
+            title: level.title,
+            locations: level.locations.map((l) => {
+              const isListed = listed(l.id)
+              // Deleted ones count too, as the gateway refuses to remove a
+              // location any observation is saved in (CP-08).
+              const held = allRows.some(({ o }) => o.locationId === l.id)
+              return {
+                id: l.id,
+                name: l.name,
+                label: l.id === 'unrecorded' ? l.name : locationLabel(l),
+                items: l.items,
+                countLabel: l.items.length
+                  ? plural(l.items.length, 'observation')
+                  : 'No observations',
+                // Capture opens there, with no need to choose where, and
+                // returns there.
+                addObservation:
+                  isListed && canEdit && canCapture
+                    ? () =>
+                        setState({
+                          screen: 'field',
+                          fLocationId: l.id,
+                          locOpen: false,
+                          locDismissed: false,
+                          obsReturn: { locationId: l.id, ids: [], local: 0 },
+                        })
+                    : undefined,
+                landing: s.obsReturn?.locationId === l.id,
+                edit: isListed && canChangeObs ? () => openLocationForm(l) : undefined,
+                remove:
+                  isListed && canEdit && canCapture && !held
+                    ? () => setState({ locRemove: l.id })
+                    : undefined,
+              }
+            }),
           })),
-          removedMedia: (o.removedMedia ?? []).map((m) => ({
-            ...m,
-            removedLabel: 'Removed by ' + stampLabel(m.removed),
-            restore: changing ? () => void restoreItem(key, o, m) : null,
-          })),
-          // What the vision model proposes from its photos (CP-05), and what
-          // the engineer can do with it. Neither action saves anything by
-          // itself: each opens Edit, filled in, for the engineer to save.
-          // Photos not read yet offer only Read photos; a reading of photos
-          // since added or removed offers Read again (CP-08).
-          proposal: !o.media.length
-            ? null
-            : !reading
-              ? { status: 'unread' as const, read }
-              : {
-                  ...reading,
-                  // "Protection · Sprinkler Installation"
-                  summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
-                  retry: read,
-                  useAsNote:
-                    canChange && !o.deleted && proposed?.description
-                      ? () =>
-                          openEdit({
-                            note: o.detail
-                              ? o.detail + '\n\n' + proposed.description
-                              : proposed.description!,
-                          })
-                      : null,
-                  // Offered only when the proposal differs from its category.
-                  changeCategory:
-                    canChange && !o.deleted && proposed?.category && proposed.category !== o.cat
-                      ? () => openEdit({ cat: proposed.category! })
-                      : null,
-                },
-          icon: CAT_ICON[o.cat] || 'circle-dot',
-          color: 'var(--text-secondary)',
-          chevron: open ? 'chevron-down' : 'chevron-right',
-          // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
-          clock: o.time || '',
-          sev,
-          sevLabel: sev.charAt(0).toUpperCase() + sev.slice(1),
-          // Each recording shows its transcript, as corrected, or where its
-          // transcription stands. Only a finished one can be corrected (AC10).
-          recordings: (o.recordings ?? []).map((r) => ({
-            ...r,
-            retry: () => void retryVoice(o.id!, r.id),
-            // A recording added in the demo has no transcript to correct.
-            canCorrect: canChange && !o.deleted && r.status === 'transcribed' && !!o.id,
-            correct: () => setState({ obsDialog: { kind: 'transcript', key, recordingId: r.id } }),
-            correctedLabel: r.correction ? 'Corrected by ' + stampLabel(r.correction) : null,
-            addedLabel: r.added ? 'Added by ' + stampLabel(r.added) : null,
-            remove: removing('recordings', r.id, r.name),
-          })),
-          // A saved observation's recordings carry their own text below its note.
-          detail: o.recordings ? o.detail : o.detail || o.text,
-          hasAudio: !!o.audio,
-          audioLabel: 'Audio note (' + (o.audio || '') + ')',
-          hasStd: !!o.std,
-          rowStyle: {
-            display: 'grid',
-            gridTemplateColumns: obsCols,
-            alignItems: narrow ? 'flex-start' : 'center',
-            gap: '12px',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            borderBottom: '1px solid var(--border-subtle)',
-            transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-            background: open ? 'var(--surface-selected)' : 'var(--surface-card)',
-          } as React.CSSProperties,
         }
       }),
+      // Adds a location without capturing, e.g. before the visit (CP-16).
+      obsAddLocation: canEdit && canCapture ? () => openLocationForm() : undefined,
+      obsLocFormOpen: s.obsLocForm,
       toggleObs: (e: React.MouseEvent<HTMLElement>) => {
         const k = e.currentTarget.dataset.i ?? null
         setState({
@@ -1942,29 +2437,40 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsFilters: s.of,
       obsFiltering: filtersActive(s.of),
       obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
+      // Nothing captured yet, and no locations to list by: the list offers
+      // Add observation instead.
+      obsNone: !s.obsShowDeleted && obsRows.length === 0 && !(obsByLocation && obsGroups.length),
       setObsFilter: (key: keyof ObservationFilters) => (e: React.ChangeEvent<HTMLSelectElement>) =>
         setState({ of: { ...s.of, [key]: e.target.value } }),
       clearObsFilters: () => setState({ of: NO_FILTERS }),
       obsTypeFilterOptions: [{ value: '', label: 'All types' }, ...OBSERVATION_TYPES],
       obsCatFilterOptions: [{ value: '', label: 'All categories' }, ...CATEGORY_OPTIONS],
       obsSevFilterOptions: [{ value: '', label: 'All severities' }, ...SEVERITY_OPTIONS],
-      obsLocFilterOptions: [
-        { value: '', label: 'All locations' },
-        ...labelValues(
-          obsRows.map(({ o }) => o.area),
-          s.of.loc,
-        ),
-      ],
-      obsFloorFilterOptions: [
-        { value: '', label: 'All floors' },
-        ...labelValues(
-          obsRows.map(({ o }) => o.floor),
-          s.of.floor,
-        ),
-      ],
+      // A building, a level of it or one location, grouped by building (CP-16).
+      obsPlaceFilterOptions: [{ value: '', label: 'All locations' }, ...placeOptions.options],
       obsStatusFilterOptions: [{ value: '', label: 'All statuses' }, ...OBSERVATION_STATUSES],
+      // Each filter set, as a chip that removes it, in the panel's order.
+      obsFilterChips: (
+        [
+          ['place', 'Location', placeOptions.labels[s.of.place]],
+          ['type', 'Type', s.of.type],
+          ['cat', 'Category', s.of.cat],
+          ['sev', 'Severity', SEVERITY_OPTIONS.find((x) => x.value === s.of.sev)?.label],
+          ['status', 'Status', s.of.status],
+        ] as const
+      )
+        .filter(([key]) => s.of[key])
+        .map(([key, name, value]) => ({
+          key,
+          label: name + ': ' + (value ?? s.of[key]),
+          remove: () => setState({ of: { ...s.of, [key]: '' } }),
+        })),
+      // The phone's Filters sheet closes on this, saying what it shows.
+      obsShowLabel: 'Show ' + plural(shownRows.length, obsNoun),
       /* Show deleted (CP-08 AC14): the deleted observations instead */
       obsShowDeleted: s.obsShowDeleted,
+      // How many are deleted, shown on the button that lists them.
+      obsDeletedCount: allRows.filter(({ o }) => o.deleted).length,
       setObsShowDeleted: (on: boolean) => setState({ obsShowDeleted: on, obsOpen: null }),
       obsNoDeleted: s.obsShowDeleted && obsRows.length === 0,
       /* transcript and delete dialogs (CP-08) */
@@ -1980,7 +2486,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               // What the Add media dialog adds to (CP-08): where it was
               // captured, whether the gateway holds it, and the number its
               // next recording takes after those it has, removed ones included.
-              where: locationLabel({ name: dialogRow.o.area, floor: dialogRow.o.floor }),
+              where: placeOf(dialogRow.o),
               saved: !!dialogRow.o.id,
               nextRecording:
                 (dialogRow.o.recordings?.length ?? 0) +
@@ -1998,23 +2504,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       tagEdit: s.tagEdit,
       tagBusy: s.tagBusy,
       tagError: s.tagError,
-      tagCatOptions: CATEGORY_OPTIONS,
-      tagCatHint:
-        s.tagEdit?.cat === UNCATEGORISED
-          ? 'Report drafting leaves this observation out until it is categorised.'
-          : undefined,
-      tagSevOptions: SEVERITY_OPTIONS,
+      toggleTagCat: (cat: string) =>
+        s.tagEdit &&
+        setState({ tagEdit: { ...s.tagEdit, cats: toggleCategory(s.tagEdit.cats, cat) } }),
+      setTagSev: (sev: string) => s.tagEdit && setState({ tagEdit: { ...s.tagEdit, sev } }),
       tagLocOptions: [
         // A location not on the assessment's list can be kept, not chosen again.
         ...(tagRow && !places.locations.some((l) => l.id === s.tagEdit?.locationId)
           ? [
               {
                 value: s.tagEdit!.locationId,
-                label: locationLabel({ name: tagRow.o.area, floor: tagRow.o.floor }),
+                label: placeOf(tagRow.o),
               },
             ]
           : []),
-        ...places.locations.map((l) => ({ value: l.id, label: locationLabel(l) })),
+        // In the picker's order: by building, then level (CP-16).
+        ...groupLocations(places.locations).flatMap((g) =>
+          g.levels.flatMap((level) =>
+            level.locations.map((l) => ({ value: l.id, label: locationLabel(l) })),
+          ),
+        ),
       ],
       tagStdOptions: [
         { value: '', label: 'None, let the draft find it' },
@@ -2024,37 +2533,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })),
       ],
       setTag:
-        (field: 'cat' | 'sev' | 'locationId' | 'std' | 'note') =>
+        (field: 'locationId' | 'std' | 'note') =>
         (e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement>) =>
           s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
       closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
       saveTags: () => void saveTags(),
-      ovStandards: openRow
-        ? (openRow.standards ?? []).map((name) => ({
-            icon: 'book-marked',
-            name,
-            detail: STANDARDS.find((t) => t.name === name)?.desc ?? '',
-          }))
-        : [
-            {
-              icon: 'book-marked',
-              name: 'FM Global 2-0',
-              detail: 'Installation of sprinkler systems',
-            },
-            {
-              icon: 'book-marked',
-              name: 'NFPA 13',
-              detail: 'Standard for the installation of sprinkler systems',
-            },
-            {
-              icon: 'file-text',
-              name: 'Tilbury survey 2023',
-              detail: 'Previous Marsh report, issued 14 Mar 2023',
-            },
-          ],
       isGenerate: isAssessment && s.tab === 'generate',
       isReview: isAssessment && s.tab === 'review',
       isExport: isAssessment && s.tab === 'export',
+      // Capture is part of the workspace, so it keeps the workspace's header,
+      // named from the capture session when one is live.
       eyebrow:
         sc === 'dashboard'
           ? 'Risk engineering'
@@ -2062,57 +2550,46 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ? s.cfEdit
               ? 'Assessment workspace'
               : 'New assessment'
-            : sc === 'field'
-              ? 'On site'
-              : sc === 'users' || sc === 'knowledge'
-                ? 'Administration'
-                : sc === 'usage'
-                  ? 'Reporting'
+            : sc === 'users' || sc === 'knowledge'
+              ? 'Administration'
+              : sc === 'usage'
+                ? 'Reporting'
+                : sc === 'chat'
+                  ? 'Knowledge'
                   : 'Assessment workspace',
       title:
         sc === 'dashboard'
-          ? 'Your assessments'
+          ? 'Assessments'
           : sc === 'create'
             ? s.cfEdit
               ? 'Edit assessment details'
               : 'Create assessment'
             : sc === 'field'
-              ? 'Site observation'
+              ? captureSite
               : sc === 'users'
                 ? 'User accounts'
                 : sc === 'knowledge'
                   ? 'Knowledge base'
                   : sc === 'usage'
                     ? 'Usage and costs'
-                    : s.captureTarget.site,
+                    : sc === 'chat'
+                      ? 'Ask the knowledge base'
+                      : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · ' + session.user.name
           : sc === 'create'
             ? 'Opening an assessment creates the report record and its drafting set.'
-            : sc === 'field'
-              ? captureSite +
-                ' · ' +
-                captureRef +
-                ' · ' +
-                fieldSaved +
-                (fieldSaved === 1 ? ' observation captured' : ' observations captured')
-              : sc === 'users'
-                ? 'Add your team’s accounts, and keep their details and roles up to date.'
-                : sc === 'knowledge'
-                  ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
-                  : sc === 'usage'
-                    ? 'What the AI calls cost, how much they were used, and how fast they ran.'
-                    : openRow
-                      ? [
-                          openRow.id,
-                          openRow.type,
-                          'Assessed ' + openRow.date,
-                          'Report due ' +
-                            (openRow.reportDueDate ? formatDay(openRow.reportDueDate) : 'Not set'),
-                          'Engineer ' + openRow.eng,
-                        ].join(' · ')
-                      : 'RPT-2026-0411 · Property risk survey · Assessed 11 Apr 2026 · Lead engineer A. Rowe',
+            : sc === 'users'
+              ? 'Add your team’s accounts, and keep their details and roles up to date.'
+              : sc === 'knowledge'
+                ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
+                : sc === 'usage'
+                  ? 'What the AI calls cost, how much they were used, and how fast they ran.'
+                  : sc === 'chat'
+                    ? 'Answers come from the standards and past reports in the knowledge base.'
+                    : // An assessment shows only its name; its details are in its Overview.
+                      '',
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
@@ -2132,28 +2609,22 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           count: fieldSaved,
         },
         {
-          value: 'photos',
-          label: 'Photos',
-          icon: 'image',
-          count: photoCollection.length,
-        },
-        {
           value: 'generate',
-          label: 'Report generation',
+          label: 'Generation',
           icon: 'sparkles',
         },
         {
           value: 'review',
           label: 'Review',
           icon: 'user-round-search',
-          // Drafting and review counts exist only for the demo assessment so far.
-          count: openRow ? undefined : live.length,
+          // Counts only for the demo's sample review, shown while it is not on the server.
+          count: isDemoCapture && !openRow?.persisted ? live.length : undefined,
         },
         {
           value: 'export',
-          label: 'Validation and export',
+          label: 'Export',
           icon: 'stamp',
-          count: openRow ? undefined : open.length,
+          count: isDemoCapture && !openRow?.persisted ? open.length : undefined,
         },
       ].filter((item) => canOpenTab(item.value, session)),
       toast: s.toast,
@@ -2192,32 +2663,30 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       filteredRows: filtered,
       noResults: filtered.length === 0,
       resultLabel: filtered.length + ' of ' + rows.length + ' assessments',
-      // The same open items the table's Items column shows, across your assessments.
-      openItemCount: rows.reduce((sum, r) => sum + openCount(r), 0),
-      // Observations captured in this browser that the gateway does not store yet.
-      unfiledCount: rows.reduce((sum, r) => sum + (s.captureObs[r.id]?.length ?? 0), 0),
-      reviewCount: rows.filter((row) => row.status === STATUS_LABEL.under_review).length,
+      // The boxes above the list: how many assessments each date filter matches,
+      // whatever the search and status filter, and the one filtering the list.
+      dateCounts: Object.fromEntries(
+        Object.entries(DATE_FILTERS).map(([key, matches]) => [key, rows.filter(matches).length]),
+      ) as Record<DateFilter, number>,
+      dateFilter: s.fDate,
+      // Selecting the box filtering the list again clears it.
+      toggleDateFilter: (filter: DateFilter) =>
+        setState({ fDate: s.fDate === filter ? null : filter }),
       listOffline: listFailed && !serverRows,
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id
         const row = rows.find((r) => r.id === id)
-        if (row)
-          setState({
-            screen: 'assessment',
-            tab: 'overview',
-            toast: null,
-            captureTarget: { reference: row.id, site: row.site },
-            // Filters name this assessment's locations and floors.
-            of: NO_FILTERS,
-            obsShowDeleted: false,
-            obsOpen: null,
-          })
+        if (!row) return
+        releaseDraft(row.id)
+        setState({
+          ...openAssessment({ reference: row.id, site: row.site }, s),
+          toast: null,
+        })
       },
       /* create */
       cfSite: s.cf.site,
       cfClient: s.cf.client,
       cfAddr: s.cf.addr,
-      cfRef: s.cf.ref,
       cfType: s.cf.type,
       cfSurvey: s.cf.survey,
       cfDate: s.cf.date,
@@ -2250,15 +2719,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cf: {
             ...s.cf,
             addr: e.target.value,
-          },
-        }),
-      setCfRef: (
-        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) =>
-        setState({
-          cf: {
-            ...s.cf,
-            ref: e.target.value,
           },
         }),
       setCfType: (
@@ -2325,21 +2785,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         'Business interruption',
         'Natural hazard review',
       ],
-      standards,
-      engineers,
       directoryError: directoryStatus === 'error',
       directoryLoading: directoryStatus === 'loading',
-      stdCountLabel: s.cf.stds.length + ' of 6 selected',
-      toggleStd: (v: string) => {
-        const has = s.cf.stds.includes(v)
-        setState({
-          cf: {
-            ...s.cf,
-            stds: has ? s.cf.stds.filter((x) => x !== v) : s.cf.stds.concat([v]),
-          },
-        })
-      },
-      selectEng: (id: string) => setState({ cf: { ...s.cf, eng: id } }),
+      hasDirectory: directory.length > 0,
+      engAssigned: assignedEng ? engChoice(assignedEng) : null,
+      engQuery: s.cf.engQuery,
+      setEngQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
+        setState({ cf: { ...s.cf, engQuery: e.target.value } }),
+      engResults: engMatches.slice(0, ENGINEER_MATCH_LIMIT).map(engChoice),
+      engResultLabel: !engQuery
+        ? ''
+        : engMatches.length === 0
+          ? 'No engineer matches "' + s.cf.engQuery.trim() + '".'
+          : engMatches.length > ENGINEER_MATCH_LIMIT
+            ? 'Showing ' +
+              ENGINEER_MATCH_LIMIT +
+              ' of ' +
+              engMatches.length +
+              ' matches. Keep typing to narrow it down.'
+            : engMatches.length === 1
+              ? '1 match'
+              : engMatches.length + ' matches',
+      // Choosing closes the matches: the search has done its job.
+      selectEng: (id: string) => setState({ cf: { ...s.cf, eng: id, engQuery: '' } }),
       createAssessment: async () => {
         if (s.cfBusy) return
         if (!s.cf.site.trim() || !s.cf.client.trim()) {
@@ -2391,44 +2859,43 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               facilityType: s.cf.type,
             },
             client: s.cf.client,
-            policyReference: s.cf.ref,
             surveyType: s.cf.survey,
             siteVisitDate: s.cf.date,
             reportDueDate: s.cf.due,
-            standards: s.cf.stds,
             engineerId: s.cf.eng,
           })
-          addCreatedRow(toRow(created))
+          const mine = created.engineer?.id === session.user.id
+          addCreatedRow(toRow(created), mine)
           toast(
             created.reference +
               ' created for ' +
               created.site.name +
-              (created.engineer?.id === session.user.id
-                ? '. Open it from the list to capture observations on site.'
-                : '. It will appear in the assigned engineer’s work list.'),
+              (mine ? '.' : '. It will appear in the assigned engineer’s work list.'),
           )
         } catch (error: unknown) {
           if (error instanceof GatewayError && error.status === null) {
             // Keep the demo usable without the gateway, and say nothing was saved.
             const id = `RPT-2026-${String(416 + s.createdRows.length).padStart(4, '0')}`
-            addCreatedRow({
-              id,
-              site: s.cf.site,
-              client: s.cf.client,
-              type: s.cf.survey,
-              date: formatDay(s.cf.date || null),
-              siteVisitDate: s.cf.date || null,
-              reportDueDate: s.cf.due || null,
-              engineerId: s.cf.eng || null,
-              standards: s.cf.stds,
-              eng: s.cf.eng
-                ? (directory.find((e) => e.id === s.cf.eng)?.name ??
-                  (s.cf.eng === session.user.id ? session.user.name : 'Unassigned'))
-                : 'Unassigned',
-              status: STATUS_LABEL.not_started,
-              sev: 'low',
-              open: 0,
-            })
+            addCreatedRow(
+              {
+                id,
+                site: s.cf.site,
+                client: s.cf.client,
+                type: s.cf.survey,
+                date: formatDay(s.cf.date || null),
+                siteVisitDate: s.cf.date || null,
+                reportDueDate: s.cf.due || null,
+                engineerId: s.cf.eng || null,
+                eng: s.cf.eng
+                  ? (directory.find((e) => e.id === s.cf.eng)?.name ??
+                    (s.cf.eng === session.user.id ? session.user.name : 'Unassigned'))
+                  : 'Unassigned',
+                status: STATUS_LABEL.not_started,
+                sev: 'low',
+                open: 0,
+              },
+              s.cf.eng === session.user.id,
+            )
             toast(
               'The gateway could not be reached, so ' +
                 id +
@@ -2450,9 +2917,27 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       /* field */
       capture: capture.state,
       retryCapture: capture.retry,
+      // Save waits for the session, so nothing is kept in this browser by
+      // being saved a moment too soon.
+      captureStarting: capture.state?.status === 'starting',
+      // Wide enough for the tags and Save in a panel beside the form.
+      captureSplit: !narrow,
       captureRef,
-      fSavedLabel: fieldSaved + ' saved',
-      fieldEmptyLabel: 'No observations captured for ' + captureRef + ' yet.',
+      // Back to the Observations tab, or to the workspace tab chosen.
+      leaveCapture: () => leaveCapture('observations'),
+      leaveCaptureTo: leaveCapture,
+      leaveOpen: sc === 'field' && s.fLeaveOpen,
+      unsavedLabel,
+      closeLeave: () => setState({ fLeaveOpen: false }),
+      discardAndLeave: () => {
+        dropDraftFiles()
+        setState({ ...BLANK_DRAFT, ...toTab(s.fLeaveTo) })
+      },
+      // The switcher shows what each mode holds, so nothing waits unseen
+      // behind another mode.
+      noteWritten,
+      voiceCount,
+      photoCount: s.fPhotos.length,
       isNoteMode: s.fMode === 'note',
       isVoiceMode: s.fMode === 'voice',
       isPhotoMode: s.fMode === 'photo',
@@ -2471,17 +2956,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           fMode: 'photo',
         }),
+      // One note per observation, saved exactly as typed in the box.
       fNote: s.fNote,
-      fNoteListed: s.fNoteListed,
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
-      // One note per observation: adding it moves it into the Ready to save list.
-      addNote: () =>
-        s.fNote.trim()
-          ? setState({ fNoteListed: true })
-          : setState({ fToast: { text: 'Write a note first.', warn: true } }),
-      editNote: () => setState({ fNoteListed: false, fMode: 'note' }),
-      removeNote: () => setState({ fNote: '', fNoteListed: false }),
       setFNote: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
@@ -2500,8 +2978,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             : 'Start recording',
       recHint: liveVoice
         ? s.fRec
-          ? 'Recording. Stop when you are done; it is added to the list below.'
-          : 'Record or upload as many as you need. Each one is transcribed when the observation is saved.'
+          ? 'Recording. Stop to add it below.'
+          : 'Each recording is transcribed once you save.'
         : s.fRec
           ? 'Simulating recording; your microphone is not accessed.'
           : s.fTransBusy
@@ -2547,12 +3025,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             fRec: false,
             fTransBusy: true,
           })
+          // Unless the draft was discarded in the meantime.
           later(
             () =>
-              setState({
-                fTransBusy: false,
-                fTrans: true,
-              }),
+              updateState((previous) =>
+                previous.fTransBusy ? { ...previous, fTransBusy: false, fTrans: true } : previous,
+              ),
             1200,
           )
         } else
@@ -2563,20 +3041,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })
       },
       hasTranscript: s.fTrans,
-      fTranscriptText:
-        'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.',
+      fTranscriptText: SAMPLE_TRANSCRIPT,
       transcriptToNote: () =>
         setState({
           fMode: 'note',
           fTrans: false,
-          fNoteListed: false,
-          fNote:
-            'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.',
+          fNote: SAMPLE_TRANSCRIPT,
         }),
       fPhotos: s.fPhotos,
       fPhotoError: s.fPhotoError,
       photoHint: liveCapture
-        ? 'Take a photograph or choose ones already on this device, as JPG or PNG. Each is stored exactly as taken; read them on the Observations tab for a proposed description.'
+        ? 'JPG or PNG, stored exactly as taken.'
         : 'No capture session, so photographs stay in this browser and are not uploaded.',
       // Photos taken on the device or chosen from it (CP-04 AC6). Anything
       // but a JPG or PNG is refused here with the gateway's reason (AC4); the
@@ -2606,48 +3081,142 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fPhotos: previous.fPhotos.filter((p) => p.id !== photo.id),
         }))
       },
-      readyCount: (s.fNoteListed ? 1 : 0) + s.fClips.length + s.fPhotos.length,
       /* location */
       locationLabel: currentLocation ? locationLabel(currentLocation) : null,
       locSheetOpen,
-      // Closing needs a location to go back to; otherwise the engineer leaves capture.
-      canCloseLocations: !!currentLocation,
       openLocations: () => setState({ locOpen: true }),
-      closeLocations: () =>
-        setState({ locOpen: false, locQuery: '', lfError: null, locRemove: null }),
+      closeLocations: () => setState(pickerClosed),
+      // The location bar opens the picker, or closes the dropdown it anchors.
+      toggleLocations: () => setState(locSheetOpen ? pickerClosed : { locOpen: true }),
       locQuery: s.locQuery,
       setLocQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
         setState({ locQuery: e.target.value }),
-      locations: places.locations
-        .filter((l) => !query || locationLabel(l).toLowerCase().includes(query))
-        .map((l) => {
-          const count = fieldRecent.filter((o) =>
-            o.locationId ? o.locationId === l.id : o.area === l.name,
-          ).length
-          return {
-            id: l.id,
-            label: locationLabel(l),
-            detail: count ? plural(count, 'observation') : '',
-            selected: l.id === s.fLocationId,
-            // Only a location with nothing saved in it can be removed, once confirmed.
-            remove: count ? undefined : () => setState({ locRemove: l.id }),
-          }
-        }),
+      // By building, then level, then elsewhere on site (CP-16). A group
+      // opens where the engineer is, or as they last left it this visit;
+      // while searching, every group with a match is open. One group alone
+      // has nothing to fold.
+      locationGroups: locationGroups.map((g) => {
+        const open =
+          !!query || locationGroups.length === 1 || (s.locGroups[g.key] ?? g.key === currentGroup)
+        return {
+          key: g.key,
+          title: g.title,
+          count: g.levels.reduce((n, level) => n + level.locations.length, 0),
+          open,
+          collapsible: !query && locationGroups.length > 1,
+          toggle: () => setState({ locGroups: { ...s.locGroups, [g.key]: !open } }),
+          levels: g.levels.map((level) => ({
+            title: level.title,
+            locations: level.locations.map((l) => {
+              const count = fieldRecent.filter((o) =>
+                o.locationId ? o.locationId === l.id : o.locationName === l.name,
+              ).length
+              return {
+                id: l.id,
+                name: l.name,
+                label: locationLabel(l),
+                detail: count ? plural(count, 'observation') : '',
+                selected: l.id === s.fLocationId,
+                // Only a location with nothing saved in it can be removed, once confirmed.
+                remove: count ? undefined : () => setState({ locRemove: l.id }),
+                // Changed by the assigned engineer, as observations are (CP-16).
+                edit: canChangeObs
+                  ? () =>
+                      setState({
+                        locAdding: true,
+                        locEdit: l.id,
+                        ...FORM_CLEAR,
+                        lf: {
+                          kind: l.building || l.floor ? 'building' : 'elsewhere',
+                          building: l.building ?? '',
+                          floor: l.floor ?? '',
+                          name: l.name,
+                        },
+                      })
+                  : undefined,
+              }
+            }),
+          })),
+        }
+      }),
+      locNoMatch: !!query && locationGroups.length === 0,
       noLocations: places.locations.length === 0,
+      // Choosing one leaves any half-filled form behind.
       chooseLocation: (id: string) =>
-        setState({ fLocationId: id, locOpen: false, locQuery: '', lfError: null }),
+        setState({
+          fLocationId: id,
+          locOpen: false,
+          locQuery: '',
+          locAdding: false,
+          locEdit: null,
+          ...FORM_CLEAR,
+        }),
       locAdding: s.locAdding || places.locations.length === 0,
+      locEditing: !!s.locEdit,
+      locEditId: s.locEdit,
+      // Starts from where the engineer is: the next location on the same
+      // level is one field to type. The search becomes its name.
       startAddLocation: () =>
         setState({
           locAdding: true,
-          lf: { ...s.lf, name: s.lf.name || s.locQuery.trim() },
-          lfError: null,
+          locEdit: null,
+          ...FORM_CLEAR,
+          lf: {
+            ...BLANK_LOCATION,
+            ...(currentLocation?.building
+              ? { building: currentLocation.building, floor: currentLocation.floor ?? '' }
+              : currentLocation && !currentLocation.floor && { kind: 'elsewhere' as const }),
+            name: s.locQuery.trim(),
+          },
+        }),
+      cancelLocationForm: () =>
+        setState({
+          locAdding: false,
+          locEdit: null,
+          lf: BLANK_LOCATION,
+          obsLocForm: false,
+          ...FORM_CLEAR,
         }),
       lf: s.lf,
-      setLf: (field: 'name' | 'floor') => (e: React.ChangeEvent<HTMLInputElement>) =>
-        setState({ lf: { ...s.lf, [field]: e.target.value }, lfError: null }),
+      setLfKind: (kind: LocationForm['kind']) =>
+        setState({ lf: { ...s.lf, kind }, lfErrors: {}, lfCheck: null }),
+      // Typing again drops the question about that field, and any choice to keep it.
+      setLf: (field: 'building' | 'floor' | 'name') => (e: React.ChangeEvent<HTMLInputElement>) =>
+        setState({
+          lf: { ...s.lf, [field]: e.target.value },
+          lfErrors: {},
+          lfCheck: null,
+          lfKept: { ...s.lfKept, [field]: undefined },
+        }),
+      // The question about a new building or level that looks mistyped: use
+      // the name it was probably meant to be, keep it as typed, or change it.
+      // Either of the first two carries on saving.
+      lfCheck: s.lfCheck,
+      acceptCheckedSuggestion: () =>
+        s.lfCheck?.suggestion &&
+        void submitLocation({ ...s.lf, [s.lfCheck.field]: s.lfCheck.suggestion }),
+      keepCheckedName: () =>
+        s.lfCheck && void submitLocation(s.lf, { ...s.lfKept, [s.lfCheck.field]: s.lfCheck.typed }),
+      changeCheckedName: () => setState({ lfCheck: null }),
+      // Names already used, so a building or level is spelt one way; for a
+      // level, those in the building typed first, then the usual ones.
+      buildingSuggestions: suggestions(places.locations.map((l) => l.building)),
+      levelSuggestions: suggestions(
+        [
+          ...places.locations
+            .filter((l) => sameName(l.building, s.lf.building))
+            .map((l) => l.floor),
+          ...places.locations.map((l) => l.floor),
+        ],
+        LEVEL_SUGGESTIONS,
+      ),
+      // Names already used on the site, then the usual ones (CP-16).
+      locationNameSuggestions: suggestions(
+        places.locations.map((l) => l.name),
+        LOCATION_NAMES,
+      ),
       lfBusy: s.lfBusy,
-      lfError: s.lfError,
+      lfErrors: s.lfErrors,
       /* the Remove this location? dialog */
       locRemoveLabel: (() => {
         const l = places.locations.find((x) => x.id === s.locRemove)
@@ -2656,73 +3225,55 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       closeLocRemove: () => setState({ locRemove: null }),
       confirmLocRemove: removeLocation,
       submitLocation: () => void submitLocation(),
-      fCat: s.fCat,
-      setFCat: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
-        setState({
-          fCat: e.target.value,
-        }),
-      catOptions: CATEGORY_OPTIONS,
-      catHint:
-        s.fCat === UNCATEGORISED
-          ? 'Report drafting leaves this observation out until it is categorised.'
-          : undefined,
-      sevCriticalStyle: chipStyle(s.fSev === 'critical', 'critical'),
-      sevHighStyle: chipStyle(s.fSev === 'high', 'high'),
-      sevModerateStyle: chipStyle(s.fSev === 'moderate', 'moderate'),
-      sevLowStyle: chipStyle(s.fSev === 'low', 'low'),
-      setFSev: (e: React.MouseEvent<HTMLElement>) =>
-        setState({
-          fSev: e.currentTarget.dataset.v || 'low',
-        }),
-      fStd: s.fStd,
-      stdOptions: [
-        { value: '', label: 'None, let the draft find it' },
-        ...STANDARD_REFERENCES.map((name) => ({ value: name, label: name })),
-      ],
-      setFStd: (e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>) =>
-        setState({
-          fStd: e.target.value,
-        }),
+      fCats: s.fCats,
+      toggleFCat: (cat: string) => setState({ fCats: toggleCategory(s.fCats, cat) }),
+      fSev: s.fSev,
+      setFSev: (fSev: string) => setState({ fSev }),
       fToast: s.fToast,
-      fRecent: fieldRecent,
       saveObservation: () => {
-        if (s.fSaving || s.fRec) return
+        if (s.fSaving || s.fRec || capture.state?.status === 'starting') return
         if (!currentLocation) {
           setState({ fToast: { text: 'Choose a location first.', warn: true }, locOpen: true })
           return
         }
         // With a capture session live, the note, recordings and photos are
-        // saved on the server as one observation.
+        // saved on the server as one observation; otherwise in this demo.
         const note = s.fNote.trim() ? s.fNote : undefined
-        if (liveCapture && (note || s.fClips.length || s.fPhotos.length)) {
-          void saveToGateway(currentLocation, note, s.fClips, s.fPhotos)
-          return
-        }
+        const live = !!liveCapture && !!(note || s.fClips.length || s.fPhotos.length)
         const text =
           s.fNote.trim() ||
-          (s.fTrans
-            ? 'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads in the north aisle of Bay 3.'
-            : '') ||
+          (s.fTrans ? SAMPLE_TRANSCRIPT : '') ||
           (s.fPhotos.length
             ? plural(s.fPhotos.length, 'photograph') + ' captured at ' + currentLocation.name + '.'
             : '')
-        if (!text) {
+        if (!live && !text) {
           setState({
             fToast: { text: 'Add a note, recording or photograph first.', warn: true },
           })
           return
         }
+        // Severity is what the report grades the finding by (CP-02), so it is
+        // always chosen, never assumed.
+        if (!s.fSev) {
+          setState({ fToast: { text: 'Choose a severity first.', warn: true } })
+          return
+        }
+        if (live) {
+          void saveToGateway(currentLocation, note, s.fClips, s.fPhotos)
+          return
+        }
         const entry: Observation = {
           icon: s.fMode === 'photo' ? 'camera' : s.fMode === 'voice' ? 'mic' : 'sticky-note',
           color: s.fMode === 'photo' ? '#4f9aee' : s.fMode === 'voice' ? '#8f7dff' : '#f9ac10',
-          cat: s.fCat,
+          cats: s.fCats,
           time: formatDayYearTime(new Date()),
           text,
-          area: currentLocation.name,
+          locationName: currentLocation.name,
+          building: currentLocation.building,
           locationId: currentLocation.id,
           floor: currentLocation.floor,
           sev: s.fSev,
-          std: s.fStd,
+          std: '',
           // Kept in this browser: the preview stays, as the demo never uploads it.
           // Its photos are read only when the engineer asks (CP-05).
           media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
@@ -2733,10 +3284,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ...(isDemoCapture
             ? { fRecent: [entry].concat(s.fRecent) }
             : { captureObs: { ...s.captureObs, [reference]: [entry].concat(localRecent) } }),
+          // Listed first, as local-0, so the Observations tab marks it New.
+          obsReturn: {
+            locationId: currentLocation.id,
+            ids: s.obsReturn?.ids ?? [],
+            local: (s.obsReturn?.local ?? 0) + 1,
+          },
+          obsFolded: { ...s.obsFolded, [groupKey(currentLocation)]: false },
           fNote: '',
-          fNoteListed: false,
           fPhotos: [],
           fTrans: false,
+          fCats: [],
+          fSev: '',
           fToast: { text: 'Observation added to ' + reference + '. It is kept in this demo only.' },
         })
         later(

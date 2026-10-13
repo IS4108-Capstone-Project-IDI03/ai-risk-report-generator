@@ -30,12 +30,11 @@ REQUEST = {
         "reference": "RPT-2026-0001",
         "jurisdiction": "Singapore",
         "facility_type": "Office",
-        "standards": ["FM Global 2-0"],
     },
     "observations": [
         {
             "id": "obs1",
-            "COPE_dimension": "Construction",
+            "COPE_dimension": ["Construction"],
             "note": "Riser shafts on L3 are not fire-stopped.",
             "transcripts": ["Curtain wall gaps filled with rock wool."],
             "severity": "high",
@@ -127,7 +126,7 @@ def test_draft_follows_the_template_order_and_records_provenance(monkeypatch):
     assert body["guardrail"] == {"passed": True, "unsupported_count": 0}
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"] == "gn01-v2.3"
+    assert provenance["prompt_version"] == "gn01-v2.4"
     assert provenance["template_version"] == "global-pre-v2.0-2026-02"
     assert provenance["effort"] == "high"
     assert provenance["generated_at"]
@@ -264,7 +263,7 @@ def test_other_categories_are_backup_evidence(monkeypatch):
     # A Protection finding can still support the Construction section.
     sprinklers = {
         "id": "obs2",
-        "COPE_dimension": "Protection",
+        "COPE_dimension": ["Protection"],
         "note": "Sprinkler heads obstructed by new mezzanine.",
     }
     queries, prompts = [], []
@@ -294,6 +293,35 @@ def test_other_categories_are_backup_evidence(monkeypatch):
     # Only the section's own observations steer the standards search.
     assert all("mezzanine" not in q for q in queries)
     assert response.json()["guardrail"]["passed"]
+
+
+def test_an_observation_under_several_categories_is_own_evidence_in_each(monkeypatch):
+    # Filed under Protection and Construction: own evidence for section 7, not backup.
+    both = {
+        "id": "obs2",
+        "COPE_dimension": ["Construction", "Protection"],
+        "note": "Sprinkler heads obstructed by new mezzanine.",
+    }
+    queries, prompts = [], []
+    monkeypatch.setattr(
+        "app.orchestrator.orchestrator.search",
+        lambda requests: queries.extend(q for q, _, _ in requests) or nothing_found(requests),
+    )
+    monkeypatch.setattr("app.generation.generator.complete", fake_complete(prompts, []))
+    body = {**REQUEST, "observations": [*REQUEST["observations"], both]}
+    client.post("/sections/draft", json=body)
+
+    own = prompts[0][1].split("<other_observations>")[0]
+    assert "mezzanine" in own and "category: Construction, Protection" in own
+    assert any("mezzanine" in q for q in queries)
+
+
+def test_one_category_sent_as_a_string_reads_as_a_list_of_one():
+    from app.api.routes import Observation
+
+    assert Observation(id="a", COPE_dimension="Protection").COPE_dimension == ["Protection"]
+    with pytest.raises(ValueError):
+        Observation(id="a", COPE_dimension=[])
 
 
 def test_standards_are_capped_keeping_each_observations_nearest(monkeypatch):
@@ -549,3 +577,92 @@ def test_rerank_maps_cohere_results_back_to_passages(monkeypatch):
     assert [(p["id"], p["relevance_score"]) for p in ranked] == [("c", 0.9), ("a", 0.4)]
     assert cohere.rerank.call_args.kwargs["documents"] == ["text a", "text b", "text c"]
     assert retriever.rerank("query", []) == []
+
+
+# Regenerating a section from the review workspace (RV-02 AC10).
+
+REDRAFT = {
+    "instruction": "Say more about the curtain wall.",
+    "current": [
+        {
+            "heading": "Construction Narrative",
+            "text": "Riser shafts on Level 3 were not fire-stopped.",
+            "decision": "edited",
+        },
+        {
+            "heading": "Construction Narrative",
+            "text": "The building is of fire-resistive construction.",
+            "decision": "rejected",
+        },
+    ],
+}
+
+
+def redraft(monkeypatch, redraft_body, subsections=()):
+    prompts = []
+    monkeypatch.setattr("app.config.LLM_EFFORT", "high")
+    monkeypatch.setattr("app.orchestrator.orchestrator.search", fake_search([]))
+    monkeypatch.setattr(
+        "app.generation.generator.complete", fake_complete(prompts, list(subsections))
+    )
+    response = client.post("/sections/draft", json={**REQUEST, "redraft": redraft_body})
+    return response, prompts
+
+
+def test_a_redraft_is_given_the_decisions_and_instruction_and_records_them(monkeypatch):
+    response, prompts = redraft(
+        monkeypatch,
+        REDRAFT,
+        [
+            Subsection(
+                heading="Construction Narrative",
+                statements=[
+                    Statement(text="Curtain wall gaps hold rock wool.", citations=["O1"]),
+                    Statement(text="Quoting the saved draft.", citations=[]),
+                ],
+            )
+        ],
+    )
+    assert response.status_code == 200
+    system, user, _ = prompts[0]
+    # The rules for using the saved draft and the instruction come after the usual prompt.
+    assert "This is a redraft" in system
+    assert "Do not repeat what rejected statements say" in system
+    # The saved draft, with each decision, and the instruction come after the evidence.
+    evidence, redrafting = user.split("<current_draft>")
+    assert "[O1]" in evidence and "Say more" not in evidence
+    assert "[edited] Construction Narrative: Riser shafts on Level 3" in redrafting
+    assert "[rejected] Construction Narrative: The building is of fire-resistive" in redrafting
+    assert "<engineer_instruction>\nSay more about the curtain wall.\n</engineer_instruction>" in (
+        redrafting
+    )
+    body = response.json()
+    # The citation check is the same: the saved draft is not evidence.
+    statements = body["subsections"][0]["statements"]
+    assert [s["supported"] for s in statements] == [True, False]
+    assert statements[0]["citations"] == ["O:obs1"]
+    # The prompt it came from, and what the engineer asked for (GN-01 AC10).
+    assert body["provenance"]["prompt_version"] == "gn01-v2.4+rv02-v1"
+    assert body["provenance"]["instruction"] == "Say more about the curtain wall."
+
+
+def test_a_redraft_without_an_instruction_says_none(monkeypatch):
+    response, prompts = redraft(monkeypatch, {"current": REDRAFT["current"], "instruction": "  "})
+    assert response.status_code == 200
+    assert "<engineer_instruction>\nnone\n</engineer_instruction>" in prompts[0][1]
+    assert response.json()["provenance"]["instruction"] is None
+
+
+def test_a_first_draft_prompt_is_unchanged_by_redrafting(monkeypatch):
+    _, _, prompts = draft(monkeypatch, [])
+    system, user, _ = prompts[0]
+    assert "This is a redraft" not in system
+    assert "<current_draft>" not in user and "<engineer_instruction>" not in user
+
+
+def test_a_redraft_is_checked_before_drafting(monkeypatch):
+    monkeypatch.setattr("app.orchestrator.orchestrator.search", nothing_found)
+    unknown = {"current": [{**REDRAFT["current"][0], "decision": "maybe"}]}
+    assert client.post("/sections/draft", json={**REQUEST, "redraft": unknown}).status_code == 422
+    too_long = {"instruction": "x" * 1001}
+    assert client.post("/sections/draft", json={**REQUEST, "redraft": too_long}).status_code == 422

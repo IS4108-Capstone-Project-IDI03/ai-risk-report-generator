@@ -1,0 +1,18 @@
+/* The knowledge assistant screen (CB-01). Fits OpenUI's chat screen into the
+   app's content area and type (docs/design-system.md). */
+
+/* OpenUI sizes its chat screen to the whole window (100dvw x 100dvh); without
+   this it runs under the page header and off the right edge. */
+.knowledge-assistant {
+  height: 100%;
+}
+.knowledge-assistant .openui-agent-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* OpenUI's type tokens name Inter outright, so its theme's font setting
+   doesn't reach them. Plex Sans for UI text; code keeps the mono face. */
+.knowledge-assistant :not(code, pre, kbd, samp) {
+  font-family: var(--font-sans);
+}

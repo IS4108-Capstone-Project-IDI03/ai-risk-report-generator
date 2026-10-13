@@ -1,21 +1,31 @@
+import { ObservationExcerpt } from './components/ObservationExcerpt'
+import { DraftView } from './screens/SectionDrafts'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { ReportSection, SavedObservation, SectionDraft } from './api'
 import { describeChanges } from './reviewDisplay'
+
+// jsdom does not implement native modal dialogs.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
 
 const REF = 'RPT-2026-0001'
 const RECORD = {
   id: '6ab39003058299a45f20c9d4',
   reference: REF,
   client: 'Straits Logistics',
-  policyReference: null,
   surveyType: 'Property risk survey',
   siteVisitDate: '2026-04-21',
   reportDueDate: '2026-05-02',
-  standards: ['FM Global 2-0'],
   engineer: { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' },
   status: 'ready_to_generate',
   captureStartedAt: '2026-09-23T09:05:00.000Z',
@@ -31,10 +41,10 @@ const RECORD = {
 const RISER: SavedObservation = {
   id: 'o1',
   engineer: 'Alex Rowe',
-  copeDimension: 'Construction',
+  copeDimensions: ['Construction'],
   standard: null,
   severity: 'high',
-  location: { id: 'l1', name: 'Riser B', floor: 'Level 3' },
+  location: { id: 'l1', building: null, name: 'Riser B', floor: 'Level 3' },
   note: 'Riser shaft not fire-stopped at L3.',
   recordings: [
     {
@@ -136,7 +146,7 @@ function mockGateway(
   const drafted: string[] = []
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (url === '/api/assessments') return json(200, [RECORD])
-    if (url === `/api/assessments/${REF}/observations`) return json(200, [RISER])
+    if (url.startsWith(`/api/assessments/${REF}/observations`)) return json(200, [RISER])
     if (url === `/api/assessments/${REF}/sections`) return json(200, sections)
     // The Section 3 OFI block on the same tab (GN-05), with nothing drafted.
     if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
@@ -157,7 +167,7 @@ async function openGenerateTab() {
     (b) => b.getAttribute('data-id') === REF,
   )!
   fireEvent.click(row)
-  fireEvent.click(screen.getByRole('tab', { name: /Report generation/ }))
+  fireEvent.click(screen.getByRole('tab', { name: /Generation/ }))
   await screen.findByText('Draft sections 7 to 12')
 }
 
@@ -166,7 +176,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it("drafts a section of a saved assessment and shows each statement's evidence (GN-01)", async () => {
+it('drafts a section of a saved assessment and shows the draft without its citations (GN-01)', async () => {
   const drafted = mockGateway(() => json(201, DRAFT))
   await openGenerateTab()
 
@@ -196,19 +206,12 @@ it("drafts a section of a saved assessment and shows each statement's evidence (
   expect(screen.getByText(/completed from measured values/)).toBeInTheDocument()
   expect(screen.getByText(/No evidence covers this subsection/)).toBeInTheDocument()
 
-  // Each citation opens its observation or standard passage (AC4).
-  fireEvent.click(screen.getByRole('button', { name: /3 sources/ }))
-  const evidence = screen
-    .getByText('Riser shaft not fire-stopped at L3.')
-    .closest('div')!.parentElement!
-  expect(within(evidence).getByText('Riser B, Level 3')).toBeInTheDocument()
-  // A note and a voice transcript are both shown, since the draft may cite either.
-  expect(within(evidence).getByText('Note')).toBeInTheDocument()
-  expect(within(evidence).getByText('Voice transcript · Recording 1')).toBeInTheDocument()
-  expect(within(evidence).getByText('the gap is around the cable tray')).toBeInTheDocument()
-  expect(screen.getByText('FM 1-21 › Fire stopping')).toBeInTheDocument()
-  expect(screen.getByText('p. 4–5')).toBeInTheDocument()
-  expect(screen.getByText('This citation could not be found')).toBeInTheDocument()
+  // Citations and their sources are read in Review (RV-01); Generation only
+  // generates (Miya, 12 Oct), so the draft shows no markers and no sources.
+  const draft = screen.getByRole('region', { name: '7. Construction draft' })
+  expect(draft.querySelector('sup')).toBeNull()
+  expect(within(draft).queryByRole('button', { name: /sources?$/ })).toBeNull()
+  expect(screen.queryByText('This citation could not be found')).toBeNull()
 
   // A drafted section can be drafted again; with nothing else draftable, the
   // whole-report button is gone.
@@ -217,6 +220,16 @@ it("drafts a section of a saved assessment and shows each statement's evidence (
   expect(screen.queryByRole('button', { name: /Draft (all|remaining) sections/ })).toBeNull()
   expect(screen.getByText(/1 of 1 section drafted · 1 needs attention/)).toBeInTheDocument()
 }, 15_000) // Many role queries over the whole app; slow when every test file runs at once.
+
+it('fills the width with a draft opened on Generation, rather than holding it to prose width', async () => {
+  mockGateway(() => json(201, DRAFT))
+  await openGenerateTab()
+  fireEvent.click(screen.getByRole('button', { name: 'Draft section' }))
+
+  const draft = await screen.findByRole('region', { name: '7. Construction draft' })
+  // The AI draft box caps prose at --measure-prose unless told to fill its width.
+  expect(draft.querySelector('[style*="measure-prose"]')).toBeNull()
+})
 
 it('names the reason when a section could not be drafted', async () => {
   mockGateway(() =>
@@ -302,4 +315,41 @@ it('describes each kind of change and never mentions a kind with none (CP-08)', 
     [{ added: 0, changed: 0, removed: 0 }, ''],
   ] as const
   for (const [counts, text] of cases) expect(describeChanges(counts)).toBe(text)
+})
+
+it('embeds no photos and opens no sources in a draft on Generation; Review shows them', () => {
+  render(<DraftView draft={DRAFT} />)
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /sources?$/ })).not.toBeInTheDocument()
+})
+
+it('shows the corrected transcript in draft evidence and keeps the original behind a toggle', () => {
+  render(
+    <ObservationExcerpt
+      observation={{
+        ...RISER,
+        recordings: [
+          {
+            ...RISER.recordings[0],
+            transcription: {
+              ...RISER.recordings[0].transcription,
+              transcript: 'I found a leaf unable to use.',
+              correction: {
+                text: 'I found a lift unable to use.',
+                at: '2026-10-10T05:59:27Z',
+                by: { id: 'e1', name: 'Alex' },
+              },
+            },
+          },
+        ],
+      }}
+    />,
+  )
+  expect(screen.getByText('I found a lift unable to use.')).toBeInTheDocument()
+  expect(screen.getByText('Corrected voice transcript · Recording 1')).toBeInTheDocument()
+  expect(screen.queryByText('I found a leaf unable to use.')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Show original transcript' }))
+  expect(screen.getByText('I found a leaf unable to use.')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Hide original transcript' }))
+  expect(screen.queryByText('I found a leaf unable to use.')).not.toBeInTheDocument()
 })

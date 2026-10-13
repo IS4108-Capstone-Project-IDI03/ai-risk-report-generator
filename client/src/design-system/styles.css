@@ -107,3 +107,21 @@
 .ds-tabs > button {
   white-space: nowrap;
 }
+/* Compact tabs show only their icons (and counts) on narrow screens, each a
+   comfortable tap target; the label stays as the tab's accessible name. */
+@media (max-width: 760px) {
+  .ds-tabs-compact {
+    gap: var(--space-4) !important;
+  }
+  .ds-tabs-compact .ds-tab-label {
+    display: none;
+  }
+  .ds-tabs-compact [role='tab'] {
+    min-width: 44px;
+    justify-content: center;
+  }
+  .ds-tabs-compact [role='tab'] > span:first-child {
+    width: 18px !important;
+    height: 18px !important;
+  }
+}

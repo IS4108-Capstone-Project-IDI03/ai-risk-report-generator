@@ -5,6 +5,8 @@ record text. The OCR call is faked so the crop/guard/return contract is exercise
 without a model or a network. A one-page PDF is generated per test.
 """
 
+import logging
+
 import pymupdf
 import pytest
 
@@ -99,3 +101,48 @@ def test_ocr_failure_returns_none(pdf_path, monkeypatch):
     monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: None)
     # A table the model could not read is dropped, not indexed empty.
     assert parse(pdf_path) is None
+
+
+# --- numeric guard (log-only) -------------------------------------------------
+# Every number the provider returns should appear in the page's own text inside
+# the same box. Numbers that don't are logged with the page; the reading is kept.
+
+NUMBERS_BOX = (40, 60, 260, 140)  # top-left origin, around the printed rows
+
+
+@pytest.fixture
+def numbers_pdf(tmp_path):
+    doc = pymupdf.open()
+    page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+    page.insert_text((50, 80), "Temp  Volume")
+    page.insert_text((50, 100), "70  2.2075")
+    page.insert_text((50, 120), "80  2.2538")
+    out = tmp_path / "numbers.pdf"
+    doc.save(str(out))
+    doc.close()
+    return str(out)
+
+
+def test_a_number_missing_from_the_pdf_is_logged_and_the_reading_kept(
+    numbers_pdf, monkeypatch, caplog
+):
+    reading = "Temp: 70; Volume: 2.2075\nTemp: 80; Volume: 2.2583"  # 2.2583 is misread
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: reading)
+
+    with caplog.at_level(logging.WARNING):
+        result = parse(numbers_pdf, bbox=NUMBERS_BOX, coord_origin="TOPLEFT")
+
+    assert result == reading
+    assert "page 1" in caplog.text and "2.2583" in caplog.text
+    assert "2.2538" not in caplog.text
+
+
+def test_a_region_without_a_text_layer_is_not_checked(numbers_pdf, monkeypatch, caplog):
+    # A scanned page has no text to compare with: no warning, whatever was read.
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: "Temp: 70")
+
+    with caplog.at_level(logging.WARNING):
+        result = parse(numbers_pdf, bbox=(40, 200, 260, 300), coord_origin="TOPLEFT")
+
+    assert result == "Temp: 70"
+    assert caplog.text == ""

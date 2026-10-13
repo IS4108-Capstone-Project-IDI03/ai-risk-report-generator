@@ -15,25 +15,38 @@ dependencies = [
     "cohere>=5.20,<6",
     "chromadb-client==1.5.5",
     "docling[ocrmac,rapidocr]>=2.0,<3",
-    # nemotron-ocr is declared directly (not via docling's feat-ocr-nemotron extra)
-    # because older docling releases don't forward that extra name. The platform
-    # marker ensures it only resolves on Linux x86_64 Python 3.12 where it's available.
-    # Requires torch~=2.11.0 — ensure the base image provides a compatible torch.
-    "nemotron-ocr>=2.0.0; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
     "pymupdf>=1.28.2",
-    "glmocr>=0.1.5",
     "opencv-python-headless>=5.0.0.93",
     "bullmq>=3.2.8",
     "pymongo>=4.18.2",
     "boto3>=1.43.104",
     "onnxruntime>=1.30.0",
     "httpx>=0.28",
+    "google-genai>=1.50",
+    "anthropic>=1.0",
 ]
 
 [tool.setuptools]
 packages = ["app"]
 
 [project.optional-dependencies]
+# Docker images pick one of cpu / gpu (they conflict) and optionally local-ocr:
+#   cloud (default compose):  --extra cpu
+#   docker-compose.local-ocr.yml:  --extra cpu --extra local-ocr
+#   + docker-compose.gpu.yml:  --extra gpu --extra local-ocr
+# cpu takes torch from PyTorch's CPU-only index on Linux, which leaves out the
+# multi-GB nvidia-* CUDA wheels that PyPI's Linux torch pulls in.
+cpu = ["torch", "torchvision"]
+gpu = [
+    "torch",
+    "torchvision",
+    # Declared directly (not via docling's feat-ocr-nemotron extra) because older
+    # docling releases don't forward that extra name. Linux x86_64 Python 3.12
+    # only; needs torch~=2.11 with CUDA, which PyPI's Linux wheels provide.
+    "nemotron-ocr>=2.0.0; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+# Self-hosted GLM-OCR via Ollama (OCR_PROVIDER=glm); the cloud image leaves it out.
+local-ocr = ["glmocr>=0.1.5"]
 dev = [
     "ruff>=0.7",        # uvx ruff check .  ; uvx ruff format . 
     "black>=24.10",     # uvx black .
@@ -53,6 +66,8 @@ dev = [
     # Lets Python verify TLS against the OS trust store, so Hugging Face model
     # downloads work behind a TLS-inspecting proxy. See tests/conftest.py.
     "truststore==0.10.4",
+    # The GLM provider's tests exercise glmocr's config loading.
+    "glmocr>=0.1.5",
 ]
 
 [tool.uv]
@@ -66,6 +81,17 @@ environments = [
     "sys_platform == 'linux' and platform_machine == 'aarch64'",
     "sys_platform == 'darwin'",
 ]
+
+conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", extra = "cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", extra = "cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.ruff]
 line-length = 100
@@ -85,11 +111,12 @@ target-version = ["py311"]
 # Run them explicitly with:  pytest -m slow   (or -m "slow or not slow" for all)
 # -rs always prints skip reasons: the Docling fixtures skip on any environment
 # failure, and a bare "s" hides why (e.g. a TLS/model-download problem).
-addopts = "-rs -m 'not slow and not inspect and not model and not e2e and not chroma'"
+addopts = "-rs -m 'not slow and not inspect and not model and not e2e and not chroma and not live'"
 markers = [
     "slow: full-document Docling parse; opt in with -m slow (minutes on CPU)",
     "inspect: dumps chunk text/metadata for manual inspection; opt in with -m inspect -s",
     "model: requires local Docling model weights and the fixture PDF",
     "e2e: full pipeline end-to-end; requires Docling models and the fixture PDF",
     "chroma: needs the local Chroma server (docker compose up chroma); opt in with -m chroma",
+    "live: calls a paid OCR API (Gemini) with real crops; needs GEMINI_API_KEY; opt in with -m live -s",
 ]

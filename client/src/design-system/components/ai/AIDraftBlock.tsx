@@ -17,6 +17,8 @@ export type AIDraftBlockProps = {
   onEdit?: () => void
   onShowEvidence?: () => void
   style?: React.CSSProperties
+  // Lets the body use the box's full width, for a table rather than prose.
+  fullWidth?: boolean
 }
 import { useState } from 'react'
 const STATUS: Record<string, { tone: string; label: string; icon: string }> = {
@@ -53,6 +55,7 @@ function AIDraftBlock({
   onEdit,
   onShowEvidence,
   style = {},
+  fullWidth = false,
 }: AIDraftBlockProps) {
   const [hover, setHover] = useState(false)
   const s = STATUS[status] || STATUS.draft
@@ -110,7 +113,7 @@ function AIDraftBlock({
           fontSize: 'var(--text-body-lg-size)',
           lineHeight: 'var(--text-body-lg-lh)',
           color: 'var(--text-body)',
-          maxWidth: 'var(--measure-prose)',
+          maxWidth: fullWidth ? 'none' : 'var(--measure-prose)',
         }}
       >
         {children}
@@ -126,25 +129,28 @@ function AIDraftBlock({
           transition: 'opacity var(--duration-fast) var(--ease-standard)',
         }}
       >
-        <button
-          type={'button'}
-          onClick={onShowEvidence}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 'var(--space-3)',
-            border: 'none',
-            background: 'transparent',
-            padding: 0,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            fontSize: 'var(--text-small-size)',
-            color: 'var(--text-link)',
-          }}
-        >
-          <Icon name={'link'} size={13} />
-          {evidenceCount + (evidenceCount === 1 ? ' source' : ' sources')}
-        </button>
+        {/* Only where there are sources to open: none shows on a view without them. */}
+        {onShowEvidence ? (
+          <button
+            type={'button'}
+            onClick={onShowEvidence}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: 'var(--text-small-size)',
+              color: 'var(--text-link)',
+            }}
+          >
+            <Icon name={'link'} size={13} />
+            {evidenceCount + (evidenceCount === 1 ? ' source' : ' sources')}
+          </button>
+        ) : null}
         <span
           style={{
             flex: 1,

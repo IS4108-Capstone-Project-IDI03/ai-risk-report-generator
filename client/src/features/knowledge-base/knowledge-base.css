@@ -212,18 +212,11 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 3px;
 }
 .kb-status-line {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-}
-/* In the Recent uploads table the Status column is centred. */
-.kb-uploaded table .kb-status {
-  align-items: center;
-  text-align: center;
 }
 .kb-status-reason {
   max-width: 36ch;
@@ -232,12 +225,11 @@
   color: var(--status-critical-fg);
 }
 
-/* Live ingestion detail under the stage badge (E2): elapsed time, and while
-   chunking, a running chunk count with a thin progress bar. */
+/* Live ingestion detail stays subordinate to the stage badge (E2). */
 .kb-stage-detail {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   font-size: var(--text-caption-size);
   color: var(--text-secondary);
 }
@@ -247,6 +239,11 @@
 }
 .kb-page-count {
   font-family: var(--font-mono);
+}
+.kb-stack-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
 }
 .kb-link {
   color: var(--text-link);

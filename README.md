@@ -64,7 +64,7 @@ Creating an assessment, the dashboard list and capturing on site are the
 exceptions. The dashboard lists assessments from the gateway, with the sample
 rows as a fallback when it cannot be reached, and shows only the assessments
 the engineer is assigned to. New assessment saves the assessment through the
-gateway; opening it from the dashboard opens its workspace, and Site observation
+gateway; opening it from the dashboard opens its workspace, and Add observation
 from there starts its capture session. Only `RPT-2026-0411` has sample workspace
 content; seed it with `npm --prefix server run seed`. Without the gateway, a new assessment is kept in
 the demo only and capture shows sample data, and both say so. Capture starts by
@@ -89,7 +89,11 @@ to its assigned engineer only, and stay in the demo for a sample one. A saved as
 its Review tab is the review workspace (RV-01): each section's completion and
 review state, its draft, and beside it each cited passage with its page,
 document title, edition, effective date and any withdrawal, the original
-observations and every claim.
+observations and every claim. There the assigned engineer accepts, edits or
+rejects each finding, bulk accepts a section's pending findings, and
+regenerates a section with an instruction as a replacement to accept or
+discard (RV-02); every decision is kept in an append-only audit log, shown as
+each section's review history, and the rail totals the decisions.
 
 ## Running the stack locally
 

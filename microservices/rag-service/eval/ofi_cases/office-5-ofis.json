@@ -5,8 +5,7 @@
  "assessment": {
   "reference": "EVAL-OFFICE-5",
   "jurisdiction": "SG",
-  "facility_type": "Office",
-  "standards": []
+  "facility_type": "Office"
  },
  "observations": [
   {

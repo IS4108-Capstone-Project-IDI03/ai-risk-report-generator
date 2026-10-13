@@ -34,6 +34,28 @@ async function callRag<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
+/** S4's event stream for one chat request (CB-01), for the chat route to pass on. */
+export async function openChatStream(
+  body: unknown,
+  signal: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  let response: Response
+  try {
+    response = await fetch(`${config.ragServiceUrl}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    })
+  } catch {
+    throw new RagServiceError('The chat service could not be reached.')
+  }
+  if (!response.ok || !response.body) {
+    throw new RagServiceError(`The chat service failed with status ${response.status}.`)
+  }
+  return response.body
+}
+
 // The report template's sections 7-12 and what each needs, as S4 holds them.
 export type TemplateSection = {
   id: string
@@ -67,6 +89,8 @@ export type SectionDraftResult = {
     prompt_version: string
     template_version: string
     generated_at: string
+    // What the engineer asked a regenerated draft to change (RV-02), or null.
+    instruction?: string | null
   }
 }
 
@@ -109,6 +133,23 @@ export type OfiDraftResult = {
 
 export async function requestOfiDraft(body: unknown): Promise<OfiDraftResult> {
   return callRag<OfiDraftResult>('/ofis/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+// What S4 sends back for Section 2's Executive Summary (see rag-service POST
+// /summary/draft, GN-07): its statements, each citing sections as `S:<id>`.
+export type SummaryDraftResult = {
+  statements: { text: string; citations: string[]; supported: boolean }[]
+  guardrail: SectionDraftResult['guardrail']
+  usage?: unknown
+  provenance: SectionDraftResult['provenance']
+}
+
+export async function requestSummaryDraft(body: unknown): Promise<SummaryDraftResult> {
+  return callRag<SummaryDraftResult>('/summary/draft', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

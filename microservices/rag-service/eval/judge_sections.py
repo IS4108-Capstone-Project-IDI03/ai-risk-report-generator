@@ -139,10 +139,11 @@ def _evidence_text(case: dict, sources: dict) -> str:
     # Observations under other COPE categories are backup the draft may use, not
     # evidence it must cover (rubric-v2.3).
     own = TEMPLATE["sections"][case["section_id"]]["cope_dimensions"]
+    observations = [Observation(**o) for o in case["observations"]]
     lines = [
-        f"- O{n} ({'main' if o['COPE_dimension'] in own else 'backup'} observation, "
-        f"{o['COPE_dimension']}, {o.get('location')}): {o['note']}"
-        for n, o in enumerate(case["observations"], 1)
+        f"- O{n} ({'main' if any(c in own for c in o.COPE_dimension) else 'backup'} "
+        f"observation, {', '.join(o.COPE_dimension)}, {o.location}): {o.note}"
+        for n, o in enumerate(observations, 1)
     ]
     lines += [
         f"- C{n} (standard passage, {' > '.join((s.get('headings') or [])[-2:])}, "

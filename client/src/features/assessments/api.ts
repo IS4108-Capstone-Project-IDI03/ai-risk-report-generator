@@ -4,12 +4,10 @@
 export type NewAssessment = {
   site: { name: string; address?: string; jurisdiction: string; facilityType: string }
   client: string
-  policyReference?: string
   surveyType: string
   // YYYY-MM-DD, or '' when not scheduled.
   siteVisitDate?: string
   reportDueDate?: string
-  standards: string[]
   // The assigned engineer's user ID.
   engineerId: string
 }
@@ -29,11 +27,9 @@ export type Assessment = {
   id: string
   reference: string
   client: string
-  policyReference: string | null
   surveyType: string
   siteVisitDate: string | null
   reportDueDate: string | null
-  standards: string[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
   // When its latest capture session started; null before capture starts.
@@ -115,16 +111,25 @@ export type SavedInterpretation = {
   // or removed since (CP-08).
   outOfDate: boolean
 }
-// A place on site the engineer records observations in.
-export type SiteLocation = { id: string; name: string; floor: string | null }
+// A place on site the engineer records observations in (CP-16): in a
+// building, with an optional level, or elsewhere on site, with no building or
+// level. One saved before CP-16 may have a level but no building.
+export type SiteLocation = {
+  id: string
+  building: string | null
+  floor: string | null
+  name: string
+}
+// What the engineer gives for a new or changed location; blank ones are left out.
+export type LocationDetails = { building?: string; floor?: string; name: string }
 
 // An observation saved on the server: any of a note (CP-02), recordings
 // (CP-03) and photos (CP-04).
 export type SavedObservation = {
   id: string
   engineer: string
-  // null when not categorised yet.
-  copeDimension: string | null
+  // Its categories in C-O-P-E order; null when not categorised yet.
+  copeDimensions: string[] | null
   standard: string | null
   severity: string
   // null only if the location is no longer listed.
@@ -233,9 +238,9 @@ export async function listAssignableEngineers(signal?: AbortSignal): Promise<Ass
 }
 
 // Creates the assessment and its site; the server allocates the reference.
-// Corrects an assessment's details (RV-10 AC10). The engineer, policy
-// reference and standards are not part of it: they stay as created.
-export type AssessmentDetails = Omit<NewAssessment, 'engineerId' | 'policyReference' | 'standards'>
+// Corrects an assessment's details (RV-10 AC10). The engineer is not part of
+// it: it stays as created.
+export type AssessmentDetails = Omit<NewAssessment, 'engineerId'>
 export async function updateAssessment(
   reference: string,
   details: AssessmentDetails,
@@ -275,14 +280,14 @@ const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
 // Saves one observation, with its note, recordings and photos, to the
-// assessment's active capture session. A null copeDimension leaves it
+// assessment's active capture session. Null copeDimensions leave it
 // uncategorised. The server stores each file and starts each recording's
 // initial transcription.
 export async function saveObservation(
   reference: string,
   details: {
     note?: string
-    copeDimension: string | null
+    copeDimensions: string[] | null
     severity: string
     locationId: string
     standard?: string
@@ -311,12 +316,12 @@ export async function listObservations(
 const observationPath = (id: string) => `/api/observations/${encodeURIComponent(id)}`
 
 // Changes a saved observation's tags (CP-06) or note (CP-08). A field left out
-// stays as it is; a null copeDimension uncategorises it, and a null standard
+// stays as it is; null copeDimensions uncategorise it, and a null standard
 // or note removes it.
 export async function updateObservation(
   id: string,
   changes: {
-    copeDimension?: string | null
+    copeDimensions?: string[] | null
     severity?: string
     locationId?: string
     standard?: string | null
@@ -410,12 +415,28 @@ export async function listLocations(
   return (await request<SiteLocation[]>('GET', locationsPath(reference), undefined, signal)).data
 }
 
-// Adds a location; 409 when the same name and floor is already listed.
+// Adds a location; 409 when the same name, level and building is already listed.
 export async function addLocation(
   reference: string,
-  location: { name: string; floor?: string },
+  location: LocationDetails,
 ): Promise<SiteLocation> {
   return (await request<SiteLocation>('POST', locationsPath(reference), location)).data
+}
+
+// Changes a location's building, level or name (CP-16); 403 for anyone but the
+// assigned engineer, 409 once archived or when another location has them.
+export async function editLocation(
+  reference: string,
+  id: string,
+  location: LocationDetails,
+): Promise<SiteLocation> {
+  return (
+    await request<SiteLocation>(
+      'PATCH',
+      `${locationsPath(reference)}/${encodeURIComponent(id)}`,
+      location,
+    )
+  ).data
 }
 
 // Removes a location; 409 while it has observations.
@@ -450,6 +471,8 @@ export type SectionDraft = {
     prompt_version: string
     template_version: string
     generated_at: string
+    // What the engineer asked a regenerated draft to change (RV-02), or null.
+    instruction?: string | null
   }
   createdAt: string
 }
@@ -549,7 +572,63 @@ export async function draftSection(reference: string, sectionId: string): Promis
 }
 
 export type CompletionState = 'not_started' | 'partial' | 'complete'
-export type ReviewState = 'not_drafted' | 'ai_draft' | 'needs_review'
+// `needs_review` comes from the draft's own checks and wins over the rest;
+// otherwise the engineer's decisions (RV-02) decide: `ai_draft` while every
+// finding is pending, `in_review` once some are decided, `reviewed` once none
+// is pending.
+export type ReviewState = 'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'needs_review'
+
+// A generated finding's review decision (RV-02). Rejected findings are out of
+// the draft, kept in the review history.
+export type FindingState = 'pending' | 'accepted' | 'edited' | 'rejected'
+export type FindingCounts = { total: number } & Record<FindingState, number>
+
+// One finding: a statement of the draft with the engineer's decision on it.
+export type ReviewStatement = {
+  // The text now: the engineer's wording once edited.
+  text: string
+  // What the draft says.
+  generatedText: string
+  citations: string[]
+  supported: boolean
+  // at and by are null while no decision has been made.
+  review: { state: FindingState; at: string | null; by: { id: string; name: string } | null }
+}
+export type ReviewDraft = Omit<SectionDraft, 'sources' | 'subsections'> & {
+  subsections: {
+    heading: string
+    kind: 'narrative' | 'fields' | 'table'
+    statements: ReviewStatement[]
+  }[]
+}
+
+// One entry of the immutable review audit log (RV-02).
+export type ReviewAction =
+  | 'accept'
+  | 'edit'
+  | 'reject'
+  | 'restore'
+  | 'regenerate'
+  | 'accept_replacement'
+  | 'discard_replacement'
+export type ReviewHistoryEntry = {
+  id: string
+  // The draft decided on: the saved one, a replacement, or an earlier draft.
+  draftId: string
+  action: ReviewAction
+  // `<subsection>.<statement>` of the finding; null for a whole draft.
+  finding: string | null
+  heading: string | null
+  // The text before the decision, and the engineer's text for an edit.
+  before: string | null
+  after: string | null
+  citations: string[]
+  instruction: string | null
+  // Accepted by Bulk accept.
+  bulk: boolean
+  by: { id: string; name: string }
+  at: string
+}
 
 export type SourcePassage = {
   id: string
@@ -572,12 +651,23 @@ export type SourcePassage = {
 
 export type FieldObservation = {
   id: string
-  copeDimension: string
+  // Its categories in C-O-P-E order, one or more.
+  copeDimensions: string[]
   note: string | null
   transcripts: string[]
   severity: string
   location: string | null
   standard: string | null
+}
+
+// A regenerated draft waiting to be accepted or discarded (RV-02).
+export type ReviewReplacement = {
+  draft: ReviewDraft
+  sources: Record<string, SourcePassage>
+  observations: FieldObservation[]
+  instruction: string | null
+  requestedBy: { id: string; name: string } | null
+  requestedAt: string
 }
 
 export type ReviewSection = {
@@ -592,21 +682,172 @@ export type ReviewSection = {
     changesSinceDraft: number
     changeCounts: ChangeCounts
   }
-  draft: Omit<SectionDraft, 'sources'> | null
+  // The saved draft's findings by state (RV-02).
+  findings: FindingCounts
+  // The saved draft: the section's content.
+  draft: ReviewDraft | null
   sources: Record<string, SourcePassage>
   observations: FieldObservation[]
+  replacement: ReviewReplacement | null
+  // The section's review audit log, newest first.
+  history: ReviewHistoryEntry[]
 }
+
+export type ReviewWorkspace = {
+  sections: ReviewSection[]
+  // Every saved draft's findings by state: the review summary (RV-02).
+  summary: FindingCounts
+  // When the gateway read it, to keep the newest of overlapping responses.
+  asOf: string
+}
+
+const reviewPath = (reference: string) => `/api/assessments/${encodeURIComponent(reference)}`
+const sectionPath = (reference: string, sectionId: string) =>
+  `${sectionsPath(reference)}/${encodeURIComponent(sectionId)}`
 
 export async function getReviewWorkspace(
   reference: string,
   signal?: AbortSignal,
-): Promise<ReviewSection[]> {
+): Promise<ReviewWorkspace> {
   return (
-    await request<{ sections: ReviewSection[] }>(
-      'GET',
-      `/api/assessments/${encodeURIComponent(reference)}/review`,
-      undefined,
-      signal,
+    await request<ReviewWorkspace>('GET', `${reviewPath(reference)}/review`, undefined, signal)
+  ).data
+}
+
+// Review decisions (RV-02). Each names the saved draft the engineer was looking
+// at, and returns the review workspace as it now stands. Only the assigned
+// engineer may make them.
+export type FindingAction = 'accept' | 'reject' | 'restore'
+export async function decideFinding(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+  finding: string,
+  action: FindingAction,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>(
+      'POST',
+      `${sectionPath(reference, sectionId)}/findings/${encodeURIComponent(finding)}/${action}`,
+      { draftId },
     )
-  ).data.sections
+  ).data
+}
+
+// Saves the engineer's wording of a finding; its citations stay with it.
+export async function editFinding(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+  finding: string,
+  text: string,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>(
+      'PUT',
+      `${sectionPath(reference, sectionId)}/findings/${encodeURIComponent(finding)}`,
+      { draftId, text },
+    )
+  ).data
+}
+
+// Accepts every pending finding of the section's saved draft.
+export async function bulkAccept(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>('POST', `${sectionPath(reference, sectionId)}/bulk-accept`, {
+      draftId,
+    })
+  ).data
+}
+
+// Drafts the section again as a replacement for its saved draft, with what
+// the engineer wants changed, if anything.
+export async function regenerateSection(
+  reference: string,
+  sectionId: string,
+  instruction: string,
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>('POST', `${sectionPath(reference, sectionId)}/regenerate`, {
+      instruction,
+    })
+  ).data
+}
+
+// Accepts the waiting replacement as the section's content, or discards it.
+export async function decideReplacement(
+  reference: string,
+  sectionId: string,
+  draftId: string,
+  action: 'accept' | 'discard',
+): Promise<ReviewWorkspace> {
+  return (
+    await request<ReviewWorkspace>(
+      'POST',
+      `${sectionPath(reference, sectionId)}/replacement/${action}`,
+      { draftId },
+    )
+  ).data
+}
+
+// Sections 1 and 2 (GN-07): Purpose and Scope, assembled by the gateway from
+// the assessment's details, and the Executive Summary drafted from Sections
+// 3-12, with the sections it still needs (AC3) or that changed since (AC4).
+export type SectionRef = { id: string; title: string }
+export type Summary = {
+  // Marsh's Purpose and Scope: paragraphs, and the list of visit activities as an array.
+  purposeAndScope: (string | string[])[]
+  executiveSummary: {
+    draft: SectionDraft | null
+    missing: SectionRef[]
+    staleSections: SectionRef[]
+  }
+}
+
+const summaryPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/summary`
+
+export async function getSummary(reference: string, signal?: AbortSignal): Promise<Summary> {
+  return (await request<Summary>('GET', summaryPath(reference), undefined, signal)).data
+}
+
+// Drafts the Executive Summary; the gateway saves it as Section 2.
+export async function draftSummary(reference: string): Promise<SectionDraft> {
+  return (await request<SectionDraft>('POST', `${summaryPath(reference)}/draft`)).data
+}
+
+// Appendix A (GN-07): every photo of the report, and the chosen ones in order
+// with their captions.
+export type AppendixPhoto = {
+  photoId: string
+  observationId: string
+  name: string
+  url: string
+  location: string | null
+  category: string | null
+  note: string | null
+  selected: boolean
+}
+export type AppendixList = {
+  selected: (Omit<AppendixPhoto, 'selected'> & { caption: string })[]
+  available: AppendixPhoto[]
+}
+
+const appendixPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/appendix`
+
+export async function getAppendix(reference: string, signal?: AbortSignal): Promise<AppendixList> {
+  return (await request<AppendixList>('GET', appendixPath(reference), undefined, signal)).data
+}
+
+// Replaces the appendix with this ordered list.
+export async function saveAppendix(
+  reference: string,
+  photos: { photoId: string; caption: string }[],
+): Promise<AppendixList> {
+  return (await request<AppendixList>('PUT', appendixPath(reference), { photos })).data
 }

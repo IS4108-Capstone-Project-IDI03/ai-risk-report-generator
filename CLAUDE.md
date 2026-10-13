@@ -20,19 +20,25 @@
 - Route handlers in `/server/src/routes/` must never import from `models/`
   directly — always go through `services/`.
 - S5 (speech-ocr-service) writes nothing to MongoDB — it returns results only.
-- LLM provider is set by `LLM_PROVIDER` env var in microservices/rag-service, and
-  the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05) — never
+- LLM provider is set by `LLM_PROVIDER` env var in microservices/rag-service,
+  the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05), and the
+  table/formula OCR provider by `OCR_PROVIDER` in ingestion (IN-12) — never
   hardcode "anthropic" or "gemini" in application code.
 - All metadata fields on a MongoDB document must include: source_type,
   jurisdiction, facility_type, COPE_dimension, effective_date. See
-  docs/areas/database.md before writing any new schema. Three exceptions: an
+  docs/areas/database.md before writing any new schema. An observation's
+  `COPE_dimension` is a list of one or more categories, since one finding can
+  concern several. Three exceptions: an
   uncategorised observation stores `COPE_dimension: null` (present, but
-  null), which keeps it out of category-scoped drafting (CP-02); a
+  null, never `[]`), which keeps it out of category-scoped drafting (CP-02); a
   knowledge document's Unconfirmed details are `null` (IN-05), while its
   passages omit those keys and stay out of search until the admin fills them in;
   and knowledge documents have no `COPE_dimension`: each passage carries its
   own `section` instead (a template section, `Appendix`, `Not applicable` or
   `Undefined`; IN-05).
+- `review_audit_log` (RV-02) is append-only: never update or delete an entry.
+  A finding's review state is read from it, and drafts in `report_sections`
+  are never changed. See docs/areas/database.md.
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

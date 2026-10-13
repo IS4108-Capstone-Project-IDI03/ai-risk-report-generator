@@ -14,10 +14,17 @@ single document and closes the handle in a `finally`). Switching paths closes th
 previous handle before opening the new one.
 """
 
+import threading
+
 import pymupdf
 
 # Module-level so the handle survives between region crops. `_document_path`
 # tracks which file `_document` belongs to, so a new path forces a reopen.
+# PyMuPDF is not thread-safe, and the chunker runs table/formula OCR on a thread
+# pool. Hold this around every use of the handle (open, crop, text layer); only
+# the OCR call itself runs outside it.
+PDF_LOCK = threading.Lock()
+
 _document: pymupdf.Document | None = None
 _document_path: str | None = None
 

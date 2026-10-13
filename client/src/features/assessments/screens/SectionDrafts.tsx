@@ -1,22 +1,9 @@
 import { Fragment, useRef, useState } from 'react'
-import {
-  AIDraftBlock,
-  Badge,
-  Button,
-  Callout,
-  EvidenceCitation,
-  ProgressBar,
-} from '../../../design-system'
-import {
-  draftSection,
-  GatewayError,
-  type ReportSection,
-  type SavedObservation,
-  type SectionDraft,
-} from '../api'
-import { ObservationExcerpt } from '../components/ObservationExcerpt'
+import { AIDraftBlock, Badge, Button, Callout, ProgressBar } from '../../../design-system'
+import { draftSection, GatewayError, type ReportSection, type SectionDraft } from '../api'
 import { describeChanges } from '../reviewDisplay'
 import { OfiRow } from '../components/OfiSuggestions'
+import { SummaryRow } from '../components/SummaryRow'
 import { useObservations } from '../useObservations'
 import { useSections } from '../useSections'
 
@@ -29,50 +16,10 @@ const card = {
 } as const
 const muted = { margin: 0, fontSize: '15px', color: 'var(--text-secondary)' } as const
 
-type Citation = React.ComponentProps<typeof EvidenceCitation>
-
-// What a citation ID points to, ready to show as evidence (GN-01 AC4).
-function resolve(id: string, draft: SectionDraft, observations: SavedObservation[]): Citation {
-  if (id.startsWith('O:')) {
-    const o = observations.find((x) => x.id === id.slice(2))
-    if (o) {
-      return {
-        kind: 'observation',
-        source: o.location
-          ? [o.location.name, o.location.floor].filter(Boolean).join(', ')
-          : 'Site observation',
-        locator: o.copeDimension ?? undefined,
-        excerpt: <ObservationExcerpt observation={o} />,
-      }
-    }
-  }
-  const chunk = draft.sources[id]
-  if (chunk) {
-    const pages =
-      chunk.page_start != null
-        ? `p. ${chunk.page_start}` +
-          (chunk.page_end && chunk.page_end !== chunk.page_start ? `–${chunk.page_end}` : '')
-        : undefined
-    return {
-      kind: 'standard',
-      source: chunk.headings?.join(' › ') || chunk.doc_id || 'Standard',
-      locator: pages,
-      excerpt: chunk.text,
-    }
-  }
-  return { kind: 'insight', source: 'This citation could not be found', locator: id }
-}
-
-function SubsectionDraft({
-  sub,
-  draft,
-  observations,
-}: {
-  sub: SectionDraft['subsections'][number]
-  draft: SectionDraft
-  observations: SavedObservation[]
-}) {
-  const [showEvidence, setShowEvidence] = useState(false)
+// One subsection of a draft as Generation shows it: the text only. Its citations and
+// their sources are read in Review (RV-01), since Generation only generates (Miya,
+// 12 Oct). Unsupported statements stay flagged, so a weak draft is seen at once.
+function SubsectionDraft({ sub }: { sub: SectionDraft['subsections'][number] }) {
   if (sub.kind === 'table') {
     return (
       <div style={{ ...card, padding: '14px 20px' }}>
@@ -89,35 +36,21 @@ function SubsectionDraft({
       </div>
     )
   }
-  // Numbered in the order each source is first cited.
-  const cited = [...new Set(sub.statements.flatMap((s) => s.citations))]
   const unsupported = sub.statements.some((s) => !s.supported)
   return (
     <div>
       <AIDraftBlock
+        // The Generation tab is wide: fill it rather than hold prose to 68ch (Miya, 12 Oct).
+        fullWidth
         heading={sub.heading}
         status={unsupported ? 'flagged' : 'draft'}
         // Every citation resolves, but whether each source says what the
         // statement claims is not checked yet, so this is never high.
         confidence={unsupported ? 'low' : 'medium'}
-        evidenceCount={cited.length}
-        onShowEvidence={() => setShowEvidence((open) => !open)}
       >
         {sub.statements.map((s, i) => (
           <p key={i} style={{ margin: i ? '10px 0 0' : 0 }}>
             {s.text}
-            {s.citations.map((c) => (
-              <sup
-                key={c}
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--ai-fg)',
-                  marginLeft: '2px',
-                }}
-              >
-                {cited.indexOf(c) + 1}
-              </sup>
-            ))}
             {!s.supported && (
               <Badge tone="moderate" icon="triangle-alert" style={{ marginLeft: '8px' }}>
                 Unsupported
@@ -126,26 +59,13 @@ function SubsectionDraft({
           </p>
         ))}
       </AIDraftBlock>
-      {showEvidence && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-          {cited.map((c, i) => (
-            <EvidenceCitation key={c} index={i + 1} {...resolve(c, draft, observations)} />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
 
 // A section's newest draft, shown under its row: what wrote it, then each
 // subsection with its evidence.
-export function DraftView({
-  draft,
-  observations,
-}: {
-  draft: SectionDraft
-  observations: SavedObservation[]
-}) {
+export function DraftView({ draft }: { draft: SectionDraft }) {
   return (
     <section
       aria-label={`${draft.sectionId}. ${draft.title} draft`}
@@ -187,7 +107,7 @@ export function DraftView({
         </Callout>
       )}
       {draft.subsections.map((sub) => (
-        <SubsectionDraft key={sub.heading} sub={sub} draft={draft} observations={observations} />
+        <SubsectionDraft key={sub.heading} sub={sub} />
       ))}
     </section>
   )
@@ -203,7 +123,6 @@ const STATE = {
   failed: { tone: 'critical', icon: 'octagon-alert', label: 'Failed' },
 } as const
 
-const columns = '48px minmax(0,1fr) 140px 280px'
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 // Sections 7-12 of the report for a saved assessment (GN-01), laid out like
@@ -297,7 +216,7 @@ export function SectionDrafts({
 
   return (
     <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
-      <div style={{ maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <Callout tone="ai" title={running ? 'Drafting in progress' : 'Draft sections 7 to 12'}>
           {running
             ? 'Sections appear here as each one completes. Each takes a minute or two.'
@@ -310,7 +229,7 @@ export function SectionDrafts({
         )}
         {!sections && !loadError && <p style={muted}>Loading the report sections…</p>}
         {sections && (
-          <div style={card}>
+          <div className="generation-card" style={card}>
             <div
               style={{
                 display: 'flex',
@@ -353,9 +272,9 @@ export function SectionDrafts({
               )}
             </div>
             <div
+              className="generation-row generation-header"
               style={{
                 display: 'grid',
-                gridTemplateColumns: columns,
                 alignItems: 'center',
                 padding: '0 20px',
                 height: '34px',
@@ -370,16 +289,18 @@ export function SectionDrafts({
             >
               <span>{'\u00a7'}</span>
               <span>Section</span>
+              <span>Status</span>
               <span>Evidence</span>
               <span />
             </div>
-            {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
-            <OfiRow
+            {/* Section 2 opens the report's drafted sections (GN-07). */}
+            <SummaryRow
               reference={reference}
               canDraft={canDraft}
-              observations={observations ?? []}
-              columns={columns}
+              refreshKey={(sections ?? []).map((s) => s.latestDraft?.id).join()}
             />
+            {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
+            <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
             {sections.map((s) => {
               const state = stateOf(s)
               const failed = failures[s.id]
@@ -387,9 +308,9 @@ export function SectionDrafts({
                 <Fragment key={s.id}>
                   <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <div
+                      className="generation-row"
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: columns,
                         alignItems: 'center',
                         padding: '12px 20px',
                       }}
@@ -413,9 +334,6 @@ export function SectionDrafts({
                           }}
                         >
                           <span style={{ fontSize: '16px', fontWeight: 500 }}>{s.title}</span>
-                          <Badge tone={state.tone} icon={state.icon}>
-                            {state.label}
-                          </Badge>
                         </span>
                         {s.latestDraft && s.changesSinceDraft > 0 && (
                           <span
@@ -458,6 +376,11 @@ export function SectionDrafts({
                             {s.copeDimensions.join(' or ')}.
                           </span>
                         )}
+                      </span>
+                      <span className="generation-status">
+                        <Badge tone={state.tone} icon={state.icon}>
+                          {state.label}
+                        </Badge>
                       </span>
                       <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
                         {plural(s.usableObservations, 'observation')}
@@ -542,9 +465,7 @@ export function SectionDrafts({
                       </div>
                     )}
                   </div>
-                  {selected === s.id && s.latestDraft && (
-                    <DraftView draft={s.latestDraft} observations={observations} />
-                  )}
+                  {selected === s.id && s.latestDraft && <DraftView draft={s.latestDraft} />}
                 </Fragment>
               )
             })}

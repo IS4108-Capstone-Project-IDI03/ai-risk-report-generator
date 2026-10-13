@@ -5,8 +5,8 @@
 import { Fragment, useState } from 'react'
 import type * as React from 'react'
 import { AIDraftBlock, Badge, Button, EvidenceCitation } from '../../../design-system'
+import { OFI_CATEGORIES as CATEGORIES } from '../reviewDisplay'
 import {
-  acceptOfi,
   draftOfis,
   GatewayError,
   type AcceptedOfi,
@@ -15,6 +15,7 @@ import {
   type SavedObservation,
 } from '../api'
 import { formatDay } from '../format'
+import { locationText } from '../locations'
 import { useOfis } from '../useOfis'
 import { ObservationExcerpt } from './ObservationExcerpt'
 
@@ -36,8 +37,6 @@ const PRIORITY_TONE: Record<string, string> = {
   'Priority 3': 'moderate',
   'Priority 4': 'low',
 }
-// Section 3's order, as in the template.
-const CATEGORIES = ['Management Programs', 'Physical Protection', 'Other']
 // The observations OFIs are drafted from, as in rag-service orchestrator.OFI_SEVERITIES.
 const OFI_SEVERITIES = ['critical', 'high', 'moderate']
 
@@ -45,7 +44,7 @@ const OFI_SEVERITIES = ['critical', 'high', 'moderate']
 // a note or finished transcript to draft from (as the gateway's drafting evidence).
 function isCandidate(o: SavedObservation) {
   return (
-    Boolean(o.copeDimension) &&
+    Boolean(o.copeDimensions?.length) &&
     OFI_SEVERITIES.includes(o.severity) &&
     (Boolean(o.note?.trim()) || o.recordings.some((r) => r.transcription.transcript))
   )
@@ -66,10 +65,8 @@ function Sources({ ofi, observations }: { ofi: Ofi; observations: SavedObservati
     if (o)
       cards.push({
         kind: 'observation',
-        source: o.location
-          ? [o.location.name, o.location.floor].filter(Boolean).join(', ')
-          : 'Site observation',
-        locator: o.copeDimension ?? undefined,
+        source: o.location ? locationText(o.location) : 'Site observation',
+        locator: o.copeDimensions?.join(', '),
         excerpt: <ObservationExcerpt observation={o} />,
       })
   }
@@ -100,15 +97,17 @@ function Sources({ ofi, observations }: { ofi: Ofi; observations: SavedObservati
   )
 }
 
-// One OFI in the same AI draft box as a section draft's subsections: a suggestion
-// (with Accept) on Report generation, or an accepted, numbered OFI on the Review tab,
-// where it reads like the sections' AI drafts. Its sources open below it.
+// One OFI in the same AI draft box as a section draft's subsections. On the Review
+// tab a suggestion has Accept, an accepted OFI its number, and each its sources and
+// precedent. On Generation, which only generates (Miya, 12 Oct), it is shown alone:
+// no sources, precedent or Accept, which are read and done in Review.
 export function OfiBlock({
   ofi,
   number = null,
   observations,
   onAccept,
   busy = false,
+  withSources = true,
 }: {
   ofi: Ofi
   // Set once accepted: the OFI's report number.
@@ -116,6 +115,7 @@ export function OfiBlock({
   observations: SavedObservation[]
   onAccept?: () => void
   busy?: boolean
+  withSources?: boolean
 }) {
   const [showSources, setShowSources] = useState(false)
   const precedent = ofi.precedent ? ofi.sources[ofi.precedent] : null
@@ -131,15 +131,17 @@ export function OfiBlock({
         // Nothing checks yet that the sources say what the OFI claims, so not high.
         confidence="medium"
         evidenceCount={count}
-        onShowEvidence={() => setShowSources((open) => !open)}
+        onShowEvidence={withSources ? () => setShowSources((open) => !open) : undefined}
         onAccept={onAccept}
         acceptLabel={`Accept ${ofi.title}`}
         acceptDisabled={busy}
+        // A table, not prose: as wide as an OFI in the report (OfisInReport).
+        fullWidth
       >
-        <OfiTable number={number} title={ofi.title} rows={templateRows(ofi)} />
+        <OfiTable number={number} title={ofi.title} rows={templateRows(ofi, observations)} />
       </AIDraftBlock>
       {/* The precedent, outside the box since it is not part of the draft (AC2). */}
-      {precedent && (
+      {withSources && precedent && (
         <p style={{ ...label, margin: '6px 0 0' }}>
           Based on past report:{' '}
           {[ofi.precedentReport ?? 'a past Marsh report', precedentTitle(precedent.text)]
@@ -242,7 +244,41 @@ function OfiTable({
 // filled says so; loss figures are never the model's (backlog rule), so they stay open.
 const OPEN = 'To be completed'
 
-function templateRows(ofi: Ofi): Cell[][] {
+// The Observation row (GN-07 AC14): the OFI's own wording, then each photo of the
+// observations it rests on, whole and at its own aspect ratio, as the report shows
+// evidence. A deleted observation's photos are left out, as everywhere else.
+// Capped at 360 px and never stretched past its own size: the table is full width,
+// so a photo sized to the cell would fill the screen and blur.
+function observationCell(ofi: Ofi, observations: SavedObservation[]) {
+  const photos = observations
+    .filter((o) => ofi.observations.includes(o.id) && !o.deleted)
+    .flatMap((o) => o.photos)
+  return (
+    <>
+      {ofi.observation}
+      {photos.length > 0 && (
+        <span style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+          {photos.map((p) => (
+            <img
+              key={p.id}
+              src={p.url}
+              alt={p.name}
+              loading="lazy"
+              style={{
+                display: 'block',
+                width: 'auto',
+                maxWidth: 'min(100%, 360px)',
+                height: 'auto',
+              }}
+            />
+          ))}
+        </span>
+      )}
+    </>
+  )
+}
+
+function templateRows(ofi: Ofi, observations: SavedObservation[]): Cell[][] {
   const date = ofi.issueDate ? formatDay(new Date(ofi.issueDate)) : OPEN
   const head: Cell[][] = [
     [
@@ -264,14 +300,14 @@ function templateRows(ofi: Ofi): Cell[][] {
     return [
       ...head,
       [['Description', ofi.description]],
-      [['Observation', ofi.observation]],
+      [['Observation', observationCell(ofi, observations)]],
       [['Effort of implementation', ofi.effort]],
     ]
   return [
     ...head,
     [['Related RTM ID', OPEN]],
     [['Description', ofi.description]],
-    [['Observation', ofi.observation]],
+    [['Observation', observationCell(ofi, observations)]],
     [['Client response', OPEN]],
     [['Marsh advisory comment', OPEN]],
     [['Loss expectancy (current, in US$)', LOSS_FIGURES]],
@@ -282,17 +318,24 @@ function templateRows(ofi: Ofi): Cell[][] {
 }
 
 // One accepted OFI with Marsh's fields, as it reads in the report (AC4, AC5).
-function ReportOfi({ ofi }: { ofi: AcceptedOfi }) {
+function ReportOfi({ ofi, observations }: { ofi: AcceptedOfi; observations: SavedObservation[] }) {
   return (
     <div style={{ marginTop: '12px' }}>
-      <OfiTable number={ofi.number} title={ofi.title} rows={templateRows(ofi)} />
+      <OfiTable number={ofi.number} title={ofi.title} rows={templateRows(ofi, observations)} />
     </div>
   )
 }
 
 // Section 3 as the report has it: the accepted OFIs under their categories, in
-// report order. Shared by the Report generation row and the Review tab.
-export function OfisInReport({ accepted }: { accepted: AcceptedOfi[] }) {
+// report order. Shared by the Generation row and the Review tab.
+export function OfisInReport({
+  accepted,
+  observations,
+}: {
+  accepted: AcceptedOfi[]
+  // For each OFI's photos (GN-07 AC14).
+  observations: SavedObservation[]
+}) {
   if (!accepted.length)
     return (
       <p style={muted}>
@@ -305,26 +348,15 @@ export function OfisInReport({ accepted }: { accepted: AcceptedOfi[] }) {
       {accepted
         .filter((o) => o.category === c)
         .map((o) => (
-          <ReportOfi key={o.id} ofi={o} />
+          <ReportOfi key={o.id} ofi={o} observations={observations} />
         ))}
     </div>
   ))
 }
 
-// What opens under the row: suggestions to accept, then the OFIs in the report.
-function OfiPanel({
-  ofis,
-  observations,
-  canDraft,
-  busy,
-  onAccept,
-}: {
-  ofis: OfiList
-  observations: SavedObservation[]
-  canDraft: boolean
-  busy: boolean
-  onAccept: (ids: string[]) => void
-}) {
+// What opens under the row on Generation: the suggestions, read-only, then the OFIs in
+// the report. Accepting is done in Review → Section 3 (OfiReviewPanel).
+function OfiPanel({ ofis, observations }: { ofis: OfiList; observations: SavedObservation[] }) {
   return (
     <section
       aria-label="3. Opportunities for Improvement"
@@ -338,36 +370,17 @@ function OfiPanel({
       }}
     >
       {ofis.suggestions.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
-          <p style={{ ...muted, flex: '1 1 320px' }}>
-            {plural(ofis.suggestions.length, 'suggestion')}, not in the report until accepted.
-            Accept each one that should be in Section 3.
-          </p>
-          {canDraft && ofis.suggestions.length > 1 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft="check-check"
-              disabled={busy}
-              onClick={() => onAccept(ofis.suggestions.map((o) => o.id))}
-            >
-              Accept all
-            </Button>
-          )}
-        </div>
+        <p style={muted}>
+          {plural(ofis.suggestions.length, 'suggestion')}, not in the report until accepted. Accept
+          them in Review, under Section 3, where their sources open.
+        </p>
       )}
       {ofis.suggestions.map((o) => (
-        <OfiBlock
-          key={o.id}
-          ofi={o}
-          observations={observations}
-          busy={busy}
-          onAccept={canDraft ? () => onAccept([o.id]) : undefined}
-        />
+        <OfiBlock key={o.id} ofi={o} observations={observations} withSources={false} />
       ))}
       <section aria-label="Opportunities for Improvement in the report" style={card}>
         <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 500 }}>In the report</h4>
-        <OfisInReport accepted={ofis.accepted} />
+        <OfisInReport accepted={ofis.accepted} observations={observations} />
       </section>
     </section>
   )
@@ -377,22 +390,15 @@ export function OfiRow({
   reference,
   canDraft,
   observations,
-  columns,
 }: {
   reference: string
   canDraft: boolean
   observations: SavedObservation[]
-  // The sections table's column grid, so this row lines up with sections 7-12.
-  columns: string
 }) {
   const { ofis, setOfis, loadError } = useOfis(reference)
   const [open, setOpen] = useState(false)
   const [drafting, setDrafting] = useState(false)
-  const [accepting, setAccepting] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
-  // Busy while a draft or accept runs: each returns the whole list, which replaces
-  // what is shown, so two at once could show a stale list.
-  const busy = drafting || accepting
   const candidates = observations.filter(isCandidate).length
 
   const draft = async () => {
@@ -410,18 +416,6 @@ export function OfiRow({
     }
     setDrafting(false)
   }
-  // Accepts one or several suggestions, one call each, in the order shown.
-  const accept = async (ids: string[]) => {
-    setAccepting(true)
-    setFailure(null)
-    try {
-      for (const id of ids) setOfis(await acceptOfi(reference, id))
-    } catch (error: unknown) {
-      setFailure(error instanceof GatewayError ? error.message : 'A suggestion was not accepted.')
-    }
-    setAccepting(false)
-  }
-
   const suggested = ofis?.suggestions.length ?? 0
   const inReport = ofis?.accepted.length ?? 0
   const state = drafting
@@ -440,9 +434,9 @@ export function OfiRow({
     <Fragment>
       <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <div
+          className="generation-row"
           style={{
             display: 'grid',
-            gridTemplateColumns: columns,
             alignItems: 'center',
             padding: '12px 20px',
           }}
@@ -457,9 +451,6 @@ export function OfiRow({
               <span style={{ fontSize: '16px', fontWeight: 500 }}>
                 Opportunities for Improvement
               </span>
-              <Badge tone={state.tone} icon={state.icon}>
-                {state.label}
-              </Badge>
             </span>
             {suggested > 0 && inReport > 0 && (
               <span style={{ ...note, color: 'var(--text-secondary)' }}>
@@ -479,6 +470,11 @@ export function OfiRow({
                 {failure}
               </span>
             )}
+          </span>
+          <span className="generation-status">
+            <Badge tone={state.tone} icon={state.icon}>
+              {state.label}
+            </Badge>
           </span>
           <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
             {plural(candidates, 'observation')}
@@ -503,7 +499,7 @@ export function OfiRow({
                 size="sm"
                 iconLeft="sparkles"
                 loading={drafting}
-                disabled={busy}
+                disabled={drafting}
                 onClick={() => void draft()}
               >
                 {drafting ? 'Drafting…' : suggested || inReport ? 'Redraft OFIs' : 'Draft OFIs'}
@@ -512,15 +508,7 @@ export function OfiRow({
           </span>
         </div>
       </div>
-      {open && ofis && (
-        <OfiPanel
-          ofis={ofis}
-          observations={observations}
-          canDraft={canDraft}
-          busy={busy}
-          onAccept={(ids) => void accept(ids)}
-        />
-      )}
+      {open && ofis && <OfiPanel ofis={ofis} observations={observations} />}
     </Fragment>
   )
 }

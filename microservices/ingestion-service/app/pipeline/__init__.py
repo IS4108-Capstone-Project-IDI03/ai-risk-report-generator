@@ -26,7 +26,7 @@ from app.pipeline import sections as report
 from app.pipeline.anonymiser import anonymise
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
-from app.pipeline.progress import NoOpReporter
+from app.pipeline.progress import IngestionCancelledError, NoOpReporter
 
 __all__ = [
     "run",
@@ -35,8 +35,15 @@ __all__ = [
     "anonymise",
     "index_chunks",
     "UnparsableDocumentError",
+    "IngestionCancelledError",
     "NoOpReporter",
 ]
+
+
+def _check_cancelled(reporter) -> None:
+    check = getattr(reporter, "check_cancelled", None)
+    if check:
+        check()
 
 
 # `parse` and `chunk` live in modules instead of global import
@@ -104,8 +111,9 @@ def run(
     # A no-op sentinel so stage calls need no `if reporter:` guards.
     _reporter = reporter or NoOpReporter()
 
+    _check_cancelled(_reporter)
     _reporter.start_stage("parsing")
-    parsed = this.parse(file_path, page_range=page_range)
+    parsed = this.parse(file_path, page_range=page_range, reporter=_reporter)
 
     tables_captured = len(parsed.tables)
     images_captured = len(parsed.images)
@@ -121,6 +129,7 @@ def run(
     _reporter.start_stage("anonymising")
     chunks = anonymise(chunks)
     for c in chunks:
+        _check_cancelled(_reporter)
         c["metadata"].update(labels)
         # The section is per passage (IN-05), from the pages it sits on.
         meta = c["metadata"]
@@ -129,7 +138,10 @@ def run(
         )
 
     _reporter.start_stage("indexing")
-    chunks_indexed = index_chunks(chunks) if chunks else 0
+    _check_cancelled(_reporter)
+    chunks_indexed = (
+        index_chunks(chunks, reporter=_reporter, page_total=parsed.page_count) if chunks else 0
+    )
 
     _reporter.finish()
 

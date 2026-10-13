@@ -12,6 +12,7 @@
     "seed:usage": "ts-node --transpile-only src/scripts/seed-ai-usage.ts",
     "seed:gn01": "ts-node --transpile-only src/scripts/seed-gn01.ts",
     "seed:case": "ts-node --transpile-only src/scripts/seed-eval-case.ts",
+    "migrate:cope": "ts-node --transpile-only src/scripts/migrate-cope-categories.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

@@ -6,12 +6,14 @@ import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { connectDb } from '../models/db'
 import {
+  copeDimensionsOf,
   ObservationModel,
   type CopeDimension,
   type IRecording,
   type Severity,
 } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
+import { ReviewAuditModel } from '../models/review-audit.model'
 import { SiteModel } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { locationKey } from '../services/location.service'
@@ -22,7 +24,8 @@ import { putObject } from '../services/storage.service'
 // on site (terse, abbreviated, some dictated), so a draft has to turn them into
 // report prose rather than copy them. Run `npm run seed` first for the
 // accounts, then this. Re-running resets this one assessment's observations,
-// capture sessions and drafts, so every test starts from the same evidence.
+// capture sessions, drafts and review decisions, so every test starts from the
+// same evidence.
 // Sign in as alex.rowe@example.com and open RPT-2026-0901 > Report generation.
 // Section 9 Fire Protection is the richest: its FM-200 observations match the
 // FM-200 manual in the knowledge base. Section 10 has no evidence on purpose.
@@ -31,11 +34,12 @@ import { putObject } from '../services/storage.service'
 // in, so no Whisper call is made. One shows a failed transcription.
 const REFERENCE = 'RPT-2026-0901'
 
+// All in the tower (CP-16).
 const LOCATIONS = {
-  server: { name: 'Main server room', floor: 'Level 5' },
-  riser: { name: 'Electrical riser B', floor: 'Level 3' },
-  pumps: { name: 'Fire pump room', floor: 'Basement 1' },
-  fcc: { name: 'Fire command centre', floor: 'Level 1' },
+  server: { building: 'Office tower', name: 'Main server room', floor: 'Level 5' },
+  riser: { building: 'Office tower', name: 'Electrical riser B', floor: 'Level 3' },
+  pumps: { building: 'Office tower', name: 'Fire pump room', floor: 'Basement 1' },
+  fcc: { building: 'Office tower', name: 'Fire command centre', floor: 'Level 1' },
 }
 
 const OBSERVATIONS: {
@@ -148,11 +152,10 @@ async function seed() {
         surveyType: 'Property risk survey',
         siteVisitDate: new Date('2026-09-28'),
         reportDueDate: new Date('2026-10-16'),
-        standards: ['FM-200 Design and Installation Manual', 'NFPA 2001'],
         engineer: alex._id,
         locations: Object.values(LOCATIONS).map((l) => ({
           ...l,
-          key: locationKey(l.name, l.floor),
+          key: locationKey(l.name, l.floor, l.building),
         })),
       },
       $unset: { reportStatus: 1, archivedAt: 1 },
@@ -160,10 +163,13 @@ async function seed() {
     { upsert: true, returnDocument: 'after' },
   )
 
-  // Start this sample afresh: its evidence, sessions and drafts only.
+  // Start this sample afresh: its evidence, sessions, drafts and their review.
   await ObservationModel.deleteMany({ assessment: assessment._id })
   await CaptureSessionModel.deleteMany({ assessment: assessment._id })
   await ReportSectionModel.deleteMany({ assessment: assessment._id })
+  // The review log is append-only through its model (RV-02); a reset sample's
+  // drafts are gone, so their decisions go too, through the driver.
+  await ReviewAuditModel.collection.deleteMany({ assessment: assessment._id })
 
   const session = await CaptureSessionModel.create({ assessment: assessment._id })
   const locationId = (at: keyof typeof LOCATIONS) =>
@@ -209,7 +215,7 @@ async function seed() {
         source_type: 'observation',
         jurisdiction: site.jurisdiction,
         facility_type: site.facilityType,
-        COPE_dimension: o.cope,
+        COPE_dimension: copeDimensionsOf(o.cope),
         // The site visit, a minute apart in the order they are listed here.
         effective_date: effectiveDate,
       },

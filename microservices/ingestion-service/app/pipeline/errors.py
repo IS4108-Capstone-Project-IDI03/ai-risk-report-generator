@@ -17,3 +17,20 @@ class UnparsableDocumentError(Exception):
     def __init__(self, source: str, message: str | None = None) -> None:
         self.source = source
         super().__init__(message or f"Could not parse document: {source}")
+
+
+class DocumentTimeoutError(Exception):
+    """Raised when Docling stops at `document_timeout` before parsing every page.
+
+    Docling returns the pages it finished as PARTIAL_SUCCESS; indexing those
+    would leave the rest of the document out of search while it shows Complete.
+    """
+
+
+class OcrUnavailableError(Exception):
+    """Raised when the OCR provider kept refusing a table or formula region (IN-12).
+
+    Rate limits and overloads are waited out first (`chunking_helper.rate_limit`).
+    Indexing without the region would show the document Complete with its
+    numbers missing from search.
+    """

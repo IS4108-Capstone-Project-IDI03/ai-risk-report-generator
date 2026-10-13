@@ -1,7 +1,8 @@
-services: 
-# To enable GPU support, need to have a GPU and add to devices, then run 
-# docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-# if no GPU, just run docker compose up -d
+services:
+# GPU support for self-hosted OCR (needs an NVIDIA GPU). Layer it on the
+# local-OCR overlay:
+#   docker compose -f docker-compose.yml -f docker-compose.local-ocr.yml -f docker-compose.gpu.yml up -d
+# It builds the ingestion image with CUDA torch + Nemotron (--extra gpu).
 
 # To check local GLM-OCR's gpu usage (Or other models as more is added), run 
 # docker compose exec ollama ollama ps
@@ -16,6 +17,10 @@ services:
               capabilities: [gpu]
 
   ingestion-service:
+    image: ai-risk-report-generator-ingestion:gpu
+    build:
+      args:
+        UV_EXTRAS: "--extra gpu --extra local-ocr"
     environment:
       # Signals to the ingestion pipeline that GPU support is active.
       # ocr_config.py reads this to select NemotronOcrOptions (fastest with GPU)
@@ -30,6 +35,10 @@ services:
               capabilities: [gpu]
 
   ingestion-worker:
+    image: ai-risk-report-generator-ingestion:gpu
+    build:
+      args:
+        UV_EXTRAS: "--extra gpu --extra local-ocr"
     environment:
       # Same signal for the background worker process.
       GPU_ENABLED: "true"

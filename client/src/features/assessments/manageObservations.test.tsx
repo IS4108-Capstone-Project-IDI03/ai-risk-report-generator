@@ -18,8 +18,8 @@ import { formatDayYearTime } from './format'
 const REF = 'RPT-2026-0411'
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
-const BAY_3 = { id: 'l1', name: 'Bay 3 — north aisle', floor: 'Ground' }
-const PUMP_HOUSE = { id: 'l3', name: 'Pump house', floor: null }
+const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
+const PUMP_HOUSE = { id: 'l3', building: null, name: 'Pump house', floor: null }
 // The signed-in risk engineer (test/session.ts), and someone else.
 const ME = { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' }
 const OTHER = { id: '6ab39017e45cf009e4507799', name: 'Jide Okafor' }
@@ -49,7 +49,7 @@ function observation(fields: Partial<SavedObservation>): SavedObservation {
   return {
     id: 'o1',
     engineer: 'Alex Rowe',
-    copeDimension: 'Protection',
+    copeDimensions: ['Protection'],
     standard: null,
     severity: 'high',
     location: BAY_3,
@@ -99,7 +99,7 @@ function photographed(id: string, note: string, interpretation: Partial<SavedInt
   return observation({
     id,
     note,
-    copeDimension: 'Occupancy',
+    copeDimensions: ['Occupancy'],
     photos: [{ ...PHOTO, url: `/api/observations/${id}/photos/p1/image` }],
     interpretation: {
       status: 'interpreted',
@@ -142,11 +142,9 @@ function assessment(engineer: { id: string; name: string }): Assessment {
     id: 'a1',
     reference: REF,
     client: 'Northgate Logistics',
-    policyReference: null,
     surveyType: 'Property risk survey',
     siteVisitDate: '2026-04-11',
     reportDueDate: null,
-    standards: [],
     engineer,
     status: 'capturing',
     captureStartedAt: '2026-04-11T08:00:00.000Z',
@@ -301,9 +299,13 @@ function mockGateway() {
 }
 
 async function openObservations() {
+  // A second render in one test starts on the work list, as a new test does.
+  window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  fireEvent.click(await screen.findByRole('button', { name: 'Tilbury Distribution Centre' }))
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
   if (!offline && listed.length)
@@ -313,7 +315,15 @@ const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('butto
 // An observation's row, by the start of its summary.
 const row = (summary: string) =>
   screen.getByRole('button', { name: new RegExp(summary.slice(0, 20)) })
-const select = (label: string) => screen.getByLabelText(new RegExp('^' + label))
+// The Filters panel, opened from its button; it stays open while filters
+// are chosen.
+function filters() {
+  if (!screen.queryByRole('dialog', { name: 'Filters' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+  return screen.getByRole('dialog', { name: 'Filters' })
+}
+// A filter in the panel, by its label.
+const select = (label: string) => within(filters()).getByLabelText(new RegExp('^' + label))
 const choose = (label: string, value: string) =>
   fireEvent.change(select(label), { target: { value } })
 // Which of these observations the list shows, by their summary.
@@ -322,8 +332,8 @@ const optionLabels = (element: HTMLElement) =>
   within(element)
     .getAllByRole('option')
     .map((o) => o.textContent)
-const showDeleted = () => click('Show deleted')
-const hideDeleted = () => click('Hide deleted')
+const showDeleted = () => click(/^Deleted \(\d+\)$/)
+const hideDeleted = () => click('Back to observations')
 
 beforeAll(() => {
   // jsdom cannot preview files; the lists only need a URL to hand over.
@@ -374,8 +384,8 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     listed = [NOTE_ONLY, VOICE_ONLY, TRANSCRIBING, FAILED_VOICE]
     await openObservations()
     const ALL = [NOTE, VOICE, RISER, FAILED, RACKING, PUMP_TEST, SORTATION]
-    expect(optionLabels(select('Filter by type'))).toEqual(['All types', 'Note', 'Voice', 'Photo'])
-    expect(optionLabels(select('Filter by status'))).toEqual([
+    expect(optionLabels(select('Type'))).toEqual(['All types', 'Note', 'Voice', 'Photo'])
+    expect(optionLabels(select('Status'))).toEqual([
       'All statuses',
       'Transcribing',
       'Interpreting',
@@ -385,15 +395,16 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     ])
 
     // One with a note and a recording is both types; the sample pump test has a voice clip.
-    choose('Filter by type', 'Voice')
+    choose('Type', 'Voice')
     expect(shown(...ALL)).toEqual([VOICE, RISER, FAILED, PUMP_TEST])
-    choose('Filter by type', 'Note')
+    choose('Type', 'Note')
     expect(shown(...ALL)).toEqual([NOTE, RISER, RACKING, PUMP_TEST, SORTATION])
-    click('Clear filters')
+    // In the panel and beside the filter chips: either clears all.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0])
 
-    choose('Filter by status', 'Transcription failed')
+    choose('Status', 'Transcription failed')
     expect(shown(...ALL)).toEqual([FAILED])
-    choose('Filter by type', 'Note')
+    choose('Type', 'Note')
     expect(shown(...ALL)).toEqual([])
     expect(screen.getByText('No observations match those filters')).toBeInTheDocument()
   })
@@ -408,9 +419,9 @@ describe('Proposals from photos (CP-05)', () => {
     expect(within(row(PROPOSAL)).getByText('Complete')).toBeInTheDocument()
     expect(within(row(UNREAD)).getByText('Interpretation failed')).toBeInTheDocument()
     const ALL = [READING, PROPOSAL, UNREAD, RACKING]
-    choose('Filter by status', 'Interpreting')
+    choose('Status', 'Interpreting')
     expect(shown(...ALL)).toEqual([READING])
-    choose('Filter by status', 'Interpretation failed')
+    choose('Status', 'Interpretation failed')
     expect(shown(...ALL)).toEqual([UNREAD])
   })
 
@@ -424,8 +435,10 @@ describe('Proposals from photos (CP-05)', () => {
     expect(within(proposal).getByText('AI proposal')).toBeInTheDocument()
     expect(within(proposal).getByText('Protection · Sprinkler Installation')).toBeInTheDocument()
     expect(within(proposal).getByText('Proposed by gemini-3.8-flash')).toBeInTheDocument()
-    expect(within(proposal).getByRole('link', { name: 'IMG_0460.jpg' })).toHaveAttribute(
-      'href',
+    fireEvent.click(within(proposal).getByRole('button', { name: 'IMG_0460.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'src',
       '/api/observations/o6/photos/p1/image',
     )
   })
@@ -447,23 +460,29 @@ describe('Proposals from photos (CP-05)', () => {
     expect(calls).toEqual([{ method: 'PATCH', url: '/api/observations/o6', body: { note } }])
   })
 
-  it('offers the proposed category only when it differs (Change category)', async () => {
+  it('offers the proposed category only when it is not one of its own (Add category)', async () => {
     listed = [INTERPRETED]
     await openObservations()
     fireEvent.click(row(PROPOSAL))
 
-    click('Change category to Protection')
+    click('Add category Protection')
     const dialog = await screen.findByRole('dialog', { name: 'Edit observation' })
-    expect(within(dialog).getByLabelText('COPE category')).toHaveValue('Protection')
+    // Added to the category it has, not in place of it.
+    expect(within(dialog).getByRole('checkbox', { name: 'Occupancy' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: 'Protection' })).toBeChecked()
     click('Save changes')
 
     expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
     expect(calls).toEqual([
-      { method: 'PATCH', url: '/api/observations/o6', body: { copeDimension: 'Protection' } },
+      {
+        method: 'PATCH',
+        url: '/api/observations/o6',
+        body: { copeDimensions: ['Occupancy', 'Protection'] },
+      },
     ])
-    // Now the categories match, so it is no longer offered.
+    // Now it is filed under the proposal, so it is no longer offered.
     expect(
-      screen.queryByRole('button', { name: 'Change category to Protection' }),
+      screen.queryByRole('button', { name: 'Add category Protection' }),
     ).not.toBeInTheDocument()
   })
 
@@ -578,12 +597,12 @@ describe('Correcting an observation (CP-08 AC8-AC11, AC18)', () => {
     await openObservations()
     for (const summary of [RISER, FAILED]) {
       fireEvent.click(row(summary))
-      expect(screen.queryByRole('button', { name: 'Correct transcript' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Edit transcript' })).not.toBeInTheDocument()
     }
 
     fireEvent.click(row(VOICE))
-    click('Correct transcript')
-    const dialog = await screen.findByRole('dialog', { name: 'Correct transcript' })
+    click('Edit transcript')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit transcript' })
     expect(within(dialog).getByRole('region', { name: 'What Whisper wrote' })).toHaveTextContent(
       VOICE,
     )
@@ -615,20 +634,21 @@ describe('Correcting an observation (CP-08 AC8-AC11, AC18)', () => {
 }, 15000)
 
 describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
-  it('deletes one once confirmed, and restores it from Show deleted', async () => {
+  it('deletes one once confirmed, counts it, and restores it from Deleted', async () => {
     listed = [NOTE_ONLY, VOICE_ONLY]
     await openObservations()
     fireEvent.click(row(NOTE))
-    click('Delete')
+    click('Delete observation')
     const dialog = await screen.findByRole('dialog', { name: 'Delete this observation?' })
     expect(dialog).toHaveTextContent(NOTE)
-    click('Delete observation')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete observation' }))
 
     expect(await screen.findByText(/^Observation deleted\./)).toBeInTheDocument()
     expect(calls).toEqual([{ method: 'DELETE', url: '/api/observations/o1', body: undefined }])
     expect(shown(NOTE, VOICE)).toEqual([VOICE])
 
-    // Show deleted lists only the deleted ones, with who deleted them.
+    // The button counts the deleted ones, and lists only them, with who deleted them.
+    expect(screen.getByRole('button', { name: 'Deleted (1)' })).toBeInTheDocument()
     showDeleted()
     const deleted = await screen.findByRole('button', { name: /Hose reel/ })
     expect(deleted).toHaveTextContent('Deleted')
@@ -649,8 +669,8 @@ describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
     expect(screen.getByText('No deleted observations')).toBeInTheDocument()
     hideDeleted()
     expect(shown(NOTE, VOICE)).toEqual([NOTE, VOICE])
-    // The button is back to showing them.
-    expect(screen.getByRole('button', { name: 'Show deleted' })).toBeInTheDocument()
+    // The button is back to showing them, with none left deleted.
+    expect(screen.getByRole('button', { name: 'Deleted (0)' })).toBeInTheDocument()
   })
 
   it('keeps the dialog open with the reason when a delete is refused', async () => {
@@ -658,10 +678,10 @@ describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
       method === 'DELETE' ? json(409, { error: 'Assessment RPT-2026-0411 is archived.' }) : null
     await openObservations()
     fireEvent.click(row(NOTE))
-    click('Delete')
+    click('Delete observation')
     const dialog = await screen.findByRole('dialog', { name: 'Delete this observation?' })
 
-    click('Delete observation')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete observation' }))
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Assessment RPT-2026-0411 is archived.',
@@ -684,11 +704,12 @@ describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
       await screen.findByText('Changes saved. They are kept in this demo only.'),
     ).toBeInTheDocument()
 
-    click('Delete')
     click('Delete observation')
+    const confirm = await screen.findByRole('dialog', { name: 'Delete this observation?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete observation' }))
     expect(
       await screen.findByText(
-        'Observation deleted in this demo only. Choose Show deleted to restore it.',
+        'Observation deleted in this demo only. Choose Deleted to restore it.',
       ),
     ).toBeInTheDocument()
     expect(shown(RACKING, PUMP_TEST)).toEqual([RACKING, PUMP_TEST])
@@ -712,7 +733,7 @@ describe('Who can change an observation (CP-08 AC17)', () => {
       // A saved observation, and a sample one kept in the browser.
       for (const summary of [NOTE, SORTATION]) {
         fireEvent.click(row(summary))
-        for (const name of ['Edit', 'Delete']) {
+        for (const name of ['Edit', 'Delete observation']) {
           const button = screen.queryByRole('button', { name })
           if (offered) expect(button).toBeInTheDocument()
           else expect(button).not.toBeInTheDocument()
@@ -726,7 +747,7 @@ describe('Who can change an observation (CP-08 AC17)', () => {
 describe('Adding and removing recordings and photos (CP-08)', () => {
   const photo = (name: string, type = 'image/jpeg') => new File(['jpeg'], name, { type })
   const at = formatDayYearTime(new Date(AT))
-  // The action beside Edit; the dashed tile under Attached media does the same.
+  // The action beside Edit.
   const addMedia = () => fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
   const addDialog = () => screen.findByRole('dialog', { name: 'Add to observation' })
   const choose = (dialog: HTMLElement, ...files: File[]) =>
@@ -772,7 +793,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     // On the observation, with who added them and when.
     const clip = screen.getByRole('region', { name: 'valve.m4a' })
     expect(within(clip).getByText('Added by Alex Rowe · ' + at)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open IMG_0510.jpg' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open IMG_0510.jpg' })).toBeInTheDocument()
     expect(screen.getByText('IMG_0510.jpg added by Alex Rowe · ' + at)).toBeInTheDocument()
   })
 
@@ -805,7 +826,8 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     await openObservations()
     fireEvent.click(row(RISER_ROOM))
 
-    click('Remove recording')
+    // Each section's Remove is named after what it removes.
+    click('Remove Recording 1')
     const dialog = await screen.findByRole('dialog', { name: 'Remove this recording?' })
     expect(dialog).toHaveTextContent('Report drafting stops using its transcript')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove recording' }))
@@ -853,7 +875,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(
       await screen.findByText(/^Photo removed\. It leaves the Photos tab\./),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Open IMG_0460.jpg' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open IMG_0460.jpg' })).not.toBeInTheDocument()
   })
 
   it('offers Remove only while something else stays captured', async () => {
@@ -861,7 +883,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     await openObservations()
     fireEvent.click(row(VOICE))
 
-    expect(screen.queryByRole('button', { name: 'Remove recording' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Recording 1' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Add media' }).length).toBeGreaterThan(0)
   })
 
@@ -872,7 +894,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     fireEvent.click(row(RISER_ROOM))
 
     expect(screen.queryAllByRole('button', { name: 'Add media' })).toEqual([])
-    expect(screen.queryByRole('button', { name: 'Remove recording' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Recording 1' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove IMG_0460.jpg' })).not.toBeInTheDocument()
   })
 
@@ -905,7 +927,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(within(proposal).getByText('Read from an earlier set of photos')).toBeInTheDocument()
     // It names the photo it read, now removed.
     expect(
-      within(proposal).getByRole('link', { name: 'IMG_0400.jpg' }).parentElement,
+      within(proposal).getByRole('button', { name: 'IMG_0400.jpg' }).parentElement,
     ).toHaveTextContent('Read from IMG_0400.jpg (removed)')
     click('Read again')
 
@@ -974,16 +996,28 @@ describe('Site photographs (CP-04)', () => {
     deleted: STAMP,
   })
 
-  it('links each photo to its observation, opening the original (AC2)', async () => {
+  it('links each photo to its observation, opening the original in a popup (AC2)', async () => {
     listed = [PHOTOGRAPHED]
     await openObservations()
 
     fireEvent.click(row('Riser room door wedged open.'))
 
-    expect(screen.getByRole('link', { name: 'Open IMG_0460.jpg' })).toHaveAttribute(
-      'href',
+    fireEvent.click(screen.getByRole('button', { name: 'Open IMG_0460.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'src',
       IMAGE_URL,
     )
+    // It zooms in to look closer, and back to fit the window.
+    const zoomOut = within(popup).getByRole('button', { name: 'Zoom out' })
+    expect(zoomOut).toBeDisabled()
+    fireEvent.click(within(popup).getByRole('button', { name: 'Zoom in' }))
+    expect(popup).toHaveTextContent('150%')
+    expect(zoomOut).toBeEnabled()
+    fireEvent.click(within(popup).getByRole('button', { name: 'Fit to window' }))
+    expect(popup).toHaveTextContent('100%')
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getAllByText('Note and photo').length).toBeGreaterThan(0)
   })
 
@@ -991,15 +1025,28 @@ describe('Site photographs (CP-04)', () => {
     listed = [PHOTOGRAPHED, DELETED]
     await openObservations()
 
-    fireEvent.click(screen.getByRole('tab', { name: /Photos/ }))
+    // The Observations tab's Photos box counts them and opens the collection;
+    // there is no Photos tab.
+    expect(screen.queryByRole('tab', { name: /Photos/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Notes' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Recordings' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Photos, 3, photos\. Open/ }))
 
     const collection = screen.getByRole('list', { name: 'Site photographs' })
     // The saved photo, and the sample assessment's own two.
     expect(within(collection).getAllByRole('listitem')).toHaveLength(3)
-    expect(within(collection).getByRole('link', { name: 'Open IMG_0460.jpg' })).toHaveAttribute(
-      'href',
+    // The Observations tab stays selected, and leads back.
+    expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    fireEvent.click(within(collection).getByRole('button', { name: 'Open IMG_0460.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
+      'src',
       IMAGE_URL,
     )
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
     expect(within(collection).getByText('IMG_0442.jpg · 11 Apr 2026 09:22')).toBeInTheDocument()
     expect(within(collection).queryByText(/IMG_0999/)).not.toBeInTheDocument()
 
@@ -1010,6 +1057,6 @@ describe('Site photographs (CP-04)', () => {
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('link', { name: 'Open IMG_0460.jpg' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open IMG_0460.jpg' })).toBeInTheDocument()
   })
 })

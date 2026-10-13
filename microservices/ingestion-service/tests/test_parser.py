@@ -163,3 +163,352 @@ def test_full_document_parse():
     orders = [b.order for b in doc.text_blocks]
     assert orders == sorted(orders)
     assert len(set(orders)) == len(orders)
+
+
+# --- parse timeout (IN-12) ----------------------------------------------------
+# On a 2-vCPU cloud box a large standard parses for well over the old 600 s.
+
+
+def _pdf_timeout(monkeypatch, value):
+    from docling.datamodel.base_models import InputFormat
+
+    from app.pipeline import parser
+
+    if value is None:
+        monkeypatch.delenv("DOCLING_DOCUMENT_TIMEOUT", raising=False)
+    else:
+        monkeypatch.setenv("DOCLING_DOCUMENT_TIMEOUT", value)
+    parser._converter.cache_clear()
+    try:
+        options = parser._converter().format_to_options[InputFormat.PDF].pipeline_options
+        return options.document_timeout
+    finally:
+        parser._converter.cache_clear()
+
+
+def test_parse_timeout_defaults_to_thirty_minutes(monkeypatch):
+    assert _pdf_timeout(monkeypatch, None) == 1800.0
+
+
+def test_parse_timeout_comes_from_docling_document_timeout(monkeypatch):
+    assert _pdf_timeout(monkeypatch, "2400") == 2400.0
+
+
+# --- a parse that runs out of time fails (IN-12) ------------------------------
+# Docling stops at document_timeout and returns the pages it finished as
+# PARTIAL_SUCCESS. Indexing that would leave the rest of the standard out of
+# search while the upload shows Complete.
+
+
+def test_a_parse_that_runs_out_of_time_fails_instead_of_indexing_part_of_it(monkeypatch):
+    from types import SimpleNamespace
+
+    from docling.datamodel.base_models import ConversionStatus, ErrorItem
+    from docling_core.types.doc import DoclingDocument
+
+    from app.pipeline import parser
+    from app.pipeline.errors import DocumentTimeoutError
+
+    try:
+        from docling.datamodel.base_models import DoclingComponentType, FailureCategory
+    except ImportError:  # older layout
+        from docling.datamodel.base_models import DoclingComponentType
+        from docling.datamodel.document import FailureCategory
+
+    timed_out = SimpleNamespace(
+        status=ConversionStatus.PARTIAL_SUCCESS,
+        document=DoclingDocument(name="manual"),
+        errors=[
+            ErrorItem(
+                component_type=DoclingComponentType.PIPELINE,
+                module_name="StandardPdfPipeline",
+                error_message="Pipeline stage timeout: processed 40/120 pages successfully",
+                category=FailureCategory.TIMEOUT,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        parser, "_converter", lambda: SimpleNamespace(convert=lambda *a, **k: timed_out)
+    )
+
+    with pytest.raises(DocumentTimeoutError, match="40/120"):
+        parser.parse(str(FIXTURE))
+
+
+# --- batched parsing: 10 pages per convert call -------------------------------
+# A fake converter stands in for Docling's models: each call returns a
+# DoclingDocument holding one paragraph on the first page of the requested range.
+
+
+def _blank_pdf(tmp_path, pages: int, bookmarks=None) -> str:
+    """A blank PDF, optionally with bookmarks as pymupdf [level, title, page] rows."""
+    import pymupdf
+
+    path = tmp_path / f"blank-{pages}.pdf"
+    with pymupdf.open() as pdf:
+        for _ in range(pages):
+            pdf.new_page()
+        if bookmarks:
+            pdf.set_toc(bookmarks)
+        pdf.save(path)
+    return str(path)
+
+
+def _batch_document(start: int, end: int, failed_pages=frozenset(), headings=None):
+    """A batch's document: its pages (less any that failed), any `headings`
+    ({page: text}) in its range as level-1 section headers, as Docling gives
+    them with heading levels off, and one paragraph on its first page that
+    didn't fail."""
+    from docling_core.types.doc import (
+        BoundingBox,
+        DocItemLabel,
+        DoclingDocument,
+        ProvenanceItem,
+        Size,
+    )
+
+    doc = DoclingDocument(name="blank")
+    kept = [n for n in range(start, end + 1) if n not in failed_pages]
+    for page_no in kept:
+        doc.add_page(page_no=page_no, size=Size(width=612, height=792))
+    for page_no, heading in sorted((headings or {}).items()):
+        if page_no in kept:
+            doc.add_heading(
+                text=heading,
+                level=1,
+                prov=ProvenanceItem(
+                    page_no=page_no,
+                    bbox=BoundingBox(l=72, t=40, r=540, b=60),
+                    charspan=(0, len(heading)),
+                ),
+            )
+    text = f"Paragraph from page {kept[0]}"
+    doc.add_text(
+        label=DocItemLabel.PARAGRAPH,
+        text=text,
+        prov=ProvenanceItem(
+            page_no=kept[0],
+            bbox=BoundingBox(l=72, t=72, r=540, b=100),
+            charspan=(0, len(text)),
+        ),
+    )
+    return doc
+
+
+class _FakeConverter:
+    def __init__(self, failed_pages=frozenset(), headings=None, timed_out_batch=None) -> None:
+        self.page_ranges: list[tuple[int, int]] = []
+        self.failed_pages = failed_pages
+        self.headings = headings
+        self.timed_out_batch = timed_out_batch
+
+    def convert(self, source, page_range=None, **kwargs):
+        from types import SimpleNamespace
+
+        from docling.datamodel.base_models import (
+            ConversionStatus,
+            DoclingComponentType,
+            ErrorItem,
+            FailureCategory,
+        )
+
+        self.page_ranges.append(page_range)
+        if page_range == self.timed_out_batch:
+            return SimpleNamespace(
+                status=ConversionStatus.PARTIAL_SUCCESS,
+                document=_batch_document(*page_range),
+                errors=[
+                    ErrorItem(
+                        component_type=DoclingComponentType.PIPELINE,
+                        module_name="StandardPdfPipeline",
+                        error_message="Pipeline stage timeout: processed 6/10 pages successfully",
+                        category=FailureCategory.TIMEOUT,
+                    )
+                ],
+                pages=[],
+            )
+        return SimpleNamespace(
+            status=ConversionStatus.SUCCESS,
+            document=_batch_document(*page_range, self.failed_pages, self.headings),
+            errors=[],
+            pages=[],
+        )
+
+
+@pytest.fixture
+def fake_converter(monkeypatch):
+    from app.pipeline import parser
+
+    converter = _FakeConverter()
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+    return converter
+
+
+def test_a_long_document_is_converted_ten_pages_at_a_time(tmp_path, fake_converter):
+    result = parse(_blank_pdf(tmp_path, 45))
+
+    assert fake_converter.page_ranges == [(1, 10), (11, 20), (21, 30), (31, 40), (41, 45)]
+    assert [(b.text, b.page) for b in result.text_blocks] == [
+        ("Paragraph from page 1", 1),
+        ("Paragraph from page 11", 11),
+        ("Paragraph from page 21", 21),
+        ("Paragraph from page 31", 31),
+        ("Paragraph from page 41", 41),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("pages", "expected_batches"),
+    [
+        (7, [(1, 7)]),
+        (1, [(1, 1)]),
+        (20, [(1, 10), (11, 20)]),
+        (41, [(1, 10), (11, 20), (21, 30), (31, 40), (41, 41)]),
+    ],
+)
+def test_short_documents_and_single_page_tails_are_converted(
+    tmp_path, fake_converter, pages, expected_batches
+):
+    result = parse(_blank_pdf(tmp_path, pages))
+
+    assert fake_converter.page_ranges == expected_batches
+    assert result.page_count == pages
+
+
+class _PageRecorder:
+    def __init__(self) -> None:
+        self.pages: list[tuple[int, int | None]] = []
+
+    def update_pages(self, current: int, total: int | None) -> None:
+        self.pages.append((current, total))
+
+
+@pytest.mark.parametrize(
+    ("pages", "expected_updates"),
+    [
+        (45, [(0, 45), (10, 45), (20, 45), (30, 45), (40, 45), (45, 45)]),
+        (7, [(0, 7), (7, 7)]),
+    ],
+)
+def test_pages_parsed_are_reported_after_each_batch(
+    tmp_path, fake_converter, pages, expected_updates
+):
+    reporter = _PageRecorder()
+
+    parse(_blank_pdf(tmp_path, pages), reporter=reporter)
+
+    assert reporter.pages == expected_updates
+
+
+def test_a_stop_requested_during_parsing_ends_it_after_the_current_batch(tmp_path, fake_converter):
+    from app.pipeline.progress import IngestionCancelledError
+
+    class _StopRequested:
+        def update_pages(self, current, total):
+            if current > 0:
+                raise IngestionCancelledError()
+
+    with pytest.raises(IngestionCancelledError):
+        parse(_blank_pdf(tmp_path, 45), reporter=_StopRequested())
+
+    assert fake_converter.page_ranges == [(1, 10)]
+
+
+def test_a_batch_that_runs_out_of_time_fails_the_parse_without_converting_the_rest(
+    tmp_path, monkeypatch
+):
+    from app.pipeline import parser
+    from app.pipeline.errors import DocumentTimeoutError
+
+    converter = _FakeConverter(timed_out_batch=(21, 30))
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+
+    with pytest.raises(DocumentTimeoutError, match="6/10"):
+        parse(_blank_pdf(tmp_path, 45))
+
+    assert converter.page_ranges == [(1, 10), (11, 20), (21, 30)]
+
+
+def test_a_page_failing_at_a_batch_edge_does_not_renumber_later_pages(tmp_path, monkeypatch):
+    from app.pipeline import parser
+
+    # Docling leaves a failed page out of the batch's document: here page 21,
+    # the first page of the second batch, and page 40, the last.
+    converter = _FakeConverter(failed_pages={21, 40})
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+
+    result = parse(_blank_pdf(tmp_path, 45))
+
+    assert [(b.text, b.page) for b in result.text_blocks] == [
+        ("Paragraph from page 1", 1),
+        ("Paragraph from page 11", 11),
+        ("Paragraph from page 22", 22),
+        ("Paragraph from page 31", 31),
+        ("Paragraph from page 41", 41),
+    ]
+    assert sorted(result.docling_document.pages) == [n for n in range(1, 46)]
+
+
+def test_a_page_range_not_starting_at_page_one_keeps_its_page_numbers(tmp_path, fake_converter):
+    result = parse(_blank_pdf(tmp_path, 80), page_range=(45, 70))
+
+    assert fake_converter.page_ranges == [(45, 54), (55, 64), (65, 70)]
+    assert [(b.text, b.page) for b in result.text_blocks] == [
+        ("Paragraph from page 45", 45),
+        ("Paragraph from page 55", 55),
+        ("Paragraph from page 65", 65),
+    ]
+
+
+def test_heading_levels_are_assigned_across_batches_from_the_pdf_bookmarks(tmp_path, monkeypatch):
+    from docling_core.types.doc import SectionHeaderItem
+
+    from app.pipeline import parser
+
+    # "Section A.1" (page 25, second batch) sits under "Chapter A" (page 1,
+    # first batch) in the PDF's bookmarks.
+    pdf = _blank_pdf(tmp_path, 45, bookmarks=[[1, "Chapter A", 1], [2, "Section A.1", 25]])
+    converter = _FakeConverter(headings={1: "Chapter A", 25: "Section A.1"})
+    monkeypatch.setattr(parser, "_converter", lambda: converter)
+
+    result = parse(pdf)
+
+    headings = [
+        (item.text, item.level)
+        for item in result.docling_document.texts
+        if isinstance(item, SectionHeaderItem)
+    ]
+    assert headings == [("Chapter A", 1), ("Section A.1", 2)]
+
+
+@pytest.mark.slow
+@pytest.mark.model
+def test_batched_heading_levels_match_a_single_conversion_of_the_real_manual():
+    """Pages 15-45 parse as two batches (15-34, 35-45); their headings must
+    come out as one convert call with Docling's own heading pass gives them."""
+    from docling.datamodel.base_models import InputFormat
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+    from docling_core.types.doc import SectionHeaderItem
+
+    from app.pipeline import parser
+
+    def headings(doc):
+        return [
+            (item.text, item.level, item.prov[0].page_no if item.prov else None)
+            for item in doc.texts
+            if isinstance(item, SectionHeaderItem)
+        ]
+
+    page_range = (15, 45)
+    batched = _parse_fixture(page_range)
+
+    options = parser._converter().format_to_options[InputFormat.PDF].pipeline_options
+    single_options = options.model_copy(
+        update={"heading_hierarchy_options": parser._HEADING_OPTIONS}
+    )
+    single = DocumentConverter(
+        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=single_options)}
+    ).convert(str(FIXTURE), page_range=page_range)
+
+    assert headings(batched.docling_document), "expected headings in pages 15-45"
+    assert headings(batched.docling_document) == headings(single.document)

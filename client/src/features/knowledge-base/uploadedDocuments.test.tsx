@@ -35,13 +35,20 @@ const FAILED = {
   withdrawn: null,
 }
 const COMPLETE = { ...FAILED, id: 'done', title: 'FM Global 2-0', status: 'complete', error: null }
+const CANCELLED = {
+  ...FAILED,
+  id: 'cancelled',
+  title: 'Cancelled standard',
+  status: 'cancelled',
+  error: null,
+}
 const onCompleted = () => undefined
 
 // Serves the uploads list, flipping the failed document to queued once its
 // retry has been posted — the way the gateway would after a successful retry.
 // Records retry posts so a test can assert them.
 function stubGateway(initial: Record<string, unknown>[]) {
-  const state = { list: initial, retried: [] as string[] }
+  const state = { list: initial, retried: [] as string[], cancelled: [] as string[] }
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
@@ -51,6 +58,15 @@ function stubGateway(initial: Record<string, unknown>[]) {
       state.retried.push(id)
       state.list = state.list.map((d) =>
         d.id === id ? { ...d, status: 'queued', error: null } : d,
+      )
+      return noContent(202)
+    }
+    const cancel = url.match(/\/api\/knowledge-documents\/([^/]+)\/cancel$/)
+    if (cancel && method === 'POST') {
+      const id = cancel[1]
+      state.cancelled.push(id)
+      state.list = state.list.map((d) =>
+        d.id === id ? { ...d, status: 'cancelled', error: null } : d,
       )
       return noContent(202)
     }
@@ -159,5 +175,85 @@ describe('UploadedDocuments retry', () => {
 
     const list = await screen.findByRole('list', { name: 'Recent uploads' })
     expect(within(list).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+})
+
+describe('UploadedDocuments cancellation', () => {
+  it('shows Stop only for queued and processing documents', async () => {
+    stubGateway([
+      { ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null },
+      {
+        ...FAILED,
+        id: 'processing',
+        title: 'Processing standard',
+        status: 'processing',
+        error: null,
+      },
+      FAILED,
+      COMPLETE,
+      CANCELLED,
+    ])
+    render(
+      <UploadedDocuments
+        narrow={false}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
+
+    const table = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(within(table).getAllByRole('button', { name: 'Stop' })).toHaveLength(2)
+    expect(within(table).getAllByRole('button', { name: 'Retry' })).toHaveLength(2)
+  })
+
+  it('posts cancellation and refreshes the row as cancelled with Retry', async () => {
+    const state = stubGateway([
+      { ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null },
+    ])
+    render(
+      <UploadedDocuments
+        narrow={false}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
+    const table = await screen.findByRole('region', { name: 'Recent uploads' })
+
+    fireEvent.click(within(table).getByRole('button', { name: 'Stop' }))
+
+    await waitFor(() => expect(state.cancelled).toEqual(['queued']))
+    expect(await within(table).findByText('Cancelled')).toBeInTheDocument()
+    expect(within(table).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(within(table).queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
+  })
+
+  it('surfaces a cancellation error and keeps Stop when the gateway rejects', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/cancel') && (init?.method ?? 'GET') === 'POST')
+        return json({ error: 'nope' }, 503)
+      return json([
+        { ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null },
+      ])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <UploadedDocuments
+        narrow={false}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
+
+    const table = await screen.findByRole('region', { name: 'Recent uploads' })
+    fireEvent.click(within(table).getByRole('button', { name: 'Stop' }))
+
+    expect(await screen.findByText('Stop not started')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(table).getByRole('button', { name: 'Stop' })).toBeInTheDocument(),
+    )
   })
 })

@@ -12,7 +12,8 @@ from types import SimpleNamespace
 from app.pipeline import chunker
 from app.pipeline.parser import ParsedDocument
 
-TOTAL_PAGES = 45
+# The walk tests reach the last page, so no end-of-pass report is added.
+TOTAL_PAGES = 3
 
 
 def _prov(page):
@@ -49,9 +50,13 @@ class FakeChunker:
 class RecordingReporter:
     def __init__(self):
         self.page_updates = []
+        self.ocr_updates = []
 
     def update_pages(self, current, total):
         self.page_updates.append((current, total))
+
+    def update_ocr(self, current, total):
+        self.ocr_updates.append((current, total))
 
 
 def _install(monkeypatch, pages):
@@ -105,6 +110,30 @@ def test_does_not_report_a_page_that_is_not_further_than_the_furthest_reached(mo
     # page reported is monotonic.
     reporter = _run(monkeypatch, pages=[1, 3, 2])
     assert reporter.page_updates == [(1, TOTAL_PAGES), (3, TOTAL_PAGES)]
+
+
+def test_reports_every_page_walked_when_the_last_pages_have_no_chunks(monkeypatch):
+    # Pages 4-5 are blank (no chunk text), yet chunking has walked them all:
+    # the counter must end at 5 / 5, not stick at 3 / 5.
+    reporter = _run(monkeypatch, pages=[1, 2, 3], page_count=5)
+    assert reporter.page_updates[-1] == (5, 5)
+
+
+def test_reports_ocr_regions_read_against_the_regions_queued(monkeypatch):
+    # Every chunk holds a formula, so pass 2 queues three OCR regions.
+    _install(monkeypatch, pages=[1, 2, 3])
+    monkeypatch.setattr(chunker, "_has_formula_chunk", lambda dl_chunk: True)
+    monkeypatch.setattr(chunker, "_extract_formula_chunk", lambda bboxes, path: "W = V/S")
+    reporter = RecordingReporter()
+
+    chunker.chunk(_parsed(), doc_path="manual.pdf", doc_id="doc", reporter=reporter)
+
+    assert reporter.ocr_updates == [(0, 3), (1, 3), (2, 3), (3, 3)]
+
+
+def test_reports_no_ocr_progress_when_nothing_needs_ocr(monkeypatch):
+    reporter = _run(monkeypatch, pages=[1, 2, 3])
+    assert reporter.ocr_updates == []
 
 
 def test_total_is_none_when_the_page_count_is_unknown(monkeypatch):

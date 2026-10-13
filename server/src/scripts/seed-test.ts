@@ -154,25 +154,29 @@ async function seedAndVerify(): Promise<void> {
         surveyType: 'Property risk survey',
         siteVisitDate: new Date('2026-04-11'),
         reportDueDate: new Date('2026-04-25'),
-        standards: ['FM Global 2-0', 'NFPA 13'],
         ...(await assignedTo('MRE-0001')),
       },
     },
     { upsert: true },
   )
-  // The places the client's demo lists, added only once so ones added on screen stay.
+  // The places the client's demo lists (DEMO_LOCATIONS), by building and level
+  // or elsewhere on site (CP-16), added only once so ones added on screen stay.
   await AssessmentModel.updateOne(
     { reference: 'RPT-2026-0411', 'locations.0': { $exists: false } },
     {
       $set: {
-        locations: [
-          { name: 'Bay 3 — north aisle', floor: 'Ground' },
-          { name: 'Bay 1 — despatch', floor: 'Ground' },
-          { name: 'Pump house' },
-          { name: 'Office annexe', floor: 'Level 1' },
-          { name: 'External yard' },
-          { name: 'Sprinkler valve room', floor: 'Ground' },
-        ].map((l) => ({ ...l, key: locationKey(l.name, l.floor) })),
+        locations: (
+          [
+            { building: 'Warehouse', floor: 'Ground', name: 'Bay 3 — north aisle' },
+            { building: 'Warehouse', floor: 'Ground', name: 'Bay 1 — despatch' },
+            { building: 'Warehouse', floor: 'Ground', name: 'Sprinkler valve room' },
+            { building: 'Warehouse', name: 'Roof cladding' },
+            { building: 'Office annexe', floor: 'Level 1', name: 'Open-plan office' },
+            { name: 'Pump house' },
+            { name: 'External yard' },
+            { name: 'Fire access route' },
+          ] as { building?: string; floor?: string; name: string }[]
+        ).map((l) => ({ ...l, key: locationKey(l.name, l.floor, l.building) })),
       },
     },
   )

@@ -1,8 +1,54 @@
-import { Fragment } from 'react'
-import { Button, Callout, Checkbox, Input, Radio, Select } from '../../../design-system'
+import { useRef } from 'react'
+import { Button, Callout, Input, Select } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
+type EngineerChoice = NonNullable<AssessmentWorkflow['engAssigned']>
+
+// An engineer's initials, name and staff details, as assigned or as a match.
+function EngineerLabel({ e }: { e: EngineerChoice }) {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '30px',
+          height: '30px',
+          flex: '0 0 auto',
+          borderRadius: '99px',
+          background: 'var(--ink-50)',
+          color: 'var(--ink-700)',
+          fontSize: '13px',
+          fontWeight: '600',
+        }}
+      >
+        {e.initials}
+      </span>
+      <span style={{ display: 'flex', flexDirection: 'column', minWidth: '0' }}>
+        <span
+          style={{
+            fontSize: '15px',
+            lineHeight: '22px',
+            fontWeight: '500',
+            color: 'var(--text-primary)',
+          }}
+        >
+          {e.name + (e.you ? ' (you)' : '')}
+        </span>
+        {!!e.role && (
+          <span style={{ fontSize: '13px', lineHeight: '18px', color: 'var(--text-muted)' }}>
+            {e.role}
+          </span>
+        )}
+      </span>
+    </>
+  )
+}
+
 export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
+  const searchArea = useRef<HTMLDivElement>(null)
   return (
     <>
       <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
@@ -71,16 +117,6 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                 value={v.cfJurisdiction}
                 onChange={v.setCfJurisdiction}
               ></Select>
-              {/* The policy reference is set once, when the assessment is created. */}
-              {!v.isEditing && (
-                <Input
-                  label="Policy reference"
-                  hint="Optional \u2014 links the report to the placement file"
-                  placeholder="POL-00000000"
-                  value={v.cfRef}
-                  onChange={v.setCfRef}
-                ></Input>
-              )}
             </div>
           </div>
           <div
@@ -133,87 +169,6 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
               <Input label="Report due" type="date" value={v.cfDue} onChange={v.setCfDue}></Input>
             </div>
           </div>
-          {/* Standards are chosen when the assessment is created. */}
-          {!v.isEditing && (
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '14px 20px',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: 'var(--surface-sunken)',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: '19px',
-                    lineHeight: '28px',
-                    fontWeight: '600',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {'Applicable standards'}
-                </span>
-                <span style={{ flex: '1' }}></span>
-                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                  {v.stdCountLabel}
-                </span>
-              </div>
-              <div style={{ padding: '16px 20px' }}>
-                <p
-                  style={{
-                    margin: '0 0 14px',
-                    fontSize: '15px',
-                    lineHeight: '22px',
-                    color: 'var(--text-secondary)',
-                    maxWidth: '68ch',
-                  }}
-                >
-                  {
-                    'Selected standards are loaded into the drafting set for this assessment. Only clauses from these documents can be cited in the generated report.'
-                  }
-                </p>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px),1fr))',
-                    gap: '10px 20px',
-                  }}
-                >
-                  {v.standards.map((s, index) => (
-                    <Fragment key={index}>
-                      <div
-                        style={{
-                          cursor: 'pointer',
-                          padding: '8px 10px',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: '5px',
-                          transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-                        }}
-                        data-hoverable="true"
-                      >
-                        <Checkbox
-                          label={s.name}
-                          description={s.desc}
-                          checked={s.on}
-                          onChange={() => v.toggleStd(s.name)}
-                        ></Checkbox>
-                      </div>
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
           {/* An assessment keeps the engineer it was created for. */}
           {!v.isEditing && (
             <div
@@ -250,11 +205,11 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                   padding: '16px 20px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '2px',
+                  gap: '10px',
                 }}
               >
                 {v.directoryLoading && <p role="status">Loading engineers…</p>}
-                {!v.directoryLoading && !v.directoryError && v.engineers.length === 0 && (
+                {!v.directoryLoading && !v.directoryError && !v.hasDirectory && (
                   <p>No active risk engineers are available.</p>
                 )}
                 {v.directoryError && (
@@ -262,49 +217,98 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                     Reopen this page to load the engineer list before creating the assessment.
                   </Callout>
                 )}
-                {v.engineers.map((e, index) => (
-                  <Fragment key={index}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '8px 10px',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-                      }}
-                      data-hoverable="true"
-                    >
-                      <span
+                {v.hasDirectory && (
+                  <div
+                    ref={searchArea}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      maxWidth: '480px',
+                    }}
+                  >
+                    {v.engAssigned ? (
+                      <div
                         style={{
-                          display: 'inline-flex',
+                          display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '30px',
-                          height: '30px',
-                          flex: '0 0 auto',
-                          borderRadius: '99px',
-                          background: 'var(--ink-50)',
-                          color: 'var(--ink-700)',
-                          fontSize: '13px',
-                          fontWeight: '600',
+                          gap: '12px',
+                          padding: '8px 10px',
+                          background: 'var(--surface-selected)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '5px',
                         }}
                       >
-                        {e.initials}
-                      </span>
-                      <span style={{ flex: '1', minWidth: '0' }}>
-                        <Radio
-                          name="engineer"
-                          label={e.name}
-                          description={e.role}
-                          checked={e.on}
-                          onChange={() => v.selectEng(e.id)}
-                        ></Radio>
-                      </span>
-                    </div>
-                  </Fragment>
-                ))}
+                        <EngineerLabel e={v.engAssigned} />
+                      </div>
+                    ) : (
+                      <p style={{ margin: 0, fontSize: '15px', color: 'var(--text-secondary)' }}>
+                        {'No engineer assigned yet. Search for one below.'}
+                      </p>
+                    )}
+                    <Input
+                      type="search"
+                      label="Search engineers"
+                      iconLeft="search"
+                      placeholder="Name, staff ID or job title"
+                      value={v.engQuery}
+                      onChange={v.setEngQuery}
+                    ></Input>
+                    {v.engResults.length > 0 && (
+                      <ul
+                        aria-label="Matching engineers"
+                        style={{
+                          listStyle: 'none',
+                          margin: 0,
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}
+                      >
+                        {v.engResults.map((e) => (
+                          <li key={e.id}>
+                            <button
+                              type="button"
+                              aria-pressed={e.on}
+                              onClick={() => {
+                                v.selectEng(e.id)
+                                // The matches close, so keep focus in the search.
+                                searchArea.current?.querySelector('input')?.focus()
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                width: '100%',
+                                padding: '8px 10px',
+                                textAlign: 'left',
+                                fontFamily: 'inherit',
+                                background: e.on
+                                  ? 'var(--surface-selected)'
+                                  : 'var(--surface-card)',
+                                border:
+                                  '1px solid ' +
+                                  (e.on ? 'var(--action-primary)' : 'var(--border-subtle)'),
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                              }}
+                              data-hoverable="true"
+                            >
+                              <EngineerLabel e={e} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p
+                      aria-live="polite"
+                      style={{ margin: 0, fontSize: '14px', color: 'var(--text-muted)' }}
+                    >
+                      {v.engResultLabel}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

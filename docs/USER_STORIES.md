@@ -480,6 +480,27 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given a location with observations, when the engineer tries to remove it, then removal is refused and the number of observations is shown.
   </details>
 
+- [ ] **CP-16** — Manage site locations by building and level (risk engineer, Should, 5 pts, deps: CP-15, Sprint 3)
+  <details><summary>Goal / AC</summary>
+
+  Goal: add, group, check and edit the site's locations by building and level, and find and capture observations by location, so every observation records exactly where on site it was found and the report names it accurately.
+
+  Terms: a location is in a building (a building, an optional level, and its name, e.g. Staircase, Store room, Lobby; no level is the whole building, e.g. its facade) or elsewhere on site (a name only, e.g. a road, a car park, a fire access route, a guardhouse). The site is the whole property.
+
+  1. Given a building, an optional level and a name, or a name only, when the engineer adds a location, then it is saved in that building and level, or as elsewhere on site; the same name and level may exist in different buildings.
+  2. Given locations in several buildings, when the picker is shown or the Observations tab is grouped by location, then locations are grouped by building, then level (lowest first), then Elsewhere on site; in the picker, the engineer's building starts open and the others fold away.
+  3. Given level shorthand such as L2 or B1, when a location is saved, then the level is saved as Level 2 or Basement 1.
+  4. Given a likely typo in a level, building or location name, when a location is saved, then the app suggests the correct name and the engineer can use it or keep theirs.
+  5. Given the assigned engineer and an assessment not archived, when a location is edited, then every observation saved there shows the change; anyone else, or an edit matching another location, is refused.
+  6. Given the Observations tab, when the engineer chooses Group by location, then each observation is listed under its location, with locations that have no observations listed too.
+  7. Given observations in several buildings, when the Location filter is set to a building, then only that building's observations are shown.
+  8. Given a location on the Observations tab, when the engineer chooses its Add observation, then capture opens at that location; Add location adds a location without starting capture.
+  9. Given observations were just saved in capture, when the engineer goes back, then the Observations tab opens where they were saved (their location, or the newest one when listed newest first), with them marked New.
+  10. Given recorded locations, when Section 1 is shown, then it names each building and each place elsewhere on site.
+
+  Already covered elsewhere, so not repeated here: choosing a location before capturing, selecting a new one, refusing a duplicate name and floor, and removing a location (CP-15); listing observations newest first, and filtering by location and level (CP-08).
+  </details>
+
 ## E6 — Report Generation & Guardrails
 
 - [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)
@@ -534,6 +555,8 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   1. Given a report contains multiple sections, when I regenerate one selected section, then only that section receives a replacement draft.
   2. Given a replacement section draft is ready, when I accept it, then it becomes the saved section content.
   3. Given a replacement section draft is ready, when I discard it, then the previously saved section content remains unchanged.
+
+  Merged into RV-02 (11 Oct 2026) as its AC10-AC12: regenerating, with the engineer's instruction, is done from the review workspace.
   </details>
 
 - [ ] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: GN-01, Sprint 4)
@@ -561,6 +584,28 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   2. Given the configured rule-based rating process has produced a risk-quality category, when commentary is drafted, then that category is used unchanged.
   3. Given qualitative risk-quality commentary is displayed, when I inspect it, then it contains no hallucinated numeric risk score.
   4. Given a displayed risk-quality category has a supporting rule result, when I inspect its basis, then that rule result is identifiable.
+  </details>
+
+- [ ] **GN-07** — Draft Sections 1 and 2, and choose Appendix A site photos (risk engineer, Should, deps: GN-01, GN-05, CP-04, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: open the report with Purpose and Scope and an accurate Executive Summary without writing them from scratch, and control which photos Appendix A shows. Combines the backlog candidates GN-10 and EX-04 (10 Oct).
+
+  1. Given an assessment has been recorded, when Section 1 is assembled, then it states the purpose and scope using the assessment's own details.
+  2. Given the report's other sections are complete, when the Executive Summary is drafted, then it summarises only content already present in those sections.
+  3. Given sections are still incomplete, when I request the Executive Summary, then I am told which sections must be completed first.
+  4. Given the Executive Summary has been drafted, when a section it summarises is later changed, then the summary is marked out of date.
+  5. Given images have been tagged to the report, when I open the appendix image selection, then I can view all images associated with the report.
+  6. Given the available report images are displayed, when I select an image, then that image is marked for inclusion in the appendix.
+  7. Given an image has been selected, when I deselect it, then the image is removed from the appendix selection.
+  8. Given I have selected one or more images, when I view the appendix, then I can see the selected images that will be displayed.
+  9. Given no images have been selected, when I view the appendix, then no report images are displayed.
+  10. Given an image is available for selection, when I view the image, then relevant metadata such as its name, tag, or description is displayed where available.
+  11. Given I have selected images, when the document is generated or exported, then only the selected images are displayed in the appendix. (Waits for EX-01.)
+  12. Given I have selected appendix images, when I reorder them, then the appendix and the export reflect that order.
+  13. Given an OFI rests on observations that have photos, when the OFI is shown, then those photos appear whole in its Observation row, leaving out a deleted observation's. (Added 10 Oct.)
+
+  "Complete" means Sections 3-12 each have a saved draft (3: an accepted OFI), so the Executive Summary can't be drafted until Sections 4-6 can. Appendix B (site map) was dropped: Marsh's template has none.
   </details>
 
 ## E7 — Engineer Review & Editing
@@ -598,6 +643,11 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given a section contains pending findings, when I choose Bulk Accept, then all pending findings in that section become Accepted.
   8. Given a section contains rejected findings, when I choose Bulk Accept, then the rejected findings remain Rejected.
   9. Given a report contains accepted, edited and rejected findings, when I view the review summary, then the displayed totals match the saved review decisions.
+  10. Given a report contains multiple sections, when I regenerate one selected section, then only that section receives a replacement draft.
+  11. Given a replacement section draft is ready, when I accept it, then it becomes the saved section content.
+  12. Given a replacement section draft is ready, when I discard it, then the previously saved section content remains unchanged.
+
+  Goal also: regenerate an individual report section, with a prompt saying what to change, so a weak section can be improved without losing other review work. AC10-AC12 are GN-04's, merged here on 11 Oct 2026.
   </details>
 
 - [ ] **RV-03** — Discuss a specific draft passage (risk engineer, Could, 2 pts, deps: RV-01, Sprint 5)

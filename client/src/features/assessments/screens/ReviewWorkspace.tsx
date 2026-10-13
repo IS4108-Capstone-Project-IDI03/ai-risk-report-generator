@@ -1,47 +1,115 @@
 import { useState } from 'react'
-import { Button, Callout, EmptyState } from '../../../design-system'
-import { DraftEditor } from '../components/DraftEditor'
-import { OfiBlock } from '../components/OfiSuggestions'
+import { Button, Callout, EmptyState, IconRegistry } from '../../../design-system'
+import {
+  bulkAccept,
+  decideFinding,
+  decideReplacement,
+  editFinding,
+  regenerateSection,
+  type ReviewSection,
+  type ReviewWorkspace as Workspace,
+} from '../api'
+import { AppendixPhotos } from '../components/AppendixPhotos'
+import { DraftEditor, type FindingActions } from '../components/DraftEditor'
+import { ExecutiveSummary } from '../components/ExecutiveSummary'
+import { PurposeScope } from '../components/PurposeScope'
+import { ReportPart } from '../components/ReportPart'
+import { OfiReviewPanel } from '../components/OfiReviewPanel'
+import {
+  AcceptReplacementDialog,
+  EditFindingDialog,
+  RegenerateDialog,
+  RejectFindingDialog,
+} from '../components/ReviewDialogs'
+import { ReviewHistory } from '../components/ReviewHistory'
 import { ReviewSectionRail } from '../components/ReviewSectionRail'
+import { SectionReviewBar, type DraftView } from '../components/SectionReviewBar'
 import { SourcePanel } from '../components/SourcePanel'
-import { citationNumbers, describeCitation, type ReviewFocus } from '../reviewDisplay'
+import { citationNumbers, describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
+import { useSummary } from '../useSummary'
 import '../review.css'
 
 const NOTHING: ReviewFocus = { citation: null, statement: null }
+// The rail's rows that are not one of sections 7-12.
+const OPENING = new Set(['1', '2', '3', 'A'])
+
+// The dialog open over the workspace, if any.
+type OpenDialog =
+  { kind: 'edit' | 'reject'; claim: Claim } | { kind: 'regenerate' | 'accept-replacement' }
+
+// A replacement draft shown in the editor and source panel in place of the
+// saved one, read-only: decisions are made on it once it is accepted.
+function replacementView(section: ReviewSection): ReviewSection {
+  const replacement = section.replacement!
+  const statements = replacement.draft.subsections.flatMap((s) => s.statements)
+  return {
+    ...section,
+    draft: replacement.draft,
+    sources: replacement.sources,
+    observations: replacement.observations,
+    review: {
+      state: 'ai_draft',
+      unsupportedStatements: statements.filter((s) => !s.supported).length,
+      withdrawnSources: Object.values(replacement.sources).filter((p) => p.document?.withdrawnAt)
+        .length,
+      changesSinceDraft: 0,
+      changeCounts: { added: 0, changed: 0, removed: 0 },
+    },
+  }
+}
 
 // The Review tab for a saved assessment (RV-01): sections 7-12 down the side
 // with their completion and review states, the selected section's draft in
 // the middle, and its sources, original observations and claims beside it.
 // Section 3 (GN-05) shows the OFIs accepted into the report, in Marsh's tables.
-// Read-only until the review stories add decisions on findings (RV-02).
+// The assigned engineer accepts, edits and rejects each finding, accepts a
+// section's pending findings at once, and regenerates a section as a
+// replacement to accept or discard (RV-02); the review summary in the rail
+// counts the saved decisions, and each section's review history beside it.
+// Sections 1 and 2 lead the rail and Appendix A ends it (GN-07).
 export function ReviewWorkspace({
   reference,
+  canReview = false,
   wrapStyle,
   railStyle,
   panelStyle,
   onGenerate,
 }: {
   reference: string
+  // The assigned engineer, on an assessment not archived: others only read.
+  // Also who may change Appendix A (GN-07); the gateway checks both too.
+  canReview?: boolean
   wrapStyle: React.CSSProperties
   railStyle: React.CSSProperties
   panelStyle: React.CSSProperties
   onGenerate: () => void
 }) {
-  const { sections, loadError } = useReview(reference)
-  const { ofis } = useOfis(reference)
-  // For each OFI's sources, as on Report generation.
+  const { workspace, loadError, keep, reload } = useReview(reference)
+  const { ofis, setOfis } = useOfis(reference)
+  const { summary, loadError: summaryError, reload: reloadSummary } = useSummary(reference)
+  // For each OFI's sources, as on Generation.
   const { observations } = useObservations(reference, true)
   // Only a list from the gateway counts; anything else reads as no OFIs yet.
   const accepted = Array.isArray(ofis?.accepted) ? ofis.accepted : []
   const waiting = Array.isArray(ofis?.suggestions) ? ofis.suggestions.length : 0
   const [selected, setSelected] = useState<string | null>(null)
   const [focus, setFocus] = useState<ReviewFocus>(NOTHING)
+  const [view, setView] = useState<DraftView>('saved')
+  const [dialog, setDialog] = useState<OpenDialog | null>(null)
+  // The decision being saved: a finding's key, 'bulk' or 'discard'.
+  const [busy, setBusy] = useState<string | null>(null)
+  // Why the last decision made outside a dialog was not saved.
+  const [problem, setProblem] = useState<string | null>(null)
+  // Sections being regenerated, and why a regeneration failed, by section.
+  const [regenerating, setRegenerating] = useState<Set<string>>(new Set())
+  const [regenerateProblems, setRegenerateProblems] = useState<Record<string, string>>({})
 
-  if (loadError)
+  const sections = workspace?.sections
+  if (loadError && !sections)
     return (
       <div style={{ padding: '24px 28px' }}>
         <Callout tone="danger" title="The review workspace could not be loaded">
@@ -53,31 +121,22 @@ export function ReviewWorkspace({
     return <p style={{ padding: '24px 28px', margin: 0 }}>Loading the report sections…</p>
 
   const drafted = sections.filter((s) => s.draft)
-  if (!drafted.length)
-    return (
-      <EmptyState
-        icon="file-text"
-        title="No sections drafted yet"
-        description="Drafted sections appear here for review. Draft them on the Report generation tab."
-        action={
-          <Button variant="primary" iconLeft="sparkles" onClick={onGenerate}>
-            Go to Report generation
-          </Button>
-        }
-      />
-    )
-
   // The first drafted section opens until another is chosen.
   const index = Math.max(
     0,
-    sections.findIndex((s) => s.id === (selected ?? drafted[0].id)),
+    sections.findIndex((s) => s.id === (selected ?? drafted[0]?.id)),
   )
-  const section = sections[index]
-  const numbers = section.draft ? citationNumbers(section.draft) : new Map<string, number>()
-  const describe = (citation: string) => describeCitation(section, citation)
+  // undefined only when the template lists no sections (S4 not answering).
+  const saved = sections[index] as (typeof sections)[number] | undefined
+  const showing = view === 'replacement' && saved?.replacement ? 'replacement' : 'saved'
+  const section = saved && (showing === 'replacement' ? replacementView(saved) : saved)
+  const numbers = section?.draft ? citationNumbers(section.draft) : new Map<string, number>()
+  const describe = (citation: string) => describeCitation(section!, citation)
   const select = (id: string) => {
     setSelected(id)
     setFocus(NOTHING)
+    setView('saved')
+    setProblem(null)
   }
   const cite = (citation: string | null, statement: string | null) =>
     setFocus({ citation, statement })
@@ -86,18 +145,91 @@ export function ReviewWorkspace({
   const rail = (
     <ReviewSectionRail
       sections={sections}
-      selected={selected === '3' ? '3' : section.id}
+      summary={workspace.summary}
+      regenerating={regenerating}
+      selected={selected && OPENING.has(selected) ? selected : (saved?.id ?? '')}
       onSelect={select}
       inReport={accepted.length}
+      executiveSummary={summary?.executiveSummary ?? null}
       style={railStyle}
     />
   )
+  const last = sections[sections.length - 1]
 
-  // Section 3: the OFIs in the report, laid out like a section's draft: the editor
-  // bar, the provenance of their drafting, then each OFI in an AI draft box.
-  // Accepting more happens on Report generation.
+  // Sections 1 and 2, and Appendix A: one view each, with a side panel that
+  // says where its content comes from.
+  const part = (
+    title: string,
+    body: React.ReactNode,
+    note: string,
+    nav: { onPrevious?: () => void; onNext?: () => void },
+  ) => (
+    <div style={wrapStyle}>
+      {rail}
+      <ReportPart title={title} {...nav}>
+        {body}
+      </ReportPart>
+      <aside aria-label={`${title} notes`} className="om-scroll" style={panelStyle}>
+        <div className="rv-panel-section">
+          <div className="rv-viewer is-empty">
+            <p className="rv-muted">{note}</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  )
+  if (selected === '1')
+    return part(
+      '1. Purpose and Scope',
+      <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} />,
+      'Section 1 is filled in from the assessment and site details, with no AI drafting. It always matches them.',
+      { onNext: () => select('2') },
+    )
+  if (selected === '2')
+    return part(
+      '2. Executive Summary',
+      <ExecutiveSummary
+        summary={summary?.executiveSummary ?? null}
+        error={summaryError}
+        onGenerate={onGenerate}
+      />,
+      'The Executive Summary is drafted only from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
+      { onPrevious: () => select('1'), onNext: () => select('3') },
+    )
+  if (selected === 'A')
+    return part(
+      'Appendix A. Site Photos',
+      <AppendixPhotos reference={reference} canEdit={canReview} />,
+      'The export (EX-01) shows only these photos, in this order, with their captions.',
+      { onPrevious: last && (() => select(last.id)) },
+    )
+
+  // Nothing drafted yet: the rail stays, so Sections 1 and 2 and Appendix A
+  // (which need no draft of 7-12) can still be opened (GN-07 AC1, AC5).
+  if (!saved || !section || (!drafted.length && selected !== '3'))
+    return (
+      <div style={wrapStyle}>
+        {rail}
+        <section className="om-scroll rv-editor">
+          <EmptyState
+            icon="file-text"
+            title="No sections drafted yet"
+            description="Drafted sections appear here for review. Draft them on the Generation tab."
+            action={
+              <Button variant="primary" iconLeft="sparkles" onClick={onGenerate}>
+                Go to Generation
+              </Button>
+            }
+          />
+        </section>
+      </div>
+    )
+
+  // Section 3, laid out like a section's draft: the editor bar, the provenance of
+  // the OFIs' drafting, then the suggestions to accept and the OFIs in the report,
+  // each in an AI draft box. Accepting happens here, not on Generation (GN-07).
   if (selected === '3') {
-    const drafted = accepted[0]?.provenance
+    const drafted = (accepted[0] ?? ofis?.suggestions?.[0])?.provenance
     return (
       <div style={wrapStyle}>
         {rail}
@@ -105,13 +237,14 @@ export function ReviewWorkspace({
           <div className="rv-editor-inner">
             <div className="rv-editor-bar">
               <p className="rv-label">Draft editor · 1 of {sections.length + 1}</p>
-              <Button variant="ghost" size="sm" iconLeft="chevron-left" disabled>
+              <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={() => select('2')}>
                 Previous
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 iconRight="chevron-right"
+                disabled={!sections.length}
                 onClick={() => select(sections[0].id)}
               >
                 Next
@@ -122,10 +255,10 @@ export function ReviewWorkspace({
               <EmptyState
                 icon="file-text"
                 title="No OFIs in the report yet"
-                description="Draft and accept Opportunities for Improvement on the Report generation tab."
+                description="Draft Opportunities for Improvement on the Generation tab, then accept them here."
                 action={
                   <Button variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
-                    Go to Report generation
+                    Go to Generation
                   </Button>
                 }
               />
@@ -136,14 +269,14 @@ export function ReviewWorkspace({
                   {drafted.effort} effort) · prompt {drafted.prompt_version} · config{' '}
                   {drafted.config_version}
                 </p>
-                {accepted.map((o) => (
-                  <OfiBlock
-                    key={o.id}
-                    ofi={o}
-                    number={o.number}
-                    observations={observations ?? []}
-                  />
-                ))}
+                <OfiReviewPanel
+                  reference={reference}
+                  ofis={{ suggestions: ofis?.suggestions ?? [], accepted }}
+                  setOfis={setOfis}
+                  observations={observations ?? []}
+                  canAccept={canReview}
+                  onAccepted={() => void reloadSummary()}
+                />
               </>
             )}
           </div>
@@ -155,12 +288,12 @@ export function ReviewWorkspace({
                 {waiting
                   ? `${waiting} suggested OFI${waiting === 1 ? ' is' : 's are'} waiting to be accepted.`
                   : 'No suggested OFIs are waiting.'}{' '}
-                Each OFI's sources open below it. Suggestions are drafted and accepted on Report
-                generation.
+                Each OFI's sources open below it. Suggestions are drafted on Generation and accepted
+                here.
               </p>
               <div style={{ marginTop: '12px' }}>
                 <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
-                  Go to Report generation
+                  Go to Generation
                 </Button>
               </div>
             </div>
@@ -169,6 +302,67 @@ export function ReviewWorkspace({
       </div>
     )
   }
+
+  const draftId = saved.draft?.id ?? ''
+  const sectionId = saved.id
+  // Saves a decision made outside a dialog, showing why if it is refused.
+  const decide = async (key: string, save: () => Promise<Workspace>) => {
+    setBusy(key)
+    setProblem(null)
+    try {
+      keep(await save())
+    } catch (error: unknown) {
+      setProblem(error instanceof Error ? error.message : 'The decision was not saved.')
+    }
+    setBusy(null)
+  }
+  // Saves a decision made in a dialog: the dialog shows why if it is refused.
+  const decideInDialog = async (save: () => Promise<Workspace>) => {
+    keep(await save())
+    setDialog(null)
+  }
+  const regenerate = async (instruction: string) => {
+    setDialog(null)
+    setRegenerating((ids) => new Set(ids).add(sectionId))
+    setRegenerateProblems((problems) => {
+      const left = { ...problems }
+      delete left[sectionId]
+      return left
+    })
+    try {
+      keep(await regenerateSection(reference, sectionId, instruction))
+    } catch (error: unknown) {
+      setRegenerateProblems((problems) => ({
+        ...problems,
+        [sectionId]: error instanceof Error ? error.message : 'Drafting failed.',
+      }))
+    }
+    setRegenerating((ids) => {
+      const left = new Set(ids)
+      left.delete(sectionId)
+      return left
+    })
+  }
+
+  const actions: FindingActions | undefined =
+    canReview && showing === 'saved' && saved.draft
+      ? {
+          busy,
+          onAccept: (claim) =>
+            decide(claim.key, () =>
+              decideFinding(reference, sectionId, draftId, claim.key, 'accept'),
+            ),
+          onEdit: (claim) => setDialog({ kind: 'edit', claim }),
+          onReject: (claim) => setDialog({ kind: 'reject', claim }),
+        }
+      : undefined
+  const rejected = new Set(
+    saved.draft
+      ? saved.draft.subsections.flatMap((sub, i) =>
+          sub.statements.flatMap((s, j) => (s.review.state === 'rejected' ? [`${i}.${j}`] : [])),
+        )
+      : [],
+  )
 
   return (
     <div style={wrapStyle}>
@@ -184,8 +378,64 @@ export function ReviewWorkspace({
         focus={focus}
         describe={describe}
         onCite={cite}
+        actions={actions}
+        header={
+          <>
+            {problem && (
+              <div role="alert">
+                <Callout
+                  tone="warning"
+                  title="Your decision was not saved"
+                  actions={
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      iconLeft={IconRegistry.action.regenerate}
+                      onClick={() => {
+                        setProblem(null)
+                        reload()
+                      }}
+                    >
+                      Reload the workspace
+                    </Button>
+                  }
+                >
+                  {problem}
+                </Callout>
+              </div>
+            )}
+            <SectionReviewBar
+              section={saved}
+              view={showing}
+              onView={(v) => {
+                setView(v)
+                setFocus(NOTHING)
+              }}
+              canReview={canReview}
+              busy={busy}
+              regenerating={regenerating.has(sectionId)}
+              regenerateProblem={regenerateProblems[sectionId] ?? null}
+              onBulkAccept={() => decide('bulk', () => bulkAccept(reference, sectionId, draftId))}
+              onRegenerate={() => setDialog({ kind: 'regenerate' })}
+              onAcceptReplacement={() => setDialog({ kind: 'accept-replacement' })}
+              onDiscardReplacement={() =>
+                decide('discard', async () => {
+                  const after = await decideReplacement(
+                    reference,
+                    sectionId,
+                    saved.replacement!.draft.id,
+                    'discard',
+                  )
+                  setView('saved')
+                  return after
+                })
+              }
+            />
+          </>
+        }
       />
       <SourcePanel
+        savedObservations={observations}
         section={section}
         numbers={numbers}
         focus={focus}
@@ -193,7 +443,68 @@ export function ReviewWorkspace({
         onCite={cite}
         onShowClaim={(claim) => setFocus((f) => ({ ...f, statement: claim }))}
         style={panelStyle}
-      />
+      >
+        <ReviewHistory
+          entries={saved.history}
+          savedDraftId={saved.draft?.id ?? null}
+          rejected={rejected}
+          busy={busy}
+          onRestore={
+            canReview
+              ? (finding) =>
+                  decide(finding, () =>
+                    decideFinding(reference, sectionId, draftId, finding, 'restore'),
+                  )
+              : undefined
+          }
+        />
+      </SourcePanel>
+
+      {dialog?.kind === 'edit' && (
+        <EditFindingDialog
+          claim={dialog.claim}
+          onClose={() => setDialog(null)}
+          onSave={(text) =>
+            decideInDialog(() => editFinding(reference, sectionId, draftId, dialog.claim.key, text))
+          }
+        />
+      )}
+      {dialog?.kind === 'reject' && (
+        <RejectFindingDialog
+          claim={dialog.claim}
+          onClose={() => setDialog(null)}
+          onReject={() =>
+            decideInDialog(() =>
+              decideFinding(reference, sectionId, draftId, dialog.claim.key, 'reject'),
+            )
+          }
+        />
+      )}
+      {dialog?.kind === 'regenerate' && (
+        <RegenerateDialog
+          section={saved}
+          onClose={() => setDialog(null)}
+          onRegenerate={regenerate}
+        />
+      )}
+      {dialog?.kind === 'accept-replacement' && saved.replacement && (
+        <AcceptReplacementDialog
+          section={saved}
+          onClose={() => setDialog(null)}
+          onAccept={() =>
+            decideInDialog(async () => {
+              const after = await decideReplacement(
+                reference,
+                sectionId,
+                saved.replacement!.draft.id,
+                'accept',
+              )
+              setView('saved')
+              return after
+            })
+          }
+        />
+      )}
     </div>
   )
 }

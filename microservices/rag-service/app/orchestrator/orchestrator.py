@@ -17,9 +17,13 @@ from app.generation.generator import (
     OFI_CONFIG,
     OFI_PROMPT_VERSION,
     PROMPT_VERSION,
+    REDRAFT_PROMPT_VERSION,
+    SUMMARY_PROMPT_VERSION,
     TEMPLATE,
     draft_ofis,
     draft_section,
+    draft_summary,
+    filed_under,
     generate,
     ram_priority,
 )
@@ -91,7 +95,7 @@ def standard_queries(section: dict, observations) -> list[str]:
     from other categories don't search, so other sections' findings don't steer it.
     Cohere embeds at most 96 texts a call.
     """
-    own = [o for o in observations if o.COPE_dimension in section["cope_dimensions"]]
+    own = [o for o in observations if filed_under(o, section)]
     return [
         f"{section['title']}: "
         + spell_out(" ".join(" ".join([o.note or "", *o.transcripts]).split()))[:500]
@@ -114,8 +118,12 @@ def _nearest_first(per_observation: list[list[dict]]) -> dict[str, dict]:
     return standards
 
 
-def draft(section_id: str, assessment, observations) -> dict:
+def draft(section_id: str, assessment, observations, redraft=None) -> dict:
     """Draft one report section (GN-01): retrieve, generate, check citations.
+
+    `redraft`, when the engineer regenerates a section from the review workspace
+    (RV-02), holds the saved draft's findings with their decisions and the engineer's
+    instruction. Retrieval and the checks are the same; only the prompt adds them.
 
     Raises KeyError for a section that is not in the template.
     """
@@ -124,9 +132,7 @@ def draft(section_id: str, assessment, observations) -> dict:
     section = TEMPLATE["sections"][section_id]
     title = section["title"]
     site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
-    evidence = _evidence_summary(
-        [o for o in observations if o.COPE_dimension in section["cope_dimensions"]]
-    )
+    evidence = _evidence_summary([o for o in observations if filed_under(o, section)])
 
     # One batched search: standards for each of the section's observations, then past
     # reports for the section as a whole. Past reports are filtered by country only:
@@ -175,6 +181,7 @@ def draft(section_id: str, assessment, observations) -> dict:
         list(standards.values()),
         precedents,
         config.LLM_EFFORT,
+        redraft,
     )
 
     # The template, not the model, decides the subsections and their order (AC5).
@@ -215,9 +222,13 @@ def draft(section_id: str, assessment, observations) -> dict:
             "provider": config.LLM_PROVIDER,
             "model": model,
             "effort": config.LLM_EFFORT,
-            "prompt_version": PROMPT_VERSION,
+            # A redraft's prompt is the first draft's plus the redraft part (RV-02).
+            "prompt_version": PROMPT_VERSION
+            if redraft is None
+            else f"{PROMPT_VERSION}+{REDRAFT_PROMPT_VERSION}",
             "template_version": TEMPLATE["version"],
             "generated_at": datetime.now(UTC).isoformat(),
+            "instruction": (redraft.instruction or None) if redraft else None,
         },
     }
 
@@ -327,4 +338,26 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
         "sources": sources,
         "provenance": {**provenance, "model": model},
         "usage": paid_calls,
+    }
+
+
+def draft_summary_for(assessment, sections) -> dict:
+    """Draft Section 2's Executive Summary (GN-07 AC2) from the report's other sections:
+    generate, then check that each statement cites a section it was given."""
+    paid_calls = usage.start()
+    result, model = draft_summary(assessment, sections, config.LLM_EFFORT)
+    statements = [s.model_dump() for s in result.statements]
+    guardrail = check_citations([{"statements": statements}], {f"S:{s.id}" for s in sections})
+    return {
+        "statements": statements,
+        "guardrail": guardrail,
+        "usage": paid_calls,
+        "provenance": {
+            "provider": config.LLM_PROVIDER,
+            "model": model,
+            "effort": config.LLM_EFFORT,
+            "prompt_version": SUMMARY_PROMPT_VERSION,
+            "template_version": TEMPLATE["version"],
+            "generated_at": datetime.now(UTC).isoformat(),
+        },
     }

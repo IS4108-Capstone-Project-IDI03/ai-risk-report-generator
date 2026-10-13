@@ -2,7 +2,6 @@ import type { Assessment, InterpretationStatus, MediaKind, Stamp, TranscriptionS
 
 export type AssessmentRow = {
   engineerId?: string | null
-  standards?: string[]
   // The saved assessment the row came from, which the edit form starts from.
   record?: Assessment
   id: string
@@ -26,10 +25,13 @@ export type AssessmentRow = {
 export type Observation = {
   icon: string
   color: string
-  cat: string
+  // Its COPE categories, in C-O-P-E order; empty when uncategorised.
+  cats: string[]
   time: string
   text: string
-  area: string
+  // Where it was captured (CP-16): the location's name, building and level.
+  locationName: string
+  building?: string | null
   sev: string
   std: string
   // Its photographs (CP-04): url opens the original, or is null for a sample
@@ -46,8 +48,7 @@ export type Observation = {
   }[]
   detail: string
   audio?: string
-  // Where it was captured, when known by id rather than only by name, and the
-  // location's floor. The location's name (area) is its zone (CP-06).
+  // The location by id, when known rather than only by name, and its level.
   locationId?: string
   floor?: string | null
   // Set on observations saved on the server.
@@ -104,6 +105,9 @@ export type GenerationSection = {
   ev: number
   conf: string
 }
+// The dashboard's date filters: reports past due, reports due within 7 days,
+// and site visits within 7 days.
+export type DateFilter = 'overdue' | 'due-soon' | 'visit-soon'
 export type WorkflowState = {
   screen: string
   tab: string
@@ -111,20 +115,22 @@ export type WorkflowState = {
   toastTone: string
   q: string
   fStatus: string
+  // The dashboard box filtering the list by date, or null for none.
+  fDate: DateFilter | null
   workSort: string
   createdRows: AssessmentRow[]
   cf: {
     site: string
     client: string
     addr: string
-    ref: string
     type: string
     survey: string
     date: string
     due: string
-    stds: string[]
     // The assigned engineer's user ID.
     eng: string
+    // Narrows the engineer list; not sent.
+    engQuery: string
     jurisdiction: string
   }
   // The assessment whose details the form is editing, or null when creating.
@@ -134,12 +140,16 @@ export type WorkflowState = {
   cfServerError: string | null
   // The assessment the Site observation screen captures for.
   captureTarget: { reference: string; site: string }
+  // The navigation's Recent list: assessments last opened, newest first.
+  recent: { reference: string; site: string }[]
   // Observations for assessments other than the demo one, by reference.
   captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
-  // The note is in the Ready to save list rather than being written.
-  fNoteListed: boolean
+  // Capture was left with something unsaved: the Leave without saving?
+  // dialog, and the workspace tab leaving goes to.
+  fLeaveOpen: boolean
+  fLeaveTo: string
   // An observation being saved to the gateway, and why the last save failed.
   fSaving: boolean
   fSaveError: { title: string; message: string } | null
@@ -154,19 +164,33 @@ export type WorkflowState = {
   fPhotos: PhotoFile[]
   // Why a chosen file was not added as a photo (CP-04 AC4).
   fPhotoError: string | null
-  // The location the engineer is capturing in, and the location sheet.
+  // The location the engineer is capturing in, and the location picker. It
+  // opens by itself until a location is chosen, unless closed this visit.
   fLocationId: string | null
   locOpen: boolean
+  locDismissed: boolean
   locQuery: string
+  // The form adding a location, or changing the one locEdit names (CP-16).
   locAdding: boolean
-  lf: { name: string; floor: string }
+  locEdit: string | null
+  lf: LocationForm
   lfBusy: boolean
-  lfError: string | null
+  // Why the form was refused, by field: building, floor or name.
+  lfErrors: Partial<Record<'building' | 'floor' | 'name', string>>
+  // A new building, level or location name the form asks about before
+  // saving, as it is probably mistyped (CP-16), and those the engineer chose
+  // to keep as typed.
+  lfCheck: NameCheck | null
+  lfKept: Partial<Record<NameCheck['field'], string>>
+  // Picker groups opened or closed this visit, by key (CP-16); others follow
+  // where the engineer is.
+  locGroups: Record<string, boolean>
   // The location waiting for the engineer to confirm removing it, by id.
   locRemove: string | null
-  fCat: string
+  // The COPE categories the next observation is filed under; none is uncategorised.
+  fCats: string[]
+  // Its severity, '' until the engineer picks one. Both reset after each save.
   fSev: string
-  fStd: string
   // warn: a prompt to do something first, shown in the warning tone.
   fToast: { text: string; warn?: boolean } | null
   fRecent: Observation[]
@@ -196,6 +220,18 @@ export type WorkflowState = {
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).
   obsShowDeleted: boolean
+  // The Observations tab by building, level and location, or newest first;
+  // the buildings folded away this visit; and its Add or Edit location
+  // dialog (CP-16).
+  obsSort: 'location' | 'newest'
+  obsFolded: Record<string, boolean>
+  obsLocForm: boolean
+  // Where the Observations tab opens after capture (CP-16): the location
+  // capture was opened at or last saved in, and the observations saved
+  // there this visit, marked New. ids: those the gateway saved; local: how
+  // many were kept in this browser, the newest local-<n> rows. Kept only
+  // while capture or the Observations tab shows.
+  obsReturn: { locationId: string; ids: string[]; local: number } | null
   // The observation being changed on the Observations tab, by row key: a
   // recording's transcript, its deletion, adding recordings and photos, or
   // removing one of them (CP-08).
@@ -209,7 +245,7 @@ export type WorkflowState = {
   // its tags (CP-06) and note (CP-08); and why the last save failed.
   tagEdit: {
     key: string
-    cat: string
+    cats: string[]
     sev: string
     locationId: string
     std: string
@@ -225,9 +261,26 @@ export type ObservationFilters = {
   type: string
   cat: string
   sev: string
-  loc: string
-  floor: string
+  // A building (or Elsewhere on site), a level of it, or one location (CP-16).
+  place: string
   status: string
+}
+
+// A building, level or location name as typed, not yet on the site, and the
+// name it was probably meant to be, if any (CP-16).
+export type NameCheck = {
+  field: 'building' | 'floor' | 'name'
+  typed: string
+  suggestion: string | null
+}
+
+// The picker's add and edit form (CP-16): a location in a building, with an
+// optional level, or one elsewhere on site, with a name only.
+export type LocationForm = {
+  kind: 'building' | 'elsewhere'
+  building: string
+  floor: string
+  name: string
 }
 
 // A recording or audio file held in the browser until Save observation uploads it.

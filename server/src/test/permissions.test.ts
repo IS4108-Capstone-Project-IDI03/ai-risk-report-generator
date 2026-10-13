@@ -109,7 +109,6 @@ describe('allowed operations succeed', () => {
       site: { name: 'Jurong Hub', jurisdiction: 'SG', facilityType: 'Distribution warehouse' },
       client: 'Straits Logistics',
       surveyType: 'Property risk survey',
-      standards: [],
       engineerId: String(user._id),
     })
     expect(created.status).toBe(201)

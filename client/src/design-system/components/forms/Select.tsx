@@ -1,5 +1,8 @@
 import type * as React from 'react'
 import { Icon } from '../core/Icon'
+export type SelectOption = string | { value: string; label: string }
+// Options listed under a heading (a native optgroup), e.g. by building.
+export type SelectOptionGroup = { label: string; options: SelectOption[] }
 export type SelectProps = Omit<
   React.SelectHTMLAttributes<HTMLSelectElement>,
   'label' | 'hint' | 'error' | 'options' | 'size' | 'disabled' | 'style'
@@ -7,12 +10,20 @@ export type SelectProps = Omit<
   label?: React.ReactNode
   hint?: React.ReactNode
   error?: React.ReactNode
-  options?: (string | { value: string; label: string })[]
+  options?: (SelectOption | SelectOptionGroup)[]
   size?: 'sm' | 'md' | 'lg'
   disabled?: boolean
   style?: React.CSSProperties
 }
 import { useId, useState } from 'react'
+function renderOption(o: SelectOption) {
+  const value = typeof o === 'string' ? o : o.value
+  return (
+    <option key={value} value={value}>
+      {typeof o === 'string' ? o : o.label}
+    </option>
+  )
+}
 function Select({
   label,
   hint,
@@ -106,15 +117,15 @@ function Select({
           }}
           {...rest}
         >
-          {options.map((o) => {
-            const value = typeof o === 'string' ? o : o.value
-            const text = typeof o === 'string' ? o : o.label
-            return (
-              <option key={value} value={value}>
-                {text}
-              </option>
-            )
-          })}
+          {options.map((o) =>
+            typeof o !== 'string' && 'options' in o ? (
+              <optgroup key={'group:' + o.label} label={o.label}>
+                {o.options.map(renderOption)}
+              </optgroup>
+            ) : (
+              renderOption(o)
+            ),
+          )}
         </select>
         <Icon
           name={'chevron-down'}

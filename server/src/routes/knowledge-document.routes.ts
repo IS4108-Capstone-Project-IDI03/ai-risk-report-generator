@@ -6,6 +6,7 @@ import { IngestionUnavailableError } from '../services/ingestion.service'
 import type { z } from 'zod'
 import {
   correctKnowledgeDocument,
+  cancelIngestion,
   documentDetailsSchema,
   getKnowledgeDocumentFile,
   KnowledgeDocumentWrongStateError,
@@ -139,6 +140,18 @@ router.post('/:id/withdraw', requirePermission('knowledge:manage'), async (req, 
 router.post('/:id/reinstate', requirePermission('knowledge:manage'), async (req, res) => {
   try {
     res.json(await reinstateKnowledgeDocument(req.params.id))
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// Stops a queued or processing ingestion. Answers: 202 accepted · 404 unknown
+// · 409 already terminal. An active worker observes the cancellation marker
+// and performs cleanup before marking the document cancelled.
+router.post('/:id/cancel', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    await cancelIngestion(req.params.id)
+    res.status(202).end()
   } catch (error: unknown) {
     answerStateChange(error, res)
   }

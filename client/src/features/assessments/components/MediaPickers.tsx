@@ -95,7 +95,7 @@ export function AudioPickers({
   )
 }
 
-// One entry in a list waiting to be saved: a note, a recording or a photograph.
+// One entry in a list waiting to be saved: a recording or a photograph.
 export function ReadyItem({
   icon,
   title,

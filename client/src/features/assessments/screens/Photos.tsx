@@ -1,5 +1,17 @@
+import { useState } from 'react'
 import { Button, EmptyState, Icon } from '../../../design-system'
+import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+
+// A photo as a plain button, so choosing it opens it in a popup.
+const thumbButton = {
+  display: 'block',
+  width: '100%',
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  cursor: 'zoom-in',
+} as const
 
 // The assessment's photo collection (CP-04 AC3): every site photograph saved
 // with its observations, except a deleted observation's. The report's
@@ -7,6 +19,7 @@ import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 // whole, at its real aspect ratio, as evidence.
 export function Photos({ v }: { v: AssessmentWorkflow }) {
   const photos = v.photoCollection
+  const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
   return (
     <div
       style={{
@@ -14,6 +27,16 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
         animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
       }}
     >
+      {/* Opened from the Observations tab's Photos box, so it leads back there. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        iconLeft="arrow-left"
+        onClick={v.goObservations}
+        style={{ marginBottom: '10px' }}
+      >
+        {'Back to observations'}
+      </Button>
       <div
         style={{
           display: 'flex',
@@ -33,12 +56,6 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
         >
           {'Site photographs'}
         </span>
-        <span style={{ flex: '1' }}></span>
-        {v.canEdit && v.canCapture && (
-          <Button variant="secondary" size="sm" iconLeft="camera" onClick={v.goField}>
-            {'New observation'}
-          </Button>
-        )}
       </div>
       <p
         style={{
@@ -93,11 +110,13 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
                 }}
               >
                 {photo.url ? (
-                  <a
-                    href={photo.url}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
                     aria-label={'Open ' + photo.name}
+                    onClick={() =>
+                      setViewing({ name: photo.name, url: photo.url!, context: photo.where })
+                    }
+                    style={thumbButton}
                   >
                     {/* ponytail: loads the original; serve smaller copies if collections grow large. */}
                     <img
@@ -106,7 +125,7 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
                       loading="lazy"
                       style={{ display: 'block', width: '100%', height: 'auto' }}
                     />
-                  </a>
+                  </button>
                 ) : (
                   <div
                     style={{
@@ -164,6 +183,7 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
           ))}
         </ul>
       )}
+      {viewing && <PhotoDialog photo={viewing} onClose={() => setViewing(null)} />}
     </div>
   )
 }

@@ -47,3 +47,10 @@ export async function requeueIngestion(documentId: string): Promise<void> {
   await ingestionQueue().remove(documentId)
   await enqueueIngestion(documentId)
 }
+
+// Removes a queued ingestion job. BullMQ treats a missing job as a no-op.
+// Active jobs may already be claimed by the worker, so MongoDB cancellation
+// state remains the source of truth for those runs.
+export async function removeIngestionJob(documentId: string): Promise<void> {
+  await ingestionQueue().remove(documentId)
+}

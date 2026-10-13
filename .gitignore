@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+*.pem
 
 # ── Node ─────────────────────────────────────────────────────────────────
 node_modules/
@@ -24,4 +25,6 @@ __pycache__/
 
 # Personal files
 CLAUDE.local.md
+TODO.md
 .local-docs/
+cache.json

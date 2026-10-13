@@ -6,11 +6,12 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
   return (
     <>
       <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
-        <div style={{ maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <Callout tone="ai" title={v.genCalloutTitle}>
             {v.genCalloutBody}
           </Callout>
           <div
+            className="generation-card"
             style={{
               background: 'var(--surface-card)',
               border: '1px solid var(--border-default)',
@@ -54,9 +55,9 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
               )}
             </div>
             <div
+              className="generation-row generation-header"
               style={{
                 display: 'grid',
-                gridTemplateColumns: '64px minmax(0,1fr) 150px 130px',
                 alignItems: 'center',
                 padding: '0 20px',
                 height: '34px',
@@ -71,6 +72,7 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
             >
               <span>{'\u00a7'}</span>
               <span>{'Section'}</span>
+              <span>Status</span>
               <span>{'Evidence'}</span>
               <span>{'Confidence'}</span>
             </div>
@@ -78,9 +80,9 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
               <Fragment key={index}>
                 <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                   <div
+                    className="generation-row"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '64px minmax(0,1fr) 150px 130px',
                       alignItems: 'center',
                       padding: '12px 20px',
                     }}
@@ -105,9 +107,6 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
                         >
                           {g.title}
                         </span>
-                        <Badge tone={g.tone} icon={g.icon}>
-                          {g.label}
-                        </Badge>
                       </span>
                       {!!g.isProcessing && (
                         <>
@@ -125,6 +124,11 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
                           </span>
                         </>
                       )}
+                    </span>
+                    <span className="generation-status">
+                      <Badge tone={g.tone} icon={g.icon}>
+                        {g.label}
+                      </Badge>
                     </span>
                     <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
                       {g.evLabel}

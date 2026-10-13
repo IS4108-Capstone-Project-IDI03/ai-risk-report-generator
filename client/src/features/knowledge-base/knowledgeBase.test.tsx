@@ -216,7 +216,7 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     expect(within(table).getByText('Complete')).toBeInTheDocument()
     expect(
       within(table).getByText(
-        'Complete uploads leave this list after 24 hours, failed ones after 7 days.',
+        'Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.',
       ),
     ).toBeInTheDocument()
     expect(within(table).getAllByRole('link', { name: /View original/ })[0]).toHaveAttribute(
@@ -321,7 +321,51 @@ describe('Ingestion stage tracking (E2)', () => {
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
     expect(await within(region).findByText('Chunking')).toBeInTheDocument()
-    expect(within(region).getByText('| Pg 12 / 45')).toBeInTheDocument()
+    expect(within(region).getByText('12 / 45 pages')).toBeInTheDocument()
+  })
+
+  it('shows the pages parsed so far for a parsing document', async () => {
+    mockGateway([processing({ currentStage: 'parsing', pageCurrent: 40, pageTotal: 500 })])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Parsing')).toBeInTheDocument()
+    expect(within(region).getByText('40 / 500 pages')).toBeInTheDocument()
+  })
+
+  it('shows 0 of the page total before the first batch is parsed', async () => {
+    mockGateway([processing({ currentStage: 'parsing', pageCurrent: 0, pageTotal: 500 })])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Parsing')).toBeInTheDocument()
+    expect(within(region).getByText('0 / 500 pages')).toBeInTheDocument()
+  })
+
+  it('shows the regions read by OCR once chunking has walked every page', async () => {
+    mockGateway([
+      processing({
+        currentStage: 'chunking',
+        pageCurrent: 45,
+        pageTotal: 45,
+        ocrCurrent: 3,
+        ocrTotal: 17,
+      }),
+    ])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('3 / 17 OCR')).toBeInTheDocument()
+    expect(within(region).queryByText('45 / 45 pages')).not.toBeInTheDocument()
+  })
+
+  it('shows the page reached for an indexing document', async () => {
+    mockGateway([processing({ currentStage: 'indexing', pageCurrent: 300, pageTotal: 577 })])
+    await openAddDocuments()
+
+    const region = await screen.findByRole('region', { name: 'Recent uploads' })
+    expect(await within(region).findByText('Indexing')).toBeInTheDocument()
+    expect(within(region).getByText('300 / 577 pages')).toBeInTheDocument()
   })
 
   it('shows the page without a total when the page count is unknown', async () => {
@@ -329,7 +373,7 @@ describe('Ingestion stage tracking (E2)', () => {
     await openAddDocuments()
 
     const region = await screen.findByRole('region', { name: 'Recent uploads' })
-    expect(await within(region).findByText('| Pg 12')).toBeInTheDocument()
+    expect(await within(region).findByText('12 pages')).toBeInTheDocument()
   })
 
   it('falls back to the Processing badge when a processing document has no progress yet', async () => {

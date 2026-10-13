@@ -4,7 +4,7 @@ import { listObservations, type SavedObservation } from './api'
 // The assessment's observations saved on the server. Transcription and photo
 // interpretation finish after a save returns, so the list is re-read every few
 // seconds while any recording is transcribing or any photos are interpreting. Deleted ones (CP-08) are read too while
-// includeDeleted asks for them, for the Observations tab's Show deleted.
+// includeDeleted asks for them, for the Observations tab's Deleted button.
 // An unreachable gateway leaves the list as it was.
 export function useObservations(reference: string, open: boolean, includeDeleted = false) {
   // synced: the gateway has listed this assessment's observations, so it holds

@@ -60,4 +60,16 @@ describe('getJobProgressBatch', () => {
     expect(map.get(second)!.currentStage).toBe('indexing')
     expect(map.has(third)).toBe(false)
   })
+
+  it('ignores a job whose current stage was cleared after finishing', async () => {
+    const documentId = await seedJob()
+    await IngestionJobModel.updateOne(
+      { documentId },
+      { $unset: { currentStage: 1, currentStageStartedAt: 1 } },
+    )
+
+    const map = await getJobProgressBatch([documentId])
+
+    expect(map.has(documentId)).toBe(false)
+  })
 })

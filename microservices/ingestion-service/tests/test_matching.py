@@ -230,6 +230,28 @@ def test_the_document_with_the_highest_share_wins(passages):
     assert match["documentId"] == strong["_id"]
 
 
+def test_matching_batches_large_documents_within_chroma_query_quota(passages, monkeypatch):
+    stored, new = stored_doc(), stored_doc()
+    vectors = [A] * 21
+    passages.add(str(stored["_id"]), vectors)
+    passages.add(str(new["_id"]), vectors)
+
+    collection = matching.passages_collection()
+    query = collection.query
+    calls = []
+
+    def batched_query(*args, **kwargs):
+        calls.append(len(kwargs["query_embeddings"]))
+        return query(*args, **kwargs)
+
+    monkeypatch.setattr(collection, "query", batched_query)
+
+    match = matching.find_match(new, FakeDocuments(stored, new))
+
+    assert match["documentId"] == stored["_id"]
+    assert calls == [20, 1]
+
+
 def test_failed_and_unfinished_documents_are_not_candidates(passages):
     failed, queued = stored_doc(title="F", status="failed"), stored_doc(title="Q", status="queued")
     new = stored_doc(title="New")

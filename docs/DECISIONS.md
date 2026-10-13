@@ -873,3 +873,391 @@ was drafted from. Hiding rather than deleting keeps that trail.
 
 Stories: CP-08, CP-04, CP-05.
 
+## 2026-10-10 — An observation can be filed under several COPE categories
+
+Decision:
+- An observation's `metadata.COPE_dimension` is a list of one or more of the
+  four categories, stored in C-O-P-E order without repeats. Uncategorised
+  stays `null` (never `[]`), so the CLAUDE.md exception is unchanged. The
+  field keeps its name because the five-field metadata rule names it; the API
+  field becomes `copeDimensions` so a caller still sending one string fails
+  loudly instead of being misread.
+- An observation is a section's own evidence when any of its categories is one
+  of the section's. One filed under two categories counts towards both
+  sections' minimum, and is own evidence (not backup) in each draft.
+- A photo reading still proposes one category. Accepting it adds it to the
+  categories the observation has, rather than replacing them.
+- Observations and drafts saved before hold one string. Reads treat it as a
+  list of one (`copeDimensionsOf`), so nothing breaks before migrating, and a
+  draft's old evidence does not count as changed. `npm --prefix server run
+  migrate:cope` rewrites them as lists; running it twice changes nothing.
+
+Rejected:
+- A separate `COPE_dimensions` list beside the single field: two fields to
+  keep in step, and every reader would have to choose between them.
+- A primary category plus secondary ones: drafting has no use for the
+  distinction, and engineers would have to pick one for no gain.
+- Storing `[]` for uncategorised: it would read as a category list that
+  happens to be empty, against the rule that the field is present but null.
+
+Reason: one finding often concerns several parts of the report (an unsealed
+wall penetration is both Construction and Protection), and with one category
+an engineer had to pick a section to leave it out of.
+
+Stories: CP-02, CP-06, GN-01.
+
+## 2026-10-10 — Ingestion moves to one cloud instance; tables and formulas are read by Claude Haiku 5.5, several at once
+
+Chose:
+- The whole backend runs in Docker Compose on one free-tier EC2 m7i-flex.large
+  (2 vCPU, 8 GiB), with Atlas, Chroma Cloud and S3. Redis stays a container on
+  the instance, shared by the server and the worker (docs/areas/cloud.md).
+- Docling still parses and chunks, on the instance's CPU with RapidOCR. Its
+  models are built into the image.
+- Cropped tables and formulas are read by an API provider chosen by
+  `OCR_PROVIDER` (anthropic | gemini | glm). The default is Claude Haiku 5.5.
+  On FM-200's tables it read 99% of the printed numbers and invented none,
+  in about 4 s per table. Self-hosted GLM-OCR on CPU read 73% in about 150 s,
+  and its formula output was unusable (eval/ocr/results/2026-10-10.md).
+- The chunker queues every table/formula region while walking the document and
+  reads them `OCR_CONCURRENCY` (6) at a time. Order and chunk ids stay as before.
+  A table split across chunks is read once; if that read fails it is dropped,
+  not retried from the later chunk.
+- Each passage stores `bbox_pages`, the page of each box in `bbox`, so a region
+  can be cut out of the original PDF later. Passages indexed before this got
+  it by a one-off backfill. 13 multi-box table passages could not be placed
+  and wait for re-ingestion.
+- A number the OCR returns that the PDF's text layer lacks is logged with its
+  page, never corrected. A rejected key or unknown model fails the document
+  instead of dropping its tables.
+- `docker compose up` builds a lean cloud image (CPU-only torch, no GLM-OCR).
+  `docker-compose.local-ocr.yml` adds Ollama and GLM-OCR, and
+  `docker-compose.gpu.yml` adds CUDA and Nemotron on top. Mongo and Chroma
+  containers sit behind a `local-db` profile.
+
+Rejected:
+- A GPU instance for GLM-OCR: idle almost all the time at 2–3 documents a week,
+  and GLM read fewer numbers than Haiku.
+- Replacing Docling with a document-AI service (Textract, Mistral OCR): the
+  section, page and COPE logic is built on the DoclingDocument, and Textract
+  reads no formulas.
+- Gemini as the default: the team's key was rejected by Google. It stays
+  selectable with `OCR_PROVIDER=gemini`.
+- Fixing two-row table headings: retrieval only needs the gist, and drafts are
+  to read the original region through `bbox`/`bbox_pages`.
+- A separate `ocr` progress stage: it would need the gateway's and client's
+  stage lists changed for a step that takes seconds. OCR stays inside chunking.
+
+Known limit: until drafting reads the original region by bbox, a draft that
+quotes a table value relies on the OCR text. The numeric-guard log shows which
+pages to check.
+
+Stories: IN-12, IN-03, IN-06.
+
+## 2026-10-12 — Capture is a page of the Observations tab, left by its back button; the Observations tab is the one list
+
+Chose:
+- The workspace header's Capture button is now Add observation, named after
+  the tab it feeds. An empty Observations tab offers it too. The capture
+  screen keeps its own URL (`/site-observation`), so Back still works.
+- Capture keeps the workspace's header and tabs, with Observations chosen,
+  so the engineer never seems to leave the assessment; the tab's count
+  rises with each save. Above the form, a Back to observations link and the
+  heading New observation are the way back, as on any sub-page. Choosing any
+  tab leaves for that tab. On a phone the workspace header and tabs are
+  hidden during capture, and the top bar becomes ← New observation, its ← in
+  place of the menu. The header's Add observation and ⋯ menu are hidden
+  while capturing.
+- On wider screens the location picker drops down from the location bar
+  (the shared Popover) with no backdrop, so the header and tabs stay clear
+  and usable; on phones it stays a bottom sheet. Either opens by itself until
+  a location is chosen, and either can now be closed without one: the bar
+  then reads Choose a location, and Save asks for one and opens it again.
+  Leave capture is gone from the sheet. This revises the 2026-09-29 sheet,
+  which could not be closed until a location was chosen.
+- At 1080px and wider, the tags and Save sit in a 344px panel beside the
+  form, which stays in view while it scrolls; narrower, it is one column with
+  Save pinned to the bottom. Save is the only action there. Cancel, Captured
+  today, the explanatory paragraph and Open the assessment workspace are
+  gone.
+- The capture session notice shows only when no session could be started
+  (Showing sample data, with Try again). Starting, started and resumed say
+  nothing: the header names the assessment and the navigation's live light
+  marks the session. Save waits while the session starts, so an observation
+  is never kept in the browser by being saved a moment too soon.
+- The Note, Voice and Photo switcher stays and shows what each mode holds.
+  Each mode lists its own recordings or photos; the combined Ready to save
+  list and the Add note step are gone, as Save already used the typed note.
+- Leaving by the back button or a tab with anything unsaved asks Leave
+  without saving? first, then goes where was chosen. Leaving by the
+  navigation or Back keeps the draft and stops a recording in progress.
+  Opening another assessment, or archiving this one, discards the draft.
+- Category and severity start empty and reset after each save. Severity must
+  be chosen before saving. The severity chips are one SeverityPicker, shared
+  with the Edit dialog in place of its dropdown.
+- Capture no longer asks for a standard. Drafting finds one, and Edit can
+  still name one.
+
+Rejected:
+- Capture as a workspace tab of its own: opening capture starts a capture
+  session (CP-01), so browsing the tabs would start sessions and the
+  dashboard would offer to continue captures nobody began. Capture is a page
+  within the Observations tab instead, opened only by Add observation.
+- One editor for adding and editing, as a panel over the Observations list:
+  the most direct, and it removes the second form, but it needs a large
+  refactor, a new URL pattern for the panel and rules for the list behind
+  it. A story of its own if adding and editing are to share one form.
+- A Done button, in the header or beside Save: it read as finishing the page
+  or the assessment rather than going back to the list.
+- Keeping the workspace header on phones: with the tabs and title fixed above
+  the form, a phone kept about 300px for the form itself.
+- A back row between the tabs and the form: it read as a stray toolbar, and
+  repeated the name of the tab just above it.
+- Keeping the location picker a modal on wider screens: a modal's backdrop
+  covers the whole window, so the tabs were dimmed and out of reach.
+- Removing the switcher for one long form: the switcher keeps one kind of
+  input on screen at a time, which suits a phone, and its counts now show
+  what the other modes hold.
+- A notice each time capture opens: it repeated the header, and said nothing
+  the engineer had to act on.
+
+Reason: capture duplicated the Observations tab (a second list, a second set
+of the same fields), felt like a separate place, left to the dashboard, and
+kept a draft that could be saved to whichever assessment was opened next,
+with Protection and High pre-selected for every observation.
+
+Stories: CP-01, CP-02, CP-03, CP-04, CP-08.
+## 2026-10-11 — Review decisions are an append-only log; drafts never change, and Regenerate makes a replacement to accept or discard
+
+Chose:
+- A finding is one statement of a section's draft, named by where it sits:
+  `<subsection index>.<statement index>`. A draft's statements are never
+  reordered or removed, so the name holds.
+- Every review decision is one entry added to `review_audit_log`: accept,
+  edit, reject or restore a finding, and regenerate, accept or discard a
+  replacement draft. Each entry keeps the text before (and after, for an
+  edit), the citations, the signed-in user's id and name, and the time.
+  The model refuses every update and delete, so the log is immutable through
+  the gateway (AC3, AC4, AC6).
+- Drafts in `report_sections` are never changed. A finding's state and
+  current text are read from the log (`foldFindings`), and the review summary
+  is counted from the same reads (AC9). An edit replaces the text shown and
+  sent onwards (AC2); what the draft said stays beside it.
+- Two decisions on one finding at once cannot both be saved: each entry takes
+  the next `sequence` number for its draft and finding, and that is a unique
+  index. The loser gets a 409 and reloads.
+- A decision names the draft the engineer was looking at (`draftId`). If the
+  section's saved draft has changed since, it is refused (409), so a decision
+  never lands on a different draft's finding of the same name.
+- A section is `needs_review` while a finding still in the draft is
+  unsupported, a source it cites is withdrawn, or observations changed since
+  drafting; otherwise `ai_draft` until a decision is made, `in_review` while
+  some findings are pending, and `reviewed` when none is. An unsupported
+  finding can be accepted, but it stays flagged until rejected: the decision
+  is recorded, and the evidence gap is not hidden. GN-02 and RV-04 resolve it.
+- Rejected findings leave the visible draft and its claims (AC5), and can be
+  restored from the review history to the state they were rejected from.
+- An edited finding can still be accepted, keeping the engineer's wording; it
+  then shows as Accepted with edits and counts as accepted in the summary.
+- Bulk accept accepts only pending findings, one entry each marked `bulk`, so
+  rejected and edited findings keep their decisions (AC7, AC8).
+- Regenerate (GN-04, merged into RV-02 as AC10-AC12) drafts the section again
+  as a replacement: a `report_sections` document with `replacementFor` set to
+  the saved draft. It is not the section's content until accepted (AC11);
+  discarding it leaves the saved draft and its decisions as they were (AC12).
+  Other sections are untouched (AC10). One replacement waits at a time. A
+  replacement becomes current from when it was accepted, even over a GN-01
+  redraft made while it waited.
+- S4 is given the saved draft's findings with each decision and the
+  engineer's optional instruction (`redraft`), after the evidence. It keeps
+  accepted and edited findings where the evidence supports them, leaves out
+  rejected ones, and follows the instruction within the drafting guide.
+  Retrieval and the citation check are unchanged: the saved draft and the
+  instruction are never evidence. The first-draft prompt is unchanged, so
+  `gn01-v2.4` stays; a redraft records `gn01-v2.4+rv02-v1`, and its
+  `instruction` is saved in its provenance.
+- Decisions need `reports:generate` and the assigned engineer, on an
+  assessment not archived, as drafting does. Anyone who can view the
+  assessment reads the decisions and history.
+
+Rejected:
+- Review fields on each statement of `report_sections`, updated in place: the
+  state and the audit entry would be two writes with no transaction, so a
+  decision could be saved without its record, or the reverse, and the draft
+  would no longer be what the model wrote.
+- Deriving the state from the log but also caching it on the draft: two
+  places to keep in step, for a read that is one indexed query.
+- Blocking Accept on unsupported findings: AC1 and AC7 accept every pending
+  finding, and a hidden button would not tell the engineer why.
+- Regenerating with only the instruction: "shorten the second point" means
+  nothing without the draft it refers to, and the redraft would repeat what
+  the engineer rejected.
+- Making the Generation tab's redraft a replacement too: GN-01 AC12 expects a
+  redraft to replace the draft. A redraft there starts the section's review
+  again; Regenerate is the way to compare first.
+- Physical immutability (a MongoDB role without update or delete on the
+  collection): the right end state on Atlas, but outside the code. The
+  dev seeds reset a sample's log through the driver, as they reset its drafts.
+
+Reason: RV-02 makes the engineer's judgement control the report, which needs
+every decision recorded as made, by whom and when, and never rewritten. A
+log that is also the source of the state cannot disagree with it. EV-02
+(acceptance rates by section) and RV-07 (resume a review) read the same log.
+
+Stories: RV-02, GN-04 (merged), GN-01.
+
+## 2026-10-12 — Locations are organised by building and level, or elsewhere on site, and can be changed in place
+
+Chose:
+- A location is either in a building (a building, an optional level, and its
+  name, e.g. Staircase, Store room, Lobby) or elsewhere on site (a name only:
+  roads, car parks, fire access routes, a guardhouse, a sprinkler tank). No
+  level means the whole building, e.g. its facade or roof, listed first under
+  Whole building. A structure with levels worth recording is a building.
+- One flat list on the assessment, as before, with an optional `building` on
+  each location. The level stays in `floor` (shown as Level). Observations
+  keep pointing at the same location ids, so nothing is migrated. A location
+  saved before this with a floor but no building is listed under Building not
+  recorded until it is edited into a building.
+- "Location" stays the word, on screen and in code; the whole property is the
+  site.
+- The key is `name|floor`, with `|building` added only when there is one, so
+  old keys still match. A building or level differing from a listed one only
+  in case takes the listed spelling.
+- The picker groups by building (in name order), then Elsewhere on site, each
+  building's levels lowest first (basements, ground, numbered levels, a
+  mezzanine above Level 1, the roof; names it doesn't know last, as added).
+  Groups fold away when there are several; the one the engineer is in starts
+  open, and a search opens every match. The add form suggests the buildings
+  and levels already used, plus the usual level names, and starts from where
+  the engineer is, so the next location on the same level is one field.
+- `PATCH /api/assessments/:reference/locations/:id` changes a location in
+  place, for the assigned engineer only and not once archived, as for
+  observations (CP-08). Adding and removing keep their CP-15 rules.
+- Reports word a location most specific first ("Staircase, Level 2, Block
+  A"), one formatter (`locationText`) for drafting evidence, Appendix A and
+  the photo reading. One without a building reads as before, so drafts made
+  before this still compare equal; otherwise every draft would count all its
+  observations as changed. Section 1 names the buildings, then the places
+  elsewhere on site, not every location, so it stays short on a large site.
+- Levels stay free text, but one the app recognises is saved in a standard
+  spelling ("L2", "lvl 2" and "2nd floor" as Level 2, "B1" as Basement 1), on
+  the client and the gateway, so shorthand never splits a level in two. Before
+  saving a level it doesn't recognise, or a building or location name one slip
+  from a usual one (a short list: Block, Tower, Staircase, Lobby, Fire pump
+  room...) or from one already on the site, the form asks "Did you mean ...?"
+  with the likely name and Keep as typed. A usual name is never pulled towards
+  a mistyped one on the site, and words under five letters are not judged, so
+  Hall is never taken for Mall. A short or numbered word must match
+  exactly, so Block B is never taken for Block A. A name already on the site
+  is never asked about again.
+- The Observations tab lists observations by building, level and location by
+  default, with each location's Add observation (capture opens there),
+  Edit and Remove, and Add location above the list, which needs no capture
+  session; locations with no observations are listed too. A switch shows
+  them newest first instead, as CP-08 AC1 lists them.
+
+Rejected:
+- A nested tree (buildings holding levels holding locations): every
+  observation's location id would have to be migrated, and adding and
+  removing could no longer be one atomic update on the list.
+- A location type field (road, car park, fire access route): the name already
+  says it, as the 2026-09-29 decision found; "elsewhere on site" covers
+  places that are neither in a building nor open ground.
+- "Area" for the place within a level: clearer for the last field alone, but
+  renaming `location` through the API, the database, saved drafts and the
+  drafting and photo services would change stored evidence for no change the
+  engineer sees, and two words for one thing confuse more.
+- A required level in a building: the facade, the roof or a building-wide
+  system would need a made-up level.
+- A fixed list of levels: it stops typos, but not the names sites really use
+  (Podium, Transfer level, Plant deck); asking about an unknown name catches
+  the typo and keeps the real one.
+- Only the grouped list on the Observations tab: newest first stays the quick
+  way to review what was just captured, so it is one switch away.
+- Renaming a whole building or level at once, and merging locations:
+  follow-ups if needed.
+
+Reason: on a large site the flat list of names became hard to scan, and
+places outside buildings had nowhere natural to go. Engineers walk a site
+building by building and level by level, so the picker follows that, and the
+report can say exactly where a finding was made.
+
+Stories: CP-16, CP-15, CP-08.
+
+## 2026-10-12 — Capture stays a page, and returns to where the engineer was
+
+Chose:
+- Capture stays a page of the Observations tab (2026-10-12 above). Leaving it
+  for the Observations tab, by its back button, the tab or Back, scrolls the
+  list to the location it was opened at (a location's Add observation) or
+  last saved in, unfolds that building, and puts focus there; newest first,
+  to the newest observation saved. Opened from the header with nothing saved,
+  the list opens at the top as before.
+- Each observation saved on that visit is marked New (an info badge and a 3px
+  ink left rule) until the engineer leaves the tab or captures again. Nothing
+  is stored: the marks are the gateway's ids, and a count for the demo's
+  local rows, which are listed newest first.
+
+Rejected:
+- Add observation as a pop-up over the list: capture saves one observation
+  after another in the same place, keeping the location; it holds a live
+  recorder, the camera and photo previews, and fills a phone's screen anyway.
+  A dialog closes on Escape, a click outside or Android's back gesture, which
+  would lose recordings and photos, where the page's URL keeps the draft and
+  Leave without saving? guards the rest.
+- Adding observations only from a location's row: Save already needs a
+  location, and a new assessment's capture opens on Add the first location.
+  Walking a site on a phone, changing room would cost a trip back to the list
+  instead of one tap on the location bar (2026-09-29).
+
+Reason: from the grouped list, capture felt like leaving it: the engineer came
+back to the top of the list and had to find the location again to see what
+they had saved.
+
+Stories: CP-16, CP-03.
+
+## 2026-10-12 — The Observations tab opens newest first, with its filters behind one Filters button
+
+Chose:
+- The list opens newest first (CP-08 AC1), each row naming its location.
+  Group by location, first in the toolbar, groups it and then reads Show
+  newest first: one button whose text says what pressing it does. This
+  revises the CP-16 entry above, which made By location the default, with a
+  two-button switch.
+- The filters sit behind one Filters button, which counts those set
+  (Filters · 2). Its panel drops down from it (the shared Popover); below
+  760px it is a bottom sheet with larger controls, closed by Show n
+  observations. Each filter applies as it is chosen.
+- While any filter is set, each shows as a chip under the toolbar, whose ✕
+  removes it, beside Clear filters, so nothing narrows the list out of sight.
+- Building, Level and Location are one Location dropdown, grouped by building
+  in the list's order, then Elsewhere on site; All of a building, and a
+  level, appear only where they hold more than one location. A level or a
+  location name now means that building's: Level 2 no longer matches Level 2
+  in every building, nor Lobby every Lobby.
+- The toolbar reads Group by location (or Show newest first), Filters,
+  Deleted (n), then Add location at its end. The deleted list hides the
+  first and the last.
+- Shared components: Select takes option groups (a native optgroup); Tag's
+  remove is a real button with its own name, so the keyboard reaches it.
+- The card no longer clips, so the panel can hang below a short list; its
+  footer rounds the bottom corners instead.
+
+Rejected:
+- The five dropdowns inline on desktop, with the button only below 1080px:
+  fewer clicks for whoever filters most, but two patterns to keep, and the
+  chips already keep what is set in view.
+- A toggle highlighted while on (By location, or a pressed Newest first):
+  which way the list ran was easy to miss; the button's text now says it.
+- Filters in the table's column headings: there are none below 1080px, and
+  type and location have no column of their own.
+- One list for both orders (location groups ordered by latest activity, or a
+  Recent strip above them): groups would jump after each save, empty
+  locations would sink, and a strip would list each observation twice.
+
+Reason: the toolbar held seven dropdowns, two sort buttons, Deleted and Add
+location, and wrapped to three rows on a laptop and more on a phone before
+the first observation.
+
+Stories: CP-08, CP-06, CP-16.

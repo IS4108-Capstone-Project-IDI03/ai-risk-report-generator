@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import {
   Badge,
@@ -319,8 +319,10 @@ function ProfilePanel({
   const [saved, setSaved] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
 
-  // Move focus to the first field the gateway rejected.
-  useEffect(() => {
+  // Move focus to the first field the gateway rejected. A layout effect, so
+  // it lands in the same commit that marks the fields invalid, before the
+  // error message can be seen or read out without it.
+  useLayoutEffect(() => {
     formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
   }, [fieldErrors])
 
@@ -542,8 +544,10 @@ function NewAccountPanel({
   const [saving, setSaving] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
 
-  // Move focus to the first field the gateway rejected.
-  useEffect(() => {
+  // Move focus to the first field the gateway rejected. A layout effect, so
+  // it lands in the same commit that marks the fields invalid, before the
+  // error message can be seen or read out without it.
+  useLayoutEffect(() => {
     formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
   }, [fieldErrors])
 

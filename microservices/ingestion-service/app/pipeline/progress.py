@@ -19,10 +19,14 @@ from datetime import UTC, datetime
 from bson import ObjectId
 
 
+class IngestionCancelledError(Exception):
+    """Raised when an ingestion run is asked to stop at a safe checkpoint."""
+
+
 class ProgressReporter:
     """Records stage transitions and chunk progress for one ingestion run."""
 
-    def __init__(self, collection, document_id: str | None) -> None:
+    def __init__(self, collection, document_id: str | None, cancellation_check=None) -> None:
         """Create a reporter.
 
         Args:
@@ -32,6 +36,7 @@ class ProgressReporter:
         """
         self._collection = collection
         self._doc_id = document_id
+        self._cancellation_check = cancellation_check
         # The stage currently in progress and when it began; completed stages
         # accumulate in _stage_log. Elapsed time is computed from these without
         # a read back from MongoDB.
@@ -78,15 +83,22 @@ class ProgressReporter:
         """
         return self._current_stage
 
+    def check_cancelled(self) -> None:
+        """Raise when the owning document has requested cancellation."""
+        if self._cancellation_check and self._cancellation_check():
+            raise IngestionCancelledError()
+
     def start_stage(self, stage: str) -> None:
         """Transition to a new stage.
 
         Appends the previous stage (with its duration) to the stage log, sets
         the new current stage and its start time, and on the first call records
-        the overall job start.
+        the overall job start. Clears the page and OCR counters, which belong to
+        the stage that wrote them.
         """
         if not self._enabled():
             return
+        self.check_cancelled()
         now = datetime.now(UTC)
         self._close_current_stage(now)
         self._current_stage = stage
@@ -99,19 +111,45 @@ class ProgressReporter:
                 "currentStageStartedAt": now,
                 "startedAt": self._started_at,
                 "stageLog": list(self._stage_log),
+                "pageCurrent": None,
+                "pageTotal": None,
+                "ocrCurrent": None,
+                "ocrTotal": None,
             }
         )
 
     def update_pages(self, current: int, total: int | None) -> None:
         """Update the page counter only, with no stage transition (E2b).
 
-        `current` is the page being chunked; `total` is the document's page
-        count (known up front from the parser). The chunk count has no knowable
+        `current` is the last page parsed (after each batch), the page being
+        chunked, or the page reached by indexing (after each embedding batch);
+        `total` is the document's page count (known up front from the
+        parser). The chunk count has no knowable
         total, so progress is tracked by page instead.
         """
         if not self._enabled():
             return
+        self.check_cancelled()
         self._write({"pageCurrent": current, "pageTotal": total})
+
+    def update_ocr(self, current: int, total: int) -> None:
+        """Update the table/formula OCR counter only, with no stage transition.
+
+        Chunking's pass 2 reads its regions out of page order, so it is counted
+        by region: `current` regions read of `total` queued.
+        """
+        if not self._enabled():
+            return
+        self.check_cancelled()
+        self._write({"ocrCurrent": current, "ocrTotal": total})
+
+    def cancel(self) -> None:
+        """Record cancellation as the terminal progress outcome."""
+        if not self._enabled():
+            return
+        self._current_stage = "cancelled"
+        self._stage_started_at = datetime.now(UTC)
+        self.finish()
 
     def finish(self) -> None:
         """Move the current stage to the stage log and clear it.
@@ -141,7 +179,16 @@ class NoOpReporter:
     def start_stage(self, stage: str) -> None:
         pass
 
+    def check_cancelled(self) -> None:
+        pass
+
     def update_pages(self, current: int, total: int | None) -> None:
+        pass
+
+    def update_ocr(self, current: int, total: int) -> None:
+        pass
+
+    def cancel(self) -> None:
         pass
 
     def finish(self) -> None:
