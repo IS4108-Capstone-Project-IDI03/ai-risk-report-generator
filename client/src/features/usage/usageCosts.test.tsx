@@ -155,7 +155,7 @@ async function openUsage(role: 'risk_engineer' | 'knowledge_admin' = 'knowledge_
   await signIn(role)
   fireEvent.click(screen.getAllByRole('button', { name: 'Usage and costs' })[0])
   // The screen is loaded on first open, which takes longer while other suites run.
-  await screen.findByRole('table', { name: 'Assessments and their cost' }, { timeout: 5000 })
+  await screen.findByRole('table', { name: 'Assessments and their cost' }, { timeout: 15000 })
 }
 const assessmentTable = () => screen.getByRole('table', { name: 'Assessments and their cost' })
 
@@ -302,7 +302,7 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     await signIn('knowledge_admin')
     fireEvent.click(screen.getAllByRole('button', { name: 'Usage and costs' })[0])
     expect(
-      await screen.findByText('No AI calls in this period', {}, { timeout: 5000 }),
+      await screen.findByText('No AI calls in this period', {}, { timeout: 15000 }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('table')).toBeNull()
   })
@@ -313,7 +313,7 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     render(<App />)
     await signIn('knowledge_admin')
     fireEvent.click(screen.getAllByRole('button', { name: 'Usage and costs' })[0])
-    expect(await screen.findByRole('alert', {}, { timeout: 5000 })).toHaveTextContent(
+    expect(await screen.findByRole('alert', {}, { timeout: 15000 })).toHaveTextContent(
       /could not be loaded/,
     )
     fail = false

@@ -1,4 +1,6 @@
-// EV-04: usage and cost report routes, mounted at /api/usage behind requireAuth.
+// EV-04: usage and cost report routes, mounted at /api/usage behind requireAuth:
+// one report's summary, the overview across assessments or engineers, and the
+// knowledge admins' ingestion view, each with its CSV export.
 // Calls services/usage-report.service.ts; the client screen is features/usage/.
 import { Router } from 'express'
 import { isValidObjectId } from 'mongoose'

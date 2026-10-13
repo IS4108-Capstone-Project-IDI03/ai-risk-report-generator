@@ -516,5 +516,5 @@ A knowledge admin also has an **Ingestion** tab (from `GET /api/usage/ingestion`
   - **Period:** `7d` and `30d` count back from now; `month` starts at 00:00 on the 1st in Singapore (UTC+8, no daylight saving); `all` has no limit.
   - **`engineer`:** only the calls attributed to that engineer, for when their bar is chosen.
   - **Scope:** as for the summary: a risk engineer sees only their assigned assessments and their own chat.
-- **Demo data:** `npm --prefix server run seed:usage` writes fake rows tagged "DEMO data" for the sample assessments and replaces them on every run.
+- **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../RUNNING.md) §5.
 

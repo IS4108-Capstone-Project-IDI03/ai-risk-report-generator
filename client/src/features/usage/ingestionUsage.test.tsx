@@ -82,7 +82,7 @@ async function openIngestion() {
   render(<App />)
   await signIn('knowledge_admin')
   fireEvent.click(screen.getAllByRole('button', { name: 'Usage and costs' })[0])
-  fireEvent.click(await screen.findByRole('tab', { name: 'Ingestion' }, { timeout: 5000 }))
+  fireEvent.click(await screen.findByRole('tab', { name: 'Ingestion' }, { timeout: 15000 }))
 }
 const documentsTable = () => screen.getByRole('table', { name: 'Documents and their cost' })
 
@@ -189,7 +189,7 @@ describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
     render(<App />)
     await signIn('risk_engineer')
     fireEvent.click(screen.getAllByRole('button', { name: 'Usage and costs' })[0])
-    await screen.findByText('No AI calls in this period', {}, { timeout: 5000 })
+    await screen.findByText('No AI calls in this period', {}, { timeout: 15000 })
     expect(screen.queryByRole('tab', { name: 'Ingestion' })).toBeNull()
   })
 })

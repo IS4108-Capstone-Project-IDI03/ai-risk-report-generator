@@ -179,7 +179,12 @@ docker compose exec server wget -qO- http://speech-ocr-service:8003/health
 docker compose exec server npm run seed:all
 ```
 
-- `seed` creates the sample users (password `password123`), sample sites and assessments. `seed:usage` adds clearly fake AI-call rows (tagged "DEMO data") for the Usage and costs screen (EV-04). Both are safe to re-run.
+- `seed` creates the sample users (password `password123`), sample sites and assessments. `seed:usage` adds clearly fake AI-call rows for the Usage and costs screen (EV-04): drafting by report section, retrieval, voice notes and photo reading for the sample assessments `RPT-2026-0411`, `RPT-2026-0408` and `RPT-2026-0327`, and chatbot questions from the sample engineers, spread over the last four weeks. It writes no document-ingestion rows, so the Ingestion tab shows only real uploads. Every demo row has a `pricingBasis` starting `DEMO data`, and a re-run replaces them. Both are safe to re-run.
+- Real AI calls are recorded alongside the demo rows from the start, in the same `ai_calls` collection. To track only real calls, discard the demo rows, and the sample assessments with them if you no longer want those. Deleting an assessment does not delete its `ai_calls` rows, so delete both:
+  ```
+  docker compose exec mongo mongosh riskreport --eval 'db.ai_calls.deleteMany({ pricingBasis: /^DEMO data/ })'
+  ```
+  A real call made on a sample assessment shares its reference but never has the `DEMO data` prefix, so it is kept.
 - A dev account, `chrisganaeshfx@gmail.com` / `123`, is created too (hard-coded in the seed; dev only, never run the seed against a shared database).
 - The data survives `docker compose down`. Only `docker compose down -v` deletes it (the `-v` removes the volumes).
 
