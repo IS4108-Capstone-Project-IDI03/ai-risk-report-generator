@@ -10,10 +10,13 @@ export function ExecutiveSummary({
   summary,
   error,
   onGenerate,
+  fullWidth = false,
 }: {
   summary: Summary['executiveSummary'] | null
   error: string | null
   onGenerate: () => void
+  // Fill the width rather than hold prose to 68ch: on Generation, not in Review.
+  fullWidth?: boolean
 }) {
   if (error)
     return (
@@ -68,6 +71,7 @@ export function ExecutiveSummary({
         status={unsupported ? 'flagged' : 'draft'}
         confidence={unsupported ? 'low' : 'medium'}
         evidenceCount={new Set(narrative.statements.flatMap((s) => s.citations)).size}
+        fullWidth={fullWidth}
       >
         {narrative.statements.map((s, i) => (
           <p key={i} className={'rv-statement' + (s.supported ? '' : ' is-unsupported')}>

@@ -228,6 +228,16 @@ it("drafts a section of a saved assessment and shows each statement's evidence (
   expect(screen.getByText(/1 of 1 section drafted · 1 needs attention/)).toBeInTheDocument()
 }, 15_000) // Many role queries over the whole app; slow when every test file runs at once.
 
+it('fills the width with a draft opened on Generation, rather than holding it to prose width', async () => {
+  mockGateway(() => json(201, DRAFT))
+  await openGenerateTab()
+  fireEvent.click(screen.getByRole('button', { name: 'Draft section' }))
+
+  const draft = await screen.findByRole('region', { name: '7. Construction draft' })
+  // The AI draft box caps prose at --measure-prose unless told to fill its width.
+  expect(draft.querySelector('[style*="measure-prose"]')).toBeNull()
+})
+
 it('names the reason when a section could not be drafted', async () => {
   mockGateway(() =>
     json(409, {

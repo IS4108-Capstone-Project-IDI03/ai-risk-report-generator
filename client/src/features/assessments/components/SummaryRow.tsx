@@ -142,7 +142,7 @@ export function SummaryRow({
             borderTop: '1px solid var(--border-subtle)',
           }}
         >
-          <ExecutiveSummary summary={state} error={null} onGenerate={() => {}} />
+          <ExecutiveSummary summary={state} error={null} onGenerate={() => {}} fullWidth />
         </section>
       )}
     </div>

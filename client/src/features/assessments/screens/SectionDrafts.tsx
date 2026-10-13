@@ -96,6 +96,8 @@ function SubsectionDraft({
   return (
     <div>
       <AIDraftBlock
+        // The Generation tab is wide: fill it rather than hold prose to 68ch (Miya, 12 Oct).
+        fullWidth
         heading={sub.heading}
         status={unsupported ? 'flagged' : 'draft'}
         // Every citation resolves, but whether each source says what the
