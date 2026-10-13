@@ -15,6 +15,7 @@ import {
 import { ReportSectionModel } from '../models/report-section.model'
 import { ReviewAuditModel } from '../models/review-audit.model'
 import { SiteModel } from '../models/site.model'
+import { findOrCreateClient } from '../services/client.service'
 import { UserModel } from '../models/user.model'
 import { locationKey } from '../services/location.service'
 import { putObject } from '../services/storage.service'
@@ -139,6 +140,7 @@ async function seed() {
         name: 'Marina Bay Office Tower (GN-01 sample)',
         jurisdiction: 'SG',
         facilityType: 'Office',
+        client: (await findOrCreateClient('GN-01 Sample Client'))._id,
       },
     },
     { upsert: true, returnDocument: 'after' },

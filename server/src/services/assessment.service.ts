@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isValidObjectId } from 'mongoose'
+import { isValidObjectId, type Types } from 'mongoose'
 import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 import { AssessmentModel, REPORT_STATUSES, type IAssessment } from '../models/assessment.model'
@@ -8,6 +8,17 @@ import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-sess
 import { nextInSequence } from './sequence.service'
 import { SiteModel, type ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
+import {
+  clientNameOf,
+  findOrCreateClient,
+  getClient,
+  isSiteShared,
+  latestVisit,
+  liveVisitCounts,
+  refuseDuplicateSite,
+  SiteSharedError,
+  UnknownSiteError,
+} from './client.service'
 
 export class InvalidEngineersError extends Error {
   constructor() {
@@ -49,25 +60,27 @@ const optionalDate = (label: string) =>
     z.iso.date(`${label} must be a valid date (YYYY-MM-DD).`).optional(),
   )
 
-// An assessment's details: what POST /api/assessments creates and
-// PUT /api/assessments/:reference corrects (RV-10 AC10).
-const assessmentDetails = z.object({
-  site: z.object(
-    {
-      name: required('Site name'),
-      address: optional('Site address'),
-      jurisdiction: z
-        .string('Jurisdiction is required.')
-        .regex(/^[A-Z]{2}$/, 'Jurisdiction must be a two-letter code, e.g. SG.'),
-      facilityType: required('Facility type'),
-    },
-    'Site details are required.',
-  ),
-  client: required('Client'),
+const objectId = (message: string) => z.string(message).refine(isValidObjectId, message)
+
+// A site's details: what a new site is created with, and what PUT
+// /api/assessments/:reference corrects while the site is not shared (RV-10
+// AC10, CP-17 AC6).
+const siteDetails = z.object(
+  {
+    name: required('Site name'),
+    address: optional('Site address'),
+    jurisdiction: z
+      .string('Jurisdiction is required.')
+      .regex(/^[A-Z]{2}$/, 'Jurisdiction must be a two-letter code, e.g. SG.'),
+    facilityType: required('Facility type'),
+  },
+  'Site details are required.',
+)
+const assessmentFields = {
   surveyType: required('Assessment type'),
   siteVisitDate: optionalDate('Site visit date'),
   reportDueDate: optionalDate('Report due date'),
-})
+}
 const dueOnOrAfterVisit = (a: { siteVisitDate?: string; reportDueDate?: string }) =>
   !a.siteVisitDate || !a.reportDueDate || a.reportDueDate >= a.siteVisitDate
 const dueDateRule = {
@@ -75,18 +88,39 @@ const dueDateRule = {
   path: ['reportDueDate'],
 }
 
-// Request body for POST /api/assessments.
-export const newAssessmentSchema = assessmentDetails
-  .extend({
-    engineerId: z
-      .string('Choose the engineer for this assessment.')
-      .refine(isValidObjectId, 'Choose the engineer for this assessment.'),
+// Request body for POST /api/assessments (CP-17): the client is a listed one
+// (clientId) or a new name (client), and the site one of that client's
+// (siteId) or a new one (site). For a listed site, copyLocations, on unless
+// false, copies its latest visit's locations (AC3).
+export const newAssessmentSchema = z
+  .object({
+    clientId: objectId('Choose one of the listed clients, or name a new one.').optional(),
+    client: required('Client').optional(),
+    siteId: objectId("Choose one of this client's sites, or add a new one.").optional(),
+    site: siteDetails.optional(),
+    copyLocations: z.boolean().default(true),
+    ...assessmentFields,
+    engineerId: objectId('Choose the engineer for this assessment.'),
+  })
+  .refine((a) => !!a.clientId !== !!a.client, {
+    message: 'Client is required.',
+    path: ['client'],
+  })
+  .refine((a) => !!a.siteId !== !!a.site, {
+    message: 'Site details are required.',
+    path: ['site'],
+  })
+  .refine((a) => !a.siteId || a.clientId, {
+    message: 'A new client has no sites yet. Add a new site.',
+    path: ['siteId'],
   })
   .refine(dueOnOrAfterVisit, dueDateRule)
 
-// Request body for PUT /api/assessments/:reference. The engineer is not part
-// of it: it stays as created.
-export const assessmentDetailsSchema = assessmentDetails.refine(dueOnOrAfterVisit, dueDateRule)
+// Request body for PUT /api/assessments/:reference. The engineer, client and
+// site stay as created (CP-17 AC6); only the site's details can be corrected.
+export const assessmentDetailsSchema = z
+  .object({ site: siteDetails, ...assessmentFields })
+  .refine(dueOnOrAfterVisit, dueDateRule)
 
 export type NewAssessment = z.infer<typeof newAssessmentSchema>
 export type AssessmentDetails = z.infer<typeof assessmentDetailsSchema>
@@ -110,7 +144,10 @@ const CAPTURE_STATUS: Record<CaptureSessionStatus, AssessmentStatus> = {
 export type AssessmentDto = {
   id: string
   reference: string
+  // The client's name, read through its site (CP-17); a site not yet migrated
+  // has no client id and shows the name typed on the assessment.
   client: string
+  clientId: string | null
   surveyType: string
   siteVisitDate: string | null
   reportDueDate: string | null
@@ -120,7 +157,11 @@ export type AssessmentDto = {
   // dashboard continues the engineer's most recently started capture.
   captureStartedAt: Date | null
   createdAt: Date
+  // Whether the site has another assessment that is not archived: its details
+  // are then shared, and can't be changed here (CP-17 AC6).
+  siteShared: boolean
   site: {
+    id: string
     code: string
     name: string
     address: string | null
@@ -129,8 +170,16 @@ export type AssessmentDto = {
   }
 }
 
-// Creates the site and the assessment, allocating the site code and the
-// report reference (RPT-<year>-<nnnn>) on the server.
+// A site as an assessment shows it, with its client's name.
+type ListedSite = Omit<ISite, 'client'> & {
+  _id: Types.ObjectId
+  client?: { _id: Types.ObjectId; name: string } | null
+}
+
+// Creates the assessment on a listed site of a listed client, or adds the
+// client and the site first (CP-17), allocating the site code and the report
+// reference (RPT-<year>-<nnnn>) on the server. On a listed site, it starts with
+// a copy of the latest visit's locations unless the engineer said not to.
 export async function createAssessment(input: NewAssessment): Promise<AssessmentDto> {
   const engineer = await UserModel.findOne({
     _id: input.engineerId,
@@ -139,11 +188,32 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
   }).lean()
   if (!engineer) throw new InvalidEngineersError()
   const year = new Date().getUTCFullYear()
-  const site = await insertWithNextCode(
-    'site',
-    (n) => `SITE-${pad(n)}`,
-    (code) => SiteModel.create({ code, ...input.site }),
-  )
+  const client = input.clientId
+    ? await getClient(input.clientId)
+    : await findOrCreateClient(input.client!)
+  let site: ISite & { _id: Types.ObjectId }
+  if (input.siteId) {
+    const listed = await SiteModel.findById(input.siteId).lean()
+    // A site of another client is refused.
+    if (!listed || !client._id.equals(listed.client)) throw new UnknownSiteError()
+    site = listed
+  } else {
+    await refuseDuplicateSite(client._id, input.site!.name)
+    const added = await insertWithNextCode(
+      'site',
+      (n) => `SITE-${pad(n)}`,
+      (code) => SiteModel.create({ code, ...input.site, client: client._id }),
+    )
+    site = added.toObject()
+  }
+  // Each copied location is the new assessment's own, with a new id (AC5).
+  const copied = input.siteId && input.copyLocations ? await latestVisit(site._id) : null
+  const locations = (copied?.locations ?? []).map(({ building, floor, name, key }) => ({
+    building,
+    floor,
+    name,
+    key,
+  }))
   try {
     const assessment = await insertWithNextCode(
       `assessment:${year}`,
@@ -152,21 +222,23 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
         AssessmentModel.create({
           reference,
           site: site._id,
-          client: input.client,
           surveyType: input.surveyType,
           // 'YYYY-MM-DD' parses as UTC midnight, so the calendar day is kept.
           siteVisitDate: input.siteVisitDate ? new Date(input.siteVisitDate) : undefined,
           reportDueDate: input.reportDueDate ? new Date(input.reportDueDate) : undefined,
           engineer: engineer._id,
+          locations,
         }),
     )
-    return toDto(assessment, site, engineer)
+    const shared = !!input.siteId && (await isSiteShared(site._id, assessment._id))
+    return toDto(assessment, { ...site, client }, engineer, shared)
   } catch (error: unknown) {
     // No transaction (dev and test MongoDB are standalone servers), so remove
-    // the site by hand rather than leave it without an assessment.
-    await SiteModel.deleteOne({ _id: site._id }).catch((cleanupError: unknown) => {
-      console.error(`Could not remove site ${site.code} after a failed create:`, cleanupError)
-    })
+    // a new site by hand rather than leave it without an assessment.
+    if (!input.siteId)
+      await SiteModel.deleteOne({ _id: site._id }).catch((cleanupError: unknown) => {
+        console.error(`Could not remove site ${site.code} after a failed create:`, cleanupError)
+      })
     throw error
   }
 }
@@ -179,14 +251,15 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
     user.role === 'knowledge_admin' ? {} : { engineer: user.id },
   )
     .sort({ siteVisitDate: -1, createdAt: -1 })
-    .populate<{ site: ISite }>('site')
+    .populate<{ site: ListedSite }>({ path: 'site', populate: { path: 'client', select: 'name' } })
     .populate<{ engineer: AssignedEngineer | null }>('engineer', 'name')
     .lean()
-  const sessions = await CaptureSessionModel.find({
-    assessment: { $in: assessments.map((a) => a._id) },
-  })
-    .sort({ createdAt: 1 })
-    .lean()
+  const [sessions, visits] = await Promise.all([
+    CaptureSessionModel.find({ assessment: { $in: assessments.map((a) => a._id) } })
+      .sort({ createdAt: 1 })
+      .lean(),
+    liveVisitCounts(assessments.map((a) => a.site._id)),
+  ])
   // Later sessions overwrite earlier ones, so each assessment keeps its latest.
   const latest = new Map(sessions.map((s) => [String(s.assessment), s]))
   return assessments.map((a) => {
@@ -194,7 +267,9 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
     const status = a.archivedAt
       ? 'archived'
       : (a.reportStatus ?? (session ? CAPTURE_STATUS[session.status] : 'not_started'))
-    return toDto(a, a.site, a.engineer, status, session?.createdAt ?? null)
+    // Its site's assessments not archived, less itself when it counts.
+    const others = (visits.get(String(a.site._id)) ?? 0) - (a.archivedAt ? 0 : 1)
+    return toDto(a, a.site, a.engineer, others > 0, status, session?.createdAt ?? null)
   })
 }
 
@@ -220,8 +295,10 @@ async function assignedAssessment(reference: string, user: SessionUser) {
 
 // Corrects an assessment's details and its site's (RV-10 AC10): only its
 // assigned engineer can, and not once it is archived, which keeps it read-only.
-// A date left empty is cleared. The engineer and report reference never
-// change.
+// A date left empty is cleared. The engineer, report reference, client and
+// site never change (CP-17 AC6). Once the site has another assessment not
+// archived, its details are shared and can't be changed here (AC6); sending
+// them unchanged is fine.
 export async function updateAssessment(
   reference: string,
   input: AssessmentDetails,
@@ -231,11 +308,26 @@ export async function updateAssessment(
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
   if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
-  const { address, ...site } = input.site
-  await SiteModel.updateOne(
-    { _id: assessment.site },
-    { $set: { ...site, ...(address && { address }) }, ...(!address && { $unset: { address: 1 } }) },
-  )
+  const site = await SiteModel.findById(assessment.site).lean()
+  const { address, ...details } = input.site
+  const changed =
+    site &&
+    (site.name !== details.name ||
+      (site.address ?? undefined) !== address ||
+      site.jurisdiction !== details.jurisdiction ||
+      site.facilityType !== details.facilityType)
+  if (changed) {
+    if (await isSiteShared(site._id, assessment._id)) throw new SiteSharedError()
+    if (site.client && site.name !== details.name)
+      await refuseDuplicateSite(site.client, details.name, site._id)
+    await SiteModel.updateOne(
+      { _id: site._id },
+      {
+        $set: { ...details, ...(address && { address }) },
+        ...(!address && { $unset: { address: 1 } }),
+      },
+    )
+  }
   // 'YYYY-MM-DD' parses as UTC midnight, so the calendar day is kept.
   const optional = {
     siteVisitDate: input.siteVisitDate && new Date(input.siteVisitDate),
@@ -246,7 +338,6 @@ export async function updateAssessment(
     { _id: assessment._id },
     {
       $set: {
-        client: input.client,
         surveyType: input.surveyType,
         ...Object.fromEntries(Object.entries(optional).filter(([, value]) => value)),
       },
@@ -306,15 +397,17 @@ type AssignedEngineer = { _id: unknown; name: string }
 
 function toDto(
   assessment: Omit<IAssessment, 'site' | 'engineer'> & { _id: unknown },
-  site: ISite,
+  site: ListedSite,
   engineer: AssignedEngineer | null | undefined,
+  siteShared: boolean,
   status: AssessmentStatus = 'not_started',
   captureStartedAt: Date | null = null,
 ): AssessmentDto {
   return {
     id: String(assessment._id),
     reference: assessment.reference,
-    client: assessment.client,
+    client: clientNameOf(site, assessment.client),
+    clientId: site.client ? String(site.client._id) : null,
     surveyType: assessment.surveyType,
     siteVisitDate: isoDay(assessment.siteVisitDate),
     reportDueDate: isoDay(assessment.reportDueDate),
@@ -322,7 +415,9 @@ function toDto(
     status,
     captureStartedAt,
     createdAt: assessment.createdAt,
+    siteShared,
     site: {
+      id: String(site._id),
       code: site.code,
       name: site.name,
       address: site.address ?? null,

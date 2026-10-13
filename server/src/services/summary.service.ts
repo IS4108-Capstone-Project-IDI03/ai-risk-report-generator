@@ -10,6 +10,7 @@ import { ReportSectionModel } from '../models/report-section.model'
 import type { ISite } from '../models/site.model'
 import { recordAiCalls } from './ai-usage.service'
 import { AssessmentNotFoundError } from './capture-session.service'
+import { clientNameOf } from './client.service'
 import { requestSummaryDraft } from './rag.service'
 import { entriesFor, foldFindings } from './review-decision.service'
 import {
@@ -67,7 +68,7 @@ const ACTIVITIES = [
 ]
 
 export function purposeAndScope(
-  a: Pick<IAssessment, 'client' | 'locations'>,
+  a: { client: string } & Pick<IAssessment, 'locations'>,
   site: Pick<ISite, 'name'>,
 ): PurposeAndScope {
   // The buildings the engineer recorded observations in, then the places
@@ -165,9 +166,14 @@ export type SummaryDto = {
 
 export async function getSummary(reference: string): Promise<SummaryDto> {
   const assessment = await AssessmentModel.findOne({ reference })
-    .populate<{ site: ISite }>('site', 'name')
+    .populate<{ site: ISite }>({
+      path: 'site',
+      select: 'name client',
+      populate: { path: 'client', select: 'name' },
+    })
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
+  const client = clientNameOf(assessment.site, assessment.client)
   const [sections, latest] = await Promise.all([
     currentSections(assessment._id),
     ReportSectionModel.findOne({ assessment: assessment._id, sectionId: '2' })
@@ -181,7 +187,7 @@ export async function getSummary(reference: string): Promise<SummaryDto> {
       .map((e) => e.sectionId),
   )
   return {
-    purposeAndScope: purposeAndScope(assessment, assessment.site),
+    purposeAndScope: purposeAndScope({ ...assessment, client }, assessment.site),
     executiveSummary: {
       draft: latest ? toDraftDto(latest) : null,
       missing: sections.filter((s) => !s.version).map(ref),
