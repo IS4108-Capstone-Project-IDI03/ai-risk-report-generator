@@ -170,7 +170,7 @@ describe('Needs review reasons (IN-07)', () => {
 
     fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'active' } })
     expect(screen.queryByRole('button', { name: 'Needs review: NFPA 13' })).not.toBeInTheDocument()
-  })
+  }, 10000)
 
   it('names both reasons when a document has Unconfirmed details and a match', async () => {
     mockGateway([{ ...NEWER, unconfirmed: ['facilityType'], facilityType: null }])

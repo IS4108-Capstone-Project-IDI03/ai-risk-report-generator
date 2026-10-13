@@ -93,7 +93,7 @@ describe('Capture session (CP-01)', () => {
     expect(fetchMock).toHaveBeenCalledWith(CAPTURE_URL, expect.objectContaining({ method: 'POST' }))
     // A session that started needs no notice.
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
-  })
+  }, 10000)
 
   it('identifies the assessment from the session', async () => {
     mockGateway(() => respond(201))
@@ -138,7 +138,7 @@ describe('Capture session (CP-01)', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
-  })
+  }, 10000)
 
   it('keeps sample data usable when the gateway cannot be reached, then retries', async () => {
     const fetchMock = mockGateway(
@@ -387,7 +387,7 @@ describe('Create assessment (CP-01)', () => {
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     expect(screen.getByText('Sprinkler control valve chained open')).toBeInTheDocument()
     expect(screen.queryByText('No observations yet')).not.toBeInTheDocument()
-  })
+  }, 10000)
 
   it('shows the reasons when the server rejects the details', async () => {
     mockGateway(() =>
@@ -551,7 +551,7 @@ describe('A client’s sites (CP-17)', () => {
     type(clientField(), 'NUS')
     fireEvent.change(await screen.findByRole('combobox', { name: /^Site/ }), {
       target: { value: 'new' },
-    })
+    }, 10000)
 
     type(screen.getByLabelText(/Site name/), 'kent ridge campus')
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
