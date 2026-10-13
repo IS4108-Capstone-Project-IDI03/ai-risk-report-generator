@@ -90,7 +90,10 @@ eval.interpret_photos`).
    no pages). Nothing is stored for a rejected file.
 3. The gateway asks the ingestion service's `POST /label` for the file's
    details (IN-05, see "Automatic labelling" below; 180 s timeout). If labelling
-   fails, the upload still goes ahead with every detail Unconfirmed.
+   fails, the upload still goes ahead with every detail Unconfirmed. The
+   document's id is chosen before this call, so `/label`'s paid calls are
+   saved to `ai_calls` against it (EV-03), even if a later step rejects the
+   upload.
 4. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
    `knowledge_documents` as `queued` and adds a BullMQ job (`jobId` = document
    id) to the `ingestion` queue in Redis. If the queue is down, it removes the
