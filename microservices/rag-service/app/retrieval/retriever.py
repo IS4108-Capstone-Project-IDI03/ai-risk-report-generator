@@ -22,7 +22,7 @@ def _match(key: str, value: str | list[str]) -> str | dict:
     return value if key == "source_type" else {"$in": [value, "all"]}
 
 
-def label_filter(filters: dict[str, str | list[str]]) -> dict:
+def label_filter(filters: dict[str, str | list[str]], include_withdrawn: bool = False) -> dict:
     """Return the Chroma `where` clause (a metadata filter) for label filters.
 
     Source type matches exactly, or any one of a list of source types. Country and
@@ -34,9 +34,12 @@ def label_filter(filters: dict[str, str | list[str]]) -> dict:
     existed stay retrievable.
     Chroma needs `$and` to combine two or more conditions. Minimal on purpose:
     RT-01 extends it for site applicability.
+    `include_withdrawn` is for chat only, when the engineer names an edition (CB-01 AC14);
+    report drafting never sets it, so a withdrawn edition can't reach a report.
     """
     conditions = [{key: _match(key, value)} for key, value in filters.items()]
-    conditions.append({"status": {"$nin": ["withdrawn", "needs_review"]}})
+    hidden = ["needs_review"] if include_withdrawn else ["withdrawn", "needs_review"]
+    conditions.append({"status": {"$nin": hidden}})
     return {"$and": conditions} if len(conditions) > 1 else conditions[0]
 
 
@@ -50,7 +53,9 @@ def _record_embed(response, started: float) -> None:
     )
 
 
-def retrieve(query: str, filters: dict[str, str | list[str]] | None = None) -> list[dict]:
+def retrieve(
+    query: str, filters: dict[str, str | list[str]] | None = None, include_withdrawn: bool = False
+) -> list[dict]:
     if not query.strip():
         raise ValueError("Query must not be blank")
     try:
@@ -74,7 +79,7 @@ def retrieve(query: str, filters: dict[str, str | list[str]] | None = None) -> l
     candidates = collection.query(
         query_embeddings=embedding.embeddings.float_,
         n_results=min(20, count),
-        where=label_filter(filters or {}),
+        where=label_filter(filters or {}, include_withdrawn),
         include=["documents", "metadatas", "distances"],
     )
     return rerank(
