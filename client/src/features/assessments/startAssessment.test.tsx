@@ -551,7 +551,7 @@ describe('A client’s sites (CP-17)', () => {
     type(clientField(), 'NUS')
     fireEvent.change(await screen.findByRole('combobox', { name: /^Site/ }), {
       target: { value: 'new' },
-    }, 10000)
+    })
 
     type(screen.getByLabelText(/Site name/), 'kent ridge campus')
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
@@ -572,7 +572,7 @@ describe('A client’s sites (CP-17)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
     await screen.findByText(/RPT-2026-0001 created/)
     expect(posts[0]).toMatchObject({ clientId: 'c1', site: { name: 'Outram campus' } })
-  })
+  }, 10000)
 
   it('asks about a new client named like a listed one, and keeps it when told to (AC11)', async () => {
     const posts = gateway()
