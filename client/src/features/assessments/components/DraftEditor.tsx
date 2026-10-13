@@ -13,12 +13,14 @@ import {
   claimsOf,
   describeChanges,
   FINDING_BADGE,
+  maturityEntries,
   plural,
   statementId,
   type Claim,
   type ReviewFocus,
 } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
+import { MaturityTable } from './MaturityTable'
 
 type Citing = {
   sectionId: string
@@ -49,7 +51,13 @@ function Finding({
   focus,
   describe,
   onCite,
-}: Citing & { claim: Claim; actions?: FindingActions }) {
+  shown,
+}: Citing & {
+  claim: Claim
+  actions?: FindingActions
+  // The text to show, when not the claim's whole text: a Section 6 row's comment.
+  shown?: string
+}) {
   const { review } = claim
   // In the engineer's words rather than the draft's: edited, and perhaps
   // accepted since.
@@ -73,7 +81,7 @@ function Finding({
           (claim.supported ? '' : ' is-unsupported')
         }
       >
-        <span className="rv-statement-text">{claim.text}</span>
+        <span className="rv-statement-text">{shown ?? claim.text}</span>
         {claim.citations.map((c, n) => (
           <CitationMark
             key={n}
@@ -181,6 +189,15 @@ function DraftSubsection({
         </p>
       </div>
     )
+  }
+  // Section 6's programs are Marsh's two tables (GN-11); each row is still a finding.
+  if (citing.sectionId === '6' && sub.heading === 'Management Programs') {
+    const { entries, unplaced } = maturityEntries(
+      claims,
+      (claim) => claim.text,
+      (claim, comment) => <Finding claim={claim} actions={actions} shown={comment} {...citing} />,
+    )
+    return <MaturityTable entries={entries} unplaced={unplaced} />
   }
   const cited = [...new Set(claims.flatMap((c) => c.citations))]
   const pending = claims.filter((c) => c.review.state === 'pending')

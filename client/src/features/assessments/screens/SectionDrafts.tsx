@@ -1,7 +1,8 @@
 import { Fragment, useRef, useState } from 'react'
 import { AIDraftBlock, Badge, Button, Callout, ProgressBar } from '../../../design-system'
 import { draftSection, GatewayError, type ReportSection, type SectionDraft } from '../api'
-import { describeChanges } from '../reviewDisplay'
+import { describeChanges, maturityEntries } from '../reviewDisplay'
+import { MaturityTable } from '../components/MaturityTable'
 import { OfiRow } from '../components/OfiSuggestions'
 import { SummaryRow } from '../components/SummaryRow'
 import { useObservations } from '../useObservations'
@@ -19,7 +20,31 @@ const muted = { margin: 0, fontSize: '15px', color: 'var(--text-secondary)' } as
 // One subsection of a draft as Generation shows it: the text only. Its citations and
 // their sources are read in Review (RV-01), since Generation only generates (Miya,
 // 12 Oct). Unsupported statements stay flagged, so a weak draft is seen at once.
-function SubsectionDraft({ sub }: { sub: SectionDraft['subsections'][number] }) {
+function SubsectionDraft({
+  sub,
+  sectionId,
+}: {
+  sub: SectionDraft['subsections'][number]
+  sectionId: string
+}) {
+  // Section 6's programs are Marsh's two tables, not prose (GN-11).
+  if (sectionId === '6' && sub.heading === 'Management Programs') {
+    const { entries, unplaced } = maturityEntries(
+      sub.statements,
+      (s) => s.text,
+      (s, comment) => (
+        <>
+          {comment}
+          {!s.supported && (
+            <Badge tone="moderate" icon="triangle-alert" style={{ marginLeft: '8px' }}>
+              Unsupported
+            </Badge>
+          )}
+        </>
+      ),
+    )
+    return <MaturityTable entries={entries} unplaced={unplaced} />
+  }
   if (sub.kind === 'table') {
     return (
       <div style={{ ...card, padding: '14px 20px' }}>
@@ -107,7 +132,7 @@ export function DraftView({ draft }: { draft: SectionDraft }) {
         </Callout>
       )}
       {draft.subsections.map((sub) => (
-        <SubsectionDraft key={sub.heading} sub={sub} />
+        <SubsectionDraft key={sub.heading} sub={sub} sectionId={draft.sectionId} />
       ))}
     </section>
   )

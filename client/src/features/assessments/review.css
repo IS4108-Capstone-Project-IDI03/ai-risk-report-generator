@@ -704,3 +704,84 @@
   flex: 1 1 320px;
   margin: 0;
 }
+
+/* Section 6 Management Programs (GN-11): Marsh's two tables. Each rank's colour is its
+   cell's solid fill, as in the template's legend: red, orange, yellow, green, blue. */
+.rv-maturity {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-maturity-scroll {
+  overflow-x: auto;
+}
+.rv-maturity-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface-card);
+  font-size: 14px;
+  line-height: 20px;
+}
+.rv-maturity-table th,
+.rv-maturity-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+.rv-maturity-table thead th {
+  background: var(--surface-nav);
+  color: var(--text-inverse);
+  font-weight: 600;
+}
+.rv-maturity-table tbody th {
+  width: 210px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.rv-rank {
+  width: 120px;
+  font-weight: 600;
+}
+/* Marsh's own legend colours (sampled from the Global PRE template's maturity table).
+   The design system has no such bright set, so they are kept here. Marsh sets white text
+   on them; dark text is used instead, since white on these fills is below 4.5:1. */
+.rv-maturity {
+  --rank-undeveloped: #f25d4c;
+  --rank-formalized: #ff9400;
+  --rank-established: #ffc100;
+  --rank-embedded: #00ad49;
+  --rank-optimized: #00a4e3;
+}
+.rv-maturity-table .rv-rank-undeveloped,
+.rv-maturity-table .rv-rank-formalized,
+.rv-maturity-table .rv-rank-established,
+.rv-maturity-table .rv-rank-embedded,
+.rv-maturity-table .rv-rank-optimized {
+  color: var(--graphite-900);
+}
+.rv-maturity-table .rv-rank-undeveloped {
+  background: var(--rank-undeveloped);
+}
+.rv-maturity-table .rv-rank-formalized {
+  background: var(--rank-formalized);
+}
+.rv-maturity-table .rv-rank-established {
+  background: var(--rank-established);
+}
+.rv-maturity-table .rv-rank-embedded {
+  background: var(--rank-embedded);
+}
+.rv-maturity-table .rv-rank-optimized {
+  background: var(--rank-optimized);
+}
+
+.rv-maturity-unplaced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--status-moderate-fg);
+  border-radius: var(--radius-md);
+  background: var(--status-moderate-bg);
+}
