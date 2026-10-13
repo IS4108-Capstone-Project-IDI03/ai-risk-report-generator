@@ -1,8 +1,9 @@
 // Saves the usage lists the Python services return (EV-03). The Python side never
-// writes to MongoDB; the gateway does it here.
-// Called by section.service.ts (drafting), speech.service.ts (Whisper),
-// observation.service.ts (photo interpretation) and ingestion.service.ts
-// (labelling). Calls ai-pricing.service.ts for the cost.
+// writes `ai_calls`; the gateway does it here.
+// Called by section/ofi/summary.service.ts (drafting), speech.service.ts
+// (Whisper), observation.service.ts (photo interpretation), ingestion.service.ts
+// (labelling), rag.service.ts (chat) and routes/internal-ai-usage.routes.ts
+// (the ingestion worker's OCR and embedding). Calls ai-pricing.service.ts for the cost.
 import { Types } from 'mongoose'
 import { AI_FEATURES, AiCallModel, BILLED_SERVICES, type IAiCall } from '../models/ai-call.model'
 import { estimateCost } from './ai-pricing.service'

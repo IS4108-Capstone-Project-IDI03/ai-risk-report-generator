@@ -1384,3 +1384,56 @@ Reason: EV-04 AC1 asks for cost per feature including the chatbot, and a chat
 answer is a stream, not a JSON body the gateway can read a `usage` list from.
 
 Stories: EV-03, EV-04, CB-01.
+
+## 2026-10-13 — The ingestion worker posts its AI-call totals to the gateway, one row per document, stage and model
+
+Chose: the worker collects what each document's OCR and embedding calls used
+and, when the document completes, fails or is cancelled, posts the totals to a
+new `POST /api/internal/ai-usage`, behind the same service key as its
+notifications. The gateway prices and saves them with the one price table.
+Calls are summed per document, feature (`ocr`, `embed-document`), billed
+service and model, with a `callCount`; calls that reported no usage are summed
+apart, as unavailable. Self-hosted GLM-OCR is recorded too, at $0, so its speed
+can be compared with the paid providers.
+
+This narrows the 2026-10-08 rejection of a callback route. That rejection held
+for services whose calls already return to the gateway; the worker's do not,
+it runs in the background, and it already holds the gateway address and
+service key for notifications. It closes that entry's known gap,
+"ingestion-time embedding is not covered".
+
+Rejected:
+- One row per call: a document makes hundreds of OCR and embedding calls, so
+  the collection would grow quickly for little gain. The cost is the same;
+  what is lost is per-call latency percentiles for ingestion, so the report
+  shows average time per call for those rows instead.
+- The worker writing `ai_calls` itself: it would need its own copy of the
+  price table.
+- Storing the usage on the ingestion job for the gateway to copy later: more
+  moving parts for a best-effort record.
+- A ContextVar collector, as in rag-service: OCR runs in a thread pool, and pool
+  threads do not inherit the context. One collection behind a lock is enough
+  because the worker ingests one document at a time.
+
+Known gap: a lost post loses that document's cost record (logged), never the
+document.
+
+Stories: EV-03, EV-04.
+
+## 2026-10-13 — Cohere calls cost $0 on the free trial key, the default
+
+Chose: `COHERE_KEY_TIER` (`trial` by default, even when unset; or
+`production`). On trial, every Cohere embed and rerank call is recorded at $0,
+with the basis "Cohere trial key: free, 1,000 calls a month", because that is
+what the project pays today. Setting `production` switches to the per-use
+estimates (`COHERE_EMBED_USD_PER_1M_TOKENS`, `COHERE_RERANK_USD_PER_1K_SEARCHES`).
+Rows keep the price saved with them, so a switch changes only later calls.
+
+Rejected: pricing trial calls at the production estimate, which overstated the
+real bill; and storing both an actual and a projected cost, which adds a field
+and a column throughout the report for a question nobody is asking yet.
+
+Reason: EV-04's cost report is for assessing the real budget; the trial's
+limit is 1,000 calls a month, not money.
+
+Stories: EV-03, EV-04.

@@ -24,6 +24,8 @@ const WHISPER_BASIS = 'OpenAI list price, developers.openai.com/api/docs/pricing
 // Cohere publishes no per-use price for these models (cohere.com/pricing lists only
 // dedicated-instance rates), so these are estimates Chris supplied, overridable in .env.
 const COHERE_BASIS = 'estimate supplied by Chris, not confirmed on cohere.com/pricing, 2026-10-08'
+const COHERE_TRIAL_BASIS =
+  'Cohere trial key: free, 1,000 calls a month (docs.cohere.com/docs/rate-limits, 2026-10-13)'
 // USD per 1M tokens, paid tier (thinking tokens bill as output). Source:
 // ai.google.dev/gemini-api/docs/pricing, read 2026-10-13. Google announced a
 // price rise from 2027-01-01, so each model lists its prices with the date
@@ -52,6 +54,12 @@ function priceFor<T>(table: Record<string, T>, model: string): T | undefined {
 
 /** Returns the estimated cost of one call made at `at`, and the basis of the price used. */
 export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
+  // Free whatever it reports, so a reading with no token counts is $0, not uncosted.
+  if (call.billed_service === 'self-hosted-ocr')
+    return { estimatedCostUsd: 0, pricingBasis: SELF_HOSTED_BASIS }
+  const cohere = call.billed_service === 'cohere-embed' || call.billed_service === 'cohere-rerank'
+  if (cohere && config.prices.cohereKeyTier === 'trial')
+    return { estimatedCostUsd: 0, pricingBasis: COHERE_TRIAL_BASIS }
   if (call.usage_status === 'unavailable') return unpriced('provider gave no usage')
 
   switch (call.billed_service) {
@@ -99,8 +107,6 @@ export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
         pricingBasis: GEMINI_BASIS,
       }
     }
-    case 'self-hosted-ocr':
-      return { estimatedCostUsd: 0, pricingBasis: SELF_HOSTED_BASIS }
     default:
       return unpriced('no price for service')
   }

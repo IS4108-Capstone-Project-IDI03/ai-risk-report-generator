@@ -5,6 +5,7 @@ import time
 
 from cohere.errors import TooManyRequestsError
 
+from app import usage
 from app.retrieval_config import EMBEDDING_DIMENSION, EMBEDDING_MODEL, cohere_client
 
 # Cohere /v2/embed accepts at most 96 texts per request.
@@ -56,6 +57,7 @@ def _embed_batch(client, batch: list[str]) -> list[list[float]]:
     rate_limit_retries = 0
     while True:
         try:
+            started = time.perf_counter()
             result = client.embed(
                 model=EMBEDDING_MODEL,
                 texts=batch,
@@ -63,6 +65,15 @@ def _embed_batch(client, batch: list[str]) -> list[list[float]]:
                 embedding_types=["float"],
                 output_dimension=EMBEDDING_DIMENSION,
                 truncate="NONE",
+            )
+            # A rate-limited batch is not billed; only the one that answers is (EV-03).
+            billed = getattr(getattr(result, "meta", None), "billed_units", None)
+            usage.record(
+                "embed-document",
+                "cohere-embed",
+                EMBEDDING_MODEL,
+                started,
+                input_tokens=getattr(billed, "input_tokens", None),
             )
             return result.embeddings.float_
         except TooManyRequestsError as error:

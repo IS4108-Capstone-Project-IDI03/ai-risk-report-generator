@@ -870,8 +870,9 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 - One draft writes three rows: Claude, Cohere embed and Cohere rerank.
 - A draft that fails after its paid calls (refused, cut off) is not recorded: the service raises before it returns the list.
-- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08; Gemini from ai.google.dev/gemini-api/docs/pricing, read 2026-10-13, with its announced 2027-01-01 rise applied by call date). Self-hosted OCR costs $0 per call, with that named as its basis. Cohere publishes no per-use price, so those two are estimates, set by `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`.
+- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08; Gemini from ai.google.dev/gemini-api/docs/pricing, read 2026-10-13, with its announced 2027-01-01 rise applied by call date). Self-hosted OCR costs $0 per call, with that named as its basis. Cohere calls cost $0 while `COHERE_KEY_TIER` is `trial` (the default, even when unset), since a trial key is free (1,000 calls a month), with that named as the basis. With `COHERE_KEY_TIER=production` they are priced from estimates, since Cohere publishes no per-use price: `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`. A row keeps the price in force when it was saved, so switching tiers changes only later rows.
 - A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
+- Ingestion rows arrive from the worker through `POST /api/internal/ai-usage` (service key), one per document, feature (`ocr`, `embed-document`), billed service and model, whatever the document's outcome. Their `durationMs` is the sum over `callCount` calls, so the report averages it per call and leaves those rows out of latency percentiles. Calls that reported no usage form their own `unavailable` row. Self-hosted OCR is always $0, even with no token counts.
 - Read by the EV-04 cost report (`usage-report.service.ts`).
 - Indexes: `feature`, `billedService`, `reportId`, `documentId`, `userId`, `createdAt`.
 
@@ -888,6 +889,7 @@ Each provider reports usage differently. The services rename it into one shape (
 | Cohere rerank `meta.billed_units.search_units` | `search_units` | `searchUnits` |
 | Gemini `usage.total_input_tokens` | `input_tokens` | `inputTokens` |
 | Gemini `usage.total_output_tokens` + `total_thought_tokens` (both billed as output) | `output_tokens` | `outputTokens` |
+| Self-hosted OCR (OpenAI-style) `usage.prompt_tokens` / `completion_tokens` | `input_tokens` / `output_tokens` | `inputTokens` / `outputTokens` |
 | Number of provider calls summed into one ingestion row | `call_count` | `callCount` |
 | Whisper `verbose_json` `duration` (seconds) | `audio_seconds` | `audioSeconds` |
 | Time around the call (`perf_counter`) | `duration_ms` | `durationMs` |

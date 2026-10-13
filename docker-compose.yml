@@ -111,7 +111,7 @@ services:
       CHROMA_PORT: 8000
       # Inside the network the gateway is the `server` service, not localhost
       # (CLAUDE.md pitfall: environment: beats env_file:). The worker posts
-      # ingestion notifications here (IN-10).
+      # ingestion notifications (IN-10) and AI-call usage (EV-03) here.
       GATEWAY_URL: http://server:4000
       # Table/formula OCR goes to OCR_PROVIDER (from .env). For self-hosted
       # GLM-OCR add docker-compose.local-ocr.yml (and docker-compose.gpu.yml).

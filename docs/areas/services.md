@@ -120,6 +120,18 @@ eval.interpret_photos`).
    '"<title>" needs review.' with the list's reason as details and
    `context.status: needs_review`, which the bell opens as the Review page. A job whose worker died mid-run is
    redelivered by BullMQ and processed again.
+   Whatever the outcome (complete, failed or cancelled), the worker then posts
+   what the document's paid calls used to the gateway's
+   `POST /api/internal/ai-usage` (EV-03, `app/usage.py`, same service key as the
+   notification), which prices and saves them to `ai_calls`. The OCR providers
+   (`anthropic_ocr.py`, `gemini_ocr.py`, self-hosted GLM in `ocr_model.py`) and
+   the embedder record each answered request; the worker sums them into one item
+   per feature (`ocr`, `embed-document`), billed service and model, with a
+   `call_count`. Calls that reported no usage are summed apart as unavailable.
+   One collection per process behind a lock, not a ContextVar, because OCR runs
+   in a thread pool; with concurrency 1 there is only ever one document. A
+   failed post is logged and dropped, like a notification. Labelling's OCR
+   (`app/labelling/pages.py`) is Docling's local engine, so it records nothing.
 6. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
    document is queued or processing, showing each processing document's stage,
    elapsed time and, while parsing or chunking, the page reached out of the

@@ -45,31 +45,6 @@ describe('estimateCost (AC3)', () => {
     expect(cost).toEqual({ estimatedCostUsd: null, pricingBasis: 'no price for model' })
   })
 
-  it('prices Cohere embed tokens and rerank searches as labelled estimates', () => {
-    const embed = estimateCost(
-      item({
-        billed_service: 'cohere-embed',
-        model: 'embed-v4.0',
-        input_tokens: 1_000_000,
-        output_tokens: null,
-        cache_read_tokens: null,
-      }),
-    )
-    expect(embed.estimatedCostUsd).toBeCloseTo(0.12, 8)
-    expect(embed.pricingBasis).toContain('estimate')
-    const rerank = estimateCost(
-      item({
-        billed_service: 'cohere-rerank',
-        model: 'rerank-v3.5',
-        input_tokens: null,
-        output_tokens: null,
-        cache_read_tokens: null,
-        search_units: 1000,
-      }),
-    )
-    expect(rerank.estimatedCostUsd).toBeCloseTo(2, 8)
-  })
-
   it('prices Whisper by the minute of audio', () => {
     const whisper = estimateCost(
       item({
@@ -91,10 +66,6 @@ describe('estimateCost (AC3)', () => {
       item({ input_tokens: null, output_tokens: null, cache_read_tokens: null }),
     )
     expect(noTokens.estimatedCostUsd).toBeNull()
-    const noUnits = estimateCost(
-      item({ billed_service: 'cohere-rerank', model: 'rerank-v3.5', search_units: null }),
-    )
-    expect(noUnits.estimatedCostUsd).toBeNull()
   })
 
   // Google list price for gemini-3.8-flash, ai.google.dev/gemini-api/docs/pricing,
@@ -226,21 +197,21 @@ describe('recordAiCalls (AC1-AC7)', () => {
     const documentId = new Types.ObjectId().toString()
     await recordAiCalls([
       item({
-        feature: 'embed-document',
-        billed_service: 'cohere-embed',
-        model: 'embed-v4.0',
+        feature: 'ocr',
+        billed_service: 'anthropic',
+        model: 'claude-haiku-5-5',
         input_tokens: 1_000_000,
-        output_tokens: null,
+        output_tokens: 0,
         cache_read_tokens: null,
         call_count: 40,
         document_id: documentId,
       }),
     ])
     const row = await AiCallModel.findOne().lean()
-    expect(row).toMatchObject({ feature: 'embed-document', callCount: 40, inputTokens: 1_000_000 })
+    expect(row).toMatchObject({ feature: 'ocr', callCount: 40, inputTokens: 1_000_000 })
     expect(String(row?.documentId)).toBe(documentId)
-    // Priced on the summed tokens: 1M tokens at the $0.12 default.
-    expect(row?.estimatedCostUsd).toBeCloseTo(0.12, 8)
+    // Priced on the summed tokens: 1M input tokens of Haiku 5.5 at $0.10.
+    expect(row?.estimatedCostUsd).toBeCloseTo(0.1, 8)
   })
 
   it('drops a malformed id rather than failing the save', async () => {
@@ -336,8 +307,49 @@ describe('callers record what their service returned', () => {
 describe('Cohere price settings', () => {
   const original = { ...config.prices }
   afterEach(() => Object.assign(config.prices, original))
+  const embed = (over: Partial<WireUsage> = {}) =>
+    item({
+      billed_service: 'cohere-embed',
+      model: 'embed-v4.0',
+      input_tokens: 1_000_000,
+      output_tokens: null,
+      cache_read_tokens: null,
+      ...over,
+    })
+  const rerank = item({
+    billed_service: 'cohere-rerank',
+    model: 'rerank-v3.5',
+    input_tokens: null,
+    output_tokens: null,
+    cache_read_tokens: null,
+    search_units: 1000,
+  })
+
+  it('prices nothing on the free trial key, the default, and says so', () => {
+    expect(config.prices.cohereKeyTier).toBe('trial')
+    for (const call of [embed(), rerank]) {
+      const cost = estimateCost(call)
+      expect(cost.estimatedCostUsd).toBe(0)
+      expect(cost.pricingBasis).toContain('trial key')
+    }
+    // Free whatever it reports.
+    expect(estimateCost(embed({ input_tokens: null, usage_status: 'unavailable' }))).toEqual(
+      estimateCost(embed()),
+    )
+  })
+
+  it('prices embed tokens and rerank searches as labelled estimates on a production key', () => {
+    config.prices.cohereKeyTier = 'production'
+    const e = estimateCost(embed())
+    expect(e.estimatedCostUsd).toBeCloseTo(0.12, 8)
+    expect(e.pricingBasis).toContain('estimate')
+    expect(estimateCost(rerank).estimatedCostUsd).toBeCloseTo(2, 8)
+    // As for any paid call, incomplete usage is not priced at all (no zero costs).
+    expect(estimateCost({ ...rerank, search_units: null }).estimatedCostUsd).toBeNull()
+  })
 
   it('can be overridden from the environment settings', () => {
+    config.prices.cohereKeyTier = 'production'
     config.prices.cohereEmbedUsdPer1M = 0.5
     const cost = estimateCost(
       item({
