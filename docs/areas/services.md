@@ -505,5 +505,10 @@ streaming generator in a fresh copy of the context.
 - **Summary:** cost totals and call counts; breakdown by feature (always the four existing features) and by billed service; latency per feature (average, median, 95th percentile, slowest); tokens, Cohere search units and Whisper audio seconds per feature; the pricing bases used, with calls whose price is an estimate flagged.
 - **Cost:** US dollars, summed over calls that have a cost. A call with no cost is counted in `callsWithoutCost` and never added as 0.
 - **Export:** CSV of the breakdown on screen (one row per feature or per billed service).
+- **Overview:** `GET /api/usage/overview?groupBy=assessment|engineer&split=service|feature&range=7d|30d|month|all[&engineer=<userId>]` gives report-generation cost across assessments or engineers, for the stacked bar chart and the table under it. Each group has its total, calls (summed over `callCount`), calls without a cost, `lastActivityAt` (for sorting by time) and `segments`: cost per billed service or feature. `splitKeys` lists every split key present, costliest first. Document ingestion (`label-document`, `ocr`, `embed-document`) is left out; it has its own view.
+  - **Whose a call is:** a report call belongs to the assessment's *assigned* engineer, looked up when the report is read, so reassigning an assessment moves its cost. A chat call belongs to the user who asked (`userId`). Grouped by assessment, chat is one `Chatbot` group (key `chat`); grouped by engineer, it is part of the asker's bar. An assessment with no engineer is grouped as `Unassigned`.
+  - **Period:** `7d` and `30d` count back from now; `month` starts at 00:00 on the 1st in Singapore (UTC+8, no daylight saving); `all` has no limit.
+  - **`engineer`:** only the calls attributed to that engineer, for when their bar is chosen.
+  - **Scope:** as for the summary: a risk engineer sees only their assigned assessments and their own chat.
 - **Demo data:** `npm --prefix server run seed:usage` writes fake rows tagged "DEMO data" for the sample assessments and replaces them on every run.
 

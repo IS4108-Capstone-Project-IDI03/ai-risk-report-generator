@@ -1437,3 +1437,24 @@ Reason: EV-04's cost report is for assessing the real budget; the trial's
 limit is 1,000 calls a month, not money.
 
 Stories: EV-03, EV-04.
+
+## 2026-10-13 — Report cost belongs to the assessment's assigned engineer; chat cost to the user who asked
+
+Chose: the cost overview groups report-generation calls by assessment or by
+engineer. A report call is attributed to the assessment's assigned engineer,
+looked up when the report is read, so `ai_calls` stores no user for it and
+reassigning an assessment moves its whole cost. Chat has no assessment, so a
+chat call stores the asker's `userId` and is attributed to them: part of their
+bar when grouping by engineer, and one `Chatbot` group when grouping by
+assessment. "This month" starts at midnight in Singapore.
+
+Rejected: storing the user who made each call, which shows who spent the
+money (an admin redrafting someone else's section), but splits one
+assessment's cost across people and leaves every older row without a user;
+and storing both, which adds a second grouping to every view for a question
+not yet asked.
+
+Reason: EV-04 asks for cost per report and per engineer, and an engineer's
+cost is that of the assessments they are responsible for.
+
+Stories: EV-04.
