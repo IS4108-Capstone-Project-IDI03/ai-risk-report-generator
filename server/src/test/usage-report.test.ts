@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
+import { IngestionJobModel } from '../models/ingestion-job.model'
+import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { SiteModel } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { signedInAs } from './auth-test-helpers'
@@ -573,5 +575,172 @@ describe('GET /api/usage/overview/export.csv (EV-04 AC4)', () => {
       (await asSana.get('/api/usage/overview/export.csv?groupBy=nope&split=feature&range=all'))
         .status,
     ).toBe(400)
+  })
+})
+
+describe('GET /api/usage/ingestion (EV-04, ingestion tab)', () => {
+  type Doc = {
+    key: string
+    title: string
+    fileName: string | null
+    status: string | null
+    saved: boolean
+    uploadedAt: string | null
+    pages: number | null
+    calls: number
+    estimatedCostUsd: number
+    callsWithoutCost: number
+    usdPerPage: number | null
+    avgMsPerCall: number | null
+    lastActivityAt: string
+    segments: Record<string, number>
+  }
+  type Ingestion = {
+    documents: Doc[]
+    splitKeys: string[]
+    totals: { calls: number; estimatedCostUsd: number }
+  }
+  const ingestion = async (query = 'split=service&range=all', as = asSana) => {
+    const res = await as.get(`/api/usage/ingestion?${query}`)
+    return { status: res.status, body: res.body as Ingestion }
+  }
+  const nfpa = new Types.ObjectId()
+  const scan = new Types.ObjectId()
+  // Stored documents and their ingestion jobs, written straight to the collections.
+  async function documents() {
+    await KnowledgeDocumentModel.collection.insertMany([
+      {
+        _id: nfpa,
+        title: 'NFPA 13',
+        fileName: 'nfpa13.pdf',
+        status: 'complete',
+        createdAt: new Date('2026-10-01T00:00:00Z'),
+      },
+      {
+        _id: scan,
+        title: 'Old scanned code',
+        fileName: 'scan.pdf',
+        status: 'failed',
+        createdAt: new Date('2026-10-02T00:00:00Z'),
+      },
+    ])
+    await IngestionJobModel.collection.insertOne({ documentId: nfpa, pageTotal: 40 })
+  }
+  const ingest = (documentId: Types.ObjectId | undefined, over: Record<string, unknown> = {}) =>
+    call({ reportId: undefined, documentId, ...over })
+  const ocr = (id?: Types.ObjectId, over: Record<string, unknown> = {}) =>
+    ingest(id, { feature: 'ocr', billedService: 'gemini-ocr', estimatedCostUsd: 0.6, ...over })
+  const embed = (id?: Types.ObjectId) =>
+    ingest(id, { feature: 'embed-document', billedService: 'cohere-embed', estimatedCostUsd: 0 })
+  const label = (id?: Types.ObjectId) =>
+    ingest(id, { feature: 'label-document', billedService: 'anthropic', estimatedCostUsd: 0.2 })
+
+  it('gives each document its cost, split by billed service, with its pages and cost per page', async () => {
+    await documents()
+    await seed([ocr(nfpa, { callCount: 30 }), embed(nfpa), label(nfpa), ocr(scan), call()])
+
+    const { status, body } = await ingestion()
+
+    expect(status).toBe(200)
+    expect(body.documents.map((d) => d.key)).toEqual([String(nfpa), String(scan)])
+    const [doc] = body.documents
+    expect(doc).toMatchObject({
+      title: 'NFPA 13',
+      fileName: 'nfpa13.pdf',
+      status: 'complete',
+      saved: true,
+      uploadedAt: '2026-10-01T00:00:00.000Z',
+      pages: 40,
+      calls: 32,
+    })
+    expect(doc.estimatedCostUsd).toBeCloseTo(0.8, 6)
+    expect(doc.usdPerPage).toBeCloseTo(0.02, 6)
+    expect(doc.segments).toEqual({ 'gemini-ocr': 0.6, 'cohere-embed': 0, anthropic: 0.2 })
+    // A document that failed before parsing has no page count, so no cost per page.
+    expect(body.documents[1]).toMatchObject({ status: 'failed', pages: null, usdPerPage: null })
+    // Report generation is on the other tab.
+    expect(body.totals.calls).toBe(33)
+    expect(body.splitKeys).toEqual(['gemini-ocr', 'anthropic', 'cohere-embed'])
+  })
+
+  it('splits by stage when asked', async () => {
+    await documents()
+    await seed([ocr(nfpa), embed(nfpa), label(nfpa)])
+
+    const { body } = await ingestion('split=feature&range=all')
+
+    expect(Object.keys(body.documents[0].segments).sort()).toEqual([
+      'embed-document',
+      'label-document',
+      'ocr',
+    ])
+  })
+
+  it('keeps the cost of an upload that was never saved, and of labelling from before ids', async () => {
+    await documents()
+    const rejected = new Types.ObjectId()
+    await seed([label(rejected), label(undefined)])
+
+    const { body } = await ingestion()
+
+    expect(body.documents.find((d) => d.key === String(rejected))).toMatchObject({
+      title: 'Upload not saved',
+      saved: false,
+      fileName: null,
+    })
+    expect(body.documents.find((d) => d.key === 'unlinked')).toMatchObject({
+      title: 'Not linked to a document',
+      saved: false,
+    })
+  })
+
+  it('gives the average time per call, as a summed row holds the time of all its calls', async () => {
+    await documents()
+    await seed([ocr(nfpa, { callCount: 4, durationMs: 8000 }), ocr(nfpa, { durationMs: 3000 })])
+
+    const { body } = await ingestion()
+
+    expect(body.documents[0].avgMsPerCall).toBe(2200)
+  })
+
+  it('is for knowledge admins only, and refuses an unknown split or period', async () => {
+    expect((await ingestion('split=service&range=all', asAlex)).status).toBe(403)
+    expect((await ingestion('split=nope&range=all')).status).toBe(400)
+    expect((await ingestion('split=service&range=year')).status).toBe(400)
+  })
+
+  it('exports the documents on screen as CSV, a column per split key', async () => {
+    await documents()
+    await seed([ocr(nfpa), label(nfpa)])
+
+    const res = await asSana.get('/api/usage/ingestion/export.csv?split=service&range=all')
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-ingestion-service-all.csv"',
+    )
+    const [head, row] = res.text.trim().split('\n')
+    expect(head).toBe(
+      'title,file_name,status,uploaded_at,pages,calls,calls_without_cost,estimated_cost_usd,usd_per_page,gemini-ocr,anthropic',
+    )
+    expect(row).toBe('NFPA 13,nfpa13.pdf,complete,2026-10-01T00:00:00.000Z,40,2,0,0.8,0.02,0.6,0.2')
+    expect(
+      (await asAlex.get('/api/usage/ingestion/export.csv?split=service&range=all')).status,
+    ).toBe(403)
+  })
+})
+
+describe('latency with summed ingestion rows (EV-04 AC5)', () => {
+  it('averages per call and leaves summed rows out of the percentiles', async () => {
+    await seed([
+      call({ feature: 'ocr', reportId: undefined, callCount: 4, durationMs: 400 }),
+      call({ feature: 'ocr', reportId: undefined, durationMs: 100 }),
+    ])
+
+    const { body } = await asSana.get('/api/usage/summary')
+    const ocr = body.byFeature.find((f: { key: string }) => f.key === 'ocr')
+
+    expect(ocr.latency).toEqual({ avgMs: 100, p50Ms: 100, p95Ms: 100, maxMs: 100 })
+    expect(ocr.calls).toBe(5)
   })
 })

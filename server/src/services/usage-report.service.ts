@@ -4,6 +4,8 @@
 import { Types } from 'mongoose'
 import { AI_FEATURES, AiCallModel, type IAiCall } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
+import { IngestionJobModel } from '../models/ingestion-job.model'
+import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 import { clientNameOf } from './client.service'
@@ -85,27 +87,35 @@ function percentile(sorted: number[], p: number): number | null {
   return sorted[Math.max(Math.ceil((p / 100) * sorted.length) - 1, 0)]
 }
 
+// Average time per call. A summed ingestion row holds the time of all its
+// calls, so it counts as that many calls here.
+function avgMsPerCall(rows: IAiCall[]): number | null {
+  const timed = rows.filter((r) => r.durationMs !== null)
+  const calls = callsIn(timed)
+  return calls ? Math.round(sum(timed, (r) => r.durationMs) / calls) : null
+}
+
 function toRow(key: string, rows: IAiCall[]): UsageRow {
+  // Percentiles need each call's own time, which a summed row does not keep.
   const durations = rows
+    .filter((r) => (r.callCount ?? 1) === 1)
     .map((r) => r.durationMs)
     .filter((d): d is number => d !== null)
     .sort((a, b) => a - b)
   return {
     key,
-    calls: rows.length,
+    calls: callsIn(rows),
     estimatedCostUsd: round(sum(rows, (r) => r.estimatedCostUsd)),
     // A call with no cost is counted here, never added to the total as 0.
-    callsWithoutCost: rows.filter((r) => r.estimatedCostUsd === null).length,
-    estimatedCalls: rows.filter((r) => isEstimate(r.pricingBasis)).length,
+    callsWithoutCost: uncosted(rows),
+    estimatedCalls: callsIn(rows.filter((r) => isEstimate(r.pricingBasis))),
     inputTokens: sum(rows, (r) => r.inputTokens),
     outputTokens: sum(rows, (r) => r.outputTokens),
     cacheReadTokens: sum(rows, (r) => r.cacheReadTokens),
     searchUnits: sum(rows, (r) => r.searchUnits),
     audioSeconds: sum(rows, (r) => r.audioSeconds),
     latency: {
-      avgMs: durations.length
-        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
-        : null,
+      avgMs: avgMsPerCall(rows),
       p50Ms: percentile(durations, 50),
       p95Ms: percentile(durations, 95),
       maxMs: durations.length ? durations[durations.length - 1] : null,
@@ -260,6 +270,70 @@ export function usageCsv(summary: UsageSummary, groupBy: 'feature' | 'service'):
   return [head.join(','), ...lines].join('\n') + '\n'
 }
 
+// ── Shared by the overview and the ingestion view ─────────────────────────
+
+type SplitKey = (r: IAiCall) => string
+const splitKeyFor =
+  (split: 'service' | 'feature'): SplitKey =>
+  (r) =>
+    split === 'service' ? r.billedService : r.feature
+
+// The rows under each key, in the order the keys are first met.
+function groupRows(rows: IAiCall[], keyOf: (r: IAiCall) => string): Map<string, IAiCall[]> {
+  const groups = new Map<string, IAiCall[]>()
+  for (const r of rows) {
+    const key = keyOf(r)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(r)
+  }
+  return groups
+}
+
+// What every group shows: calls, cost, last use, and its bar's stacked parts.
+function groupTotals(key: string, members: IAiCall[], splitKey: SplitKey) {
+  const segments: Record<string, number> = {}
+  for (const r of members)
+    if (r.estimatedCostUsd !== null)
+      segments[splitKey(r)] = round((segments[splitKey(r)] ?? 0) + r.estimatedCostUsd)
+  return {
+    key,
+    lastActivityAt: new Date(Math.max(...members.map((r) => +new Date(r.createdAt)))).toISOString(),
+    calls: callsIn(members),
+    estimatedCostUsd: round(sum(members, (r) => r.estimatedCostUsd)),
+    callsWithoutCost: uncosted(members),
+    segments,
+  }
+}
+
+const byCostThenKey = (x: { estimatedCostUsd: number; key: string }, y: typeof x) =>
+  y.estimatedCostUsd - x.estimatedCostUsd || x.key.localeCompare(y.key)
+
+// Every split key present, costliest first, so each keeps one colour and order.
+function splitKeysOf(rows: IAiCall[], splitKey: SplitKey): string[] {
+  const totals = new Map<string, number>()
+  for (const r of rows)
+    totals.set(splitKey(r), (totals.get(splitKey(r)) ?? 0) + (r.estimatedCostUsd ?? 0))
+  return [...totals].sort(([a, x], [b, y]) => y - x || a.localeCompare(b)).map(([k]) => k)
+}
+
+function totalsOf(rows: IAiCall[]): UsageSummary['totals'] {
+  return {
+    calls: callsIn(rows),
+    estimatedCostUsd: round(sum(rows, (r) => r.estimatedCostUsd)),
+    callsWithoutCost: uncosted(rows),
+    estimatedCalls: callsIn(rows.filter((r) => isEstimate(r.pricingBasis))),
+  }
+}
+
+function pricingBasesOf(rows: IAiCall[]): UsageSummary['pricingBases'] {
+  const bases = new Map<string, number>()
+  for (const r of rows) bases.set(r.pricingBasis, (bases.get(r.pricingBasis) ?? 0) + callsIn([r]))
+  return [...bases].map(([basis, calls]) => ({ basis, calls, isEstimate: isEstimate(basis) }))
+}
+
+// Both views put each cell of a CSV row through csvCell.
+const csvLine = (cells: unknown[]) => cells.map(csvCell).join(',')
+
 // ── Overview: report generation across assessments and engineers ──────────
 
 export const OVERVIEW_GROUPS = ['assessment', 'engineer'] as const
@@ -404,30 +478,10 @@ export async function usageOverview(
     // Outside ingestion, only chat has no report.
     return r.reportId ?? CHAT_GROUP
   }
-  const splitKey = (r: IAiCall) => (query.split === 'service' ? r.billedService : r.feature)
+  const splitKey = splitKeyFor(query.split)
 
-  const byGroup = new Map<string, IAiCall[]>()
-  for (const r of kept) {
-    const key = groupKey(r)
-    if (!byGroup.has(key)) byGroup.set(key, [])
-    byGroup.get(key)!.push(r)
-  }
-
-  const groups = [...byGroup].map(([key, members]): OverviewGroup => {
-    const segments: Record<string, number> = {}
-    for (const r of members)
-      if (r.estimatedCostUsd !== null)
-        segments[splitKey(r)] = round((segments[splitKey(r)] ?? 0) + r.estimatedCostUsd)
-    const shared = {
-      key,
-      lastActivityAt: new Date(
-        Math.max(...members.map((r) => +new Date(r.createdAt))),
-      ).toISOString(),
-      calls: callsIn(members),
-      estimatedCostUsd: round(sum(members, (r) => r.estimatedCostUsd)),
-      callsWithoutCost: uncosted(members),
-      segments,
-    }
+  const groups = [...groupRows(kept, groupKey)].map(([key, members]): OverviewGroup => {
+    const shared = groupTotals(key, members, splitKey)
     const none = { reference: null, client: null, siteName: null }
     if (query.groupBy === 'engineer') {
       const unassigned = key === UNASSIGNED_GROUP
@@ -453,32 +507,14 @@ export async function usageOverview(
       engineerName: a?.engineer?.name ?? null,
     }
   })
-  groups.sort((x, y) => y.estimatedCostUsd - x.estimatedCostUsd || x.key.localeCompare(y.key))
+  groups.sort(byCostThenKey)
 
-  const splitTotals = new Map<string, number>()
-  for (const r of kept)
-    splitTotals.set(splitKey(r), (splitTotals.get(splitKey(r)) ?? 0) + (r.estimatedCostUsd ?? 0))
-  const splitKeys = [...splitTotals]
-    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
-    .map(([k]) => k)
-
-  const bases = new Map<string, number>()
-  for (const r of kept) bases.set(r.pricingBasis, (bases.get(r.pricingBasis) ?? 0) + callsIn([r]))
   return {
     scope: { ...query, from: from?.toISOString() ?? null },
-    totals: {
-      calls: callsIn(kept),
-      estimatedCostUsd: round(sum(kept, (r) => r.estimatedCostUsd)),
-      callsWithoutCost: uncosted(kept),
-      estimatedCalls: callsIn(kept.filter((r) => isEstimate(r.pricingBasis))),
-    },
-    splitKeys,
+    totals: totalsOf(kept),
+    splitKeys: splitKeysOf(kept, splitKey),
     groups,
-    pricingBases: [...bases].map(([basis, calls]) => ({
-      basis,
-      calls,
-      isEstimate: isEstimate(basis),
-    })),
+    pricingBases: pricingBasesOf(kept),
   }
 }
 
@@ -498,12 +534,138 @@ const OVERVIEW_CSV_COLUMNS: [string, (g: OverviewGroup) => unknown][] = [
 export function overviewCsv(overview: UsageOverview): string {
   const head = [...OVERVIEW_CSV_COLUMNS.map(([name]) => name), ...overview.splitKeys]
   const lines = overview.groups.map((g) =>
-    [
+    csvLine([
       ...OVERVIEW_CSV_COLUMNS.map(([, pick]) => pick(g)),
       ...overview.splitKeys.map((k) => g.segments[k] ?? 0),
-    ]
-      .map(csvCell)
-      .join(','),
+    ]),
   )
-  return [head.map(csvCell).join(','), ...lines].join('\n') + '\n'
+  return [csvLine(head), ...lines].join('\n') + '\n'
+}
+
+// ── Ingestion: what reading each knowledge document cost ─────────────────
+
+export type IngestionQuery = Pick<OverviewQuery, 'split' | 'range'>
+
+// Labelling recorded before calls carried a document id.
+export const UNLINKED_GROUP = 'unlinked'
+
+export type DocumentUsage = {
+  key: string
+  title: string
+  fileName: string | null
+  status: string | null
+  // False when the document is not stored: an upload refused after labelling,
+  // or labelling from before calls named their document.
+  saved: boolean
+  uploadedAt: string | null
+  // From the ingestion job, once parsing has counted them.
+  pages: number | null
+  calls: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+  usdPerPage: number | null
+  avgMsPerCall: number | null
+  lastActivityAt: string
+  segments: Record<string, number>
+}
+
+export type IngestionUsage = {
+  scope: IngestionQuery & { from: string | null }
+  totals: UsageSummary['totals']
+  splitKeys: string[]
+  documents: DocumentUsage[]
+  pricingBases: UsageSummary['pricingBases']
+}
+
+type StoredDocument = {
+  _id: Types.ObjectId
+  title?: string
+  fileName?: string
+  status?: string
+  createdAt?: Date
+}
+
+/**
+ * Returns what labelling, OCR and embedding cost per knowledge document, for
+ * the period chosen. For knowledge admins: documents are shared, so the cost
+ * is the knowledge base's, not any one person's. A re-ingested document's
+ * runs add up.
+ */
+export async function ingestionUsage(query: IngestionQuery): Promise<IngestionUsage> {
+  const from = rangeStart(query.range)
+  const rows = await AiCallModel.find({
+    feature: { $in: [...INGESTION_FEATURES] },
+    ...(from && { createdAt: { $gte: from } }),
+  }).lean<IAiCall[]>()
+
+  const ids = [...new Set(rows.flatMap((r) => (r.documentId ? [String(r.documentId)] : [])))]
+  const stored = new Map(
+    (
+      await KnowledgeDocumentModel.find(
+        { _id: { $in: ids } },
+        'title fileName status createdAt',
+      ).lean<StoredDocument[]>()
+    ).map((d) => [String(d._id), d]),
+  )
+  const pages = new Map(
+    (await IngestionJobModel.find({ documentId: { $in: ids } }, 'documentId pageTotal').lean()).map(
+      (j) => [String(j.documentId), j.pageTotal ?? null],
+    ),
+  )
+
+  const splitKey = splitKeyFor(query.split)
+  const groups = groupRows(rows, (r) => (r.documentId ? String(r.documentId) : UNLINKED_GROUP))
+  const documents = [...groups].map(([key, members]): DocumentUsage => {
+    const shared = groupTotals(key, members, splitKey)
+    const doc = stored.get(key)
+    const pageCount = pages.get(key) ?? null
+    return {
+      ...shared,
+      title: doc
+        ? (doc.title ?? doc.fileName ?? 'Untitled')
+        : key === UNLINKED_GROUP
+          ? 'Not linked to a document'
+          : 'Upload not saved',
+      fileName: doc?.fileName ?? null,
+      status: doc?.status ?? null,
+      saved: !!doc,
+      uploadedAt: doc?.createdAt ? new Date(doc.createdAt).toISOString() : null,
+      pages: pageCount,
+      usdPerPage: pageCount ? round(shared.estimatedCostUsd / pageCount) : null,
+      avgMsPerCall: avgMsPerCall(members),
+    }
+  })
+  documents.sort(byCostThenKey)
+
+  return {
+    scope: { ...query, from: from?.toISOString() ?? null },
+    totals: totalsOf(rows),
+    splitKeys: splitKeysOf(rows, splitKey),
+    documents,
+    pricingBases: pricingBasesOf(rows),
+  }
+}
+
+const INGESTION_CSV_COLUMNS: [string, (d: DocumentUsage) => unknown][] = [
+  ['title', (d) => d.title],
+  ['file_name', (d) => d.fileName],
+  ['status', (d) => d.status],
+  ['uploaded_at', (d) => d.uploadedAt],
+  ['pages', (d) => d.pages],
+  ['calls', (d) => d.calls],
+  ['calls_without_cost', (d) => d.callsWithoutCost],
+  ['estimated_cost_usd', (d) => d.estimatedCostUsd],
+  ['usd_per_page', (d) => d.usdPerPage],
+]
+
+/** Returns the ingestion view on screen as CSV text: one row per document, then its cost per split key. */
+export function ingestionCsv(usage: IngestionUsage): string {
+  const head = [...INGESTION_CSV_COLUMNS.map(([name]) => name), ...usage.splitKeys]
+  const lines = usage.documents.map((d) =>
+    csvLine([
+      ...INGESTION_CSV_COLUMNS.map(([, pick]) => pick(d)),
+      ...usage.splitKeys.map((k) => d.segments[k] ?? 0),
+    ]),
+  )
+  return [csvLine(head), ...lines].join('\n') + '\n'
 }
