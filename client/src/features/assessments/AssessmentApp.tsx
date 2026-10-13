@@ -18,10 +18,13 @@ import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
-import { UsageCosts } from '../usage/screens/UsageCosts'
-// Loaded on first open: the chat screen brings OpenUI, which every other screen can skip.
+// Loaded on first open: the chat screen brings OpenUI and the usage screen
+// brings the chart library, which every other screen can skip.
 const KnowledgeAssistant = lazy(() =>
   import('../chat/screens/KnowledgeAssistant').then((m) => ({ default: m.KnowledgeAssistant })),
+)
+const UsageCosts = lazy(() =>
+  import('../usage/screens/UsageCosts').then((m) => ({ default: m.UsageCosts })),
 )
 import { AccessDenied } from '../auth/AccessDenied'
 
@@ -349,7 +352,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
 
-                    {v.isUsage && <UsageCosts isAdmin={v.isAdmin} />}
+                    {v.isUsage && (
+                      <Suspense fallback={null}>
+                        <UsageCosts isAdmin={v.isAdmin} />
+                      </Suspense>
+                    )}
 
                     {v.isChat && (
                       <Suspense fallback={null}>

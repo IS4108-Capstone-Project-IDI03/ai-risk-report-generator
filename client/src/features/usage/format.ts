@@ -38,6 +38,15 @@ export function formatMoney(usd: number): string {
   return `$${usd.toFixed(usd !== 0 && Math.abs(usd) < 1 ? 4 : 2)}`
 }
 
+// An axis tick: as short as the scale allows ($0, $0.85, $3.40, $12, $1.2K), so
+// ticks stay clean where a table cell keeps four decimals.
+export function formatAxisMoney(usd: number): string {
+  if (!Number.isFinite(usd) || usd === 0) return '$0'
+  if (usd >= 1000) return `$${(usd / 1000).toFixed(1)}K`
+  if (usd >= 10) return `$${Math.round(usd)}`
+  return `$${usd.toFixed(usd < 0.01 ? 4 : 2)}`
+}
+
 // A count with thousands separators; zero or missing is a dash, not 0 noise.
 export function formatCount(n: number): string {
   return n > 0 ? n.toLocaleString('en-US') : DASH

@@ -1,6 +1,7 @@
 // Gateway calls for the Usage and costs screen (EV-04).
-// Called by screens/UsageCosts.tsx. Calls GET /api/usage/summary; the CSV is a plain link.
+// Called by screens/ in this folder. The CSV exports are plain links.
 import { request } from '../accounts/api'
+import type { CostGroup } from './chart'
 
 // Matches the summary shape in server/src/services/usage-report.service.ts.
 export type Latency = {
@@ -24,21 +25,74 @@ export type UsageRow = {
   latency: Latency
 }
 
+export type Totals = {
+  calls: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+  estimatedCalls: number
+}
+export type PricingBasis = { basis: string; calls: number; isEstimate: boolean }
+
+// One feature's cost split by the service that billed it.
+export type FeatureServiceRow = {
+  feature: string
+  calls: number
+  estimatedCostUsd: number
+  segments: Record<string, number>
+}
+
+// What drafting one report section cost. `section` is null for drafting saved
+// before sections were recorded.
+export type SectionRow = {
+  section: string | null
+  title: string
+  calls: number
+  drafts: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+}
+
 export type UsageSummary = {
   scope: { reportId: string | null }
   reports: string[]
-  totals: {
-    calls: number
-    estimatedCostUsd: number
-    callsWithoutCost: number
-    estimatedCalls: number
-  }
+  totals: Totals
   byFeature: UsageRow[]
   byService: UsageRow[]
-  pricingBases: { basis: string; calls: number; isEstimate: boolean }[]
+  byFeatureService: FeatureServiceRow[]
+  bySection: SectionRow[]
+  pricingBases: PricingBasis[]
 }
 
 export type UsageView = 'feature' | 'service'
+export type GroupBy = 'assessment' | 'engineer'
+export type Range = '7d' | '30d' | 'month' | 'all'
+
+export type OverviewQuery = {
+  groupBy: GroupBy
+  split: UsageView
+  range: Range
+  // Only this engineer's calls (their bar or row was chosen).
+  engineer?: string
+}
+
+// One assessment, engineer, or the Chatbot (key `chat`) in the overview.
+export type OverviewGroup = CostGroup & {
+  reference: string | null
+  client: string | null
+  siteName: string | null
+  engineerId: string | null
+  engineerName: string | null
+  calls: number
+  callsWithoutCost: number
+}
+
+export type UsageOverview = {
+  scope: OverviewQuery & { from: string | null }
+  totals: Totals
+  splitKeys: string[]
+  groups: OverviewGroup[]
+  pricingBases: PricingBasis[]
+}
 
 // `request` also ends the session on a 401.
 export function getUsageSummary(reportId: string, signal?: AbortSignal): Promise<UsageSummary> {
@@ -46,9 +100,23 @@ export function getUsageSummary(reportId: string, signal?: AbortSignal): Promise
   return request<UsageSummary>(`/api/usage/summary${query}`, { signal })
 }
 
-// The CSV link. A plain link (not fetch) so the browser sends the session cookie.
+const overviewParams = (q: OverviewQuery) => {
+  const params = new URLSearchParams({ groupBy: q.groupBy, split: q.split, range: q.range })
+  if (q.engineer) params.set('engineer', q.engineer)
+  return params
+}
+
+export function getUsageOverview(q: OverviewQuery, signal?: AbortSignal): Promise<UsageOverview> {
+  return request<UsageOverview>(`/api/usage/overview?${overviewParams(q)}`, { signal })
+}
+
+// The CSV links. Plain links (not fetch) so the browser sends the session cookie.
 export function exportUrl(reportId: string, view: UsageView): string {
   const params = new URLSearchParams({ groupBy: view })
   if (reportId) params.set('reportId', reportId)
   return `/api/usage/export.csv?${params}`
+}
+
+export function overviewExportUrl(q: OverviewQuery): string {
+  return `/api/usage/overview/export.csv?${overviewParams(q)}`
 }

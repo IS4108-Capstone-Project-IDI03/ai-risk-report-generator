@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Select } from '../../../design-system'
 import { toStackedSeries, type ChartSort, type CostGroup, type Series } from '../chart'
-import { formatMoney } from '../format'
+import { formatAxisMoney, formatMoney } from '../format'
 
 // How many bars show before the reader asks for more; the rest stay in the table.
 export const DEFAULT_BAR_LIMIT = 15
@@ -19,6 +19,14 @@ const CHART_HEIGHT = 280
 const MAX_BAR_PX = 24
 // The surface-coloured gap between parts: a 2px stroke in the card colour.
 const GAP_PX = 2
+// Each bar's slot is at least this wide, so labels never overlap; on a narrow
+// screen the plot scrolls sideways inside its own frame instead.
+const MIN_SLOT_PX = 44
+// Past this many bars the labels turn, so a slot no longer needs a whole label's width.
+const TURN_LABELS_AFTER = 8
+// About one 12px character, for sizing a slot to an unturned label.
+const LABEL_CHAR_PX = 7
+const AXIS_PX = 80
 
 type Props = {
   // Names the chart and its table, e.g. "Cost by assessment".
@@ -28,101 +36,114 @@ type Props = {
   groups: CostGroup[]
   // A bar was chosen: the screen narrows to it or opens it.
   onSelect?: (key: string) => void
+  // False for a short fixed set (one assessment's features): every bar, costliest first.
+  controls?: boolean
 }
 
-export function StackedCostChart({ title, noun, groups, onSelect }: Props) {
+export function StackedCostChart({ title, noun, groups, onSelect, controls = true }: Props) {
   const [sort, setSort] = useState<ChartSort>('cost')
   const [limit, setLimit] = useState<number | typeof ALL>(DEFAULT_BAR_LIMIT)
 
   if (!groups.length) return <p className="uc-chart-empty">No costs recorded in this period.</p>
 
   const { bars, series, shown, total } = toStackedSeries(groups, {
-    sort,
-    limit: limit === ALL ? groups.length : limit,
+    sort: controls ? sort : 'cost',
+    limit: !controls || limit === ALL ? groups.length : limit,
   })
   const topSeries = series[series.length - 1]?.key
+  const turned = bars.length > TURN_LABELS_AFTER
+  const longest = Math.max(...bars.map((b) => b.label.length))
+  const slot = turned ? MIN_SLOT_PX : Math.max(MIN_SLOT_PX, longest * LABEL_CHAR_PX + 12)
 
   return (
     <figure className="uc-chart" aria-label={title}>
-      <div className="uc-chart-controls">
-        <Select
-          label="Sort bars by"
-          size="sm"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as ChartSort)}
-          options={[
-            { value: 'cost', label: 'Highest cost' },
-            { value: 'time', label: 'Most recent' },
-          ]}
-        />
-        <Select
-          label="Bars shown"
-          size="sm"
-          value={String(limit)}
-          onChange={(e) => setLimit(e.target.value === ALL ? ALL : Number(e.target.value))}
-          options={[
-            ...LIMITS.map((n) => ({ value: String(n), label: String(n) })),
-            { value: ALL, label: 'All' },
-          ]}
-        />
-        <p className="uc-chart-note">
-          {shown === total
-            ? `Showing all ${total} ${noun}`
-            : `Showing the ${sort === 'cost' ? 'top' : 'latest'} ${shown} of ${total} ${noun}`}
-        </p>
-      </div>
+      {controls && (
+        <div className="uc-chart-controls">
+          <Select
+            label="Sort bars by"
+            size="sm"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as ChartSort)}
+            options={[
+              { value: 'cost', label: 'Highest cost' },
+              { value: 'time', label: 'Most recent' },
+            ]}
+          />
+          <Select
+            label="Bars shown"
+            size="sm"
+            value={String(limit)}
+            onChange={(e) => setLimit(e.target.value === ALL ? ALL : Number(e.target.value))}
+            options={[
+              ...LIMITS.map((n) => ({ value: String(n), label: String(n) })),
+              { value: ALL, label: 'All' },
+            ]}
+          />
+          <p className="uc-chart-note">
+            {shown === total
+              ? `Showing all ${total} ${noun}`
+              : `Showing the ${sort === 'cost' ? 'top' : 'latest'} ${shown} of ${total} ${noun}`}
+          </p>
+        </div>
+      )}
 
       <div className="uc-chart-plot">
-        <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-          <BarChart
-            data={bars}
-            maxBarSize={MAX_BAR_PX}
-            margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-          >
-            <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-            <XAxis
-              dataKey="label"
-              tickLine={false}
-              axisLine={{ stroke: 'var(--chart-axis)' }}
-              tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-              interval={0}
-              angle={bars.length > 8 ? -35 : 0}
-              textAnchor={bars.length > 8 ? 'end' : 'middle'}
-              height={bars.length > 8 ? 64 : 28}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              width={64}
-              tick={{ fill: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)' }}
-              tickFormatter={(v: number) => formatMoney(v)}
-            />
-            <Tooltip
-              cursor={{ fill: 'var(--surface-hover)' }}
-              content={({ active, payload, label }) =>
-                active && payload?.length ? (
-                  <CostTooltip label={String(label)} series={series} values={payload[0].payload} />
-                ) : null
-              }
-            />
-            {series.map((s) => (
-              <Bar
-                key={s.key}
-                dataKey={s.key}
-                name={s.label}
-                stackId="cost"
-                fill={s.color}
-                stroke="var(--surface-card)"
-                strokeWidth={GAP_PX}
-                // Rounded at the data end only; the top part of each stack.
-                radius={s.key === topSeries ? [4, 4, 0, 0] : 0}
-                isAnimationActive={false}
-                cursor={onSelect ? 'pointer' : undefined}
-                onClick={onSelect ? (bar) => onSelect(String(bar.payload.key)) : undefined}
+        <div style={{ minWidth: bars.length * slot + AXIS_PX }}>
+          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+            <BarChart
+              data={bars}
+              maxBarSize={MAX_BAR_PX}
+              margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+            >
+              <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={{ stroke: 'var(--chart-axis)' }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                interval={0}
+                angle={turned ? -35 : 0}
+                textAnchor={turned ? 'end' : 'middle'}
+                height={turned ? 64 : 28}
               />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                width={64}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                tickFormatter={(v: number) => formatAxisMoney(v)}
+              />
+              <Tooltip
+                cursor={{ fill: 'var(--surface-hover)' }}
+                content={({ active, payload, label }) =>
+                  active && payload?.length ? (
+                    <CostTooltip
+                      label={String(label)}
+                      series={series}
+                      values={payload[0].payload}
+                    />
+                  ) : null
+                }
+              />
+              {series.map((s) => (
+                <Bar
+                  key={s.key}
+                  dataKey={s.key}
+                  name={s.label}
+                  stackId="cost"
+                  fill={s.color}
+                  stroke="var(--surface-card)"
+                  strokeWidth={GAP_PX}
+                  // Rounded at the data end only; the top part of each stack.
+                  radius={s.key === topSeries ? [4, 4, 0, 0] : 0}
+                  isAnimationActive={false}
+                  cursor={onSelect ? 'pointer' : undefined}
+                  onClick={onSelect ? (bar) => onSelect(String(bar.payload.key)) : undefined}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {series.length > 1 && (

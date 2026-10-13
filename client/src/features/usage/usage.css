@@ -104,6 +104,14 @@
 .uc-bases {
   margin: 8px 0 0;
   padding-left: 20px;
+  /* Pricing bases carry long URLs; they wrap rather than widen the page. */
+  overflow-wrap: anywhere;
+}
+/* A wide table or chart scrolls in its own frame; no column grows past the page. */
+.uc > *,
+.uc-section > *,
+.uc-chart > * {
+  min-width: 0;
 }
 .uc p {
   margin: 0 0 4px;
@@ -144,8 +152,10 @@
   line-height: var(--text-caption-lh);
 }
 .uc-chart-plot {
-  /* Room for the x-axis labels is inside the plot's own height. */
+  /* Room for the x-axis labels is inside the plot's own height. Many bars on a
+     narrow screen scroll sideways here, never the page. */
   min-width: 0;
+  overflow-x: auto;
 }
 .uc-chart-plot .recharts-surface:focus-visible,
 .uc-chart-plot .recharts-wrapper:focus-visible {
@@ -249,5 +259,49 @@
   .uc-chart-note {
     margin-left: 0;
     flex-basis: 100%;
+  }
+}
+
+/* Overview filters: one row above what they scope, wrapping on narrow screens. */
+.uc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-5) var(--space-6);
+}
+.uc-filters > * {
+  min-width: 180px;
+}
+/* "Assessments of <engineer>", with the way back to everyone. */
+.uc-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+  color: var(--text-primary);
+}
+.uc-scope p {
+  margin: 0;
+  font-weight: var(--weight-semibold);
+}
+.uc-detail-head h2 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-lh);
+  color: var(--text-primary);
+}
+.uc-detail-head p {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+}
+@media (max-width: 760px) {
+  .uc-filters > * {
+    min-width: 0;
+    flex: 1 1 100%;
   }
 }
