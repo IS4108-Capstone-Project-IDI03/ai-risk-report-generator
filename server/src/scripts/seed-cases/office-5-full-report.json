@@ -253,24 +253,46 @@
       "title": "Management Programs",
       "subsections": [
         {
+          "heading": "Management Programs",
+          "kind": "fields",
+          "statements": [
+            {
+              "text": "Building Maintenance: Established. Building systems are maintained under the facility management contract, with no structural issues noted.",
+              "citations": ["off5-1"]
+            },
+            {
+              "text": "Electrical Maintenance: Embedded. Two 2,000 kVA generators are tested monthly on load, and electrical rooms were found sealed and in order.",
+              "citations": ["off5-9", "off5-5"]
+            },
+            {
+              "text": "Equipment Maintenance: Established. Chillers and cooling towers are maintained in the Basement 3 plant room.",
+              "citations": ["off5-10"]
+            },
+            {
+              "text": "Fire Protection Impairment Management: Formalized. Sprinkler heads in the B3 service corridor were left recessed after the ceiling was lowered, with no impairment record noted.",
+              "citations": ["off5-12"]
+            },
+            {
+              "text": "Fire Protection System Maintenance & Testing: Formalized. Weekly pump churn tests are logged, but no annual flow test record was available, and the server room's gaseous system test is overdue.",
+              "citations": ["off5-15", "off5-13"]
+            },
+            {
+              "text": "Emergency Response Planning: Embedded. The building's emergency response plan was reviewed in 2025, and fire drills are held twice a year.",
+              "citations": ["off5-20"]
+            },
+            {
+              "text": "Business Continuity Planning: Undeveloped. There is no business continuity plan for the building; continuity is left to the tenants.",
+              "citations": ["off5-20"]
+            }
+          ]
+        },
+        {
           "heading": "Management Program Comments",
           "kind": "narrative",
           "statements": [
             {
-              "text": "The building has an emergency response plan, last reviewed in 2025, and fire drills are held twice a year.",
-              "citations": ["off5-20"]
-            },
-            {
-              "text": "Fire pumps are churn tested weekly with satisfactory logs, but the record of the last annual flow test was not available.",
-              "citations": ["off5-15"]
-            },
-            {
-              "text": "The standby generators are tested monthly on load.",
-              "citations": ["off5-9"]
-            },
-            {
-              "text": "There is no business continuity plan for the building itself; continuity planning is left to the tenants.",
-              "citations": ["off5-20"]
+              "text": "Maintenance of building services is generally well established, but fire protection testing records and impairment controls need formalising, and the building has no continuity plan of its own.",
+              "citations": ["off5-15", "off5-12", "off5-20"]
             }
           ]
         }
