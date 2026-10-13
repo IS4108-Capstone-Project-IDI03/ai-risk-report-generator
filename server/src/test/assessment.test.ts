@@ -127,7 +127,10 @@ describe('POST /api/assessments', () => {
   })
 
   it('gives concurrent creates distinct references', async () => {
-    const responses = await Promise.all(Array.from({ length: 5 }, () => create(body())))
+    // Each its own site: one client can't have two of one name (CP-17 AC8).
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => create(body({ site: { ...SITE, name: `Hub ${i}` } }))),
+    )
 
     expect(responses.map((r) => r.status)).toEqual([201, 201, 201, 201, 201])
     expect(new Set(responses.map((r) => r.body.reference)).size).toBe(5)
