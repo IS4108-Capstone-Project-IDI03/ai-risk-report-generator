@@ -1,10 +1,12 @@
 // Saves the usage lists the Python services return (EV-03). The Python side never
 // writes to MongoDB; the gateway does it here.
-// Called by section.service.ts (drafting), speech.service.ts (Whisper) and
-// ingestion.service.ts (labelling). Calls ai-pricing.service.ts for the cost.
+// Called by section.service.ts (drafting), speech.service.ts (Whisper),
+// observation.service.ts (photo interpretation) and ingestion.service.ts
+// (labelling). Calls ai-pricing.service.ts for the cost.
 import { Types } from 'mongoose'
 import { AI_FEATURES, AiCallModel, BILLED_SERVICES, type IAiCall } from '../models/ai-call.model'
 import { estimateCost } from './ai-pricing.service'
+import type { InterpretationResult } from './speech.service'
 
 // One usage item as the services send it. Must match the "Wire contract" in
 // .local-docs/specs/sprint-2/EV-03.md and microservices/rag-service and speech-ocr-service.
@@ -65,6 +67,37 @@ export function labelUsageToWire(items: unknown): WireUsage[] {
       pricing_basis:
         'ingestion-service PRICES table (microservices/ingestion-service/app/labelling/config.py)',
     }))
+}
+
+// Which billed service a photo-interpretation provider is, by the name S5
+// reports (VISION_PROVIDER picks it there). A provider not listed here has no
+// price, so its call is not recorded; add it here when S5 gains one.
+const VISION_SERVICES: Record<string, WireUsage['billed_service']> = {
+  gemini: 'gemini-vision',
+}
+
+// Turns S5's photo-interpretation answer into one usage item. S5 sends no
+// duration, so the caller times the request (S3 reads included).
+export function visionUsageToWire(result: InterpretationResult, durationMs: number): WireUsage[] {
+  const billed = VISION_SERVICES[result.provider]
+  if (!billed) return []
+  const usage = result.usage
+  const output = num(usage?.output_tokens)
+  return [
+    {
+      feature: 'interpret-photo',
+      billed_service: billed,
+      model: result.model,
+      duration_ms: Math.round(durationMs),
+      input_tokens: num(usage?.input_tokens),
+      // Thinking is billed as output; without the answer's own count the sum would understate it.
+      output_tokens: output === null ? null : output + (num(usage?.thought_tokens) ?? 0),
+      cache_read_tokens: null,
+      search_units: null,
+      audio_seconds: null,
+      usage_status: usage ? 'recorded' : 'unavailable',
+    },
+  ]
 }
 
 // Which vendor bills a labelling model.

@@ -59,7 +59,11 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    `usage` (null when the provider reports none), or 502 with `detail`. Like
    transcription, it writes nothing to MongoDB.
 4. The gateway stores the proposal, or the failure reason, on the
-   observation. A failure can be retried through the same route; a restart
+   observation. It also saves the call to `ai_calls` (EV-03) as
+   `interpret-photo`, billed to `gemini-vision`, tagged with the assessment:
+   thinking tokens are added to output tokens, since Google bills them as
+   output, and the duration is the gateway's own timing of the request
+   (S5 sends none). A failed request returns no usage, so nothing is saved. A failure can be retried through the same route; a restart
    marks an attempt still running as failed. The client re-reads the list every 3 seconds while any
    observation is interpreting.
 5. The proposal is for the engineer to review and is never drafting evidence:
