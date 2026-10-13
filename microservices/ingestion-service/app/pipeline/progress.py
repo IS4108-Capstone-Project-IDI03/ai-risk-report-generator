@@ -93,8 +93,8 @@ class ProgressReporter:
 
         Appends the previous stage (with its duration) to the stage log, sets
         the new current stage and its start time, and on the first call records
-        the overall job start. Clears the page counter, which belongs to the
-        stage that wrote it.
+        the overall job start. Clears the page and OCR counters, which belong to
+        the stage that wrote them.
         """
         if not self._enabled():
             return
@@ -113,14 +113,17 @@ class ProgressReporter:
                 "stageLog": list(self._stage_log),
                 "pageCurrent": None,
                 "pageTotal": None,
+                "ocrCurrent": None,
+                "ocrTotal": None,
             }
         )
 
     def update_pages(self, current: int, total: int | None) -> None:
         """Update the page counter only, with no stage transition (E2b).
 
-        `current` is the last page parsed (after each batch) or the page being
-        chunked; `total` is the document's page count (known up front from the
+        `current` is the last page parsed (after each batch), the page being
+        chunked, or the page reached by indexing (after each embedding batch);
+        `total` is the document's page count (known up front from the
         parser). The chunk count has no knowable
         total, so progress is tracked by page instead.
         """
@@ -128,6 +131,17 @@ class ProgressReporter:
             return
         self.check_cancelled()
         self._write({"pageCurrent": current, "pageTotal": total})
+
+    def update_ocr(self, current: int, total: int) -> None:
+        """Update the table/formula OCR counter only, with no stage transition.
+
+        Chunking's pass 2 reads its regions out of page order, so it is counted
+        by region: `current` regions read of `total` queued.
+        """
+        if not self._enabled():
+            return
+        self.check_cancelled()
+        self._write({"ocrCurrent": current, "ocrTotal": total})
 
     def cancel(self) -> None:
         """Record cancellation as the terminal progress outcome."""
@@ -169,6 +183,9 @@ class NoOpReporter:
         pass
 
     def update_pages(self, current: int, total: int | None) -> None:
+        pass
+
+    def update_ocr(self, current: int, total: int) -> None:
         pass
 
     def cancel(self) -> None:

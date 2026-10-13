@@ -70,8 +70,22 @@ export function purposeAndScope(
   a: Pick<IAssessment, 'client' | 'locations'>,
   site: Pick<ISite, 'name'>,
 ): PurposeAndScope {
-  // The places the engineer recorded observations in; else the past reports' usual ones.
-  const places = (a.locations ?? []).map((l) => (l.floor ? `${l.name} (${l.floor})` : l.name))
+  // The buildings the engineer recorded observations in, then the places
+  // elsewhere on site (CP-16); else the past reports' usual ones.
+  const locations = a.locations ?? []
+  // Each building once, as first spelt.
+  const named = new Map<string, string>()
+  for (const { building } of locations)
+    if (building && !named.has(building.toLowerCase())) named.set(building.toLowerCase(), building)
+  const buildings = [...named.values()].sort((x, y) =>
+    x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }),
+  )
+  const places = [
+    ...buildings,
+    ...locations
+      .filter((l) => !l.building)
+      .map((l) => 'the ' + (l.floor ? `${l.name} (${l.floor})` : l.name)),
+  ]
   return [
     `The purpose of this PRE report is to assist ${a.client} with the implementation of a ` +
       'Risk Management Strategy to prioritize risk improvements and mitigation strategies for ' +
@@ -82,8 +96,8 @@ export function purposeAndScope(
       'observed and information made available to Marsh Risk Consulting at the time of our ' +
       'survey. The report should be used for risk management and insurance placement ' +
       'purposes only.',
-    'The visit comprised an inspection of the main areas of the site, including the ' +
-      `${places.length ? listed(places) : 'electrical rooms, fire pump room and common areas'}.`,
+    'The visit comprised an inspection of the main areas of the site, including ' +
+      `${places.length ? listed(places) : 'the electrical rooms, fire pump room and common areas'}.`,
     'Our visits used National Fire Protection Association (NFPA), FM Global and local ' +
       'guidelines as technical references. Each site visit included the following activities:',
     ACTIVITIES,

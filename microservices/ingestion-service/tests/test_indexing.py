@@ -209,3 +209,58 @@ def test_embed_splits_a_rate_limited_batch_in_half(monkeypatch):
 
     assert embedder.embed(chunks) == [[1.0], [2.0], [3.0], [4.0], [5.0]]  # order kept
     assert [len(c.kwargs["texts"]) for c in cohere.embed.call_args_list] == [5, 2, 3, 1, 2]
+
+
+# --- Chroma Cloud's 300-record cap per write and per read ----------------------
+
+
+def test_upsert_is_split_into_writes_of_at_most_300_records(monkeypatch):
+    upsert = _stored(monkeypatch)
+    chunks = [{"id": f"big:{n}", "text": f"Passage {n}.", "metadata": {}} for n in range(650)]
+
+    assert indexer.index_chunks(chunks) == 650
+
+    sizes = [len(call.kwargs["ids"]) for call in upsert.call_args_list]
+    assert sizes == [300, 300, 50]
+    stored_ids = [i for call in upsert.call_args_list for i in call.kwargs["ids"]]
+    assert stored_ids == [chunk["id"] for chunk in chunks]
+    assert all(
+        len(call.kwargs["embeddings"]) == len(call.kwargs["ids"]) for call in upsert.call_args_list
+    )
+
+
+class PageRecorder:
+    def __init__(self):
+        self.page_updates = []
+
+    def update_pages(self, current, total):
+        self.page_updates.append((current, total))
+
+
+def _passage(n, page):
+    return {
+        "id": f"doc:{n}",
+        "text": f"passage {n}",
+        "metadata": {"page_start": page, "page_end": page},
+    }
+
+
+def test_index_reports_the_page_reached_after_each_embedding_batch(monkeypatch):
+    # Two texts per Cohere call: pages [1, 1] then [2, 4]; page 5 has no
+    # passage, but indexing is done with it, so the counter ends at 5 / 5.
+    monkeypatch.setattr(embedder, "_COHERE_BATCH_LIMIT", 2)
+    cohere = Mock()
+    cohere.embed.side_effect = lambda **kw: SimpleNamespace(
+        embeddings=SimpleNamespace(float_=[[0.1]] * len(kw["texts"]))
+    )
+    monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
+    monkeypatch.setattr(indexer, "chroma_client", lambda: Mock())
+    reporter = PageRecorder()
+
+    indexer.index_chunks(
+        [_passage(0, 1), _passage(1, 1), _passage(2, 2), _passage(3, 4)],
+        reporter=reporter,
+        page_total=5,
+    )
+
+    assert reporter.page_updates == [(1, 5), (4, 5), (5, 5)]

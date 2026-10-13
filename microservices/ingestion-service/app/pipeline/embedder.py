@@ -92,7 +92,8 @@ def _embed_batch(client, batch: list[str]) -> list[list[float]]:
             time.sleep(_COHERE_RATE_LIMIT_DELAY_SECONDS)
 
 
-def embed(chunks: list[str]) -> list[list[float]]:
+def embed(chunks: list[str], on_batch=None) -> list[list[float]]:
+    """Embed texts in order; `on_batch(n)` is told the count embedded after each batch."""
     if not chunks:
         return []
     client = cohere_client()
@@ -110,4 +111,6 @@ def embed(chunks: list[str]) -> list[list[float]]:
             window_start, window_tokens = time.monotonic(), 0
         window_tokens += batch_tokens
         vectors.extend(_embed_batch(client, batch))
+        if on_batch:
+            on_batch(len(vectors))
     return vectors

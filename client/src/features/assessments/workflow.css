@@ -190,6 +190,38 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+/* Capture's location picker on wider screens: a dropdown as wide as the
+   location bar it hangs from, scrolling within itself when the list is long.
+   The shared popover sets its trigger wrapper and sizes inline, hence
+   !important. */
+.capture-location > span {
+  display: flex !important;
+  flex: 1;
+  min-width: 0;
+}
+.capture-location-menu {
+  right: 0 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  max-height: min(70vh, 520px);
+  overflow: auto !important;
+}
+/* The four severity chips: two by two, or four across once each fits its
+   label; never three and one. Sized by the picker, which sits in a phone's
+   form, capture's side panel or the Edit dialog. */
+.severity-picker {
+  container-type: inline-size;
+}
+.severity-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+@container (min-width: 360px) {
+  .severity-chips {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 /* The assessment header's ⋯ menu: a short list, narrower than the shared
    popover's default width (set inline, hence !important). */
 .om-more-menu {

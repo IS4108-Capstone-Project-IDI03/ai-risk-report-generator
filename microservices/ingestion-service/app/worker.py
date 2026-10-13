@@ -30,7 +30,7 @@ from pymongo import MongoClient, ReturnDocument
 from app.matching import find_match
 from app.notifications import notify_ingestion, review_reason
 from app.pipeline import IngestionCancelledError, UnparsableDocumentError, run
-from app.pipeline.errors import DocumentTimeoutError
+from app.pipeline.errors import DocumentTimeoutError, OcrUnavailableError
 from app.pipeline.indexer import delete_passages, relabel
 from app.pipeline.progress import ProgressReporter
 
@@ -47,6 +47,10 @@ SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. U
 TIMED_OUT = (
     "Reading this PDF took longer than the time limit, so nothing was indexed. "
     "Raise DOCLING_DOCUMENT_TIMEOUT on the server and upload it again."
+)
+OCR_BUSY = (
+    "The table reading service kept turning requests away, so nothing was indexed. "
+    "Upload it again later, or lower OCR_CONCURRENCY on the server."
 )
 
 
@@ -226,6 +230,8 @@ def ingest_document(document_id: str) -> None:
             reason = UNREADABLE
         elif isinstance(error, DocumentTimeoutError):
             reason = TIMED_OUT
+        elif isinstance(error, OcrUnavailableError):
+            reason = OCR_BUSY
         else:
             reason = SYSTEM_ERROR
         failed = collection.find_one_and_update(

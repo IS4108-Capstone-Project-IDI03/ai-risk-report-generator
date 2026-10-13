@@ -47,12 +47,16 @@ export type IngestionStage = (typeof INGESTION_STAGES)[number]
 // server/src/services/knowledge-document.service.ts.
 export type IngestionProgress = {
   currentStage: IngestionStage
-  // The page reached while parsing (pages parsed so far, in 20-page batches)
-  // or chunking, and the document's page total (E2b). The chunk count has no
+  // The page reached while parsing (pages parsed so far, in 20-page batches),
+  // chunking or indexing, and the document's page total (E2b). The chunk count has no
   // knowable total up front, so progress is tracked by page. Both null at the
   // start of each stage until it reports a page.
   pageCurrent: number | null
   pageTotal: number | null
+  // Table and formula regions read of those queued, during chunking's OCR pass.
+  // Null until that pass starts, and on a document with nothing to read.
+  ocrCurrent: number | null
+  ocrTotal: number | null
   elapsedMs: number
   currentStageElapsedMs: number
   stageLog: { stage: string; startedAt: string; durationMs: number }[]

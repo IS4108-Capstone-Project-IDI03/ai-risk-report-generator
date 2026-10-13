@@ -1,8 +1,10 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
+from app.chat.placeholder import placeholder_events
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.orchestrator.orchestrator import draft, draft_ofis_for, draft_summary_for, run
@@ -162,3 +164,32 @@ def draft_summary(request: DraftSummaryRequest) -> dict:
         return draft_summary_for(request.assessment, request.sections)
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
+
+
+# One message as OpenUI's chat screen sends it. Its content is text for the
+# engineer's own messages; other roles' may carry tool calls, so stay loose.
+class ChatMessage(BaseModel):
+    role: str
+    content: str | list | None = None
+
+
+# One piece of extra context (AG-UI's shape), e.g. a remembered fact (CB-05).
+class ChatContext(BaseModel):
+    description: str = ""
+    value: str
+
+
+# The body OpenUI's fetchLLM posts. Unknown fields are ignored, not refused,
+# since OpenUI adds its own (threadId, runId, tools).
+class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    messages: Annotated[list[ChatMessage], Field(min_length=1)]
+    context: list[ChatContext] = []
+
+
+@router.post("/chat")
+def chat(request: ChatRequest) -> StreamingResponse:
+    # ponytail: placeholder answers until CB-01; the last user message is the question.
+    question = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
+    events = placeholder_events(str(question or ""), [c.value for c in request.context])
+    return StreamingResponse(events, media_type="text/event-stream")

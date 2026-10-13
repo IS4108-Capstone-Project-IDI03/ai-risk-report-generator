@@ -18,8 +18,8 @@ import { formatDayYearTime } from './format'
 const REF = 'RPT-2026-0411'
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
-const BAY_3 = { id: 'l1', name: 'Bay 3 — north aisle', floor: 'Ground' }
-const PUMP_HOUSE = { id: 'l3', name: 'Pump house', floor: null }
+const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
+const PUMP_HOUSE = { id: 'l3', building: null, name: 'Pump house', floor: null }
 // The signed-in risk engineer (test/session.ts), and someone else.
 const ME = { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe' }
 const OTHER = { id: '6ab39017e45cf009e4507799', name: 'Jide Okafor' }
@@ -315,7 +315,15 @@ const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('butto
 // An observation's row, by the start of its summary.
 const row = (summary: string) =>
   screen.getByRole('button', { name: new RegExp(summary.slice(0, 20)) })
-const select = (label: string) => screen.getByLabelText(new RegExp('^' + label))
+// The Filters panel, opened from its button; it stays open while filters
+// are chosen.
+function filters() {
+  if (!screen.queryByRole('dialog', { name: 'Filters' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+  return screen.getByRole('dialog', { name: 'Filters' })
+}
+// A filter in the panel, by its label.
+const select = (label: string) => within(filters()).getByLabelText(new RegExp('^' + label))
 const choose = (label: string, value: string) =>
   fireEvent.change(select(label), { target: { value } })
 // Which of these observations the list shows, by their summary.
@@ -376,8 +384,8 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     listed = [NOTE_ONLY, VOICE_ONLY, TRANSCRIBING, FAILED_VOICE]
     await openObservations()
     const ALL = [NOTE, VOICE, RISER, FAILED, RACKING, PUMP_TEST, SORTATION]
-    expect(optionLabels(select('Filter by type'))).toEqual(['All types', 'Note', 'Voice', 'Photo'])
-    expect(optionLabels(select('Filter by status'))).toEqual([
+    expect(optionLabels(select('Type'))).toEqual(['All types', 'Note', 'Voice', 'Photo'])
+    expect(optionLabels(select('Status'))).toEqual([
       'All statuses',
       'Transcribing',
       'Interpreting',
@@ -387,15 +395,16 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     ])
 
     // One with a note and a recording is both types; the sample pump test has a voice clip.
-    choose('Filter by type', 'Voice')
+    choose('Type', 'Voice')
     expect(shown(...ALL)).toEqual([VOICE, RISER, FAILED, PUMP_TEST])
-    choose('Filter by type', 'Note')
+    choose('Type', 'Note')
     expect(shown(...ALL)).toEqual([NOTE, RISER, RACKING, PUMP_TEST, SORTATION])
-    click('Clear filters')
+    // In the panel and beside the filter chips: either clears all.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0])
 
-    choose('Filter by status', 'Transcription failed')
+    choose('Status', 'Transcription failed')
     expect(shown(...ALL)).toEqual([FAILED])
-    choose('Filter by type', 'Note')
+    choose('Type', 'Note')
     expect(shown(...ALL)).toEqual([])
     expect(screen.getByText('No observations match those filters')).toBeInTheDocument()
   })
@@ -410,9 +419,9 @@ describe('Proposals from photos (CP-05)', () => {
     expect(within(row(PROPOSAL)).getByText('Complete')).toBeInTheDocument()
     expect(within(row(UNREAD)).getByText('Interpretation failed')).toBeInTheDocument()
     const ALL = [READING, PROPOSAL, UNREAD, RACKING]
-    choose('Filter by status', 'Interpreting')
+    choose('Status', 'Interpreting')
     expect(shown(...ALL)).toEqual([READING])
-    choose('Filter by status', 'Interpretation failed')
+    choose('Status', 'Interpretation failed')
     expect(shown(...ALL)).toEqual([UNREAD])
   })
 

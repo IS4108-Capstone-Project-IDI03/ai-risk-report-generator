@@ -133,7 +133,7 @@ describe('Route guard (F-05)', () => {
     expect(tabs.some((name) => name?.startsWith('Overview'))).toBe(true)
     expect(tabs.some((name) => name?.startsWith('Observations'))).toBe(true)
     expect(tabs.some((name) => name?.startsWith('Generation'))).toBe(false)
-    expect(screen.queryByRole('button', { name: 'Capture' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
   })
 
   it('follows the browser back button between screens', async () => {

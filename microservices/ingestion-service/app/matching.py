@@ -13,6 +13,7 @@ from chromadb.errors import NotFoundError
 
 from app.labelling.config import STANDARDS
 from app.labelling.decide import normalise
+from app.pipeline.indexer import get_all
 from app.retrieval_config import COLLECTION, chroma_client
 
 TOP_N = 5  # nearest stored passages looked at for each new passage
@@ -111,7 +112,7 @@ def _overlap(new_id: str, candidate_ids: list[str]) -> tuple[int, dict[str, dict
     collection = passages_collection()
     if collection is None or not candidate_ids:
         return 0, {}
-    new = collection.get(where={"doc_id": new_id}, include=["embeddings"])
+    new = get_all(collection, where={"doc_id": new_id}, include=["embeddings"])
     if len(new["ids"]) == 0:
         return 0, {}
     limit = 1 - similarity()
@@ -136,7 +137,7 @@ def _overlap(new_id: str, candidate_ids: list[str]) -> tuple[int, dict[str, dict
 
 
 def _count(collection, doc_id: str) -> int:
-    return len(collection.get(where={"doc_id": doc_id}, include=[])["ids"])
+    return len(get_all(collection, where={"doc_id": doc_id}, include=[])["ids"])
 
 
 def _counts(doc_id: str, candidate_ids: list[str], wanted: set[str] | None = None) -> dict:
@@ -210,8 +211,8 @@ def _passages(doc_id: str) -> list[dict]:
     collection = passages_collection()
     if collection is None:
         return []
-    found = collection.get(
-        where={"doc_id": doc_id}, include=["documents", "metadatas", "embeddings"]
+    found = get_all(
+        collection, where={"doc_id": doc_id}, include=["documents", "metadatas", "embeddings"]
     )
     rows = [
         {

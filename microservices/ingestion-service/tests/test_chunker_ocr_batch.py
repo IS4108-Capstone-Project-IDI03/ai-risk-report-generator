@@ -94,6 +94,9 @@ def test_a_cancel_during_the_last_table_ocr_stops_the_document(monkeypatch):
         def update_pages(self, current, total):
             pass
 
+        def update_ocr(self, current, total):
+            pass
+
     monkeypatch.setattr(chunker, "parse_table", parse_table)
 
     with pytest.raises(IngestionCancelledError):

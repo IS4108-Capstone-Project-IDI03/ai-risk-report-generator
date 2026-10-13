@@ -1,5 +1,20 @@
 import { useEffect, useState } from 'react'
-import { addLocation, listLocations, removeLocation, type SiteLocation } from './api'
+import {
+  addLocation,
+  editLocation,
+  listLocations,
+  removeLocation,
+  type LocationDetails,
+  type SiteLocation,
+} from './api'
+
+// A location kept in this browser, from the details given.
+const localLocation = (id: string, details: LocationDetails): SiteLocation => ({
+  id,
+  building: details.building?.trim() || null,
+  floor: details.floor?.trim() || null,
+  name: details.name.trim(),
+})
 
 // The assessment's locations. With a capture session live they come from the
 // gateway and new ones are saved there; otherwise they stay in this browser,
@@ -28,44 +43,40 @@ export function useLocations(
       ? server.list
       : []
     : (local[reference] ?? demo)
+  // Changes the list for this reference, on the gateway's copy or this browser's.
+  const change = (update: (list: SiteLocation[]) => SiteLocation[]) => {
+    if (live)
+      setServer((current) => ({
+        reference,
+        list: update(current?.reference === reference ? current.list : []),
+      }))
+    else setLocal((current) => ({ ...current, [reference]: update(current[reference] ?? demo) }))
+  }
   return {
     locations,
+    // Whether they are the gateway's.
+    live,
     // Resolves with the new location, or rejects with the gateway's reason.
-    add: async (details: { name: string; floor?: string }) => {
-      if (live) {
-        const location = await addLocation(reference, details)
-        setServer((current) => ({
-          reference,
-          list: [...(current?.reference === reference ? current.list : []), location],
-        }))
-        return location
-      }
-      const location = {
-        id: 'local-' + Date.now(),
-        name: details.name.trim(),
-        floor: details.floor?.trim() || null,
-      }
-      setLocal((current) => ({
-        ...current,
-        [reference]: [...(current[reference] ?? demo), location],
-      }))
+    add: async (details: LocationDetails) => {
+      const location = live
+        ? await addLocation(reference, details)
+        : localLocation('local-' + Date.now(), details)
+      change((list) => [...list, location])
+      return location
+    },
+    // Changes a location in place (CP-16). Rejects with the gateway's reason,
+    // e.g. when another location already has those details.
+    edit: async (id: string, details: LocationDetails) => {
+      const location = live
+        ? await editLocation(reference, id, details)
+        : localLocation(id, details)
+      change((list) => list.map((l) => (l.id === id ? location : l)))
       return location
     },
     // Rejects with the gateway's reason, e.g. while the location has observations.
     remove: async (id: string) => {
-      if (live) {
-        await removeLocation(reference, id)
-        setServer((current) =>
-          current?.reference === reference
-            ? { reference, list: current.list.filter((l) => l.id !== id) }
-            : current,
-        )
-        return
-      }
-      setLocal((current) => ({
-        ...current,
-        [reference]: (current[reference] ?? demo).filter((l) => l.id !== id),
-      }))
+      if (live) await removeLocation(reference, id)
+      change((list) => list.filter((l) => l.id !== id))
     },
   }
 }

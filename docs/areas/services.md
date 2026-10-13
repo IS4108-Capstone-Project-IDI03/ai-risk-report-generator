@@ -38,8 +38,9 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    (CP-08) leave a finished reading out of date; Read again on the tab sends
    the same request, reading the photos kept then.
 2. The gateway posts `{ "s3_keys": [...], "location": ..., "note": ... }` to
-   S5's `POST /interpret` without making the client wait. The location is the
-   observation's location and floor ("L43 pump room · Level 43"); the note is
+   S5's `POST /interpret` without making the client wait. The location is where
+   the observation was made, most specific first ("Pump room, Level 43,
+   Tower 1"; see `locationText`); the note is
    as the engineer wrote it. The engineer's category and severity are not
    sent, so the proposed category is the model's own.
 3. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
@@ -97,7 +98,7 @@ eval.interpret_photos`).
    labels (KB-01; an Unconfirmed one is left out, and `status` is
    `needs_review` until the match step below has finished) and its own `section`
    (IN-05, the report section it sits in, `Not applicable` or `Undefined`).
-   Parsing converts the PDF in 20-page batches (`DOCLING_DOCUMENT_TIMEOUT`
+   Parsing converts the PDF in 10-page batches (`DOCLING_DOCUMENT_TIMEOUT`
    limits each batch), joins them, and then assigns heading levels in one pass
    over the whole document with the PDF's bookmarks and font styles, so a
    heading is ranked against those in every batch. The `ProgressReporter` writes each stage transition to the

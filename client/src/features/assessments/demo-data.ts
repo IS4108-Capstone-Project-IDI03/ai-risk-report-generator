@@ -108,7 +108,8 @@ export const initialState: WorkflowState = {
   captureObs: {},
   fMode: 'note',
   fNote: '',
-  fNoteListed: false,
+  fLeaveOpen: false,
+  fLeaveTo: 'observations',
   fSaving: false,
   fSaveError: null,
   fRec: false,
@@ -121,15 +122,19 @@ export const initialState: WorkflowState = {
   fPhotoError: null,
   fLocationId: null,
   locOpen: false,
+  locDismissed: false,
   locQuery: '',
   locAdding: false,
-  lf: { name: '', floor: '' },
+  locEdit: null,
+  lf: { kind: 'building', building: '', floor: '', name: '' },
   lfBusy: false,
-  lfError: null,
+  lfErrors: {},
+  lfCheck: null,
+  lfKept: {},
+  locGroups: {},
   locRemove: null,
-  fCats: ['Protection'],
-  fSev: 'high',
-  fStd: '',
+  fCats: [],
+  fSev: '',
   fToast: null,
   fRecent: [
     {
@@ -138,7 +143,8 @@ export const initialState: WorkflowState = {
       cats: ['Protection'],
       time: '11 Apr 2026 09:22',
       text: 'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.',
-      area: 'Bay 3 — north aisle',
+      locationName: 'Bay 3 — north aisle',
+      building: 'Warehouse',
       locationId: 'demo-bay-3',
       floor: 'Ground',
       sev: 'critical',
@@ -166,7 +172,8 @@ export const initialState: WorkflowState = {
       cats: ['Protection'],
       time: '11 Apr 2026 11:05',
       text: 'Pump test certificate not produced on request. Site engineer believes it is held by the contractor.',
-      area: 'Pump house',
+      locationName: 'Pump house',
+      building: null,
       locationId: 'demo-pump-house',
       floor: null,
       sev: 'high',
@@ -182,7 +189,8 @@ export const initialState: WorkflowState = {
       cats: ['Occupancy'],
       time: '11 Apr 2026 13:40',
       text: 'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.',
-      area: 'Bay 1 — despatch',
+      locationName: 'Bay 1 — despatch',
+      building: 'Warehouse',
       locationId: 'demo-bay-1',
       floor: 'Ground',
       sev: 'moderate',
@@ -279,6 +287,10 @@ export const initialState: WorkflowState = {
   obsOpen: null,
   of: NO_FILTERS,
   obsShowDeleted: false,
+  obsSort: 'newest',
+  obsFolded: {},
+  obsLocForm: false,
+  obsReturn: null,
   obsDialog: null,
   tagEdit: null,
   tagBusy: false,
@@ -365,13 +377,16 @@ export const ROWS: AssessmentRow[] = [
 // Defined with the rest of the category rules; kept exported here for the screens.
 export { CAT_ICON, UNCATEGORISED } from './categories'
 // The sample assessment's places on site, used when the gateway is not live.
+// The sample assessment's places, as the server seed lists them (CP-16).
 export const DEMO_LOCATIONS: SiteLocation[] = [
-  { id: 'demo-bay-3', name: 'Bay 3 — north aisle', floor: 'Ground' },
-  { id: 'demo-bay-1', name: 'Bay 1 — despatch', floor: 'Ground' },
-  { id: 'demo-pump-house', name: 'Pump house', floor: null },
-  { id: 'demo-office', name: 'Office annexe', floor: 'Level 1' },
-  { id: 'demo-yard', name: 'External yard', floor: null },
-  { id: 'demo-valve-room', name: 'Sprinkler valve room', floor: 'Ground' },
+  { id: 'demo-bay-3', building: 'Warehouse', floor: 'Ground', name: 'Bay 3 — north aisle' },
+  { id: 'demo-bay-1', building: 'Warehouse', floor: 'Ground', name: 'Bay 1 — despatch' },
+  { id: 'demo-valve-room', building: 'Warehouse', floor: 'Ground', name: 'Sprinkler valve room' },
+  { id: 'demo-roof', building: 'Warehouse', floor: null, name: 'Roof cladding' },
+  { id: 'demo-office', building: 'Office annexe', floor: 'Level 1', name: 'Open-plan office' },
+  { id: 'demo-pump-house', building: null, floor: null, name: 'Pump house' },
+  { id: 'demo-yard', building: null, floor: null, name: 'External yard' },
+  { id: 'demo-access-route', building: null, floor: null, name: 'Fire access route' },
 ]
 // Standards an observation can be tied to. The draft finds the clause itself.
 export const STANDARD_REFERENCES = [
@@ -581,7 +596,7 @@ export const OBS: Record<
     kindLabel: string
     time: string
     text: string
-    area: string
+    location: string
   }[]
 > = {
   s3: [
@@ -592,7 +607,7 @@ export const OBS: Record<
       kindLabel: 'Photograph',
       time: '09:22',
       text: 'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.',
-      area: 'Bay 3 — north aisle',
+      location: 'Bay 3 — north aisle',
     },
     {
       isPhoto: false,
@@ -600,7 +615,7 @@ export const OBS: Record<
       kindLabel: 'Voice note, 00:47',
       time: '09:24',
       text: 'Head spacing looks unchanged from the 2023 layout, but the racking is new and sits directly under two heads.',
-      area: 'Bay 3 — north aisle',
+      location: 'Bay 3 — north aisle',
     },
   ],
   s4: [
@@ -611,7 +626,7 @@ export const OBS: Record<
       kindLabel: 'Photograph',
       time: '11:02',
       text: 'Single electric pump, no duplicate supply visible in the pump house.',
-      area: 'Pump house',
+      location: 'Pump house',
     },
     {
       isPhoto: false,
@@ -619,7 +634,7 @@ export const OBS: Record<
       kindLabel: 'Voice note, 00:31',
       time: '11:05',
       text: 'Pump test certificate not produced on request. Site engineer believes the contractor holds it.',
-      area: 'Pump house',
+      location: 'Pump house',
     },
   ],
   s5: [
@@ -629,7 +644,7 @@ export const OBS: Record<
       kindLabel: 'Engineer note',
       time: '13:40',
       text: 'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.',
-      area: 'Despatch hall',
+      location: 'Despatch hall',
     },
   ],
   s1: [
@@ -639,7 +654,7 @@ export const OBS: Record<
       kindLabel: 'Engineer note',
       time: '08:55',
       text: 'Three shifts, six days per week. Stock value given as £18.4m by the site manager.',
-      area: 'Site office',
+      location: 'Site office',
     },
   ],
   s2: [
@@ -650,7 +665,7 @@ export const OBS: Record<
       kindLabel: 'Photograph',
       time: '10:14',
       text: 'Single-row racking, measured to 8.2 m in Bay 2.',
-      area: 'Bay 2',
+      location: 'Bay 2',
     },
   ],
   s3g: [
@@ -660,7 +675,7 @@ export const OBS: Record<
       kindLabel: 'Engineer note',
       time: '09:05',
       text: 'Addressable smoke detection throughout the annexe, monitored off site.',
-      area: 'Office annexe',
+      location: 'Office annexe',
     },
   ],
   s6: [
@@ -670,7 +685,7 @@ export const OBS: Record<
       kindLabel: 'Engineer note',
       time: '13:40',
       text: 'No contracted standby arrangement for the sortation controller.',
-      area: 'Despatch hall',
+      location: 'Despatch hall',
     },
   ],
 }

@@ -28,9 +28,10 @@ class FakeCollection:
     def __init__(self, records):
         self.records = records  # passage id -> metadata
 
-    def get(self, where, include):
-        assert include == ["metadatas"]
+    def get(self, where, include, limit=None, offset=0):
+        assert include in (["metadatas"], [])
         ids = [i for i, m in self.records.items() if m["doc_id"] == where["doc_id"]]
+        ids = ids[offset : None if limit is None else offset + limit]
         return {"ids": ids, "metadatas": [self.records[i] for i in ids]}
 
     def update(self, ids, metadatas):
@@ -151,3 +152,18 @@ def test_needs_review_is_accepted_and_missing_details_keep_the_passage_values(mo
         **OLD,
         "status": "needs_review",
     }
+
+
+def test_a_document_over_chromas_300_result_cap_is_relabelled_and_deleted_in_full(monkeypatch):
+    records = {f"{DOC_ID}:{n}": {"doc_id": DOC_ID, **OLD} for n in range(650)}
+    collection = FakeCollection(records)
+    collection.update = Mock(wraps=collection.update)
+    collection.delete = Mock()
+    install(monkeypatch, collection)
+
+    assert indexer.relabel(DOC_ID, NEW) == 650
+    assert [len(c.kwargs["ids"]) for c in collection.update.call_args_list] == [300, 300, 50]
+    assert all(m["jurisdiction"] == "SG" for m in records.values())
+
+    assert indexer.delete_passages(DOC_ID) == 650
+    assert [len(c.kwargs["ids"]) for c in collection.delete.call_args_list] == [300, 300, 50]

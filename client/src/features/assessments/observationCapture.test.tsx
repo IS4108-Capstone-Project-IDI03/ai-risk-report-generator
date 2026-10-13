@@ -9,7 +9,7 @@ const REF = 'RPT-2026-0411'
 const CAPTURE_URL = `/api/assessments/${REF}/capture-session`
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
-const BAY_3 = { id: 'l1', name: 'Bay 3 — north aisle', floor: 'Ground' }
+const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
 const CAPTURE = {
   session: { id: 's1', status: 'active', startedAt: '2026-09-29T08:00:00.000Z' },
   assessment: {
@@ -153,22 +153,31 @@ async function openApp() {
 // Opens capture and picks the location, as the engineer does first.
 async function openCapture() {
   await openApp()
-  // Open the assessment from the work list; capture is its header's action.
+  // Open the assessment from the work list; Add observation is its header's action.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
-  await screen.findByText('Capture session started')
-  fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  await screen.findByRole('img', { name: 'live' })
+  fireEvent.click(
+    await screen.findByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+  )
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
+// The Note, Voice and Photo modes, named with what each holds ("Voice, 2 recordings").
+const mode = (name: 'Note' | 'Voice' | 'Photo') => click(new RegExp('^' + name))
 const write = (text: string) =>
   fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: text } })
 async function record() {
-  click('Voice')
+  mode('Voice')
   click(/^(Start recording|Record another)$/)
   fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
 }
-const readyList = () => screen.getByRole('region', { name: 'Ready to save' })
+// What the Voice and Photo modes hold, each listed under its mode.
+const recordingList = () => screen.getByRole('region', { name: 'Recordings' })
+const photoList = () => screen.getByRole('region', { name: 'Photos' })
+const grade = (severity: string) => fireEvent.click(screen.getByRole('radio', { name: severity }))
 const save = () => click('Save observation')
+// The back button over the form, to the assessment's Observations tab.
+const leave = () => click('Back to observations')
 // A photo as the device hands it over, taken or chosen (CP-04 AC6).
 const photo = (name = 'IMG_0460.jpg', type = 'image/jpeg') => new File(['jpeg'], name, { type })
 const addPhotos = (...files: File[]) =>
@@ -202,7 +211,7 @@ afterEach(() => {
 describe('Capturing site photographs (CP-04)', () => {
   it('opens the camera to take one photo, and the library to choose several (AC6)', async () => {
     await openCapture()
-    click('Photo')
+    mode('Photo')
 
     // `capture` sends a phone straight to its camera; Chrome on Android 14+
     // offers no camera without it. One photo per shot.
@@ -218,33 +227,37 @@ describe('Capturing site photographs (CP-04)', () => {
 
   it('saves photos on their own, as taken or chosen on the device (AC1, AC6)', async () => {
     await openCapture()
-    click('Photo')
+    mode('Photo')
     // A phone camera names every capture image.jpg.
     takePhoto(photo('image.jpg'))
     addPhotos(photo('image.jpg'), photo('riser.png', 'image/png'))
 
-    expect(within(readyList()).getAllByText('image.jpg')).toHaveLength(2)
-    expect(within(readyList()).getByText('riser.png')).toBeInTheDocument()
+    expect(within(photoList()).getAllByText('image.jpg')).toHaveLength(2)
+    expect(within(photoList()).getByText('riser.png')).toBeInTheDocument()
     click('Remove riser.png')
+    // The switcher counts what the Photo mode holds.
+    expect(screen.getByRole('button', { name: 'Photo, 2 photos' })).toBeInTheDocument()
+    grade('Moderate')
     save()
 
     expect(await screen.findByText('Observation saved to RPT-2026-0411.')).toBeInTheDocument()
     expect(saves[0].photos.map((f) => f.name)).toEqual(['image.jpg', 'image.jpg'])
     expect(saves[0].details).not.toHaveProperty('note')
-    expect(screen.queryByRole('region', { name: 'Ready to save' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Photos' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
   })
 
   it('refuses a file that is not a JPG or PNG, saying why (AC4)', async () => {
     await openCapture()
-    click('Photo')
+    mode('Photo')
 
     addPhotos(photo('IMG_0461.HEIC', 'image/heic'), photo())
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       'IMG_0461.HEIC is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
     )
-    expect(within(readyList()).queryByText('IMG_0461.HEIC')).not.toBeInTheDocument()
-    expect(within(readyList()).getByText('IMG_0460.jpg')).toBeInTheDocument()
+    expect(within(photoList()).queryByText('IMG_0461.HEIC')).not.toBeInTheDocument()
+    expect(within(photoList()).getByText('IMG_0460.jpg')).toBeInTheDocument()
     // The next good choice clears the reason.
     addPhotos(photo('IMG_0462.jpg'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -256,13 +269,14 @@ describe('Capturing site photographs (CP-04)', () => {
         error: 'image.jpg is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
       })
     await openCapture()
-    click('Photo')
+    mode('Photo')
     addPhotos(photo('image.jpg'))
+    grade('High')
 
     save()
 
     expect(await screen.findByText(/^image\.jpg is not a JPG or PNG image/)).toBeInTheDocument()
-    expect(within(readyList()).getByText('image.jpg')).toBeInTheDocument()
+    expect(within(photoList()).getByText('image.jpg')).toBeInTheDocument()
   })
 })
 
@@ -275,19 +289,22 @@ describe('Reading photos only when asked (CP-05)', () => {
       return Promise.reject(new TypeError('Failed to fetch'))
     })
     await openApp()
-    // Open the assessment from the work list; capture is its header's action.
+    // Open the assessment from the work list; Add observation is its header's action.
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
     await screen.findByText('Showing sample data')
-    fireEvent.click(await screen.findByRole('button', { name: /^Bay 3 — north aisle · Ground/ }))
-    click('Photo')
+    // The sample site has several buildings; each opens to list its locations (CP-16).
+    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+    )
+    mode('Photo')
     addPhotos(photo('IMG_0470.jpg'))
+    grade('Low')
     save()
     expect(await screen.findByText(/kept in this demo only/)).toBeInTheDocument()
 
-    // The navigation's Recent entry is named after the site.
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    leave()
     fireEvent.click(screen.getByRole('button', { name: /1 photograph captured at Bay 3/ }))
     const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
     expect(within(proposal).getByText(/^Not read yet\./)).toBeInTheDocument()
@@ -300,7 +317,7 @@ describe('Reading photos only when asked (CP-05)', () => {
     ).toBeInTheDocument()
     // Only the attempt to start a capture session; the photos went nowhere.
     expect(sent).toEqual([CAPTURE_URL])
-  })
+  }, 10000) // Waits out the sample reading's two seconds, on top of capturing.
 })
 
 describe('Capturing an observation (CP-02, CP-03)', () => {
@@ -309,16 +326,17 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     await openCapture()
     const text = '  Valve V-12 chained open.\nTag missing.'
     write(text)
-    click('Add note')
     await record()
-    click('Photo')
+    mode('Photo')
     addPhotos(photo())
 
-    // Everything waits in one list; nothing is sent yet.
-    expect(within(readyList()).getByText('Note')).toBeInTheDocument()
-    expect(within(readyList()).getByText('Recording 1')).toBeInTheDocument()
-    expect(within(readyList()).getByText('IMG_0460.jpg')).toBeInTheDocument()
+    // Each mode says what it holds; nothing is sent yet.
+    expect(screen.getByRole('button', { name: 'Note, written' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice, 1 recording' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo, 1 photo' })).toBeInTheDocument()
     expect(saves).toHaveLength(0)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Protection' }))
+    grade('High')
 
     save()
 
@@ -326,25 +344,38 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
       await screen.findByText('Observation saved to RPT-2026-0411. Transcribing 1 recording now.'),
     ).toBeInTheDocument()
     expect(saves).toHaveLength(1)
-    // The note exactly as typed, filed under the form's defaults: Fire
-    // protection is filed as Protection.
+    // The note exactly as typed, filed under the tags chosen. The standard is
+    // left to drafting.
     expect(saves[0].details).toEqual({
       note: text,
       copeDimensions: ['Protection'],
       severity: 'high',
       locationId: 'l1',
-      standard: '',
     })
     expect(saves[0].recordings.map((f) => f.name)).toEqual(['Recording 1'])
     expect(saves[0].photos.map((f) => f.name)).toEqual(['IMG_0460.jpg'])
-    expect(screen.queryByRole('region', { name: 'Ready to save' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Note · 1 recording · 1 photo/)).toBeInTheDocument()
-    expect(screen.getByText('Transcribing')).toBeInTheDocument()
+    // The form starts again empty, tags and all.
+    expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Protection' })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).not.toBeChecked()
+
+    // It is listed on the Observations tab, which the back button goes to.
+    leave()
+    expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(
+      await screen.findByRole('button', { name: /Valve V-12 chained open/ }),
+    ).toHaveTextContent('Transcribing')
   }, 15_000) // Many steps through the whole screen; slow when every test file runs at once.
 
-  it('includes a note that was typed but not added to the list', async () => {
+  it('saves the note as typed in the box', async () => {
     await openCapture()
     write('Hose reel H3 blocked by pallets.')
+    grade('Moderate')
 
     save()
 
@@ -358,15 +389,15 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     allowMicrophone()
     await openCapture()
     write('First draft.')
-    click('Add note')
     await record()
     await record()
     await record()
 
     click('Remove Recording 2')
-    click('Edit note')
+    expect(screen.getByRole('button', { name: 'Voice, 2 recordings' })).toBeInTheDocument()
+    mode('Note')
     write('Second draft.')
-    click('Add note')
+    grade('Low')
     save()
 
     await screen.findByText(/Observation saved/)
@@ -374,58 +405,74 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     expect(saves[0].recordings.map((f) => f.name)).toEqual(['Recording 1', 'Recording 3'])
   }, 10000)
 
-  it('sends an uploaded audio file with its own name', async () => {
+  it('sends an uploaded audio file with its own name, and offers no standard to pick', async () => {
     allowMicrophone()
     await openCapture()
-    click('Voice')
-    fireEvent.change(screen.getByLabelText(/Standard reference/), {
-      target: { value: 'NFPA 25 – 2026 Edition' },
-    })
+    mode('Voice')
+    // Drafting finds the standard; Edit can name one once saved.
+    expect(screen.queryByLabelText(/Standard reference/)).not.toBeInTheDocument()
     const file = new File(['audio'], 'bay3.m4a', { type: 'audio/x-m4a' })
     fireEvent.change(screen.getByLabelText('Upload audio files'), { target: { files: [file] } })
-    expect(within(readyList()).getByText('bay3.m4a')).toBeInTheDocument()
+    expect(within(recordingList()).getByText('bay3.m4a')).toBeInTheDocument()
+    grade('High')
 
     save()
 
     await screen.findByText(/Observation saved/)
     expect(saves[0].recordings[0].name).toBe('bay3.m4a')
-    expect(saves[0].details.standard).toBe('NFPA 25 – 2026 Edition')
+    expect(saves[0].details).not.toHaveProperty('standard')
   })
 
   it('saves an observation left uncategorised and says drafting leaves it out', async () => {
     allowMicrophone()
     await openCapture()
-    // Protection is ticked by default; unticking it leaves none.
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Protection' }))
+    // No category is ticked until the engineer ticks one.
     expect(
       screen.getByText(
         'None chosen: report drafting leaves this observation out until it is categorised.',
       ),
     ).toBeInTheDocument()
     await record()
+    grade('Low')
 
     save()
 
     await screen.findByText(/Observation saved/)
     expect(saves[0].details.copeDimensions).toBeNull()
-    expect(screen.getByText('Uncategorised', { selector: 'span' })).toBeInTheDocument()
   })
 
-  it('keeps everything listed when the save fails, then saves it on retry', async () => {
+  it('asks for a severity, never assuming one', async () => {
+    await openCapture()
+    write('Exit sign E4 unlit.')
+    // No severity is chosen until the engineer picks one.
+    expect(screen.getAllByRole('radio').filter((r) => (r as HTMLInputElement).checked)).toEqual([])
+
+    save()
+
+    expect(screen.getByText('Choose a severity first.')).toBeInTheDocument()
+    expect(saves).toHaveLength(0)
+    grade('Critical')
+    save()
+    await vi.waitFor(() => expect(saves).toHaveLength(1))
+    expect(saves[0].details.severity).toBe('critical')
+  })
+
+  it('keeps everything when the save fails, then saves it on retry', async () => {
     allowMicrophone()
     saveReply = () => Promise.reject(new TypeError('Failed to fetch'))
     await openCapture()
     write('Sprinkler valve V2 chained open.')
-    click('Add note')
     await record()
+    grade('High')
 
     save()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Observation not saved' + 'The gateway could not be reached.',
     )
-    expect(within(readyList()).getByText('Recording 1')).toBeInTheDocument()
-    expect(within(readyList()).getByText('Note')).toBeInTheDocument()
+    expect(within(recordingList()).getByText('Recording 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Note, written' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
     saveReply = echo
     save()
 
@@ -442,6 +489,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
       })
     await openCapture()
     write('Too long, as far as the gateway is concerned.')
+    grade('Low')
 
     save()
 
@@ -472,10 +520,13 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     }
     await openCapture()
     await record()
+    grade('High')
 
     save()
+    await screen.findByText(/Observation saved/)
+    leave()
 
-    expect(await screen.findByText('Transcription failed')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Transcription failed/ })).toBeInTheDocument()
   })
 
   it('explains a blocked microphone and offers upload instead', async () => {
@@ -487,7 +538,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
       },
     })
     await openCapture()
-    click('Voice')
+    mode('Voice')
 
     click('Start recording')
 
@@ -495,6 +546,192 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
       "Microphone access is blocked. Allow it in your browser's site settings, or upload a recording instead.",
     )
   })
+})
+
+describe('Leaving capture', () => {
+  // Still capturing: the form and its Save are on screen.
+  const capturing = () => screen.queryByRole('button', { name: 'Save observation' })
+
+  it('goes back to the Observations tab, asking first when something is unsaved', async () => {
+    await openCapture()
+    write('Exit sign E4 unlit.')
+    mode('Photo')
+    addPhotos(photo())
+
+    leave()
+
+    const dialog = screen.getByRole('dialog', { name: 'Leave without saving?' })
+    expect(dialog).toHaveTextContent(
+      'Not saved yet: a note and 1 photo. Leaving discards this observation.',
+    )
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }))
+    expect(screen.queryByRole('dialog', { name: 'Leave without saving?' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Note, written' })).toBeInTheDocument()
+
+    leave()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard and leave' }))
+
+    expect(capturing()).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(saves).toHaveLength(0)
+    // Capture opens again empty, in the location the engineer is still in.
+    click('Add observation')
+    await screen.findByRole('img', { name: 'live' })
+    expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /^Location: Warehouse · Ground · Bay 3/ }),
+    ).toBeInTheDocument()
+  })
+
+  it('returns to where the engineer saved, marking what was saved New (CP-16)', async () => {
+    // No gateway: the observations stay in the demo, beside its samples.
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    await screen.findByText('Showing sample data')
+    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+    )
+    for (const note of ['Exit sign E4 unlit.', 'Hose reel H2 blocked.']) {
+      write(note)
+      grade('Low')
+      save()
+    }
+
+    leave()
+
+    // Newest first, so it lands on the newest one saved.
+    const newest = await screen.findByRole('button', { name: /Hose reel H2 blocked/ })
+    await vi.waitFor(() => expect(newest).toHaveFocus())
+    for (const note of [/Exit sign E4 unlit/, /Hose reel H2 blocked/])
+      expect(
+        within(screen.getByRole('button', { name: note })).getByText('New'),
+      ).toBeInTheDocument()
+    // The samples were there before.
+    expect(screen.getAllByText('New')).toHaveLength(2)
+  })
+
+  it('leaves for any workspace tab, which stays on show with Observations chosen', async () => {
+    await openCapture()
+    // Capture is part of the Observations tab.
+    expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    write('Exit sign E4 unlit.')
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Generation/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Discard and leave' }))
+
+    expect(capturing()).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Generation/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('stops a recording when capture is left, keeping it for the return', async () => {
+    allowMicrophone()
+    await openCapture()
+    mode('Voice')
+    click('Start recording')
+    await screen.findByRole('button', { name: 'Stop recording' })
+
+    // Left by the navigation rather than the back button.
+    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+
+    expect(await screen.findByRole('button', { name: 'Voice, 1 recording' })).toBeInTheDocument()
+    expect(within(recordingList()).getByText('Recording 1')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Record another' })).toBeInTheDocument()
+  })
+
+  it('drops the draft when another assessment is opened, so it is never saved there', async () => {
+    await openCapture()
+    write('Tilbury: exit sign E4 unlit.')
+
+    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: /^Leeds Cold Store/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+
+    expect(await screen.findByRole('textbox', { name: 'Note' })).toHaveValue('')
+  })
+})
+
+describe('Capture layout', () => {
+  // The card holding the tags: the side panel, or the one card of a single column.
+  const tagsCard = () => screen.getByRole('region', { name: 'Observation detail' }).parentElement!
+  async function atWidth(width: number, test: () => Promise<void>) {
+    const previous = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    try {
+      await test()
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: previous })
+    }
+  }
+
+  it('puts the tags and Save in a panel beside the form on a wide screen', () =>
+    atWidth(1280, async () => {
+      await openCapture()
+
+      const panel = tagsCard()
+      expect(within(panel).getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
+      expect(within(panel).getByRole('group', { name: 'Severity' })).toBeInTheDocument()
+      expect(within(panel).queryByRole('textbox', { name: 'Note' })).not.toBeInTheDocument()
+      // Leaving is the back button's, above the form, not a button beside Save.
+      expect(within(panel).queryByRole('button', { name: /Back|Done/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'New observation' })).toBeInTheDocument()
+    }))
+
+  it('keeps one column under the workspace header on a narrower screen', async () => {
+    await openCapture()
+
+    const card = tagsCard()
+    expect(within(card).getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Tilbury Distribution Centre',
+    )
+    expect(screen.getByRole('tablist')).toBeInTheDocument()
+  })
+
+  it('leaves a phone screen to the form, with the top bar as the way back', () =>
+    atWidth(390, async () => {
+      await openApp()
+      fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+      click('Add observation')
+
+      // The location picker is a bottom sheet here, which can be closed.
+      const sheet = await screen.findByRole('dialog', { name: 'Where are you?' })
+      expect(sheet.tagName).toBe('DIALOG')
+      expect(within(sheet).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+      expect(within(sheet).queryByRole('button', { name: 'Leave capture' })).not.toBeInTheDocument()
+      // Once the assessment's locations have loaded.
+      fireEvent.click(
+        await within(sheet).findByRole('button', {
+          name: /^Warehouse · Ground · Bay 3 — north aisle/,
+        }),
+      )
+
+      // The top bar names the page, with ← in place of the menu; no workspace
+      // header or tabs take the screen.
+      expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New observation')
+      expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument()
+      leave()
+      expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+    }))
 })
 
 describe('Tagging on the capture screen (CP-06 AC3)', () => {
@@ -511,31 +748,33 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
 
     // Each category is shown and stored as the value the knowledge base tags
     // its chunks with.
-    fireEvent.click(box('Protection'))
     for (const label of shared) {
       fireEvent.click(box(label))
       write('Hose reel H3 blocked by pallets.')
+      grade('High')
       save()
-      // A saved note clears the box, so the next one starts after this save.
+      // A save clears the box and the tags, so the next one starts afresh.
       await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(''))
-      fireEvent.click(box(label))
+      expect(box(label)).not.toBeChecked()
     }
     expect(saves.map((s) => s.details.copeDimensions)).toEqual(shared.map((c) => [c]))
-  })
+  }, 15_000) // Four saves in a row; slow when every test file runs at once.
 
   it('files one observation under several categories, in C-O-P-E order', async () => {
     await openCapture()
-    // Protection is ticked by default.
     fireEvent.click(screen.getByRole('checkbox', { name: 'Exposure' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Construction' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Protection' }))
     write('Shared wall with the neighbouring paint store.')
+    grade('Moderate')
     save()
 
-    await vi.waitFor(() => expect(saves).toHaveLength(1))
+    await screen.findByText(/Observation saved/)
     expect(saves[0].details.copeDimensions).toEqual(['Construction', 'Protection', 'Exposure'])
+    leave()
     expect(
-      await screen.findByText('Construction, Protection, Exposure', { selector: 'span' }),
-    ).toBeInTheDocument()
+      await screen.findByRole('button', { name: /Shared wall with the neighbouring paint store/ }),
+    ).toHaveTextContent('Construction, Protection, Exposure')
   })
 })
 
@@ -577,9 +816,10 @@ describe('Observations tab (CP-03)', () => {
     await openObservations()
 
     const row = await screen.findByRole('button', { name: /Racking is new\./ })
-    // Severity and location are what the engineer picked.
+    // Severity and location are what the engineer picked; newest first, the
+    // row names its location (CP-16).
     expect(row).toHaveTextContent('High')
-    expect(row).toHaveTextContent('Bay 3 — north aisle')
+    expect(row).toHaveTextContent('Warehouse · Ground · Bay 3 — north aisle')
     fireEvent.click(row)
 
     const clip = screen.getByRole('region', { name: 'Recording 1' })

@@ -480,6 +480,27 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given a location with observations, when the engineer tries to remove it, then removal is refused and the number of observations is shown.
   </details>
 
+- [ ] **CP-16** — Manage site locations by building and level (risk engineer, Should, 5 pts, deps: CP-15, Sprint 3)
+  <details><summary>Goal / AC</summary>
+
+  Goal: add, group, check and edit the site's locations by building and level, and find and capture observations by location, so every observation records exactly where on site it was found and the report names it accurately.
+
+  Terms: a location is in a building (a building, an optional level, and its name, e.g. Staircase, Store room, Lobby; no level is the whole building, e.g. its facade) or elsewhere on site (a name only, e.g. a road, a car park, a fire access route, a guardhouse). The site is the whole property.
+
+  1. Given a building, an optional level and a name, or a name only, when the engineer adds a location, then it is saved in that building and level, or as elsewhere on site; the same name and level may exist in different buildings.
+  2. Given locations in several buildings, when the picker is shown or the Observations tab is grouped by location, then locations are grouped by building, then level (lowest first), then Elsewhere on site; in the picker, the engineer's building starts open and the others fold away.
+  3. Given level shorthand such as L2 or B1, when a location is saved, then the level is saved as Level 2 or Basement 1.
+  4. Given a likely typo in a level, building or location name, when a location is saved, then the app suggests the correct name and the engineer can use it or keep theirs.
+  5. Given the assigned engineer and an assessment not archived, when a location is edited, then every observation saved there shows the change; anyone else, or an edit matching another location, is refused.
+  6. Given the Observations tab, when the engineer chooses Group by location, then each observation is listed under its location, with locations that have no observations listed too.
+  7. Given observations in several buildings, when the Location filter is set to a building, then only that building's observations are shown.
+  8. Given a location on the Observations tab, when the engineer chooses its Add observation, then capture opens at that location; Add location adds a location without starting capture.
+  9. Given observations were just saved in capture, when the engineer goes back, then the Observations tab opens where they were saved (their location, or the newest one when listed newest first), with them marked New.
+  10. Given recorded locations, when Section 1 is shown, then it names each building and each place elsewhere on site.
+
+  Already covered elsewhere, so not repeated here: choosing a location before capturing, selecting a new one, refusing a duplicate name and floor, and removing a location (CP-15); listing observations newest first, and filtering by location and level (CP-08).
+  </details>
+
 ## E6 — Report Generation & Guardrails
 
 - [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)

@@ -1,13 +1,80 @@
 import { hasCategory } from './categories'
+import { groupKey, groupLocations, locationLabel, type Place } from './locations'
 import type { Observation, ObservationFilters } from './types'
 
 export const NO_FILTERS: ObservationFilters = {
   type: '',
   cat: '',
   sev: '',
-  loc: '',
-  floor: '',
+  place: '',
   status: '',
+}
+
+// The Location filter's values (CP-16): a building (or Elsewhere on site), a
+// level of it, or one location. Each observation matches all three of its
+// own, so choosing a building shows everything in it; one with no location
+// recorded matches only Location not recorded.
+const UNRECORDED = 'unrecorded'
+const norm = (name?: string | null) => (name ?? '').trim().toLowerCase()
+const groupValue = (p: Place) => 'g:' + groupKey(p)
+const levelValue = (p: Place) => 'l:' + groupKey(p) + '|' + norm(p.floor)
+const placeValue = (p: Place) => 'p:' + groupKey(p) + '|' + norm(p.floor) + '|' + norm(p.name)
+const placeOf = (o: Observation): Place => ({
+  building: o.building,
+  floor: o.floor,
+  name: o.locationName,
+})
+const placeValues = (o: Observation) =>
+  o.locationName
+    ? [groupValue(placeOf(o)), levelValue(placeOf(o)), placeValue(placeOf(o))]
+    : [UNRECORDED]
+export const matchesPlace = (o: Observation, place: string) => placeValues(o).includes(place)
+
+// The Location filter's options, under each building in the order the list
+// is grouped (building, then level lowest first), then Elsewhere on site:
+// "All of Block A" and a level only where they hold more than one location,
+// then each location. labels names each value in full for its filter chip:
+// "Block A · Level 2 · Staircase".
+export function placeFilter(list: Observation[]) {
+  const places: Place[] = []
+  for (const o of list)
+    if (o.locationName && !places.some((p) => placeValue(p) === placeValue(placeOf(o))))
+      places.push(placeOf(o))
+  const labels: Record<string, string> = {}
+  const groups = groupLocations(places).map((g) => {
+    const all = g.levels.flatMap((level) => level.locations)
+    const options: { value: string; label: string }[] = []
+    if (all.length > 1) {
+      labels[groupValue(all[0])] = g.title
+      options.push({
+        value: groupValue(all[0]),
+        label: g.key === 'elsewhere' ? 'All elsewhere on site' : 'All of ' + g.title,
+      })
+    }
+    for (const level of g.levels) {
+      if (level.title && level.locations.length > 1) {
+        labels[levelValue(level.locations[0])] = g.title + ' · ' + level.title
+        options.push({ value: levelValue(level.locations[0]), label: level.title })
+      }
+      for (const l of level.locations) {
+        labels[placeValue(l)] = locationLabel(l)
+        options.push({
+          value: placeValue(l),
+          label: level.title ? level.title + ' · ' + l.name : l.name,
+        })
+      }
+    }
+    return { label: g.title, options }
+  })
+  const unrecorded = list.some((o) => !o.locationName)
+  if (unrecorded) labels[UNRECORDED] = 'Location not recorded'
+  return {
+    options: [
+      ...groups,
+      ...(unrecorded ? [{ value: UNRECORDED, label: 'Location not recorded' }] : []),
+    ],
+    labels,
+  }
 }
 
 // The observation types (CP-08, CP-04). One with a note and a recording is both.
@@ -45,16 +112,15 @@ export const statusOf = (o: Observation) =>
 
 // An observation matches when every filter that is set matches its label, so
 // any one label on its own returns every observation carrying it (CP-06 AC2,
-// CP-08 AC3). The location filter is by name, the zone; the floor is its own
-// filter. An observation of both types matches either, and one filed under
-// several categories matches any of them.
+// CP-08 AC3). The Location filter takes a building, a level of it or one
+// location (CP-16). An observation of both types matches either, and one
+// filed under several categories matches any of them.
 export function matchesFilters(o: Observation, f: ObservationFilters) {
   return (
     (!f.type || typesOf(o).includes(f.type)) &&
     (!f.cat || hasCategory(o.cats, f.cat)) &&
     (!f.sev || o.sev === f.sev) &&
-    (!f.loc || o.area === f.loc) &&
-    (!f.floor || o.floor === f.floor) &&
+    (!f.place || matchesPlace(o, f.place)) &&
     (!f.status || statusOf(o) === f.status)
   )
 }

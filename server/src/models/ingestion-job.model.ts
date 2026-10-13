@@ -20,12 +20,18 @@ export interface IStageLogEntry {
 export interface IIngestionJob {
   documentId: Types.ObjectId
   currentStage: IngestionStage
-  // The page reached while parsing (pages parsed so far, in 20-page batches)
-  // or chunking, and the document's total page count (E2b). The chunk count
+  // The page reached while parsing (pages parsed so far, in 20-page batches),
+  // chunking or indexing, and the document's total page count (E2b). The chunk count
   // has no knowable total up front, so progress is tracked by page instead.
   // Both null at the start of each stage until it reports a page.
   pageCurrent: number | null
   pageTotal: number | null
+  // Table and formula regions read by OCR, and how many were queued, while
+  // chunking runs its OCR pass. Counted by region because regions finish out
+  // of page order. Both null at the start of each stage, and absent on a
+  // document with nothing to read.
+  ocrCurrent: number | null
+  ocrTotal: number | null
   // Completed stages only, oldest first.
   stageLog: IStageLogEntry[]
   currentStageStartedAt: Date
@@ -54,6 +60,8 @@ const ingestionJobSchema = new Schema<IIngestionJob>(
     currentStage: { type: String, enum: INGESTION_STAGES, required: true },
     pageCurrent: { type: Number, default: null },
     pageTotal: { type: Number, default: null },
+    ocrCurrent: { type: Number, default: null },
+    ocrTotal: { type: Number, default: null },
     stageLog: { type: [stageLogEntrySchema], default: [] },
     currentStageStartedAt: { type: Date, required: true },
     startedAt: { type: Date, required: true },

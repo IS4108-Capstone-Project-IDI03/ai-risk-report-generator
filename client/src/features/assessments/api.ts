@@ -111,8 +111,17 @@ export type SavedInterpretation = {
   // or removed since (CP-08).
   outOfDate: boolean
 }
-// A place on site the engineer records observations in.
-export type SiteLocation = { id: string; name: string; floor: string | null }
+// A place on site the engineer records observations in (CP-16): in a
+// building, with an optional level, or elsewhere on site, with no building or
+// level. One saved before CP-16 may have a level but no building.
+export type SiteLocation = {
+  id: string
+  building: string | null
+  floor: string | null
+  name: string
+}
+// What the engineer gives for a new or changed location; blank ones are left out.
+export type LocationDetails = { building?: string; floor?: string; name: string }
 
 // An observation saved on the server: any of a note (CP-02), recordings
 // (CP-03) and photos (CP-04).
@@ -406,12 +415,28 @@ export async function listLocations(
   return (await request<SiteLocation[]>('GET', locationsPath(reference), undefined, signal)).data
 }
 
-// Adds a location; 409 when the same name and floor is already listed.
+// Adds a location; 409 when the same name, level and building is already listed.
 export async function addLocation(
   reference: string,
-  location: { name: string; floor?: string },
+  location: LocationDetails,
 ): Promise<SiteLocation> {
   return (await request<SiteLocation>('POST', locationsPath(reference), location)).data
+}
+
+// Changes a location's building, level or name (CP-16); 403 for anyone but the
+// assigned engineer, 409 once archived or when another location has them.
+export async function editLocation(
+  reference: string,
+  id: string,
+  location: LocationDetails,
+): Promise<SiteLocation> {
+  return (
+    await request<SiteLocation>(
+      'PATCH',
+      `${locationsPath(reference)}/${encodeURIComponent(id)}`,
+      location,
+    )
+  ).data
 }
 
 // Removes a location; 409 while it has observations.
