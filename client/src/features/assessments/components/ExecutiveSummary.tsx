@@ -11,12 +11,15 @@ export function ExecutiveSummary({
   error,
   onGenerate,
   fullWidth = false,
+  showCitations = true,
 }: {
   summary: Summary['executiveSummary'] | null
   error: string | null
   onGenerate: () => void
   // Fill the width rather than hold prose to 68ch: on Generation, not in Review.
   fullWidth?: boolean
+  // The "Section N" tags; Generation leaves them to Review, as it does all citations.
+  showCitations?: boolean
 }) {
   if (error)
     return (
@@ -77,13 +80,15 @@ export function ExecutiveSummary({
           <p key={i} className={'rv-statement' + (s.supported ? '' : ' is-unsupported')}>
             <span className="rv-statement-text">{s.text}</span>{' '}
             {/* `S:7` is Section 7, as rag-service's draft_summary labels it. */}
-            <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
-              {s.citations.map((c) => (
-                <Badge key={c} tone="neutral">
-                  {`Section ${c.replace(/^S:/, '')}`}
-                </Badge>
-              ))}
-            </span>
+            {showCitations && (
+              <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
+                {s.citations.map((c) => (
+                  <Badge key={c} tone="neutral">
+                    {`Section ${c.replace(/^S:/, '')}`}
+                  </Badge>
+                ))}
+              </span>
+            )}
             {!s.supported && (
               <span className="rv-flag">
                 <Badge tone="moderate" icon="triangle-alert">

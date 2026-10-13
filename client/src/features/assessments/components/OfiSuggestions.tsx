@@ -5,8 +5,8 @@
 import { Fragment, useState } from 'react'
 import type * as React from 'react'
 import { AIDraftBlock, Badge, Button, EvidenceCitation } from '../../../design-system'
+import { OFI_CATEGORIES as CATEGORIES } from '../reviewDisplay'
 import {
-  acceptOfi,
   draftOfis,
   GatewayError,
   type AcceptedOfi,
@@ -36,8 +36,6 @@ const PRIORITY_TONE: Record<string, string> = {
   'Priority 3': 'moderate',
   'Priority 4': 'low',
 }
-// Section 3's order, as in the template.
-const CATEGORIES = ['Management Programs', 'Physical Protection', 'Other']
 // The observations OFIs are drafted from, as in rag-service orchestrator.OFI_SEVERITIES.
 const OFI_SEVERITIES = ['critical', 'high', 'moderate']
 
@@ -100,15 +98,17 @@ function Sources({ ofi, observations }: { ofi: Ofi; observations: SavedObservati
   )
 }
 
-// One OFI in the same AI draft box as a section draft's subsections: a suggestion
-// (with Accept) on Generation, or an accepted, numbered OFI on the Review tab,
-// where it reads like the sections' AI drafts. Its sources open below it.
+// One OFI in the same AI draft box as a section draft's subsections. On the Review
+// tab a suggestion has Accept, an accepted OFI its number, and each its sources and
+// precedent. On Generation, which only generates (Miya, 12 Oct), it is shown alone:
+// no sources, precedent or Accept, which are read and done in Review.
 export function OfiBlock({
   ofi,
   number = null,
   observations,
   onAccept,
   busy = false,
+  withSources = true,
 }: {
   ofi: Ofi
   // Set once accepted: the OFI's report number.
@@ -116,6 +116,7 @@ export function OfiBlock({
   observations: SavedObservation[]
   onAccept?: () => void
   busy?: boolean
+  withSources?: boolean
 }) {
   const [showSources, setShowSources] = useState(false)
   const precedent = ofi.precedent ? ofi.sources[ofi.precedent] : null
@@ -131,7 +132,7 @@ export function OfiBlock({
         // Nothing checks yet that the sources say what the OFI claims, so not high.
         confidence="medium"
         evidenceCount={count}
-        onShowEvidence={() => setShowSources((open) => !open)}
+        onShowEvidence={withSources ? () => setShowSources((open) => !open) : undefined}
         onAccept={onAccept}
         acceptLabel={`Accept ${ofi.title}`}
         acceptDisabled={busy}
@@ -141,7 +142,7 @@ export function OfiBlock({
         <OfiTable number={number} title={ofi.title} rows={templateRows(ofi, observations)} />
       </AIDraftBlock>
       {/* The precedent, outside the box since it is not part of the draft (AC2). */}
-      {precedent && (
+      {withSources && precedent && (
         <p style={{ ...label, margin: '6px 0 0' }}>
           Based on past report:{' '}
           {[ofi.precedentReport ?? 'a past Marsh report', precedentTitle(precedent.text)]
@@ -354,20 +355,9 @@ export function OfisInReport({
   ))
 }
 
-// What opens under the row: suggestions to accept, then the OFIs in the report.
-function OfiPanel({
-  ofis,
-  observations,
-  canDraft,
-  busy,
-  onAccept,
-}: {
-  ofis: OfiList
-  observations: SavedObservation[]
-  canDraft: boolean
-  busy: boolean
-  onAccept: (ids: string[]) => void
-}) {
+// What opens under the row on Generation: the suggestions, read-only, then the OFIs in
+// the report. Accepting is done in Review → Section 3 (OfiReviewPanel).
+function OfiPanel({ ofis, observations }: { ofis: OfiList; observations: SavedObservation[] }) {
   return (
     <section
       aria-label="3. Opportunities for Improvement"
@@ -381,32 +371,13 @@ function OfiPanel({
       }}
     >
       {ofis.suggestions.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
-          <p style={{ ...muted, flex: '1 1 320px' }}>
-            {plural(ofis.suggestions.length, 'suggestion')}, not in the report until accepted.
-            Accept each one that should be in Section 3.
-          </p>
-          {canDraft && ofis.suggestions.length > 1 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft="check-check"
-              disabled={busy}
-              onClick={() => onAccept(ofis.suggestions.map((o) => o.id))}
-            >
-              Accept all
-            </Button>
-          )}
-        </div>
+        <p style={muted}>
+          {plural(ofis.suggestions.length, 'suggestion')}, not in the report until accepted. Accept
+          them in Review, under Section 3, where their sources open.
+        </p>
       )}
       {ofis.suggestions.map((o) => (
-        <OfiBlock
-          key={o.id}
-          ofi={o}
-          observations={observations}
-          busy={busy}
-          onAccept={canDraft ? () => onAccept([o.id]) : undefined}
-        />
+        <OfiBlock key={o.id} ofi={o} observations={observations} withSources={false} />
       ))}
       <section aria-label="Opportunities for Improvement in the report" style={card}>
         <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 500 }}>In the report</h4>
@@ -420,22 +391,15 @@ export function OfiRow({
   reference,
   canDraft,
   observations,
-  onAccepted,
 }: {
   reference: string
   canDraft: boolean
   observations: SavedObservation[]
-  // Told after an accept changes the report's Section 3 (GN-07: Section 2 summarises it).
-  onAccepted?: () => void
 }) {
   const { ofis, setOfis, loadError } = useOfis(reference)
   const [open, setOpen] = useState(false)
   const [drafting, setDrafting] = useState(false)
-  const [accepting, setAccepting] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
-  // Busy while a draft or accept runs: each returns the whole list, which replaces
-  // what is shown, so two at once could show a stale list.
-  const busy = drafting || accepting
   const candidates = observations.filter(isCandidate).length
 
   const draft = async () => {
@@ -453,20 +417,6 @@ export function OfiRow({
     }
     setDrafting(false)
   }
-  // Accepts one or several suggestions, one call each, in the order shown.
-  const accept = async (ids: string[]) => {
-    setAccepting(true)
-    setFailure(null)
-    try {
-      for (const id of ids) setOfis(await acceptOfi(reference, id))
-    } catch (error: unknown) {
-      setFailure(error instanceof GatewayError ? error.message : 'A suggestion was not accepted.')
-    }
-    // Even after a failure, since the accepts before it went through.
-    onAccepted?.()
-    setAccepting(false)
-  }
-
   const suggested = ofis?.suggestions.length ?? 0
   const inReport = ofis?.accepted.length ?? 0
   const state = drafting
@@ -550,7 +500,7 @@ export function OfiRow({
                 size="sm"
                 iconLeft="sparkles"
                 loading={drafting}
-                disabled={busy}
+                disabled={drafting}
                 onClick={() => void draft()}
               >
                 {drafting ? 'Drafting…' : suggested || inReport ? 'Redraft OFIs' : 'Draft OFIs'}
@@ -559,15 +509,7 @@ export function OfiRow({
           </span>
         </div>
       </div>
-      {open && ofis && (
-        <OfiPanel
-          ofis={ofis}
-          observations={observations}
-          canDraft={canDraft}
-          busy={busy}
-          onAccept={(ids) => void accept(ids)}
-        />
-      )}
+      {open && ofis && <OfiPanel ofis={ofis} observations={observations} />}
     </Fragment>
   )
 }
