@@ -96,6 +96,9 @@
 .uc-table tbody th {
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
+  /* A row's name can be a long document title: it wraps, the figures do not. */
+  white-space: normal;
+  min-width: 12rem;
 }
 .uc-table [data-numeric] {
   text-align: right;
@@ -304,4 +307,9 @@
     min-width: 0;
     flex: 1 1 100%;
   }
+}
+
+/* The admin's Report generation / Ingestion tabs, aligned with the page's own padding. */
+.uc-tabs > .ds-tabs {
+  margin: var(--space-6) clamp(16px, 2vw, 28px) 0;
 }

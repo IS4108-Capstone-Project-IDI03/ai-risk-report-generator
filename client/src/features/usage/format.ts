@@ -27,14 +27,29 @@ export const SERVICE_LABELS: Record<string, string> = {
   'self-hosted-ocr': 'Self-hosted OCR',
 }
 
+// A knowledge document's ingestion status, as the knowledge base names it.
+// No status means the document was never stored.
+const STATUS_LABELS: Record<string, string> = {
+  queued: 'Queued',
+  processing: 'Processing',
+  complete: 'Complete',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+}
+export function statusLabel(status: string | null): string {
+  return status ? (STATUS_LABELS[status] ?? status) : 'Not saved'
+}
+
 // Friendly name for a row key; an unknown key is shown as it came.
 export function rowLabel(view: UsageView, key: string): string {
   return (view === 'feature' ? FEATURE_LABELS : SERVICE_LABELS)[key] ?? key
 }
 
-// US dollars. Small amounts keep 4 decimals so $0.0123 does not read as $0.01.
+// US dollars. Small amounts keep 4 decimals so $0.0123 does not read as $0.01;
+// below that, a real cost says so rather than reading as free.
 export function formatMoney(usd: number): string {
   if (!Number.isFinite(usd)) return DASH
+  if (usd > 0 && usd < 0.00005) return '< $0.0001'
   return `$${usd.toFixed(usd !== 0 && Math.abs(usd) < 1 ? 4 : 2)}`
 }
 

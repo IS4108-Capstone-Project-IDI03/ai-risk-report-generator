@@ -94,6 +94,32 @@ export type UsageOverview = {
   pricingBases: PricingBasis[]
 }
 
+// The ingestion tab's query: knowledge admins only.
+export type IngestionQuery = { split: UsageView; range: Range }
+
+// What reading one knowledge document cost. `saved` is false for an upload
+// refused after labelling, or labelling from before calls named a document.
+export type DocumentUsage = CostGroup & {
+  title: string
+  fileName: string | null
+  status: string | null
+  saved: boolean
+  uploadedAt: string | null
+  pages: number | null
+  calls: number
+  callsWithoutCost: number
+  usdPerPage: number | null
+  avgMsPerCall: number | null
+}
+
+export type IngestionUsage = {
+  scope: IngestionQuery & { from: string | null }
+  totals: Totals
+  splitKeys: string[]
+  documents: DocumentUsage[]
+  pricingBases: PricingBasis[]
+}
+
 // `request` also ends the session on a 401.
 export function getUsageSummary(reportId: string, signal?: AbortSignal): Promise<UsageSummary> {
   const query = reportId ? `?reportId=${encodeURIComponent(reportId)}` : ''
@@ -115,6 +141,20 @@ export function exportUrl(reportId: string, view: UsageView): string {
   const params = new URLSearchParams({ groupBy: view })
   if (reportId) params.set('reportId', reportId)
   return `/api/usage/export.csv?${params}`
+}
+
+const ingestionParams = (q: IngestionQuery) =>
+  new URLSearchParams({ split: q.split, range: q.range })
+
+export function getIngestionUsage(
+  q: IngestionQuery,
+  signal?: AbortSignal,
+): Promise<IngestionUsage> {
+  return request<IngestionUsage>(`/api/usage/ingestion?${ingestionParams(q)}`, { signal })
+}
+
+export function ingestionExportUrl(q: IngestionQuery): string {
+  return `/api/usage/ingestion/export.csv?${ingestionParams(q)}`
 }
 
 export function overviewExportUrl(q: OverviewQuery): string {

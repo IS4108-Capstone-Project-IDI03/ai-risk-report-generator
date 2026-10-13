@@ -26,6 +26,13 @@ const MIN_SLOT_PX = 44
 const TURN_LABELS_AFTER = 8
 // About one 12px character, for sizing a slot to an unturned label.
 const LABEL_CHAR_PX = 7
+// An axis label is cut to this many characters (a document title can run to
+// a line); the tooltip and the table carry the whole name.
+const MAX_LABEL_CHARS = 22
+// Room under the plot for a turned label of MAX_LABEL_CHARS at 35 degrees.
+const TURNED_AXIS_PX = 96
+const shortLabel = (label: string) =>
+  label.length > MAX_LABEL_CHARS ? `${label.slice(0, MAX_LABEL_CHARS - 1).trimEnd()}…` : label
 const AXIS_PX = 80
 
 type Props = {
@@ -52,7 +59,7 @@ export function StackedCostChart({ title, noun, groups, onSelect, controls = tru
   })
   const topSeries = series[series.length - 1]?.key
   const turned = bars.length > TURN_LABELS_AFTER
-  const longest = Math.max(...bars.map((b) => b.label.length))
+  const longest = Math.max(...bars.map((b) => shortLabel(b.label).length))
   const slot = turned ? MIN_SLOT_PX : Math.max(MIN_SLOT_PX, longest * LABEL_CHAR_PX + 12)
 
   return (
@@ -93,18 +100,20 @@ export function StackedCostChart({ title, noun, groups, onSelect, controls = tru
             <BarChart
               data={bars}
               maxBarSize={MAX_BAR_PX}
-              margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+              // A turned label reaches left of its bar; leave the first one room.
+              margin={{ top: 8, right: 8, bottom: 0, left: turned ? 32 : 0 }}
             >
               <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
               <XAxis
                 dataKey="label"
+                tickFormatter={(label: string) => shortLabel(label)}
                 tickLine={false}
                 axisLine={{ stroke: 'var(--chart-axis)' }}
                 tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
                 interval={0}
                 angle={turned ? -35 : 0}
                 textAnchor={turned ? 'end' : 'middle'}
-                height={turned ? 64 : 28}
+                height={turned ? TURNED_AXIS_PX : 28}
               />
               <YAxis
                 tickLine={false}
