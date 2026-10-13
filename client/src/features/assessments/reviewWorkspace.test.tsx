@@ -514,12 +514,20 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   // Counted with the other sections: section 3 is first of four here (3, 7, 9, 10).
   expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
   expect(within(editor()).getByText(/prompt gn05-v4/)).toBeInTheDocument()
-  expect(within(editor()).getByText('AI draft')).toBeInTheDocument()
+  // Each in an AI draft box: the suggestion waiting to be accepted, and the OFI in the report.
+  expect(within(editor()).getAllByText('AI draft')).toHaveLength(2)
   expect(within(editor()).getByText('2026-01')).toBeInTheDocument()
   expect(within(editor()).getByText('Lock Open Sprinkler Control Valve')).toBeInTheDocument()
-  // Only accepted OFIs are in the report; suggestions are pointed to, not shown.
-  expect(within(editor()).queryByText('Improve Hot Work Permit')).toBeNull()
-  expect(screen.getByText(/1 suggested OFI is waiting to be accepted/)).toBeInTheDocument()
+  // Suggestions are accepted here, not on Generation (GN-07, 12 Oct), and stay out
+  // of the report until they are.
+  const report = within(editor()).getByRole('region', {
+    name: 'Opportunities for Improvement in the report',
+  })
+  expect(within(report).queryByText('Improve Hot Work Permit')).toBeNull()
+  expect(within(editor()).getByText('Improve Hot Work Permit')).toBeInTheDocument()
+  expect(
+    within(editor()).getByText(/1 suggestion, not in the report until accepted/),
+  ).toBeInTheDocument()
   // Next leads into the first section.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Next' }))
   expect(within(editor()).getByRole('heading', { name: '7. Construction' })).toBeVisible()

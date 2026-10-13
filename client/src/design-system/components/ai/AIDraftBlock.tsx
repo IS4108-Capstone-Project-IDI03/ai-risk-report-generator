@@ -129,25 +129,28 @@ function AIDraftBlock({
           transition: 'opacity var(--duration-fast) var(--ease-standard)',
         }}
       >
-        <button
-          type={'button'}
-          onClick={onShowEvidence}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 'var(--space-3)',
-            border: 'none',
-            background: 'transparent',
-            padding: 0,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            fontSize: 'var(--text-small-size)',
-            color: 'var(--text-link)',
-          }}
-        >
-          <Icon name={'link'} size={13} />
-          {evidenceCount + (evidenceCount === 1 ? ' source' : ' sources')}
-        </button>
+        {/* Only where there are sources to open: none shows on a view without them. */}
+        {onShowEvidence ? (
+          <button
+            type={'button'}
+            onClick={onShowEvidence}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: 'var(--text-small-size)',
+              color: 'var(--text-link)',
+            }}
+          >
+            <Icon name={'link'} size={13} />
+            {evidenceCount + (evidenceCount === 1 ? ' source' : ' sources')}
+          </button>
+        ) : null}
         <span
           style={{
             flex: 1,

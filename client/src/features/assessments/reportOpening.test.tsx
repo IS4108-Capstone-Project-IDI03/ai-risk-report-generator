@@ -349,8 +349,11 @@ it('opens the drafted Executive Summary from its Generation row, like the other 
 
   const draft = screen.getByRole('region', { name: '2. Executive Summary draft' })
   expect(within(draft).getByText('The hub is of concrete construction.')).toBeVisible()
-  expect(within(draft).getByText('Section 7')).toBeVisible()
+  // Its section citations are read in Review, not on Generation.
+  expect(within(draft).queryByText('Section 7')).toBeNull()
   expect(within(draft).getByText('Changes Since Previous Survey')).toBeVisible()
+  // On Generation the draft fills its width, as the sections' drafts do.
+  expect(draft.querySelector('[style*="measure-prose"]')).toBeNull()
   fireEvent.click(within(row).getByRole('button', { name: 'Hide draft' }))
   expect(screen.queryByRole('region', { name: '2. Executive Summary draft' })).toBeNull()
 }, 15_000)

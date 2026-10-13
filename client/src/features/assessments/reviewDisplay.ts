@@ -165,3 +165,7 @@ export function describeCitation(section: ReviewSection, id: string): string {
 // The DOM id of a statement in the draft editor, so a claim can scroll to it.
 export const statementId = (sectionId: string, claim: string) =>
   `rv-statement-${sectionId}-${claim.replace('.', '-')}`
+
+// Section 3's OFI categories in Marsh's report order (template pp. 8-9). Shared by
+// Generation's OFI list and Review's (OfiSuggestions, OfiReviewPanel).
+export const OFI_CATEGORIES = ['Management Programs', 'Physical Protection', 'Other']

@@ -2,7 +2,9 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { AcceptedOfi, Ofi, OfiList } from './api'
+import { OfiReviewPanel } from './components/OfiReviewPanel'
 import { OfiRow } from './components/OfiSuggestions'
+import { useOfis } from './useOfis'
 
 const REF = 'RPT-2026-0901'
 const VALVE = {
@@ -102,12 +104,27 @@ function renderRow(canDraft = true) {
   render(<OfiRow reference={REF} canDraft={canDraft} observations={[VALVE, PANEL]} />)
 }
 
+// Review → Section 3, where suggestions are accepted (moved from Generation, 12 Oct).
+function ReviewPanel({ canAccept }: { canAccept: boolean }) {
+  const { ofis, setOfis } = useOfis(REF)
+  return ofis ? (
+    <OfiReviewPanel
+      reference={REF}
+      ofis={ofis}
+      setOfis={setOfis}
+      observations={[VALVE, PANEL]}
+      canAccept={canAccept}
+    />
+  ) : null
+}
+const renderReview = (canAccept = true) => render(<ReviewPanel canAccept={canAccept} />)
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
 
-it('is a section row with its state and evidence; a suggestion shows its precedent and stays out of the report (AC2, AC3)', async () => {
+it('is a section row with its state; a suggestion is shown read-only and stays out of the report (AC3)', async () => {
   mockGateway([SUGGESTION])
   renderRow()
 
@@ -119,6 +136,23 @@ it('is a section row with its state and evidence; a suggestion shows its precede
 
   const card = screen.getByText('Supervise sprinkler control valves').closest('article')!
   expect(within(card).getByText('Priority 1')).toBeInTheDocument()
+  expect(within(card).getByText('AI draft')).toBeInTheDocument()
+  // Generation only generates (Miya, 12 Oct): accepting, sources and the precedent
+  // are on the Review tab.
+  expect(screen.getByText(/Accept them in Review/)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^Accept/ })).toBeNull()
+  expect(within(card).queryByRole('button', { name: /sources?$/ })).toBeNull()
+  expect(screen.queryByText(/Based on past report/)).toBeNull()
+  expect(
+    screen.getByText(/No Opportunities for Improvement are in the report yet/),
+  ).toBeInTheDocument()
+})
+
+it("shows a suggestion's precedent and sources in Review, out of the report until accepted (AC2, AC3)", async () => {
+  mockGateway([SUGGESTION])
+  renderReview()
+
+  const card = (await screen.findByText('Supervise sprinkler control valves')).closest('article')!
   expect(within(card).queryByText(/Likely × Major/)).toBeNull()
   // The precedent shows under the box, not inside the draft (AC2).
   expect(within(card).queryByText(/Based on past report/)).toBeNull()
@@ -127,19 +161,15 @@ it('is a section row with its state and evidence; a suggestion shows its precede
       /Based on past report: Shopping Mall Sample 2 · Formalize Fire Protection System Impairment/,
     ),
   ).toBeInTheDocument()
-  // It is in the same AI draft box as a section draft, with its sources behind the
-  // footer link: the observation, the standard and the past OFI.
-  expect(within(card).getByText('AI draft')).toBeInTheDocument()
   // The precedent's report is named by its title, never the knowledge base's id.
   expect(screen.queryByText(/6ac21227405acbadf814fae9/)).toBeNull()
+  // Its sources sit behind the footer link: the observation, the standard and the past OFI.
   fireEvent.click(within(card).getByRole('button', { name: /3 sources/ }))
   expect(screen.getByText('Fire pump room, Basement 1')).toBeInTheDocument()
   expect(screen.getByText('Valves')).toBeInTheDocument()
   expect(screen.getByText('p. 12')).toBeInTheDocument()
   expect(screen.getByText('Past report')).toBeInTheDocument()
-  expect(
-    screen.getByText(/No Opportunities for Improvement are in the report yet/),
-  ).toBeInTheDocument()
+  expect(screen.getByText(/1 suggestion, not in the report until accepted/)).toBeInTheDocument()
 })
 
 it('shows the photos of the observations an OFI rests on, whole, in its Observation row (GN-07 AC14)', async () => {
@@ -189,21 +219,21 @@ it("draws a suggested OFI's table as wide as one in the report, not at prose wid
 
 it('accepts several suggestions, one at a time, into the report in report order (AC4)', async () => {
   const calls = mockGateway([SUGGESTION, SECOND])
-  renderRow()
-  fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
+  renderReview()
 
-  fireEvent.click(screen.getByRole('button', { name: 'Accept Supervise sprinkler control valves' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Accept Supervise sprinkler control valves' }),
+  )
   await screen.findByText('2026-01')
   fireEvent.click(screen.getByRole('button', { name: 'Accept Improve Hot Work Permit' }))
   await screen.findByText('2026-02')
 
   expect(calls).toEqual(['ofi1', 'ofi2'])
   const report = screen.getByRole('region', { name: 'Opportunities for Improvement in the report' })
-  expect(within(report).getByText('Physical Protection')).toBeInTheDocument()
+  expect(within(report).getAllByText('Physical Protection').length).toBeGreaterThan(0)
   expect(within(report).getByText('Management Programs')).toBeInTheDocument()
   expect(within(report).getAllByText('New')).toHaveLength(2)
   expect(within(report).getAllByText('28 Sep 2026')).toHaveLength(2)
-  expect(screen.getByText('2 in the report')).toBeInTheDocument()
   // Each category's table has the template's rows: Physical Protection adds the RTM,
   // client, advisory and loss rows, left to be completed; Management Programs doesn't.
   const [management, physical] = within(report).getAllByRole('table')
@@ -221,9 +251,8 @@ it('accepts several suggestions, one at a time, into the report in report order 
 
 it('accepts every suggestion at once', async () => {
   const calls = mockGateway([SUGGESTION, SECOND])
-  renderRow()
-  fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Accept all' }))
+  renderReview()
+  fireEvent.click(await screen.findByRole('button', { name: 'Accept all' }))
 
   await screen.findByText('2026-02')
   expect(calls).toEqual(['ofi1', 'ofi2'])
@@ -235,5 +264,9 @@ it('offers no drafting or accepting to someone who cannot draft', async () => {
   renderRow(false)
   fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
   expect(screen.queryByRole('button', { name: /Draft OFIs|Redraft OFIs/ })).toBeNull()
+  cleanup()
+
+  renderReview(false)
+  expect(await screen.findByText('Improve Hot Work Permit')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /^Accept/ })).toBeNull()
 })
