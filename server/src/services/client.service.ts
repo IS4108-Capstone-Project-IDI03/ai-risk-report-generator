@@ -68,7 +68,7 @@ export function clientNameOf(site: { client?: unknown } | null | undefined, type
 
 export type ClientDto = { id: string; name: string; sites: number }
 
-// Every client, whoever added it (CP-17 AC1), in name order, with how many
+// Every client, whoever added it (CP-17 AC3), in name order, with how many
 // sites each has. The create form filters them as the engineer types and
 // checks a new name against them for a likely typo.
 // ponytail: search on the server once the list outgrows one response.
@@ -89,7 +89,7 @@ export async function listClients(): Promise<ClientDto[]> {
 }
 
 // A site's latest visit not archived: the one a new assessment there copies
-// its locations from (CP-17 AC3), whatever its status. Latest by visit date,
+// its locations from (CP-17 AC5), whatever its status. Latest by visit date,
 // then by when it was created, as the work list orders them.
 export async function latestVisit(site: Types.ObjectId) {
   return AssessmentModel.findOne(
@@ -118,7 +118,7 @@ export type ClientSiteDto = {
   latest: VisitDto | null
 }
 
-// The client's sites in name order (CP-17 AC2), each with its latest visit.
+// The client's sites in name order (CP-17 AC4), each with its latest visit.
 export async function listClientSites(clientId: string): Promise<ClientSiteDto[]> {
   const client = await getClient(clientId)
   const sites = await SiteModel.find({ client: client._id })
@@ -150,7 +150,7 @@ export async function listClientSites(clientId: string): Promise<ClientSiteDto[]
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-// Refuses a site name the client already has, whatever its case (CP-17 AC8).
+// Refuses a site name the client already has, whatever its case (CP-17 AC10).
 // Sites saved before CP-17 may already share a name; they stay, but no new
 // one joins them.
 export async function refuseDuplicateSite(
@@ -167,7 +167,7 @@ export async function refuseDuplicateSite(
 }
 
 // Whether the site has an assessment other than this one that is not
-// archived (CP-17 AC6): its details are then shared, and locked.
+// archived (CP-17 AC8): its details are then shared, and locked.
 export async function isSiteShared(site: Types.ObjectId, except: Types.ObjectId) {
   return !!(await AssessmentModel.exists({
     site,

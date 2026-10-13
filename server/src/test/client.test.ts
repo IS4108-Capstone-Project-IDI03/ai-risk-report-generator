@@ -79,7 +79,7 @@ function revisit(clientId: string, siteId: string, overrides: Record<string, unk
 const places = (locations: { building?: string; floor?: string; name: string }[]) =>
   locations.map((l) => [l.building ?? null, l.floor ?? null, l.name])
 
-describe('Clients and their sites (CP-17 AC1, AC2)', () => {
+describe('Clients and their sites (CP-17 AC3, AC4)', () => {
   it("lists every client, whoever added it, in name order with each one's site count", async () => {
     await firstVisit()
     await api.post('/api/assessments').send(body({ client: 'changi airport group' }))
@@ -139,7 +139,7 @@ describe('Clients and their sites (CP-17 AC1, AC2)', () => {
   })
 })
 
-describe('Starting an assessment on a listed site (CP-17 AC3, AC5)', () => {
+describe('Starting an assessment on a listed site (CP-17 AC5, AC7)', () => {
   it("copies the latest visit's locations, each its own, and no observations", async () => {
     const first = await firstVisit()
 
@@ -158,7 +158,7 @@ describe('Starting an assessment on a listed site (CP-17 AC3, AC5)', () => {
     )
     expect(places(after!.locations)).toEqual(places(before!.locations))
     expect(places(after!.locations)).toContainEqual(['Block A', 'Level 2', 'Staircase'])
-    // New ids, so editing or removing one leaves last year's as it was (AC5).
+    // New ids, so editing or removing one leaves last year's as it was (AC7).
     const ids = new Set(before!.locations.map((l) => String(l._id)))
     expect(after!.locations.some((l) => ids.has(String(l._id)))).toBe(false)
     const staircase = after!.locations.find((l) => l.name === 'Staircase')!
@@ -218,7 +218,7 @@ describe('Starting an assessment on a listed site (CP-17 AC3, AC5)', () => {
   })
 })
 
-describe("A client's site names (CP-17 AC8)", () => {
+describe("A client's site names (CP-17 AC10)", () => {
   it('refuses a new site named like one the client has, whatever its case', async () => {
     const { clientId } = await firstVisit()
 
@@ -251,7 +251,7 @@ describe("A client's site names (CP-17 AC8)", () => {
   })
 })
 
-describe("A shared site's details (CP-17 AC6)", () => {
+describe("A shared site's details (CP-17 AC8)", () => {
   it('locks them once the site has another assessment not archived, and unlocks them when it is archived', async () => {
     const first = await firstVisit()
     const listedFor = async (as: typeof api, reference: string) =>

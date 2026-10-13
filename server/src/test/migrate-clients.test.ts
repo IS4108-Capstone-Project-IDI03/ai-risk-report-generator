@@ -27,7 +27,7 @@ async function savedBefore(code: string, siteName: string, client: string) {
   return site
 }
 
-describe('migrating client names to clients (CP-17)', () => {
+describe('migrating client names to clients (CP-17 AC2)', () => {
   it('makes one client per name ignoring case and spacing, never merging sites, and changes nothing run again', async () => {
     const dublin = await savedBefore('SITE-0001', 'Dublin Warehouse 4', 'Northgate Logistics')
     const tilbury = await savedBefore('SITE-0002', 'Tilbury', 'northgate  logistics ')

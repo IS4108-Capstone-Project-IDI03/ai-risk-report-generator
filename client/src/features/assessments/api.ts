@@ -52,7 +52,7 @@ export type Assessment = {
   captureStartedAt: string | null
   createdAt: string
   // The site has another assessment that is not archived, so its details are
-  // shared and can't be changed from this one (CP-17 AC6).
+  // shared and can't be changed from this one (CP-17 AC8).
   siteShared: boolean
   site: {
     id: string
@@ -258,7 +258,7 @@ export async function listAssignableEngineers(signal?: AbortSignal): Promise<Ass
 }
 
 // Corrects an assessment's details (RV-10 AC10). The engineer, client and
-// site stay as created (CP-17 AC6); the site's details can be corrected while
+// site stay as created (CP-17 AC8); the site's details can be corrected while
 // it is not shared.
 export type AssessmentDetails = {
   site: SiteDetails

@@ -181,7 +181,7 @@ staff IDs and job titles for assignment. Creating an assessment requires
 its site's name, address, jurisdiction and facility type, and its assessment
 type and dates, with the same validation as creating one (AC11). The engineer,
 client and site are not editable: they stay as the assessment was created
-(CP-17 AC6). The site's details are shared once the site has another
+(CP-17 AC8). The site's details are shared once the site has another
 assessment not archived, so changing them is then refused (409); sending them
 unchanged is fine. Renaming a site to another of its client's site names is
 refused (400, `site.name`). A date left empty is cleared. Only the assigned engineer
