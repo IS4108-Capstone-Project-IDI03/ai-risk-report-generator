@@ -1,12 +1,14 @@
 import { Fragment, useRef, useState } from 'react'
 import { AIDraftBlock, Badge, Button, Callout, ProgressBar } from '../../../design-system'
 import { draftSection, GatewayError, type ReportSection, type SectionDraft } from '../api'
-import { describeChanges, maturityEntries } from '../reviewDisplay'
+import { describeChanges, maturityEntries, reportProgress } from '../reviewDisplay'
 import { MaturityTable } from '../components/MaturityTable'
 import { OfiRow } from '../components/OfiSuggestions'
 import { SummaryRow } from '../components/SummaryRow'
 import { useObservations } from '../useObservations'
+import { useOfis } from '../useOfis'
 import { useSections } from '../useSections'
+import { useSummary } from '../useSummary'
 
 const card = {
   background: 'var(--surface-card)',
@@ -181,6 +183,15 @@ export function SectionDrafts({
   const draftable = (sections ?? []).filter(hasEvidence)
   const done = draftable.filter((s) => s.latestDraft).length
   const running = drafting !== null
+  // Section 2's state, refetched when a section's draft changes (its missing and
+  // out-of-date lists depend on them), and the OFIs, for the report-wide count.
+  const summaryState = useSummary(reference, (sections ?? []).map((s) => s.latestDraft?.id).join())
+  const { ofis } = useOfis(reference)
+  const progress = reportProgress({
+    summaryDrafted: !!summaryState.summary?.executiveSummary.draft,
+    ofisAccepted: Array.isArray(ofis?.accepted) ? ofis.accepted.length : 0,
+    sectionsDrafted: (sections ?? []).filter((s) => s.latestDraft).length,
+  })
 
   // Drafts the sections one after another. Stopping takes effect once the
   // section being drafted is saved, so no paid call is thrown away.
@@ -267,8 +278,9 @@ export function SectionDrafts({
             >
               <div style={{ flex: '1', minWidth: '200px' }}>
                 <ProgressBar
-                  value={draftable.length ? Math.round((done / draftable.length) * 100) : 0}
-                  label={`${done} of ${plural(draftable.length, 'section')} drafted`}
+                  // Over Marsh's 12 sections, as the Review rail and Overview count them.
+                  value={progress.percent}
+                  label={`${progress.done} of ${plural(progress.total, 'section')} drafted`}
                   showValue={true}
                   tone="ai"
                 />
@@ -319,11 +331,7 @@ export function SectionDrafts({
               <span />
             </div>
             {/* Section 2 opens the report's drafted sections (GN-07). */}
-            <SummaryRow
-              reference={reference}
-              canDraft={canDraft}
-              refreshKey={(sections ?? []).map((s) => s.latestDraft?.id).join()}
-            />
+            <SummaryRow reference={reference} canDraft={canDraft} summaryState={summaryState} />
             {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
             <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
             {sections.map((s) => {
@@ -505,7 +513,7 @@ export function SectionDrafts({
               }}
             >
               <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
-                {done} of {plural(draftable.length, 'section')} drafted ·{' '}
+                {progress.done} of {plural(progress.total, 'section')} drafted ·{' '}
                 {attention
                   ? `${attention} need${attention === 1 ? 's' : ''} attention`
                   : 'nothing outstanding in drafting'}

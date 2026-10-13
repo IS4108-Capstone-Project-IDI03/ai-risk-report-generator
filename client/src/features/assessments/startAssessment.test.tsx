@@ -1097,7 +1097,8 @@ describe('Overview', () => {
 
     expect(box('Capture')).toHaveTextContent('0observations')
     expect(box('Capture')).toHaveTextContent('None captured yet')
-    expect(await screen.findByText('2/4')).toBeInTheDocument()
+    // Over Marsh's 12 sections: Section 1 (always ready) and the two drafted here.
+    expect(await screen.findByText('3/12')).toBeInTheDocument()
     expect(box('Drafting')).toHaveTextContent('sections drafted')
     expect(box('Drafting')).toHaveTextContent('1 out of date')
     expect(await screen.findByText('1/2')).toBeInTheDocument()
@@ -1139,7 +1140,7 @@ describe('Overview', () => {
     await openOverview()
     fireEvent.click(
       await screen.findByRole('button', {
-        name: /^Drafting, 2\/4, sections drafted, 1 out of date\. Open Generation$/,
+        name: /^Drafting, 3\/12, sections drafted, 1 out of date\. Open Generation$/,
       }),
     )
     expect(screen.getByRole('tab', { name: /Generation/ })).toHaveAttribute('aria-selected', 'true')

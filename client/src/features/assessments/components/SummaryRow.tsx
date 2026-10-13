@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Badge, Button } from '../../../design-system'
 import { draftSummary, GatewayError } from '../api'
-import { useSummary } from '../useSummary'
+import type { useSummary } from '../useSummary'
 import { ExecutiveSummary } from './ExecutiveSummary'
 
 const note = { display: 'block', marginTop: '4px', fontSize: '14px' } as const
@@ -15,15 +15,15 @@ const note = { display: 'block', marginTop: '4px', fontSize: '14px' } as const
 export function SummaryRow({
   reference,
   canDraft,
-  refreshKey,
+  summaryState,
 }: {
   reference: string
   canDraft: boolean
-  // Changes when a section draft does, so the missing and out-of-date lists stay
-  // current on this screen. OFIs are accepted in Review, which reloads on its own.
-  refreshKey: string
+  // Sections 1 and 2 as SectionDrafts loads them (useSummary), shared with its
+  // progress count, so a draft made here updates both.
+  summaryState: ReturnType<typeof useSummary>
 }) {
-  const { summary, loadError, reload } = useSummary(reference, refreshKey)
+  const { summary, loadError, reload } = summaryState
   const [drafting, setDrafting] = useState(false)
   // The draft opens under the row, as each section's does (SectionDrafts' View draft).
   const [open, setOpen] = useState(false)

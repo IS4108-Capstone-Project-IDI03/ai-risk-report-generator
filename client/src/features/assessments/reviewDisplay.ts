@@ -247,3 +247,22 @@ export function maturityEntries<T>(
   }
   return { entries, unplaced }
 }
+
+// How many of Marsh's 12 report sections are drafted, for every "N of 12 sections
+// drafted" (Review rail, Generation, Overview). Section 1 is always ready: it is filled
+// in from the assessment's details. Section 2 needs its draft, Section 3 an accepted
+// OFI, and Sections 4 and 5 have no drafting yet (GN-03). 6-12 count their own drafts.
+export const REPORT_SECTIONS = 12
+export function reportProgress({
+  summaryDrafted,
+  ofisAccepted,
+  sectionsDrafted,
+}: {
+  summaryDrafted: boolean
+  ofisAccepted: number
+  // Drafted sections among 6-12.
+  sectionsDrafted: number
+}) {
+  const done = 1 + Number(summaryDrafted) + Number(ofisAccepted > 0) + sectionsDrafted
+  return { done, total: REPORT_SECTIONS, percent: Math.round((done / REPORT_SECTIONS) * 100) }
+}

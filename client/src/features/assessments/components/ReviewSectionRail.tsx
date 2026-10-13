@@ -1,6 +1,6 @@
 import { Badge, IconRegistry, ProgressBar } from '../../../design-system'
 import type { FindingCounts, ReviewSection, Summary } from '../api'
-import { completionLabel, plural, REVIEW_BADGE } from '../reviewDisplay'
+import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
 // The review summary (RV-02 AC9): the saved drafts' findings across the
 // report by decision, as the gateway counted them from the saved decisions.
@@ -78,6 +78,12 @@ export function ReviewSectionRail({
     </li>
   )
   const drafted = sections.filter((s) => s.draft).length
+  // Over all 12 of Marsh's sections, not only those with a draft of their own.
+  const progress = reportProgress({
+    summaryDrafted: !!executiveSummary?.draft,
+    ofisAccepted: inReport,
+    sectionsDrafted: drafted,
+  })
   const flagged = sections.filter((s) => s.review.state === 'needs_review').length
   const reviewed = sections.filter((s) => s.review.state === 'reviewed').length
   return (
@@ -86,8 +92,8 @@ export function ReviewSectionRail({
       <p className="rv-label rv-rail-head">Sections</p>
       <div className="rv-rail-progress">
         <ProgressBar
-          value={Math.round((drafted / sections.length) * 100)}
-          label={`${drafted} of ${plural(sections.length, 'section')} drafted`}
+          value={progress.percent}
+          label={`${progress.done} of ${plural(progress.total, 'section')} drafted`}
           tone="primary"
         />
         {reviewed > 0 && (

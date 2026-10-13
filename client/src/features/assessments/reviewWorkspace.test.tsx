@@ -361,7 +361,8 @@ it("shows each section's completion and review state in the navigation (AC5, AC6
   expect(within(row(/Fire Protection/)).getByText('AI draft')).toBeVisible()
   expect(within(row(/External Exposures/)).getByText('Not started')).toBeVisible()
   expect(within(row(/External Exposures/)).getByText('Not drafted')).toBeVisible()
-  expect(within(nav).getByText('2 of 3 sections drafted')).toBeInTheDocument()
+  // Counted over Marsh's 12 sections: Section 1 is always ready, then 7 and 9.
+  expect(within(nav).getByText('3 of 12 sections drafted')).toBeInTheDocument()
   expect(within(nav).getByText('1 section needs review')).toBeInTheDocument()
 }, 15_000)
 
