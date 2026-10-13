@@ -1,9 +1,12 @@
 /* The knowledge assistant screen (CB-01). Fits OpenUI's chat screen into the
-   app's content area and type (docs/design-system.md). */
+   app's content area and type (docs/design-system.md), with the source panel
+   beside it. Citation markers and the panel reuse assessments/review.css. */
 
 /* OpenUI sizes its chat screen to the whole window (100dvw x 100dvh); without
    this it runs under the page header and off the right edge. */
 .knowledge-assistant {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
 }
 .knowledge-assistant .openui-agent-container {
@@ -15,4 +18,119 @@
    doesn't reach them. Plex Sans for UI text; code keeps the mono face. */
 .knowledge-assistant :not(code, pre, kbd, samp) {
   font-family: var(--font-sans);
+}
+
+/* OpenUI rounds the composer at 16px; the system stops at 8px (--radius-lg). */
+.knowledge-assistant .openui-agent-thread-composer__input-wrapper {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* An answer: generated, so it sits behind the AI violet rule (design-system
+   principles 1 and 2), with prose capped at a readable 68ch. */
+.chat-answer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding-left: var(--space-5);
+  border-left: 2px solid var(--ai-border);
+}
+.chat-statement {
+  max-width: 68ch;
+  margin: 0;
+}
+.chat-answer [data-decline] {
+  max-width: 68ch;
+}
+.chat-search {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--text-caption-size);
+}
+
+/* Comparison table (AC7): system table headers, 11px uppercase muted on sunken. */
+.chat-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.chat-table {
+  border-collapse: collapse;
+  font-size: var(--text-small-size);
+}
+.chat-table th,
+.chat-table td {
+  border: 1px solid var(--border-default);
+  padding: var(--space-3) var(--space-5);
+  text-align: left;
+  vertical-align: top;
+}
+.chat-table th {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Markers are the review workspace's .rv-cite numerals; this widens the tap
+   area to 24px without making the line taller. */
+.chat-cite {
+  position: relative;
+}
+.chat-cite::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.chat-cite--checking {
+  opacity: 0.6;
+}
+/* Unverified: the quoted words weren't found in the passage (AC2). */
+.chat-cite--unverified {
+  border-color: var(--status-critical-fg);
+  background: var(--status-critical-bg);
+  color: var(--status-critical-fg);
+}
+
+/* The source panel: docked beside the chat on wide screens, like the review
+   workspace's 344px inspector; a sheet over the bottom of the chat below 1080px. */
+.chat-source {
+  overflow-y: auto;
+  margin: var(--space-6);
+  margin-left: 0;
+}
+.chat-source:focus {
+  outline: none;
+}
+.chat-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 12px 0 0;
+  font-size: var(--text-caption-size);
+  color: var(--status-low-fg);
+}
+.chat-source .ds-callout,
+.chat-source [role='alert'] {
+  margin-top: 12px;
+}
+@media (min-width: 1080px) {
+  .knowledge-assistant[data-source-open] {
+    grid-template-columns: minmax(0, 1fr) 344px;
+  }
+}
+@media (max-width: 1079px) {
+  .chat-source {
+    position: fixed;
+    z-index: 20;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    max-height: 70vh;
+    margin: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow-overlay);
+  }
 }

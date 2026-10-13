@@ -1,4 +1,4 @@
-// Tests for the knowledge assistant screen (CB-01 Step 0). fetch is stubbed; no gateway runs.
+// Tests for the knowledge assistant screen (CB-01). fetch is stubbed; no gateway runs.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -15,7 +15,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('Knowledge assistant (CB-01 Step 0)', () => {
+describe('Knowledge assistant (CB-01)', () => {
   it(
     'opens from the navigation and shows a streamed answer to a question',
     { timeout: 30000 },
@@ -33,13 +33,55 @@ describe('Knowledge assistant (CB-01 Step 0)', () => {
       )
       const asked = vi.fn()
       vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+        if (url === '/api/knowledge-documents/ingested')
+          return Promise.resolve(
+            Response.json([
+              {
+                id: 'd1',
+                title: 'Office Sample 1 - PRE 2026 - REDACTED',
+                sourceType: 'marsh_report',
+                facilityType: 'Office',
+                effectiveDate: '2026-03-05',
+                fileUrl: '/f/d1',
+                withdrawn: null,
+              },
+            ]),
+          )
         if (url !== '/api/chat') return Promise.reject(new TypeError('Failed to fetch'))
         asked(JSON.parse(String(init!.body)))
+        const filters = { jurisdiction: 'SG' }
         return Promise.resolve(
           sse(
-            { type: 'TEXT_MESSAGE_START', messageId: 'a1' },
-            { type: 'TEXT_MESSAGE_CONTENT', messageId: 'a1', delta: 'Sprinklers are needed ' },
-            { type: 'TEXT_MESSAGE_CONTENT', messageId: 'a1', delta: 'throughout.' },
+            { type: 'TOOL_CALL_START', toolCallId: 's1', toolCallName: 'search_knowledge_base' },
+            {
+              type: 'TOOL_CALL_ARGS',
+              toolCallId: 's1',
+              delta: JSON.stringify({ query: 'q', filters }),
+            },
+            { type: 'TOOL_CALL_END', toolCallId: 's1' },
+            {
+              type: 'TOOL_CALL_RESULT',
+              toolCallId: 's1',
+              content: JSON.stringify({ filters, passages: 1 }),
+            },
+            { type: 'TEXT_MESSAGE_START', messageId: 'a1', role: 'assistant' },
+            { type: 'TEXT_MESSAGE_CONTENT', messageId: 'a1', delta: 'root = Answer([s1], meta)\n' },
+            {
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: 'a1',
+              delta: 's1 = Statement("Sprinklers are needed throughout.", [c1])\n',
+            },
+            {
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: 'a1',
+              delta: 'c1 = Cite("P1", "installed throughout")\n',
+            },
+            {
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: 'a1',
+              delta:
+                'meta = Meta([{label: "P1", documentId: "d1", pageStart: 12, pageEnd: 12, withdrawn: false}], [])\n',
+            },
             { type: 'TEXT_MESSAGE_END', messageId: 'a1' },
           ),
         )
@@ -51,10 +93,20 @@ describe('Knowledge assistant (CB-01 Step 0)', () => {
 
       // The screen's first load brings OpenUI in, which is slow under jsdom.
       const box = await screen.findByRole('textbox', {}, { timeout: 15000 })
+      // AC13: an empty conversation suggests questions about the knowledge base.
+      expect(screen.getByText('NFPA 25 inspection intervals')).toBeInTheDocument()
       fireEvent.change(box, { target: { value: 'Where are sprinklers needed?' } })
       fireEvent.keyDown(box, { key: 'Enter' })
 
+      // AC1, AC6: the cited statement and the filters it searched with.
       expect(await screen.findByText(/Sprinklers are needed throughout\./)).toBeInTheDocument()
+      expect(screen.getByText('Searched: Singapore')).toBeInTheDocument()
+      // AC1: a marker opens its source in the panel beside the chat; Escape closes it.
+      fireEvent.click(await screen.findByRole('button', { name: /^Citation 1: Office Sample 1 - PRE 2026 - REDACTED \(2026-03-05\)/ }))
+      const panel = screen.getByRole('complementary', { name: 'Source of citation 1' })
+      expect(panel).toHaveTextContent('installed throughout')
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(screen.queryByRole('complementary', { name: /Source of citation/ })).toBeNull()
       expect(asked.mock.calls[0][0].messages.at(-1)).toMatchObject({
         role: 'user',
         content: 'Where are sprinklers needed?',
