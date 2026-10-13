@@ -59,7 +59,7 @@ async function assessments() {
 }
 
 describe('GET /api/usage/summary (EV-04)', () => {
-  it('totals cost per feature, always listing all four features (AC1)', async () => {
+  it('totals cost per feature, always listing every feature, chatbot included (AC1)', async () => {
     await seed([
       call(),
       call({ estimatedCostUsd: 0.25 }),
@@ -76,6 +76,10 @@ describe('GET /api/usage/summary (EV-04)', () => {
       'retrieval',
       'transcribe',
       'label-document',
+      'interpret-photo',
+      'ocr',
+      'embed-document',
+      'chat',
     ])
     const draft = body.byFeature[0]
     expect(draft).toMatchObject({ calls: 2 })
@@ -209,7 +213,7 @@ describe('GET /api/usage/export.csv (AC4)', () => {
     expect(lines[0]).toBe(
       'feature,calls,estimated_cost_usd,calls_without_cost,estimated_calls,input_tokens,output_tokens,cache_read_tokens,search_units,audio_seconds,avg_ms,p50_ms,p95_ms,max_ms',
     )
-    expect(lines).toHaveLength(5)
+    expect(lines).toHaveLength(9)
     expect(lines[1]).toMatch(/^draft-section,1,0\.5,/)
   })
 

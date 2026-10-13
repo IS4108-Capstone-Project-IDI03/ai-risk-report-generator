@@ -1,6 +1,7 @@
 // EV-03: AI-call usage records. Pure pricing tests, the recorder, and the three
 // callers (speech, labelling, drafting) with their downstream services stubbed.
 // No test here reaches a paid API.
+import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { config } from '../config'
 import { AiCallModel } from '../models/ai-call.model'
@@ -96,6 +97,47 @@ describe('estimateCost (AC3)', () => {
     expect(noUnits.estimatedCostUsd).toBeNull()
   })
 
+  // Google list price for gemini-3.8-flash, ai.google.dev/gemini-api/docs/pricing,
+  // read 2026-10-13: $0.75 in / $3.75 out per 1M until 2026-12-31, then $1.50 / $7.50.
+  const gemini = (over: Partial<WireUsage> = {}) =>
+    item({
+      feature: 'interpret-photo',
+      billed_service: 'gemini-vision',
+      model: 'gemini-3.8-flash',
+      input_tokens: 10_000,
+      output_tokens: 2_000,
+      cache_read_tokens: null,
+      ...over,
+    })
+
+  it('prices Gemini photo and OCR calls at the price in force on the call date', () => {
+    const before = estimateCost(gemini(), new Date('2026-12-31T23:00:00Z'))
+    expect(before.estimatedCostUsd).toBeCloseTo(0.015, 8)
+    expect(before.pricingBasis).toContain('ai.google.dev')
+    const after = estimateCost(gemini(), new Date('2027-01-01T00:00:00Z'))
+    expect(after.estimatedCostUsd).toBeCloseTo(0.03, 8)
+    const ocr = estimateCost(
+      gemini({ feature: 'ocr', billed_service: 'gemini-ocr' }),
+      new Date('2026-10-13'),
+    )
+    expect(ocr.estimatedCostUsd).toBeCloseTo(0.015, 8)
+  })
+
+  it('has no cost for a Gemini model it has no price for', () => {
+    expect(estimateCost(gemini({ model: 'gemini-9-ultra' }))).toEqual({
+      estimatedCostUsd: null,
+      pricingBasis: 'no price for model',
+    })
+  })
+
+  it('prices self-hosted OCR at zero and says why', () => {
+    const cost = estimateCost(
+      item({ feature: 'ocr', billed_service: 'self-hosted-ocr', model: 'local-ocr' }),
+    )
+    expect(cost.estimatedCostUsd).toBe(0)
+    expect(cost.pricingBasis).toContain('self-hosted')
+  })
+
   it('leaves the cost empty when the provider gave no usage', () => {
     const cost = estimateCost(
       item({
@@ -167,6 +209,45 @@ describe('recordAiCalls (AC1-AC7)', () => {
       usageStatus: 'unavailable',
       estimatedCostUsd: null,
     })
+  })
+
+  it('stores the chat user, document and report section it is given', async () => {
+    const userId = new Types.ObjectId().toString()
+    const documentId = new Types.ObjectId().toString()
+    await recordAiCalls([item()], { reportId: 'RPT-2026-0901', section: '2.1', userId, documentId })
+    const row = await AiCallModel.findOne().lean()
+    expect(row?.section).toBe('2.1')
+    expect(String(row?.userId)).toBe(userId)
+    expect(String(row?.documentId)).toBe(documentId)
+    expect(row?.callCount).toBe(1)
+  })
+
+  it("stores an ingestion row's call count and the document id it was sent with", async () => {
+    const documentId = new Types.ObjectId().toString()
+    await recordAiCalls([
+      item({
+        feature: 'embed-document',
+        billed_service: 'cohere-embed',
+        model: 'embed-v4.0',
+        input_tokens: 1_000_000,
+        output_tokens: null,
+        cache_read_tokens: null,
+        call_count: 40,
+        document_id: documentId,
+      }),
+    ])
+    const row = await AiCallModel.findOne().lean()
+    expect(row).toMatchObject({ feature: 'embed-document', callCount: 40, inputTokens: 1_000_000 })
+    expect(String(row?.documentId)).toBe(documentId)
+    // Priced on the summed tokens: 1M tokens at the $0.12 default.
+    expect(row?.estimatedCostUsd).toBeCloseTo(0.12, 8)
+  })
+
+  it('drops a malformed id rather than failing the save', async () => {
+    await recordAiCalls([item({ document_id: 'not-an-id' })], { userId: 'nope' })
+    const row = await AiCallModel.findOne().lean()
+    expect(row?.documentId).toBeUndefined()
+    expect(row?.userId).toBeUndefined()
   })
 
   it('writes one row per call', async () => {

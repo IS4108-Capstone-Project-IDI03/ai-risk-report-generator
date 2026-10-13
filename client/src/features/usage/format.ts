@@ -9,6 +9,10 @@ export const FEATURE_LABELS: Record<string, string> = {
   retrieval: 'Retrieval (search)',
   transcribe: 'Voice transcription',
   'label-document': 'Document labelling',
+  'interpret-photo': 'Photo interpretation',
+  ocr: 'Table and formula OCR',
+  'embed-document': 'Document embedding',
+  chat: 'Chatbot',
 }
 
 export const SERVICE_LABELS: Record<string, string> = {
@@ -18,6 +22,9 @@ export const SERVICE_LABELS: Record<string, string> = {
   'openai-whisper': 'OpenAI Whisper',
   'openai-label': 'OpenAI labelling',
   'typesafe-jev': 'Typesafe JEV',
+  'gemini-vision': 'Gemini photo reading',
+  'gemini-ocr': 'Gemini OCR',
+  'self-hosted-ocr': 'Self-hosted OCR',
 }
 
 // Friendly name for a row key; an unknown key is shown as it came.

@@ -2,6 +2,7 @@
 // writes to MongoDB; the gateway does it here.
 // Called by section.service.ts (drafting), speech.service.ts (Whisper) and
 // ingestion.service.ts (labelling). Calls ai-pricing.service.ts for the cost.
+import { Types } from 'mongoose'
 import { AI_FEATURES, AiCallModel, BILLED_SERVICES, type IAiCall } from '../models/ai-call.model'
 import { estimateCost } from './ai-pricing.service'
 
@@ -18,12 +19,30 @@ export type WireUsage = {
   search_units: number | null
   audio_seconds: number | null
   usage_status: IAiCall['usageStatus']
+  // Only ingestion sends these: how many calls one item sums, and for which document.
+  call_count?: number
+  document_id?: string
   // Only labelling sends these: it prices its own calls (ingestion-service PRICES).
   cost_usd?: number | null
   pricing_basis?: string
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+// A malformed id is dropped, not saved: an id that matches nothing is worse than none.
+const objectId = (v: unknown) =>
+  typeof v === 'string' && Types.ObjectId.isValid(v) ? new Types.ObjectId(v) : undefined
+const callCount = (v: unknown) => {
+  const n = num(v)
+  return n !== null && Number.isInteger(n) && n >= 1 ? n : 1
+}
+
+// What the caller knows that the service does not: which report, section, user or document.
+export type CallContext = {
+  reportId?: string
+  section?: string
+  userId?: string
+  documentId?: string
+}
 
 // Turns the ingestion service's /label usage list into the common shape.
 // Cost stays the one that service worked out, with its basis named.
@@ -57,10 +76,7 @@ function labelProvider(model: string): WireUsage['billed_service'] {
 
 // Saves one row per valid item. Never throws: without this, a bookkeeping
 // failure would turn a successful draft or transcription into an error.
-export async function recordAiCalls(
-  items: unknown,
-  context: { reportId?: string } = {},
-): Promise<void> {
+export async function recordAiCalls(items: unknown, context: CallContext = {}): Promise<void> {
   if (!Array.isArray(items)) return
   try {
     const rows = items
@@ -94,6 +110,10 @@ export async function recordAiCalls(
           billedService: u.billed_service,
           model: u.model,
           reportId: context.reportId,
+          section: context.section,
+          userId: objectId(context.userId),
+          documentId: objectId(u.document_id ?? context.documentId),
+          callCount: callCount(u.call_count),
           durationMs: num(u.duration_ms),
           inputTokens: num(u.input_tokens),
           outputTokens: num(u.output_tokens),

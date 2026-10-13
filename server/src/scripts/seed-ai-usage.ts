@@ -33,6 +33,7 @@ function row(reportId: string | undefined, call: WireUsage): Omit<IAiCall, 'crea
     billedService: call.billed_service,
     model: call.model,
     reportId,
+    callCount: 1,
     durationMs: call.duration_ms,
     inputTokens: call.input_tokens,
     outputTokens: call.output_tokens,

@@ -1334,3 +1334,33 @@ is surveyed again each year; linking visits to one site of one client lets
 the next visit start from the last one's buildings, levels and places.
 
 Stories: CP-17, CP-16, CP-18, RV-10.
+
+## 2026-10-13 — Every paid AI call is recorded, Gemini is priced by call date, and drafting rows name their section
+
+Chose:
+- `ai_calls` covers the calls EV-03 left out: photo interpretation
+  (`interpret-photo`, Gemini), table and formula OCR (`ocr`; Anthropic,
+  Gemini or the self-hosted model), ingestion embedding (`embed-document`,
+  Cohere) and the chatbot (`chat`). The report lists all eight features,
+  even those with no calls yet.
+- Gemini is priced from Google's list price with the date each price starts,
+  because Google has announced a rise on 2027-01-01. A call is priced at the
+  price in force when it is recorded, so old rows keep their old cost.
+- The self-hosted OCR model costs $0 per call, with that named as its basis;
+  its server cost is not an AI-call cost.
+- Drafting, OFI and summary rows keep the one `draft-section` feature and
+  carry a `section` (`2.1`, `Section 3 OFIs`, `Executive summary`), so an
+  engineer can see which section was expensive to draft or redraft.
+- Rows can carry `documentId` (labelling, ingestion), `userId` (chat) and
+  `callCount` (ingestion's summed rows). A malformed id is dropped, not saved.
+
+Rejected:
+- New `draft-ofi` and `draft-summary` features: rag-service's one `llm.py`
+  would need to know who called it, and the section already says it.
+- Pricing old rows again when a price changes: a cost recorded is what the
+  call cost then.
+
+Reason: EV-03 asks for every AI call to be measured, and EV-04 for costs per
+feature including the chatbot and per billed service.
+
+Stories: EV-03, EV-04.
