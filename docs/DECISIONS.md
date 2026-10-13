@@ -1349,8 +1349,9 @@ Chose:
 - The self-hosted OCR model costs $0 per call, with that named as its basis;
   its server cost is not an AI-call cost.
 - Drafting, OFI and summary rows keep the one `draft-section` feature and
-  carry a `section` (`2.1`, `Section 3 OFIs`, `Executive summary`), so an
-  engineer can see which section was expensive to draft or redraft.
+  carry the report's own section id (`7`–`12`, `3` for OFIs, `2` for the
+  summary), so an engineer can see which section was expensive to draft or
+  redraft. The report shows each id with its title from `report_sections`.
 - Rows can carry `documentId` (labelling, ingestion), `userId` (chat) and
   `callCount` (ingestion's summed rows). A malformed id is dropped, not saved.
 

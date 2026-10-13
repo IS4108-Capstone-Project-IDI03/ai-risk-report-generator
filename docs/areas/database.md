@@ -860,7 +860,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 | `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |
 | `documentId` | the knowledge document a labelling or ingestion call was for (absent otherwise) |
 | `userId` | the signed-in user who sent a chat message (chat only; report calls are attributed to the assessment's assigned engineer when read) |
-| `section` | the report section a draft was for, e.g. `2.1`, `Section 3 OFIs`, `Executive summary` (drafting only; absent on rows saved before it existed) |
+| `section` | the report section id a draft was for, as in `report_sections.sectionId`: `7`–`12` for drafted sections, `3` for OFIs, `2` for the executive summary (drafting only; absent on rows saved before it existed) |
 | `callCount` | how many provider calls the row stands for: 1, except ingestion rows, which sum a document's calls per stage and model |
 | `durationMs` | how long the call took (for an ingestion row, the total of its calls) |
 | `inputTokens`, `outputTokens`, `cacheReadTokens` | provider-reported; `null` when not reported |

@@ -327,7 +327,7 @@ export async function writeDraft(
   })
 
   // The calls are billed even if saving the draft below fails, so record first.
-  await recordAiCalls(draft.usage, { reportId: assessment.reference })
+  await recordAiCalls(draft.usage, { reportId: assessment.reference, section: section.id })
   const saved = await ReportSectionModel.create({
     assessment: assessment._id,
     sectionId: section.id,
