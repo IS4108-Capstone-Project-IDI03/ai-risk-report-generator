@@ -2,6 +2,37 @@
   "version": "global-pre-v2.0-2026-02",
   "source": "Global PRE Report Template_v2.0_Feb 2026_BLANK.pdf. Writing conventions live in drafting-skill.md.",
   "sections": {
+    "6": {
+      "title": "Management Programs",
+      "_about": "GN-11: Marsh's 15 program categories and maturity scale, template pp. 18-19. A row is a fields statement '<Program>: <Rank>. <comment>'; orchestrator.MATURITY_RANKS checks the rank.",
+      "cope_dimensions": ["Construction", "Occupancy", "Protection", "Exposure"],
+      "min_observations": 1,
+      "instructions": "Unlike Sections 7-12, this section rates. Rate each program on Marsh's maturity scale, from what the evidence shows about how the site manages it:\n- Undeveloped: informal actions with little or no systematic procedures.\n- Formalized: programs and procedures are established. Full familiarity is uncertain.\n- Established: programs and procedures are communicated throughout the organization. Orientation is ongoing.\n- Embedded: ownership is established at most or all organizational levels. Training and some exercises is conducted.\n- Optimized: full ownership with active program maintenance, testing, exercising and continuous improvement.\nEach Management Programs statement reads \"<Program>: <Rank>. <Comment>\", with the rank written exactly as one of the five above. Pick the rank whose definition the evidence meets; when the evidence fits two, choose the lower one. The comment states the evidence for the rank, in Marsh's voice; it gives no advice, which belongs in Section 3. A program the evidence does not cover gets no statement: never rate without evidence. Management Program Comments sums up the site's management programs in a few statements.",
+      "subsections": [
+        {
+          "heading": "Management Programs",
+          "kind": "fields",
+          "fields": [
+            "Building Maintenance",
+            "Electrical Maintenance",
+            "Equipment Maintenance",
+            "Fire Protection Impairment Management",
+            "Fire Protection System Maintenance & Testing",
+            "Hazardous Materials Handling",
+            "Housekeeping",
+            "Hot Work Permit System",
+            "Management of Change",
+            "Emergency Response Planning",
+            "Self-Inspections",
+            "Smoking Controls",
+            "Contractor Management",
+            "Business Continuity Planning",
+            "Environmental, Social & Governance (ESG)"
+          ]
+        },
+        { "heading": "Management Program Comments", "kind": "narrative" }
+      ]
+    },
     "7": {
       "title": "Construction",
       "cope_dimensions": ["Construction"],

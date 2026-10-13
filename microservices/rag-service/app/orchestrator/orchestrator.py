@@ -46,6 +46,33 @@ MAX_STANDARDS = 12
 MAX_PRECEDENTS = 4
 
 
+# Marsh's maturity scale for Section 6 (GN-11), lowest first, as in sections.json's
+# instructions for the section. A Management Programs row reads "<Program>: <Rank>. …".
+MATURITY_RANKS = ("Undeveloped", "Formalized", "Established", "Embedded", "Optimized")
+_PROGRAM_ROW = re.compile(r"^(?P<program>[^:]+):\s*(?P<rank>\w+)\b")
+
+
+def check_maturity_ranks(subsections: list[dict], guardrail: dict) -> dict:
+    """Mark a Management Programs row unsupported when it names no program it should, or a
+    rank outside Marsh's five, so the engineer sees it rather than a made-up rating."""
+    programs = next(
+        (s["fields"] for s in TEMPLATE["sections"]["6"]["subsections"] if s.get("fields")), []
+    )
+    unsupported = guardrail["unsupported_count"]
+    for sub in subsections:
+        if sub["heading"] != "Management Programs":
+            continue
+        for statement in sub["statements"]:
+            row = _PROGRAM_ROW.match(statement["text"])
+            valid = (
+                bool(row) and row["program"].strip() in programs and row["rank"] in MATURITY_RANKS
+            )
+            if statement["supported"] and not valid:
+                statement["supported"] = False
+                unsupported += 1
+    return {"passed": unsupported == 0, "unsupported_count": unsupported}
+
+
 def _assemble_context(chunks: list[dict]) -> str:
     return "\n".join(str(chunk) for chunk in chunks)
 
@@ -198,6 +225,8 @@ def draft(section_id: str, assessment, observations, redraft=None) -> dict:
     ]
     citable = {f"O:{o.id}" for o in observations} | {f"C:{cid}" for cid in standards}
     guardrail = check_citations(subsections, citable)
+    if section_id == "6":
+        guardrail = check_maturity_ranks(subsections, guardrail)
 
     # The cited passages, so the reviewer can open each one (RV-01 AC7). A cited past-report
     # passage is kept too, although it cannot support the statement that cites it.

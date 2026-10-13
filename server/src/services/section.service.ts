@@ -14,7 +14,7 @@ import { listTemplateSections, requestSectionDraft, type TemplateSection } from 
 
 export class UnknownSectionError extends Error {
   constructor(sectionId: string) {
-    super(`Section ${sectionId} is not one of the report's technical sections (7 to 12).`)
+    super(`Section ${sectionId} is not one of the report's drafted sections (6 to 12).`)
     this.name = 'UnknownSectionError'
   }
 }

@@ -85,13 +85,13 @@ def fake_complete(prompts, subsections, questions=()):
     return complete
 
 
-def draft(monkeypatch, subsections, search=None):
+def draft(monkeypatch, subsections, search=None, request=REQUEST):
     calls, prompts = [], []
     # Pinned, so the tests don't depend on the effort set in .env.
     monkeypatch.setattr("app.config.LLM_EFFORT", "high")
     monkeypatch.setattr("app.orchestrator.orchestrator.search", search or fake_search(calls))
     monkeypatch.setattr("app.generation.generator.complete", fake_complete(prompts, subsections))
-    return client.post("/sections/draft", json=REQUEST), calls, prompts
+    return client.post("/sections/draft", json=request), calls, prompts
 
 
 def test_draft_follows_the_template_order_and_records_provenance(monkeypatch):
@@ -126,7 +126,7 @@ def test_draft_follows_the_template_order_and_records_provenance(monkeypatch):
     assert body["guardrail"] == {"passed": True, "unsupported_count": 0}
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"] == "gn01-v2.4"
+    assert provenance["prompt_version"] == "gn01-v2.5"
     assert provenance["template_version"] == "global-pre-v2.0-2026-02"
     assert provenance["effort"] == "high"
     assert provenance["generated_at"]
@@ -239,10 +239,11 @@ def test_failed_generation_is_502(monkeypatch):
     assert response.json()["detail"] == "The model declined to draft this section."
 
 
-def test_lists_the_technical_sections_7_to_12():
+def test_lists_the_drafted_sections_6_to_12():
+    # Section 6 Management Programs joined Sections 7-12 (GN-11).
     body = client.get("/sections").json()
-    assert [s["id"] for s in body["sections"]] == ["7", "8", "9", "10", "11", "12"]
-    assert body["sections"][0] == {
+    assert [s["id"] for s in body["sections"]] == ["6", "7", "8", "9", "10", "11", "12"]
+    assert body["sections"][1] == {
         "id": "7",
         "title": "Construction",
         "cope_dimensions": ["Construction"],
@@ -642,7 +643,7 @@ def test_a_redraft_is_given_the_decisions_and_instruction_and_records_them(monke
     assert [s["supported"] for s in statements] == [True, False]
     assert statements[0]["citations"] == ["O:obs1"]
     # The prompt it came from, and what the engineer asked for (GN-01 AC10).
-    assert body["provenance"]["prompt_version"] == "gn01-v2.4+rv02-v1"
+    assert body["provenance"]["prompt_version"] == "gn01-v2.5+rv02-v1"
     assert body["provenance"]["instruction"] == "Say more about the curtain wall."
 
 

@@ -586,6 +586,21 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a displayed risk-quality category has a supporting rule result, when I inspect its basis, then that rule result is identifiable.
   </details>
 
+- [ ] **GN-11** — Generate Section 6 Management Programs (risk engineer, Should, 3 pts, deps: GN-01, RV-02, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: draft Section 6's management programs table from the observations, each program rated on Marsh's maturity scale, so the engineer reviews a filled-in table in Marsh's format.
+
+  1. Given an assessment has observations, when Section 6 is drafted, then its table lists Marsh's 15 program categories in the template's order, each rated with one of the five maturity ranks, with a comment on the evidence.
+  2. Given no observation covers a program, when Section 6 is drafted, then that row's rank and comment are left blank and the row reads "Not assessed: no evidence captured".
+  3. Given a rated row is shown, when I inspect it, then it cites the observations it rests on, and a row whose rank is not one of the five, or that cites nothing, is marked Unsupported.
+  4. Given Section 6 is shown, when I view it, then each rank cell in the programs table is coloured as its rank in the fixed Maturity scale table shown below it.
+  5. Given Section 6 has been drafted, when I review it, then I can accept, edit and reject each row as for Sections 7–12.
+  6. Given a set of evaluation cases built from past Marsh reports' Section 6 tables, when each case is drafted, then the share of rows rated the same as Marsh's, and within one rank, is recorded with the model and prompt version.
+
+  Rows and ranks are Marsh's (Global PRE Report Template v2.0, pp. 18–19); row 10 is "Emergency Response Planning" as in the template. The model proposes each rank, the lower one when the evidence fits two. Ranks feeding Section 4's Management Programs score is GN-03.
+  </details>
+
 - [ ] **GN-07** — Draft Sections 1 and 2, and choose Appendix A site photos (risk engineer, Should, deps: GN-01, GN-05, CP-04, Sprint 5)
   <details><summary>Goal / AC</summary>
 

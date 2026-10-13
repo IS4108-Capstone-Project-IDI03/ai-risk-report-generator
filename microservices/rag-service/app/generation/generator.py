@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
-PROMPT_VERSION = "gn01-v2.4"
+PROMPT_VERSION = "gn01-v2.5"  # v2.5: a section's own `instructions` (GN-11 Section 6)
 # The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
 # and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
 # redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
@@ -95,7 +95,8 @@ the labels of the observations and standards, as for any draft."""
 
 
 def _system_prompt(section_id: str, section: dict, redraft=None) -> str:
-    return f"""You draft Section {section_id}, "{section["title"]}", of a Marsh Property Risk \
+    return (
+        f"""You draft Section {section_id}, "{section["title"]}", of a Marsh Property Risk \
 Evaluation (PRE) report. A risk engineer reviews the draft before it is used.
 
 Write these subsections, in this order, using these exact headings:
@@ -113,8 +114,14 @@ labels out of the text.
 - Where a standards passage explains or supports a statement, cite it alongside the \
 observation. Never cite a passage that does not bear on the statement.
 - A subsection the evidence does not cover gets no statements.
-- `questions` holds up to three questions for the engineer, or none.""" + (
-        f"\n\n{REDRAFT_RULES}" if redraft is not None else ""
+- `questions` holds up to three questions for the engineer, or none."""
+        + (
+            # A section's own rules, e.g. Section 6's maturity scale (GN-11), after the guide's.
+            f"\n\nThis section's rules:\n{section['instructions']}"
+            if section.get("instructions")
+            else ""
+        )
+        + (f"\n\n{REDRAFT_RULES}" if redraft is not None else "")
     )
 
 
