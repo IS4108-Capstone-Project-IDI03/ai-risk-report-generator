@@ -6,6 +6,7 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
+import { chatUsageTap } from '../services/chat-usage.service'
 import { openChatStream, RagServiceError } from '../services/rag.service'
 
 const router = Router()
@@ -28,7 +29,11 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache')
   // A stop mid-answer ends the stream with an abort error; without the catch,
   // that unhandled rejection would crash the gateway.
-  await pipeline(Readable.fromWeb(stream as WebReadableStream<Uint8Array>), res).catch(() => {})
+  await pipeline(
+    Readable.fromWeb(stream as WebReadableStream<Uint8Array>),
+    chatUsageTap(),
+    res,
+  ).catch(() => {})
 })
 
 export default router

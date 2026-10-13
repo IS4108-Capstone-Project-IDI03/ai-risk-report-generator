@@ -2,13 +2,21 @@
 // the usage lists the Python services return. Read by EV-04's cost report.
 import { Schema, model } from 'mongoose'
 
-export const AI_FEATURES = ['draft-section', 'retrieval', 'transcribe', 'label-document'] as const
+export const AI_FEATURES = [
+  'draft-section',
+  'retrieval',
+  'transcribe',
+  'label-document',
+  'chat',
+] as const
 export const BILLED_SERVICES = [
   'anthropic',
   'cohere-embed',
   'cohere-rerank',
   'openai-whisper',
   'openai-label',
+  // The knowledge chat's OpenAI calls (CB-01), priced per token by model.
+  'openai',
   'typesafe-jev',
 ] as const
 
