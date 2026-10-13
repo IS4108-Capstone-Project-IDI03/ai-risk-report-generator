@@ -135,6 +135,12 @@
   .workflow main {
     overflow-x: hidden !important;
   }
+  /* The work list's search, at the toolbar's end on a wider screen, leads it
+     full width on a phone, above the buttons (CP-17). */
+  .om-work-search {
+    order: -1;
+    flex: 1 1 100% !important;
+  }
 }
 /* Take photograph opens the camera on a phone or tablet (CP-04 AC6). A desktop
    browser ignores `capture` and would open the same file picker as Choose
