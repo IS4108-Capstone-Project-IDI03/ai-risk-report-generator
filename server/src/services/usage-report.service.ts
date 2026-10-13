@@ -7,6 +7,7 @@ import { AssessmentModel } from '../models/assessment.model'
 import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 import { clientNameOf } from './client.service'
+import { SUMMARISED_SECTIONS } from './summary.service'
 
 // A risk engineer asked for a report that is not assigned to them (EV-04 AC9).
 export class ReportNotInScopeError extends Error {
@@ -35,12 +36,35 @@ export type UsageRow = {
   }
 }
 
+// One feature's cost split by the service that billed it: one bar of the drill-in.
+export type FeatureServiceRow = {
+  feature: IAiCall['feature']
+  calls: number
+  estimatedCostUsd: number
+  segments: Record<string, number>
+}
+
+// What drafting one report section cost: its Claude calls and their searches.
+export type SectionRow = {
+  // The report's section id; null for drafting saved before sections were recorded.
+  section: string | null
+  title: string
+  calls: number
+  // Times it was drafted or redrafted: its Claude calls.
+  drafts: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+}
+
 export type UsageSummary = {
   scope: { reportId: string | null }
   reports: string[]
   totals: Pick<UsageRow, 'calls' | 'estimatedCostUsd' | 'callsWithoutCost' | 'estimatedCalls'>
   byFeature: UsageRow[]
   byService: UsageRow[]
+  byFeatureService: FeatureServiceRow[]
+  // Only for one chosen report; empty otherwise.
+  bySection: SectionRow[]
   pricingBases: { basis: string; calls: number; isEstimate: boolean }[]
 }
 
@@ -49,6 +73,10 @@ const isEstimate = (basis: string) => /estimate/i.test(basis)
 const round = (n: number) => Math.round(n * 1e6) / 1e6
 const sum = (rows: IAiCall[], pick: (r: IAiCall) => number | null) =>
   rows.reduce((total, r) => total + (pick(r) ?? 0), 0)
+// The provider calls a set of rows stands for: a row is more than 1 only for ingestion.
+const callsIn = (rows: IAiCall[]) => rows.reduce((n, r) => n + (r.callCount ?? 1), 0)
+// Of those, the calls with no cost: counted, never added to a total as 0.
+const uncosted = (rows: IAiCall[]) => callsIn(rows.filter((r) => r.estimatedCostUsd === null))
 
 // Nearest-rank percentile of an ascending list: the smallest value that at
 // least p% of the values are at or below.
@@ -138,12 +166,62 @@ export async function summarizeUsage(user: SessionUser, reportId?: string): Prom
       ),
     ),
     byService,
+    byFeatureService: byFeatureService(rows),
+    bySection: reportId ? bySection(rows) : [],
     pricingBases: [...bases].map(([basis, calls]) => ({
       basis,
       calls,
       isEstimate: isEstimate(basis),
     })),
   }
+}
+
+// Cost per billed service within each feature present, costliest feature first.
+function byFeatureService(rows: IAiCall[]): FeatureServiceRow[] {
+  return AI_FEATURES.map((feature) => {
+    const own = rows.filter((r) => r.feature === feature)
+    const segments: Record<string, number> = {}
+    for (const r of own)
+      if (r.estimatedCostUsd !== null)
+        segments[r.billedService] = round((segments[r.billedService] ?? 0) + r.estimatedCostUsd)
+    return {
+      feature,
+      calls: callsIn(own),
+      estimatedCostUsd: round(sum(own, (r) => r.estimatedCostUsd)),
+      segments,
+    }
+  })
+    .filter((f) => f.calls > 0)
+    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
+}
+
+// Section titles from Marsh's template: the Executive Summary, then every
+// section it summarises (OFIs are Section 3).
+const SECTION_TITLES = new Map([
+  ['2', 'Executive Summary'],
+  ...SUMMARISED_SECTIONS.map((s): [string, string] => [s.id, s.title]),
+])
+// Drafting's own calls: Claude, and the Cohere searches for its evidence.
+const DRAFTING_FEATURES: IAiCall['feature'][] = ['draft-section', 'retrieval']
+
+// Drafting cost per report section, in report order, with untagged rows last.
+function bySection(rows: IAiCall[]): SectionRow[] {
+  const drafting = rows.filter((r) => DRAFTING_FEATURES.includes(r.feature))
+  const sections = [...new Set(drafting.map((r) => r.section ?? null))]
+  return sections
+    .sort((a, b) => (a === null ? 1 : b === null ? -1 : Number(a) - Number(b)))
+    .map((section) => {
+      const own = drafting.filter((r) => (r.section ?? null) === section)
+      return {
+        section,
+        title:
+          section === null ? 'Unspecified' : (SECTION_TITLES.get(section) ?? `Section ${section}`),
+        calls: callsIn(own),
+        drafts: callsIn(own.filter((r) => r.feature === 'draft-section')),
+        estimatedCostUsd: round(sum(own, (r) => r.estimatedCostUsd)),
+        callsWithoutCost: uncosted(own),
+      }
+    })
 }
 
 const CSV_COLUMNS: [string, (r: UsageRow) => unknown][] = [
@@ -261,9 +339,6 @@ type AssessmentInfo = {
   engineer?: { _id: Types.ObjectId; name: string } | null
 }
 
-// The provider calls a set of rows stands for: a row is more than 1 only for ingestion.
-const callsIn = (rows: IAiCall[]) => rows.reduce((n, r) => n + (r.callCount ?? 1), 0)
-
 /**
  * Returns report-generation cost across assessments or engineers, for the
  * period chosen. A knowledge admin sees everything; a risk engineer only their
@@ -337,7 +412,6 @@ export async function usageOverview(
     if (!byGroup.has(key)) byGroup.set(key, [])
     byGroup.get(key)!.push(r)
   }
-  const uncosted = (rows: IAiCall[]) => callsIn(rows.filter((r) => r.estimatedCostUsd === null))
 
   const groups = [...byGroup].map(([key, members]): OverviewGroup => {
     const segments: Record<string, number> = {}
@@ -406,4 +480,30 @@ export async function usageOverview(
       isEstimate: isEstimate(basis),
     })),
   }
+}
+
+const OVERVIEW_CSV_COLUMNS: [string, (g: OverviewGroup) => unknown][] = [
+  ['group', (g) => g.label],
+  ['reference', (g) => g.reference],
+  ['client', (g) => g.client],
+  ['site', (g) => g.siteName],
+  ['engineer', (g) => g.engineerName],
+  ['last_activity', (g) => g.lastActivityAt],
+  ['calls', (g) => g.calls],
+  ['calls_without_cost', (g) => g.callsWithoutCost],
+  ['estimated_cost_usd', (g) => g.estimatedCostUsd],
+]
+
+/** Returns the overview on screen as CSV text: one row per group, then its cost per split key. */
+export function overviewCsv(overview: UsageOverview): string {
+  const head = [...OVERVIEW_CSV_COLUMNS.map(([name]) => name), ...overview.splitKeys]
+  const lines = overview.groups.map((g) =>
+    [
+      ...OVERVIEW_CSV_COLUMNS.map(([, pick]) => pick(g)),
+      ...overview.splitKeys.map((k) => g.segments[k] ?? 0),
+    ]
+      .map(csvCell)
+      .join(','),
+  )
+  return [head.map(csvCell).join(','), ...lines].join('\n') + '\n'
 }

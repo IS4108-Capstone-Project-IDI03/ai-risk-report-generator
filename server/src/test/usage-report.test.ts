@@ -451,3 +451,127 @@ describe('GET /api/usage/overview (EV-04)', () => {
     )
   })
 })
+
+describe('GET /api/usage/summary for one assessment: the drill-in (EV-04 AC2)', () => {
+  type Summary = {
+    byFeatureService: { feature: string; calls: number; segments: Record<string, number> }[]
+    bySection: {
+      section: string | null
+      title: string
+      calls: number
+      drafts: number
+      estimatedCostUsd: number
+      callsWithoutCost: number
+    }[]
+  }
+  const summary = async (query = 'reportId=RPT-A') =>
+    (await asSana.get(`/api/usage/summary?${query}`)).body as Summary
+  const embed = (over: Record<string, unknown> = {}) =>
+    call({ feature: 'retrieval', billedService: 'cohere-embed', estimatedCostUsd: 0.1, ...over })
+
+  it('splits each feature by the service that billed it', async () => {
+    await assessments()
+    await seed([call(), embed(), call({ feature: 'transcribe', billedService: 'openai-whisper' })])
+
+    const { byFeatureService } = await summary()
+
+    expect(byFeatureService.map((f) => f.feature)).toEqual([
+      'draft-section',
+      'transcribe',
+      'retrieval',
+    ])
+    expect(byFeatureService[0].segments).toEqual({ anthropic: 0.5 })
+    expect(byFeatureService[2]).toMatchObject({ calls: 1, segments: { 'cohere-embed': 0.1 } })
+  })
+
+  it('gives each report section its drafting cost and runs, in report order', async () => {
+    await assessments()
+    await seed([
+      call({ section: '7' }),
+      embed({ section: '7' }),
+      call({ section: '7' }),
+      call({ section: '2', estimatedCostUsd: 0.3 }),
+      // Saved before sections were recorded.
+      call({ estimatedCostUsd: 0.2 }),
+      // Not drafting, so in no section.
+      call({ feature: 'transcribe', billedService: 'openai-whisper', section: undefined }),
+    ])
+
+    const { bySection } = await summary()
+
+    expect(bySection.map((s) => [s.section, s.title, s.drafts, s.calls])).toEqual([
+      ['2', 'Executive Summary', 1, 1],
+      ['7', 'Construction', 2, 3],
+      [null, 'Unspecified', 1, 1],
+    ])
+    expect(bySection[1].estimatedCostUsd).toBeCloseTo(1.1, 6)
+  })
+
+  it('names OFIs as Section 3 and counts a section call without a cost apart', async () => {
+    await assessments()
+    await seed([call({ section: '3', estimatedCostUsd: null, pricingBasis: 'no price for model' })])
+
+    const [ofis] = (await summary()).bySection
+
+    expect(ofis).toMatchObject({
+      section: '3',
+      title: 'Opportunities for Improvement',
+      calls: 1,
+      callsWithoutCost: 1,
+      estimatedCostUsd: 0,
+    })
+  })
+
+  it('has no sections when no assessment is chosen', async () => {
+    await assessments()
+    await seed([call({ section: '7' })])
+
+    expect((await summary('')).bySection).toEqual([])
+  })
+})
+
+describe('GET /api/usage/overview/export.csv (EV-04 AC4)', () => {
+  const people = () => UserModel.collection.insertMany([alex, jide, sana])
+
+  it('writes the overview on screen: one row per group, a column per split key', async () => {
+    await people()
+    await assessments()
+    await seed([
+      call(),
+      call({ feature: 'retrieval', billedService: 'cohere-embed', estimatedCostUsd: 0.1 }),
+      call({ reportId: 'RPT-B', estimatedCostUsd: 2 }),
+    ])
+
+    const res = await asSana.get(
+      '/api/usage/overview/export.csv?groupBy=assessment&split=service&range=all',
+    )
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toMatch(/text\/csv/)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-by-assessment-service-all.csv"',
+    )
+    const lines = res.text.trim().split('\n')
+    expect(lines[0]).toBe(
+      'group,reference,client,site,engineer,last_activity,calls,calls_without_cost,estimated_cost_usd,anthropic,cohere-embed',
+    )
+    expect(lines[1]).toMatch(/^RPT-B,RPT-B,C,Site,jide,[^,]+,1,0,2,2,0$/)
+    expect(lines[2]).toMatch(/^RPT-A,RPT-A,C,Site,alex,[^,]+,2,0,0\.6,0\.5,0\.1$/)
+  })
+
+  it('keeps to the risk engineer’s own scope and refuses an unknown grouping', async () => {
+    await people()
+    await assessments()
+    await seed([call(), call({ reportId: 'RPT-B', estimatedCostUsd: 2 })])
+
+    const mine = await asAlex.get(
+      '/api/usage/overview/export.csv?groupBy=assessment&split=feature&range=all',
+    )
+    expect(mine.text.trim().split('\n')).toHaveLength(2)
+    expect(mine.text).not.toContain('RPT-B')
+    expect(
+      (await asSana.get('/api/usage/overview/export.csv?groupBy=nope&split=feature&range=all'))
+        .status,
+    ).toBe(400)
+  })
+})

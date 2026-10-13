@@ -8,6 +8,7 @@ import {
   OVERVIEW_RANGES,
   OVERVIEW_SPLITS,
   type OverviewQuery,
+  overviewCsv,
   ReportNotInScopeError,
   summarizeUsage,
   usageCsv,
@@ -46,6 +47,20 @@ router.get('/overview', requirePermission('usage:view'), async (req, res) => {
     return
   }
   res.json(await usageOverview(res.locals.user!, query))
+})
+
+router.get('/overview/export.csv', requirePermission('usage:view'), async (req, res) => {
+  const query = overviewQueryOf(req.query)
+  if (typeof query === 'string') {
+    res.status(400).json({ error: query })
+    return
+  }
+  const csv = overviewCsv(await usageOverview(res.locals.user!, query))
+  // Every part is one of a fixed list, so the name needs no cleaning.
+  const name = `usage-by-${query.groupBy}-${query.split}-${query.range}.csv`
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${name}"`)
+  res.send(csv)
 })
 
 router.get('/summary', requirePermission('usage:view'), async (req, res) => {
