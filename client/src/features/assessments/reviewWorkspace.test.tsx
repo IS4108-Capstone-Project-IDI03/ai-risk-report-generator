@@ -446,7 +446,8 @@ it('moves between sections and shows one without a draft as not drafted', async 
 
   fireEvent.click(within(nav).getByRole('button', { name: /External Exposures/ }))
   expect(within(editor()).getByText('Not drafted yet')).toBeInTheDocument()
-  expect(within(editor()).getByRole('button', { name: 'Next' })).toBeDisabled()
+  // The last section leads on to Appendix A (GN-07), so its Next is live.
+  expect(within(editor()).getByRole('button', { name: 'Next' })).toBeEnabled()
   expect(within(panel()).getByText(/no draft, so nothing is cited yet/)).toBeInTheDocument()
   // Its button leads to drafting.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Go to Generation' }))
@@ -511,8 +512,8 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   fireEvent.click(three)
   // Laid out like a section's draft: the editor bar, the provenance, then each OFI in an
   // AI draft box.
-  // Counted with the other sections: section 3 is first of four here (3, 7, 9, 10).
-  expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+  // Counted with every part of the report: 1, 2, 3, 7, 9, 10 and Appendix A here.
+  expect(within(editor()).getByText('Draft editor · 3 of 7')).toBeInTheDocument()
   expect(within(editor()).getByText(/prompt gn05-v4/)).toBeInTheDocument()
   // Each in an AI draft box: the suggestion waiting to be accepted, and the OFI in the report.
   expect(within(editor()).getAllByText('AI draft')).toHaveLength(2)
@@ -531,10 +532,10 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   // Next leads into the first section.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Next' }))
   expect(within(editor()).getByRole('heading', { name: '7. Construction' })).toBeVisible()
-  expect(within(editor()).getByText('Draft editor · 2 of 4')).toBeInTheDocument()
+  expect(within(editor()).getByText('Draft editor · 4 of 7')).toBeInTheDocument()
   // And Previous leads back to it.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Previous' }))
-  expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+  expect(within(editor()).getByText('Draft editor · 3 of 7')).toBeInTheDocument()
   ofis = { suggestions: [], accepted: [] }
 })
 

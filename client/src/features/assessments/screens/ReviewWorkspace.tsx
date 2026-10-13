@@ -155,10 +155,15 @@ export function ReviewWorkspace({
     />
   )
   const last = sections[sections.length - 1]
+  // Every part of the report in order, for "Draft editor · N of M": Sections 1, 2 and 3,
+  // the drafted sections (6-12), then Appendix A.
+  const parts = ['1', '2', '3', ...sections.map((s) => s.id), 'A']
+  const positionOf = (id: string) => `${parts.indexOf(id) + 1} of ${parts.length}`
 
   // Sections 1 and 2, and Appendix A: one view each, with a side panel that
   // says where its content comes from.
   const part = (
+    id: string,
     title: string,
     body: React.ReactNode,
     note: string,
@@ -166,7 +171,7 @@ export function ReviewWorkspace({
   ) => (
     <div style={wrapStyle}>
       {rail}
-      <ReportPart title={title} {...nav}>
+      <ReportPart title={title} position={positionOf(id)} {...nav}>
         {body}
       </ReportPart>
       <aside aria-label={`${title} notes`} className="om-scroll" style={panelStyle}>
@@ -180,6 +185,7 @@ export function ReviewWorkspace({
   )
   if (selected === '1')
     return part(
+      '1',
       '1. Purpose and Scope',
       <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} />,
       'Section 1 is filled in from the assessment and site details, with no AI drafting. It always matches them.',
@@ -187,6 +193,7 @@ export function ReviewWorkspace({
     )
   if (selected === '2')
     return part(
+      '2',
       '2. Executive Summary',
       <ExecutiveSummary
         summary={summary?.executiveSummary ?? null}
@@ -198,6 +205,7 @@ export function ReviewWorkspace({
     )
   if (selected === 'A')
     return part(
+      'A',
       'Appendix A. Site Photos',
       <AppendixPhotos reference={reference} canEdit={canReview} />,
       'The export (EX-01) shows only these photos, in this order, with their captions.',
@@ -236,7 +244,7 @@ export function ReviewWorkspace({
         <section aria-label="Draft editor" className="om-scroll rv-editor">
           <div className="rv-editor-inner">
             <div className="rv-editor-bar">
-              <p className="rv-label">Draft editor · 1 of {sections.length + 1}</p>
+              <p className="rv-label">Draft editor · {positionOf('3')}</p>
               <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={() => select('2')}>
                 Previous
               </Button>
@@ -369,10 +377,10 @@ export function ReviewWorkspace({
       {rail}
       <DraftEditor
         section={section}
-        // Section 3 is the report's first section here, so 7-12 count from 2.
-        position={`${index + 2} of ${sections.length + 1}`}
+        position={positionOf(saved.id)}
         onPrevious={() => select(previous ? previous.id : '3')}
-        onNext={next && (() => select(next.id))}
+        // The last section leads on to Appendix A.
+        onNext={() => select(next ? next.id : 'A')}
         onGenerate={onGenerate}
         numbers={numbers}
         focus={focus}

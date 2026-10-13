@@ -211,6 +211,8 @@ it('shows Section 1 assembled from the assessment details (AC1)', async () => {
   fireEvent.click(within(rail).getByRole('button', { name: /Purpose and Scope/ }))
 
   expect(within(editor()).getByRole('heading', { name: '1. Purpose and Scope' })).toBeVisible()
+  // Numbered with every part of the report: 1, 2, 3, 7 and Appendix A here.
+  expect(within(editor()).getByText('Draft editor · 1 of 5')).toBeInTheDocument()
   expect(await within(editor()).findByText(PURPOSE)).toBeVisible()
   // The visit activities are a list, as in Marsh's reports.
   expect(within(editor()).getByRole('listitem')).toHaveTextContent(ACTIVITY)
@@ -300,6 +302,20 @@ it('chooses, orders, captions and removes Appendix A photos (AC5-AC10, AC12)', a
   await waitFor(() => expect(puts).toHaveLength(5))
   expect(puts[4]).toEqual({ photos: [{ photoId: 'p1', caption: 'Fire pump controller' }] })
 }, 20_000)
+
+it('numbers Sections 1, 2 and Appendix A with the rest, and steps from the last section to Appendix A', async () => {
+  reset()
+  await openTab(/^Review/)
+  fireEvent.click(within(await nav()).getByRole('button', { name: /Executive Summary/ }))
+  expect(within(editor()).getByText('Draft editor · 2 of 5')).toBeInTheDocument()
+
+  fireEvent.click(within(await nav()).getByRole('button', { name: /Construction/ }))
+  expect(within(editor()).getByText('Draft editor · 4 of 5')).toBeInTheDocument()
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Next' }))
+  expect(within(editor()).getByRole('heading', { name: 'Appendix A. Site Photos' })).toBeVisible()
+  expect(within(editor()).getByText('Draft editor · 5 of 5')).toBeInTheDocument()
+  expect(within(editor()).getByRole('button', { name: 'Next' })).toBeDisabled()
+}, 15_000)
 
 it('opens Section 1 and Appendix A before any section is drafted (AC1, AC5)', async () => {
   reset()
