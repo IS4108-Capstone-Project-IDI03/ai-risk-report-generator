@@ -26,7 +26,10 @@ export interface IAssessment {
   // by the server when the assessment is created.
   reference: string
   site: Types.ObjectId
-  client: string
+  // The client's name as typed before CP-17. Unused once its site has a
+  // client (npm run migrate:clients), and kept so that can be run again; a new
+  // assessment has none, and reads its client through its site.
+  client?: string
   surveyType: string
   siteVisitDate?: Date
   reportDueDate?: Date
@@ -60,7 +63,6 @@ const assessmentSchema = new Schema<IAssessment>(
     },
     client: {
       type: String,
-      required: true,
       trim: true,
     },
     surveyType: {

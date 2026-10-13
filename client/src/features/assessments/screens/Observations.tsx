@@ -13,6 +13,7 @@ import {
 } from '../../../design-system'
 import { AddMediaDialog } from '../components/AddMediaDialog'
 import { FilterMenu } from '../components/FilterMenu'
+import { FoldHeading } from '../components/FoldHeading'
 import { LocationForm, RemoveLocationDialog } from '../components/LocationSheet'
 import { StatBox } from '../components/StatBox'
 import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
@@ -882,45 +883,13 @@ function ObservationGroup({
   const id = useId()
   return (
     <section aria-label={group.title}>
-      <button
-        type="button"
-        aria-label={group.title + ', ' + group.countLabel}
-        aria-expanded={group.open}
-        aria-controls={id}
-        onClick={group.toggle}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          width: '100%',
-          minHeight: '44px',
-          padding: '0 16px',
-          textAlign: 'left',
-          fontFamily: 'inherit',
-          background: 'var(--surface-header)',
-          border: 0,
-          borderBottom: '1px solid var(--border-default)',
-          cursor: 'pointer',
-        }}
-      >
-        <Icon
-          name={group.open ? 'chevron-down' : 'chevron-right'}
-          size={16}
-          color="var(--text-secondary)"
-        />
-        <span
-          style={{
-            fontSize: '13px',
-            fontWeight: '600',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          {group.title}
-        </span>
-        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{group.countLabel}</span>
-      </button>
+      <FoldHeading
+        title={group.title}
+        countLabel={group.countLabel}
+        open={group.open}
+        controls={id}
+        onToggle={group.toggle}
+      />
       {group.open && (
         <div id={id}>
           {group.levels.map((level) => (

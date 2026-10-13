@@ -6,6 +6,7 @@ import { connectDb } from './models/db'
 import healthRoutes from './routes/health.routes'
 import knowledgeDocumentRoutes from './routes/knowledge-document.routes'
 import assessmentRoutes from './routes/assessment.routes'
+import clientRoutes from './routes/client.routes'
 import authRoutes from './routes/auth.routes'
 import ragRoutes from './routes/rag.routes'
 import chatRoutes from './routes/chat.routes'
@@ -34,6 +35,7 @@ app.use('/api/auth', authRoutes)
 // Everything else needs a session (401 without one, F-04); each route then
 // checks its own permission from the role matrix (403, F-05).
 app.use('/api/assessments', requireAuth, assessmentRoutes)
+app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/knowledge-documents', requireAuth, knowledgeDocumentRoutes)
 app.use('/api/rag', requireAuth, ragRoutes)
 app.use('/api/chat', requireAuth, chatRoutes)

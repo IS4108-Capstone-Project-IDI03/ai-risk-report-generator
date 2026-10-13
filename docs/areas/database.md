@@ -44,20 +44,50 @@ Python service ports to loopback; do not expose them publicly as-is.
 ## Assessments and capture sessions
 
 `assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
-`RPT-2026-0411`), a `site` reference, `client`, `surveyType`, optional
+`RPT-2026-0411`), a `site` reference, `surveyType`, optional
 `siteVisitDate` and `reportDueDate`, and `engineer`: the assigned engineer's user ID
 (one per assessment). The engineer's name is read from their account, so a rename shows everywhere.
+Its client is read through its site (CP-17); an assessment saved before then
+also keeps the `client` name typed on it, unused once its site is migrated.
 Extend it rather than creating a parallel assessment schema.
 
-`POST /api/assessments` creates an assessment and a new site for it (the site
-gains an optional `address`). The body is validated with Zod; a 400 returns
+`POST /api/assessments` creates an assessment for a listed client
+(`clientId`) or a new one (`client`, a name), on one of that client's sites
+(`siteId`) or a new site (`site`, which has an optional `address`): exactly
+one of each pair (CP-17). A listed site of another client is refused, as is a
+new site named like one the client has, ignoring case (`site.name`). On a
+listed site the assessment starts with a copy of the locations of the site's
+latest assessment not archived, whatever its status (latest by visit date,
+then creation), each with a new `_id`, unless `copyLocations` is `false`; no
+observations are copied. The body is validated with Zod; a 400 returns
 `{ error, fields }`, where `fields` maps each invalid path (e.g. `site.name`) to
 its first problem. `jurisdiction` is a two-letter code (`SG`, `MY`, `UK`, …)
 because retrieval filters on it. The server allocates the reference
 `RPT-<year>-<nnnn>` and the site code `SITE-<nnnn>` from atomically incremented
 `counters` documents (`assessment:<year>`, `site`), skipping any code already
 in use, such as a seeded one. Dev and test MongoDB are standalone servers without
-transactions, so if the assessment insert fails, the new site is deleted by hand.
+transactions, so if the assessment insert fails, a new site is deleted by hand.
+
+`clients` (CP-17) holds the clients the firm surveys for, each with a `name`
+(up to 200 characters) and a unique `key`: the name lowercased with its spacing
+tidied, so "Northgate  Logistics" and "northgate logistics" are one client.
+Every engineer sees every client. A site belongs to one client through its
+`client` reference; one client has many sites, and a site many assessments,
+one per visit. Creating an assessment with a new client name finds the client
+by key, or adds it with the name as typed. `GET /api/clients` lists every
+client in name order with its number of sites, and `GET
+/api/clients/:id/sites` a client's sites in name order, each with its latest
+assessment not archived (`reference`, `siteVisitDate`, and the `locations` and
+`buildings` a new assessment would copy); 404 for an unknown client. Both need
+`assessments:edit`. Assessments list with `clientId` (null for a site not yet
+migrated) and `siteShared`: whether the site has another assessment not
+archived. Sites saved before CP-17 have no `client` until `npm --prefix server run
+migrate:clients` links each to a client made from its assessment's `client`
+text: names matching by key become one client, spelt as first found, and sites
+are never merged. It is safe to run more than once, and leaves a site with no
+assessment (the health check's `SYN-SG-001`) unlinked. The assessment's
+`client` text stays as it was saved; it is shown only while its site has no
+client.
 
 `capture_sessions` records each on-site capture for an assessment, with
 `status` `active` or `ready_for_generation` (set by CP-14). A partial unique
@@ -148,9 +178,13 @@ staff IDs and job titles for assignment. Creating an assessment requires
 `engineerId`, the ID of one active risk engineer.
 
 `PUT /api/assessments/:reference` corrects an assessment's details (RV-10 AC10):
-its site's name, address, jurisdiction and facility type, and its client,
-assessment type and dates, with the same validation as creating one (AC11).
-The engineer is not editable: it stays as the assessment was created. A date left empty is cleared. Only the assigned engineer
+its site's name, address, jurisdiction and facility type, and its assessment
+type and dates, with the same validation as creating one (AC11). The engineer,
+client and site are not editable: they stay as the assessment was created
+(CP-17 AC6). The site's details are shared once the site has another
+assessment not archived, so changing them is then refused (409); sending them
+unchanged is fine. Renaming a site to another of its client's site names is
+refused (400, `site.name`). A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
 
 `POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a

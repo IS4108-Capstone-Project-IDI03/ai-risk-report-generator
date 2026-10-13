@@ -118,6 +118,12 @@ export type WorkflowState = {
   // The dashboard box filtering the list by date, or null for none.
   fDate: DateFilter | null
   workSort: string
+  // The work list grouped by client, then site (CP-17), instead of latest first.
+  workByClient: boolean
+  // Clients folded away on the grouped work list, by group key.
+  workFolded: Record<string, boolean>
+  // The work list swapped for the archived assessments (CP-17).
+  showArchived: boolean
   createdRows: AssessmentRow[]
   cf: {
     site: string
@@ -132,6 +138,19 @@ export type WorkflowState = {
     // Narrows the engineer list; not sent.
     engQuery: string
     jurisdiction: string
+    // The listed client chosen by a site's New visit (AC4), so its sites load
+    // before the client list does; '' once the name is typed.
+    clientId: string
+    // The client's listed site the assessment is for, NEW_SITE to add one, or
+    // '' until one is chosen (CP-17 AC2).
+    siteId: string
+    // Copy the listed site's latest visit's locations (AC3).
+    copy: boolean
+    // Client and site names the engineer kept despite a likely typo (AC9).
+    kept: string[]
+    // A new client or site name that looks like a listed one, asked about on
+    // Create: use the listed one, or keep it as typed.
+    check: { field: 'client' | 'site'; typed: string; suggestion: string } | null
   }
   // The assessment whose details the form is editing, or null when creating.
   cfEdit: string | null

@@ -1,11 +1,25 @@
-import { Fragment } from 'react'
-import { Badge, Callout, EmptyState, Input, Select, StatusIcon } from '../../../design-system'
+import { Fragment, useId } from 'react'
+import {
+  Badge,
+  Button,
+  Callout,
+  EmptyState,
+  Icon,
+  IconRegistry,
+  Input,
+  Select,
+  StatusIcon,
+} from '../../../design-system'
+import { FoldHeading } from '../components/FoldHeading'
 import { StatBox } from '../components/StatBox'
 import type { DateFilter } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 const COLUMNS =
   'minmax(0,1.9fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,1fr)'
+// Grouped by client, the client is the heading, so its column goes.
+const GROUPED_COLUMNS =
+  'minmax(0,1.9fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,1fr)'
 // The boxes above the list, each filtering it by date while selected.
 const DATE_BOXES: { filter: DateFilter; icon: string; label: string; units: [string, string] }[] = [
   {
@@ -50,6 +64,272 @@ function DueNote({ r }: { r: AssessmentWorkflow['filteredRows'][number] }) {
     >
       {r.countdown.text}
     </span>
+  )
+}
+
+type WorkRow = AssessmentWorkflow['filteredRows'][number]
+type WorkGroup = AssessmentWorkflow['workGroups'][number]
+
+// Opens the row's assessment from the keyboard, as a click does.
+function openOnKey(event: React.KeyboardEvent<HTMLElement>) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    event.currentTarget.click()
+  }
+}
+
+// One assessment as a table row, without its client when grouped by client.
+function TableRow({ v, r, grouped }: { v: AssessmentWorkflow; r: WorkRow; grouped: boolean }) {
+  return (
+    <div
+      data-id={r.id}
+      onClick={v.onRow}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: grouped ? GROUPED_COLUMNS : COLUMNS,
+        alignItems: 'center',
+        padding: '10px 18px',
+        borderBottom: '1px solid var(--border-subtle)',
+        cursor: 'pointer',
+        transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
+      }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={openOnKey}
+      data-hoverable="true"
+    >
+      <span style={{ minWidth: '0', paddingRight: '16px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+          <span
+            style={{
+              fontSize: '15px',
+              fontWeight: '500',
+              color: 'var(--text-primary)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {r.site}
+          </span>
+        </span>
+        <span
+          style={{
+            display: 'block',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+          }}
+        >
+          {r.id}
+        </span>
+      </span>
+      {!grouped && (
+        <span
+          style={{
+            fontSize: '15px',
+            color: 'var(--text-body)',
+            paddingRight: '16px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {r.client}
+        </span>
+      )}
+      <span style={DATE_CELL}>{r.date}</span>
+      <span
+        style={{
+          fontSize: '15px',
+          color: 'var(--text-body)',
+          paddingRight: '12px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {r.eng}
+      </span>
+      <span
+        style={{
+          minWidth: '0',
+          paddingRight: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '6px',
+        }}
+      >
+        <StatusIcon status={r.status} showLabel={true} size={15} />
+      </span>
+      <span
+        style={{
+          minWidth: '0',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: '2px',
+        }}
+      >
+        <span style={{ ...DATE_CELL, paddingRight: '0' }}>{r.dueDate}</span>
+        <DueNote r={r} />
+      </span>
+    </div>
+  )
+}
+
+// One assessment as a stacked card, below 1080px.
+function StackedRow({ v, r }: { v: AssessmentWorkflow; r: WorkRow }) {
+  return (
+    <div
+      data-id={r.id}
+      onClick={v.onRow}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        padding: '14px 16px',
+        borderBottom: '1px solid var(--border-subtle)',
+        cursor: 'pointer',
+        transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
+      }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={openOnKey}
+      data-hoverable="true"
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: '12px',
+        }}
+      >
+        <span
+          style={{
+            minWidth: '0',
+            fontSize: '16px',
+            fontWeight: '600',
+            color: 'var(--text-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {r.site}
+        </span>
+        <span
+          style={{
+            flex: '0 0 auto',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '13px',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {r.date}
+        </span>
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '13px',
+          color: 'var(--text-muted)',
+        }}
+      >
+        {r.id}
+      </div>
+      <div style={{ fontSize: '15px', lineHeight: '22px', color: 'var(--text-body)' }}>
+        {r.stackMeta}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '10px',
+          marginTop: '2px',
+        }}
+      >
+        <StatusIcon status={r.status} showLabel={true} size={15} />
+        <DueNote r={r} />
+      </div>
+    </div>
+  )
+}
+
+// A client, folding away under its heading as a building does on the
+// Observations tab, then each site, like a location there, with its visits
+// and New visit (CP-17 AC4, AC7).
+function ClientGroup({ v, group }: { v: AssessmentWorkflow; group: WorkGroup }) {
+  const id = useId()
+  return (
+    <section aria-label={group.title}>
+      <FoldHeading
+        title={group.title}
+        countLabel={group.countLabel}
+        open={group.open}
+        controls={id}
+        onToggle={group.toggle}
+      />
+      {group.open && (
+        <div id={id}>
+          {group.sites.map((site) => (
+            <div key={site.key} role="group" aria-label={site.name}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                }}
+              >
+                <Icon name={IconRegistry.object.site} size={16} color="var(--action-primary)" />
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {site.name}
+                </h3>
+                {!!site.address && (
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    {site.address}
+                  </span>
+                )}
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  {site.countLabel}
+                </span>
+                <span style={{ flex: '1' }}></span>
+                {!!site.newVisit && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    iconLeft="plus"
+                    aria-label={'New visit to ' + site.name}
+                    onClick={site.newVisit}
+                  >
+                    {'New visit'}
+                  </Button>
+                )}
+              </div>
+              {site.rows.map((r) =>
+                v.wideTable ? (
+                  <TableRow key={r.id} v={v} r={r} grouped={true} />
+                ) : (
+                  <StackedRow key={r.id} v={v} r={r} />
+                ),
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -116,25 +396,14 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
               borderBottom: '1px solid var(--border-subtle)',
             }}
           >
-            <div style={{ flex: '1 1 220px', minWidth: '180px' }}>
-              <Input
-                size="sm"
-                iconLeft="search"
-                aria-label="Search assessments"
-                placeholder="Search site, client or report ID"
-                value={v.q}
-                onChange={v.setQ}
-              />
-            </div>
-            <div style={{ flex: '0 1 180px', minWidth: '150px' }}>
-              <Select
-                size="sm"
-                aria-label="Filter by status"
-                options={v.statusOptions}
-                value={v.fStatus}
-                onChange={v.setStatus}
-              />
-            </div>
+            {/* Says what pressing it does, so its text changes with the list,
+                as on the Observations tab. The archived list hides it and the
+                status, as the deleted observations hide theirs. */}
+            {!v.showArchived && (
+              <Button size="sm" variant="secondary" onClick={v.toggleWorkByClient}>
+                {v.workByClient ? 'Show latest first' : 'Group by client'}
+              </Button>
+            )}
             <div style={{ flex: '0 1 220px', minWidth: '180px' }}>
               <Select
                 size="sm"
@@ -144,15 +413,45 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 onChange={v.setWorkSort}
               />
             </div>
+            {!v.showArchived && (
+              <div style={{ flex: '0 1 180px', minWidth: '150px' }}>
+                <Select
+                  size="sm"
+                  aria-label="Filter by status"
+                  options={v.statusOptions}
+                  value={v.fStatus}
+                  onChange={v.setStatus}
+                />
+              </div>
+            )}
+            {/* Swaps the list for the archived assessments and back (CP-17). */}
+            <Button
+              size="sm"
+              variant={v.showArchived ? 'tonal' : 'secondary'}
+              iconLeft={v.showArchived ? 'arrow-left' : IconRegistry.object.archive}
+              onClick={v.toggleArchived}
+            >
+              {v.showArchived ? 'Back to assessments' : `Archived (${v.archivedCount})`}
+            </Button>
             <span style={{ flex: '1' }} />
             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{v.resultLabel}</span>
+            <div className="om-work-search" style={{ flex: '0 1 300px', minWidth: '200px' }}>
+              <Input
+                size="sm"
+                iconLeft="search"
+                aria-label="Search assessments"
+                placeholder="Search site, client or report ID"
+                value={v.q}
+                onChange={v.setQ}
+              />
+            </div>
           </div>
           {!!v.wideTable && (
             <>
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: COLUMNS,
+                  gridTemplateColumns: v.workByClient ? GROUPED_COLUMNS : COLUMNS,
                   alignItems: 'center',
                   gap: '0',
                   padding: '0 18px',
@@ -167,214 +466,47 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
                 }}
               >
                 <span style={{ paddingRight: '12px' }}>{'Assessment'}</span>
-                <span style={{ paddingRight: '12px' }}>{'Client'}</span>
+                {!v.workByClient && <span style={{ paddingRight: '12px' }}>{'Client'}</span>}
                 <span style={{ paddingRight: '12px' }}>{'Site visit'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Engineer'}</span>
                 <span style={{ paddingRight: '12px' }}>{'Status'}</span>
                 <span>{'Report due'}</span>
               </div>
-              {v.filteredRows.map((r, index) => (
-                <Fragment key={index}>
-                  <div
-                    data-id={r.id}
-                    onClick={v.onRow}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: COLUMNS,
-                      alignItems: 'center',
-                      padding: '10px 18px',
-                      borderBottom: '1px solid var(--border-subtle)',
-                      cursor: 'pointer',
-                      transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        event.currentTarget.click()
-                      }
-                    }}
-                    data-hoverable="true"
-                  >
-                    <span style={{ minWidth: '0', paddingRight: '16px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <span
-                          style={{
-                            fontSize: '15px',
-                            fontWeight: '500',
-                            color: 'var(--text-primary)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {r.site}
-                        </span>
-                      </span>
-                      <span
-                        style={{
-                          display: 'block',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '13px',
-                          color: 'var(--text-muted)',
-                        }}
-                      >
-                        {r.id}
-                      </span>
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '15px',
-                        color: 'var(--text-body)',
-                        paddingRight: '16px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {r.client}
-                    </span>
-                    <span style={DATE_CELL}>{r.date}</span>
-                    <span
-                      style={{
-                        fontSize: '15px',
-                        color: 'var(--text-body)',
-                        paddingRight: '12px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {r.eng}
-                    </span>
-                    <span
-                      style={{
-                        minWidth: '0',
-                        paddingRight: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '6px',
-                      }}
-                    >
-                      <StatusIcon status={r.status} showLabel={true} size={15} />
-                    </span>
-                    <span
-                      style={{
-                        minWidth: '0',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        gap: '2px',
-                      }}
-                    >
-                      <span style={{ ...DATE_CELL, paddingRight: '0' }}>{r.dueDate}</span>
-                      <DueNote r={r} />
-                    </span>
-                  </div>
-                </Fragment>
-              ))}
+              {!v.workByClient &&
+                v.filteredRows.map((r, index) => (
+                  <Fragment key={index}>
+                    <TableRow v={v} r={r} grouped={false} />
+                  </Fragment>
+                ))}
             </>
           )}
-          {!!v.stackTable && (
-            <>
-              {v.filteredRows.map((r, index) => (
-                <Fragment key={index}>
-                  <div
-                    data-id={r.id}
-                    onClick={v.onRow}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px',
-                      padding: '14px 16px',
-                      borderBottom: '1px solid var(--border-subtle)',
-                      cursor: 'pointer',
-                      transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        event.currentTarget.click()
-                      }
-                    }}
-                    data-hoverable="true"
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'baseline',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                      }}
-                    >
-                      <span
-                        style={{
-                          minWidth: '0',
-                          fontSize: '16px',
-                          fontWeight: '600',
-                          color: 'var(--text-primary)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {r.site}
-                      </span>
-                      <span
-                        style={{
-                          flex: '0 0 auto',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '13px',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        {r.date}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '13px',
-                        color: 'var(--text-muted)',
-                      }}
-                    >
-                      {r.id}
-                    </div>
-                    <div
-                      style={{ fontSize: '15px', lineHeight: '22px', color: 'var(--text-body)' }}
-                    >
-                      {r.stackMeta}
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '10px',
-                        marginTop: '2px',
-                      }}
-                    >
-                      <StatusIcon status={r.status} showLabel={true} size={15} />
-                      <DueNote r={r} />
-                    </div>
-                  </div>
-                </Fragment>
-              ))}
-            </>
-          )}
+          {!!v.stackTable &&
+            !v.workByClient &&
+            v.filteredRows.map((r, index) => (
+              <Fragment key={index}>
+                <StackedRow v={v} r={r} />
+              </Fragment>
+            ))}
+          {v.workByClient &&
+            v.workGroups.map((group) => <ClientGroup key={group.key} v={v} group={group} />)}
           {!!v.noResults && (
             <>
               <div style={{ padding: '48px 18px' }}>
                 <EmptyState
                   icon="inbox"
-                  title="No assessments match those filters"
+                  title={
+                    v.showArchived && !v.archivedCount
+                      ? 'No archived assessments'
+                      : 'No assessments match those filters'
+                  }
                   description={
-                    v.dateFilter
-                      ? 'Select the ticked box again, clear the search or widen the status filter to see your assigned assessments.'
-                      : 'Clear the search or widen the status filter to see your assigned assessments.'
+                    v.showArchived
+                      ? v.archivedCount
+                        ? 'Clear the search to see your archived assessments.'
+                        : 'Assessments you archive are listed here, and can be restored from their workspace.'
+                      : v.dateFilter
+                        ? 'Select the ticked box again, clear the search or widen the status filter to see your assigned assessments.'
+                        : 'Clear the search or widen the status filter to see your assigned assessments.'
                   }
                 />
               </div>
