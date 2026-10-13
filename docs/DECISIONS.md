@@ -1261,3 +1261,76 @@ location, and wrapped to three rows on a laptop and more on a phone before
 the first observation.
 
 Stories: CP-08, CP-06, CP-16.
+
+## 2026-10-13 — A client has many sites and a site many assessments; each assessment keeps its own copy of the locations
+
+Chose:
+- A `clients` collection, and a `client` reference on each site: client →
+  site → assessment, one assessment per visit. The client is stored only on
+  the site, so an assessment reads it through its site and the two can never
+  disagree; a rename (CP-18) is one write.
+- Locations stay on the assessment (CP-16). A new assessment on a site that
+  already has one copies the latest non-archived one's locations, whatever
+  its status, behind a ticked box the engineer can untick, so a finished
+  report never changes when a later visit edits its copy.
+- Every engineer sees every client and site, though RV-10 shows each only
+  their own assessments, so a client is never added twice because a
+  colleague added it.
+- Clients match on a key, the name lowercased with its spacing tidied, kept
+  unique by an index, so two engineers adding the same client at once get one.
+- Existing data moves by `npm --prefix server run migrate:clients`, as
+  `migrate:cope` did: run by hand, safe to run twice. Names matching by key
+  become one client; near-misses (Fennick Food, Fennick Foods) stay apart,
+  since a script shouldn't guess, and sites are never merged. The
+  assessment's `client` text is left in place, shown only while its site has
+  no client, so the migration can be run again from it.
+- A site's details are locked on its assessments once another one not
+  archived shares it; an archived one doesn't count, so a mistaken create
+  doesn't freeze the site. An assessment's client and site can't be changed
+  after it is created: a wrong pick is archived and created again.
+- One client can't have two sites of one name, whatever the case, and a new
+  client or site name close to a listed one is asked about, as CP-16 does for
+  locations. Sites saved before with the same name stay.
+- The create form takes the Client as a field with suggestions; a listed
+  client then offers its sites in a Site list, ending with Add a new site. A
+  listed site's details fill in, read-only, under it, with the copy box.
+- The work list opens latest site visit first, as before. Group by client
+  lists it by client, then site, in name order, with the Observations tab's
+  fold headings and location rows (one shared heading); the button then reads
+  Show latest first. Sort orders each site's visits, and the status filter,
+  search and date boxes still apply, hiding a client or site left empty.
+  Each site has New visit, which opens the create form on it with its copy
+  ticked.
+- Archived is a button, Archived (n), as Deleted (n) is on the Observations
+  tab, no longer a status. The toolbar reads Group by client, Sort, Status,
+  Archived, then the count and Search at its end.
+- An engineer still sees only their own assessments (RV-10), so a site may
+  list fewer visits than it has; knowledge admins see them all.
+
+Rejected:
+- One location list per site, shared by its assessments: a rename would
+  change last year's assessment, removing one would have to check every
+  visit's observations, and every observation's location lookup would move
+  from the assessment to the site, for about four times the work.
+- A `client` reference on the assessment as well as the site: quicker to
+  filter, but a second copy to keep in step.
+- Migrating on server start: nobody forgets it, but a slow or failing run
+  would hold up the gateway, and nothing else migrates that way.
+- Deleting the `client` text in the migration: tidier, but a wrongly matched
+  name could not be recovered.
+- A unique index on a client's site names: sites saved before CP-17 under one
+  client may share a name, so the migration could not link them.
+- Letting an assessment move to another client or site before capture:
+  flexible, but what happens to copied locations on a move would need its own
+  rules, and archiving and creating again is cheap.
+- Add site on the work list, as Add location is on the Observations tab: New
+  assessment already adds a new client and site, and a site with no visits
+  would need its own rule for who sees it.
+- The status and sort in one Filters panel, as on the Observations tab: the
+  work list has two controls, not seven, so they stay in the toolbar.
+
+Reason: one report can cover a campus or an airport, and the same facility
+is surveyed again each year; linking visits to one site of one client lets
+the next visit start from the last one's buildings, levels and places.
+
+Stories: CP-17, CP-16, CP-18, RV-10.
