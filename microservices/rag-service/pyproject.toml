@@ -17,6 +17,7 @@ dependencies = [
     "ruff>=0.16.9",
     "black>=26.5.1",
     "anthropic>=1,<2",
+    "openai>=2",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +26,6 @@ dev = [
     "black>=24.10",
     "pytest>=8.3",
     "httpx>=0.28",   # required by fastapi.testclient.TestClient
-    "openai>=2",
 ]
 
 [build-system]
