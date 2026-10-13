@@ -369,6 +369,15 @@ suggestions, each with Accept (or Accept all), and the OFIs in the report.
    The engineer accepts suggestions one by one. Only accepted OFIs are in the
    report, numbered `<site visit year>-NN` in report order.
 
+Section 6 Management Programs (GN-11) is drafted like Sections 7-12, from its
+`sections.json` entry: Marsh's 15 programs as `fields`, each row written
+"<Program>: <Rank>. <comment>". The entry's `instructions` add the maturity
+scale and its rules to the prompt (the lower rank when the evidence fits two; no
+row without evidence), and `orchestrator.check_maturity_ranks` marks a row
+unsupported when its rank is not one of the five. `eval/score_ranks.py` drafts
+the cases in `eval/rank_cases` and counts exact and within-one matches with
+Marsh's ranks, next to an always-Embedded baseline (one paid call per case).
+
 `eval/judge_ofis.py` scores drafted OFIs, and Marsh's own, on three cases from
 the sample reports (AC7).
 

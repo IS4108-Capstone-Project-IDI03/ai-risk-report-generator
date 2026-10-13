@@ -1,0 +1,139 @@
+{
+  "_about": "GN-11 AC6: a Section 6 rank eval case. Observations are field notes written from the report's own Section 6 comments; `expected` is Marsh's rank per program, with the observations that evidence it (none: the row should be left Not assessed). Scored by eval/score_ranks.py, never by judge_sections.py.",
+  "name": "Mixed-use (6be5), Section 6, part evidence",
+  "source": "Mixed-use report …6be5, Section 6",
+  "exclude_doc_id": "6ac93385b8e4d2df6b506be5",
+  "assessment": {
+    "reference": "EVAL-S6-MIXED",
+    "jurisdiction": "SG",
+    "facility_type": "Mixed-use development",
+    "standards": []
+  },
+  "observations": [
+    {
+      "id": "6be5-1",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "bldgs in good condition. structural inspection every 5 yrs by PE civil, report to BCA"
+    },
+    {
+      "id": "6be5-2",
+      "COPE_dimension": "Occupancy",
+      "severity": "moderate",
+      "location": "Electrical rooms",
+      "note": "planned preventive maint w some predictive. 3rd party LEWs. annual IR thermography LT boards, annual shutdown, PD test + DGA transformers, annual genset load test. no-load test monthly for one bldg, quarterly for another. genset maint programme needs improving"
+    },
+    {
+      "id": "6be5-3",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Plant rooms",
+      "note": "AHUs maintained by in-house contractors per manufacturer recommendation"
+    },
+    {
+      "id": "6be5-4",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Fire command centre",
+      "note": "FP impairment managed via isolation only. no formal impairment programme"
+    },
+    {
+      "id": "6be5-5",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Fire pump room",
+      "note": "service contract for FP equipment. monthly fire pump servicing, quarterly gaseous system, monthly water monitor + IR flame detectors, monthly smoke detector testing (100% annually), monthly fire roller shutter testing"
+    },
+    {
+      "id": "6be5-6",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Level 1 neutralization area",
+      "note": "8 gensets each w 1000L day tank, topped up manually at annual servicing. diesel licensed under SCDF. NaOH and sulphuric acid tanks in separate containment, auto pumped to neutralization tanks"
+    },
+    {
+      "id": "6be5-7",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "housekeeping generally good in most areas"
+    }
+  ],
+  "expected": {
+    "Building Maintenance": {
+      "rank": "Embedded",
+      "evidence": [
+        "6be5-1"
+      ]
+    },
+    "Electrical Maintenance": {
+      "rank": "Formalized",
+      "evidence": [
+        "6be5-2"
+      ]
+    },
+    "Equipment Maintenance": {
+      "rank": "Embedded",
+      "evidence": [
+        "6be5-3"
+      ]
+    },
+    "Fire Protection Impairment Management": {
+      "rank": "Formalized",
+      "evidence": [
+        "6be5-4"
+      ]
+    },
+    "Fire Protection System Maintenance & Testing": {
+      "rank": "Embedded",
+      "evidence": [
+        "6be5-5"
+      ]
+    },
+    "Hazardous Materials Handling": {
+      "rank": "Embedded",
+      "evidence": [
+        "6be5-6"
+      ]
+    },
+    "Housekeeping": {
+      "rank": "Embedded",
+      "evidence": [
+        "6be5-7"
+      ]
+    },
+    "Hot Work Permit System": {
+      "rank": "Formalized",
+      "evidence": []
+    },
+    "Management of Change": {
+      "rank": "Embedded",
+      "evidence": []
+    },
+    "Emergency Response Planning": {
+      "rank": null,
+      "evidence": []
+    },
+    "Self-Inspections": {
+      "rank": "Embedded",
+      "evidence": []
+    },
+    "Smoking Controls": {
+      "rank": "Optimized",
+      "evidence": []
+    },
+    "Contractor Management": {
+      "rank": "Embedded",
+      "evidence": []
+    },
+    "Business Continuity Planning": {
+      "rank": "Embedded",
+      "evidence": []
+    },
+    "Environmental, Social & Governance (ESG)": {
+      "rank": "Optimized",
+      "evidence": []
+    }
+  }
+}
