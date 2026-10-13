@@ -1458,3 +1458,34 @@ Reason: EV-04 asks for cost per report and per engineer, and an engineer's
 cost is that of the assessments they are responsible for.
 
 Stories: EV-04.
+
+## 2026-10-13 — Cost charts use Recharts, coloured by billed vendor
+
+Chose: Recharts (3.10.1, pinned) for the usage screen's vertical stacked bar
+chart, one bar per assessment, engineer or document and one part per billed
+service or feature. Colours are new `--chart-*` tokens: one hue family per
+vendor, a dark and a light step where a vendor bills two services, assigned
+so the services that share a bar on each tab differ in lightness. The set was
+checked with the dataviz palette validator, not by eye. Parts stack in one
+fixed vendor order, so colour and place follow the service, not its cost. The
+chart sorts its bars by cost or by most recent use, shows 15 by default
+(`DEFAULT_BAR_LIMIT`), and lets the reader show more; the table below lists
+every group.
+
+Rejected:
+- A hand-built SVG chart: no dependency and easy to test, but tooltips,
+  axes and keyboard access would be ours to build and keep.
+- visx: less to fight than Recharts on styling, more to assemble.
+- A distinct hue per service: eight unrelated hues read as noise, and the
+  palette ran into the colours that already mean severity and AI.
+- One neutral with a highlight: services could not be compared without
+  hovering.
+- Grouping the smallest bars into "Others": a sort and a "Bars shown" choice
+  keep every bar reachable, and the table never hides one.
+
+Reason: EV-04 asks to compare costs across assessments, engineers and
+documents and to see what each is made of; a stacked bar shows both at once.
+Red, amber, green and violet already mean severity and AI provenance in this
+product, so chart colours must not borrow them.
+
+Stories: EV-04.
