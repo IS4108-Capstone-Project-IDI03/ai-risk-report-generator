@@ -1,89 +1,5 @@
 [
   {
-    "id": "fm-01",
-    "tags": [
-      "single_fact",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "What air pressure and how long do we hold it for the leak test on a new dry system?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.0_Apr_26.pdf",
-          "pages": [
-            155
-          ],
-          "key_phrase": "pneumatic leakage test on all dry-pipe, preaction, refrigerated-area, or vacuum type sprinkler systems at 40 psi (2.8 bar) for a"
-        },
-        "expected": "Pneumatic leakage test at 40 psi (2.8 bar) for a minimum of 24 hours; fix leaks causing more than 1.5 psi (0.1 bar) total loss over the 24 hours."
-      }
-    ]
-  },
-  {
-    "id": "fm-02",
-    "tags": [
-      "single_fact",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "How long do we need to keep our ITM paperwork on file for FM?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            4
-          ],
-          "key_phrase": "Retain ITM documentation for auditing by management and / or authorities having jurisdiction for a minimum of one year"
-        },
-        "expected": "At least one year, so management or the authority having jurisdiction can audit it."
-      }
-    ]
-  },
-  {
-    "id": "fm-03",
-    "tags": [
-      "single_fact",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "How many spare heads should the sprinkler cabinet hold?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.0_Apr_26.pdf",
-          "pages": [
-            56
-          ],
-          "key_phrase": "minimum number of spare sprinklers to maintain on site is based on the largest number of sprinklers required in the"
-        },
-        "expected": "The minimum is based on the largest number of sprinklers in the design area of the system they serve, with a supply for each sprinkler type installed."
-      }
-    ]
-  },
-  {
-    "id": "fm-04",
-    "tags": [
-      "table_number",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "Walk-in freezer sits at -20F and we only have ethylene glycol available. What % mix do we need?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.0_Apr_26.pdf",
-          "pages": [
-            25
-          ],
-          "key_phrase": "Ethylene Glycol 39 0 (-18) 44 -10 (-23) 49 -20 (-29)"
-        },
-        "expected": "49% ethylene glycol by volume in water for a lowest ambient of -20F (-29C), per the non-FM Approved antifreeze table."
-      }
-    ]
-  },
-  {
     "id": "fm-05",
     "tags": [
       "table_number",
@@ -98,51 +14,9 @@
           "pages": [
             7
           ],
-          "key_phrase": "Test a random sample of dry-type sprin-klers (AKA dry pendent) Every 15 years"
+          "key_phrase": "Test a random sample of dry-type sprinklers (AKA dry pendent); Frequency: Every 15 years"
         },
         "expected": "Every 15 years, test a random sample of dry-type (dry pendent) sprinklers."
-      }
-    ]
-  },
-  {
-    "id": "fm-06",
-    "tags": [
-      "conditional",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "New system, static pressure at the riser is 180 psi. What hydro test pressure and duration?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.0_Apr_26.pdf",
-          "pages": [
-            154
-          ],
-          "key_phrase": "to a minimum pressure of 200 psi (13.8 bar), or to 50 psi (3.5 bar) more than any sprinkler system"
-        },
-        "expected": "Static pressure above 150 psi means test at 50 psi above static, so 230 psi, held for 2 hours with no pressure loss (200 psi is the minimum otherwise)."
-      }
-    ]
-  },
-  {
-    "id": "fm-07",
-    "tags": [
-      "conditional",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "3,000 sq ft cold dock, no FM Approved antifreeze on the market for it, but the space never drops below 32F. Can we use plain propylene glycol and what strength?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.0_Apr_26.pdf",
-          "pages": [
-            26
-          ],
-          "key_phrase": "The ambient temperature of the protected area will always be maintained at or above 32°F (0°C). For this condition use"
-        },
-        "expected": "Yes: above 2,000 sq ft a non-FM Approved antifreeze system is acceptable if the area stays at or above 32F, using propylene glycol at 20% to 25% (or glycerin at 30% to 35%)."
       }
     ]
   },
@@ -161,81 +35,9 @@
           "pages": [
             7
           ],
-          "key_phrase": "obstructed if any of the following conditions are present: A. Approximately 1/2 cup (120 ml) or more of debris"
+          "key_phrase": "Approximately 1/2 cup (120 ml) or more of debris is found in a cross main."
         },
         "expected": "If about 1/2 cup (120 ml) or more of debris is in a cross main; debris pieces could plug a sprinkler orifice; flow from a branch line is obstructed; or videoscope or ultrasonic analysis shows obstruction."
-      }
-    ]
-  },
-  {
-    "id": "fm-09",
-    "tags": [
-      "multi_passage",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "We run an antifreeze loop in the cold store. What has to be on the placard, and how often is the solution checked?",
-        "expect": "answer",
-        "gold": [
-          {
-            "document": "FM_2.0_Apr_26.pdf",
-            "pages": [
-              26
-            ],
-            "key_phrase": "Install a placard on the antifreeze solution sprinkler system that lists the type, percent concentration, and volume of antifreeze solution"
-          },
-          {
-            "document": "FM_2.81_Apr_26.pdf",
-            "pages": [
-              8
-            ],
-            "key_phrase": "Test the antifreeze solution prior to the cold weather season"
-          }
-        ],
-        "expected": "The placard lists the antifreeze type, percent concentration, volume required and the lowest ambient temperature designed for (2-0). The solution is tested annually, before the cold season, by specific gravity (2-81)."
-      }
-    ]
-  },
-  {
-    "id": "fm-10",
-    "tags": [
-      "negation",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "Which system types can skip the inspector's test connection?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.0_Apr_26.pdf",
-          "pages": [
-            28
-          ],
-          "key_phrase": "installation of an inspector’s test connection is not required for an antifreeze solution or deluge sprinkler system"
-        },
-        "expected": "Antifreeze solution systems and deluge systems do not need an inspector's test connection."
-      }
-    ]
-  },
-  {
-    "id": "fm-11",
-    "tags": [
-      "false_premise",
-      "fm"
-    ],
-    "turns": [
-      {
-        "user": "Our valve chains use combination padlocks so nobody needs a key. That meets FM, right?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            5
-          ],
-          "key_phrase": "capable of withstanding breakage except by heavy-duty bolt cutters or similar hand tools. Do not use combination locks."
-        },
-        "expected": "No. FM says not to use combination locks; each control valve should have its own sturdy key-operated lock and chain, with keys limited to ITM staff and local management."
       }
     ]
   },
@@ -338,7 +140,7 @@
           "pages": [
             181
           ],
-          "key_phrase": "Extra hazard 0, 50, or 0, 190, 500 1900 90 or 120"
+          "key_phrase": "Total Combined Inside and Outside Hose: 500; Total Combined Inside and Outside Hose: 1900; Duration (minutes): 90 or 120"
         },
         "expected": "Inside hose 0, 50 or 100 gpm; total combined inside and outside hose 500 gpm (1900 L/min); water supply duration 90 or 120 minutes."
       }
@@ -359,7 +161,7 @@
           "pages": [
             180
           ],
-          "key_phrase": "0.3/2500 or 0.28/3000* (12.2/230 or 11.4/280) 0.4/2500 or 0.38/3000*"
+          "key_phrase": "Hazard: Extra Group 2; Density/Area [gpm/ft²/ft² (mm/min/m²)]: 0.4/2500 or 0.38/3000*"
         },
         "expected": "Extra Hazard Group 2: 0.4 gpm/ft2 over 2500 ft2, or 0.38 gpm/ft2 over 3000 ft2 where the unsprinklered combustible concealed space rule applies (Table 19.2.3.1.1)."
       }
@@ -380,7 +182,7 @@
           "pages": [
             85
           ],
-          "key_phrase": "Noncombustible unobstructed Pipe schedule 200 18 15 4.6"
+          "key_phrase": "Construction Type: Noncombustible unobstructed; System Type: Pipe schedule; Maximum Protection Area: 200; Maximum Protection Area: 18; Maximum Spacing: 15; Maximum Spacing: 4.6"
         },
         "expected": "Maximum protection area 200 ft2 (18 m2) per sprinkler with maximum spacing 15 ft (4.6 m)."
       }
@@ -401,7 +203,7 @@
           "pages": [
             180
           ],
-          "key_phrase": "Ordinary 20 1.4 850-1500 3200-5700 60 or 90 hazard"
+          "key_phrase": "Occupancy Classification: Ordinary hazard; Minimum Residual Pressure Required: 20; Minimum Residual Pressure Required: 1.4; Acceptable Flow at Base of Riser (Including Hose Stream Allowance): 850–1500"
         },
         "expected": "Minimum residual pressure 20 psi (1.4 bar) with an acceptable flow at the base of the riser, including hose stream, of 850-1500 gpm (3200-5700 L/min) for 60 or 90 minutes (Table 19.2.2.1)."
       }
@@ -443,7 +245,7 @@
           "pages": [
             181
           ],
-          "key_phrase": "the minimum area of sprinkler operation for that portion of the building shall be 3000 ft2"
+          "key_phrase": "the minimum area of sprinkler operation for that portion of the building shall be 3000 ft² (280 m2)."
         },
         "expected": "Yes. With unsprinklered combustible concealed spaces (unless 19.2.3.1.5.2 is met), the minimum area of sprinkler operation for that part of the building is 3000 ft2 (280 m2), applied to the system portions adjacent to the concealed space."
       }
@@ -493,7 +295,7 @@
             "pages": [
               85
             ],
-            "key_phrase": "Noncombustible unobstructed Hydraulically calculated 225 20 15 4.6"
+            "key_phrase": "Construction Type: Noncombustible unobstructed; System Type: Hydraulically calculated; Maximum Protection Area: 225; Maximum Protection Area: 20; Maximum Spacing: 15; Maximum Spacing: 4.6"
           }
         ],
         "expected": "Yes. ESFR sprinklers designed to the Chapter 23/24 criteria may protect light hazard, and their area limit may follow the light hazard table, giving up to 225 ft2 (20 m2) per head for a hydraulically calculated noncombustible unobstructed ceiling."
@@ -532,68 +334,6 @@
     ]
   },
   {
-    "id": "nfpa-13",
-    "tags": [
-      "comparison",
-      "nfpa",
-      "NFPA 13 2019 vs 2022"
-    ],
-    "turns": [
-      {
-        "user": "What temperature rating do ESFR heads have to be in the 2019 edition of NFPA 13, and how does the 2022 edition differ?",
-        "expect": "answer",
-        "gold": [
-          {
-            "document": "NFPA_13_2019.pdf",
-            "pages": [
-              115
-            ],
-            "key_phrase": "Sprinkler temperature ratings for ESFR sprinklers shall be ordinary unless 9.4.2 requires intermediate- or high-temperature ratings"
-          },
-          {
-            "document": "NFPA 13-2022.pdf",
-            "pages": [
-              126
-            ],
-            "key_phrase": "for ESFR sprinklers shall be ordinary or intermediate unless 9.4.2 requires intermediate-temperature ratings"
-          }
-        ],
-        "expected": "2019: ordinary unless 9.4.2 requires intermediate or high. 2022: ordinary or intermediate is allowed by default, and 9.4.2 can still require intermediate; the high-temperature option is no longer mentioned there."
-      }
-    ]
-  },
-  {
-    "id": "nfpa-14",
-    "tags": [
-      "comparison",
-      "nfpa",
-      "NFPA 13 vs FM 2-0"
-    ],
-    "turns": [
-      {
-        "user": "Hydro test on new sprinkler pipework: what pressure and hold time does NFPA 13 want compared with FM 2-0?",
-        "expect": "answer",
-        "gold": [
-          {
-            "document": "NFPA 13-2022.pdf",
-            "pages": [
-              392
-            ],
-            "key_phrase": "hydrostatically tested at 200 psi (14 bar) and shall maintain that pressure without loss for 2 hours"
-          },
-          {
-            "document": "FM_2.0_Apr_26.pdf",
-            "pages": [
-              154
-            ],
-            "key_phrase": "minimum pressure of 200 psi (13.8 bar), or to 50 psi (3.5 bar) more than any sprinkler system static pressure"
-          }
-        ],
-        "expected": "Both: 200 psi for 2 hours without loss. Where pressure is above 150 psi, NFPA 13 adds 50 psi to system working pressure, FM 2-0 adds 50 psi to the system static pressure."
-      }
-    ]
-  },
-  {
     "id": "nfpa-15",
     "tags": [
       "comparison",
@@ -611,16 +351,25 @@
               74
             ],
             "key_phrase": "waterflow alarm devices shall be tested semiannually"
-          },
+          }
+        ],
+        "expected": "NFPA 25: vane-type, paddle-type and pressure-switch-type waterflow devices are tested semiannually (mechanical water motor gongs quarterly). FM 2-81: waterflow alarms including flow switches quarterly (annually for antifreeze systems), so FM is more frequent.",
+        "gold_any": [
           {
             "document": "FM_2.81_Apr_26.pdf",
             "pages": [
               6
             ],
-            "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection. Quarterly (Annually for antifreeze"
+            "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection.; Frequency: Quarterly (Annually for antifreeze systems)"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              51
+            ],
+            "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection.; FMDS 2-81 - 2026 Frequency: Quarterly"
           }
-        ],
-        "expected": "NFPA 25: vane-type, paddle-type and pressure-switch-type waterflow devices are tested semiannually (mechanical water motor gongs quarterly). FM 2-81: waterflow alarms including flow switches quarterly (annually for antifreeze systems), so FM is more frequent."
+        ]
       }
     ]
   },
@@ -838,13 +587,6 @@
         "gold_any": [
           {
             "document": "Office Sample 0 - PRE 2026 - REDACTED.pdf",
-            "pages": [
-              11
-            ],
-            "key_phrase": "no-load test is recommended to be conducted monthly"
-          },
-          {
-            "document": "Office Sample 3 - PRE 2026 - REDACTED.pdf",
             "pages": [
               11
             ],
@@ -1130,7 +872,7 @@
           "pages": [
             13
           ],
-          "key_phrase": "Disassemble and inspect supply strainers. Annually Inspect in-line supply strainers for holes"
+          "key_phrase": "Disassemble and inspect supply strainers.; Frequency: Annually; Details: Inspect in-line supply strainers for holes, and corrosion or mechanical damage."
         },
         "topic": "FM ITM of fire service mains: supply strainers",
         "expected": "Annually: disassemble and inspect in-line supply strainers for holes, corrosion or mechanical damage."
@@ -1138,15 +880,24 @@
       {
         "user": "And if we find debris in it?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            13
-          ],
-          "key_phrase": "Conduct a complete system flushing. When obstructions (debris) discovered Flush mains and lead-in connections to system risers through hydrants"
-        },
         "topic": "fire service mains: debris found",
-        "expected": "Conduct a complete system flushing when obstructions (debris) are discovered: flush mains and lead-in connections to system risers through hydrants at dead ends or flushing outlets."
+        "expected": "Conduct a complete system flushing when obstructions (debris) are discovered: flush mains and lead-in connections to system risers through hydrants at dead ends or flushing outlets.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              13
+            ],
+            "key_phrase": "Conduct a complete system flushing.; Frequency: When obstructions (debris) discovered; Details: Flush mains and lead-in connections to system risers through hydrants"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              51
+            ],
+            "key_phrase": "Conduct a complete system flushing."
+          }
+        ]
       },
       {
         "user": "What about after we flow test a hydrant?",
@@ -1156,7 +907,7 @@
           "pages": [
             13
           ],
-          "key_phrase": "Flush in-line supply strainers until clear. After every significant flow When a flow in excess of a main-drain test"
+          "key_phrase": "Flush in-line supply strainers until clear.; Frequency: After every significant flow; Details: When a flow in excess of a main-drain test occurs"
         },
         "topic": "fire service mains: strainers after hydrant flow test",
         "expected": "Flush the in-line supply strainers until clear after any significant flow (flow above a main-drain test, e.g. hydrant flow testing, dry/preaction/deluge valve trip or flushing)."
@@ -1173,15 +924,31 @@
       {
         "user": "What should we be checking every week on a dry pipe valve?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            9
-          ],
-          "key_phrase": "Check system valve air and water pressures (including for pilot lines). Weekly 2 Verify the quick-opening device for in-service conditions"
-        },
         "topic": "FM ITM weekly checks for dry system valve",
-        "expected": "Weekly: system valve air and water pressures, and the quick-opening device in-service condition (plus valve enclosure above 40F/4C)."
+        "expected": "Weekly: system valve air and water pressures, and the quick-opening device in-service condition (plus valve enclosure above 40F/4C).",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              9
+            ],
+            "key_phrase": "Check system valve air and water pressures (including for pilot lines).; Frequency: Weekly ID: 2; Recommendation: Verify the quick-opening device for in-service conditions"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              41
+            ],
+            "key_phrase": "System pressure. Check and record dry-pipe system air and water pressure."
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              52
+            ],
+            "key_phrase": "Check system valve air and water pressures (including for pilot lines).; FMDS 2-81 - 2026 Frequency: Weekly"
+          }
+        ]
       },
       {
         "user": "And the monthly ones?",
@@ -1191,7 +958,7 @@
           "pages": [
             9
           ],
-          "key_phrase": "Verify the automatic drain valve is open and free to move. Monthly 5 Check priming-water level within the system valve."
+          "key_phrase": "Verify the automatic drain valve is open and free to move.; Frequency: Monthly ID: 5; Recommendation: Check priming-water level within the system valve."
         },
         "topic": "FM ITM monthly checks for dry system valve",
         "expected": "Monthly: automatic drain valve open and free to move; priming-water level in the system valve; condition of the compressed air supply; indicating desiccant in air dryers."
@@ -1199,15 +966,24 @@
       {
         "user": "What's the lowest temperature we can let the valve room get to?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            9
-          ],
-          "key_phrase": "Confirm system valve enclosures are maintained above 40°F (4°C). Weekly"
-        },
         "topic": "dry system valve enclosure minimum temperature",
-        "expected": "Keep the system valve enclosure above 40F (4C); checked weekly."
+        "expected": "Keep the system valve enclosure above 40F (4C); checked weekly.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              9
+            ],
+            "key_phrase": "Confirm system valve enclosures are maintained above 40°F (4°C).; Frequency: Weekly"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              52
+            ],
+            "key_phrase": "Confirm system valve enclosures are maintained above 40°F (4°C).; FMDS 2-81 - 2026 Frequency: Weekly"
+          }
+        ]
       }
     ]
   },
@@ -1239,7 +1015,7 @@
           "pages": [
             22
           ],
-          "key_phrase": "Formalized Hot work permit system is available with relevant documents such as risk assessment and method of statement to be submitted to obtain approval."
+          "key_phrase": "Hot work permit system is available with relevant documents such as risk assessment and method of statement to be submitted to obtain approval."
         },
         "topic": "hot work permit systems in mall past reports",
         "expected": "Mall Sample 2: formalized system with risk assessment and method statement submitted for approval; checklist requires combustibles cleared within 4 m (NFPA suggests 11 m); an OFI adds a fire watch after hot work."
@@ -1269,28 +1045,46 @@
       {
         "user": "How often do we test the low air pressure supervisory alarms on a dry system?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            10
-          ],
-          "key_phrase": "Test supervisory alarms for low air pressure (including for pilot lines) and low temperature in system valve enclosures. Annually"
-        },
         "topic": "FM ITM supervisory alarms dry system",
-        "expected": "Annually (quarterly for systems protecting areas constantly kept below freezing)."
+        "expected": "Annually (quarterly for systems protecting areas constantly kept below freezing).",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              10
+            ],
+            "key_phrase": "low air pressure (including for pilot lines) and low temperature in system valve enclosures.; Frequency: Annually (Quarterly for systems protecting areas constantly maintained below freezing)"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              52
+            ],
+            "key_phrase": "low air pressure (including for pilot lines) and low temperature in system valve enclosures.; FMDS 2-81 - 2026 Frequency: Annually"
+          }
+        ]
       },
       {
         "user": "And the waterflow alarms?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            6
-          ],
-          "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection. Quarterly"
-        },
         "topic": "FM ITM waterflow alarm test frequency",
-        "expected": "Quarterly (annually for antifreeze systems), by flowing water through a system test connection."
+        "expected": "Quarterly (annually for antifreeze systems), by flowing water through a system test connection.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              6
+            ],
+            "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection.; Frequency: Quarterly (Annually for antifreeze systems)"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              51
+            ],
+            "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection.; FMDS 2-81 - 2026 Frequency: Quarterly / Annually: for antifreeze systems."
+          }
+        ]
       },
       {
         "user": "Does that change for freezers or antifreeze systems?",
@@ -1302,15 +1096,24 @@
       {
         "user": "The waterflow alarms.",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            6
-          ],
-          "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection. Quarterly (Annually for antifreeze"
-        },
         "topic": "waterflow alarm frequency for antifreeze systems",
-        "expected": "Annually instead of quarterly for antifreeze systems; no separate freezer-room interval is given for waterflow alarms."
+        "expected": "Annually instead of quarterly for antifreeze systems; no separate freezer-room interval is given for waterflow alarms.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              6
+            ],
+            "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection.; Frequency: Quarterly (Annually for antifreeze systems)"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              51
+            ],
+            "key_phrase": "Test waterflow alarms (including flow switches) by flowing water through a system test connection.; FMDS 2-81 - 2026 Frequency: Quarterly / Annually: for antifreeze systems."
+          }
+        ]
       }
     ]
   },
@@ -1342,7 +1145,7 @@
           "pages": [
             15
           ],
-          "key_phrase": "Test the pump in automatic mode via pressure drop or waterflow alarm, and allow the pump to churn for a minimum of 30 minutes"
+          "key_phrase": "minimum of 30 minutes. Do not isolate the pump during churn testing. B. At start and throughout the test:"
         },
         "topic": "FM diesel fire pump churn test duration",
         "expected": "A minimum of 30 minutes in automatic mode."
@@ -1362,7 +1165,7 @@
           "pages": [
             13
           ],
-          "key_phrase": "Weekly for diesel pumps See 2.9.3. Do not isolate pump during churn testing."
+          "key_phrase": "Frequency: Weekly for diesel pumps; Details: See 2.9.3. Do not isolate pump during churn testing."
         },
         "topic": "diesel fire pump churn test frequency",
         "expected": "Weekly for diesel pumps (monthly for electric); do not isolate the pump during churn testing."
@@ -1379,15 +1182,31 @@
       {
         "user": "How often should someone walk round and check the control valves are open and locked?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            5
-          ],
-          "key_phrase": "Visually inspect control valves for full-open, secured, and accessible conditions. Weekly Record visual inspection results on a form"
-        },
         "topic": "FM ITM control valve visual inspection",
-        "expected": "Weekly visual inspection for full-open, secured and accessible, recorded on a form."
+        "expected": "Weekly visual inspection for full-open, secured and accessible, recorded on a form.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              5
+            ],
+            "key_phrase": "Visually inspect control valves for full-open, secured, and accessible conditions.; Frequency: Weekly; Details: Record visual inspection results on a form listing all control valves"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              50
+            ],
+            "key_phrase": "Visually inspect indicating control valves for full-open, secured, and accessible conditions.; FMDS 2-81 - 2026 Frequency: Weekly"
+          },
+          {
+            "document": "NFPA_25_2026.pdf",
+            "pages": [
+              77
+            ],
+            "key_phrase": "13.3.2.1 All valves shall be inspected weekly."
+          }
+        ]
       },
       {
         "user": "And the proper full exercise?",
@@ -1397,7 +1216,7 @@
           "pages": [
             5
           ],
-          "key_phrase": "Full-travel exercise all control valves recording number of turns-to-close and turns-to-reopen. Annually"
+          "key_phrase": "Full-travel exercise all control valves recording number of turns-to-close and turns-to-reopen.; Frequency: Annually"
         },
         "topic": "FM ITM control valve full-travel exercise",
         "expected": "Annually: full-travel exercise of all control valves, recording turns-to-close and turns-to-reopen."
@@ -1431,67 +1250,6 @@
     ]
   },
   {
-    "id": "conv-07",
-    "tags": [
-      "topic_switch",
-      "conversation"
-    ],
-    "turns": [
-      {
-        "user": "In the Mall 1 report, how big is the site technician team?",
-        "expect": "answer",
-        "gold": {
-          "document": "Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf",
-          "pages": [
-            26
-          ],
-          "key_phrase": "The property management team comprises of 2 managers, 3 property executives, 2 admin and 13 site technicians."
-        },
-        "topic": "Mall Sample 1 staffing",
-        "expected": "Property management team: 2 managers, 3 property executives, 2 admin and 13 site technicians."
-      },
-      {
-        "user": "What shifts do they work?",
-        "expect": "answer",
-        "gold": {
-          "document": "Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf",
-          "pages": [
-            26
-          ],
-          "key_phrase": "the site technician operates 2 shifts from 8:30am to 4:30pm and 2:30pm to 10:30pm daily"
-        },
-        "topic": "Mall Sample 1 technician shifts",
-        "expected": "Technicians work 2 shifts daily: 8:30am-4:30pm and 2:30pm-10:30pm."
-      },
-      {
-        "user": "Switching topic: what does FM want us to do with sealed concealed sprinklers?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            7
-          ],
-          "key_phrase": "Conduct a physical and visual inspection of sealed concealed sprinklers."
-        },
-        "topic": "FM ITM sealed concealed sprinklers",
-        "expected": "Annually do a physical and visual inspection: physically inspect at least 10% per room, visually inspect the rest; rotate the sample each year."
-      },
-      {
-        "user": "And if one of them is faulty?",
-        "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            7
-          ],
-          "key_phrase": "If deficiencies are noted in one sprinkler, perform physical inspections of all sprinklers in the room."
-        },
-        "topic": "FM concealed sprinkler deficiency follow-up",
-        "expected": "If a deficiency is noted in one sprinkler, physically inspect all sprinklers in that room."
-      }
-    ]
-  },
-  {
     "id": "conv-08",
     "tags": [
       "followup_unanswerable",
@@ -1501,28 +1259,46 @@
       {
         "user": "How often do we partial-flow trip test the dry pipe valve?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            10
-          ],
-          "key_phrase": "Partial-flow trip test system valves. Annually Verify the system valve trip point (and trip time when possible) are in agreement"
-        },
         "topic": "FM dry valve partial-flow trip test",
-        "expected": "Annually; check the trip point (and trip time) agrees with the last full-flow trip test."
+        "expected": "Annually; check the trip point (and trip time) agrees with the last full-flow trip test.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              10
+            ],
+            "key_phrase": "Partial-flow trip test system valves.; Frequency: Annually; Details: Verify the system valve trip point (and trip time when possible) are in agreement"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              52
+            ],
+            "key_phrase": "Partial-flow trip test system valves.; FMDS 2-81 - 2026 Frequency: Annually"
+          }
+        ]
       },
       {
         "user": "And the full-flow one?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            10
-          ],
-          "key_phrase": "Full-flow trip test, videoscope or ultrasonic localized guided wave evaluation of systems. Every 3 years, or every 10 years for systems with nitrogen"
-        },
         "topic": "FM dry system full-flow trip test",
-        "expected": "Every 3 years, or every 10 years for systems with nitrogen; videoscope or ultrasonic evaluation can be used instead."
+        "expected": "Every 3 years, or every 10 years for systems with nitrogen; videoscope or ultrasonic evaluation can be used instead.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              10
+            ],
+            "key_phrase": "Full-flow trip test, videoscope or ultrasonic localized guided wave evaluation of systems.; Frequency: Every 3 years, or every 10 years for systems with nitrogen"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              52
+            ],
+            "key_phrase": "Full-flow trip test, videoscope or ultrasonic localized guided wave evaluation of systems.; FMDS 2-81 - 2026 Frequency: Every 3 Yrs. Or Every 10 years for systems with Nitrogen"
+          }
+        ]
       },
       {
         "user": "How much does a full-flow trip test usually cost in Singapore?",
@@ -1547,67 +1323,6 @@
     ]
   },
   {
-    "id": "conv-09",
-    "tags": [
-      "edition_switch",
-      "conversation"
-    ],
-    "turns": [
-      {
-        "user": "What's the biggest area one standard pendent sprinkler can cover under NFPA 13?",
-        "expect": "answer",
-        "gold": {
-          "document": "NFPA 13-2022.pdf",
-          "pages": [
-            85
-          ],
-          "key_phrase": "10.2.4.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 225"
-        },
-        "topic": "NFPA 13 max coverage area standard pendent sprinkler",
-        "expected": "225 ft2 (20 m2) maximum (NFPA 13-2022, 10.2.4.2.2)."
-      },
-      {
-        "user": "And in the 2019 edition?",
-        "expect": "answer",
-        "gold": {
-          "document": "NFPA_13_2019.pdf",
-          "pages": [
-            81
-          ],
-          "key_phrase": "10.2.4.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 225"
-        },
-        "topic": "NFPA 13-2019 max coverage area standard pendent sprinkler",
-        "expected": "Same in the 2019 edition: 225 ft2 (20 m2), 10.2.4.2.2."
-      },
-      {
-        "user": "What about standard sidewalls in that one?",
-        "expect": "answer",
-        "gold": {
-          "document": "NFPA_13_2019.pdf",
-          "pages": [
-            88
-          ],
-          "key_phrase": "10.3.3.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 196"
-        },
-        "topic": "NFPA 13-2019 max coverage area standard sidewall sprinkler",
-        "expected": "196 ft2 (18 m2) in NFPA 13-2019, 10.3.3.2.2."
-      },
-      {
-        "user": "Is that the same in the current edition?",
-        "expect": "answer",
-        "gold": {
-          "document": "NFPA 13-2022.pdf",
-          "pages": [
-            94
-          ],
-          "key_phrase": "10.3.3.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 196"
-        },
-        "topic": "NFPA 13-2022 max coverage area standard sidewall sprinkler",
-        "expected": "Yes, NFPA 13-2022 10.3.3.2.2 also gives 196 ft2 (18 m2)."
-      }
-    ]
-  },
-  {
     "id": "conv-10",
     "tags": [
       "small_talk",
@@ -1617,15 +1332,24 @@
       {
         "user": "How often should we look over the outside of our water tanks?",
         "expect": "answer",
-        "gold": {
-          "document": "FM_2.81_Apr_26.pdf",
-          "pages": [
-            19
-          ],
-          "key_phrase": "Monthly Identify obvious leaks, damage, erosion, obstruc- tions, and exposures. Repair any leaks and damage of foundations"
-        },
         "topic": "FM ITM water tank exterior inspection",
-        "expected": "Monthly: check for obvious leaks, damage, erosion, obstructions and exposures; repair leaks and damage."
+        "expected": "Monthly: check for obvious leaks, damage, erosion, obstructions and exposures; repair leaks and damage.",
+        "gold_any": [
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              19
+            ],
+            "key_phrase": "Visually check, inspect, and / or repair tank exteriors.; Frequency: Monthly; Details: Identify obvious leaks, damage, erosion, obstructions, and exposures."
+          },
+          {
+            "document": "NFPA_25_2026.pdf",
+            "pages": [
+              47
+            ],
+            "key_phrase": "The exterior of the tank, supporting structure, vents, foundation, and catwalks or ladders, where provided, shall be inspected quarterly"
+          }
+        ]
       },
       {
         "user": "Any rule about what can be stored or growing near them?",

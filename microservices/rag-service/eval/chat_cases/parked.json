@@ -1,0 +1,384 @@
+[
+  {
+    "id": "fm-01",
+    "tags": [
+      "single_fact",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "What air pressure and how long do we hold it for the leak test on a new dry system?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.0_Apr_26.pdf",
+          "pages": [
+            155
+          ],
+          "key_phrase": "pneumatic leakage test on all dry-pipe, preaction, refrigerated-area, or vacuum type sprinkler systems at 40 psi (2.8 bar) for a"
+        },
+        "expected": "Pneumatic leakage test at 40 psi (2.8 bar) for a minimum of 24 hours; fix leaks causing more than 1.5 psi (0.1 bar) total loss over the 24 hours."
+      }
+    ]
+  },
+  {
+    "id": "fm-03",
+    "tags": [
+      "single_fact",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "How many spare heads should the sprinkler cabinet hold?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.0_Apr_26.pdf",
+          "pages": [
+            56
+          ],
+          "key_phrase": "minimum number of spare sprinklers to maintain on site is based on the largest number of sprinklers required in the"
+        },
+        "expected": "The minimum is based on the largest number of sprinklers in the design area of the system they serve, with a supply for each sprinkler type installed."
+      }
+    ]
+  },
+  {
+    "id": "fm-04",
+    "tags": [
+      "table_number",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "Walk-in freezer sits at -20F and we only have ethylene glycol available. What % mix do we need?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.0_Apr_26.pdf",
+          "pages": [
+            25
+          ],
+          "key_phrase": "Ethylene Glycol 39 0 (-18) 44 -10 (-23) 49 -20 (-29)"
+        },
+        "expected": "49% ethylene glycol by volume in water for a lowest ambient of -20F (-29C), per the non-FM Approved antifreeze table."
+      }
+    ]
+  },
+  {
+    "id": "fm-06",
+    "tags": [
+      "conditional",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "New system, static pressure at the riser is 180 psi. What hydro test pressure and duration?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.0_Apr_26.pdf",
+          "pages": [
+            154
+          ],
+          "key_phrase": "to a minimum pressure of 200 psi (13.8 bar), or to 50 psi (3.5 bar) more than any sprinkler system"
+        },
+        "expected": "Static pressure above 150 psi means test at 50 psi above static, so 230 psi, held for 2 hours with no pressure loss (200 psi is the minimum otherwise)."
+      }
+    ]
+  },
+  {
+    "id": "fm-07",
+    "tags": [
+      "conditional",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "3,000 sq ft cold dock, no FM Approved antifreeze on the market for it, but the space never drops below 32F. Can we use plain propylene glycol and what strength?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.0_Apr_26.pdf",
+          "pages": [
+            26
+          ],
+          "key_phrase": "The ambient temperature of the protected area will always be maintained at or above 32°F (0°C). For this condition use"
+        },
+        "expected": "Yes: above 2,000 sq ft a non-FM Approved antifreeze system is acceptable if the area stays at or above 32F, using propylene glycol at 20% to 25% (or glycerin at 30% to 35%)."
+      }
+    ]
+  },
+  {
+    "id": "fm-09",
+    "tags": [
+      "multi_passage",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "We run an antifreeze loop in the cold store. What has to be on the placard, and how often is the solution checked?",
+        "expect": "answer",
+        "gold": [
+          {
+            "document": "FM_2.0_Apr_26.pdf",
+            "pages": [
+              26
+            ],
+            "key_phrase": "Install a placard on the antifreeze solution sprinkler system that lists the type, percent concentration, and volume of antifreeze solution"
+          },
+          {
+            "document": "FM_2.81_Apr_26.pdf",
+            "pages": [
+              8
+            ],
+            "key_phrase": "Test the antifreeze solution prior to the cold weather season"
+          }
+        ],
+        "expected": "The placard lists the antifreeze type, percent concentration, volume required and the lowest ambient temperature designed for (2-0). The solution is tested annually, before the cold season, by specific gravity (2-81)."
+      }
+    ]
+  },
+  {
+    "id": "fm-10",
+    "tags": [
+      "negation",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "Which system types can skip the inspector's test connection?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.0_Apr_26.pdf",
+          "pages": [
+            28
+          ],
+          "key_phrase": "installation of an inspector’s test connection is not required for an antifreeze solution or deluge sprinkler system"
+        },
+        "expected": "Antifreeze solution systems and deluge systems do not need an inspector's test connection."
+      }
+    ]
+  },
+  {
+    "id": "nfpa-14",
+    "tags": [
+      "comparison",
+      "nfpa",
+      "NFPA 13 vs FM 2-0"
+    ],
+    "turns": [
+      {
+        "user": "Hydro test on new sprinkler pipework: what pressure and hold time does NFPA 13 want compared with FM 2-0?",
+        "expect": "answer",
+        "gold": [
+          {
+            "document": "NFPA 13-2022.pdf",
+            "pages": [
+              392
+            ],
+            "key_phrase": "hydrostatically tested at 200 psi (14 bar) and shall maintain that pressure without loss for 2 hours"
+          },
+          {
+            "document": "FM_2.0_Apr_26.pdf",
+            "pages": [
+              154
+            ],
+            "key_phrase": "minimum pressure of 200 psi (13.8 bar), or to 50 psi (3.5 bar) more than any sprinkler system static pressure"
+          }
+        ],
+        "expected": "Both: 200 psi for 2 hours without loss. Where pressure is above 150 psi, NFPA 13 adds 50 psi to system working pressure, FM 2-0 adds 50 psi to the system static pressure."
+      }
+    ]
+  },
+  {
+    "id": "fm-02",
+    "tags": [
+      "single_fact",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "How long do we need to keep our ITM paperwork on file for FM?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.81_Apr_26.pdf",
+          "pages": [
+            4
+          ],
+          "key_phrase": "Retain ITM documentation for auditing by management and / or authorities having jurisdiction for a minimum of one year"
+        },
+        "expected": "At least one year, so management or the authority having jurisdiction can audit it."
+      }
+    ]
+  },
+  {
+    "id": "fm-11",
+    "tags": [
+      "false_premise",
+      "fm"
+    ],
+    "turns": [
+      {
+        "user": "Our valve chains use combination padlocks so nobody needs a key. That meets FM, right?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.81_Apr_26.pdf",
+          "pages": [
+            5
+          ],
+          "key_phrase": "capable of withstanding breakage except by heavy-duty bolt cutters or similar hand tools. Do not use combination locks."
+        },
+        "expected": "No. FM says not to use combination locks; each control valve should have its own sturdy key-operated lock and chain, with keys limited to ITM staff and local management."
+      }
+    ]
+  },
+  {
+    "id": "nfpa-13",
+    "tags": [
+      "comparison",
+      "nfpa",
+      "NFPA 13 2019 vs 2022"
+    ],
+    "turns": [
+      {
+        "user": "What temperature rating do ESFR heads have to be in the 2019 edition of NFPA 13, and how does the 2022 edition differ?",
+        "expect": "answer",
+        "gold": [
+          {
+            "document": "NFPA_13_2019.pdf",
+            "pages": [
+              115
+            ],
+            "key_phrase": "Sprinkler temperature ratings for ESFR sprinklers shall be ordinary unless 9.4.2 requires intermediate- or high-temperature ratings"
+          },
+          {
+            "document": "NFPA 13-2022.pdf",
+            "pages": [
+              126
+            ],
+            "key_phrase": "for ESFR sprinklers shall be ordinary or intermediate unless 9.4.2 requires intermediate-temperature ratings"
+          }
+        ],
+        "expected": "2019: ordinary unless 9.4.2 requires intermediate or high. 2022: ordinary or intermediate is allowed by default, and 9.4.2 can still require intermediate; the high-temperature option is no longer mentioned there."
+      }
+    ]
+  },
+  {
+    "id": "conv-09",
+    "tags": [
+      "edition_switch",
+      "conversation"
+    ],
+    "turns": [
+      {
+        "user": "What's the biggest area one standard pendent sprinkler can cover under NFPA 13?",
+        "expect": "answer",
+        "gold": {
+          "document": "NFPA 13-2022.pdf",
+          "pages": [
+            85
+          ],
+          "key_phrase": "10.2.4.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 225"
+        },
+        "topic": "NFPA 13 max coverage area standard pendent sprinkler",
+        "expected": "225 ft2 (20 m2) maximum (NFPA 13-2022, 10.2.4.2.2)."
+      },
+      {
+        "user": "And in the 2019 edition?",
+        "expect": "answer",
+        "gold": {
+          "document": "NFPA_13_2019.pdf",
+          "pages": [
+            81
+          ],
+          "key_phrase": "10.2.4.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 225"
+        },
+        "topic": "NFPA 13-2019 max coverage area standard pendent sprinkler",
+        "expected": "Same in the 2019 edition: 225 ft2 (20 m2), 10.2.4.2.2."
+      },
+      {
+        "user": "What about standard sidewalls in that one?",
+        "expect": "answer",
+        "gold": {
+          "document": "NFPA_13_2019.pdf",
+          "pages": [
+            88
+          ],
+          "key_phrase": "10.3.3.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 196"
+        },
+        "topic": "NFPA 13-2019 max coverage area standard sidewall sprinkler",
+        "expected": "196 ft2 (18 m2) in NFPA 13-2019, 10.3.3.2.2."
+      },
+      {
+        "user": "Is that the same in the current edition?",
+        "expect": "answer",
+        "gold": {
+          "document": "NFPA 13-2022.pdf",
+          "pages": [
+            94
+          ],
+          "key_phrase": "10.3.3.2.2 In any case, the maximum area of coverage of a sprinkler shall not exceed 196"
+        },
+        "topic": "NFPA 13-2022 max coverage area standard sidewall sprinkler",
+        "expected": "Yes, NFPA 13-2022 10.3.3.2.2 also gives 196 ft2 (18 m2)."
+      }
+    ]
+  },
+  {
+    "id": "conv-07",
+    "tags": [
+      "topic_switch",
+      "conversation"
+    ],
+    "turns": [
+      {
+        "user": "In the Mall 1 report, how big is the site technician team?",
+        "expect": "answer",
+        "gold": {
+          "document": "Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf",
+          "pages": [
+            26
+          ],
+          "key_phrase": "The property management team comprises of 2 managers, 3 property executives, 2 admin and 13 site technicians."
+        },
+        "topic": "Mall Sample 1 staffing",
+        "expected": "Property management team: 2 managers, 3 property executives, 2 admin and 13 site technicians."
+      },
+      {
+        "user": "What shifts do they work?",
+        "expect": "answer",
+        "gold": {
+          "document": "Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf",
+          "pages": [
+            26
+          ],
+          "key_phrase": "the site technician operates 2 shifts from 8:30am to 4:30pm and 2:30pm to 10:30pm daily"
+        },
+        "topic": "Mall Sample 1 technician shifts",
+        "expected": "Technicians work 2 shifts daily: 8:30am-4:30pm and 2:30pm-10:30pm."
+      },
+      {
+        "user": "Switching topic: what does FM want us to do with sealed concealed sprinklers?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.81_Apr_26.pdf",
+          "pages": [
+            7
+          ],
+          "key_phrase": "Conduct a physical and visual inspection of sealed concealed sprinklers."
+        },
+        "topic": "FM ITM sealed concealed sprinklers",
+        "expected": "Annually do a physical and visual inspection: physically inspect at least 10% per room, visually inspect the rest; rotate the sample each year."
+      },
+      {
+        "user": "And if one of them is faulty?",
+        "expect": "answer",
+        "gold": {
+          "document": "FM_2.81_Apr_26.pdf",
+          "pages": [
+            7
+          ],
+          "key_phrase": "If deficiencies are noted in one sprinkler, perform physical inspections of all sprinklers in the room."
+        },
+        "topic": "FM concealed sprinkler deficiency follow-up",
+        "expected": "If a deficiency is noted in one sprinkler, physically inspect all sprinklers in that room."
+      }
+    ]
+  }
+]

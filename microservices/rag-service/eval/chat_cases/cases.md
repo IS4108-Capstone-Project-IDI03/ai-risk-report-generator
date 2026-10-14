@@ -1,22 +1,24 @@
-# CB-01 eval cases (draft for review)
+# CB-01 eval cases
 
-60 cases, 86 user turns. Please read each question and mark any that are unrealistic, wrongly answered, or missing something engineers care about.
+60 cases, approved by Jesper 13 Oct. **47 are active (`cases.json`); 13 are parked (`parked.json`)**: 12 because their answer text is garbled or missing in the knowledge base (ingestion OCR problem, 14 Oct), and conv-07 because Shopping Mall Sample 1 is labelled "Mixed-use development", so a shopping-mall filter can never find it. Parked cases are marked below and come back once the documents are re-ingested.
+
+FM 2.81 questions also accept the matching row of FM 2.81's comparison appendix (pp. 50–53), which repeats each FM check next to NFPA 25's (added 14 Oct).
 
 Expect: **answer** (cite the source), **decline** (knowledge base can't answer), **clarify** (ask which topic), **chat** (small talk, no search).
 
 | id | type | question (first turn) | expect | answer is in |
 |---|---|---|---|---|
-| fm-01 | single_fact | What air pressure and how long do we hold it for the leak test on a new dry system? | answer | FM_2.0_Apr_26.pdf p.155 |
-| fm-02 | single_fact | How long do we need to keep our ITM paperwork on file for FM? | answer | FM_2.81_Apr_26.pdf p.4 |
-| fm-03 | single_fact | How many spare heads should the sprinkler cabinet hold? | answer | FM_2.0_Apr_26.pdf p.56 |
-| fm-04 | table_number | Walk-in freezer sits at -20F and we only have ethylene glycol available. What % mix do we need? | answer | FM_2.0_Apr_26.pdf p.25 |
+| fm-01 | single_fact · **parked** | What air pressure and how long do we hold it for the leak test on a new dry system? | answer | FM_2.0_Apr_26.pdf p.155 |
+| fm-02 | single_fact · **parked** | How long do we need to keep our ITM paperwork on file for FM? | answer | FM_2.81_Apr_26.pdf p.4 |
+| fm-03 | single_fact · **parked** | How many spare heads should the sprinkler cabinet hold? | answer | FM_2.0_Apr_26.pdf p.56 |
+| fm-04 | table_number · **parked** | Walk-in freezer sits at -20F and we only have ethylene glycol available. What % mix do we need? | answer | FM_2.0_Apr_26.pdf p.25 |
 | fm-05 | table_number | How often should we pull a sample of dry pendents and test them? | answer | FM_2.81_Apr_26.pdf p.7 |
-| fm-06 | conditional | New system, static pressure at the riser is 180 psi. What hydro test pressure and duration? | answer | FM_2.0_Apr_26.pdf p.154 |
-| fm-07 | conditional | 3,000 sq ft cold dock, no FM Approved antifreeze on the market for it, but the space never drops below 32F. Can we use plain propylene glycol and what strength? | answer | FM_2.0_Apr_26.pdf p.26 |
+| fm-06 | conditional · **parked** | New system, static pressure at the riser is 180 psi. What hydro test pressure and duration? | answer | FM_2.0_Apr_26.pdf p.154 |
+| fm-07 | conditional · **parked** | 3,000 sq ft cold dock, no FM Approved antifreeze on the market for it, but the space never drops below 32F. Can we use plain propylene glycol and what strength? | answer | FM_2.0_Apr_26.pdf p.26 |
 | fm-08 | list | When do we call a sprinkler system obstructed after a debris investigation? | answer | FM_2.81_Apr_26.pdf p.7 |
-| fm-09 | multi_passage | We run an antifreeze loop in the cold store. What has to be on the placard, and how often is the solution checked? | answer | all of: FM_2.0_Apr_26.pdf p.26; FM_2.81_Apr_26.pdf p.8 |
-| fm-10 | negation | Which system types can skip the inspector's test connection? | answer | FM_2.0_Apr_26.pdf p.28 |
-| fm-11 | false_premise | Our valve chains use combination padlocks so nobody needs a key. That meets FM, right? | answer | FM_2.81_Apr_26.pdf p.5 |
+| fm-09 | multi_passage · **parked** | We run an antifreeze loop in the cold store. What has to be on the placard, and how often is the solution checked? | answer | all of: FM_2.0_Apr_26.pdf p.26; FM_2.81_Apr_26.pdf p.8 |
+| fm-10 | negation · **parked** | Which system types can skip the inspector's test connection? | answer | FM_2.0_Apr_26.pdf p.28 |
+| fm-11 | false_premise · **parked** | Our valve chains use combination padlocks so nobody needs a key. That meets FM, right? | answer | FM_2.81_Apr_26.pdf p.5 |
 | fm-12 | why | Why does FM want the main drain test done after the valve exercise and not before? | answer | FM_2.81_Apr_26.pdf p.6 |
 | nfpa-01 | single_fact | What's the steepest roof pitch we can have over ESFR heads? | answer | NFPA 13-2022.pdf p.126 |
 | nfpa-02 | single_fact | The fire department connection piping was repaired. What pressure do we retest that stub at? | answer | NFPA 13-2022.pdf p.392 |
@@ -30,9 +32,9 @@ Expect: **answer** (cite the source), **decline** (knowledge base can't answer),
 | nfpa-10 | list | What has to be written on the hydraulic nameplate at the riser? | answer | NFPA 13-2022.pdf p.393 |
 | nfpa-11 | multi_passage | Can I put ESFR heads in a light hazard office, and if so how much floor can each head cover? | answer | all of: NFPA 13-2022.pdf p.126; NFPA 13-2022.pdf p.85 |
 | nfpa-12 | comparison | Under the 2019 edition of NFPA 13, what goes on the placard at an antifreeze system's main valve, and is that different in the 2022 edition? | answer | all of: NFPA_13_2019.pdf p.62; NFPA 13-2022.pdf p.65 |
-| nfpa-13 | comparison | What temperature rating do ESFR heads have to be in the 2019 edition of NFPA 13, and how does the 2022 edition differ? | answer | all of: NFPA_13_2019.pdf p.115; NFPA 13-2022.pdf p.126 |
-| nfpa-14 | comparison | Hydro test on new sprinkler pipework: what pressure and hold time does NFPA 13 want compared with FM 2-0? | answer | all of: NFPA 13-2022.pdf p.392; FM_2.0_Apr_26.pdf p.154 |
-| nfpa-15 | comparison | How often should the flow switches on wet systems get an alarm test: NFPA 25 or FM 2-81, and do they differ? | answer | all of: NFPA_25_2026.pdf p.74; FM_2.81_Apr_26.pdf p.6 |
+| nfpa-13 | comparison · **parked** | What temperature rating do ESFR heads have to be in the 2019 edition of NFPA 13, and how does the 2022 edition differ? | answer | all of: NFPA_13_2019.pdf p.115; NFPA 13-2022.pdf p.126 |
+| nfpa-14 | comparison · **parked** | Hydro test on new sprinkler pipework: what pressure and hold time does NFPA 13 want compared with FM 2-0? | answer | all of: NFPA 13-2022.pdf p.392; FM_2.0_Apr_26.pdf p.154 |
+| nfpa-15 | comparison | How often should the flow switches on wet systems get an alarm test: NFPA 25 or FM 2-81, and do they differ? | answer | NFPA_25_2026.pdf p.74 and any of: FM_2.81_Apr_26.pdf p.6; FM_2.81_Apr_26.pdf p.51 |
 | nfpa-16 | negation | When are quick-response heads not allowed on a density/area design? | answer | NFPA 13-2022.pdf p.85 |
 | nfpa-17 | false_premise | Cold store has a dry system and we want ESFR heads on it. What's the max spacing? | answer | NFPA 13-2022.pdf p.126 |
 | nfpa-18 | why | Why is there a minimum distance between sprinkler heads? | answer | NFPA 13-2022.pdf p.83 |
@@ -41,7 +43,7 @@ Expect: **answer** (cite the source), **decline** (knowledge base can't answer),
 | rep-03 | list | What should an emergency response plan say about an EV charger fire, according to the reports we have? | answer | any of: Mixed Use Development Sample 1 - PRE 2025 - REDACTED.pdf p.10,11; Office Sample 2 - PRE 2025 - REDACTED.pdf p.11 |
 | rep-04 | multi_passage | One report found the sprinkler pumps were not tested fully and the jockey pump was in the wrong mode. What did it recommend on each? | answer | all of: Office Sample 1 - PRE 2026 - REDACTED.pdf p.9; Office Sample 1 - PRE 2026 - REDACTED.pdf p.11 |
 | rep-05 | multi_passage | In a past mall survey, how did they assess the hot work permit: what was good about it and what was missing? | answer | all of: Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf p.10; Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf p.22 |
-| rep-06 | filter_named | For office buildings, how often do past reports say emergency diesel generators should get a no-load test? | answer | any of: Office Sample 0 - PRE 2026 - REDACTED.pdf p.11; Office Sample 3 - PRE 2026 - REDACTED.pdf p.11 |
+| rep-06 | filter_named | For office buildings, how often do past reports say emergency diesel generators should get a no-load test? | answer | any of: Office Sample 0 - PRE 2026 - REDACTED.pdf p.11 |
 | rep-07 | filter_named | What do Singapore reports say about inspecting private fire hydrants? | answer | Office Sample 2 - PRE 2025 - REDACTED.pdf p.12 |
 | rep-08 | filter_named | At a Singapore shopping mall, what's the problem with painted-over concealed sprinkler covers? | answer | Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf p.12 |
 | rep-09 | filter_named | In Marsh reports on mixed-use developments, how often should waterflow switches be inspected and tested? | answer | Office Sample 6 - PRE 2026 - REDACTED.pdf p.9 |
@@ -57,37 +59,37 @@ Expect: **answer** (cite the source), **decline** (knowledge base can't answer),
 | un-09 | off_topic | Can you give me a good recipe for chicken rice? | decline | — |
 | un-10 | off_topic | Write me a Python script that renames all files in a folder. | decline | — |
 | conv-01 | coreference | How often do we need to take the supply strainers apart on the fire main? *(+2 follow-ups)* | answer | FM_2.81_Apr_26.pdf p.13 |
-| conv-02 | coreference | What should we be checking every week on a dry pipe valve? *(+2 follow-ups)* | answer | FM_2.81_Apr_26.pdf p.9 |
+| conv-02 | coreference | What should we be checking every week on a dry pipe valve? *(+2 follow-ups)* | answer | any of: FM_2.81_Apr_26.pdf p.9; FM_2.81_Apr_26.pdf p.41; FM_2.81_Apr_26.pdf p.52 |
 | conv-03 | coreference | What do the reports on mixed-use developments say about their hot work permit system? *(+2 follow-ups)* | answer | Office Sample 4 - PRE 2026 - REDACTED.pdf p.22 |
 | conv-04 | clarify | How often do we test the low air pressure supervisory alarms on a dry system? *(+3 follow-ups)* | answer | FM_2.81_Apr_26.pdf p.10 |
 | conv-05 | clarify | How long should the electric fire pump churn for when we test it? *(+3 follow-ups)* | answer | FM_2.81_Apr_26.pdf p.14 |
-| conv-06 | topic_switch | How often should someone walk round and check the control valves are open and locked? *(+3 follow-ups)* | answer | FM_2.81_Apr_26.pdf p.5 |
-| conv-07 | topic_switch | In the Mall 1 report, how big is the site technician team? *(+3 follow-ups)* | answer | Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf p.26 |
+| conv-06 | topic_switch | How often should someone walk round and check the control valves are open and locked? *(+3 follow-ups)* | answer | any of: FM_2.81_Apr_26.pdf p.5; FM_2.81_Apr_26.pdf p.50; NFPA_25_2026.pdf p.77 |
+| conv-07 | topic_switch · **parked** | In the Mall 1 report, how big is the site technician team? *(+3 follow-ups)* | answer | Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf p.26 |
 | conv-08 | followup_unanswerable | How often do we partial-flow trip test the dry pipe valve? *(+3 follow-ups)* | answer | FM_2.81_Apr_26.pdf p.10 |
-| conv-09 | edition_switch | What's the biggest area one standard pendent sprinkler can cover under NFPA 13? *(+3 follow-ups)* | answer | NFPA 13-2022.pdf p.85 |
-| conv-10 | small_talk | How often should we look over the outside of our water tanks? *(+2 follow-ups)* | answer | FM_2.81_Apr_26.pdf p.19 |
+| conv-09 | edition_switch · **parked** | What's the biggest area one standard pendent sprinkler can cover under NFPA 13? *(+3 follow-ups)* | answer | NFPA 13-2022.pdf p.85 |
+| conv-10 | small_talk | How often should we look over the outside of our water tanks? *(+2 follow-ups)* | answer | any of: FM_2.81_Apr_26.pdf p.19; NFPA_25_2026.pdf p.47 |
 
 ## Each case
 
-### fm-01 · single_fact · fm
+### fm-01 · single_fact · fm · **parked**
 
 **Engineer:** What air pressure and how long do we hold it for the leak test on a new dry system?  
 Expect **answer** · source: FM_2.0_Apr_26.pdf p.155  
 Reference: Pneumatic leakage test at 40 psi (2.8 bar) for a minimum of 24 hours; fix leaks causing more than 1.5 psi (0.1 bar) total loss over the 24 hours.
 
-### fm-02 · single_fact · fm
+### fm-02 · single_fact · fm · **parked**
 
 **Engineer:** How long do we need to keep our ITM paperwork on file for FM?  
 Expect **answer** · source: FM_2.81_Apr_26.pdf p.4  
 Reference: At least one year, so management or the authority having jurisdiction can audit it.
 
-### fm-03 · single_fact · fm
+### fm-03 · single_fact · fm · **parked**
 
 **Engineer:** How many spare heads should the sprinkler cabinet hold?  
 Expect **answer** · source: FM_2.0_Apr_26.pdf p.56  
 Reference: The minimum is based on the largest number of sprinklers in the design area of the system they serve, with a supply for each sprinkler type installed.
 
-### fm-04 · table_number · fm
+### fm-04 · table_number · fm · **parked**
 
 **Engineer:** Walk-in freezer sits at -20F and we only have ethylene glycol available. What % mix do we need?  
 Expect **answer** · source: FM_2.0_Apr_26.pdf p.25  
@@ -99,13 +101,13 @@ Reference: 49% ethylene glycol by volume in water for a lowest ambient of -20F (
 Expect **answer** · source: FM_2.81_Apr_26.pdf p.7  
 Reference: Every 15 years, test a random sample of dry-type (dry pendent) sprinklers.
 
-### fm-06 · conditional · fm
+### fm-06 · conditional · fm · **parked**
 
 **Engineer:** New system, static pressure at the riser is 180 psi. What hydro test pressure and duration?  
 Expect **answer** · source: FM_2.0_Apr_26.pdf p.154  
 Reference: Static pressure above 150 psi means test at 50 psi above static, so 230 psi, held for 2 hours with no pressure loss (200 psi is the minimum otherwise).
 
-### fm-07 · conditional · fm
+### fm-07 · conditional · fm · **parked**
 
 **Engineer:** 3,000 sq ft cold dock, no FM Approved antifreeze on the market for it, but the space never drops below 32F. Can we use plain propylene glycol and what strength?  
 Expect **answer** · source: FM_2.0_Apr_26.pdf p.26  
@@ -117,19 +119,19 @@ Reference: Yes: above 2,000 sq ft a non-FM Approved antifreeze system is accepta
 Expect **answer** · source: FM_2.81_Apr_26.pdf p.7  
 Reference: If about 1/2 cup (120 ml) or more of debris is in a cross main; debris pieces could plug a sprinkler orifice; flow from a branch line is obstructed; or videoscope or ultrasonic analysis shows obstruction.
 
-### fm-09 · multi_passage · fm
+### fm-09 · multi_passage · fm · **parked**
 
 **Engineer:** We run an antifreeze loop in the cold store. What has to be on the placard, and how often is the solution checked?  
 Expect **answer** · source: all of: FM_2.0_Apr_26.pdf p.26; FM_2.81_Apr_26.pdf p.8  
 Reference: The placard lists the antifreeze type, percent concentration, volume required and the lowest ambient temperature designed for (2-0). The solution is tested annually, before the cold season, by specific gravity (2-81).
 
-### fm-10 · negation · fm
+### fm-10 · negation · fm · **parked**
 
 **Engineer:** Which system types can skip the inspector's test connection?  
 Expect **answer** · source: FM_2.0_Apr_26.pdf p.28  
 Reference: Antifreeze solution systems and deluge systems do not need an inspector's test connection.
 
-### fm-11 · false_premise · fm
+### fm-11 · false_premise · fm · **parked**
 
 **Engineer:** Our valve chains use combination padlocks so nobody needs a key. That meets FM, right?  
 Expect **answer** · source: FM_2.81_Apr_26.pdf p.5  
@@ -213,13 +215,13 @@ Reference: Yes. ESFR sprinklers designed to the Chapter 23/24 criteria may prote
 Expect **answer** · source: all of: NFPA_13_2019.pdf p.62; NFPA 13-2022.pdf p.65  
 Reference: 2019: manufacturer type and brand, the concentration by volume of the solution, and the volume used. 2022: the concentration by volume item is replaced by the minimum use temperature of the solution; brand and volume are unchanged.
 
-### nfpa-13 · comparison · nfpa · NFPA 13 2019 vs 2022
+### nfpa-13 · comparison · nfpa · NFPA 13 2019 vs 2022 · **parked**
 
 **Engineer:** What temperature rating do ESFR heads have to be in the 2019 edition of NFPA 13, and how does the 2022 edition differ?  
 Expect **answer** · source: all of: NFPA_13_2019.pdf p.115; NFPA 13-2022.pdf p.126  
 Reference: 2019: ordinary unless 9.4.2 requires intermediate or high. 2022: ordinary or intermediate is allowed by default, and 9.4.2 can still require intermediate; the high-temperature option is no longer mentioned there.
 
-### nfpa-14 · comparison · nfpa · NFPA 13 vs FM 2-0
+### nfpa-14 · comparison · nfpa · NFPA 13 vs FM 2-0 · **parked**
 
 **Engineer:** Hydro test on new sprinkler pipework: what pressure and hold time does NFPA 13 want compared with FM 2-0?  
 Expect **answer** · source: all of: NFPA 13-2022.pdf p.392; FM_2.0_Apr_26.pdf p.154  
@@ -228,7 +230,7 @@ Reference: Both: 200 psi for 2 hours without loss. Where pressure is above 150 p
 ### nfpa-15 · comparison · nfpa · NFPA 25 vs FM 2-81
 
 **Engineer:** How often should the flow switches on wet systems get an alarm test: NFPA 25 or FM 2-81, and do they differ?  
-Expect **answer** · source: all of: NFPA_25_2026.pdf p.74; FM_2.81_Apr_26.pdf p.6  
+Expect **answer** · source: NFPA_25_2026.pdf p.74 and any of: FM_2.81_Apr_26.pdf p.6; FM_2.81_Apr_26.pdf p.51  
 Reference: NFPA 25: vane-type, paddle-type and pressure-switch-type waterflow devices are tested semiannually (mechanical water motor gongs quarterly). FM 2-81: waterflow alarms including flow switches quarterly (annually for antifreeze systems), so FM is more frequent.
 
 ### nfpa-16 · negation · nfpa
@@ -282,8 +284,8 @@ Reference: Shopping Mall Sample 2: the permit system exists with risk assessment
 ### rep-06 · filter_named · report
 
 **Engineer:** For office buildings, how often do past reports say emergency diesel generators should get a no-load test?  
-Expect **answer** · filters: {'facility_type': 'Office'} · source: any of: Office Sample 0 - PRE 2026 - REDACTED.pdf p.11; Office Sample 3 - PRE 2026 - REDACTED.pdf p.11  
-Reference: Monthly, per SS 535:2018; the report found testing was only quarterly. Office Sample 0 is the gold; Office Sample 3 has identical text.
+Expect **answer** · filters: {'facility_type': 'Office'} · source: any of: Office Sample 0 - PRE 2026 - REDACTED.pdf p.11  
+Reference: Monthly, per SS 535:2018; the report found testing was only quarterly. Office Sample 0 is the gold (Office Sample 3, a discarded copy, had identical text).
 
 ### rep-07 · filter_named · report
 
@@ -386,7 +388,7 @@ Reference: Decline / redirect. Not a property-risk question.
 ### conv-02 · coreference · conversation
 
 1. **Engineer:** What should we be checking every week on a dry pipe valve?  
-   Expect **answer** · topic: FM ITM weekly checks for dry system valve · source: FM_2.81_Apr_26.pdf p.9  
+   Expect **answer** · topic: FM ITM weekly checks for dry system valve · source: any of: FM_2.81_Apr_26.pdf p.9; FM_2.81_Apr_26.pdf p.41; FM_2.81_Apr_26.pdf p.52  
    Reference: Weekly: system valve air and water pressures, and the quick-opening device in-service condition (plus valve enclosure above 40F/4C).
 
 2. **Engineer:** And the monthly ones?  
@@ -450,7 +452,7 @@ Reference: Decline / redirect. Not a property-risk question.
 ### conv-06 · topic_switch · conversation
 
 1. **Engineer:** How often should someone walk round and check the control valves are open and locked?  
-   Expect **answer** · topic: FM ITM control valve visual inspection · source: FM_2.81_Apr_26.pdf p.5  
+   Expect **answer** · topic: FM ITM control valve visual inspection · source: any of: FM_2.81_Apr_26.pdf p.5; FM_2.81_Apr_26.pdf p.50; NFPA_25_2026.pdf p.77  
    Reference: Weekly visual inspection for full-open, secured and accessible, recorded on a form.
 
 2. **Engineer:** And the proper full exercise?  
@@ -465,7 +467,7 @@ Reference: Decline / redirect. Not a property-risk question.
    Expect **answer** · topic: Office 4 smoke control activation · source: Office Sample 4 - PRE 2026 - REDACTED.pdf p.35  
    Reference: It is controlled and synchronized by an addressable smoke detection system.
 
-### conv-07 · topic_switch · conversation
+### conv-07 · topic_switch · conversation · **parked**
 
 1. **Engineer:** In the Mall 1 report, how big is the site technician team?  
    Expect **answer** · topic: Mall Sample 1 staffing · source: Shopping Mall Sample 1 - PRE 2024 - REDACTED.pdf p.26  
@@ -501,7 +503,7 @@ Reference: Decline / redirect. Not a property-risk question.
    Expect **answer** · topic: FM full-flow trip test maximum water delivery time · source: FM_2.81_Apr_26.pdf p.10  
    Reference: 60 seconds to the hydraulically remote area unless an FM data sheet for the occupancy says otherwise.
 
-### conv-09 · edition_switch · conversation
+### conv-09 · edition_switch · conversation · **parked**
 
 1. **Engineer:** What's the biggest area one standard pendent sprinkler can cover under NFPA 13?  
    Expect **answer** · topic: NFPA 13 max coverage area standard pendent sprinkler · source: NFPA 13-2022.pdf p.85  
@@ -522,7 +524,7 @@ Reference: Decline / redirect. Not a property-risk question.
 ### conv-10 · small_talk · conversation
 
 1. **Engineer:** How often should we look over the outside of our water tanks?  
-   Expect **answer** · topic: FM ITM water tank exterior inspection · source: FM_2.81_Apr_26.pdf p.19  
+   Expect **answer** · topic: FM ITM water tank exterior inspection · source: any of: FM_2.81_Apr_26.pdf p.19; NFPA_25_2026.pdf p.47  
    Reference: Monthly: check for obvious leaks, damage, erosion, obstructions and exposures; repair leaks and damage.
 
 2. **Engineer:** Any rule about what can be stored or growing near them?  
