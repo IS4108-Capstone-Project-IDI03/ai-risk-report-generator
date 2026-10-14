@@ -15,13 +15,13 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from app import usage
-from app.chat.answer import DECLINE
+from app.chat.answer import DECLINE, passage_header
 from app.chat.quotes import _STR, find_cites
 from app.generation.llm import complete_json
 from eval import chat_transport as transport
 
 # Bump on every judge prompt or scoring change; each graded row records it (AC12).
-JUDGE_VERSION = "cb01-judge-v1"
+JUDGE_VERSION = "cb01-judge-v4"
 
 # ---- code metrics ---------------------------------------------------------------------------
 
@@ -109,14 +109,86 @@ def code_grade(case: dict, records: list[dict], doc_ids: dict) -> dict:
 
 _NAMED_CITE = re.compile(rf"^\s*(\w+)\s*=\s*Cite\(\s*({_STR})\s*,\s*({_STR})\s*\)", re.M)
 # Statement("text", [cites]) or Cell("text", [cites]); the list may hold quoted "]" safely.
+_STRING = re.compile(_STR)
 _BLOCK = re.compile(rf"\b(Statement|Cell)\(\s*({_STR})\s*(?:,\s*\[((?:{_STR}|[^\]\"])*)\])?")
+
+
+def _close(text: str, i: int) -> int:
+    """Return the index of the bracket closing the one at text[i], skipping quoted strings."""
+    depth = 0
+    while i < len(text):
+        if text[i] == '"':
+            i = _STRING.match(text, i).end()  # a "]" inside a string must not close anything
+            continue
+        depth += {"[": 1, "(": 1, "]": -1, ")": -1}.get(text[i], 0)
+        if depth == 0:
+            return i
+        i += 1
+    raise ValueError("unclosed bracket")
+
+
+def _groups(text: str) -> list[str]:
+    """Return the contents of each top-level bracket group in text."""
+    groups, i = [], 0
+    while i < len(text):
+        if text[i] in "[(":
+            j = _close(text, i)
+            groups.append(text[i + 1 : j])
+            i = j
+        elif text[i] == '"':
+            i = _STRING.match(text, i).end() - 1
+        i += 1
+    return groups
+
+
+def _top_args(text: str) -> list[str]:
+    """Return text split at its top-level commas (commas inside brackets or strings stay)."""
+    args, start, i = [], 0, 0
+    while i < len(text):
+        if text[i] == '"':
+            i = _STRING.match(text, i).end()
+            continue
+        if text[i] in "[(":
+            i = _close(text, i) + 1
+            continue
+        if text[i] == ",":
+            args.append(text[start:i].strip())
+            start = i + 1
+        i += 1
+    return args + [text[start:].strip()]
+
+
+def _table_rows(table: str, cell_to_cites, lists: dict[str, str]) -> list[dict]:
+    """Return one statement per cited row of a CitedTable's text; raise if it can't be read.
+
+    Row text is "Header: cell; Header: cell". Only inline Cell(...) rows are readable here.
+    Headers or rows may be a named list (hdr = [...]), as the answer model sometimes writes.
+    """
+    headers_text, rows_text = (lists.get(a, a) for a in _top_args(table)[:2])
+    if not (headers_text.startswith("[") and rows_text.startswith("[")):
+        raise ValueError("table headers or rows are not a list")
+    headers_text, rows_text = headers_text[1:-1], rows_text[1:-1]
+    headers = [json.loads(h) for h in re.findall(_STR, headers_text)]
+    statements = []
+    for row in _groups(rows_text):
+        cells = [(json.loads(t), c) for k, t, c in _BLOCK.findall(row) if k == "Cell"]
+        if not cells or len(cells) > len(headers):
+            raise ValueError("table has no inline cells, or more cells than headers")
+        cites = []
+        for _, raw in cells:
+            cites += [c for c in cell_to_cites(raw) if c not in cites]
+        if cites:  # an uncited row is a label row
+            text = "; ".join(f"{h}: {t}" for h, (t, _) in zip(headers, cells, strict=False))
+            statements.append({"text": text, "cites": cites})
+    return statements
 
 
 def parse_statements(program: str) -> list[dict]:
     """Return the answer's statements as {text, cites: [(label, quote)]}, in order.
 
-    Table cells count only when they cite something: an uncited cell is a row label.
-    The fixed decline sentence is not a statement.
+    A table row is one statement ("Header: cell; ..."), so each cell is judged with its row
+    and column; a row that cites nothing is a label row and is skipped. A table that can't be
+    read falls back to one statement per cited cell. The fixed decline sentence is not a statement.
     """
     named = {}
     for name, label, quote in _NAMED_CITE.findall(program):
@@ -124,18 +196,47 @@ def parse_statements(program: str) -> list[dict]:
             named[name] = (json.loads(label), json.loads(quote))
         except json.JSONDecodeError:
             pass
-    statements = []
-    for kind, text, cites in _BLOCK.findall(program):
-        refs = re.findall(r"\b\w+\b", re.sub(_STR, "", cites))
-        found = find_cites(cites) + [named[r] for r in refs if r in named]
+
+    def cites_of(raw: str) -> list[tuple[str, str]]:
+        refs = re.findall(r"\b\w+\b", re.sub(_STR, "", raw))
+        return find_cites(raw) + [named[r] for r in refs if r in named]
+
+    # Named lists (hdr = [...]), so a table can be read when its headers or rows are a name.
+    lists, spans = {}, {}
+    for m in re.finditer(r"^\s*(\w+)\s*=\s*\[", program, re.M):
+        try:
+            spans[m.group(1)] = (m.end() - 1, _close(program, m.end() - 1))
+        except ValueError:
+            continue
+        lists[m.group(1)] = program[spans[m.group(1)][0] : spans[m.group(1)][1] + 1]
+
+    # a. Tables that parse: their span in the program, and the row statements for it.
+    tables, skip = [], []
+    for m in re.finditer(r"\bCitedTable\(", program):
+        try:
+            end = _close(program, m.end() - 1)
+            rows = _table_rows(program[m.end() : end], cites_of, lists)
+        except (ValueError, json.JSONDecodeError):
+            continue  # fall back to the per-cell statements below
+        tables.append((m.start(), rows))
+        # Its cells are read as rows, so skip them in step b, named lists included.
+        used = [spans[a] for a in _top_args(program[m.end() : end])[:2] if a in spans]
+        skip += [(m.start(), end), *used]
+    # b. Every other block, in order; a parsed table's cells are skipped, its rows go in.
+    found = list(tables)
+    for m in _BLOCK.finditer(program):
+        if any(start < m.start() < end for start, end in skip):
+            continue
+        kind, text, cites = m.group(1), m.group(2), m.group(3) or ""
         try:
             text = json.loads(text)
         except json.JSONDecodeError:
             continue
-        if (kind == "Cell" and not found) or text == DECLINE:
+        cited = cites_of(cites)
+        if (kind == "Cell" and not cited) or text == DECLINE:
             continue
-        statements.append({"text": text, "cites": found})
-    return statements
+        found.append((m.start(), [{"text": text, "cites": cited}]))
+    return [s for _, group in sorted(found, key=lambda f: f[0]) for s in group]
 
 
 # ---- judge ----------------------------------------------------------------------------------
@@ -148,8 +249,14 @@ For each numbered statement, answer three yes/no checks against ONLY the passage
 statement cites:
 - facts_in_passage: every fact the statement asserts is stated in its cited passage(s).
 - numbers_match: every number and unit matches the passage exactly (yes if there are none).
-- scope_kept: the statement does not widen the passage's scope: no dropped condition, \
-exception or limit, and no general claim where the passage covers a specific case.
+- scope_kept: the statement claims no more than the passage allows: no dropped condition \
+or exception that would make its rule apply where the passage says it doesn't, and no \
+general claim where the passage covers a specific case. These are NOT scope breaks: leaving \
+out other items, steps, purposes or details the statement doesn't claim; narrowing the rule \
+to fewer cases or to the user's situation in the topic; dropping a qualifier that changes \
+nothing (such as "where provided"); plain paraphrase.
+Applying a rule to facts the user gave in the topic is not an unsupported fact. Read each \
+statement exactly as written before judging it.
 A statement that cites nothing fails all three. Give one verdict per statement, using its \
 number, with a one-line reason.
 If a <topic> is given, on_topic says whether the answer as a whole addresses that topic; \
@@ -180,9 +287,8 @@ def judge_prompt(passages: list[dict], statements: list[dict], topic: str | None
     )
     blocks = []
     for label in cited:
-        meta = labels[label]["metadata"]
-        pages = f"p. {meta.get('page_start')}-{meta.get('page_end')}"
-        blocks.append(f"[{label}] ({pages})\n{labels[label]['text']}")
+        header = passage_header(int(label[1:]), labels[label])
+        blocks.append(f"{header}\n{labels[label]['text']}")
     parts = ["<passages>\n" + ("\n\n".join(blocks) or "(no passages cited)") + "\n</passages>"]
     if topic:
         parts.append(f"<topic>{topic}</topic>")
@@ -205,8 +311,15 @@ def supported_share(statements: list[dict], judgement: Judgement) -> tuple[int, 
 
 
 def _topic(turn: dict, t: int) -> str | None:
-    """Return the topic a turn's answer must stay on: answerable follow-ups only (AC11)."""
-    return turn.get("topic") if t > 0 and turn["expect"] == "answer" else None
+    """Return what an answerable turn's answer must address, else None (AC11).
+
+    A first turn is judged against its own question. A follow-up ("And the waterflow
+    alarms?") means nothing alone, so it uses its written topic when it has one.
+    Without this, a true, cited answer to the wrong question would pass as supported.
+    """
+    if turn["expect"] != "answer":
+        return None
+    return turn["user"] if t == 0 else turn.get("topic") or turn["user"]
 
 
 def _needs_judge(turn: dict, rec: dict, t: int) -> bool:

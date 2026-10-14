@@ -171,6 +171,36 @@ def test_first_turns_are_searched_once_for_every_candidate(env, monkeypatch):
     assert follow_ups == [follow_ups[0]] * 2 and "racks" in follow_ups[0]
 
 
+def flaky_search(monkeypatch, failures):
+    """Make the first `failures` searches raise, as a Cohere rate limit does."""
+    real, left = answer.retrieve, [failures]
+
+    def retrieve(*args, **kwargs):
+        if left[0]:
+            left[0] -= 1
+            raise RuntimeError("429 Too Many Requests")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(answer, "retrieve", retrieve)
+
+
+def test_a_failed_search_is_not_cached_as_no_passages(env, monkeypatch):
+    flaky_search(monkeypatch, failures=1)
+    assert prepare(env) == 1  # one case failed and is reported
+    assert len(list((env.flow / "_cache").glob("*.json"))) == 2
+    assert prepare(env) == 0  # the rerun searches only the missing case
+    assert len(list((env.flow / "_cache").glob("*.json"))) == 3
+
+
+def test_a_failed_follow_up_search_is_retried_not_scored(env, monkeypatch):
+    live_anthropic(monkeypatch)
+    prepare(env)
+    flaky_search(monkeypatch, failures=1)  # c1's follow-up search fails once
+    assert run(env, "--cases", "c1") == 0
+    [row] = rows(env)
+    assert row["meta"]["retries"] == 1 and row["grade"]["retrieval_hit"] == 1
+
+
 def test_run_refuses_until_first_turns_are_prepared(env, monkeypatch):
     sent = live_anthropic(monkeypatch)
     assert run(env) == 2
@@ -483,6 +513,80 @@ def test_the_judge_sees_cited_passages_first_and_the_answer_last():
     assert "untrusted" in system
 
 
+def test_the_judge_sees_the_same_passage_header_as_the_answer_model():
+    withdrawn = {
+        **P_OTHER,
+        "metadata": {
+            **P_OTHER["metadata"],
+            "headings": ["NFPA\u00ae 25", "5.3"],
+            "status": "withdrawn",
+        },
+    }
+    program = 's1 = Statement("Density.", [Cite("P2", "0.20 gpm")])\n'
+    _, user = chat_grade.judge_prompt([P_FM, withdrawn], chat_grade.parse_statements(program), None)
+    header = answer.passage_header(2, withdrawn)
+    assert "NFPA\u00ae 25 > 5.3" in header and "withdrawn edition" in header
+    assert header in answer._passage_block([P_FM, withdrawn])  # label stays the list position
+    assert header + "\n" + withdrawn["text"] in user
+
+
+TABLE = (
+    "root = Answer([t1])\n"
+    't1 = CitedTable(["Document", "Waterflow alarm test frequency"], '
+    '[[Cell("FM Global FMDS 2-81", [c4]), '
+    'Cell("Quarterly (annually for antifreeze systems)", [c5])], '
+    '[Cell("NFPA 25", [c6]), '
+    'Cell("Semiannually (vane, paddle, and pressure-switch types)", [c7])]])\n'
+    'c4 = Cite("P1", "FMDS")\nc5 = Cite("P1", "quarterly")\n'
+    'c6 = Cite("P2", "NFPA")\nc7 = Cite("P2", "semiannually")\n'
+)
+
+
+def test_each_table_row_is_one_statement_with_its_headers():
+    first, second = chat_grade.parse_statements(TABLE)
+    assert first["text"] == (
+        "Document: FM Global FMDS 2-81; "
+        "Waterflow alarm test frequency: Quarterly (annually for antifreeze systems)"
+    )
+    assert first["cites"] == [("P1", "FMDS"), ("P1", "quarterly")]
+    assert second["cites"] == [("P2", "NFPA"), ("P2", "semiannually")]
+
+
+def test_table_rows_keep_their_place_and_uncited_rows_are_skipped():
+    program = (
+        'root = Answer([s1, t1, s2])\ns1 = Statement("Before.", [])\n'
+        't1 = CitedTable(["A", "B"], [[Cell("label", []), Cell("x", [])], '
+        '[Cell("k", [Cite("P1", "q")]), Cell("v", [Cite("P1", "q")])]])\n'
+        's2 = Statement("After.", [])\n'
+    )
+    statements = chat_grade.parse_statements(program)
+    assert [s["text"] for s in statements] == ["Before.", "A: k; B: v", "After."]
+    assert statements[1]["cites"] == [("P1", "q")]  # same cite twice, kept once
+
+
+def test_a_table_whose_headers_and_rows_are_named_lists_still_parses():
+    # As in the nfpa-12 pilot answer: hdr = [...] defined on its own line.
+    program = (
+        'hdr = ["Item", "2019 edition"]\n'
+        'rows = [[Cell("Brand", []), Cell("Required", [c4])]]\n'
+        "t = CitedTable(hdr, rows)\n"
+        'c4 = Cite("P3", "the manufacture type and brand")\n'
+    )
+    [row] = chat_grade.parse_statements(program)
+    assert row["text"] == "Item: Brand; 2019 edition: Required"
+    assert row["cites"] == [("P3", "the manufacture type and brand")]
+
+
+def test_a_table_with_quoted_brackets_and_commas_still_parses():
+    program = (
+        't1 = CitedTable(["Item, name", "Range [ft]"], '
+        '[[Cell("a ] b, \\"c\\"", [Cite("P1", "x ]")]), Cell("[1, 2]", [Cite("P1", "y")])]])\n'
+    )
+    [row] = chat_grade.parse_statements(program)
+    assert row["text"] == 'Item, name: a ] b, "c"; Range [ft]: [1, 2]'
+    assert row["cites"] == [("P1", "x ]"), ("P1", "y")]
+
+
 def judged(statements, verdicts, on_topic=None):
     return chat_grade.Judgement(
         verdicts=[
@@ -567,13 +671,13 @@ def test_selfcheck_scores_the_oracle_full_and_the_null_empty(env, capsys):
     assert "oracle" in out and "null" in out and "FAIL" not in out
 
 
-def test_clarify_replies_need_no_support_and_only_follow_ups_check_topic():
+def test_clarify_replies_need_no_support_and_every_answer_checks_topic():
     clarify = 'root = Answer([s1])\ns1 = Statement("Sprinklers or doors?", [])\n'
     case = {
         "turns": [
-            {"expect": "answer", "gold": FM, "topic": "clearance"},
-            {"expect": "clarify", "gold": None, "topic": "clearance"},
-            {"expect": "answer", "gold": FM, "topic": "clearance"},
+            {"user": "Clearance?", "expect": "answer", "gold": FM},
+            {"user": "And?", "expect": "clarify", "gold": None, "topic": "clearance"},
+            {"user": "Racks.", "expect": "answer", "gold": FM, "topic": "clearance"},
         ]
     }
     turns = [
@@ -590,4 +694,29 @@ def test_clarify_replies_need_no_support_and_only_follow_ups_check_topic():
     }
     metrics, _ = chat_grade.judge_grade(case, row)
     assert metrics["supported"] == 1.0  # the clarifying question isn't an unsupported claim
-    assert metrics["on_topic"] == 1.0  # one topic check: the answerable follow-up only
+    assert metrics["on_topic"] == 1.0  # both answers checked; the clarify turn isn't
+
+
+def test_a_first_answer_is_judged_against_its_question_and_a_follow_up_its_topic():
+    first = {"user": "How much clearance?", "expect": "answer", "topic": "label"}
+    follow_up = {"user": "And racks?", "expect": "answer", "topic": "rack clearance"}
+    assert chat_grade._topic(first, 0) == "How much clearance?"
+    assert chat_grade._topic(follow_up, 1) == "rack clearance"
+    assert chat_grade._topic({"user": "And racks?", "expect": "answer"}, 1) == "And racks?"
+    assert chat_grade._topic({"user": "Hi", "expect": "clarify"}, 0) is None
+
+
+def test_the_judge_sees_the_document_name_in_the_passage_header():
+    named = {**P_FM, "metadata": {**P_FM["metadata"], "document_name": "FM Global 2-81 (2026)"}}
+    program = 's1 = Statement("Gap.", [Cite("P1", "clearance")])\n'
+    _, user = chat_grade.judge_prompt([named], chat_grade.parse_statements(program), None)
+    assert "(FM Global 2-81 (2026) > " in user
+
+
+def test_docmap_writes_the_document_details_and_run_loads_them(tmp_path, monkeypatch):
+    docs = [{"id": "d1", "title": "NFPA 13", "issuingBody": "NFPA", "standardNumber": "13"}]
+    monkeypatch.setattr(chat_eval, "fetch_doc_ids", lambda: {"a.pdf": ["d1"]})
+    monkeypatch.setattr(chat_eval, "fetch_documents", lambda: docs)
+    assert chat_eval.main(["docmap", "--flow", str(tmp_path)]) == 0
+    assert chat_eval.load_documents(tmp_path) == docs
+    assert chat_eval.load_documents(tmp_path / "none") == []  # absent: passages stay unnamed

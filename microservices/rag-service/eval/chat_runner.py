@@ -60,7 +60,7 @@ def pipeline_hooks():
     """
     real = {
         "plan": answer.complete_json,
-        "search": answer.retrieve,
+        "search": answer.search_passages,
         "stream": answer.stream_text,
         "anthropic": llm._anthropic_usage,
         "openai": llm._openai_usage,
@@ -74,11 +74,11 @@ def pipeline_hooks():
         p.new["plan"] = result.model_dump()
         return result
 
-    def search(query, filters=None, include_withdrawn=False):
+    def search(plan):
         p = _pass.get()
         if p.cached is not None:
             return p.cached.get("passages") or []
-        passages = real["search"](query, filters, include_withdrawn)
+        passages = real["search"](plan)
         p.new["passages"] = passages
         return passages
 
@@ -99,7 +99,7 @@ def pipeline_hooks():
 
     patches = {
         (answer, "complete_json"): plan,
-        (answer, "retrieve"): search,
+        (answer, "search_passages"): search,
         (answer, "stream_text"): stream,
         # Production paces words for the screen; the eval would only time the pause.
         (answer, "WORD_DELAY_SECONDS"): 0,
@@ -182,6 +182,8 @@ class Context:
     effort: str
     transport: str
     doc_ids: dict
+    # Raw document details from `docmap`, so answers get names as in production.
+    documents: list = field(default_factory=list)
     timeout_s: float = 600
     concurrency: int = 4
     poll_s: float = 30
@@ -209,14 +211,16 @@ def _load(path: Path) -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
 
-def run_pass(messages: list[dict], cached: dict | None, stand_in) -> tuple[Pass, list[dict]]:
+def run_pass(
+    messages: list[dict], cached: dict | None, stand_in, documents: list[dict] | None = None
+) -> tuple[Pass, list[dict]]:
     """Run answer_events once; return the pass and its events."""
     p = Pass(cached=cached, answer=stand_in)
     token = _pass.set(p)
     try:
         events = [
             json.loads(line[6:])
-            for chunk in answer.answer_events(messages, [])
+            for chunk in answer.answer_events(messages, [], documents)
             for line in chunk.splitlines()
             if line.startswith("data: ")
         ]
@@ -229,6 +233,10 @@ def save_new(path: Path, p: Pass, events: list[dict]) -> None:
     """Cache a freshly planned turn's plan, passages and their usage."""
     if p.cached is not None or "plan" not in p.new:
         return
+    # A search plan with no passages key means the search raised (e.g. a Cohere 429). Without
+    # this, the error would be cached as "found nothing" and scored as the model declining.
+    if p.new["plan"]["kind"] == "search" and "passages" not in p.new:
+        raise AttemptFailed("the search failed", "search_error")
     result = next(e["value"] for e in events if e["type"] == "CUSTOM")
     spent = p.pre_usage if p.called else result["usage"]
     entry = {
@@ -454,7 +462,7 @@ def _converse_live(case: dict, rep: int, ctx: Context, real_stream, retries: dic
         path = cache_path(ctx.flow, ctx.variant, case["id"], rep, t)
 
         def attempt():
-            p, events = run_pass(messages, _load(path), live(real_stream))
+            p, events = run_pass(messages, _load(path), live(real_stream), ctx.documents)
             save_new(path, p, events)
             return turn_record(turn["user"], p, events, ctx)
 
@@ -522,7 +530,7 @@ def run_batch(todo: list[tuple[dict, int]], ctx: Context) -> tuple[int, int]:
                 c.messages.append({"role": "user", "content": user})
                 path = cache_path(ctx.flow, ctx.variant, c.case["id"], c.rep, t)
                 try:
-                    p, events = run_pass(c.messages, _load(path), collect)
+                    p, events = run_pass(c.messages, _load(path), collect, ctx.documents)
                     save_new(path, p, events)
                     if p.request:
                         pending[json.dumps([c.case["id"], c.rep, t, ctx.model])] = (c, p.request)
@@ -563,7 +571,7 @@ def run_batch(todo: list[tuple[dict, int]], ctx: Context) -> tuple[int, int]:
                 path = cache_path(ctx.flow, ctx.variant, c.case["id"], c.rep, t)
                 try:
                     p, events = run_pass(
-                        c.messages, _load(path), replay(ctx.provider, result["ok"])
+                        c.messages, _load(path), replay(ctx.provider, result["ok"]), ctx.documents
                     )
                     c.records.append(turn_record(c.case["turns"][t]["user"], p, events, ctx))
                 except Exception as error:

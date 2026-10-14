@@ -2,7 +2,8 @@
 
 Run from microservices/rag-service:  uv run --extra dev python -m eval.chat_eval <command>
   init       write _state.json (metrics, perf fields, harness paths) and metrics.md
-  docmap     map gold PDF file names to knowledge-document ids (reads MONGODB_URI;
+  docmap     map gold PDF file names to knowledge-document ids, and
+             write documents.json (names for the chat) (reads MONGODB_URI;
              pymongo isn't a rag-service dependency: `uv run --extra dev --with pymongo ...`)
   split      draw the train/test split once, stratified by tags[0]
   prepare    plan + search every first turn once (shared by every candidate)   [paid]
@@ -80,8 +81,8 @@ Each is a mean over the turns of a case it applies to; blank = does not apply.
 - **decline_rate** (AC10): declined, on questions the knowledge base cannot answer.
 - **false_decline** (AC10, lower is better): declined, on answerable questions.
 - **decline_right**: declined exactly when it should (both groups together).
-- **on_topic** (AC11): judge yes/no that the answer is about the intended topic, on
-  answerable follow-ups (turn 2 on) that carry a `topic`.
+- **on_topic** (AC11): judge yes/no that the answer addresses the question, on every
+  answerable turn (a follow-up is checked against its `topic` when it has one).
 - **clarified** (AC5): on an ambiguous turn, asked a question back and did not search.
 """
 
@@ -120,6 +121,21 @@ def fetch_doc_ids() -> dict[str, list[str]]:
     for doc in docs.find({}, {"fileName": 1}):
         found[doc["fileName"]].append(str(doc["_id"]))
     return dict(found)
+
+
+def load_documents(flow: Path) -> list[dict]:
+    """Return the document details written by `docmap` (empty if absent: passages stay unnamed)."""
+    path = flow / "documents.json"
+    return json.loads(path.read_text()) if path.exists() else []
+
+
+def fetch_documents() -> list[dict]:
+    """Return each knowledge document's name fields, as the gateway sends them to /chat."""
+    from pymongo import MongoClient
+
+    docs = MongoClient(os.environ["MONGODB_URI"]).get_default_database()["knowledge_documents"]
+    fields = ("title", "issuingBody", "standardNumber", "edition")
+    return [{"id": str(d["_id"])} | {k: d[k] for k in fields if d.get(k)} for d in docs.find({})]
 
 
 def read_state(flow: Path) -> dict:
@@ -209,9 +225,10 @@ def cmd_init(args) -> int:
 
 
 def cmd_docmap(args) -> int:
-    """Write doc_ids.json from MongoDB (free: no model call)."""
+    """Write doc_ids.json and documents.json from MongoDB (free: no model call)."""
     found = fetch_doc_ids()
     args.flow.mkdir(parents=True, exist_ok=True)
+    (args.flow / "documents.json").write_text(json.dumps(fetch_documents(), indent=1))
     (args.flow / "doc_ids.json").write_text(json.dumps(found, indent=1))
     eprint(f"mapped {len(found)} file name(s)")
     return 0
@@ -301,6 +318,7 @@ def cmd_run(args) -> int:
         effort=args.effort,
         transport=args.transport,
         doc_ids=doc_ids,
+        documents=load_documents(args.flow),
         timeout_s=args.timeout_s,
         concurrency=args.concurrency,
         poll_s=args.poll_s,

@@ -30,6 +30,9 @@ def transient(error: BaseException) -> bool:
     import anthropic
     import openai
 
+    # The chat pipeline swallows search errors, so the runner raises this class in their place.
+    if isinstance(error, AttemptFailed) and error.failure_class == "search_error":
+        return True
     cause = error.__cause__ or error
     status = getattr(cause, "status_code", None)
     if status is not None:
