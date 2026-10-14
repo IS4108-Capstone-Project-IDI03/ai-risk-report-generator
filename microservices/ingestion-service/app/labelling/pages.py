@@ -24,14 +24,14 @@ _ocr_lock = Lock()
 def _converter():
     # Lazy import: Docling is heavy, and most documents never need OCR.
     from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.datamodel.pipeline_options import OcrMode, PdfPipelineOptions
     from docling.document_converter import DocumentConverter, PdfFormatOption
 
     from app.pipeline.ocr_config import get_ocr_options
 
-    options = PdfPipelineOptions(
-        do_ocr=True, ocr_options=get_ocr_options()[0], do_table_structure=False
-    )
+    # Only pages with no text layer reach here, so OCR the whole page.
+    ocr_options = get_ocr_options()[0].model_copy(update={"mode": OcrMode.FULL_PAGE})
+    options = PdfPipelineOptions(do_ocr=True, ocr_options=ocr_options, do_table_structure=False)
     return DocumentConverter(
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
     )
