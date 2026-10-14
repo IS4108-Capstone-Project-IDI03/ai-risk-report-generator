@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { config } from '../config'
 import { AiCallModel } from '../models/ai-call.model'
 import { estimateCost } from '../services/ai-pricing.service'
+import { repriceAiCalls } from '../scripts/reprice-ai-calls'
 import { labelUsageToWire, recordAiCalls, type WireUsage } from '../services/ai-usage.service'
 import { labelDocument } from '../services/ingestion.service'
 import { transcribe } from '../services/speech.service'
@@ -38,6 +39,11 @@ describe('estimateCost (AC3)', () => {
   it('matches a dated model id to its price', () => {
     const cost = estimateCost(item({ model: 'claude-haiku-4-5-20251001' }))
     expect(cost.estimatedCostUsd).toBeCloseTo((1000 * 1 + 500 * 5 + 2000 * 0.1) / 1e6, 8)
+  })
+
+  it('prices Sonnet 5.5, the drafting model', () => {
+    const cost = estimateCost(item({ model: 'claude-sonnet-5-5' }))
+    expect(cost.estimatedCostUsd).toBeCloseTo((1000 * 2 + 500 * 10 + 2000 * 0.1) / 1e6, 8)
   })
 
   it('has no cost for a model it has no price for', () => {
@@ -360,5 +366,32 @@ describe('Cohere price settings', () => {
       }),
     )
     expect(cost.estimatedCostUsd).toBeCloseTo(0.5, 8)
+  })
+})
+
+describe('repriceAiCalls', () => {
+  it('prices rows saved before their model had a price, and leaves the rest', async () => {
+    const row = {
+      feature: 'draft-section',
+      billedService: 'anthropic',
+      reportId: 'RPT-2026-0001',
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheReadTokens: 0,
+      usageStatus: 'recorded',
+      estimatedCostUsd: null,
+      pricingBasis: 'no price for model',
+    }
+    await AiCallModel.insertMany([
+      { ...row, model: 'claude-sonnet-5-5' },
+      { ...row, model: 'claude-future-9' },
+    ])
+
+    expect(await repriceAiCalls()).toEqual({ priced: 1, unpriced: 1 })
+    const sonnet = await AiCallModel.findOne({ model: 'claude-sonnet-5-5' }).lean()
+    expect(sonnet?.estimatedCostUsd).toBeCloseTo((1000 * 2 + 500 * 10) / 1e6, 8)
+    expect(sonnet?.pricingBasis).toContain('platform.claude.com')
+    const future = await AiCallModel.findOne({ model: 'claude-future-9' }).lean()
+    expect(future?.estimatedCostUsd).toBeNull()
   })
 })

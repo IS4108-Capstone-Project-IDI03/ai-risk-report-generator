@@ -12,7 +12,9 @@ type TokenPrice = { in: number; out: number; cacheRead: number }
 // ponytail: Haiku 5.5 costs more for prompts over 100k tokens; drafting and
 // labelling stay far below that. Add a tier here if that changes.
 const CLAUDE_PRICES: Record<string, TokenPrice> = {
+  'claude-fable-5-1': { in: 10, out: 50, cacheRead: 0.25 },
   'claude-opus-5-5': { in: 4, out: 20, cacheRead: 0.2 },
+  'claude-sonnet-5-5': { in: 2, out: 10, cacheRead: 0.1 },
   'claude-haiku-5-5': { in: 0.1, out: 0.5, cacheRead: 0.01 },
   'claude-haiku-4-5': { in: 1, out: 5, cacheRead: 0.1 },
 }
