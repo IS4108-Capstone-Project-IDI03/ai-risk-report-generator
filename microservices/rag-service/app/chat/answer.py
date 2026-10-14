@@ -24,7 +24,7 @@ from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
 
 # Bump on every prompt change; each scored eval run records it (AC12).
-PROMPT_VERSION = "cb01-v1"
+PROMPT_VERSION = "cb01-v4"
 # The component signatures, generated from the client's library (must match
 # client/src/features/chat/library.test.ts, which rewrites this file).
 COMPONENTS = (Path(__file__).parent / "answer_components.txt").read_text()
@@ -49,6 +49,8 @@ ANSWER_RULES = f"""
 - Cite a passage at most once in a Statement; quote the words that best support it.
 - Use CitedTable only to compare documents or editions; every Cell cites its passage.
 - A passage marked "withdrawn edition" may be cited, but say it is a withdrawn edition.
+- When passages from different documents answer differently, give each document's answer
+  with its own citation and name the document; don't choose between them.
 - If the passages don't answer the question, write one Statement "{DECLINE}" with no cites.
 """
 
@@ -59,10 +61,19 @@ Read the conversation and decide for its LAST message:
 - kind "clarify": the last message could refer to more than one earlier topic. Put one short
   question in `reply` asking which one is meant.
 - kind "chat": thanks or small talk. Put a one-sentence reply in `reply`.
-Filters, only when the message names them: jurisdiction as an ISO country code (e.g. "SG"),
-facility_type as written in the knowledge base (e.g. "Office", "Shopping mall",
-"Mixed-use development"), source_type one of fm_standard, nfpa_standard, marsh_report.
-Set include_withdrawn only when the message names a specific edition or year of a standard."""
+Filters, only when the message names them in words; never infer one from a technical term:
+jurisdiction as an ISO country code (e.g. "SG"), facility_type as written in the knowledge
+base (e.g. "Office", "Shopping mall", "Mixed-use development"), source_type one of
+fm_standard, nfpa_standard, marsh_report ("reports", "past reports", "surveys" mean
+marsh_report). When the message names more than one kind of source (e.g. an NFPA and an FM
+standard), give each its own search (see extra searches below) instead of one filter.
+Set include_withdrawn only when the message names a specific edition or year of a standard.
+Extra searches, in `extra_searches` (at most 2, each with its own `query` and `filters`):
+- When the message names two or more documents or standards to compare or choose between, write
+  one search per document: `query` and `filters` for the first, `extra_searches` for the others,
+  each with its own filters (e.g. source_type).
+- When the message rests on an assumption that may be false, add one extra search that checks
+  the assumption itself."""
 
 
 class Filters(BaseModel):
@@ -71,12 +82,37 @@ class Filters(BaseModel):
     source_type: Literal["fm_standard", "nfpa_standard", "marsh_report"] | None = None
 
 
+class ExtraSearch(BaseModel):
+    query: str
+    filters: Filters = Field(default_factory=Filters)
+
+
 class Plan(BaseModel):
     kind: Literal["search", "clarify", "chat"]
     query: str
     filters: Filters = Field(default_factory=Filters)
     include_withdrawn: bool = False
+    # Defaults to [] so plans cached before this field existed still validate.
+    extra_searches: list[ExtraSearch] = Field(default_factory=list, max_length=2)
     reply: str
+
+
+def search_passages(plan: Plan) -> list[dict]:
+    """Return a plan's passages: top 5 of one search, or the best 3 of each when it has extras."""
+    filters = plan.filters.model_dump(exclude_none=True)
+    if not plan.extra_searches:
+        return retrieve(plan.query, filters, plan.include_withdrawn)
+    searches = [(plan.query, filters)] + [
+        (x.query, x.filters.model_dump(exclude_none=True)) for x in plan.extra_searches
+    ]
+    merged, seen = [], set()
+    for query, search_filters in searches:
+        for p in retrieve(query, search_filters, plan.include_withdrawn)[:3]:
+            # Without this, a passage found by two searches would reach the model twice.
+            if p["id"] not in seen:
+                seen.add(p["id"])
+                merged.append(p)
+    return merged
 
 
 def _sse(event: dict) -> str:
@@ -109,15 +145,33 @@ def _history(messages: list[dict]) -> list[dict]:
     return [t for t in turns if t["content"]][-HISTORY_MESSAGES:]
 
 
+def document_name(doc: dict) -> str:
+    """Return a document's display name: "FM Global 2-81 (2026)" for a standard, else its title."""
+    body, number = doc.get("issuingBody"), doc.get("standardNumber")
+    if not (body and number):
+        return doc["title"]
+    edition = doc.get("edition")
+    return f"{body} {number} ({edition})" if edition else f"{body} {number}"
+
+
+def passage_header(n: int, passage: dict) -> str:
+    """Return the bracketed line that opens passage n: label, document, headings, pages, flag.
+
+    Also used by eval/chat_grade.py, so the judge reads the same header the model did.
+    """
+    meta = passage["metadata"]
+    where = " > ".join(meta.get("headings") or [])
+    # Without the name, the model guesses one from the text and the judge fails the guess.
+    if meta.get("document_name"):
+        where = f"{meta['document_name']} > {where}" if where else meta["document_name"]
+    pages = f"p. {meta.get('page_start')}-{meta.get('page_end')}"
+    withdrawn = ", withdrawn edition" if meta.get("status") == "withdrawn" else ""
+    return f"[P{n}] ({where}, {pages}{withdrawn})"
+
+
 def _passage_block(passages: list[dict]) -> str:
     """Return the passages as P1…Pn with page and headings; the model never sees ids."""
-    parts = []
-    for n, p in enumerate(passages, 1):
-        meta = p["metadata"]
-        where = " > ".join(meta.get("headings") or [])
-        pages = f"p. {meta.get('page_start')}-{meta.get('page_end')}"
-        withdrawn = ", withdrawn edition" if meta.get("status") == "withdrawn" else ""
-        parts.append(f"[P{n}] ({where}, {pages}{withdrawn})\n{p['text']}")
+    parts = [f"{passage_header(n, p)}\n{p['text']}" for n, p in enumerate(passages, 1)]
     return "<passages>\n" + "\n\n".join(parts) + "\n</passages>"
 
 
@@ -205,12 +259,14 @@ def _check(program: str, passages: list[dict]) -> tuple[list[dict], str]:
     return citations, line
 
 
-def answer_events(messages: list[dict], context: list[str]) -> Iterator[str]:
+def answer_events(
+    messages: list[dict], context: list[str], documents: list[dict] | None = None
+) -> Iterator[str]:
     """SSE lines for one answer: the search step, the streamed answer, then its result."""
     # The server runs each step of a stream on a fresh thread with a fresh context, so
     # usage recorded after the first step would be lost from the cost log. Running every
     # step in one context keeps the request's usage list (app/usage.py) alive throughout.
-    steps, context_ = _events(messages, context), contextvars.copy_context()
+    steps, context_ = _events(messages, context, documents), contextvars.copy_context()
     while True:
         try:
             yield context_.run(next, steps)
@@ -218,7 +274,9 @@ def answer_events(messages: list[dict], context: list[str]) -> Iterator[str]:
             return
 
 
-def _events(messages: list[dict], context: list[str]) -> Iterator[str]:
+def _events(
+    messages: list[dict], context: list[str], documents: list[dict] | None = None
+) -> Iterator[str]:
     """The answer's SSE lines, step by step (see answer_events)."""
     items = usage.start()
     history = _history(messages)
@@ -265,13 +323,22 @@ def _events(messages: list[dict], context: list[str]) -> Iterator[str]:
             # b. Search, shown as a step on screen (AC8) with the filters it used (AC6).
             filters = plan.filters.model_dump(exclude_none=True)
             call_id = str(uuid.uuid4())
-            args = json.dumps({"query": plan.query, "filters": filters})
+            shown = {"query": plan.query, "filters": filters}
+            if plan.extra_searches:
+                shown["also"] = [x.query for x in plan.extra_searches]
+            args = json.dumps(shown)
             yield _sse(
                 {"type": "TOOL_CALL_START", "toolCallId": call_id, "toolCallName": SEARCH_TOOL}
             )
             yield _sse({"type": "TOOL_CALL_ARGS", "toolCallId": call_id, "delta": args})
             yield _sse({"type": "TOOL_CALL_END", "toolCallId": call_id})
-            passages = retrieve(plan.query, filters, plan.include_withdrawn)
+            passages = search_passages(plan)
+            # Names are added here, after search, so cached eval searches stay valid.
+            names = {d["id"]: document_name(d) for d in documents or []}
+            for p in passages:
+                name = names.get(p["metadata"].get("doc_id"))
+                if name:
+                    p["metadata"]["document_name"] = name
             # c. Decline without a model call when no passage is relevant enough (AC3).
             best = max((p.get("relevance_score", 0) for p in passages), default=0)
             declined = best < config.CHAT_MIN_RELEVANCE

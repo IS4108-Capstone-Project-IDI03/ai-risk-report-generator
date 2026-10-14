@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
 import { chatUsageTap } from '../services/chat-usage.service'
-import { openChatStream, RagServiceError } from '../services/rag.service'
+import { openChatStream, RagServiceError, withChatDocuments } from '../services/rag.service'
 
 const router = Router()
 
@@ -17,7 +17,7 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   res.on('close', () => upstream.abort())
   let stream: ReadableStream<Uint8Array>
   try {
-    stream = await openChatStream(req.body, upstream.signal)
+    stream = await openChatStream(await withChatDocuments(req.body), upstream.signal)
   } catch (error: unknown) {
     if (error instanceof RagServiceError) {
       res.status(503).json({ error: error.message })

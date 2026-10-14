@@ -3,6 +3,7 @@
 The plan model, the answer model and search are faked; nothing paid runs.
 """
 
+import copy
 import json
 
 import pytest
@@ -328,3 +329,111 @@ def test_the_check_line_arrives_whole_not_word_by_word(fake, monkeypatch):
     events = _ask("Clearance?")
     deltas = [e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT"]
     assert any(d.lstrip().startswith("meta = Meta(") and d.rstrip().endswith(")") for d in deltas)
+
+
+def _passages(prefix, n):
+    return [
+        {
+            "id": f"{prefix}:{i}",
+            "text": f"{prefix} passage {i}.",
+            "metadata": {"doc_id": prefix, "page_start": i, "page_end": i},
+            "relevance_score": 0.9 - i / 100,
+        }
+        for i in range(n)
+    ]
+
+
+def test_extra_searches_each_run_and_the_model_gets_the_best_three_of_each(fake, monkeypatch):
+    fake["plan"] = answer.Plan(
+        kind="search",
+        query="NFPA 25 inspection",
+        filters=answer.Filters(source_type="nfpa_standard"),
+        extra_searches=[
+            answer.ExtraSearch(
+                query="FM 2-81 inspection", filters=answer.Filters(source_type="fm_standard")
+            )
+        ],
+        reply="",
+    )
+    nfpa, fm = _passages("nfpa", 5), _passages("fm", 5)
+    fm[0] = nfpa[1]  # a repeated passage must reach the model once only
+
+    def retrieve(query, filters=None, include_withdrawn=False):
+        fake["calls"]["search"].append((query, filters, include_withdrawn))
+        return nfpa if "NFPA" in query else fm
+
+    monkeypatch.setattr(answer, "retrieve", retrieve)
+    events = _ask("NFPA 25 or FM 2-81, do they differ?")
+    assert fake["calls"]["search"] == [
+        ("NFPA 25 inspection", {"source_type": "nfpa_standard"}, False),
+        ("FM 2-81 inspection", {"source_type": "fm_standard"}, False),
+    ]
+    sent = fake["calls"]["answer"][0][1][-1]["content"]
+    assert sent.count("[P") == 5  # 3 + 3, minus the repeat
+    assert "[P6]" not in sent
+    call = next(e for e in events if e["type"] == "TOOL_CALL_ARGS")
+    assert json.loads(call["delta"]) == {
+        "query": "NFPA 25 inspection",
+        "filters": {"source_type": "nfpa_standard"},
+        "also": ["FM 2-81 inspection"],
+    }
+    assert sum(e["type"] == "TOOL_CALL_START" for e in events) == 1
+
+
+def test_a_plan_without_extra_searches_searches_once_and_keeps_five(fake, monkeypatch):
+    def retrieve(query, filters=None, include_withdrawn=False):
+        fake["calls"]["search"].append(query)
+        return _passages("a", 5)
+
+    monkeypatch.setattr(answer, "retrieve", retrieve)
+    events = _ask("What clearance is needed above storage?")
+    assert fake["calls"]["search"] == ["deflector clearance"]
+    assert fake["calls"]["answer"][0][1][-1]["content"].count("[P") == 5
+    call = next(e for e in events if e["type"] == "TOOL_CALL_ARGS")
+    assert "also" not in json.loads(call["delta"])
+
+
+def test_an_old_plan_without_extra_searches_still_validates():
+    old = {"kind": "search", "query": "q", "filters": {}, "include_withdrawn": False, "reply": ""}
+    assert answer.Plan.model_validate(old).extra_searches == []
+
+
+# ---- document names (CB-01): the gateway sends each document's details ----------------------
+
+FM_DOC = {
+    "id": "fm",
+    "title": "Dry pipe systems",
+    "issuingBody": "FM Global",
+    "standardNumber": "2-81",
+    "edition": "2026",
+}
+NFPA_DOC = {"id": "nfpa19", "title": "NFPA 13", "issuingBody": "NFPA", "standardNumber": "13"}
+REPORT_DOC = {"id": "rep", "title": "Orchard Tower survey 2024"}
+
+
+def test_document_name_is_the_standard_with_its_edition_or_else_the_title():
+    assert answer.document_name(FM_DOC) == "FM Global 2-81 (2026)"
+    assert answer.document_name(NFPA_DOC) == "NFPA 13"  # no edition: no brackets
+    assert answer.document_name(REPORT_DOC) == "Orchard Tower survey 2024"
+
+
+def test_passages_reach_the_model_labelled_with_their_document_name(fake):
+    fake["passages"] = [copy.deepcopy(P1), copy.deepcopy(OLD)]
+    body = {"messages": [{"role": "user", "content": "q"}], "documents": [FM_DOC]}
+    assert client.post("/chat", json=body).status_code == 200
+    last = fake["calls"]["answer"][0][1][-1]["content"]
+    assert "[P1] (FM Global 2-81 (2026) > 2.1, p. 12-13)" in last
+    # A passage whose document isn't listed keeps today's header.
+    assert "[P2] (, p. 40-40, withdrawn edition)" in last
+
+
+def test_without_documents_the_header_is_unchanged(fake):
+    _ask("What clearance is needed above storage?")
+    assert "[P1] (2.1, p. 12-13)" in fake["calls"]["answer"][0][1][-1]["content"]
+
+
+def test_the_name_is_set_on_the_passage_for_the_eval_cache(fake):
+    passage = copy.deepcopy(P1)
+    fake["passages"] = [passage]
+    list(answer.answer_events([{"role": "user", "content": "q"}], [], [FM_DOC]))
+    assert passage["metadata"]["document_name"] == "FM Global 2-81 (2026)"
