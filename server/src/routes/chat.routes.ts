@@ -1,6 +1,7 @@
 // The knowledge assistant's chat endpoint (CB-01). Passes the chat screen's
 // request to S4 and streams S4's answer events (AG-UI, as server-sent events)
-// back unchanged. Called by client/src/features/chat/api.ts.
+// back unchanged, apart from the usage event at the end, which the service
+// records and removes (EV-03). Called by client/src/features/chat/api.ts.
 import { Router } from 'express'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -16,7 +17,7 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   res.on('close', () => upstream.abort())
   let stream: ReadableStream<Uint8Array>
   try {
-    stream = await openChatStream(req.body, upstream.signal)
+    stream = await openChatStream(req.body, upstream.signal, res.locals.user?.id)
   } catch (error: unknown) {
     if (error instanceof RagServiceError) {
       res.status(503).json({ error: error.message })

@@ -3,9 +3,12 @@
 MongoDB, S3 and the pipeline are faked, so no Redis, AWS or Docling is needed.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
+import httpx
 import pytest
 from bson import ObjectId
 
@@ -15,6 +18,7 @@ from app.pipeline.errors import DocumentTimeoutError, OcrUnavailableError
 
 DOC_ID = "6abb28ae16068a0793e9962a"
 PDF = b"%PDF-1.7 original bytes"
+PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
 
 
 def RUN_OK(*_args, **_kwargs):
@@ -574,3 +578,229 @@ def test_a_failed_ingestion_removes_the_passages_it_already_wrote(documents, mon
 
     assert documents.doc["status"] == "failed"
     assert documents.deleted_passages == [DOC_ID]
+
+
+# --- AI-call usage (EV-03) -------------------------------------------------
+# The pipeline is faked, but the OCR providers and the embedder are the real
+# ones with only their API clients replaced, so what is posted is what the
+# real calls report. OCR runs in a thread pool here, as the chunker does.
+
+
+class _FakeClaude:
+    """`anthropic.Anthropic` answering every `messages.parse` with a table and usage."""
+
+    def __init__(self):
+        self.messages = self
+
+    def parse(self, **_):
+        from app.pipeline.chunking_helper.ocr_prompts import TableReading
+
+        return SimpleNamespace(
+            parsed_output=TableReading(rows=[["Agent", "Qty"], ["FM-200", "2"]], header="row"),
+            stop_reason="end_turn",
+            model="claude-haiku-5-5",
+            usage=SimpleNamespace(
+                input_tokens=1000, output_tokens=200, cache_read_input_tokens=None
+            ),
+        )
+
+
+class _FakeCohere:
+    """`cohere.ClientV2` answering `embed` with one vector per text and billed tokens."""
+
+    def embed(self, texts, **_):
+        return SimpleNamespace(
+            embeddings=SimpleNamespace(float_=[[0.1]] * len(texts)),
+            meta=SimpleNamespace(billed_units=SimpleNamespace(input_tokens=40 * len(texts))),
+        )
+
+
+@pytest.fixture
+def posted(monkeypatch):
+    """What the worker posts to the gateway's /api/internal/ai-usage."""
+    from app import usage
+
+    monkeypatch.setenv("SERVICE_API_KEY", "test-key")
+    sent = []
+
+    def fake_post(url, json, headers, timeout):
+        sent.append({"url": url, "body": json, "headers": headers})
+        return SimpleNamespace(status_code=204)
+
+    monkeypatch.setattr(usage.httpx, "post", fake_post)
+    return sent
+
+
+@pytest.fixture
+def providers(monkeypatch):
+    from app.pipeline import embedder
+    from app.pipeline.chunking_helper import anthropic_ocr
+
+    monkeypatch.setenv("OCR_PROVIDER", "anthropic")
+    monkeypatch.delenv("OCR_MODEL", raising=False)
+    monkeypatch.setattr(anthropic_ocr, "_client", _FakeClaude)
+    monkeypatch.setattr(embedder, "cohere_client", _FakeCohere)
+
+
+def _ocr_and_embed(regions: int, texts: list[str]):
+    """A fake run that reads `regions` table crops in a thread pool, then embeds `texts`."""
+    from app.pipeline import embedder
+    from app.pipeline.chunking_helper import ocr_model
+
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda _: ocr_model.recognise(PNG, "table"), range(regions)))
+        embedder.embed(texts)
+        return {"chunks_indexed": len(texts), "tables_captured": regions, "images_captured": 0}
+
+    return fake_run
+
+
+def _items(posted):
+    [call] = posted
+    return {(i["feature"], i["billed_service"]): i for i in call["body"]["usage"]}
+
+
+def test_a_document_posts_one_total_per_stage_and_model(documents, posted, providers, monkeypatch):
+    monkeypatch.setattr(worker, "run", _ocr_and_embed(regions=5, texts=["a", "b", "c"]))
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "complete"
+    assert posted[0]["url"].endswith("/api/internal/ai-usage")
+    assert posted[0]["headers"] == {"x-service-key": "test-key"}
+    items = _items(posted)
+    assert set(items) == {("ocr", "anthropic"), ("embed-document", "cohere-embed")}
+    ocr = items[("ocr", "anthropic")]
+    # Five regions read on four threads: all five counted, tokens summed.
+    assert ocr["call_count"] == 5
+    assert ocr["input_tokens"] == 5000
+    assert ocr["output_tokens"] == 1000
+    assert ocr["model"] == "claude-haiku-5-5"
+    assert ocr["document_id"] == DOC_ID
+    assert ocr["usage_status"] == "recorded"
+    embed = items[("embed-document", "cohere-embed")]
+    assert embed["call_count"] == 1
+    assert embed["input_tokens"] == 120
+    assert embed["duration_ms"] >= 0
+
+
+def test_gemini_ocr_counts_its_thinking_as_output(documents, posted, monkeypatch):
+    from app.pipeline import embedder
+    from app.pipeline.chunking_helper import gemini_ocr
+
+    class FakeGemini:
+        def __init__(self):
+            self.interactions = self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def create(self, **_):
+            return SimpleNamespace(
+                status="completed",
+                output_text='{"rows": [["Agent"], ["FM-200"]], "header": "row"}',
+                model="gemini-3.8-flash",
+                usage=SimpleNamespace(
+                    total_input_tokens=800, total_output_tokens=50, total_thought_tokens=150
+                ),
+            )
+
+    monkeypatch.setenv("OCR_PROVIDER", "gemini")
+    monkeypatch.setattr(gemini_ocr, "_client", FakeGemini)
+    monkeypatch.setattr(embedder, "cohere_client", _FakeCohere)
+    monkeypatch.setattr(worker, "run", _ocr_and_embed(regions=2, texts=["a"]))
+
+    worker.ingest_document(DOC_ID)
+
+    ocr = _items(posted)[("ocr", "gemini-ocr")]
+    assert ocr["call_count"] == 2
+    assert ocr["input_tokens"] == 1600
+    assert ocr["output_tokens"] == 400  # (50 answer + 150 thinking) x 2
+
+
+def test_a_failed_document_still_posts_what_it_spent(documents, posted, providers, monkeypatch):
+    read = _ocr_and_embed(regions=2, texts=[])
+
+    def fails_after_ocr(*args, **kwargs):
+        read(*args, **kwargs)
+        raise OSError(-2, "boom")
+
+    monkeypatch.setattr(worker, "run", fails_after_ocr)
+
+    with pytest.raises(OSError):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert _items(posted)[("ocr", "anthropic")]["call_count"] == 2
+
+
+def test_calls_that_reported_no_usage_are_posted_apart_as_unavailable(
+    documents, posted, providers, monkeypatch
+):
+    from app.pipeline import embedder
+
+    class Unbilled:
+        def embed(self, texts, **_):
+            return SimpleNamespace(embeddings=SimpleNamespace(float_=[[0.1]] * len(texts)))
+
+    monkeypatch.setattr(embedder, "cohere_client", Unbilled)
+    monkeypatch.setattr(worker, "run", _ocr_and_embed(regions=0, texts=["a"]))
+
+    worker.ingest_document(DOC_ID)
+
+    embed = _items(posted)[("embed-document", "cohere-embed")]
+    assert embed["usage_status"] == "unavailable"
+    assert embed["input_tokens"] is None
+
+
+def test_a_document_that_made_no_paid_call_posts_nothing(documents, posted, monkeypatch):
+    monkeypatch.setattr(worker, "run", RUN_OK)
+
+    worker.ingest_document(DOC_ID)
+
+    assert posted == []
+
+
+def test_a_gateway_that_cannot_be_reached_does_not_fail_ingestion(
+    documents, providers, monkeypatch
+):
+    from app import usage
+
+    monkeypatch.setenv("SERVICE_API_KEY", "test-key")
+
+    def down(*_args, **_kwargs):
+        raise httpx.ConnectError("gateway down")
+
+    monkeypatch.setattr(usage.httpx, "post", down)
+    monkeypatch.setattr(worker, "run", _ocr_and_embed(regions=1, texts=["a"]))
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "complete"
+
+
+def test_self_hosted_ocr_is_recorded_for_its_speed(documents, posted, monkeypatch):
+    from app.pipeline.chunking_helper import ocr_model
+
+    class FakeGlm:
+        def process(self, payload):
+            content = "<table><tr><td>A</td></tr></table>"
+            reply = {"choices": [{"message": {"content": content}}]}
+            reply["usage"] = {"prompt_tokens": 300, "completion_tokens": 20}
+            return reply, 200
+
+    monkeypatch.setenv("OCR_PROVIDER", "glm")
+    monkeypatch.setenv("GLMOCR_OCR_MODEL", "glm-ocr")
+    monkeypatch.setattr(ocr_model, "ocr_client", FakeGlm)
+    monkeypatch.setattr(worker, "run", _ocr_and_embed(regions=1, texts=[]))
+
+    worker.ingest_document(DOC_ID)
+
+    ocr = _items(posted)[("ocr", "self-hosted-ocr")]
+    assert ocr["model"] == "glm-ocr"
+    assert ocr["input_tokens"] == 300
+    assert ocr["output_tokens"] == 20

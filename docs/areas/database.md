@@ -850,15 +850,19 @@ References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 
 ## AI-call usage (EV-03)
 
-Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per paid AI call, saved by the gateway (`ai-usage.service.ts`) from the `usage` list that the Python services return. The services never write it.
+Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per paid AI call, saved by the gateway (`ai-usage.service.ts`) from the `usage` list that the Python services return. The services never write it. Ingestion is the exception to "one per call": its many small calls are summed into one row per document, stage and model (see `callCount`).
 
 | Field | Meaning |
 |---|---|
-| `feature` | `draft-section`, `retrieval`, `transcribe` or `label-document` |
-| `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev` |
+| `feature` | `draft-section`, `retrieval`, `transcribe`, `label-document`, `interpret-photo`, `ocr`, `embed-document` or `chat` |
+| `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev`, `gemini-vision`, `gemini-ocr`, `self-hosted-ocr` |
 | `model` | the exact model the provider reported |
-| `reportId` | the assessment reference (absent for labelling, which has no report) |
-| `durationMs` | how long the call took |
+| `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |
+| `documentId` | the knowledge document a labelling or ingestion call was for (absent otherwise) |
+| `userId` | the signed-in user who sent a chat message (chat only; report calls are attributed to the assessment's assigned engineer when read) |
+| `section` | the report section id a draft was for, as in `report_sections.sectionId`: `7`–`12` for drafted sections, `3` for OFIs, `2` for the executive summary (drafting only; absent on rows saved before it existed) |
+| `callCount` | how many provider calls the row stands for: 1, except ingestion rows, which sum a document's calls per stage and model |
+| `durationMs` | how long the call took (for an ingestion row, the total of its calls) |
 | `inputTokens`, `outputTokens`, `cacheReadTokens` | provider-reported; `null` when not reported |
 | `searchUnits`, `audioSeconds` | Cohere rerank and Whisper billing units |
 | `usageStatus` | `recorded`, or `unavailable` when the provider gave no usage data |
@@ -866,9 +870,11 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 - One draft writes three rows: Claude, Cohere embed and Cohere rerank.
 - A draft that fails after its paid calls (refused, cut off) is not recorded: the service raises before it returns the list.
-- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08). Cohere publishes no per-use price, so those two are estimates, set by `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`.
+- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08; Gemini from ai.google.dev/gemini-api/docs/pricing, read 2026-10-13, with its announced 2027-01-01 rise applied by call date). Self-hosted OCR costs $0 per call, with that named as its basis. Cohere calls cost $0 while `COHERE_KEY_TIER` is `trial` (the default, even when unset), since a trial key is free (1,000 calls a month), with that named as the basis. With `COHERE_KEY_TIER=production` they are priced from estimates, since Cohere publishes no per-use price: `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`. A row keeps the price in force when it was saved, so switching tiers changes only later rows.
 - A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
-- Nothing reads the collection yet; EV-04 (cost report) will.
+- Ingestion rows arrive from the worker through `POST /api/internal/ai-usage` (service key), one per document, feature (`ocr`, `embed-document`), billed service and model, whatever the document's outcome. Their `durationMs` is the sum over `callCount` calls, so the report averages it per call and leaves those rows out of latency percentiles. Calls that reported no usage form their own `unavailable` row. Self-hosted OCR is always $0, even with no token counts.
+- Read by the EV-04 cost report (`usage-report.service.ts`).
+- Indexes: `feature`, `billedService`, `reportId`, `documentId`, `userId`, `createdAt`.
 
 ### Where each `ai_calls` field comes from (EV-03)
 
@@ -881,6 +887,10 @@ Each provider reports usage differently. The services rename it into one shape (
 | Anthropic `usage.cache_read_input_tokens` | `cache_read_tokens` | `cacheReadTokens` |
 | Cohere embed `meta.billed_units.input_tokens` | `input_tokens` | `inputTokens` |
 | Cohere rerank `meta.billed_units.search_units` | `search_units` | `searchUnits` |
+| Gemini `usage.total_input_tokens` | `input_tokens` | `inputTokens` |
+| Gemini `usage.total_output_tokens` + `total_thought_tokens` (both billed as output) | `output_tokens` | `outputTokens` |
+| Self-hosted OCR (OpenAI-style) `usage.prompt_tokens` / `completion_tokens` | `input_tokens` / `output_tokens` | `inputTokens` / `outputTokens` |
+| Number of provider calls summed into one ingestion row | `call_count` | `callCount` |
 | Whisper `verbose_json` `duration` (seconds) | `audio_seconds` | `audioSeconds` |
 | Time around the call (`perf_counter`) | `duration_ms` | `durationMs` |
 | Labelling `seconds` (gateway multiplies by 1000) | `duration_ms` | `durationMs` |
@@ -889,6 +899,9 @@ Each provider reports usage differently. The services rename it into one shape (
 | Which code path made the call | `feature` | `feature` |
 | Provider gave nothing | `usage_status: "unavailable"` | `usageStatus` |
 | Assessment reference, added by the gateway | not sent | `reportId` |
+| Knowledge document id (ingestion sends it; the gateway adds it for labelling) | `document_id` | `documentId` |
+| Report section, added by the gateway | not sent | `section` |
+| Session user, added by the gateway for chat | not sent | `userId` |
 | Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis` |
 
 What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.

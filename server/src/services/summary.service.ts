@@ -215,7 +215,7 @@ export async function draftSummary(reference: string, user: SessionUser): Promis
     sections: sections.map(({ id, title, text }) => ({ id, title, text })),
   })
   // The call is billed even if saving below fails, so record first.
-  await recordAiCalls(draft.usage, { reportId: reference })
+  await recordAiCalls(draft.usage, { reportId: reference, section: '2' })
 
   // 4. Saved like a section draft. The template's other two parts of Section 2
   // are left for the engineer: the evidence says nothing of earlier surveys.

@@ -2,6 +2,7 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
@@ -279,6 +280,37 @@ describe('Section 2 Executive Summary (GN-07 AC2-AC4)', () => {
     expect(read.draft.id).toBe(response.body.id)
     expect(read.missing).toEqual([])
     expect(read.staleSections).toEqual([])
+  })
+
+  it('records its paid call as Section 2 of the assessment (EV-03)', async () => {
+    summaries.mockImplementation(() =>
+      json({
+        ...REPLY,
+        usage: [
+          {
+            feature: 'draft-section',
+            billed_service: 'anthropic',
+            model: 'claude-sonnet-5-5',
+            duration_ms: 9000,
+            input_tokens: 4000,
+            output_tokens: 600,
+            cache_read_tokens: null,
+            search_units: null,
+            audio_seconds: null,
+            usage_status: 'recorded',
+          },
+        ],
+      }),
+    )
+    const a = await assessment()
+    await completeReport(a._id)
+
+    const response = await api.post(`${url}/draft`)
+
+    expect(response.status).toBe(201)
+    const rows = await AiCallModel.find().lean()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ reportId: a.reference, section: '2' })
   })
 
   it('is out of date once a section it summarised gets a newer draft or OFI', async () => {

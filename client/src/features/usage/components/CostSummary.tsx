@@ -1,10 +1,10 @@
 // Totals card: estimated cost and number of calls (EV-04, AC1).
-// Used by screens/UsageCosts.tsx.
+// Used by the overview and an assessment's drill-in.
 import { Badge, Card, MetricStat } from '../../../design-system'
 import { formatMoney } from '../format'
-import type { UsageSummary } from '../api'
+import type { Totals } from '../api'
 
-export function CostSummary({ totals }: { totals: UsageSummary['totals'] }) {
+export function CostSummary({ totals }: { totals: Totals }) {
   return (
     <Card
       title="Totals"

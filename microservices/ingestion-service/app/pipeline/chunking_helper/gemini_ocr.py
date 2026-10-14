@@ -11,11 +11,13 @@ Rate limits, server errors and dropped connections are waited out by
 import base64
 import logging
 import os
+import time
 
 import httpx
 from google import genai
 from pydantic import BaseModel, ValidationError
 
+from app import usage
 from app.pipeline.chunking_helper.ocr_prompts import TASKS
 from app.pipeline.chunking_helper.rate_limit import (
     call_with_waits,
@@ -69,8 +71,9 @@ def _hint(error: Exception) -> float | None:
 
 
 def _ask(prompt: str, schema: type[BaseModel], data: str):
+    started = time.perf_counter()
     with _client() as client:
-        return client.interactions.create(
+        result = client.interactions.create(
             model=_model(),
             # Image before the text that asks about it.
             input=[
@@ -85,6 +88,23 @@ def _ask(prompt: str, schema: type[BaseModel], data: str):
             generation_config={"temperature": 0},
             store=False,
         )
+    _record(result, started)
+    return result
+
+
+def _record(result, started: float) -> None:
+    """Record one answered request (EV-03). Thinking is billed as output, so it is added in."""
+    tokens = getattr(result, "usage", None)
+    answer = getattr(tokens, "total_output_tokens", None)
+    thought = getattr(tokens, "total_thought_tokens", None)
+    usage.record(
+        "ocr",
+        "gemini-ocr",
+        getattr(result, "model", None) or _model(),
+        started,
+        input_tokens=getattr(tokens, "total_input_tokens", None),
+        output_tokens=None if answer is None else answer + (thought or 0),
+    )
 
 
 def recognise(image_png: bytes, task: str) -> str | None:

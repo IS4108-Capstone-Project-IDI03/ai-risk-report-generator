@@ -1,9 +1,14 @@
 // Explains what the total leaves out or guesses (EV-04, AC7): estimated
 // prices, calls with no cost, and the pricing bases used.
 import { Badge, Callout } from '../../../design-system'
-import type { UsageSummary } from '../api'
+import type { PricingBasis, Totals } from '../api'
 
-export function EstimateNotice({ summary }: { summary: UsageSummary }) {
+// Takes the summary or the overview: both carry totals and pricing bases.
+export function EstimateNotice({
+  summary,
+}: {
+  summary: { totals: Totals; pricingBases: PricingBasis[] }
+}) {
   const { totals, pricingBases } = summary
   const noCost = totals.callsWithoutCost
   if (totals.estimatedCalls === 0 && noCost === 0 && pricingBases.length === 0) return null

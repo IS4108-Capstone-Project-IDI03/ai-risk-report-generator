@@ -1,10 +1,12 @@
 // EV-03: AI-call usage records. Pure pricing tests, the recorder, and the three
 // callers (speech, labelling, drafting) with their downstream services stubbed.
 // No test here reaches a paid API.
+import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { config } from '../config'
 import { AiCallModel } from '../models/ai-call.model'
 import { estimateCost } from '../services/ai-pricing.service'
+import { repriceAiCalls } from '../scripts/reprice-ai-calls'
 import { labelUsageToWire, recordAiCalls, type WireUsage } from '../services/ai-usage.service'
 import { labelDocument } from '../services/ingestion.service'
 import { transcribe } from '../services/speech.service'
@@ -39,34 +41,14 @@ describe('estimateCost (AC3)', () => {
     expect(cost.estimatedCostUsd).toBeCloseTo((1000 * 1 + 500 * 5 + 2000 * 0.1) / 1e6, 8)
   })
 
+  it('prices Sonnet 5.5, the drafting model', () => {
+    const cost = estimateCost(item({ model: 'claude-sonnet-5-5' }))
+    expect(cost.estimatedCostUsd).toBeCloseTo((1000 * 2 + 500 * 10 + 2000 * 0.1) / 1e6, 8)
+  })
+
   it('has no cost for a model it has no price for', () => {
     const cost = estimateCost(item({ model: 'claude-future-9' }))
     expect(cost).toEqual({ estimatedCostUsd: null, pricingBasis: 'no price for model' })
-  })
-
-  it('prices Cohere embed tokens and rerank searches as labelled estimates', () => {
-    const embed = estimateCost(
-      item({
-        billed_service: 'cohere-embed',
-        model: 'embed-v4.0',
-        input_tokens: 1_000_000,
-        output_tokens: null,
-        cache_read_tokens: null,
-      }),
-    )
-    expect(embed.estimatedCostUsd).toBeCloseTo(0.12, 8)
-    expect(embed.pricingBasis).toContain('estimate')
-    const rerank = estimateCost(
-      item({
-        billed_service: 'cohere-rerank',
-        model: 'rerank-v3.5',
-        input_tokens: null,
-        output_tokens: null,
-        cache_read_tokens: null,
-        search_units: 1000,
-      }),
-    )
-    expect(rerank.estimatedCostUsd).toBeCloseTo(2, 8)
   })
 
   it('prices Whisper by the minute of audio', () => {
@@ -90,10 +72,47 @@ describe('estimateCost (AC3)', () => {
       item({ input_tokens: null, output_tokens: null, cache_read_tokens: null }),
     )
     expect(noTokens.estimatedCostUsd).toBeNull()
-    const noUnits = estimateCost(
-      item({ billed_service: 'cohere-rerank', model: 'rerank-v3.5', search_units: null }),
+  })
+
+  // Google list price for gemini-3.8-flash, ai.google.dev/gemini-api/docs/pricing,
+  // read 2026-10-13: $0.75 in / $3.75 out per 1M until 2026-12-31, then $1.50 / $7.50.
+  const gemini = (over: Partial<WireUsage> = {}) =>
+    item({
+      feature: 'interpret-photo',
+      billed_service: 'gemini-vision',
+      model: 'gemini-3.8-flash',
+      input_tokens: 10_000,
+      output_tokens: 2_000,
+      cache_read_tokens: null,
+      ...over,
+    })
+
+  it('prices Gemini photo and OCR calls at the price in force on the call date', () => {
+    const before = estimateCost(gemini(), new Date('2026-12-31T23:00:00Z'))
+    expect(before.estimatedCostUsd).toBeCloseTo(0.015, 8)
+    expect(before.pricingBasis).toContain('ai.google.dev')
+    const after = estimateCost(gemini(), new Date('2027-01-01T00:00:00Z'))
+    expect(after.estimatedCostUsd).toBeCloseTo(0.03, 8)
+    const ocr = estimateCost(
+      gemini({ feature: 'ocr', billed_service: 'gemini-ocr' }),
+      new Date('2026-10-13'),
     )
-    expect(noUnits.estimatedCostUsd).toBeNull()
+    expect(ocr.estimatedCostUsd).toBeCloseTo(0.015, 8)
+  })
+
+  it('has no cost for a Gemini model it has no price for', () => {
+    expect(estimateCost(gemini({ model: 'gemini-9-ultra' }))).toEqual({
+      estimatedCostUsd: null,
+      pricingBasis: 'no price for model',
+    })
+  })
+
+  it('prices self-hosted OCR at zero and says why', () => {
+    const cost = estimateCost(
+      item({ feature: 'ocr', billed_service: 'self-hosted-ocr', model: 'local-ocr' }),
+    )
+    expect(cost.estimatedCostUsd).toBe(0)
+    expect(cost.pricingBasis).toContain('self-hosted')
   })
 
   it('leaves the cost empty when the provider gave no usage', () => {
@@ -167,6 +186,45 @@ describe('recordAiCalls (AC1-AC7)', () => {
       usageStatus: 'unavailable',
       estimatedCostUsd: null,
     })
+  })
+
+  it('stores the chat user, document and report section it is given', async () => {
+    const userId = new Types.ObjectId().toString()
+    const documentId = new Types.ObjectId().toString()
+    await recordAiCalls([item()], { reportId: 'RPT-2026-0901', section: '2.1', userId, documentId })
+    const row = await AiCallModel.findOne().lean()
+    expect(row?.section).toBe('2.1')
+    expect(String(row?.userId)).toBe(userId)
+    expect(String(row?.documentId)).toBe(documentId)
+    expect(row?.callCount).toBe(1)
+  })
+
+  it("stores an ingestion row's call count and the document id it was sent with", async () => {
+    const documentId = new Types.ObjectId().toString()
+    await recordAiCalls([
+      item({
+        feature: 'ocr',
+        billed_service: 'anthropic',
+        model: 'claude-haiku-5-5',
+        input_tokens: 1_000_000,
+        output_tokens: 0,
+        cache_read_tokens: null,
+        call_count: 40,
+        document_id: documentId,
+      }),
+    ])
+    const row = await AiCallModel.findOne().lean()
+    expect(row).toMatchObject({ feature: 'ocr', callCount: 40, inputTokens: 1_000_000 })
+    expect(String(row?.documentId)).toBe(documentId)
+    // Priced on the summed tokens: 1M input tokens of Haiku 5.5 at $0.10.
+    expect(row?.estimatedCostUsd).toBeCloseTo(0.1, 8)
+  })
+
+  it('drops a malformed id rather than failing the save', async () => {
+    await recordAiCalls([item({ document_id: 'not-an-id' })], { userId: 'nope' })
+    const row = await AiCallModel.findOne().lean()
+    expect(row?.documentId).toBeUndefined()
+    expect(row?.userId).toBeUndefined()
   })
 
   it('writes one row per call', async () => {
@@ -255,8 +313,49 @@ describe('callers record what their service returned', () => {
 describe('Cohere price settings', () => {
   const original = { ...config.prices }
   afterEach(() => Object.assign(config.prices, original))
+  const embed = (over: Partial<WireUsage> = {}) =>
+    item({
+      billed_service: 'cohere-embed',
+      model: 'embed-v4.0',
+      input_tokens: 1_000_000,
+      output_tokens: null,
+      cache_read_tokens: null,
+      ...over,
+    })
+  const rerank = item({
+    billed_service: 'cohere-rerank',
+    model: 'rerank-v3.5',
+    input_tokens: null,
+    output_tokens: null,
+    cache_read_tokens: null,
+    search_units: 1000,
+  })
+
+  it('prices nothing on the free trial key, the default, and says so', () => {
+    expect(config.prices.cohereKeyTier).toBe('trial')
+    for (const call of [embed(), rerank]) {
+      const cost = estimateCost(call)
+      expect(cost.estimatedCostUsd).toBe(0)
+      expect(cost.pricingBasis).toContain('trial key')
+    }
+    // Free whatever it reports.
+    expect(estimateCost(embed({ input_tokens: null, usage_status: 'unavailable' }))).toEqual(
+      estimateCost(embed()),
+    )
+  })
+
+  it('prices embed tokens and rerank searches as labelled estimates on a production key', () => {
+    config.prices.cohereKeyTier = 'production'
+    const e = estimateCost(embed())
+    expect(e.estimatedCostUsd).toBeCloseTo(0.12, 8)
+    expect(e.pricingBasis).toContain('estimate')
+    expect(estimateCost(rerank).estimatedCostUsd).toBeCloseTo(2, 8)
+    // As for any paid call, incomplete usage is not priced at all (no zero costs).
+    expect(estimateCost({ ...rerank, search_units: null }).estimatedCostUsd).toBeNull()
+  })
 
   it('can be overridden from the environment settings', () => {
+    config.prices.cohereKeyTier = 'production'
     config.prices.cohereEmbedUsdPer1M = 0.5
     const cost = estimateCost(
       item({
@@ -267,5 +366,32 @@ describe('Cohere price settings', () => {
       }),
     )
     expect(cost.estimatedCostUsd).toBeCloseTo(0.5, 8)
+  })
+})
+
+describe('repriceAiCalls', () => {
+  it('prices rows saved before their model had a price, and leaves the rest', async () => {
+    const row = {
+      feature: 'draft-section',
+      billedService: 'anthropic',
+      reportId: 'RPT-2026-0001',
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheReadTokens: 0,
+      usageStatus: 'recorded',
+      estimatedCostUsd: null,
+      pricingBasis: 'no price for model',
+    }
+    await AiCallModel.insertMany([
+      { ...row, model: 'claude-sonnet-5-5' },
+      { ...row, model: 'claude-future-9' },
+    ])
+
+    expect(await repriceAiCalls()).toEqual({ priced: 1, unpriced: 1 })
+    const sonnet = await AiCallModel.findOne({ model: 'claude-sonnet-5-5' }).lean()
+    expect(sonnet?.estimatedCostUsd).toBeCloseTo((1000 * 2 + 500 * 10) / 1e6, 8)
+    expect(sonnet?.pricingBasis).toContain('platform.claude.com')
+    const future = await AiCallModel.findOne({ model: 'claude-future-9' }).lean()
+    expect(future?.estimatedCostUsd).toBeNull()
   })
 })

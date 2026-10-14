@@ -29,6 +29,7 @@ immediately, per region, instead of stalling process startup.
 import base64
 import os
 import threading
+import time
 from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
@@ -188,6 +189,22 @@ def _looks_truncated(text: str, task: str) -> bool:
     return False
 
 
+def _record(response: dict, started: float) -> None:
+    """Record one self-hosted reading (EV-03): free, but timed to compare models."""
+    # Imported here: this module keeps its imports light (see the top).
+    from app import usage
+
+    tokens = response.get("usage") or {}
+    usage.record(
+        "ocr",
+        "self-hosted-ocr",
+        os.getenv("GLMOCR_OCR_MODEL", "").strip() or "glm-ocr",
+        started,
+        input_tokens=tokens.get("prompt_tokens"),
+        output_tokens=tokens.get("completion_tokens"),
+    )
+
+
 def recognise(image_png: bytes, task: str) -> str | None:
     """Recognise one cropped region, returning table records or LaTeX text.
 
@@ -250,9 +267,11 @@ def recognise(image_png: bytes, task: str) -> str | None:
             "stop": ["</table>"],
         }
 
+        started = time.perf_counter()
         response, status = ocr_client().process(payload)
         if status != 200 or "error" in response:
             return None
+        _record(response, started)
 
         choices = response.get("choices") or []
         if not choices:

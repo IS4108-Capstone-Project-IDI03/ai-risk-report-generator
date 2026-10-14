@@ -16,6 +16,7 @@ import {
   type IStamp,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
+import { recordAiCalls, visionUsageToWire } from './ai-usage.service'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { locationText, toLocationDto, type LocationDto } from './location.service'
@@ -962,17 +963,22 @@ export async function runInterpretation(id: string): Promise<void> {
   const read = observation && readPhotoIds(observation)
   const photos = (observation?.photos ?? []).filter((p) => read?.includes(String(p._id)))
   if (!observation?.interpretation || !photos.length) return
-  const assessment = await AssessmentModel.findById(observation.assessment, 'locations')
+  const assessment = await AssessmentModel.findById(observation.assessment, 'locations reference')
     .lean()
     .catch(() => null)
   const place = assessment?.locations?.find((l) => l._id.equals(observation.location))
   const attempt = `interpretation.attempts.${observation.interpretation.attempts.length - 1}`
   let outcome: Record<string, unknown>
   try {
+    const started = performance.now()
     const result = await interpret({
       s3Keys: photos.map((p) => p.key),
       location: place ? locationText(place) : null,
       note: observation.note ?? null,
+    })
+    // EV-03: the paid call, tagged with the assessment. Never throws.
+    await recordAiCalls(visionUsageToWire(result, performance.now() - started), {
+      reportId: assessment?.reference,
     })
     outcome = {
       'interpretation.status': 'interpreted',

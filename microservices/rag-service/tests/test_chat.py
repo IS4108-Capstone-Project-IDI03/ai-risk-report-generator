@@ -9,6 +9,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from app import usage
 from app.main import app
 
 client = TestClient(app)
@@ -61,7 +62,9 @@ def test_searches_then_answers_citing_the_passage_found(monkeypatch):
         < types.index("TOOL_CALL_RESULT")
         < types.index("TEXT_MESSAGE_START")
     )
-    assert types[-1] == "TEXT_MESSAGE_END"
+    assert types[-2] == "TEXT_MESSAGE_END"
+    # The usage event is last, for the gateway to record and remove (EV-03).
+    assert types[-1] == "CUSTOM"
     assert _sources(events)[0]["id"] == "doc1:4"
     assert "[1]" in _answer(events)
 
@@ -92,6 +95,28 @@ def test_still_answers_when_search_is_down(monkeypatch):
     events = _ask("Where are sprinklers needed?")
     assert _sources(events) == []
     assert _answer(events)
+
+
+def test_ends_with_the_usage_of_the_search_it_made(monkeypatch):
+    def search(requests):
+        # As the real search does after its Cohere embed call.
+        usage.record("retrieval", "cohere-embed", "embed-v4.0", 0.0, input_tokens=7)
+        return [[PASSAGE]]
+
+    monkeypatch.setattr("app.chat.placeholder.search", search)
+    events = _ask("Where are sprinklers needed?")
+    assert events[-1]["type"] == "CUSTOM"
+    assert events[-1]["name"] == "usage"
+    [item] = events[-1]["value"]
+    assert item["billed_service"] == "cohere-embed"
+    assert item["input_tokens"] == 7
+    assert item["usage_status"] == "recorded"
+
+
+def test_ends_with_empty_usage_when_no_paid_call_was_made(monkeypatch):
+    monkeypatch.setattr("app.chat.placeholder.search", lambda requests: [[PASSAGE]])
+    declined = _ask("This is unanswerable")
+    assert declined[-1] == {"type": "CUSTOM", "name": "usage", "value": []}
 
 
 def test_requires_a_user_message():
