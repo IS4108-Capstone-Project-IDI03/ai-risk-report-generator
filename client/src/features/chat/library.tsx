@@ -3,9 +3,12 @@
 // Registered on the chat screen (screens/KnowledgeAssistant.tsx); the rag-service builds
 // its answer prompt from the same names, so they must match microservices/rag-service/app/chat/.
 import { createLibrary, defineComponent } from '@openuidev/react-lang'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@openuidev/react-ui'
 import { z } from 'zod'
-import { Badge, Callout, IconRegistry } from '../../design-system'
+import { createContext, useContext } from 'react'
+import { Callout } from '../../design-system'
 import { CitationMarker } from './components/CitationMarker'
+import { CitedText } from './components/CitedText'
 import {
   CitationCheckContext,
   CitationNumbersContext,
@@ -16,19 +19,24 @@ import {
 // must match DECLINE in microservices/rag-service/app/chat/answer.py
 const DECLINE = 'The knowledge base cannot answer this question.'
 
-// Each passage label's number, in the order the answer first cites it (1, 2, 3…), found by
-// walking the parsed answer. Without it every marker showed its label's digit, so five
-// claims from passage P1 all read "1" and a P3 cited first read "3".
+// Each citation's number (passage label + quoted words), in the order the answer first
+// cites it (1, 2, 3…), found by walking the parsed answer. Per quote, not per passage:
+// two different quotes from one passage showed the same number and looked like one source.
+// The same quote cited again keeps its number.
 function citationNumbers(node: unknown, numbers = new Map<string, number>()) {
   if (Array.isArray(node)) node.forEach((child) => citationNumbers(child, numbers))
   else if (node && typeof node === 'object') {
     const element = node as { typeName?: string; props?: Record<string, unknown> }
-    const passage = element.typeName === 'Cite' ? element.props?.passage : undefined
-    if (typeof passage === 'string' && !numbers.has(passage)) numbers.set(passage, numbers.size + 1)
+    const { passage, quote } = element.typeName === 'Cite' ? (element.props ?? {}) : {}
+    const key = typeof passage === 'string' && typeof quote === 'string' && checkKey(passage, quote)
+    if (key && !numbers.has(key)) numbers.set(key, numbers.size + 1)
     Object.values(element.props ?? {}).forEach((value) => citationNumbers(value, numbers))
   }
   return numbers
 }
+
+// Inside a Paragraph a statement is one sentence of running text, not its own block.
+const InParagraph = createContext(false)
 
 const Cite = defineComponent({
   name: 'Cite',
@@ -41,9 +49,16 @@ const Statement = defineComponent({
   name: 'Statement',
   description: 'One statement of the answer and the citations that support it.',
   props: z.object({ text: z.string(), cites: z.array(Cite.ref) }),
-  component: ({ props, renderNode }) =>
+  component: function StatementView({ props, renderNode }) {
+    const inParagraph = useContext(InParagraph)
+    const body = (
+      <>
+        <CitedText text={props.text} cites={renderNode(props.cites)} />
+      </>
+    )
+    if (inParagraph) return <span className="chat-sentence">{body} </span>
     // A declined answer is a callout with a next step, not an answer-shaped paragraph (AC3).
-    props.text === DECLINE && !props.cites.length ? (
+    return props.text === DECLINE && !props.cites.length ? (
       <div data-decline>
         <Callout tone="info" title="No answer in the knowledge base">
           {DECLINE} Try naming the standard, edition or report, or ask your knowledge admin to add
@@ -51,10 +66,21 @@ const Statement = defineComponent({
         </Callout>
       </div>
     ) : (
-      <p className="chat-statement">
-        {props.text} {renderNode(props.cites)}
-      </p>
-    ),
+      <p className="chat-statement">{body}</p>
+    )
+  },
+})
+
+// Two to four statements read as one paragraph, so the answer flows like prose.
+const Paragraph = defineComponent({
+  name: 'Paragraph',
+  description: 'A paragraph of 2 to 4 statements that read on from each other.',
+  props: z.object({ statements: z.array(Statement.ref) }),
+  component: ({ props, renderNode }) => (
+    <p className="chat-statement">
+      <InParagraph.Provider value={true}>{renderNode(props.statements)}</InParagraph.Provider>
+    </p>
+  ),
 })
 
 const Cell = defineComponent({
@@ -63,38 +89,36 @@ const Cell = defineComponent({
   props: z.object({ text: z.string(), cites: z.array(Cite.ref).optional() }),
   component: ({ props, renderNode }) => (
     <>
-      {props.text} {renderNode(props.cites ?? [])}
+      <CitedText text={props.text} cites={renderNode(props.cites ?? [])} />
     </>
   ),
 })
 
-// ponytail: our own table, since OpenUI's Table takes plain strings and a cell must cite.
+// OpenUI's table parts (not its GenUI Table, which takes plain strings): a cell must cite.
 const CitedTable = defineComponent({
   name: 'CitedTable',
   description: 'A comparison table. Every cell is a Cell with its own citations.',
   props: z.object({ headers: z.array(z.string()), rows: z.array(z.array(Cell.ref)) }),
   component: ({ props, renderNode }) => (
-    // Scrolls sideways on a phone instead of pushing the conversation wider than the screen.
-    <div className="chat-table-wrap">
-      <table className="chat-table">
-        <thead>
-          <tr>
-            {props.headers.map((h, i) => (
-              <th key={i}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {props.rows.map((row, r) => (
-            <tr key={r}>
-              {row.map((cell, c) => (
-                <td key={c}>{renderNode(cell)}</td>
-              ))}
-            </tr>
+    // Its container scrolls sideways on a phone instead of widening the conversation.
+    <Table className="chat-table" containerClassName="chat-table-wrap">
+      <TableHeader>
+        <TableRow>
+          {props.headers.map((h, i) => (
+            <TableHead key={i}>{h}</TableHead>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {props.rows.map((row, r) => (
+          <TableRow key={r}>
+            {row.map((cell, c) => (
+              <TableCell key={c}>{renderNode(cell)}</TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   ),
 })
 
@@ -121,7 +145,7 @@ const Answer = defineComponent({
   name: 'Answer',
   description: 'The whole answer: its blocks in order, then meta.',
   props: z.object({
-    blocks: z.array(z.union([Statement.ref, CitedTable.ref])),
+    blocks: z.array(z.union([Paragraph.ref, Statement.ref, CitedTable.ref])),
     meta: z.optional(Meta.ref),
   }),
   component: ({ props, renderNode }) => {
@@ -140,21 +164,15 @@ const Answer = defineComponent({
     return (
       <CitationCheckContext.Provider value={check}>
         <CitationNumbersContext.Provider value={citationNumbers(props.blocks)}>
-          {/* Generated content wears the AI violet (docs/design-system.md principles 1 and 2). */}
-          <div className="chat-answer">
-            <Badge tone="ai" icon={IconRegistry.evidence.insight}>
-              AI answer
-            </Badge>
-            {renderNode(props.blocks)}
-          </div>
+          <div className="chat-answer">{renderNode(props.blocks)}</div>
         </CitationNumbersContext.Provider>
       </CitationCheckContext.Provider>
     )
   },
 })
 
-/** The chat answer's component library: Answer, Statement, CitedTable, Cell, Cite, Meta. */
+/** The chat answer's component library: Answer, Paragraph, Statement, CitedTable, Cell, Cite, Meta. */
 export const chatLibrary = createLibrary({
-  components: [Answer, Statement, CitedTable, Cell, Cite, Meta],
+  components: [Answer, Paragraph, Statement, CitedTable, Cell, Cite, Meta],
   root: 'Answer',
 })

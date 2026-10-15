@@ -77,6 +77,20 @@ describe('Cited answer', () => {
     expect(second).toHaveTextContent('2')
   })
 
+  it('gives each different quote its own number, even from the same passage', () => {
+    renderAnswer(
+      [
+        'root = Answer([s1, s2])',
+        's1 = Statement("Test every 20 years.", [c1, c2])',
+        's2 = Statement("Retest every 10 years.", [c1])',
+        'c1 = Cite("P2", "installed for 20 years")',
+        'c2 = Cite("P2", "retested every 10 years")',
+      ].join('\n'),
+    )
+    const numbers = screen.getAllByRole('button', { name: /^Citation/ }).map((m) => m.textContent)
+    expect(numbers).toEqual(['1', '2', '1'])
+  })
+
   it('names each marker by its document and page once the check arrives (AC1)', () => {
     renderAnswer(`${body}\n${meta}`)
     expect(
@@ -121,6 +135,30 @@ describe('Cited answer', () => {
       }),
       expect.any(HTMLElement),
     )
+  })
+
+  it('flows a paragraph of statements into one block, with document names in bold', () => {
+    renderAnswer(
+      [
+        'root = Answer([p1])',
+        'p1 = Paragraph([s1, s2])',
+        's1 = Statement("**NFPA 25 (2026)** asks for a sample test.", [c1])',
+        's2 = Statement("Retest every 10 years.", [c1])',
+        'c1 = Cite("P1", "sample")',
+      ].join('\n'),
+    )
+    const name = screen.getByText('NFPA 25 (2026)')
+    expect(name.tagName).toBe('STRONG')
+    expect(name.closest('p')).toHaveTextContent(/asks for a sample test\..*Retest every 10 years\./)
+    expect(screen.queryByText('AI answer')).not.toBeInTheDocument()
+  })
+
+  it('opens a citation from the keyboard with Enter', () => {
+    const select = renderAnswer(`${body}\n${meta}`)
+    const marker = screen.getByRole('button', { name: /^Citation 1/ })
+    expect(marker).toHaveAttribute('tabindex', '0')
+    fireEvent.keyDown(marker, { key: 'Enter' })
+    expect(select).toHaveBeenCalledWith(expect.objectContaining({ number: 1 }), marker)
   })
 
   it('shows a declined answer as a callout with what to try next (AC3)', () => {

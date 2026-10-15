@@ -29,5 +29,5 @@ export function useCitationCheck(passage: string, quote: string) {
   return { source, state: verified ? ('verified' as const) : ('unverified' as const) }
 }
 
-// Each passage label's number in its answer, in order of first citation (1, 2, 3…).
+// Each citation's number in its answer, keyed by checkKey(label, quote), in order of first citation.
 export const CitationNumbersContext = createContext<Map<string, number>>(new Map())

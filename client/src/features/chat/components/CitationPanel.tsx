@@ -16,7 +16,9 @@ export function CitationPanel({ selected, onClose }: Props) {
   const panel = useRef<HTMLElement>(null)
   const { number, quote, state, source } = selected
   const doc = useDocument(source?.documentId)
-  const range = source && pages(source)
+  // The quote check may omit a page; pages() takes a missing page as null.
+  const range =
+    source && pages({ pageStart: source.pageStart ?? null, pageEnd: source.pageEnd ?? null })
   const withdrawn = Boolean(source?.withdrawn || doc?.withdrawn)
 
   // Focus moves into the panel, so a keyboard user lands on what they opened.

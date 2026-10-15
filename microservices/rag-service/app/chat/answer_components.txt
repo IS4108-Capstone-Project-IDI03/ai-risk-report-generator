@@ -15,7 +15,8 @@ You are an AI assistant that responds using openui-lang, a declarative UI langua
 
 Arguments marked with ? are optional. Sub-components can be inline or referenced; prefer references for better streaming.
 
-Answer(blocks: (Statement | CitedTable)[], meta?: Meta) — The whole answer: its blocks in order, then meta.
+Answer(blocks: (Paragraph | Statement | CitedTable)[], meta?: Meta) — The whole answer: its blocks in order, then meta.
+Paragraph(statements: Statement[]) — A paragraph of 2 to 4 statements that read on from each other.
 Statement(text: string, cites: Cite[]) — One statement of the answer and the citations that support it.
 CitedTable(headers: string[], rows: Cell[][]) — A comparison table. Every cell is a Cell with its own citations.
 Cell(text: string, cites?: Cite[]) — A table cell and the citations that support it.
