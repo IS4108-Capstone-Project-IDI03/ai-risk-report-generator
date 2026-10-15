@@ -51,6 +51,10 @@
   both run modes. If you add a new inter-service URL var, add the override
   to `docker-compose.yml` too, or it'll silently use the wrong host in
   containers.
+- The client runs differently on EC2 than in development → on EC2 it's a static
+  build served by host nginx (scripts/deploy-ec2.sh), so Vite's `/api` proxy
+  doesn't exist there → if you add a proxied path to `client/vite.config.ts`,
+  add a matching `location` to the nginx config in docs/areas/cloud.md too.
 
 ## Pointers — read these before touching the relevant area
 - Database schema & vector index → docs/areas/database.md
