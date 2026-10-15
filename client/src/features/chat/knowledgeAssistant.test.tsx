@@ -1,5 +1,5 @@
 // Tests for the knowledge assistant screen (CB-01). fetch is stubbed; no gateway runs.
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -102,11 +102,21 @@ describe('Knowledge assistant (CB-01)', () => {
       expect(await screen.findByText(/Sprinklers are needed throughout\./)).toBeInTheDocument()
       expect(screen.getByText('Searched: Singapore')).toBeInTheDocument()
       // AC1: a marker opens its source in the panel beside the chat; Escape closes it.
-      fireEvent.click(await screen.findByRole('button', { name: /^Citation 1: Office Sample 1 - PRE 2026 - REDACTED \(2026-03-05\)/ }))
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: /^Citation 1: Office Sample 1 - PRE 2026 - REDACTED \(2026-03-05\)/,
+        }),
+      )
       const panel = screen.getByRole('complementary', { name: 'Source of citation 1' })
       expect(panel).toHaveTextContent('installed throughout')
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(screen.queryByRole('complementary', { name: /Source of citation/ })).toBeNull()
+      // Starting a new chat closes the panel: its citation belongs to the chat just left.
+      fireEvent.click(screen.getByRole('button', { name: /^Citation 1/ }))
+      fireEvent.click(screen.getAllByRole('button', { name: /new chat/i })[0])
+      await waitFor(() =>
+        expect(screen.queryByRole('complementary', { name: /Source of citation/ })).toBeNull(),
+      )
       expect(asked.mock.calls[0][0].messages.at(-1)).toMatchObject({
         role: 'user',
         content: 'Where are sprinklers needed?',

@@ -29,6 +29,24 @@ describe('Search step', () => {
     expect(screen.getByText('Searched: Singapore · Office · Past reports')).toBeInTheDocument()
   })
 
+  it('lists the steps it took behind the summary line', () => {
+    render(
+      <SearchStep
+        activities={[
+          search(
+            'complete',
+            { query: 'dry pendent test interval', filters: {}, also: ['NFPA 25 dry sprinklers'] },
+            { filters: {}, passages: 5, declined: false },
+          ),
+        ]}
+      />,
+    )
+    const steps = screen.getByRole('list', { hidden: true })
+    expect(steps).toHaveTextContent('Searched for “dry pendent test interval”')
+    expect(steps).toHaveTextContent('Also searched for “NFPA 25 dry sprinklers”')
+    expect(steps).toHaveTextContent('Found 5 relevant passages')
+  })
+
   it('says it searched everything when no filter was named', () => {
     render(
       <SearchStep
