@@ -453,6 +453,53 @@ Regenerate:
    and then accept (it becomes the saved draft, every finding pending) or
    discard (nothing else changes).
 
+## Knowledge chat: cost and speed (S4, CB-01)
+
+One question runs up to four paid steps:
+
+| Step | Model | Paid by |
+|---|---|---|
+| 1. Plan: rewrite the question as a search, or ask back, or decline | Claude Haiku 5.5 (`CHAT_PLAN_MODEL`) | tokens |
+| 2. Search: embed the query | Cohere embed-v4.0 | tokens |
+| 3. Rerank the 20 nearest passages to the best 5 | Cohere rerank-v3.5 | per search |
+| 4. Answer from those passages, streamed | GPT-6.1 Sol (`CHAT_MODEL`) | tokens |
+
+Steps 2-4 are skipped when the planner asks back or declines, and step 4 is
+skipped when no passage is relevant enough. A comparison runs up to three searches.
+
+Measured on the CB-01 eval (61 cases, 90 questions, prompt `cb01-v12`, 15 Oct 2026),
+priced with `server/src/services/ai-pricing.service.ts`:
+
+| Per question | Typical (median) | Busy (90th percentile) |
+|---|---|---|
+| Cost, answered question | $0.013 | $0.021 |
+| Cost, asked back or declined (no answer step) | $0.0004 | |
+| Answer model input / output | about 3,000 / 220 tokens (output at most 620) | |
+| Time to first words / full answer | 1.4 s / 4.8 s | |
+
+- About 87% of an answered question's cost is the answer model, 9% the rerank,
+  and under 1% each the planner and the embedding.
+- GPT cache reads are priced at the full input price (an overestimate, as OpenAI's
+  cache discount isn't modelled).
+- Cohere's prices are estimates (`COHERE_*` in `.env.example`); see EV-04 below.
+
+**Rough monthly bill.** 20 engineers asking 30 questions on each of 22 working days is
+13,200 questions, or about $190 a month at $0.0143 each (the mean). Each extra question
+per engineer per day adds about $6 a month.
+
+**Limits per user** (`server/src/services/chat-limits.service.ts`): a message of at most
+4,000 characters, 10 questions a minute, 200 a day, and $2 of chat a day. Over a limit,
+the gateway refuses before any model is called. So one user can cost at most about $2
+a day, or $44 a month.
+
+**Testing doesn't spend money.** Unit tests mock every paid call. Two guards make a
+missed mock fail instead of spending:
+- rag-service: `tests/conftest.py` blocks any outside network connection.
+- server: `vitest.config.mts` points the services' URLs at a closed port.
+
+Scoring the chat for real (`eval.chat_eval`) does spend: a full re-score (answers for
+all 61 cases plus two judge runs) costs about $2.
+
 ## Password reset email (F-06)
 
 `requestPasswordReset` in `server/src/services/auth.service.ts` emails a link `APP_URL/?reset=<code>`. The sign-in screen reads `?reset=`, opens the new-password step with the code filled in, and removes it from the address bar.

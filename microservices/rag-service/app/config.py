@@ -15,9 +15,9 @@ LLM_MODEL = os.getenv("LLM_MODEL", "claude-opus-5-5")
 LLM_EFFORT = os.getenv("LLM_EFFORT", "high")
 
 # Knowledge base chat (CB-01). Provider names come from env, like LLM_PROVIDER above.
-# The defaults are placeholders until the CB-01 model comparison picks the winner.
-CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "anthropic")
-CHAT_MODEL = os.getenv("CHAT_MODEL", "claude-sonnet-5-5")
+# The defaults are the CB-01 model comparison's winner (docs/DECISIONS.md, 2026-10-15).
+CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "openai")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-6.1-sol")
 # Chat usually does well at low effort (fewer thinking tokens: cheaper and faster).
 CHAT_EFFORT = os.getenv("CHAT_EFFORT", "low")
 # The small model that turns a follow-up into a search question (the plan step).
