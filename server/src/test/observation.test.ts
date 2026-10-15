@@ -2,6 +2,7 @@ import { Types } from 'mongoose'
 import { Readable } from 'stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { ObservationModel } from '../models/observation.model'
@@ -1073,6 +1074,47 @@ describe('photo interpretation (CP-05)', () => {
     const done = await interpreted(await readSaved())
 
     expect(done.interpretation?.provenance?.usage).toBeNull()
+    // EV-03 AC7: the AI call is still recorded, its usage marked unavailable, never 0.
+    expect(await AiCallModel.findOne().lean()).toMatchObject({
+      feature: 'interpret-photo',
+      billedService: 'gemini-vision',
+      usageStatus: 'unavailable',
+      inputTokens: null,
+      estimatedCostUsd: null,
+    })
+  })
+
+  it('records the AI call against the assessment, thinking billed as output (EV-03)', async () => {
+    vision.mockReturnValue(s5(200, PROPOSAL))
+    await assessmentWithSession()
+
+    await interpreted(await readSaved())
+
+    const rows = await AiCallModel.find().lean()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      feature: 'interpret-photo',
+      billedService: 'gemini-vision',
+      model: 'gemini-3.8-flash',
+      reportId: 'RPT-2026-0411',
+      inputTokens: 2064,
+      // 48 answer + 180 thinking tokens: Google bills both as output.
+      outputTokens: 228,
+      usageStatus: 'recorded',
+      callCount: 1,
+    })
+    expect(rows[0].durationMs).toEqual(expect.any(Number))
+    expect(rows[0].estimatedCostUsd).toBeGreaterThan(0)
+    expect(rows[0].pricingBasis).toContain('ai.google.dev')
+  })
+
+  it('records nothing when the photo service fails, as it returns no usage', async () => {
+    vision.mockReturnValue(s5(502, { detail: 'The photos could not be interpreted: timeout.' }))
+    await assessmentWithSession()
+
+    await interpreted(await readSaved())
+
+    expect(await AiCallModel.countDocuments()).toBe(0)
   })
 
   it('shows why it failed, and reads again only after a failure', async () => {

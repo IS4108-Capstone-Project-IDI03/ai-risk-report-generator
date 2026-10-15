@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { Button, Callout, Input, Select } from '../../../design-system'
+import { useId, useRef } from 'react'
+import { Button, Callout, Checkbox, Input, Select } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 
 type EngineerChoice = NonNullable<AssessmentWorkflow['engAssigned']>
@@ -47,8 +47,45 @@ function EngineerLabel({ e }: { e: EngineerChoice }) {
   )
 }
 
+// Asks about a new client or site name that looks like a listed one (CP-17
+// AC11), under its field: use the listed one, or keep it as typed and
+// carry on creating.
+function NameCheckCallout({ v }: { v: AssessmentWorkflow }) {
+  const check = v.cfCheck!
+  const quoted = '\u201c' + check.typed + '\u201d'
+  return (
+    <div role="alert">
+      <Callout
+        tone="warning"
+        title={'Did you mean ' + check.suggestion + '?'}
+        actions={
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <Button size="sm" variant="primary" onClick={v.acceptCfSuggestion}>
+              {'Use ' + check.suggestion}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => v.createAssessment(v.keepCfName())}
+            >
+              {'Keep ' + quoted}
+            </Button>
+          </div>
+        }
+      >
+        {check.field === 'client'
+          ? quoted + ' isn\u2019t listed, but ' + check.suggestion + ' is.'
+          : 'This client already has ' + check.suggestion + '.'}
+      </Callout>
+    </div>
+  )
+}
+
 export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
   const searchArea = useRef<HTMLDivElement>(null)
+  const id = useId()
+  // A listed client's site picker waits for a choice before the site's fields.
+  const showSiteFields = !v.pickingSite || v.cfSiteId !== ''
   return (
     <>
       <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
@@ -91,33 +128,76 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
               }}
             >
               <Input
-                label="Site name"
-                placeholder="e.g. Avonmouth Paper Mill"
-                value={v.cfSite}
-                error={v.errSite}
-                onChange={v.setCfSite}
-              ></Input>
-              <Input
                 label="Client"
                 placeholder="e.g. Severn Paper Group"
+                list={id + '-clients'}
                 value={v.cfClient}
                 error={v.errClient}
+                hint={v.clientHint}
+                disabled={v.clientLocked}
                 onChange={v.setCfClient}
               ></Input>
-              <Input
-                label="Site address"
-                placeholder="Street, town, postcode"
-                value={v.cfAddr}
-                onChange={v.setCfAddr}
-              ></Input>
-              <Select
-                label="Jurisdiction"
-                hint="Filters the standards and regulations drafting draws on"
-                options={v.jurisdictionOptions}
-                value={v.cfJurisdiction}
-                onChange={v.setCfJurisdiction}
-              ></Select>
+              <datalist id={id + '-clients'}>
+                {v.clientNames.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+              {v.cfCheck?.field === 'client' && <NameCheckCallout v={v} />}
+              {v.sitesLoading && (
+                <p role="status" style={{ margin: 0, alignSelf: 'end' }}>
+                  {'Loading the client\u2019s sites\u2026'}
+                </p>
+              )}
+              {v.pickingSite && (
+                <Select
+                  label="Site"
+                  hint="One of the client's sites, or a new one"
+                  options={v.siteOptions}
+                  value={v.cfSiteId}
+                  error={v.errSiteChoice}
+                  onChange={v.setCfSiteId}
+                ></Select>
+              )}
+              {showSiteFields && (
+                <>
+                  <Input
+                    label="Site name"
+                    placeholder="e.g. Avonmouth Paper Mill"
+                    value={v.cfSite}
+                    error={v.errSite}
+                    hint={v.siteLocked ? v.siteLockedHint : undefined}
+                    disabled={v.siteLocked}
+                    onChange={v.setCfSite}
+                  ></Input>
+                  {v.cfCheck?.field === 'site' && <NameCheckCallout v={v} />}
+                  <Input
+                    label="Site address"
+                    placeholder="Street, town, postcode"
+                    value={v.cfAddr}
+                    disabled={v.siteLocked}
+                    onChange={v.setCfAddr}
+                  ></Input>
+                  <Select
+                    label="Jurisdiction"
+                    hint="Filters the standards and regulations drafting draws on"
+                    options={v.jurisdictionOptions}
+                    value={v.cfJurisdiction}
+                    disabled={v.siteLocked}
+                    onChange={v.setCfJurisdiction}
+                  ></Select>
+                </>
+              )}
             </div>
+            {v.copyOffer && (
+              <div style={{ padding: '0 20px 20px' }}>
+                <Checkbox
+                  label={v.copyOffer.label}
+                  description={v.copyOffer.description}
+                  checked={v.cfCopy}
+                  onChange={v.setCfCopy}
+                />
+              </div>
+            )}
           </div>
           <div
             style={{
@@ -152,6 +232,8 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
                 label="Facility type"
                 options={v.facilityOptions}
                 value={v.cfType}
+                disabled={v.siteLocked}
+                hint={v.siteLocked ? v.siteLockedHint : undefined}
                 onChange={v.setCfType}
               ></Select>
               <Select
@@ -315,9 +397,7 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
           {!!v.hasCfError && (
             <>
               <Callout tone="danger" title={v.cfErrorTitle}>
-                {
-                  'Site name and client are required before an assessment can be opened. Correct the two fields above, then create the assessment.'
-                }
+                {v.cfProblems}
               </Callout>
             </>
           )}
@@ -331,7 +411,7 @@ export function CreateAssessment({ v }: { v: AssessmentWorkflow }) {
               variant="primary"
               iconLeft="plus"
               disabled={v.cfBusy}
-              onClick={v.createAssessment}
+              onClick={() => v.createAssessment()}
             >
               {v.createLabel}
             </Button>

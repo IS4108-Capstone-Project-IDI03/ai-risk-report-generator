@@ -59,7 +59,11 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
    `usage` (null when the provider reports none), or 502 with `detail`. Like
    transcription, it writes nothing to MongoDB.
 4. The gateway stores the proposal, or the failure reason, on the
-   observation. A failure can be retried through the same route; a restart
+   observation. It also saves the call to `ai_calls` (EV-03) as
+   `interpret-photo`, billed to `gemini-vision`, tagged with the assessment:
+   thinking tokens are added to output tokens, since Google bills them as
+   output, and the duration is the gateway's own timing of the request
+   (S5 sends none). A failed request returns no usage, so nothing is saved. A failure can be retried through the same route; a restart
    marks an attempt still running as failed. The client re-reads the list every 3 seconds while any
    observation is interpreting.
 5. The proposal is for the engineer to review and is never drafting evidence:
@@ -86,7 +90,10 @@ eval.interpret_photos`).
    no pages). Nothing is stored for a rejected file.
 3. The gateway asks the ingestion service's `POST /label` for the file's
    details (IN-05, see "Automatic labelling" below; 180 s timeout). If labelling
-   fails, the upload still goes ahead with every detail Unconfirmed.
+   fails, the upload still goes ahead with every detail Unconfirmed. The
+   document's id is chosen before this call, so `/label`'s paid calls are
+   saved to `ai_calls` against it (EV-03), even if a later step rejects the
+   upload.
 4. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
    `knowledge_documents` as `queued` and adds a BullMQ job (`jobId` = document
    id) to the `ingestion` queue in Redis. If the queue is down, it removes the
@@ -113,6 +120,18 @@ eval.interpret_photos`).
    '"<title>" needs review.' with the list's reason as details and
    `context.status: needs_review`, which the bell opens as the Review page. A job whose worker died mid-run is
    redelivered by BullMQ and processed again.
+   Whatever the outcome (complete, failed or cancelled), the worker then posts
+   what the document's paid calls used to the gateway's
+   `POST /api/internal/ai-usage` (EV-03, `app/usage.py`, same service key as the
+   notification), which prices and saves them to `ai_calls`. The OCR providers
+   (`anthropic_ocr.py`, `gemini_ocr.py`, self-hosted GLM in `ocr_model.py`) and
+   the embedder record each answered request; the worker sums them into one item
+   per feature (`ocr`, `embed-document`), billed service and model, with a
+   `call_count`. Calls that reported no usage are summed apart as unavailable.
+   One collection per process behind a lock, not a ContextVar, because OCR runs
+   in a thread pool; with concurrency 1 there is only ever one document. A
+   failed post is logged and dropped, like a notification. Labelling's OCR
+   (`app/labelling/pages.py`) is Docling's local engine, so it records nothing.
 6. The client re-reads `GET /api/knowledge-documents` every 3 seconds while any
    document is queued or processing, showing each processing document's stage,
    elapsed time and, while parsing or chunking, the page reached out of the
@@ -512,13 +531,37 @@ all 61 cases plus two judge runs) costs about $2.
 ## Idle sign-out (F-07)
 
 The gateway ends a session after 15 idle minutes. The browser also runs its own 15-minute timer (`client/src/features/auth/useIdleTimeout.ts`), because the gateway can't tell an idle page its session ended. The two values must match.
+## Chat usage (CB-01, EV-03)
+
+`POST /api/chat` (`server/src/routes/chat.routes.ts`) streams S4's `POST /chat`
+answer events (AG-UI, server-sent events) to the chat screen. S4 ends every
+answer with one more event, `{"type": "CUSTOM", "name": "usage", "value": [...]}`,
+listing the answer's paid calls (today the placeholder's one Cohere embed; an
+empty list when no paid call was made). `openChatStream` in `rag.service.ts`
+saves those calls to `ai_calls` as feature `chat` with the signed-in user's
+`userId` (no report), and does not pass the event on, so the browser never
+sees it. Every other byte passes through unchanged. S4 starts collecting in
+the same generator step as the search, because Starlette runs each step of a
+streaming generator in a fresh copy of the context.
+
 ## Usage and costs report (EV-04)
 
 `GET /api/usage/summary?reportId=` and `GET /api/usage/export.csv?reportId=&groupBy=feature|service` (`server/src/routes/usage.routes.ts`, `usage-report.service.ts`), shown on the **Usage and costs** screen (`/usage-costs`, `client/src/features/usage/`). Both read the `ai_calls` collection written by EV-03 and need `usage:view`.
 
-- **Who sees what:** a knowledge admin sees every report. A risk engineer sees only reports where they are the assigned engineer; asking for another report returns 403.
-- **Summary:** cost totals and call counts; breakdown by feature (always the four existing features) and by billed service; latency per feature (average, median, 95th percentile, slowest); tokens, Cohere search units and Whisper audio seconds per feature; the pricing bases used, with calls whose price is an estimate flagged.
+The screen (loaded on first open, as it brings the chart library) opens on the report-generation overview for the last 30 days: a Period, Group by (knowledge admins) and Split each bar by row, totals and the estimate notice, a stacked bar per assessment or engineer, and a table of every group below it, searchable by reference, client or site and filterable by engineer. Choosing an engineer's bar or row narrows the overview to their assessments; choosing an assessment opens its drill-in (feature × service chart, cost per report section, and the cost, usage and speed tables), which has its own CSV. A risk engineer sees the same overview, limited by the gateway to their own assessments and chat, without the engineer controls.
+
+A knowledge admin also has an **Ingestion** tab (from `GET /api/usage/ingestion`): the same Period and Split row, totals and estimate notice, a stacked bar per knowledge document (titles shortened on the axis, whole in the tooltip and table), and a table of every document with its status, upload date, pages, calls, time per call, total and cost per page, searchable by title or file name, with its own CSV. Documents have no drill-in; an upload refused after labelling shows as `Not saved`.
+
+- **Who sees what:** a knowledge admin sees every report. A risk engineer sees only reports where they are the assigned engineer; asking for another report returns 403. Document ingestion is for knowledge admins only (403 otherwise).
+- **Summary:** cost totals and call counts; breakdown by feature (always every feature, chatbot included) and by billed service; latency per feature (average, median, 95th percentile, slowest); tokens, Cohere search units and Whisper audio seconds per feature; the pricing bases used, with calls whose price is an estimate flagged. Calls are counted over `callCount`, so a summed ingestion row counts as all its calls. Its time is the total of those calls, so averages are per call and the percentiles use single-call rows only.
 - **Cost:** US dollars, summed over calls that have a cost. A call with no cost is counted in `callsWithoutCost` and never added as 0.
-- **Export:** CSV of the breakdown on screen (one row per feature or per billed service).
-- **Demo data:** `npm --prefix server run seed:usage` writes fake rows tagged "DEMO data" for the sample assessments and replaces them on every run.
+- **One assessment (drill-in):** with `reportId`, the summary also has `byFeatureService`, each feature's cost split by the service that billed it (features with calls only, costliest first), and `bySection`, what drafting each report section cost: its Claude calls and their Cohere searches, the number of drafts (Claude calls), calls without a cost, and its title from Marsh's template (`2` Executive Summary, `3` Opportunities for Improvement, `7`–`12`). Sections are in report order; drafting saved before sections were recorded is `Unspecified`, last. Without `reportId`, `bySection` is empty.
+- **Ingestion:** `GET /api/usage/ingestion?split=service|feature&range=7d|30d|month|all` (knowledge admins: `usage:view` and `knowledge:manage`) gives what labelling, OCR and embedding cost per knowledge document: title, file name, status, upload date, pages (`ingestion_jobs.pageTotal`, so none until parsing has counted them), calls, total, cost per page, average time per call, last activity and `segments` per billed service or stage. A re-ingested document's runs add up. Labelling for an upload refused after it ran shows as `Upload not saved`; labelling from before calls named their document is one `Not linked to a document` row (key `unlinked`). No uploader is shown: documents are shared, and uploads do not record who made them. `GET /api/usage/ingestion/export.csv` exports it: one row per document, a column per split key, named `usage-ingestion-<split>-<range>.csv`.
+- **Export:** CSV of the breakdown on screen (one row per feature or per billed service). The overview's is `GET /api/usage/overview/export.csv` with the overview's own query: one row per group (label, reference, client, site, engineer, last activity, calls, calls without a cost, total), then one column per split key, named `usage-by-<groupBy>-<split>-<range>.csv`.
+- **Overview:** `GET /api/usage/overview?groupBy=assessment|engineer&split=service|feature&range=7d|30d|month|all[&engineer=<userId>]` gives report-generation cost across assessments or engineers, for the stacked bar chart and the table under it. Each group has its total, calls (summed over `callCount`), calls without a cost, `lastActivityAt` (for sorting by time) and `segments`: cost per billed service or feature. `splitKeys` lists every split key present, costliest first. Document ingestion (`label-document`, `ocr`, `embed-document`) is left out; it has its own view.
+  - **Whose a call is:** a report call belongs to the assessment's *assigned* engineer, looked up when the report is read, so reassigning an assessment moves its cost. A chat call belongs to the user who asked (`userId`). Grouped by assessment, chat is one `Chatbot` group (key `chat`); grouped by engineer, it is part of the asker's bar. An assessment with no engineer is grouped as `Unassigned`.
+  - **Period:** `7d` and `30d` count back from now; `month` starts at 00:00 on the 1st in Singapore (UTC+8, no daylight saving); `all` has no limit.
+  - **`engineer`:** only the calls attributed to that engineer, for when their bar is chosen.
+  - **Scope:** as for the summary: a risk engineer sees only their assigned assessments and their own chat.
+- **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../RUNNING.md) §5.
 

@@ -21,7 +21,7 @@ export function chatUsageTap(userId: string): Transform {
         const data = JSON.parse(event.replace(/^data: ?/, ''))
         // Not awaited: a slow or failed save must not hold up the answer. It never throws.
         if (data.name === 'chat_result') {
-          void recordAiCalls(data.value?.usage)
+          void recordAiCalls(data.value?.usage, { userId })
           addChatSpend(userId, data.value?.usage)
         }
       } catch {

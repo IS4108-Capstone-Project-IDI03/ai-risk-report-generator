@@ -1,16 +1,29 @@
 // Gateway (S2) calls for assessments. Requests go to /api, which Vite proxies
 // to the gateway in development.
 
-export type NewAssessment = {
-  site: { name: string; address?: string; jurisdiction: string; facilityType: string }
-  client: string
-  surveyType: string
-  // YYYY-MM-DD, or '' when not scheduled.
-  siteVisitDate?: string
-  reportDueDate?: string
-  // The assigned engineer's user ID.
-  engineerId: string
+export type SiteDetails = {
+  name: string
+  address?: string
+  jurisdiction: string
+  facilityType: string
 }
+// A new assessment's client is a listed one (clientId) or a new name
+// (client), and its site one of that client's (siteId) or a new one (site)
+// (CP-17). On a listed site, copyLocations copies its latest visit's
+// locations; the server copies them unless it is false.
+export type NewAssessment = (
+  { clientId: string; client?: never } | { client: string; clientId?: never }
+) &
+  (
+    { siteId: string; copyLocations: boolean; site?: never } | { site: SiteDetails; siteId?: never }
+  ) & {
+    surveyType: string
+    // YYYY-MM-DD, or '' when not scheduled.
+    siteVisitDate?: string
+    reportDueDate?: string
+    // The assigned engineer's user ID.
+    engineerId: string
+  }
 
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
@@ -26,7 +39,10 @@ export type AssessmentStatus =
 export type Assessment = {
   id: string
   reference: string
+  // The client's name, read through its site (CP-17); clientId is null for a
+  // site saved before clients, until it is migrated.
   client: string
+  clientId: string | null
   surveyType: string
   siteVisitDate: string | null
   reportDueDate: string | null
@@ -35,7 +51,11 @@ export type Assessment = {
   // When its latest capture session started; null before capture starts.
   captureStartedAt: string | null
   createdAt: string
+  // The site has another assessment that is not archived, so its details are
+  // shared and can't be changed from this one (CP-17 AC8).
+  siteShared: boolean
   site: {
+    id: string
     code: string
     name: string
     address: string | null
@@ -237,10 +257,15 @@ export async function listAssignableEngineers(signal?: AbortSignal): Promise<Ass
   ).data
 }
 
-// Creates the assessment and its site; the server allocates the reference.
-// Corrects an assessment's details (RV-10 AC10). The engineer is not part of
-// it: it stays as created.
-export type AssessmentDetails = Omit<NewAssessment, 'engineerId'>
+// Corrects an assessment's details (RV-10 AC10). The engineer, client and
+// site stay as created (CP-17 AC8); the site's details can be corrected while
+// it is not shared.
+export type AssessmentDetails = {
+  site: SiteDetails
+  surveyType: string
+  siteVisitDate?: string
+  reportDueDate?: string
+}
 export async function updateAssessment(
   reference: string,
   details: AssessmentDetails,
@@ -248,8 +273,46 @@ export async function updateAssessment(
   await request<void>('PUT', `/api/assessments/${encodeURIComponent(reference)}`, details)
 }
 
+// Creates the assessment, adding its client and site when they are new; the
+// server allocates the reference.
 export async function createAssessment(input: NewAssessment): Promise<Assessment> {
   return (await request<Assessment>('POST', '/api/assessments', input)).data
+}
+
+// A client the firm surveys for, whoever added it (CP-17).
+export type Client = { id: string; name: string; sites: number }
+export async function listClients(signal?: AbortSignal): Promise<Client[]> {
+  return (await request<Client[]>('GET', '/api/clients', undefined, signal)).data
+}
+
+// One of a client's sites, with its latest visit not archived: what a new
+// assessment there would copy its locations from.
+export type ClientSite = {
+  id: string
+  code: string
+  name: string
+  address: string | null
+  jurisdiction: string
+  facilityType: string
+  latest: {
+    reference: string
+    siteVisitDate: string | null
+    locations: number
+    buildings: number
+  } | null
+}
+export async function listClientSites(
+  clientId: string,
+  signal?: AbortSignal,
+): Promise<ClientSite[]> {
+  return (
+    await request<ClientSite[]>(
+      'GET',
+      `/api/clients/${encodeURIComponent(clientId)}/sites`,
+      undefined,
+      signal,
+    )
+  ).data
 }
 
 // Starts the assessment's capture session, or returns the one in progress.

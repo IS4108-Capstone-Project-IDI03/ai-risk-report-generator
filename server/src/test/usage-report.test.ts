@@ -1,10 +1,13 @@
 // EV-04: the usage and cost report built from ai_calls (EV-03). No paid calls.
 import { Types } from 'mongoose'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
+import { IngestionJobModel } from '../models/ingestion-job.model'
+import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { SiteModel } from '../models/site.model'
+import { UserModel } from '../models/user.model'
 import { signedInAs } from './auth-test-helpers'
 import { useMemoryMongo } from './memory-mongo'
 
@@ -59,7 +62,7 @@ async function assessments() {
 }
 
 describe('GET /api/usage/summary (EV-04)', () => {
-  it('totals cost per feature, always listing every feature (AC1)', async () => {
+  it('totals cost per feature, always listing every feature, chatbot included (AC1)', async () => {
     await seed([
       call(),
       call({ estimatedCostUsd: 0.25 }),
@@ -76,6 +79,9 @@ describe('GET /api/usage/summary (EV-04)', () => {
       'retrieval',
       'transcribe',
       'label-document',
+      'interpret-photo',
+      'ocr',
+      'embed-document',
       'chat',
     ])
     const draft = body.byFeature[0]
@@ -210,7 +216,7 @@ describe('GET /api/usage/export.csv (AC4)', () => {
     expect(lines[0]).toBe(
       'feature,calls,estimated_cost_usd,calls_without_cost,estimated_calls,input_tokens,output_tokens,cache_read_tokens,search_units,audio_seconds,avg_ms,p50_ms,p95_ms,max_ms',
     )
-    expect(lines).toHaveLength(6)
+    expect(lines).toHaveLength(9)
     expect(lines[1]).toMatch(/^draft-section,1,0\.5,/)
   })
 
@@ -223,5 +229,518 @@ describe('GET /api/usage/export.csv (AC4)', () => {
 
   it('rejects an unknown grouping', async () => {
     expect((await asSana.get('/api/usage/export.csv?groupBy=nope')).status).toBe(400)
+  })
+})
+
+describe('GET /api/usage/overview (EV-04)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // The people the overview names: saved, as the gateway reads names from users.
+  const people = () => UserModel.collection.insertMany([alex, jide, sana])
+  type Group = {
+    key: string
+    label: string
+    reference: string | null
+    client: string | null
+    siteName: string | null
+    engineerId: string | null
+    engineerName: string | null
+    lastActivityAt: string
+    calls: number
+    estimatedCostUsd: number
+    callsWithoutCost: number
+    segments: Record<string, number>
+  }
+  type Overview = {
+    groups: Group[]
+    splitKeys: string[]
+    totals: { calls: number; estimatedCostUsd: number; callsWithoutCost: number }
+    pricingBases: { basis: string }[]
+  }
+  const overview = async (query: string, as = asSana) => {
+    const res = await as.get(`/api/usage/overview?${query}`)
+    return { status: res.status, body: res.body as Overview }
+  }
+  const group = (groups: Group[], key: string) => groups.find((g) => g.key === key)!
+  const chat = (userId: Types.ObjectId) =>
+    call({ feature: 'chat', billedService: 'cohere-embed', reportId: undefined, userId })
+
+  it('gives each assessment its cost, split by billed service, costliest first (AC1, AC3)', async () => {
+    await people()
+    await assessments()
+    await seed([
+      call(),
+      call({ billedService: 'cohere-embed', feature: 'retrieval', estimatedCostUsd: 0.1 }),
+      call({ reportId: 'RPT-B', estimatedCostUsd: 2 }),
+    ])
+
+    const { status, body } = await overview('groupBy=assessment&split=service&range=all')
+
+    expect(status).toBe(200)
+    expect(body.groups.map((g) => g.key)).toEqual(['RPT-B', 'RPT-A'])
+    const a = group(body.groups, 'RPT-A')
+    expect(a).toMatchObject({
+      label: 'RPT-A',
+      reference: 'RPT-A',
+      client: 'C',
+      siteName: 'Site',
+      engineerId: String(alex._id),
+      engineerName: 'alex',
+      calls: 2,
+    })
+    expect(a.estimatedCostUsd).toBeCloseTo(0.6, 6)
+    expect(a.segments.anthropic).toBeCloseTo(0.5, 6)
+    expect(a.segments['cohere-embed']).toBeCloseTo(0.1, 6)
+    expect(body.splitKeys).toEqual(['anthropic', 'cohere-embed'])
+    expect(body.totals.calls).toBe(3)
+    expect(body.totals.estimatedCostUsd).toBeCloseTo(2.6, 6)
+  })
+
+  it('adds up each engineer: their assessments and their chat, split by feature', async () => {
+    await people()
+    await assessments()
+    await seed([
+      call(),
+      call({ reportId: 'RPT-B', estimatedCostUsd: 2 }),
+      { ...chat(alex._id), estimatedCostUsd: 0.01 },
+    ])
+
+    const { body } = await overview('groupBy=engineer&split=feature&range=all')
+
+    const mine = group(body.groups, String(alex._id))
+    expect(mine).toMatchObject({ label: 'alex', engineerName: 'alex', calls: 2 })
+    expect(mine.segments['draft-section']).toBeCloseTo(0.5, 6)
+    expect(mine.segments.chat).toBeCloseTo(0.01, 6)
+    expect(group(body.groups, String(jide._id)).estimatedCostUsd).toBeCloseTo(2, 6)
+  })
+
+  it('shows chat, which has no assessment, as one Chatbot group by assessment', async () => {
+    await people()
+    await seed([chat(alex._id), chat(jide._id)])
+
+    const { body } = await overview('groupBy=assessment&split=service&range=all')
+
+    expect(body.groups).toHaveLength(1)
+    expect(body.groups[0]).toMatchObject({
+      key: 'chat',
+      label: 'Chatbot',
+      calls: 2,
+      reference: null,
+    })
+  })
+
+  it('leaves out document ingestion, which has its own tab', async () => {
+    await assessments()
+    await seed([
+      call(),
+      call({ feature: 'label-document', reportId: undefined, documentId: new Types.ObjectId() }),
+      call({ feature: 'ocr', reportId: undefined, documentId: new Types.ObjectId() }),
+      call({
+        feature: 'embed-document',
+        billedService: 'cohere-embed',
+        reportId: undefined,
+        documentId: new Types.ObjectId(),
+      }),
+    ])
+
+    const { body } = await overview('groupBy=assessment&split=feature&range=all')
+
+    expect(body.groups.map((g) => g.key)).toEqual(['RPT-A'])
+    expect(body.splitKeys).toEqual(['draft-section'])
+  })
+
+  it('counts calls without a cost but never adds them as zero (AC7)', async () => {
+    await assessments()
+    await seed([
+      call(),
+      call({
+        estimatedCostUsd: null,
+        usageStatus: 'unavailable',
+        pricingBasis: 'provider gave no usage',
+      }),
+    ])
+
+    const { body } = await overview('groupBy=assessment&split=service&range=all')
+
+    expect(body.groups[0]).toMatchObject({ calls: 2, callsWithoutCost: 1 })
+    expect(body.groups[0].estimatedCostUsd).toBeCloseTo(0.5, 6)
+    expect(body.totals.callsWithoutCost).toBe(1)
+    expect(body.pricingBases.map((b) => b.basis)).toContain('provider gave no usage')
+  })
+
+  it('keeps to the chosen period: last 7 or 30 days, this month in Singapore, or all time', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-13T10:00:00Z'))
+    await assessments()
+    // Saved straight to the collection so each keeps the time it was made.
+    const at = (iso: string, cost: number) => ({
+      ...call({ estimatedCostUsd: cost }),
+      callCount: 1,
+      createdAt: new Date(iso),
+    })
+    await AiCallModel.collection.insertMany([
+      at('2026-10-10T00:00:00Z', 1), // 3 days ago
+      at('2026-09-30T17:00:00Z', 2), // 1 Oct, 01:00 in Singapore
+      at('2026-09-30T15:00:00Z', 4), // 30 Sep, 23:00 in Singapore
+      at('2026-08-01T00:00:00Z', 8), // over 30 days ago
+    ])
+    const total = async (range: string) =>
+      (await overview(`groupBy=assessment&split=service&range=${range}`)).body.totals
+        .estimatedCostUsd
+
+    expect(await total('7d')).toBeCloseTo(1, 6)
+    expect(await total('month')).toBeCloseTo(3, 6)
+    expect(await total('30d')).toBeCloseTo(7, 6)
+    expect(await total('all')).toBeCloseTo(15, 6)
+  })
+
+  it('names when each group last used AI, for sorting by time', async () => {
+    await assessments()
+    await AiCallModel.collection.insertMany([
+      { ...call(), callCount: 1, createdAt: new Date('2026-10-01T00:00:00Z') },
+      { ...call(), callCount: 1, createdAt: new Date('2026-10-05T00:00:00Z') },
+    ])
+
+    const { body } = await overview('groupBy=assessment&split=service&range=all')
+
+    expect(body.groups[0].lastActivityAt).toBe('2026-10-05T00:00:00.000Z')
+  })
+
+  it('narrows to one engineer’s assessments when their bar is chosen', async () => {
+    await people()
+    await assessments()
+    await seed([call(), call({ reportId: 'RPT-B', estimatedCostUsd: 2 })])
+
+    const { body } = await overview(
+      `groupBy=assessment&split=service&range=all&engineer=${String(jide._id)}`,
+    )
+
+    expect(body.groups.map((g) => g.key)).toEqual(['RPT-B'])
+  })
+
+  it('counts each call a summed row stands for', async () => {
+    await assessments()
+    await seed([call({ callCount: 3 })])
+
+    const { body } = await overview('groupBy=assessment&split=service&range=all')
+
+    expect(body.groups[0].calls).toBe(3)
+  })
+
+  it('shows a risk engineer only their own assessments and chat (AC9)', async () => {
+    await people()
+    await assessments()
+    await seed([
+      call(),
+      call({ reportId: 'RPT-B', estimatedCostUsd: 2 }),
+      chat(alex._id),
+      chat(jide._id),
+    ])
+
+    const byAssessment = await overview('groupBy=assessment&split=service&range=all', asAlex)
+    expect(byAssessment.body.groups.map((g) => g.key).sort()).toEqual(['RPT-A', 'chat'])
+    expect(group(byAssessment.body.groups, 'chat').calls).toBe(1)
+    const byEngineer = await overview('groupBy=engineer&split=service&range=all', asAlex)
+    expect(byEngineer.body.groups.map((g) => g.key)).toEqual([String(alex._id)])
+  })
+
+  it('rejects an unknown grouping, split, period or engineer', async () => {
+    expect((await overview('groupBy=nope&split=service&range=all')).status).toBe(400)
+    expect((await overview('groupBy=assessment&split=nope&range=all')).status).toBe(400)
+    expect((await overview('groupBy=assessment&split=service&range=year')).status).toBe(400)
+    expect((await overview('groupBy=assessment&split=service&range=all&engineer=x')).status).toBe(
+      400,
+    )
+  })
+})
+
+describe('GET /api/usage/summary for one assessment: the drill-in (EV-04 AC2)', () => {
+  type Summary = {
+    byFeatureService: { feature: string; calls: number; segments: Record<string, number> }[]
+    bySection: {
+      section: string | null
+      title: string
+      calls: number
+      drafts: number
+      estimatedCostUsd: number
+      callsWithoutCost: number
+    }[]
+  }
+  const summary = async (query = 'reportId=RPT-A') =>
+    (await asSana.get(`/api/usage/summary?${query}`)).body as Summary
+  const embed = (over: Record<string, unknown> = {}) =>
+    call({ feature: 'retrieval', billedService: 'cohere-embed', estimatedCostUsd: 0.1, ...over })
+
+  it('splits each feature by the service that billed it', async () => {
+    await assessments()
+    await seed([call(), embed(), call({ feature: 'transcribe', billedService: 'openai-whisper' })])
+
+    const { byFeatureService } = await summary()
+
+    expect(byFeatureService.map((f) => f.feature)).toEqual([
+      'draft-section',
+      'transcribe',
+      'retrieval',
+    ])
+    expect(byFeatureService[0].segments).toEqual({ anthropic: 0.5 })
+    expect(byFeatureService[2]).toMatchObject({ calls: 1, segments: { 'cohere-embed': 0.1 } })
+  })
+
+  it('gives each report section its drafting cost and runs, in report order', async () => {
+    await assessments()
+    await seed([
+      call({ section: '7' }),
+      embed({ section: '7' }),
+      call({ section: '7' }),
+      call({ section: '2', estimatedCostUsd: 0.3 }),
+      // Saved before sections were recorded.
+      call({ estimatedCostUsd: 0.2 }),
+      // Not drafting, so in no section.
+      call({ feature: 'transcribe', billedService: 'openai-whisper', section: undefined }),
+    ])
+
+    const { bySection } = await summary()
+
+    expect(bySection.map((s) => [s.section, s.title, s.drafts, s.calls])).toEqual([
+      ['2', 'Executive Summary', 1, 1],
+      ['7', 'Construction', 2, 3],
+      [null, 'Unspecified', 1, 1],
+    ])
+    expect(bySection[1].estimatedCostUsd).toBeCloseTo(1.1, 6)
+  })
+
+  it('names OFIs as Section 3 and counts a section call without a cost apart', async () => {
+    await assessments()
+    await seed([call({ section: '3', estimatedCostUsd: null, pricingBasis: 'no price for model' })])
+
+    const [ofis] = (await summary()).bySection
+
+    expect(ofis).toMatchObject({
+      section: '3',
+      title: 'Opportunities for Improvement',
+      calls: 1,
+      callsWithoutCost: 1,
+      estimatedCostUsd: 0,
+    })
+  })
+
+  it('has no sections when no assessment is chosen', async () => {
+    await assessments()
+    await seed([call({ section: '7' })])
+
+    expect((await summary('')).bySection).toEqual([])
+  })
+})
+
+describe('GET /api/usage/overview/export.csv (EV-04 AC4)', () => {
+  const people = () => UserModel.collection.insertMany([alex, jide, sana])
+
+  it('writes the overview on screen: one row per group, a column per split key', async () => {
+    await people()
+    await assessments()
+    await seed([
+      call(),
+      call({ feature: 'retrieval', billedService: 'cohere-embed', estimatedCostUsd: 0.1 }),
+      call({ reportId: 'RPT-B', estimatedCostUsd: 2 }),
+    ])
+
+    const res = await asSana.get(
+      '/api/usage/overview/export.csv?groupBy=assessment&split=service&range=all',
+    )
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toMatch(/text\/csv/)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-by-assessment-service-all.csv"',
+    )
+    const lines = res.text.trim().split('\n')
+    expect(lines[0]).toBe(
+      'group,reference,client,site,engineer,last_activity,calls,calls_without_cost,estimated_cost_usd,anthropic,cohere-embed',
+    )
+    expect(lines[1]).toMatch(/^RPT-B,RPT-B,C,Site,jide,[^,]+,1,0,2,2,0$/)
+    expect(lines[2]).toMatch(/^RPT-A,RPT-A,C,Site,alex,[^,]+,2,0,0\.6,0\.5,0\.1$/)
+  })
+
+  it('keeps to the risk engineer’s own scope and refuses an unknown grouping', async () => {
+    await people()
+    await assessments()
+    await seed([call(), call({ reportId: 'RPT-B', estimatedCostUsd: 2 })])
+
+    const mine = await asAlex.get(
+      '/api/usage/overview/export.csv?groupBy=assessment&split=feature&range=all',
+    )
+    expect(mine.text.trim().split('\n')).toHaveLength(2)
+    expect(mine.text).not.toContain('RPT-B')
+    expect(
+      (await asSana.get('/api/usage/overview/export.csv?groupBy=nope&split=feature&range=all'))
+        .status,
+    ).toBe(400)
+  })
+})
+
+describe('GET /api/usage/ingestion (EV-04, ingestion tab)', () => {
+  type Doc = {
+    key: string
+    title: string
+    fileName: string | null
+    status: string | null
+    saved: boolean
+    uploadedAt: string | null
+    pages: number | null
+    calls: number
+    estimatedCostUsd: number
+    callsWithoutCost: number
+    usdPerPage: number | null
+    avgMsPerCall: number | null
+    lastActivityAt: string
+    segments: Record<string, number>
+  }
+  type Ingestion = {
+    documents: Doc[]
+    splitKeys: string[]
+    totals: { calls: number; estimatedCostUsd: number }
+  }
+  const ingestion = async (query = 'split=service&range=all', as = asSana) => {
+    const res = await as.get(`/api/usage/ingestion?${query}`)
+    return { status: res.status, body: res.body as Ingestion }
+  }
+  const nfpa = new Types.ObjectId()
+  const scan = new Types.ObjectId()
+  // Stored documents and their ingestion jobs, written straight to the collections.
+  async function documents() {
+    await KnowledgeDocumentModel.collection.insertMany([
+      {
+        _id: nfpa,
+        title: 'NFPA 13',
+        fileName: 'nfpa13.pdf',
+        status: 'complete',
+        createdAt: new Date('2026-10-01T00:00:00Z'),
+      },
+      {
+        _id: scan,
+        title: 'Old scanned code',
+        fileName: 'scan.pdf',
+        status: 'failed',
+        createdAt: new Date('2026-10-02T00:00:00Z'),
+      },
+    ])
+    await IngestionJobModel.collection.insertOne({ documentId: nfpa, pageTotal: 40 })
+  }
+  const ingest = (documentId: Types.ObjectId | undefined, over: Record<string, unknown> = {}) =>
+    call({ reportId: undefined, documentId, ...over })
+  const ocr = (id?: Types.ObjectId, over: Record<string, unknown> = {}) =>
+    ingest(id, { feature: 'ocr', billedService: 'gemini-ocr', estimatedCostUsd: 0.6, ...over })
+  const embed = (id?: Types.ObjectId) =>
+    ingest(id, { feature: 'embed-document', billedService: 'cohere-embed', estimatedCostUsd: 0 })
+  const label = (id?: Types.ObjectId) =>
+    ingest(id, { feature: 'label-document', billedService: 'anthropic', estimatedCostUsd: 0.2 })
+
+  it('gives each document its cost, split by billed service, with its pages and cost per page', async () => {
+    await documents()
+    await seed([ocr(nfpa, { callCount: 30 }), embed(nfpa), label(nfpa), ocr(scan), call()])
+
+    const { status, body } = await ingestion()
+
+    expect(status).toBe(200)
+    expect(body.documents.map((d) => d.key)).toEqual([String(nfpa), String(scan)])
+    const [doc] = body.documents
+    expect(doc).toMatchObject({
+      title: 'NFPA 13',
+      fileName: 'nfpa13.pdf',
+      status: 'complete',
+      saved: true,
+      uploadedAt: '2026-10-01T00:00:00.000Z',
+      pages: 40,
+      calls: 32,
+    })
+    expect(doc.estimatedCostUsd).toBeCloseTo(0.8, 6)
+    expect(doc.usdPerPage).toBeCloseTo(0.02, 6)
+    expect(doc.segments).toEqual({ 'gemini-ocr': 0.6, 'cohere-embed': 0, anthropic: 0.2 })
+    // A document that failed before parsing has no page count, so no cost per page.
+    expect(body.documents[1]).toMatchObject({ status: 'failed', pages: null, usdPerPage: null })
+    // Report generation is on the other tab.
+    expect(body.totals.calls).toBe(33)
+    expect(body.splitKeys).toEqual(['gemini-ocr', 'anthropic', 'cohere-embed'])
+  })
+
+  it('splits by stage when asked', async () => {
+    await documents()
+    await seed([ocr(nfpa), embed(nfpa), label(nfpa)])
+
+    const { body } = await ingestion('split=feature&range=all')
+
+    expect(Object.keys(body.documents[0].segments).sort()).toEqual([
+      'embed-document',
+      'label-document',
+      'ocr',
+    ])
+  })
+
+  it('keeps the cost of an upload that was never saved, and of labelling from before ids', async () => {
+    await documents()
+    const rejected = new Types.ObjectId()
+    await seed([label(rejected), label(undefined)])
+
+    const { body } = await ingestion()
+
+    expect(body.documents.find((d) => d.key === String(rejected))).toMatchObject({
+      title: 'Upload not saved',
+      saved: false,
+      fileName: null,
+    })
+    expect(body.documents.find((d) => d.key === 'unlinked')).toMatchObject({
+      title: 'Not linked to a document',
+      saved: false,
+    })
+  })
+
+  it('gives the average time per call, as a summed row holds the time of all its calls', async () => {
+    await documents()
+    await seed([ocr(nfpa, { callCount: 4, durationMs: 8000 }), ocr(nfpa, { durationMs: 3000 })])
+
+    const { body } = await ingestion()
+
+    expect(body.documents[0].avgMsPerCall).toBe(2200)
+  })
+
+  it('is for knowledge admins only, and refuses an unknown split or period', async () => {
+    expect((await ingestion('split=service&range=all', asAlex)).status).toBe(403)
+    expect((await ingestion('split=nope&range=all')).status).toBe(400)
+    expect((await ingestion('split=service&range=year')).status).toBe(400)
+  })
+
+  it('exports the documents on screen as CSV, a column per split key', async () => {
+    await documents()
+    await seed([ocr(nfpa), label(nfpa)])
+
+    const res = await asSana.get('/api/usage/ingestion/export.csv?split=service&range=all')
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-ingestion-service-all.csv"',
+    )
+    const [head, row] = res.text.trim().split('\n')
+    expect(head).toBe(
+      'title,file_name,status,uploaded_at,pages,calls,calls_without_cost,estimated_cost_usd,usd_per_page,gemini-ocr,anthropic',
+    )
+    expect(row).toBe('NFPA 13,nfpa13.pdf,complete,2026-10-01T00:00:00.000Z,40,2,0,0.8,0.02,0.6,0.2')
+    expect(
+      (await asAlex.get('/api/usage/ingestion/export.csv?split=service&range=all')).status,
+    ).toBe(403)
+  })
+})
+
+describe('latency with summed ingestion rows (EV-04 AC5)', () => {
+  it('averages per call and leaves summed rows out of the percentiles', async () => {
+    await seed([
+      call({ feature: 'ocr', reportId: undefined, callCount: 4, durationMs: 400 }),
+      call({ feature: 'ocr', reportId: undefined, durationMs: 100 }),
+    ])
+
+    const { body } = await asSana.get('/api/usage/summary')
+    const ocr = body.byFeature.find((f: { key: string }) => f.key === 'ocr')
+
+    expect(ocr.latency).toEqual({ avgMs: 100, p50Ms: 100, p95Ms: 100, maxMs: 100 })
+    expect(ocr.calls).toBe(5)
   })
 })

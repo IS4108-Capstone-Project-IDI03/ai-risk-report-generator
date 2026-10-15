@@ -19,8 +19,8 @@ export function SummaryRow({
 }: {
   reference: string
   canDraft: boolean
-  // Changes when a section draft or an accepted OFI does, so the missing and
-  // out-of-date lists stay current on this screen.
+  // Changes when a section draft does, so the missing and out-of-date lists stay
+  // current on this screen. OFIs are accepted in Review, which reloads on its own.
   refreshKey: string
 }) {
   const { summary, loadError, reload } = useSummary(reference, refreshKey)
@@ -142,7 +142,13 @@ export function SummaryRow({
             borderTop: '1px solid var(--border-subtle)',
           }}
         >
-          <ExecutiveSummary summary={state} error={null} onGenerate={() => {}} />
+          <ExecutiveSummary
+            summary={state}
+            error={null}
+            onGenerate={() => {}}
+            fullWidth
+            showCitations={false}
+          />
         </section>
       )}
     </div>

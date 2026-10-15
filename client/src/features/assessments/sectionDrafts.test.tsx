@@ -176,7 +176,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it("drafts a section of a saved assessment and shows each statement's evidence (GN-01)", async () => {
+it('drafts a section of a saved assessment and shows the draft without its citations (GN-01)', async () => {
   const drafted = mockGateway(() => json(201, DRAFT))
   await openGenerateTab()
 
@@ -206,19 +206,12 @@ it("drafts a section of a saved assessment and shows each statement's evidence (
   expect(screen.getByText(/completed from measured values/)).toBeInTheDocument()
   expect(screen.getByText(/No evidence covers this subsection/)).toBeInTheDocument()
 
-  // Each citation opens its observation or standard passage (AC4).
-  fireEvent.click(screen.getByRole('button', { name: /3 sources/ }))
-  const evidence = screen
-    .getByText('Riser shaft not fire-stopped at L3.')
-    .closest('div')!.parentElement!
-  expect(within(evidence).getByText('Riser B, Level 3')).toBeInTheDocument()
-  // A note and a voice transcript are both shown, since the draft may cite either.
-  expect(within(evidence).getByText('Note')).toBeInTheDocument()
-  expect(within(evidence).getByText('Voice transcript · Recording 1')).toBeInTheDocument()
-  expect(within(evidence).getByText('the gap is around the cable tray')).toBeInTheDocument()
-  expect(screen.getByText('FM 1-21 › Fire stopping')).toBeInTheDocument()
-  expect(screen.getByText('p. 4–5')).toBeInTheDocument()
-  expect(screen.getByText('This citation could not be found')).toBeInTheDocument()
+  // Citations and their sources are read in Review (RV-01); Generation only
+  // generates (Miya, 12 Oct), so the draft shows no markers and no sources.
+  const draft = screen.getByRole('region', { name: '7. Construction draft' })
+  expect(draft.querySelector('sup')).toBeNull()
+  expect(within(draft).queryByRole('button', { name: /sources?$/ })).toBeNull()
+  expect(screen.queryByText('This citation could not be found')).toBeNull()
 
   // A drafted section can be drafted again; with nothing else draftable, the
   // whole-report button is gone.
@@ -227,6 +220,16 @@ it("drafts a section of a saved assessment and shows each statement's evidence (
   expect(screen.queryByRole('button', { name: /Draft (all|remaining) sections/ })).toBeNull()
   expect(screen.getByText(/1 of 1 section drafted · 1 needs attention/)).toBeInTheDocument()
 }, 15_000) // Many role queries over the whole app; slow when every test file runs at once.
+
+it('fills the width with a draft opened on Generation, rather than holding it to prose width', async () => {
+  mockGateway(() => json(201, DRAFT))
+  await openGenerateTab()
+  fireEvent.click(screen.getByRole('button', { name: 'Draft section' }))
+
+  const draft = await screen.findByRole('region', { name: '7. Construction draft' })
+  // The AI draft box caps prose at --measure-prose unless told to fill its width.
+  expect(draft.querySelector('[style*="measure-prose"]')).toBeNull()
+})
 
 it('names the reason when a section could not be drafted', async () => {
   mockGateway(() =>
@@ -314,40 +317,10 @@ it('describes each kind of change and never mentions a kind with none (CP-08)', 
   for (const [counts, text] of cases) expect(describeChanges(counts)).toBe(text)
 })
 
-it('shows photos under citations and opens a preview instead of embedding them in the draft', () => {
-  const photo = {
-    id: 'p1',
-    name: 'riser.jpg',
-    contentType: 'image/jpeg' as const,
-    size: 100,
-    url: '/riser.jpg',
-    added: null,
-  }
-  render(
-    <DraftView
-      draft={DRAFT}
-      observations={[
-        { ...RISER, photos: [photo] },
-        { ...RISER, id: 'unrelated', photos: [{ ...photo, name: 'unrelated.jpg' }] },
-        {
-          ...RISER,
-          id: 'deleted',
-          photos: [{ ...photo, name: 'deleted.jpg' }],
-          deleted: { by: { id: 'e1', name: 'Alex' }, at: '2026-09-24T00:00:00Z' },
-        },
-      ]}
-    />,
-  )
+it('embeds no photos and opens no sources in a draft on Generation; Review shows them', () => {
+  render(<DraftView draft={DRAFT} />)
   expect(screen.queryByRole('img')).not.toBeInTheDocument()
-  expect(screen.queryByText('Site photographs')).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: /3 sources/ }))
-  expect(screen.queryByText('unrelated.jpg')).not.toBeInTheDocument()
-  expect(screen.queryByText('deleted.jpg')).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'View photo' }))
-  const popup = screen.getByRole('dialog', { name: 'riser.jpg' })
-  expect(within(popup).getByRole('img', { name: 'riser.jpg' })).toHaveAttribute('src', '/riser.jpg')
-  fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /sources?$/ })).not.toBeInTheDocument()
 })
 
 it('shows the corrected transcript in draft evidence and keeps the original behind a toggle', () => {

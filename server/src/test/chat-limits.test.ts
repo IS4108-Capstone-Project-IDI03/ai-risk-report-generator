@@ -143,7 +143,6 @@ describe('POST /api/chat limits (AC16)', () => {
 })
 
 describe('checkChatLimits clock windows', () => {
-
   it('counts an estimate for each answer, so stopped answers still reach the cap', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 9, 15, 9, 0, 0))

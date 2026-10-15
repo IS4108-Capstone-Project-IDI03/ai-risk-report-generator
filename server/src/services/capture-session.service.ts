@@ -2,6 +2,7 @@ import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import type { ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
+import { clientNameOf } from './client.service'
 
 export class AssessmentNotFoundError extends Error {
   constructor(reference: string) {
@@ -36,7 +37,11 @@ export type CaptureSessionResult = {
 // Assessments are addressed by their reference, the ID the client holds.
 export async function startCaptureSession(reference: string): Promise<CaptureSessionResult> {
   const assessment = await AssessmentModel.findOne({ reference })
-    .populate<{ site: Pick<ISite, 'code' | 'name'> | null }>('site', 'code name')
+    .populate<{ site: Pick<ISite, 'code' | 'name' | 'client'> | null }>({
+      path: 'site',
+      select: 'code name client',
+      populate: { path: 'client', select: 'name' },
+    })
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
@@ -63,7 +68,7 @@ export async function startCaptureSession(reference: string): Promise<CaptureSes
     assessment: {
       id: String(assessment._id),
       reference: assessment.reference,
-      client: assessment.client,
+      client: clientNameOf(assessment.site, assessment.client),
       site: assessment.site ? { code: assessment.site.code, name: assessment.site.name } : null,
     },
   }

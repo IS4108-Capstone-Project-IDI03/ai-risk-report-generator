@@ -2,6 +2,7 @@ import { Readable } from 'stream'
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { AiCallModel } from '../models/ai-call.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import {
@@ -372,6 +373,34 @@ describe('POST /api/knowledge-documents', () => {
       expect(queued).toHaveBeenCalledOnce()
     },
   )
+
+  it("records /label's paid calls against the document it labelled (EV-03)", async () => {
+    labelling.mockResolvedValue(
+      Response.json({
+        ...labelAnswer(DETAILS),
+        usage: [
+          {
+            model: 'claude-haiku-5-5',
+            input_tokens: 9000,
+            output_tokens: 400,
+            cost_usd: 0.0011,
+            seconds: 3.2,
+          },
+        ],
+      }),
+    )
+    const response = await api
+      .post('/api/knowledge-documents')
+      .query({ fileName: DETAILS.fileName })
+      .set('Content-Type', 'application/pdf')
+      .send(freshPdf())
+
+    expect(response.status).toBe(201)
+    const rows = await AiCallModel.find().lean()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ feature: 'label-document', estimatedCostUsd: 0.0011 })
+    expect(String(rows[0].documentId)).toBe(response.body.id)
+  })
 
   it('never calls /label for a file that is rejected', async () => {
     await upload(Buffer.from('just some text'))

@@ -11,10 +11,12 @@ document (OcrUnavailableError). Any other API error leaves the region unread
 import base64
 import logging
 import os
+import time
 
 import anthropic
 from pydantic import BaseModel
 
+from app import usage
 from app.pipeline.chunking_helper.ocr_prompts import TASKS
 from app.pipeline.chunking_helper.rate_limit import (
     call_with_waits,
@@ -39,7 +41,8 @@ def _client() -> anthropic.Anthropic:
 
 
 def _ask(prompt: str, schema: type[BaseModel], data: str):
-    return _client().messages.parse(
+    started = time.perf_counter()
+    response = _client().messages.parse(
         model=_model(),
         max_tokens=MAX_TOKENS,
         # Transcription needs little reasoning; low effort keeps it fast and cheap.
@@ -59,6 +62,19 @@ def _ask(prompt: str, schema: type[BaseModel], data: str):
         ],
         output_format=schema,
     )
+    # Recorded here, once per answered request: a refused or cut-off answer is
+    # still billed, and a request retried after a rate limit is not (EV-03).
+    tokens = getattr(response, "usage", None)
+    usage.record(
+        "ocr",
+        "anthropic",
+        getattr(response, "model", None) or _model(),
+        started,
+        input_tokens=getattr(tokens, "input_tokens", None),
+        output_tokens=getattr(tokens, "output_tokens", None),
+        cache_read_tokens=getattr(tokens, "cache_read_input_tokens", None),
+    )
+    return response
 
 
 def _is_transient(error: Exception) -> bool:

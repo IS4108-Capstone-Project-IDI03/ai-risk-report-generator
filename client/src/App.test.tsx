@@ -78,7 +78,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
     expect(screen.getByText('Site name is required')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Demo Warehouse' } })
-    fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /^Client/ }), {
       target: { value: 'Demo Client' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
@@ -90,9 +90,9 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     // The next assessment starts from a blank form.
     expect(screen.getByLabelText(/Site name/)).toHaveValue('')
-    expect(screen.getByRole('textbox', { name: /^Client/ })).toHaveValue('')
+    expect(screen.getByRole('combobox', { name: /^Client/ })).toHaveValue('')
     fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Second Warehouse' } })
-    fireEvent.change(screen.getByRole('textbox', { name: /^Client/ }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /^Client/ }), {
       target: { value: 'Second Client' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))

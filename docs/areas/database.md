@@ -44,20 +44,50 @@ Python service ports to loopback; do not expose them publicly as-is.
 ## Assessments and capture sessions
 
 `assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
-`RPT-2026-0411`), a `site` reference, `client`, `surveyType`, optional
+`RPT-2026-0411`), a `site` reference, `surveyType`, optional
 `siteVisitDate` and `reportDueDate`, and `engineer`: the assigned engineer's user ID
 (one per assessment). The engineer's name is read from their account, so a rename shows everywhere.
+Its client is read through its site (CP-17); an assessment saved before then
+also keeps the `client` name typed on it, unused once its site is migrated.
 Extend it rather than creating a parallel assessment schema.
 
-`POST /api/assessments` creates an assessment and a new site for it (the site
-gains an optional `address`). The body is validated with Zod; a 400 returns
+`POST /api/assessments` creates an assessment for a listed client
+(`clientId`) or a new one (`client`, a name), on one of that client's sites
+(`siteId`) or a new site (`site`, which has an optional `address`): exactly
+one of each pair (CP-17). A listed site of another client is refused, as is a
+new site named like one the client has, ignoring case (`site.name`). On a
+listed site the assessment starts with a copy of the locations of the site's
+latest assessment not archived, whatever its status (latest by visit date,
+then creation), each with a new `_id`, unless `copyLocations` is `false`; no
+observations are copied. The body is validated with Zod; a 400 returns
 `{ error, fields }`, where `fields` maps each invalid path (e.g. `site.name`) to
 its first problem. `jurisdiction` is a two-letter code (`SG`, `MY`, `UK`, …)
 because retrieval filters on it. The server allocates the reference
 `RPT-<year>-<nnnn>` and the site code `SITE-<nnnn>` from atomically incremented
 `counters` documents (`assessment:<year>`, `site`), skipping any code already
 in use, such as a seeded one. Dev and test MongoDB are standalone servers without
-transactions, so if the assessment insert fails, the new site is deleted by hand.
+transactions, so if the assessment insert fails, a new site is deleted by hand.
+
+`clients` (CP-17) holds the clients the firm surveys for, each with a `name`
+(up to 200 characters) and a unique `key`: the name lowercased with its spacing
+tidied, so "Northgate  Logistics" and "northgate logistics" are one client.
+Every engineer sees every client. A site belongs to one client through its
+`client` reference; one client has many sites, and a site many assessments,
+one per visit. Creating an assessment with a new client name finds the client
+by key, or adds it with the name as typed. `GET /api/clients` lists every
+client in name order with its number of sites, and `GET
+/api/clients/:id/sites` a client's sites in name order, each with its latest
+assessment not archived (`reference`, `siteVisitDate`, and the `locations` and
+`buildings` a new assessment would copy); 404 for an unknown client. Both need
+`assessments:edit`. Assessments list with `clientId` (null for a site not yet
+migrated) and `siteShared`: whether the site has another assessment not
+archived. Sites saved before CP-17 have no `client` until `npm --prefix server run
+migrate:clients` links each to a client made from its assessment's `client`
+text: names matching by key become one client, spelt as first found, and sites
+are never merged. It is safe to run more than once, and leaves a site with no
+assessment (the health check's `SYN-SG-001`) unlinked. The assessment's
+`client` text stays as it was saved; it is shown only while its site has no
+client.
 
 `capture_sessions` records each on-site capture for an assessment, with
 `status` `active` or `ready_for_generation` (set by CP-14). A partial unique
@@ -148,9 +178,13 @@ staff IDs and job titles for assignment. Creating an assessment requires
 `engineerId`, the ID of one active risk engineer.
 
 `PUT /api/assessments/:reference` corrects an assessment's details (RV-10 AC10):
-its site's name, address, jurisdiction and facility type, and its client,
-assessment type and dates, with the same validation as creating one (AC11).
-The engineer is not editable: it stays as the assessment was created. A date left empty is cleared. Only the assigned engineer
+its site's name, address, jurisdiction and facility type, and its assessment
+type and dates, with the same validation as creating one (AC11). The engineer,
+client and site are not editable: they stay as the assessment was created
+(CP-17 AC8). The site's details are shared once the site has another
+assessment not archived, so changing them is then refused (409); sending them
+unchanged is fine. Renaming a site to another of its client's site names is
+refused (400, `site.name`). A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
 
 `POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a
@@ -816,15 +850,19 @@ References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 
 ## AI-call usage (EV-03)
 
-Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per paid AI call, saved by the gateway (`ai-usage.service.ts`) from the `usage` list that the Python services return. The services never write it.
+Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per paid AI call, saved by the gateway (`ai-usage.service.ts`) from the `usage` list that the Python services return. The services never write it. Ingestion is the exception to "one per call": its many small calls are summed into one row per document, stage and model (see `callCount`).
 
 | Field | Meaning |
 |---|---|
-| `feature` | `draft-section`, `retrieval`, `transcribe` or `label-document` |
-| `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev` |
+| `feature` | `draft-section`, `retrieval`, `transcribe`, `label-document`, `interpret-photo`, `ocr`, `embed-document` or `chat` |
+| `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev`, `gemini-vision`, `gemini-ocr`, `self-hosted-ocr` |
 | `model` | the exact model the provider reported |
-| `reportId` | the assessment reference (absent for labelling, which has no report) |
-| `durationMs` | how long the call took |
+| `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |
+| `documentId` | the knowledge document a labelling or ingestion call was for (absent otherwise) |
+| `userId` | the signed-in user who sent a chat message (chat only; report calls are attributed to the assessment's assigned engineer when read) |
+| `section` | the report section id a draft was for, as in `report_sections.sectionId`: `7`–`12` for drafted sections, `3` for OFIs, `2` for the executive summary (drafting only; absent on rows saved before it existed) |
+| `callCount` | how many provider calls the row stands for: 1, except ingestion rows, which sum a document's calls per stage and model |
+| `durationMs` | how long the call took (for an ingestion row, the total of its calls) |
 | `inputTokens`, `outputTokens`, `cacheReadTokens` | provider-reported; `null` when not reported |
 | `searchUnits`, `audioSeconds` | Cohere rerank and Whisper billing units |
 | `usageStatus` | `recorded`, or `unavailable` when the provider gave no usage data |
@@ -832,9 +870,11 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 - One draft writes three rows: Claude, Cohere embed and Cohere rerank.
 - A draft that fails after its paid calls (refused, cut off) is not recorded: the service raises before it returns the list.
-- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08). Cohere publishes no per-use price, so those two are estimates, set by `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`.
+- Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08; Gemini from ai.google.dev/gemini-api/docs/pricing, read 2026-10-13, with its announced 2027-01-01 rise applied by call date). Self-hosted OCR costs $0 per call, with that named as its basis. Cohere calls cost $0 while `COHERE_KEY_TIER` is `trial` (the default, even when unset), since a trial key is free (1,000 calls a month), with that named as the basis. With `COHERE_KEY_TIER=production` they are priced from estimates, since Cohere publishes no per-use price: `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`. A row keeps the price in force when it was saved, so switching tiers changes only later rows.
 - A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
-- Nothing reads the collection yet; EV-04 (cost report) will.
+- Ingestion rows arrive from the worker through `POST /api/internal/ai-usage` (service key), one per document, feature (`ocr`, `embed-document`), billed service and model, whatever the document's outcome. Their `durationMs` is the sum over `callCount` calls, so the report averages it per call and leaves those rows out of latency percentiles. Calls that reported no usage form their own `unavailable` row. Self-hosted OCR is always $0, even with no token counts.
+- Read by the EV-04 cost report (`usage-report.service.ts`).
+- Indexes: `feature`, `billedService`, `reportId`, `documentId`, `userId`, `createdAt`.
 
 ### Where each `ai_calls` field comes from (EV-03)
 
@@ -847,6 +887,10 @@ Each provider reports usage differently. The services rename it into one shape (
 | Anthropic `usage.cache_read_input_tokens` | `cache_read_tokens` | `cacheReadTokens` |
 | Cohere embed `meta.billed_units.input_tokens` | `input_tokens` | `inputTokens` |
 | Cohere rerank `meta.billed_units.search_units` | `search_units` | `searchUnits` |
+| Gemini `usage.total_input_tokens` | `input_tokens` | `inputTokens` |
+| Gemini `usage.total_output_tokens` + `total_thought_tokens` (both billed as output) | `output_tokens` | `outputTokens` |
+| Self-hosted OCR (OpenAI-style) `usage.prompt_tokens` / `completion_tokens` | `input_tokens` / `output_tokens` | `inputTokens` / `outputTokens` |
+| Number of provider calls summed into one ingestion row | `call_count` | `callCount` |
 | Whisper `verbose_json` `duration` (seconds) | `audio_seconds` | `audioSeconds` |
 | Time around the call (`perf_counter`) | `duration_ms` | `durationMs` |
 | Labelling `seconds` (gateway multiplies by 1000) | `duration_ms` | `durationMs` |
@@ -855,6 +899,9 @@ Each provider reports usage differently. The services rename it into one shape (
 | Which code path made the call | `feature` | `feature` |
 | Provider gave nothing | `usage_status: "unavailable"` | `usageStatus` |
 | Assessment reference, added by the gateway | not sent | `reportId` |
+| Knowledge document id (ingestion sends it; the gateway adds it for labelling) | `document_id` | `documentId` |
+| Report section, added by the gateway | not sent | `section` |
+| Session user, added by the gateway for chat | not sent | `userId` |
 | Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis` |
 
 What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.

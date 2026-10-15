@@ -1,4 +1,5 @@
 import { config } from '../config'
+import { recordAiCalls } from './ai-usage.service'
 import { listIngestedDocuments } from './knowledge-document.service'
 
 // Stubs a call to the S4 RAG service. Real implementation will POST to
@@ -52,10 +53,14 @@ export async function withChatDocuments(body: unknown): Promise<object> {
   return { ...(body as object), documents }
 }
 
-/** S4's event stream for one chat request (CB-01), for the chat route to pass on. */
+/**
+ * S4's event stream for one chat request (CB-01), for the chat route to pass
+ * on. Its final `usage` event is recorded for `userId` and removed (EV-03).
+ */
 export async function openChatStream(
   body: unknown,
   signal: AbortSignal,
+  userId?: string,
 ): Promise<ReadableStream<Uint8Array>> {
   let response: Response
   try {
@@ -71,7 +76,52 @@ export async function openChatStream(
   if (!response.ok || !response.body) {
     throw new RagServiceError(`The chat service failed with status ${response.status}.`)
   }
-  return response.body
+  return response.body.pipeThrough(recordingChatUsage(userId))
+}
+
+// The AG-UI event S4 ends a chat answer with: the answer's paid calls.
+const isUsageEvent = (block: string) => {
+  if (!block.startsWith('data: ')) return null
+  try {
+    const event = JSON.parse(block.slice(6))
+    return event?.type === 'CUSTOM' && event.name === 'usage' ? event : null
+  } catch {
+    return null
+  }
+}
+
+// Passes every server-sent event through unchanged except S4's usage event,
+// which is saved as `chat` calls for the user and not sent on: it is
+// bookkeeping, not part of the answer. Events are split on the blank line that
+// ends each one, so an event cut across network chunks is still found.
+function recordingChatUsage(userId?: string): TransformStream<Uint8Array, Uint8Array> {
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+  let pending = ''
+  return new TransformStream({
+    async transform(chunk, controller) {
+      pending += decoder.decode(chunk, { stream: true })
+      let end: number
+      while ((end = pending.indexOf('\n\n')) !== -1) {
+        const block = pending.slice(0, end + 2)
+        pending = pending.slice(end + 2)
+        const usage = isUsageEvent(block)
+        if (!usage) {
+          controller.enqueue(encoder.encode(block))
+          continue
+        }
+        const calls = Array.isArray(usage.value) ? usage.value : []
+        await recordAiCalls(
+          calls.map((call: object) => ({ ...call, feature: 'chat' })),
+          { userId },
+        )
+      }
+    },
+    flush(controller) {
+      pending += decoder.decode()
+      if (pending) controller.enqueue(encoder.encode(pending))
+    },
+  })
 }
 
 // The report template's sections 7-12 and what each needs, as S4 holds them.

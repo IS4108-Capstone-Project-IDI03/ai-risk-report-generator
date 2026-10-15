@@ -14,7 +14,7 @@ import { DraftEditor, type FindingActions } from '../components/DraftEditor'
 import { ExecutiveSummary } from '../components/ExecutiveSummary'
 import { PurposeScope } from '../components/PurposeScope'
 import { ReportPart } from '../components/ReportPart'
-import { OfiBlock } from '../components/OfiSuggestions'
+import { OfiReviewPanel } from '../components/OfiReviewPanel'
 import {
   AcceptReplacementDialog,
   EditFindingDialog,
@@ -89,8 +89,8 @@ export function ReviewWorkspace({
   onGenerate: () => void
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
-  const { ofis } = useOfis(reference)
-  const { summary, loadError: summaryError } = useSummary(reference)
+  const { ofis, setOfis } = useOfis(reference)
+  const { summary, loadError: summaryError, reload: reloadSummary } = useSummary(reference)
   // For each OFI's sources, as on Generation.
   const { observations } = useObservations(reference, true)
   // Only a list from the gateway counts; anything else reads as no OFIs yet.
@@ -225,11 +225,11 @@ export function ReviewWorkspace({
       </div>
     )
 
-  // Section 3: the OFIs in the report, laid out like a section's draft: the editor
-  // bar, the provenance of their drafting, then each OFI in an AI draft box.
-  // Accepting more happens on Generation.
+  // Section 3, laid out like a section's draft: the editor bar, the provenance of
+  // the OFIs' drafting, then the suggestions to accept and the OFIs in the report,
+  // each in an AI draft box. Accepting happens here, not on Generation (GN-07).
   if (selected === '3') {
-    const drafted = accepted[0]?.provenance
+    const drafted = (accepted[0] ?? ofis?.suggestions?.[0])?.provenance
     return (
       <div style={wrapStyle}>
         {rail}
@@ -255,7 +255,7 @@ export function ReviewWorkspace({
               <EmptyState
                 icon="file-text"
                 title="No OFIs in the report yet"
-                description="Draft and accept Opportunities for Improvement on the Generation tab."
+                description="Draft Opportunities for Improvement on the Generation tab, then accept them here."
                 action={
                   <Button variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
                     Go to Generation
@@ -269,14 +269,14 @@ export function ReviewWorkspace({
                   {drafted.effort} effort) · prompt {drafted.prompt_version} · config{' '}
                   {drafted.config_version}
                 </p>
-                {accepted.map((o) => (
-                  <OfiBlock
-                    key={o.id}
-                    ofi={o}
-                    number={o.number}
-                    observations={observations ?? []}
-                  />
-                ))}
+                <OfiReviewPanel
+                  reference={reference}
+                  ofis={{ suggestions: ofis?.suggestions ?? [], accepted }}
+                  setOfis={setOfis}
+                  observations={observations ?? []}
+                  canAccept={canReview}
+                  onAccepted={() => void reloadSummary()}
+                />
               </>
             )}
           </div>
@@ -288,8 +288,8 @@ export function ReviewWorkspace({
                 {waiting
                   ? `${waiting} suggested OFI${waiting === 1 ? ' is' : 's are'} waiting to be accepted.`
                   : 'No suggested OFIs are waiting.'}{' '}
-                Each OFI's sources open below it. Suggestions are drafted and accepted on Report
-                generation.
+                Each OFI's sources open below it. Suggestions are drafted on Generation and accepted
+                here.
               </p>
               <div style={{ marginTop: '12px' }}>
                 <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>

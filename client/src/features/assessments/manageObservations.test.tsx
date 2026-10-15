@@ -142,6 +142,7 @@ function assessment(engineer: { id: string; name: string }): Assessment {
     id: 'a1',
     reference: REF,
     client: 'Northgate Logistics',
+    clientId: null,
     surveyType: 'Property risk survey',
     siteVisitDate: '2026-04-11',
     reportDueDate: null,
@@ -149,7 +150,9 @@ function assessment(engineer: { id: string; name: string }): Assessment {
     status: 'capturing',
     captureStartedAt: '2026-04-11T08:00:00.000Z',
     createdAt: '2026-04-01T00:00:00.000Z',
+    siteShared: false,
     site: {
+      id: 'site1',
       code: 'SITE-0001',
       name: 'Tilbury Distribution Centre',
       address: null,

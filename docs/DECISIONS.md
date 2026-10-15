@@ -1262,6 +1262,234 @@ the first observation.
 
 Stories: CP-08, CP-06, CP-16.
 
+## 2026-10-13 — A client has many sites and a site many assessments; each assessment keeps its own copy of the locations
+
+Chose:
+- A `clients` collection, and a `client` reference on each site: client →
+  site → assessment, one assessment per visit. The client is stored only on
+  the site, so an assessment reads it through its site and the two can never
+  disagree; a rename (CP-18) is one write.
+- Locations stay on the assessment (CP-16). A new assessment on a site that
+  already has one copies the latest non-archived one's locations, whatever
+  its status, behind a ticked box the engineer can untick, so a finished
+  report never changes when a later visit edits its copy.
+- Every engineer sees every client and site, though RV-10 shows each only
+  their own assessments, so a client is never added twice because a
+  colleague added it.
+- Clients match on a key, the name lowercased with its spacing tidied, kept
+  unique by an index, so two engineers adding the same client at once get one.
+- Existing data moves by `npm --prefix server run migrate:clients`, as
+  `migrate:cope` did: run by hand, safe to run twice. Names matching by key
+  become one client; near-misses (Fennick Food, Fennick Foods) stay apart,
+  since a script shouldn't guess, and sites are never merged. The
+  assessment's `client` text is left in place, shown only while its site has
+  no client, so the migration can be run again from it.
+- A site's details are locked on its assessments once another one not
+  archived shares it; an archived one doesn't count, so a mistaken create
+  doesn't freeze the site. An assessment's client and site can't be changed
+  after it is created: a wrong pick is archived and created again.
+- One client can't have two sites of one name, whatever the case, and a new
+  client or site name close to a listed one is asked about, as CP-16 does for
+  locations. Sites saved before with the same name stay.
+- The create form takes the Client as a field with suggestions; a listed
+  client then offers its sites in a Site list, ending with Add a new site. A
+  listed site's details fill in, read-only, under it, with the copy box.
+- The work list opens latest site visit first, as before. Group by client
+  lists it by client, then site, in name order, with the Observations tab's
+  fold headings and location rows (one shared heading); the button then reads
+  Show latest first. Sort orders each site's visits, and the status filter,
+  search and date boxes still apply, hiding a client or site left empty.
+  Each site has New visit, which opens the create form on it with its copy
+  ticked.
+- Archived is a button, Archived (n), as Deleted (n) is on the Observations
+  tab, no longer a status. The toolbar reads Group by client, Sort, Status,
+  Archived, then the count and Search at its end.
+- An engineer still sees only their own assessments (RV-10), so a site may
+  list fewer visits than it has; knowledge admins see them all.
+
+Rejected:
+- One location list per site, shared by its assessments: a rename would
+  change last year's assessment, removing one would have to check every
+  visit's observations, and every observation's location lookup would move
+  from the assessment to the site, for about four times the work.
+- A `client` reference on the assessment as well as the site: quicker to
+  filter, but a second copy to keep in step.
+- Migrating on server start: nobody forgets it, but a slow or failing run
+  would hold up the gateway, and nothing else migrates that way.
+- Deleting the `client` text in the migration: tidier, but a wrongly matched
+  name could not be recovered.
+- A unique index on a client's site names: sites saved before CP-17 under one
+  client may share a name, so the migration could not link them.
+- Letting an assessment move to another client or site before capture:
+  flexible, but what happens to copied locations on a move would need its own
+  rules, and archiving and creating again is cheap.
+- Add site on the work list, as Add location is on the Observations tab: New
+  assessment already adds a new client and site, and a site with no visits
+  would need its own rule for who sees it.
+- The status and sort in one Filters panel, as on the Observations tab: the
+  work list has two controls, not seven, so they stay in the toolbar.
+
+Reason: one report can cover a campus or an airport, and the same facility
+is surveyed again each year; linking visits to one site of one client lets
+the next visit start from the last one's buildings, levels and places.
+
+Stories: CP-17, CP-16, CP-18, RV-10.
+
+## 2026-10-13 — Every paid AI call is recorded, Gemini is priced by call date, and drafting rows name their section
+
+Chose:
+- `ai_calls` covers the calls EV-03 left out: photo interpretation
+  (`interpret-photo`, Gemini), table and formula OCR (`ocr`; Anthropic,
+  Gemini or the self-hosted model), ingestion embedding (`embed-document`,
+  Cohere) and the chatbot (`chat`). The report lists all eight features,
+  even those with no calls yet.
+- Gemini is priced from Google's list price with the date each price starts,
+  because Google has announced a rise on 2027-01-01. A call is priced at the
+  price in force when it is recorded, so old rows keep their old cost.
+- The self-hosted OCR model costs $0 per call, with that named as its basis;
+  its server cost is not an AI-call cost.
+- Drafting, OFI and summary rows keep the one `draft-section` feature and
+  carry the report's own section id (`7`–`12`, `3` for OFIs, `2` for the
+  summary), so an engineer can see which section was expensive to draft or
+  redraft. The report shows each id with its title from `report_sections`.
+- Rows can carry `documentId` (labelling, ingestion), `userId` (chat) and
+  `callCount` (ingestion's summed rows). A malformed id is dropped, not saved.
+
+Rejected:
+- New `draft-ofi` and `draft-summary` features: rag-service's one `llm.py`
+  would need to know who called it, and the section already says it.
+- Pricing old rows again when a price changes: a cost recorded is what the
+  call cost then.
+
+Reason: EV-03 asks for every AI call to be measured, and EV-04 for costs per
+feature including the chatbot and per billed service.
+
+Stories: EV-03, EV-04.
+
+## 2026-10-13 — Chat usage travels in the answer stream and is saved for the user who asked
+
+Chose: S4 ends each chat answer with an AG-UI `CUSTOM` event named `usage`,
+carrying the same usage items drafting returns. The gateway, which already
+relays the stream, saves them as `chat` calls with the session's `userId` and
+drops the event, so the chat screen never sees it. Chat has no assessment, so
+the cost report shows a user's chat cost under that user and, when grouping
+by assessment, as one "Chatbot" group.
+
+Rejected: a second request after the answer to fetch its usage, which needs
+S4 to keep state between requests; and keeping the event in the stream for
+the browser to ignore, which would leak billing detail and tie OpenUI to an
+event it does not know.
+
+Reason: EV-04 AC1 asks for cost per feature including the chatbot, and a chat
+answer is a stream, not a JSON body the gateway can read a `usage` list from.
+
+Stories: EV-03, EV-04, CB-01.
+
+## 2026-10-13 — The ingestion worker posts its AI-call totals to the gateway, one row per document, stage and model
+
+Chose: the worker collects what each document's OCR and embedding calls used
+and, when the document completes, fails or is cancelled, posts the totals to a
+new `POST /api/internal/ai-usage`, behind the same service key as its
+notifications. The gateway prices and saves them with the one price table.
+Calls are summed per document, feature (`ocr`, `embed-document`), billed
+service and model, with a `callCount`; calls that reported no usage are summed
+apart, as unavailable. Self-hosted GLM-OCR is recorded too, at $0, so its speed
+can be compared with the paid providers.
+
+This narrows the 2026-10-08 rejection of a callback route. That rejection held
+for services whose calls already return to the gateway; the worker's do not,
+it runs in the background, and it already holds the gateway address and
+service key for notifications. It closes that entry's known gap,
+"ingestion-time embedding is not covered".
+
+Rejected:
+- One row per call: a document makes hundreds of OCR and embedding calls, so
+  the collection would grow quickly for little gain. The cost is the same;
+  what is lost is per-call latency percentiles for ingestion, so the report
+  shows average time per call for those rows instead.
+- The worker writing `ai_calls` itself: it would need its own copy of the
+  price table.
+- Storing the usage on the ingestion job for the gateway to copy later: more
+  moving parts for a best-effort record.
+- A ContextVar collector, as in rag-service: OCR runs in a thread pool, and pool
+  threads do not inherit the context. One collection behind a lock is enough
+  because the worker ingests one document at a time.
+
+Known gap: a lost post loses that document's cost record (logged), never the
+document.
+
+Stories: EV-03, EV-04.
+
+## 2026-10-13 — Cohere calls cost $0 on the free trial key, the default
+
+Chose: `COHERE_KEY_TIER` (`trial` by default, even when unset; or
+`production`). On trial, every Cohere embed and rerank call is recorded at $0,
+with the basis "Cohere trial key: free, 1,000 calls a month", because that is
+what the project pays today. Setting `production` switches to the per-use
+estimates (`COHERE_EMBED_USD_PER_1M_TOKENS`, `COHERE_RERANK_USD_PER_1K_SEARCHES`).
+Rows keep the price saved with them, so a switch changes only later calls.
+
+Rejected: pricing trial calls at the production estimate, which overstated the
+real bill; and storing both an actual and a projected cost, which adds a field
+and a column throughout the report for a question nobody is asking yet.
+
+Reason: EV-04's cost report is for assessing the real budget; the trial's
+limit is 1,000 calls a month, not money.
+
+Stories: EV-03, EV-04.
+
+## 2026-10-13 — Report cost belongs to the assessment's assigned engineer; chat cost to the user who asked
+
+Chose: the cost overview groups report-generation calls by assessment or by
+engineer. A report call is attributed to the assessment's assigned engineer,
+looked up when the report is read, so `ai_calls` stores no user for it and
+reassigning an assessment moves its whole cost. Chat has no assessment, so a
+chat call stores the asker's `userId` and is attributed to them: part of their
+bar when grouping by engineer, and one `Chatbot` group when grouping by
+assessment. "This month" starts at midnight in Singapore.
+
+Rejected: storing the user who made each call, which shows who spent the
+money (an admin redrafting someone else's section), but splits one
+assessment's cost across people and leaves every older row without a user;
+and storing both, which adds a second grouping to every view for a question
+not yet asked.
+
+Reason: EV-04 asks for cost per report and per engineer, and an engineer's
+cost is that of the assessments they are responsible for.
+
+Stories: EV-04.
+
+## 2026-10-13 — Cost charts use Recharts, coloured by billed vendor
+
+Chose: Recharts (3.10.1, pinned) for the usage screen's vertical stacked bar
+chart, one bar per assessment, engineer or document and one part per billed
+service or feature. Colours are new `--chart-*` tokens: one hue family per
+vendor, a dark and a light step where a vendor bills two services, assigned
+so the services that share a bar on each tab differ in lightness. The set was
+checked with the dataviz palette validator, not by eye. Parts stack in one
+fixed vendor order, so colour and place follow the service, not its cost. The
+chart sorts its bars by cost or by most recent use, shows 15 by default
+(`DEFAULT_BAR_LIMIT`), and lets the reader show more; the table below lists
+every group.
+
+Rejected:
+- A hand-built SVG chart: no dependency and easy to test, but tooltips,
+  axes and keyboard access would be ours to build and keep.
+- visx: less to fight than Recharts on styling, more to assemble.
+- A distinct hue per service: eight unrelated hues read as noise, and the
+  palette ran into the colours that already mean severity and AI.
+- One neutral with a highlight: services could not be compared without
+  hovering.
+- Grouping the smallest bars into "Others": a sort and a "Bars shown" choice
+  keep every bar reachable, and the table never hides one.
+
+Reason: EV-04 asks to compare costs across assessments, engineers and
+documents and to see what each is made of; a stacked bar shows both at once.
+Red, amber, green and violet already mean severity and AI provenance in this
+product, so chart colours must not borrow them.
+
+Stories: EV-04.
+
 ## 2026-10-15 — The knowledge chat answers with GPT-6.1 Sol, plans with Claude Haiku 5.5, and refuses over-limit or off-topic requests
 
 Chose:

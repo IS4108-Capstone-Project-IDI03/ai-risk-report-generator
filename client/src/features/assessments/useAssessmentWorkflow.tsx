@@ -9,7 +9,11 @@ import {
   GatewayError,
   listAssessments,
   listAssignableEngineers,
+  listClients,
+  listClientSites,
   type AssignableEngineer,
+  type Client,
+  type ClientSite,
   readPhotos,
   retryTranscription,
   saveObservation,
@@ -392,6 +396,12 @@ function toEntry(o: SavedObservation): Observation {
   }
 }
 
+// The create form's Site choice for adding a site the client doesn't have yet.
+export const NEW_SITE = 'new'
+// A client name as the gateway matches it (CP-17): lowercased, with its
+// spacing tidied, so "NUS" and "nus " are one client.
+const clientKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
+
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The create form as it first opens: assigned to the signed-in engineer,
   // visited today (or on the given day), its report due REPORT_DUE_DAYS later.
@@ -517,6 +527,50 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setDirectoryStatus('loading')
     }
   }, [onCreate])
+  // Every client, for the create form's Client field and its typo check
+  // (CP-17). Without them a typed name still reaches the right client: the
+  // gateway matches it whatever its case, and adds a new site for it.
+  const creating = onCreate && !state.cfEdit
+  const [clients, setClients] = useState<Client[] | null>(null)
+  useEffect(() => {
+    if (!creating) return
+    const controller = new AbortController()
+    listClients(controller.signal).then(
+      (list) => {
+        if (!controller.signal.aborted) setClients(list)
+      },
+      () => {
+        if (!controller.signal.aborted) setClients(null)
+      },
+    )
+    return () => controller.abort()
+  }, [creating])
+  // The listed client typed in, or chosen by a site's New visit, and its
+  // sites, loaded once each.
+  const listedClient = creating
+    ? (clients?.find((c) => clientKey(c.name) === clientKey(state.cf.client)) ??
+      (state.cf.clientId
+        ? { id: state.cf.clientId, name: state.cf.client.trim(), sites: 0 }
+        : undefined))
+    : undefined
+  const [clientSites, setClientSites] = useState<Record<string, ClientSite[]>>({})
+  const listedClientId = listedClient?.id
+  const sitesLoaded = !!listedClientId && !!clientSites[listedClientId]
+  useEffect(() => {
+    if (!listedClientId || sitesLoaded) return
+    const controller = new AbortController()
+    // Should it fail, no sites are offered and a new one can still be added.
+    listClientSites(listedClientId, controller.signal).then(
+      (sites) => {
+        if (!controller.signal.aborted)
+          setClientSites((all) => ({ ...all, [listedClientId]: sites }))
+      },
+      () => {
+        if (!controller.signal.aborted) setClientSites((all) => ({ ...all, [listedClientId]: [] }))
+      },
+    )
+    return () => controller.abort()
+  }, [listedClientId, sitesLoaded])
   function later(callback: () => void, delay: number) {
     const timer = setTimeout(() => {
       timeouts.delete(timer)
@@ -1554,14 +1608,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       .filter((section) => section.items.length > 0)
 
     const q = s.q.trim().toLowerCase()
+    // Archived is a view of its own, Archived (n), not a status (CP-17).
+    const fStatus = s.fStatus === STATUS_LABEL.archived ? 'All statuses' : s.fStatus
+    const isArchived = (r: AssessmentRow) => r.status === STATUS_LABEL.archived
     const filtered = rows
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
-        // All statuses leaves archived assessments out; the Archived filter shows them.
-        if (
-          s.fStatus === 'All statuses' ? r.status === STATUS_LABEL.archived : r.status !== s.fStatus
-        )
-          return false
+        if (isArchived(r) !== s.showArchived) return false
+        if (!s.showArchived && fStatus !== 'All statuses' && r.status !== fStatus) return false
         if (s.fDate && !DATE_FILTERS[s.fDate](r)) return false
         return true
       })
@@ -1579,6 +1633,80 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
         countdown: dueCountdown(r),
       }))
+    // The work list by client, then site, in name order, each site's visits in
+    // the order chosen (CP-17 AC9). A site saved on the gateway is
+    // grouped by its ids; the demo's by name. A search opens every client.
+    const byName = (a: string, b: string) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    const workClients = new Map<
+      string,
+      {
+        key: string
+        title: string
+        sites: Map<
+          string,
+          { key: string; name: string; address: string | null; rows: typeof filtered }
+        >
+      }
+    >()
+    for (const r of s.workByClient && !s.showArchived ? filtered : []) {
+      const key = r.record?.clientId ?? 'name:' + clientKey(r.client)
+      const client = workClients.get(key) ?? { key, title: r.client, sites: new Map() }
+      workClients.set(key, client)
+      const siteKey = r.record?.site.id ?? 'name:' + clientKey(r.site)
+      const site = client.sites.get(siteKey) ?? {
+        key: siteKey,
+        name: r.site,
+        address: r.record?.site.address ?? null,
+        rows: [],
+      }
+      client.sites.set(siteKey, site)
+      site.rows.push(r)
+    }
+    // A site on the gateway, with a client, can be visited again (AC6): the
+    // create form opens on it, its copy ticked.
+    const newVisit = (a: Assessment) => () =>
+      setState({
+        screen: 'create',
+        cfEdit: null,
+        cfErr: false,
+        cfServerError: null,
+        cf: {
+          ...blankCreateForm(),
+          client: a.client,
+          clientId: a.clientId ?? '',
+          siteId: a.site.id,
+          site: a.site.name,
+          addr: a.site.address ?? '',
+          jurisdiction: a.site.jurisdiction,
+          type: a.site.facilityType,
+        },
+      })
+    const workGroups = [...workClients.values()]
+      .sort((a, b) => byName(a.title, b.title))
+      .map((client) => {
+        const sites = [...client.sites.values()].sort((a, b) => byName(a.name, b.name))
+        const count = sites.reduce((n, site) => n + site.rows.length, 0)
+        const open = !!q || !s.workFolded[client.key]
+        return {
+          key: client.key,
+          title: client.title,
+          countLabel: plural(sites.length, 'site') + ' · ' + plural(count, 'assessment'),
+          open,
+          toggle: () => setState({ workFolded: { ...s.workFolded, [client.key]: open } }),
+          sites: sites.map((site) => {
+            const record = site.rows.find((r) => r.record?.clientId)?.record
+            return {
+              key: site.key,
+              name: site.name,
+              address: site.address,
+              countLabel: plural(site.rows.length, 'visit'),
+              rows: site.rows,
+              newVisit: record && canOpen('create', session) ? newVisit(record) : undefined,
+            }
+          }),
+        }
+      })
 
     /* generation */
     const GST: Record<
@@ -1778,6 +1906,63 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       you: e.id === session.user.id,
     })
     const assignedEng = directory.find((e) => e.id === s.cf.eng)
+    // The client and site (CP-17): a listed client offers its sites, the one
+    // chosen bringing its details and its latest visit's locations; a new
+    // client, or Add a new site, takes new details. Editing keeps both, and
+    // the site's details are locked once another assessment shares it.
+    const editedRecord = s.cfEdit ? rows.find((r) => r.id === s.cfEdit)?.record : undefined
+    const clientSitesNow = listedClient ? clientSites[listedClient.id] : undefined
+    const chosenSite = clientSitesNow?.find((x) => x.id === s.cf.siteId)
+    // A site chosen by New visit, shown as it is while the client's sites load.
+    const awaitingSite =
+      !s.cfEdit && !!s.cf.siteId && s.cf.siteId !== NEW_SITE && !!listedClient && !clientSitesNow
+    const pickingSite = !s.cfEdit && !!clientSitesNow?.length
+    const newSite =
+      !s.cfEdit && !chosenSite && !awaitingSite && (!pickingSite || s.cf.siteId === NEW_SITE)
+    const siteLocked = s.cfEdit ? !!editedRecord?.siteShared : !!chosenSite || awaitingSite
+    const siteTaken = newSite ? clientSitesNow?.find((x) => sameName(x.name, s.cf.site)) : undefined
+    const needsSiteName = !!s.cfEdit || newSite
+    const cfProblems = [
+      !s.cf.client.trim() && 'Name the client.',
+      awaitingSite &&
+        'The client’s sites are still loading. Create the assessment again in a moment.',
+      pickingSite && !s.cf.siteId && 'Choose one of the client’s sites, or add a new one.',
+      needsSiteName && !s.cf.site.trim() && 'Name the site.',
+      siteTaken &&
+        listedClient!.name +
+          ' already has a site named ' +
+          siteTaken.name +
+          '. Choose it from the Site list instead.',
+    ].filter((p): p is string => !!p)
+    // A site's details as the form shows them, from the listed site chosen.
+    const siteFields = (site?: ClientSite) =>
+      site
+        ? {
+            site: site.name,
+            addr: site.address ?? '',
+            jurisdiction: site.jurisdiction,
+            type: site.facilityType,
+          }
+        : { site: '', addr: '' }
+    // A new client or site name close to a listed one, unless kept as typed.
+    const nameCheck = (keptNames: string[]): WorkflowState['cf']['check'] => {
+      const kept = (name: string) => keptNames.includes(clientKey(name))
+      if (!listedClient && clients && !kept(s.cf.client)) {
+        const suggestion = similarName(
+          s.cf.client,
+          clients.map((c) => c.name),
+        )
+        if (suggestion) return { field: 'client', typed: s.cf.client.trim(), suggestion }
+      }
+      if (newSite && clientSitesNow && !kept(s.cf.site)) {
+        const suggestion = similarName(
+          s.cf.site,
+          clientSitesNow.map((x) => x.name),
+        )
+        if (suggestion) return { field: 'site', typed: s.cf.site.trim(), suggestion }
+      }
+      return null
+    }
 
     /* field */
     const waveBars = Array.from(
@@ -2215,6 +2400,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             date: a.siteVisitDate ?? '',
             due: a.reportDueDate ?? '',
             eng: a.engineer?.id ?? '',
+            clientId: '',
+            siteId: '',
+            check: null,
           },
         })
       },
@@ -2235,8 +2423,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({ archiveBusy: true })
         try {
           await requestRestore(reference)
-          // Back to the work list, which reloads with the status it had.
-          setState({ ...navigate('dashboard'), archiveBusy: false })
+          // Back to the work list, not the archived one, which reloads with
+          // the status it had.
+          setState({ ...navigate('dashboard'), archiveBusy: false, showArchived: false })
           toast(reference + ' restored to your work list.')
         } catch (error: unknown) {
           setState({ archiveBusy: false })
@@ -2647,14 +2836,25 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           q: e.target.value,
         }),
-      fStatus: s.fStatus,
+      fStatus,
       setStatus: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
         setState({
           fStatus: e.target.value,
         }),
-      statusOptions: ['All statuses', ...Object.values(STATUS_LABEL)],
+      statusOptions: [
+        'All statuses',
+        ...Object.values(STATUS_LABEL).filter((label) => label !== STATUS_LABEL.archived),
+      ],
+      // Group by client, then site (CP-17 AC9); the button says what pressing it does.
+      workByClient: s.workByClient && !s.showArchived,
+      toggleWorkByClient: () => setState({ workByClient: !s.workByClient }),
+      workGroups,
+      // The archived assessments, a list of their own.
+      showArchived: s.showArchived,
+      archivedCount: rows.filter(isArchived).length,
+      toggleArchived: () => setState({ showArchived: !s.showArchived }),
       workSort: s.workSort,
       sortOptions: ['Latest site visit', 'Report due: earliest first'],
       setWorkSort: (
@@ -2691,9 +2891,22 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       cfSurvey: s.cf.survey,
       cfDate: s.cf.date,
       cfDue: s.cf.due,
-      errSite: s.cfErr && !s.cf.site.trim() ? 'Site name is required' : '',
+      errSite: !s.cfErr
+        ? ''
+        : needsSiteName && !s.cf.site.trim()
+          ? 'Site name is required'
+          : siteTaken
+            ? listedClient!.name + ' already has a site named ' + siteTaken.name
+            : '',
       errClient: s.cfErr && !s.cf.client.trim() ? 'Client is required' : '',
-      hasCfError: s.cfErr && (!s.cf.site.trim() || !s.cf.client.trim()),
+      errSiteChoice:
+        s.cfErr && pickingSite && !s.cf.siteId ? 'Choose a site, or add a new one' : '',
+      hasCfError: s.cfErr && cfProblems.length > 0,
+      cfProblems:
+        cfProblems.join(' ') +
+        (s.cfEdit
+          ? ' Correct the fields above, then save again.'
+          : ' Correct the fields above, then create the assessment.'),
       setCfSite: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
@@ -2701,17 +2914,114 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           cf: {
             ...s.cf,
             site: e.target.value,
+            check: null,
           },
         }),
+      // A different client clears a listed site chosen for the last one.
       setCfClient: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) =>
+      ) => {
+        const next = clients?.find((c) => clientKey(c.name) === clientKey(e.target.value))
         setState({
           cf: {
             ...s.cf,
             client: e.target.value,
+            clientId: '',
+            check: null,
+            ...(next?.id !== listedClient?.id && {
+              siteId: '',
+              ...(chosenSite && siteFields()),
+            }),
           },
-        }),
+        })
+      },
+      // Every client, whoever added it (CP-17 AC3), offered as the engineer types.
+      clientNames: clients?.map((c) => c.name) ?? [],
+      clientLocked: !!s.cfEdit,
+      clientHint: s.cfEdit
+        ? 'An assessment’s client can’t be changed.'
+        : listedClient
+          ? 'Listed client'
+          : s.cf.client.trim() && clients
+            ? 'New client: it will be added to the list.'
+            : '',
+      // A listed client's sites, then Add a new site (AC4).
+      pickingSite,
+      sitesLoading: !s.cfEdit && !!listedClient && !clientSitesNow,
+      cfSiteId: s.cf.siteId,
+      siteOptions: [
+        { value: '', label: 'Choose a site…' },
+        ...(clientSitesNow ?? []).map((x) => ({
+          value: x.id,
+          label: x.name + (x.latest ? ' · last visit ' + x.latest.reference : ''),
+        })),
+        { value: NEW_SITE, label: 'Add a new site' },
+      ],
+      setCfSiteId: (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const chosen = clientSitesNow?.find((x) => x.id === e.target.value)
+        setState({
+          cf: {
+            ...s.cf,
+            siteId: e.target.value,
+            check: null,
+            copy: true,
+            // A listed site brings its details; leaving one clears them.
+            ...((chosen || chosenSite) && siteFields(chosen)),
+          },
+        })
+      },
+      // A listed site's details are its own, and a shared site's are locked
+      // on its assessments (AC8).
+      siteLocked,
+      siteLockedHint: s.cfEdit
+        ? 'Other assessments share this site, so its details can’t be changed here.'
+        : 'From the listed site.',
+      // The copy offered for a listed site with locations (AC5).
+      copyOffer:
+        chosenSite?.latest && chosenSite.latest.locations > 0
+          ? {
+              label:
+                'Copy ' +
+                chosenSite.latest.locations +
+                (chosenSite.latest.locations === 1 ? ' location' : ' locations') +
+                ' from ' +
+                chosenSite.latest.reference,
+              description:
+                (chosenSite.latest.buildings
+                  ? chosenSite.latest.buildings +
+                    (chosenSite.latest.buildings === 1 ? ' building' : ' buildings') +
+                    ' and places elsewhere on site, as last recorded'
+                  : 'As last recorded') +
+                (chosenSite.latest.siteVisitDate
+                  ? ' on the visit of ' + formatDay(chosenSite.latest.siteVisitDate)
+                  : '') +
+                '. Each copy is this assessment’s own. Untick to start with none.',
+            }
+          : null,
+      cfCopy: s.cf.copy,
+      setCfCopy: (copy: boolean) => setState({ cf: { ...s.cf, copy } }),
+      // A likely typo asked about on Create (AC11).
+      cfCheck: s.cf.check,
+      acceptCfSuggestion: () => {
+        const check = s.cf.check
+        if (!check) return
+        if (check.field === 'client') {
+          setState({
+            cf: { ...s.cf, client: check.suggestion, clientId: '', siteId: '', check: null },
+          })
+          return
+        }
+        const listed = clientSitesNow?.find((x) => x.name === check.suggestion)
+        setState({
+          cf: { ...s.cf, siteId: listed?.id ?? '', check: null, copy: true, ...siteFields(listed) },
+        })
+      },
+      // Keeps the name as typed; Create then carries on with the names kept.
+      keepCfName: () => {
+        const kept = s.cf.check ? [...s.cf.kept, clientKey(s.cf.check.typed)] : s.cf.kept
+        setState({ cf: { ...s.cf, kept, check: null } })
+        return kept
+      },
       setCfAddr: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
@@ -2808,12 +3118,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               : engMatches.length + ' matches',
       // Choosing closes the matches: the search has done its job.
       selectEng: (id: string) => setState({ cf: { ...s.cf, eng: id, engQuery: '' } }),
-      createAssessment: async () => {
+      createAssessment: async (kept: string[] = s.cf.kept) => {
         if (s.cfBusy) return
-        if (!s.cf.site.trim() || !s.cf.client.trim()) {
+        if (cfProblems.length) {
           setState({
             cfErr: true,
           })
+          return
+        }
+        const check = s.cfEdit ? null : nameCheck(kept)
+        if (check) {
+          setState({ cf: { ...s.cf, kept, check }, cfErr: false })
           return
         }
         setState({ cfBusy: true, cfErr: false, cfServerError: null })
@@ -2827,7 +3142,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 jurisdiction: s.cf.jurisdiction,
                 facilityType: s.cf.type,
               },
-              client: s.cf.client,
               surveyType: s.cf.survey,
               siteVisitDate: s.cf.date,
               reportDueDate: s.cf.due,
@@ -2852,13 +3166,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }
         try {
           const created = await requestCreateAssessment({
-            site: {
-              name: s.cf.site,
-              address: s.cf.addr,
-              jurisdiction: s.cf.jurisdiction,
-              facilityType: s.cf.type,
-            },
-            client: s.cf.client,
+            ...(chosenSite
+              ? { siteId: chosenSite.id, copyLocations: s.cf.copy }
+              : {
+                  site: {
+                    name: s.cf.site,
+                    address: s.cf.addr,
+                    jurisdiction: s.cf.jurisdiction,
+                    facilityType: s.cf.type,
+                  },
+                }),
+            ...(listedClient ? { clientId: listedClient.id } : { client: s.cf.client }),
             surveyType: s.cf.survey,
             siteVisitDate: s.cf.date,
             reportDueDate: s.cf.due,

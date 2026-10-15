@@ -1,8 +1,24 @@
-// EV-04: usage and cost report routes, mounted at /api/usage behind requireAuth.
+// EV-04: usage and cost report routes, mounted at /api/usage behind requireAuth:
+// one report's summary, the overview across assessments or engineers, and the
+// knowledge admins' ingestion view, each with its CSV export.
 // Calls services/usage-report.service.ts; the client screen is features/usage/.
 import { Router } from 'express'
+import { isValidObjectId } from 'mongoose'
 import { requirePermission } from '../middleware/auth.middleware'
-import { ReportNotInScopeError, summarizeUsage, usageCsv } from '../services/usage-report.service'
+import {
+  OVERVIEW_GROUPS,
+  OVERVIEW_RANGES,
+  OVERVIEW_SPLITS,
+  ingestionCsv,
+  type IngestionQuery,
+  ingestionUsage,
+  type OverviewQuery,
+  overviewCsv,
+  ReportNotInScopeError,
+  summarizeUsage,
+  usageCsv,
+  usageOverview,
+} from '../services/usage-report.service'
 
 const router = Router()
 
@@ -10,6 +26,83 @@ const reportIdOf = (query: unknown) => {
   const value = (query as { reportId?: unknown }).reportId
   return typeof value === 'string' && value ? value : undefined
 }
+
+const oneOf = <T extends string>(allowed: readonly T[], value: unknown): T | undefined =>
+  allowed.includes(value as T) ? (value as T) : undefined
+
+// The split and period both views need, or the reason they are not valid.
+function ingestionQueryOf(query: Record<string, unknown>): IngestionQuery | string {
+  const split = oneOf(OVERVIEW_SPLITS, query.split)
+  if (!split) return `split must be one of ${OVERVIEW_SPLITS.join(', ')}.`
+  const range = oneOf(OVERVIEW_RANGES, query.range)
+  if (!range) return `range must be one of ${OVERVIEW_RANGES.join(', ')}.`
+  return { split, range }
+}
+
+// The overview's query, or the reason it is not one. Each part is required, so
+// the client always says what it is showing.
+function overviewQueryOf(query: Record<string, unknown>): OverviewQuery | string {
+  const groupBy = oneOf(OVERVIEW_GROUPS, query.groupBy)
+  if (!groupBy) return `groupBy must be one of ${OVERVIEW_GROUPS.join(', ')}.`
+  const both = ingestionQueryOf(query)
+  if (typeof both === 'string') return both
+  const { split, range } = both
+  const engineer = query.engineer
+  if (engineer !== undefined && (typeof engineer !== 'string' || !isValidObjectId(engineer)))
+    return 'engineer must be a user id.'
+  return { groupBy, split, range, ...(engineer ? { engineer: engineer as string } : {}) }
+}
+
+router.get('/overview', requirePermission('usage:view'), async (req, res) => {
+  const query = overviewQueryOf(req.query)
+  if (typeof query === 'string') {
+    res.status(400).json({ error: query })
+    return
+  }
+  res.json(await usageOverview(res.locals.user!, query))
+})
+
+router.get('/overview/export.csv', requirePermission('usage:view'), async (req, res) => {
+  const query = overviewQueryOf(req.query)
+  if (typeof query === 'string') {
+    res.status(400).json({ error: query })
+    return
+  }
+  const csv = overviewCsv(await usageOverview(res.locals.user!, query))
+  // Every part is one of a fixed list, so the name needs no cleaning.
+  const name = `usage-by-${query.groupBy}-${query.split}-${query.range}.csv`
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${name}"`)
+  res.send(csv)
+})
+
+// Document ingestion is the knowledge base's cost, so only knowledge admins see it.
+const ingestionAccess = [requirePermission('usage:view'), requirePermission('knowledge:manage')]
+
+router.get('/ingestion', ...ingestionAccess, async (req, res) => {
+  const query = ingestionQueryOf(req.query)
+  if (typeof query === 'string') {
+    res.status(400).json({ error: query })
+    return
+  }
+  res.json(await ingestionUsage(query))
+})
+
+router.get('/ingestion/export.csv', ...ingestionAccess, async (req, res) => {
+  const query = ingestionQueryOf(req.query)
+  if (typeof query === 'string') {
+    res.status(400).json({ error: query })
+    return
+  }
+  const csv = ingestionCsv(await ingestionUsage(query))
+  // Every part is one of a fixed list, so the name needs no cleaning.
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="usage-ingestion-${query.split}-${query.range}.csv"`,
+  )
+  res.send(csv)
+})
 
 router.get('/summary', requirePermission('usage:view'), async (req, res) => {
   try {

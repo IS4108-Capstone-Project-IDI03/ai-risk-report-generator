@@ -50,8 +50,8 @@ const LABEL_TIMEOUT_MS = 180_000
 // Asks the ingestion service to read the PDF's details (IN-05). Returns its
 // answer, or null on any failure (down, timeout, non-2xx, bad JSON): without
 // this, a model outage would block every upload, and a null just leaves every
-// detail Unconfirmed.
-export async function labelDocument(pdf: Buffer): Promise<LabelAnswer | null> {
+// detail Unconfirmed. Its paid calls are recorded against `documentId`.
+export async function labelDocument(pdf: Buffer, documentId?: string): Promise<LabelAnswer | null> {
   try {
     const response = await fetch(`${config.ingestionServiceUrl}/label`, {
       method: 'POST',
@@ -64,7 +64,7 @@ export async function labelDocument(pdf: Buffer): Promise<LabelAnswer | null> {
     if (typeof answer?.details !== 'object' || answer.details === null) {
       throw new Error('/label answered without details')
     }
-    await recordAiCalls(labelUsageToWire(answer.usage))
+    await recordAiCalls(labelUsageToWire(answer.usage), { documentId })
     return answer
   } catch (error) {
     console.error('Labelling failed; details left Unconfirmed:', error)

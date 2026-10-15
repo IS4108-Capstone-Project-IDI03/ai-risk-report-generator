@@ -276,6 +276,8 @@ describe('Opportunities for Improvement (GN-05)', () => {
 
     const rows = await AiCallModel.find({ reportId: REFERENCE }).lean()
     expect(rows.map((r) => r.billedService)).toEqual(['anthropic'])
+    // OFIs are Section 3 of the report.
+    expect(rows[0].section).toBe('3')
     // Bookkeeping only: it does not reach the browser.
     expect(JSON.stringify(response.body)).not.toContain('billed_service')
   })

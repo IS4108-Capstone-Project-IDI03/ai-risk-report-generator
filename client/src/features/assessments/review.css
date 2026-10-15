@@ -687,3 +687,20 @@
   border-radius: var(--radius-lg);
   background: var(--ai-bg);
 }
+
+/* Section 3's suggestions and accepted OFIs in Review (GN-07: accepted here). */
+.rv-ofi-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-ofi-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.rv-ofi-group-head .rv-muted {
+  flex: 1 1 320px;
+  margin: 0;
+}

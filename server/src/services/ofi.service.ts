@@ -118,7 +118,8 @@ export async function draftOfis(reference: string, user: SessionUser) {
     accepted: accepted.map((o) => o.title),
   })
   // Its paid calls, for the cost report (EV-03), as section drafting records them.
-  await recordAiCalls(draft.usage, { reportId: reference })
+  // OFIs are Section 3 of the report.
+  await recordAiCalls(draft.usage, { reportId: reference, section: '3' })
 
   const provenance = {
     ...draft.provenance,

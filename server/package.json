@@ -13,6 +13,8 @@
     "seed:gn01": "ts-node --transpile-only src/scripts/seed-gn01.ts",
     "seed:case": "ts-node --transpile-only src/scripts/seed-eval-case.ts",
     "migrate:cope": "ts-node --transpile-only src/scripts/migrate-cope-categories.ts",
+    "migrate:clients": "ts-node --transpile-only src/scripts/migrate-clients.ts",
+    "migrate:prices": "ts-node --transpile-only src/scripts/reprice-ai-calls.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
