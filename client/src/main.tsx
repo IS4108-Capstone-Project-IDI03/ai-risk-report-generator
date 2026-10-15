@@ -1,3 +1,4 @@
+import './randomUUIDPolyfill'
 import './features/chat/noOpenuiDevtools'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
