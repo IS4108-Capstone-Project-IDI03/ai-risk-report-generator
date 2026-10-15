@@ -108,6 +108,27 @@ function labelProvider(model: string): WireUsage['billed_service'] {
   return 'openai-label'
 }
 
+// No amount at all means the provider reported nothing, whatever the sender says.
+function isUnavailable(u: WireUsage): boolean {
+  const amounts = [
+    u.input_tokens,
+    u.output_tokens,
+    u.cache_read_tokens,
+    u.search_units,
+    u.audio_seconds,
+  ]
+  return u.usage_status === 'unavailable' || amounts.every((a) => num(a) === null)
+}
+
+/** Returns the cost of one usage item: its own cost_usd if sent, else the estimate. */
+export function usageCost(u: WireUsage): { estimatedCostUsd: number | null; pricingBasis: string } {
+  const unavailable = isUnavailable(u)
+  if (!unavailable && typeof u.cost_usd === 'number') {
+    return { estimatedCostUsd: u.cost_usd, pricingBasis: u.pricing_basis ?? 'service-supplied' }
+  }
+  return estimateCost(unavailable ? { ...u, usage_status: 'unavailable' } : u)
+}
+
 // Saves one row per valid item. Never throws: without this, a bookkeeping
 // failure would turn a successful draft or transcription into an error.
 export async function recordAiCalls(items: unknown, context: CallContext = {}): Promise<void> {
@@ -122,23 +143,8 @@ export async function recordAiCalls(items: unknown, context: CallContext = {}): 
           typeof u.model === 'string',
       )
       .map((u) => {
-        const amounts = [
-          u.input_tokens,
-          u.output_tokens,
-          u.cache_read_tokens,
-          u.search_units,
-          u.audio_seconds,
-        ]
-        // No amount at all means the provider reported nothing, whatever the sender says.
-        const unavailable =
-          u.usage_status === 'unavailable' || amounts.every((a) => num(a) === null)
-        const own = !unavailable && typeof u.cost_usd === 'number'
-        const cost = own
-          ? {
-              estimatedCostUsd: u.cost_usd as number,
-              pricingBasis: u.pricing_basis ?? 'service-supplied',
-            }
-          : estimateCost(unavailable ? { ...u, usage_status: 'unavailable' } : u)
+        const unavailable = isUnavailable(u)
+        const cost = usageCost(u)
         return {
           feature: u.feature,
           billedService: u.billed_service,

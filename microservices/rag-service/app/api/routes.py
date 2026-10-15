@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-from app.chat.placeholder import placeholder_events
+from app.chat.answer import answer_events
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.orchestrator.orchestrator import draft, draft_ofis_for, draft_summary_for, run
@@ -179,17 +179,29 @@ class ChatContext(BaseModel):
     value: str
 
 
+# A knowledge document's details, sent by the gateway (never trusted from the browser)
+# so the answer model can name each passage's document.
+class ChatDocument(BaseModel):
+    id: str
+    title: str
+    issuingBody: str | None = None
+    standardNumber: str | None = None
+    edition: str | None = None
+
+
 # The body OpenUI's fetchLLM posts. Unknown fields are ignored, not refused,
 # since OpenUI adds its own (threadId, runId, tools).
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
     messages: Annotated[list[ChatMessage], Field(min_length=1)]
     context: list[ChatContext] = []
+    documents: list[ChatDocument] = []
 
 
 @router.post("/chat")
 def chat(request: ChatRequest) -> StreamingResponse:
-    # ponytail: placeholder answers until CB-01; the last user message is the question.
-    question = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
-    events = placeholder_events(str(question or ""), [c.value for c in request.context])
+    """Stream one cited answer to the conversation's last message (CB-01)."""
+    messages = [m.model_dump() for m in request.messages]
+    documents = [d.model_dump() for d in request.documents]
+    events = answer_events(messages, [c.value for c in request.context], documents)
     return StreamingResponse(events, media_type="text/event-stream")

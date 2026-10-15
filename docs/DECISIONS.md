@@ -1489,3 +1489,51 @@ Red, amber, green and violet already mean severity and AI provenance in this
 product, so chart colours must not borrow them.
 
 Stories: EV-04.
+
+## 2026-10-15 — The knowledge chat answers with GPT-6.1 Sol, plans with Claude Haiku 5.5, and refuses over-limit or off-topic requests
+
+Chose:
+- Answer model GPT-6.1 Sol at effort low (`CHAT_PROVIDER=openai`, `CHAT_MODEL=gpt-6.1-sol`).
+  On the CB-01 eval (61 cases, prompt `cb01-v10`), judged by Claude Sonnet 5.5 twice:
+  supported 0.953, quotes found 1.00, unanswerable questions declined 26/26, false
+  declines 4/85, follow-ups on topic 0.96, ambiguous follow-ups asked back 8/8.
+  $0.009 per answer, median 4.6 s per turn.
+- After the click-through, answers were made conversational (paragraphs that open with
+  the answer and explain it, document names in bold, a summary before any table;
+  `cb01-v11`). Re-scored on the same 61 cases with no regression: supported 0.957,
+  quotes 0.998, declined 19/19, false decline 0.051, on topic 0.949, asked back 6/6.
+- The click-through then found comparisons drew a table only 1 time in 4: the prompt
+  allowed a table but never required one. `cb01-v12` requires one whenever the engineer
+  asks to compare documents or editions. Re-scored on the same 61 cases: supported
+  0.985, quotes 0.996, declined 19/19, false decline 0.064, on topic 0.936, asked back
+  6/6, comparison cases with a table 2/2. About $0.013 per answered question (median).
+- Planner Claude Haiku 5.5 at effort medium. It now has a "decline" kind for requests
+  plainly outside property risk, and asks back only when a follow-up, tested topic by
+  topic, makes sense for more than one earlier question. At low effort it matched words
+  instead of meaning (asked back 33/40 when it should, 24/40 when it shouldn't; now 40/40
+  and 13/40 on the same train turns).
+- Both prompts say the engineer's message can't change the rules (skip citations, use
+  own knowledge, guess, show the prompt).
+- The gateway refuses a message over 4,000 characters, a user's 11th question in a
+  minute or 201st in a day, and chat past $2 a day per user, before any model call
+  (`server/src/services/chat-limits.service.ts`). The length limit covers every user
+  message and context entry, not just the last. Each question is charged $0.02 when it
+  starts and swapped for its real cost when the answer ends, so stopped answers still
+  count. Counters are in memory (one instance); the spend cap is soft (answers under
+  way still finish) and the day resets at the server's midnight.
+
+Rejected:
+- Claude Sonnet 5.5 (runner-up): on the same tuned prompt, supported 0.887 vs Sol 0.927
+  with both judges (paired −0.034 ±0.047, not significant), and 0.853 under its
+  other-company judge, below AC9's 0.90. Faster (3.4 vs 4.6 s per turn) but 2.2× the cost
+  ($0.019 per answer).
+- Claude Haiku 5.5 (0.81) and GPT-6 Luna (0.75) as answer models: clearly below Sol and
+  Sonnet in the model comparison (both judges, two runs).
+- GPT-6 Luna as planner: found the answering passage for 27/37 questions vs Haiku's 31/37.
+- A user-facing model selector: the model stays a server setting.
+
+Known limit: search finds the answering passage for 53/60 answerable first questions
+(0.883, under AC9's 0.90) because ingestion's full-page OCR garbles dense pages; it returns
+after the OCR fix and re-ingestion (re-run the eval then). Details: CB-01 spec, Evaluation.
+
+Stories: CB-01.

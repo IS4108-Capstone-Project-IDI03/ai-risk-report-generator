@@ -66,3 +66,16 @@ def test_country_and_facility_type_also_match_documents_labelled_all(collection)
 def test_an_unknown_filter_is_refused(collection):
     response = client.post("/retrieve", json={"query": "sprinkler", "filters": {"colour": "red"}})
     assert response.status_code == 422
+
+
+# CB-01 AC14: only chat may reach a withdrawn edition, and only when it asks to.
+def test_label_filter_excludes_withdrawn_unless_asked():
+    assert retriever.label_filter({}) == ACTIVE_ONLY
+    assert retriever.label_filter({}, include_withdrawn=True) == {
+        "status": {"$nin": ["needs_review"]}
+    }
+
+
+def test_retrieve_passes_include_withdrawn_to_the_filter(collection):
+    retriever.retrieve("sprinkler spacing", {}, include_withdrawn=True)
+    assert collection.query.call_args.kwargs["where"] == {"status": {"$nin": ["needs_review"]}}

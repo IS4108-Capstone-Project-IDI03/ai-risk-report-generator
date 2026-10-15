@@ -20,6 +20,13 @@ const CLAUDE_PRICES: Record<string, TokenPrice> = {
 }
 const CLAUDE_BASIS =
   'Anthropic list price, platform.claude.com/docs/en/about-claude/pricing, 2026-10-08'
+// USD per 1M tokens for the chat's OpenAI models (CB-01), same longest-prefix rule.
+// ponytail: no cache-read price was given, so cached tokens are billed at the full input price.
+const OPENAI_PRICES: Record<string, TokenPrice> = {
+  'gpt-6.1-sol': { in: 2, out: 10, cacheRead: 2 },
+  'gpt-6-luna': { in: 0.1, out: 0.5, cacheRead: 0.1 },
+}
+const OPENAI_BASIS = 'OpenAI list price, developers.openai.com/api/docs/pricing, 2026-10-13'
 // ponytail: OpenAI's page gives no rounding rule for whisper-1, so we bill the exact seconds.
 const WHISPER_USD_PER_MINUTE = 0.006
 const WHISPER_BASIS = 'OpenAI list price, developers.openai.com/api/docs/pricing, 2026-10-08'
@@ -54,6 +61,20 @@ function priceFor<T>(table: Record<string, T>, model: string): T | undefined {
   return key ? table[key] : undefined
 }
 
+// Prices a token-billed call from a model table (Claude or OpenAI).
+function tokenCost(call: WireUsage, prices: Record<string, TokenPrice>, basis: string): Cost {
+  const p = priceFor(prices, call.model)
+  if (!p) return unpriced('no price for model')
+  // Without both counts the sum would silently drop a term and look like a real cost.
+  if (call.input_tokens == null || call.output_tokens == null) return unpriced('incomplete usage')
+  const usd =
+    (call.input_tokens * p.in +
+      call.output_tokens * p.out +
+      (call.cache_read_tokens ?? 0) * p.cacheRead) /
+    1e6
+  return { estimatedCostUsd: usd, pricingBasis: basis }
+}
+
 /** Returns the estimated cost of one call made at `at`, and the basis of the price used. */
 export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
   // Free whatever it reports, so a reading with no token counts is $0, not uncosted.
@@ -65,19 +86,10 @@ export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
   if (call.usage_status === 'unavailable') return unpriced('provider gave no usage')
 
   switch (call.billed_service) {
-    case 'anthropic': {
-      const p = priceFor(CLAUDE_PRICES, call.model)
-      if (!p) return unpriced('no price for model')
-      // Without both counts the sum would silently drop a term and look like a real cost.
-      if (call.input_tokens == null || call.output_tokens == null)
-        return unpriced('incomplete usage')
-      const usd =
-        (call.input_tokens * p.in +
-          call.output_tokens * p.out +
-          (call.cache_read_tokens ?? 0) * p.cacheRead) /
-        1e6
-      return { estimatedCostUsd: usd, pricingBasis: CLAUDE_BASIS }
-    }
+    case 'anthropic':
+      return tokenCost(call, CLAUDE_PRICES, CLAUDE_BASIS)
+    case 'openai':
+      return tokenCost(call, OPENAI_PRICES, OPENAI_BASIS)
     case 'cohere-embed':
       if (call.input_tokens == null) return unpriced('incomplete usage')
       return {

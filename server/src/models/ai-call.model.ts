@@ -20,6 +20,8 @@ export const BILLED_SERVICES = [
   'cohere-rerank',
   'openai-whisper',
   'openai-label',
+  // The knowledge chat's OpenAI calls (CB-01), priced per token by model.
+  'openai',
   'typesafe-jev',
   'gemini-vision',
   'gemini-ocr',

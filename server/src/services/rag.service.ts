@@ -1,5 +1,6 @@
 import { config } from '../config'
 import { recordAiCalls } from './ai-usage.service'
+import { listIngestedDocuments } from './knowledge-document.service'
 
 // Stubs a call to the S4 RAG service. Real implementation will POST to
 // `${config.ragServiceUrl}/generate`.
@@ -33,6 +34,23 @@ async function callRag<T>(path: string, init?: RequestInit): Promise<T> {
     )
   }
   return body as T
+}
+
+/**
+ * Returns the chat body with `documents` built here, one {id, title, ...} per ingested
+ * document (empty fields left out), so S4 can name each passage's document (CB-01).
+ * Always replaces a `documents` the browser sent: without this, a user could put
+ * invented names into the answer model's prompt.
+ */
+export async function withChatDocuments(body: unknown): Promise<object> {
+  const documents = (await listIngestedDocuments()).map((d) => ({
+    id: d.id,
+    title: d.title,
+    ...(d.issuingBody && { issuingBody: d.issuingBody }),
+    ...(d.standardNumber && { standardNumber: d.standardNumber }),
+    ...(d.edition && { edition: d.edition }),
+  }))
+  return { ...(body as object), documents }
 }
 
 /**
