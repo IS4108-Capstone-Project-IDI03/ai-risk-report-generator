@@ -46,6 +46,19 @@ describe('estimateCost (AC3)', () => {
     expect(cost.estimatedCostUsd).toBeCloseTo((1000 * 2 + 500 * 10 + 2000 * 0.1) / 1e6, 8)
   })
 
+  it('counts OpenAI cached tokens once, as part of the input (CB-01 chat)', () => {
+    // OpenAI's input_tokens already includes the cached ones; Anthropic's does not.
+    const sol = item({
+      billed_service: 'openai',
+      model: 'gpt-6.1-sol',
+      input_tokens: 6000,
+      cache_read_tokens: 2000,
+    })
+    const cost = estimateCost(sol)
+    expect(cost.estimatedCostUsd).toBeCloseTo((4000 * 2 + 500 * 10 + 2000 * 2) / 1e6, 8)
+    expect(cost.pricingBasis).toContain('developers.openai.com')
+  })
+
   it('has no cost for a model it has no price for', () => {
     const cost = estimateCost(item({ model: 'claude-future-9' }))
     expect(cost).toEqual({ estimatedCostUsd: null, pricingBasis: 'no price for model' })

@@ -88,8 +88,13 @@ export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
   switch (call.billed_service) {
     case 'anthropic':
       return tokenCost(call, CLAUDE_PRICES, CLAUDE_BASIS)
-    case 'openai':
-      return tokenCost(call, OPENAI_PRICES, OPENAI_BASIS)
+    case 'openai': {
+      // OpenAI's input_tokens already includes the cached tokens (Anthropic's doesn't),
+      // so without this they would be billed twice.
+      const uncached =
+        call.input_tokens == null ? null : call.input_tokens - (call.cache_read_tokens ?? 0)
+      return tokenCost({ ...call, input_tokens: uncached }, OPENAI_PRICES, OPENAI_BASIS)
+    }
     case 'cohere-embed':
       if (call.input_tokens == null) return unpriced('incomplete usage')
       return {
