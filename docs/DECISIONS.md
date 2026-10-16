@@ -1537,3 +1537,9 @@ Known limit: search finds the answering passage for 53/60 answerable first quest
 after the OCR fix and re-ingestion (re-run the eval then). Details: CB-01 spec, Evaluation.
 
 Stories: CB-01.
+
+## 2026-10-16 — Local standard source type
+
+Chose: a fourth source type, `local_standard`, for a country's own code (e.g. Singapore CP 52, SS 535). It behaves like an FM or NFPA standard (edition, standard number, supersedable) except that its jurisdiction is always one country (never `all`) and its issuing body is a free-text detail per document (optional, up to 100 characters, read from the file by labelling and editable by the admin) instead of a fixed publisher. The knowledge base lists them under "Local standards", after NFPA standards.
+
+Reason: reports cite NFPA, FM Global and local guidelines; CP 52 is cited by all 11 sample reports. Report drafting does not search local standards yet; that is left to the report-generation owners.

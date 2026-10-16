@@ -44,7 +44,7 @@ export function DocumentGroup({
       {documents.length === 0 ? (
         <tr>
           <td colSpan={4} className="kb-list-note">
-            No {group.title.replace('Past ', 'past ')} yet.
+            No {group.title.replace(/^(Past|Local) /, (word) => word.toLowerCase())} yet.
           </td>
         </tr>
       ) : (

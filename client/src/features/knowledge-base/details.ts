@@ -6,6 +6,10 @@ import type { DocumentDetails, SourceType, StoredDetails, UnconfirmedDetail } fr
 // means "All facility types". Never sent to the gateway.
 export const FACILITY_UNSET = 'unset'
 
+/** Returns whether the source type is a standard (FM, NFPA or local), which has an edition and number. */
+export const isStandard = (type: SourceType | '') =>
+  type === 'fm_standard' || type === 'nfpa_standard' || type === 'local_standard'
+
 // Returns the details with the new source type and that type's defaults.
 // Changing the source type starts that type's own fields afresh: a standard
 // applies in all countries unless narrowed; a past report is about one site,
@@ -20,7 +24,14 @@ export function withSourceType(
     standardNumber: '',
     edition: '',
     facilityType: '',
-    jurisdiction: sourceType === 'marsh_report' ? 'SG' : sourceType ? 'all' : '',
+    issuingBody: '',
+    // A report or a local standard is about one country, most often Singapore.
+    jurisdiction:
+      sourceType === 'marsh_report' || sourceType === 'local_standard'
+        ? 'SG'
+        : sourceType
+          ? 'all'
+          : '',
   }
 }
 
@@ -30,7 +41,7 @@ export function withSourceType(
  * of the year it is named for); the gateway checks the same rule.
  */
 export function editionProblem(details: DocumentDetails): string | null {
-  if (details.sourceType !== 'fm_standard' && details.sourceType !== 'nfpa_standard') return null
+  if (!isStandard(details.sourceType)) return null
   if (!details.edition) return 'Edition is required.'
   const nextYear = new Date().getFullYear() + 1
   const year = Number(details.edition)
@@ -51,6 +62,7 @@ export function formDetails(d: StoredDetails, unconfirmed: UnconfirmedDetail[]):
     sourceType: d.sourceType ?? '',
     title: unconfirmed.includes('title') ? '' : d.title,
     standardNumber: d.standardNumber ?? '',
+    issuingBody: d.sourceType === 'local_standard' ? (d.issuingBody ?? '') : '',
     edition: d.edition ?? '',
     effectiveDate: d.effectiveDate ?? '',
     jurisdiction: d.jurisdiction ?? '',

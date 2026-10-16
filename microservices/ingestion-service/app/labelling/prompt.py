@@ -14,7 +14,7 @@ from app.labelling.config import (
 _sources = "; ".join(f"{k} = {v}" for k, v in SOURCE_TYPES.items())
 _countries = "; ".join(f"{k} = {v}" for k, v in JURISDICTIONS.items())
 
-SYSTEM_PROMPT = f"""You read the first pages of a property risk document and report seven details.
+SYSTEM_PROMPT = f"""You read the first pages of a property risk document and report eight details.
 
 Details:
 - source_type: one of {_sources}.
@@ -23,14 +23,18 @@ Details:
 - standard_number: a standard's designation without the issuing body, as printed: for NFPA
   the number with an optional letter (e.g. "13", "13R"), for FM Global the data sheet number
   (e.g. "2-81"). NFPA page numbers start with it: a page numbered "13-33" is in NFPA 13.
-  null for reports.
+  null for reports. For a local standard (a country's own code), its number as printed,
+  e.g. "CP 52" or "SS 535".
 - effective_date: YYYY-MM-DD. A standard's effective date as printed (for FM Global, the
   cover's month and year, as the first of that month). For a report, the report or issue
   date on its cover.
 - An FM Global data sheet's cover can show several dates (e.g. "October 2021" and
   "Interim revision April 2026"): use the most recent one, an interim revision included,
   for both edition and effective_date.
-- jurisdiction: one of {_countries}. A currency such as SGD indicates the country.
+- issuing_body: for a local standard only, the organisation that issued it as printed (e.g.
+  "Singapore Standards Council"). null for anything else or when not stated.
+- jurisdiction: one of {_countries}. A currency such as SGD indicates the
+  country. Never "all" for a local standard.
 - facility_type: one of {", ".join(FACILITY_TYPES)}. "all" means a standard covering every
   facility type. {" ".join(f"{hint}." for hint in FACILITY_HINTS.values() if ":" in hint)}
 
@@ -43,6 +47,8 @@ Rules:
 """
 
 
+# issuing_body is asked but is not in DETAILS: it must never be Unconfirmed.
+_ASKED = (*DETAILS, "issuing_body")
 _detail = {
     "type": "object",
     "properties": {
@@ -57,7 +63,7 @@ _detail = {
 # Strict structured output: every property required, no extras.
 SCHEMA = {
     "type": "object",
-    "properties": {name: _detail for name in DETAILS},
-    "required": list(DETAILS),
+    "properties": {name: _detail for name in _ASKED},
+    "required": list(_ASKED),
     "additionalProperties": False,
 }

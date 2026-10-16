@@ -52,9 +52,16 @@ def _edition_year(doc: dict) -> int | None:
     return int(doc["edition"]) if str(doc["edition"]).isdigit() else None
 
 
-def _body(doc: dict) -> str | None:
-    """Return the issuing body tidied for comparison, or None for a report."""
-    return str(doc["issuingBody"]).casefold().strip() if _known(doc, "issuingBody") else None
+def _body(doc: dict) -> tuple[bool, str] | None:
+    """Return (is local standard, issuing body tidied), or None if there is no publisher.
+
+    A local standard's body is often blank, so it still has a publisher key: its
+    source type. This keeps two editions of "CP 52" together, and apart from an
+    FM/NFPA standard with the same number. A report has none.
+    """
+    local = (doc.get("metadata") or {}).get("source_type") == "local_standard"
+    body = str(doc["issuingBody"]).casefold().strip() if _known(doc, "issuingBody") else ""
+    return (local, body) if body or local else None
 
 
 def _number(doc: dict) -> str | None:
@@ -64,13 +71,20 @@ def _number(doc: dict) -> str | None:
     return "".join(str(doc["standardNumber"]).casefold().split())
 
 
+def _same_publisher(doc: dict, other: dict) -> bool:
+    """Return whether the publishers agree; local standards agree if either body is blank."""
+    a, b = _body(doc), _body(other)
+    if a is None or b is None or a[0] != b[0]:
+        return False
+    return a == b or (a[0] and not (a[1] and b[1]))
+
+
 def _same_standard(doc: dict, other: dict) -> bool:
     """Return whether both have an edition year and the same issuing body and standard number."""
     return (
         _edition_year(doc) is not None
         and _edition_year(other) is not None
-        and _body(doc) is not None
-        and _body(doc) == _body(other)
+        and _same_publisher(doc, other)
         and _number(doc) is not None
         and _number(doc) == _number(other)
     )
@@ -84,6 +98,7 @@ def _edition_of(doc: dict, other: dict) -> bool:
         and _edition_year(doc) != _edition_year(other)
         and _body(doc) is not None
         and _body(doc) == _body(other)
+        and _body(doc)[1]  # no body and no number leaves nothing to tie two documents
         and (_number(doc) is None or _number(other) is None)
     )
 

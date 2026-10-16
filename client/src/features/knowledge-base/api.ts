@@ -26,7 +26,7 @@ async function send(path: string, init: RequestInit): Promise<void> {
   }
 }
 
-export type SourceType = 'fm_standard' | 'nfpa_standard' | 'marsh_report'
+export type SourceType = 'fm_standard' | 'nfpa_standard' | 'local_standard' | 'marsh_report'
 export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
 
 // The stages a document moves through while processing (E2). Mirrors
@@ -75,6 +75,8 @@ export type DocumentDetails = {
   effectiveDate: string
   jurisdiction: string
   facilityType: string
+  // A local standard's publisher, free text; '' for every other source type.
+  issuingBody: string
 }
 
 // The details labelling can leave Unconfirmed (IN-05); matches DetailDtoName
@@ -147,6 +149,7 @@ export type KnowledgeDocument = {
 export type DocumentVersion = {
   sourceType: SourceType | null
   title: string
+  issuingBody: string | null
   standardNumber: string | null
   edition: string | null
   effectiveDate: string | null
@@ -162,6 +165,7 @@ export type StoredDetails = Pick<
   KnowledgeDocument,
   | 'sourceType'
   | 'title'
+  | 'issuingBody'
   | 'standardNumber'
   | 'edition'
   | 'effectiveDate'
@@ -192,6 +196,7 @@ const EMPTY_DETAILS: DocumentDetails = {
   effectiveDate: '',
   jurisdiction: '',
   facilityType: '',
+  issuingBody: '',
 }
 
 // Saves a document's corrected details and returns the stored document (KB-01).

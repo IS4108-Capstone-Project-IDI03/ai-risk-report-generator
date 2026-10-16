@@ -17,6 +17,7 @@ import { StatusChangeDialog } from '../components/StatusChangeDialog'
 const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'nfpa_standard', title: 'NFPA standards', icon: IconRegistry.evidence.standard },
+  { sourceType: 'local_standard', title: 'Local standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'marsh_report', title: 'Past Marsh reports', icon: IconRegistry.evidence.report },
   // Documents whose source type labelling could not confirm (IN-05).
   { sourceType: null, title: 'Source type unconfirmed', icon: 'circle-help' },

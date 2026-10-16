@@ -41,7 +41,8 @@ export function DocumentDetails({
           <DetailText text={sourceLabel(d.sourceType)} />
         </Fact>
         <Fact label="Issuing body">
-          <DetailText text={d.issuingBody} />
+          {/* A local standard may have none; that is not an Unconfirmed detail. */}
+          <DetailText text={d.issuingBody ?? (d.sourceType === 'local_standard' ? 'None' : null)} />
         </Fact>
         {standard && (
           <Fact label="Standard number">

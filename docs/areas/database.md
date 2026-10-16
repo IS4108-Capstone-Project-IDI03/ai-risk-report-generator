@@ -603,15 +603,15 @@ source type would leave the file in the wrong folder); the record keeps `file`
 The details are read from the PDF at upload (IN-05, see "Automatic labelling"
 below) and corrected by the admin (KB-01). The source type decides which apply:
 
-| Field | Standard (`fm_standard`, `nfpa_standard`) | Past report (`marsh_report`) |
-| --- | --- | --- |
-| `title` | required | required |
-| `issuingBody` | set from the source type: `FM Global` / `NFPA` | set: `Marsh` |
-| `edition` | required, a four-digit year, e.g. `2022` | absent |
-| `standardNumber` | required, the designation without the issuing body, e.g. `13` or `2-81` (IN-07 matching identity; the labeller's `standard_number`) | absent |
-| `metadata.effective_date` | the edition's effective date | the report date |
-| `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code (default `SG`) |
-| `metadata.facility_type` | optional; `all` unless the admin picks one | required, one facility type |
+| Field | Standard (`fm_standard`, `nfpa_standard`) | Local standard (`local_standard`) | Past report (`marsh_report`) |
+| --- | --- | --- | --- |
+| `title` | required | required | required |
+| `issuingBody` | set from the source type: `FM Global` / `NFPA` | free text per document, optional, up to 100 characters (blank = none); read from the file by labelling (`issuing_body`), never Unconfirmed | set: `Marsh` |
+| `edition` | required, a four-digit year, e.g. `2022` | required, as for a standard | absent |
+| `standardNumber` | required, the designation without the issuing body, e.g. `13` or `2-81` (IN-07 matching identity; the labeller's `standard_number`) | required, as for a standard, e.g. `CP 52` | absent |
+| `metadata.effective_date` | the edition's effective date | the edition's effective date | the report date |
+| `metadata.jurisdiction` | two-letter code, or `all` (all countries; the default) | two-letter code only, never `all` (default `SG`) | two-letter code (default `SG`) |
+| `metadata.facility_type` | optional; `all` unless the admin picks one | optional; `all` unless the admin picks one | required, one facility type |
 
 `jurisdiction: 'all'` is the only value that isn't a two-letter code; like
 `facility_type: 'all'`, retrieval must treat it as matching any site. Every

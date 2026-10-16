@@ -42,6 +42,19 @@ const NFPA = {
   effectiveDate: '2022-01-01',
   fileUrl: '/api/knowledge-documents/nfpa/file',
 }
+const LOCAL = {
+  ...doc,
+  id: 'local',
+  title: 'CP 52 automatic fire sprinkler systems',
+  issuingBody: 'Singapore Standards Council',
+  standardNumber: 'CP 52',
+  edition: '2020',
+  sourceType: 'local_standard',
+  jurisdiction: 'SG',
+  facilityType: 'all',
+  effectiveDate: '2020-01-01',
+  fileUrl: '/api/knowledge-documents/local/file',
+}
 const REPORT = {
   ...doc,
   id: 'report',
@@ -143,6 +156,73 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+})
+
+describe('Local standards', () => {
+  it('lists a local standard under Local standards, after NFPA standards', async () => {
+    mockGateway([NFPA, LOCAL, REPORT])
+    await openKnowledgeBase()
+
+    expect(within(await group('Local standards')).getByText(LOCAL.title)).toBeInTheDocument()
+    const bands = screen.getAllByRole('rowgroup').map((g) => g.getAttribute('aria-labelledby'))
+    expect(bands.indexOf('kb-group-local_standard')).toBe(
+      bands.indexOf('kb-group-nfpa_standard') + 1,
+    )
+    expect(bands.indexOf('kb-group-marsh_report')).toBe(
+      bands.indexOf('kb-group-local_standard') + 1,
+    )
+  })
+
+  it('shows the source type, issuing body and standard number of a local standard', async () => {
+    mockGateway([LOCAL])
+    await openKnowledgeBase()
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${LOCAL.title}`) }))
+    const details = screen.getByRole('region', { name: `Details of ${LOCAL.title}` })
+
+    expect(within(details).getByText('Local standard')).toBeInTheDocument()
+    expect(within(details).getByText('Singapore Standards Council')).toBeInTheDocument()
+    expect(within(details).getByText('CP 52')).toBeInTheDocument()
+  })
+
+  it('shows no issuing body as None, not Unconfirmed', async () => {
+    mockGateway([{ ...LOCAL, issuingBody: null }])
+    await openKnowledgeBase()
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${LOCAL.title}`) }))
+    const details = screen.getByRole('region', { name: `Details of ${LOCAL.title}` })
+
+    expect(within(details).getByText('None')).toBeInTheDocument()
+  })
+
+  it('offers Local standard with an Issuing body field and only real countries, and sends them', async () => {
+    const puts = mockGateway([NFPA], (id, body) => json(200, { ...LOCAL, ...body, id }))
+    await openKnowledgeBase()
+    const dialog = await edit(NFPA.title)
+    expect(within(dialog).queryByLabelText(/^Issuing body/)).not.toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
+      target: { value: 'local_standard' },
+    })
+    const country = within(dialog).getByLabelText(/^Country/)
+    expect(within(country).queryByRole('option', { name: 'All countries' })).not.toBeInTheDocument()
+    expect(country).toHaveValue('SG')
+    fireEvent.change(within(dialog).getByLabelText(/^Standard number/), {
+      target: { value: 'CP 52' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '2020' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Issuing body/), {
+      target: { value: 'Singapore Standards Council' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
+
+    // The stubbed answer keeps the edited title, so the NFPA title moves group.
+    await within(await group('Local standards')).findByText(NFPA.title)
+    expect(puts[0].body).toMatchObject({
+      sourceType: 'local_standard',
+      issuingBody: 'Singapore Standards Council',
+      jurisdiction: 'SG',
+      standardNumber: 'CP 52',
+    })
+  })
 })
 
 describe('Knowledge base documents (KB-01)', () => {
