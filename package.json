@@ -10,6 +10,7 @@
     "test": "concurrently -n client,server -c cyan,green \"npm --prefix client test\" \"npm --prefix server test\""
   },
   "devDependencies": {
+    "@playwright/cli": "^0.1.22",
     "concurrently": "^10.0.5"
   }
 }
