@@ -126,10 +126,9 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
 
     Each request is `(query, filters, k)` and gets its `k` nearest passages, nearest
     first. All queries are embedded in one call, and requests sharing filters and `k`
-    share Chroma queries of at most 20 vectors. A Cohere trial key allows 10 calls a
-    minute, so one search per subsection with `retrieve()` (embed and rerank each) would
-    hit the limit on a large section, so callers rerank the combined hits once with
-    `rerank()` (GN-01 AC14).
+    share one Chroma query. A Cohere trial key allows 10 calls a minute, so one search
+    per subsection with `retrieve()` (embed and rerank each) would hit the limit on a
+    large section, so callers rerank the combined hits once with `rerank()` (GN-01 AC14).
     """
     empty = [[] for _ in requests]
     if not requests:
@@ -157,23 +156,20 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
         groups.setdefault((json.dumps(filters, sort_keys=True), k), []).append(i)
     results = empty
     for (filters, k), indexes in groups.items():
-        # Chroma Cloud limits each query to 20 embeddings.
-        for offset in range(0, len(indexes), 20):
-            batch = indexes[offset : offset + 20]
-            found = collection.query(
-                query_embeddings=[vectors[i] for i in batch],
-                n_results=min(k, count),
-                where=label_filter(json.loads(filters)),
-                include=["documents", "metadatas", "distances"],
-            )
-            for row, i in enumerate(batch):
-                results[i] = [
-                    {
-                        "id": found["ids"][row][n],
-                        "text": found["documents"][row][n],
-                        "metadata": found["metadatas"][row][n],
-                        "distance": found["distances"][row][n],
-                    }
-                    for n in range(len(found["ids"][row]))
-                ]
+        found = collection.query(
+            query_embeddings=[vectors[i] for i in indexes],
+            n_results=min(k, count),
+            where=label_filter(json.loads(filters)),
+            include=["documents", "metadatas", "distances"],
+        )
+        for row, i in enumerate(indexes):
+            results[i] = [
+                {
+                    "id": found["ids"][row][n],
+                    "text": found["documents"][row][n],
+                    "metadata": found["metadatas"][row][n],
+                    "distance": found["distances"][row][n],
+                }
+                for n in range(len(found["ids"][row]))
+            ]
     return results
