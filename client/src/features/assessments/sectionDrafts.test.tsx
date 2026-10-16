@@ -345,6 +345,12 @@ it('embeds no photos and opens no sources in a draft on Generation; Review shows
   render(<DraftView draft={DRAFT} />)
   expect(screen.queryByRole('img')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /sources?$/ })).not.toBeInTheDocument()
+  // One label for a weak statement, on the statement: everything here is AI drafted,
+  // so the box carries no "AI draft" or "Needs review" badge (Miya, 15 Oct).
+  expect(screen.getByText('Unsupported')).toBeVisible()
+  expect(screen.queryByText('Needs review')).toBeNull()
+  expect(screen.queryByText('AI draft')).toBeNull()
+  expect(screen.queryByText(/confidence/i)).toBeNull()
 })
 
 it('shows the corrected transcript in draft evidence and keeps the original behind a toggle', () => {

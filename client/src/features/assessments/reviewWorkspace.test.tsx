@@ -516,8 +516,9 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   // Counted with every part of the report: 1, 2, 3, 7, 9, 10 and Appendix A here.
   expect(within(editor()).getByText('Draft editor · 3 of 7')).toBeInTheDocument()
   expect(within(editor()).getByText(/prompt gn05-v4/)).toBeInTheDocument()
-  // Each in an AI draft box: the suggestion waiting to be accepted, and the OFI in the report.
-  expect(within(editor()).getAllByText('AI draft')).toHaveLength(2)
+  // In Review the AI boxes carry no "AI draft" badge: their violet styling marks them,
+  // and only exceptions and decisions are labelled (Miya, 15 Oct).
+  expect(within(editor()).queryByText('AI draft')).toBeNull()
   expect(within(editor()).getByText('2026-01')).toBeInTheDocument()
   expect(within(editor()).getByText('Lock Open Sprinkler Control Valve')).toBeInTheDocument()
   // Suggestions are accepted here, not on Generation (GN-07, 12 Oct), and stay out
@@ -724,7 +725,11 @@ it('shows each finding’s decision, leaves rejected ones out of the draft and t
 it('accepts a pending finding (AC1)', async () => {
   await openReview()
   await screen.findByRole('region', { name: 'Draft editor' })
-  expect(within(findingOf(1)).getByText('Pending review')).toBeInTheDocument()
+  // A pending finding is marked by its violet rule, not a badge, and its box has no
+  // status badge or confidence meter (Miya, 15 Oct).
+  expect(within(findingOf(1)).queryByText('Pending review')).toBeNull()
+  expect(within(editor()).queryByText(/confidence/i)).toBeNull()
+  expect(within(editor()).queryByText('AI draft')).toBeNull()
   decide = reply([
     seven([{ ...RISER, review: decided('accepted') }, VALVES, ROOF]),
     FIRE,
@@ -742,7 +747,7 @@ it('accepts a pending finding (AC1)', async () => {
     },
   ])
   expect(within(findingOf(1)).queryByRole('button', { name: 'Accept finding 1' })).toBeNull()
-  expect(within(findingOf(2)).getByText('Pending review')).toBeInTheDocument()
+  expect(within(findingOf(2)).queryByText('Accepted')).toBeNull()
 }, 15_000)
 
 it('saves an edited finding’s text, keeping the dialog open with the reason when refused (AC2)', async () => {
@@ -1042,7 +1047,7 @@ it('shows decisions without the actions to whoever may not decide', async () => 
     />,
   )
   await screen.findByRole('region', { name: 'Draft editor' })
-  expect(within(findingOf(1)).getByText('Pending review')).toBeInTheDocument()
+  expect(within(findingOf(1)).queryByText('Accepted')).toBeNull()
   expect(screen.queryByRole('button', { name: /^(Accept|Edit|Reject) finding/ })).toBeNull()
   expect(screen.queryByRole('button', { name: /^Bulk accept/ })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Regenerate' })).toBeNull()

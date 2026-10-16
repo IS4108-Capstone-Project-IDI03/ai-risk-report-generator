@@ -136,7 +136,8 @@ it('is a section row with its state; a suggestion is shown read-only and stays o
 
   const card = screen.getByText('Supervise sprinkler control valves').closest('article')!
   expect(within(card).getByText('Priority 1')).toBeInTheDocument()
-  expect(within(card).getByText('AI draft')).toBeInTheDocument()
+  // No "AI draft" badge: everything here is AI drafted (Miya, 15 Oct).
+  expect(within(card).queryByText('AI draft')).toBeNull()
   // Generation only generates (Miya, 12 Oct): accepting, sources and the precedent
   // are on the Review tab.
   expect(screen.getByText(/Accept them in Review/)).toBeInTheDocument()

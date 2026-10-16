@@ -71,9 +71,9 @@ function SubsectionDraft({
         fullWidth
         heading={sub.heading}
         status={unsupported ? 'flagged' : 'draft'}
-        // Every citation resolves, but whether each source says what the
-        // statement claims is not checked yet, so this is never high.
-        confidence={unsupported ? 'low' : 'medium'}
+        // No status badge or confidence meter: everything here is AI drafted, and a
+        // weak statement carries its own Unsupported flag (Miya, 15 Oct).
+        quiet
       >
         {sub.statements.map((s, i) => (
           <p key={i} style={{ margin: i ? '10px 0 0' : 0 }}>

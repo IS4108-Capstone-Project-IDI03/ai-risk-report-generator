@@ -100,9 +100,12 @@ function Finding({
         )}
       </p>
       <div className="rv-finding-bar">
-        <Badge tone={badge.tone} icon={badge.icon}>
-          {badge.label}
-        </Badge>
+        {/* Only a decision is labelled: a pending finding is marked by its violet rule. */}
+        {review.state !== 'pending' && (
+          <Badge tone={badge.tone} icon={badge.icon}>
+            {badge.label}
+          </Badge>
+        )}
         {review.by && review.at && (
           <span className="rv-finding-by">
             {review.by.name} · {formatDayYearTime(new Date(review.at))}
@@ -216,9 +219,9 @@ function DraftSubsection({
             ? 'edited'
             : 'accepted'
       }
-      // Every citation resolves, but whether each source says what the
-      // statement claims is not checked yet (GN-02), so this is never high.
-      confidence={unsupported ? 'low' : 'medium'}
+      // No status badge or confidence meter: the box marks AI text, each finding
+      // its decision, and Unsupported its exception (Miya, 15 Oct).
+      quiet
       evidenceCount={cited.length}
       // Opens the subsection's first source beside the draft.
       onShowEvidence={() => citing.onCite(cited[0] ?? null, null)}

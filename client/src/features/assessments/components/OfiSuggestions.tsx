@@ -128,8 +128,8 @@ export function OfiBlock({
       <AIDraftBlock
         heading={ofi.category}
         status="draft"
-        // Nothing checks yet that the sources say what the OFI claims, so not high.
-        confidence="medium"
+        // No status badge or confidence meter: every OFI here is AI drafted (Miya, 15 Oct).
+        quiet
         evidenceCount={count}
         onShowEvidence={withSources ? () => setShowSources((open) => !open) : undefined}
         onAccept={onAccept}
