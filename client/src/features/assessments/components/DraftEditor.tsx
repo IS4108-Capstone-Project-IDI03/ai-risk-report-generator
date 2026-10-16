@@ -223,6 +223,10 @@ function DraftSubsection({
       // Opens the subsection's first source beside the draft.
       onShowEvidence={() => citing.onCite(cited[0] ?? null, null)}
     >
+      {/* Marsh's lead-in to Section 4's positive points (GN-03): fixed, so not drafted. */}
+      {citing.sectionId === '4' && sub.heading === 'Positive Points' && (
+        <p className="rv-muted">The positive points from the visit are the following:</p>
+      )}
       {claims.map((claim) => (
         <Finding key={claim.key} claim={claim} actions={actions} {...citing} />
       ))}
@@ -244,6 +248,7 @@ export function DraftEditor({
   onGenerate,
   actions,
   header,
+  figures,
   ...citing
 }: Omit<Citing, 'sectionId'> & {
   section: ReviewSection
@@ -254,6 +259,11 @@ export function DraftEditor({
   onGenerate: () => void
   actions?: FindingActions
   header?: React.ReactNode
+  // Sections 4 and 5 (GN-03): the engineer's figures, shown above the draft and
+  // before there is one, since they must be entered first. As a function (Section
+  // 5), it is given each subsection's findings by heading and lays them out itself,
+  // inside Marsh's per-level tables, so they are not listed again below.
+  figures?: React.ReactNode | ((drafted: Map<string, React.ReactNode>) => React.ReactNode)
 }) {
   const { draft, review } = section
 
@@ -266,6 +276,30 @@ export function DraftEditor({
   }, [section.id, citing.focus.statement])
 
   const claims = draft ? claimsOf(draft) : []
+  const placesFindings = typeof figures === 'function'
+  // Each subsection's findings, with their decisions, for figures that place them;
+  // a subsection with none is left out, so it reads as not drafted.
+  const drafted = new Map<string, React.ReactNode>(
+    (draft?.subsections ?? []).flatMap((sub, i) => {
+      const own = claims.filter((c) => c.key.startsWith(`${i}.`))
+      return own.length
+        ? [
+            [
+              sub.heading,
+              own.map((claim) => (
+                <Finding
+                  key={claim.key}
+                  claim={claim}
+                  actions={actions}
+                  sectionId={section.id}
+                  {...citing}
+                />
+              )),
+            ] as const,
+          ]
+        : []
+    }),
+  )
   return (
     <section aria-label="Draft editor" className="om-scroll rv-editor">
       <div className="rv-editor-inner">
@@ -293,6 +327,7 @@ export function DraftEditor({
         <h2>
           {section.id}. {section.title}
         </h2>
+        {placesFindings ? figures(drafted) : figures}
         {!draft ? (
           <EmptyState
             icon="file-text"
@@ -349,16 +384,17 @@ export function DraftEditor({
                 </ul>
               </Callout>
             )}
-            {draft.subsections.map((sub, i) => (
-              <DraftSubsection
-                key={sub.heading}
-                sub={sub}
-                claims={claims.filter((c) => c.key.startsWith(`${i}.`))}
-                actions={actions}
-                sectionId={section.id}
-                {...citing}
-              />
-            ))}
+            {!placesFindings &&
+              draft.subsections.map((sub, i) => (
+                <DraftSubsection
+                  key={sub.heading}
+                  sub={sub}
+                  claims={claims.filter((c) => c.key.startsWith(`${i}.`))}
+                  actions={actions}
+                  sectionId={section.id}
+                  {...citing}
+                />
+              ))}
           </>
         )}
       </div>

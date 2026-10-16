@@ -19,7 +19,7 @@ type Draft = ReviewDraft
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-export function describeChanges({ added, changed, removed }: ChangeCounts) {
+export function describeChanges({ added, changed, removed, figures }: ChangeCounts) {
   const kinds = (
     [
       [added, 'added'],
@@ -30,6 +30,8 @@ export function describeChanges({ added, changed, removed }: ChangeCounts) {
   const words = kinds.map(([n, kind], i) =>
     i === 0 ? `${plural(n, 'observation')} ${kind}` : `${n} ${kind}`,
   )
+  // Section 4 or 5's figures (GN-03), after any observation changes.
+  if (figures) words.push(words.length ? 'the figures changed' : 'The figures changed')
   return words.length > 1
     ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
     : (words[0] ?? '')
@@ -251,7 +253,8 @@ export function maturityEntries<T>(
 // How many of Marsh's 12 report sections are drafted, for every "N of 12 sections
 // drafted" (Review rail, Generation, Overview). Section 1 is always ready: it is filled
 // in from the assessment's details. Section 2 needs its draft, Section 3 an accepted
-// OFI, and Sections 4 and 5 have no drafting yet (GN-03). 6-12 count their own drafts.
+// OFI, and 4-12 their own drafts (4 and 5 can be drafted only once their figures
+// are entered; GN-03).
 export const REPORT_SECTIONS = 12
 export function reportProgress({
   summaryDrafted,
@@ -260,7 +263,7 @@ export function reportProgress({
 }: {
   summaryDrafted: boolean
   ofisAccepted: number
-  // Drafted sections among 6-12.
+  // Drafted sections among 4-12.
   sectionsDrafted: number
 }) {
   const done = 1 + Number(summaryDrafted) + Number(ofisAccepted > 0) + sectionsDrafted

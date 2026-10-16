@@ -147,12 +147,14 @@ const STATE = {
   queued: { tone: 'neutral', icon: 'ellipsis', label: 'Queued' },
   ready: { tone: 'neutral', icon: 'circle-dashed', label: 'Not drafted' },
   insufficient: { tone: 'moderate', icon: 'triangle-alert', label: 'Insufficient evidence' },
+  // Sections 4 and 5 (GN-03) before the engineer's figures are entered in Review.
+  figures: { tone: 'moderate', icon: 'triangle-alert', label: 'Figures needed' },
   failed: { tone: 'critical', icon: 'octagon-alert', label: 'Failed' },
 } as const
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-// Sections 7-12 of the report for a saved assessment (GN-01), laid out like
+// Sections 4-12 of the report for a saved assessment (GN-01, GN-03), laid out like
 // the demo generation screen. Draft one section from its row, or the whole
 // report from the header: every section with enough evidence that has no
 // draft yet, one at a time.
@@ -179,8 +181,10 @@ export function SectionDrafts({
   const { observations } = useObservations(reference, true)
 
   const hasEvidence = (s: ReportSection) => s.usableObservations >= s.minObservations
-  const pending = (sections ?? []).filter((s) => !s.latestDraft && hasEvidence(s))
-  const draftable = (sections ?? []).filter(hasEvidence)
+  // Enough evidence, and for Sections 4 and 5 their figures (GN-03).
+  const ready = (s: ReportSection) => hasEvidence(s) && !s.inputsMissing
+  const pending = (sections ?? []).filter((s) => !s.latestDraft && ready(s))
+  const draftable = (sections ?? []).filter(ready)
   const done = draftable.filter((s) => s.latestDraft).length
   const running = drafting !== null
   // Section 2's state, refetched when a section's draft changes (its missing and
@@ -245,15 +249,19 @@ export function SectionDrafts({
           ? STATE.failed
           : s.latestDraft
             ? STATE.drafted
-            : hasEvidence(s)
-              ? STATE.ready
-              : STATE.insufficient
-  const attention = (sections ?? []).filter((s) => !hasEvidence(s) || failures[s.id]).length
+            : !hasEvidence(s)
+              ? STATE.insufficient
+              : s.inputsMissing
+                ? STATE.figures
+                : STATE.ready
+  const attention = (sections ?? []).filter(
+    (s) => !hasEvidence(s) || failures[s.id] || (!s.latestDraft && s.inputsMissing),
+  ).length
 
   return (
     <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
       <div style={{ maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Callout tone="ai" title={running ? 'Drafting in progress' : 'Draft sections 7 to 12'}>
+        <Callout tone="ai" title={running ? 'Drafting in progress' : 'Draft sections 2 to 12'}>
           {running
             ? 'Sections appear here as each one completes. Each takes a minute or two.'
             : 'Draft one section from its row, or every section at once. Each section is drafted from the observations filed under its categories, observations from other categories where they concern it, and the standards in the knowledge base. Uncategorised observations are not used. Every statement cites its evidence.'}
@@ -409,6 +417,19 @@ export function SectionDrafts({
                             {s.copeDimensions.join(' or ')}.
                           </span>
                         )}
+                        {state === STATE.figures && (
+                          <span
+                            style={{
+                              display: 'block',
+                              marginTop: '4px',
+                              fontSize: '14px',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {s.inputsMissing} Enter them in Review; the model writes only the
+                            wording around them.
+                          </span>
+                        )}
                       </span>
                       <span className="generation-status">
                         <Badge tone={state.tone} icon={state.icon}>
@@ -442,7 +463,12 @@ export function SectionDrafts({
                             Capture evidence
                           </Button>
                         )}
-                        {canDraft && hasEvidence(s) && (
+                        {state === STATE.figures && (
+                          <Button variant="ghost" size="sm" iconLeft="pencil" onClick={onReview}>
+                            Enter figures
+                          </Button>
+                        )}
+                        {canDraft && ready(s) && (
                           <Button
                             variant="ghost"
                             size="sm"

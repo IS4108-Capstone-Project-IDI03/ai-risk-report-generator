@@ -12,6 +12,8 @@ import {
 import { AppendixPhotos } from '../components/AppendixPhotos'
 import { DraftEditor, type FindingActions } from '../components/DraftEditor'
 import { ExecutiveSummary } from '../components/ExecutiveSummary'
+import { LossEstimateFigures } from '../components/LossEstimateFigures'
+import { RiskQualityFigures } from '../components/RiskQualityFigures'
 import { PurposeScope } from '../components/PurposeScope'
 import { ReportPart } from '../components/ReportPart'
 import { OfiReviewPanel } from '../components/OfiReviewPanel'
@@ -34,7 +36,7 @@ import { useSummary } from '../useSummary'
 import '../review.css'
 
 const NOTHING: ReviewFocus = { citation: null, statement: null }
-// The rail's rows that are not one of sections 7-12.
+// The rail's rows that are not one of sections 4-12.
 const OPENING = new Set(['1', '2', '3', 'A'])
 
 // The dialog open over the workspace, if any.
@@ -156,7 +158,7 @@ export function ReviewWorkspace({
   )
   const last = sections[sections.length - 1]
   // Every part of the report in order, for "Draft editor · N of M": Sections 1, 2 and 3,
-  // the drafted sections (6-12), then Appendix A.
+  // the drafted sections (4-12), then Appendix A.
   const parts = ['1', '2', '3', ...sections.map((s) => s.id), 'A']
   const positionOf = (id: string) => `${parts.indexOf(id) + 1} of ${parts.length}`
 
@@ -387,6 +389,23 @@ export function ReviewWorkspace({
         describe={describe}
         onCite={cite}
         actions={actions}
+        // Sections 4 and 5's figures (GN-03); saving them reloads the workspace, so
+        // the draft shows as out of date when they changed.
+        figures={
+          saved.id === '4' ? (
+            <RiskQualityFigures reference={reference} canEdit={canReview} onSaved={reload} />
+          ) : saved.id === '5' ? (
+            // Section 5 places its drafted findings in each level's table itself.
+            (drafted: Map<string, React.ReactNode>) => (
+              <LossEstimateFigures
+                reference={reference}
+                canEdit={canReview}
+                onSaved={reload}
+                drafted={drafted}
+              />
+            )
+          ) : undefined
+        }
         header={
           <>
             {problem && (
