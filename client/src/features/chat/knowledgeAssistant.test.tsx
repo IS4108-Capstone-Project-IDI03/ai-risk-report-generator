@@ -121,6 +121,15 @@ describe('Knowledge assistant (CB-01)', () => {
         role: 'user',
         content: 'Where are sprinklers needed?',
       })
+
+      // The MarshBot logo and name start a new chat too, as in most chat apps.
+      const again = await screen.findByRole('textbox')
+      fireEvent.change(again, { target: { value: 'Where are sprinklers needed?' } })
+      fireEvent.keyDown(again, { key: 'Enter' })
+      await screen.findByText(/Sprinklers are needed throughout\./)
+      expect(screen.queryByText("Hi, I'm MarshBot")).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'MarshBot, new chat' }))
+      expect(await screen.findByText("Hi, I'm MarshBot")).toBeInTheDocument()
     },
   )
 })
