@@ -48,7 +48,7 @@ function EngineerLabel({ e }: { e: EngineerChoice }) {
 }
 
 // Asks about a new client or site name that looks like a listed one (CP-17
-// AC9), under its field: use the listed one, or keep it as typed and
+// AC11), under its field: use the listed one, or keep it as typed and
 // carry on creating.
 function NameCheckCallout({ v }: { v: AssessmentWorkflow }) {
   const check = v.cfCheck!

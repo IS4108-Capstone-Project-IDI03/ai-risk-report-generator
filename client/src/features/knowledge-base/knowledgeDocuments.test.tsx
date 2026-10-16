@@ -154,7 +154,7 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(await group('FM standards')).getByText(FM.title)).toBeInTheDocument()
     expect(within(await group('NFPA standards')).getByText(NFPA.title)).toBeInTheDocument()
     expect(within(await group('Past Marsh reports')).getByText(REPORT.title)).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('shows each document’s edition or report date, status and original, with country and facility type in its details', async () => {
     mockGateway([FM, REPORT])

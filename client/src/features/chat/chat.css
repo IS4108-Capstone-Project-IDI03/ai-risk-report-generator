@@ -1,18 +1,550 @@
-/* The knowledge assistant screen (CB-01). Fits OpenUI's chat screen into the
-   app's content area and type (docs/design-system.md). */
+/* MarshBot, the knowledge chat screen (CB-01). Fits OpenUI's chat screen into the
+   app's content area, with the source panel beside it. Citation markers and the
+   panel reuse assessments/review.css.
+   Apple-style trial (Jesper, 15 Oct), this screen only: the system font and rounder
+   corners over the design system's Marsh navy and ink-blue colours
+   (docs/design-system.md). Bubble, steps, composer and table follow MikeOSS's quiet
+   chat look (Jesper, 15 Oct: colour only where it carries meaning). */
 
-/* OpenUI sizes its chat screen to the whole window (100dvw x 100dvh); without
-   this it runs under the page header and off the right edge. */
+/* Screen-wide values. Each is a design-system token or a tint of one. */
 .knowledge-assistant {
+  /* San Francisco on Apple devices, Segoe UI on Windows. */
+  --chat-font:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto,
+    'Helvetica Neue', sans-serif;
+  --chat-sidebar: #f2f6fc; /* between --ink-50 and white */
+  --chat-hover: rgb(0 15 71 / 0.04); /* --marsh-navy at 4% */
+  --chat-selected: rgb(0 15 71 / 0.07); /* --marsh-navy at 7% */
+  --chat-shadow-sm: 0 1px 2px rgb(0 15 71 / 0.06), 0 1px 1px rgb(0 15 71 / 0.04);
+  --chat-shadow-md: 0 8px 28px rgb(0 15 71 / 0.1), 0 2px 6px rgb(0 15 71 / 0.06);
+  --chat-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  /* One column for questions, answers and the composer, so their edges line up. */
+  --chat-column: 768px;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* OpenUI sizes itself to the whole window (100dvw x 100dvh); without this it
+     runs under the page header and off the right edge. */
   height: 100%;
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
 }
 .knowledge-assistant .openui-agent-container {
   width: 100%;
   height: 100%;
 }
-
 /* OpenUI's type tokens name Inter outright, so its theme's font setting
-   doesn't reach them. Plex Sans for UI text; code keeps the mono face. */
+   doesn't reach them. Code keeps the mono face. */
 .knowledge-assistant :not(code, pre, kbd, samp) {
-  font-family: var(--font-sans);
+  font-family: var(--chat-font);
+}
+.knowledge-assistant ::selection {
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+}
+.knowledge-assistant :focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* The app's main area keeps a scrollbar gutter (assessments/workflow.css), but this
+   screen never scrolls it; without this a dead 10px strip shows on the right edge. */
+.om-scroll:has(.knowledge-assistant) {
+  scrollbar-gutter: auto;
+}
+
+/* ---- Sidebar: brand, New chat, Chats ---- */
+
+.knowledge-assistant .openui-agent-sidebar-container {
+  background: var(--chat-sidebar);
+  border-right: 1px solid var(--ink-100);
+}
+.knowledge-assistant .openui-agent-sidebar-header__top-row {
+  gap: 10px;
+}
+.knowledge-assistant .openui-agent-sidebar-header__logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  box-shadow: var(--chat-shadow-sm);
+}
+.knowledge-assistant .openui-agent-sidebar-header__agent-name,
+.knowledge-assistant .openui-agent-mobile-header-agent-name {
+  color: var(--marsh-navy);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* The brand row and New chat are one group; OpenUI leaves a 32px hole between them. */
+.knowledge-assistant .openui-agent-sidebar-primary-actions {
+  margin-top: 4px;
+}
+/* New chat: OpenUI's sidebar row (ChatSidebar.tsx), quiet like MikeOSS's items. */
+.knowledge-assistant .openui-agent-sidebar-item {
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+.knowledge-assistant .openui-agent-sidebar-item:hover {
+  background: var(--chat-hover);
+}
+.knowledge-assistant .openui-agent-sidebar-item__icon {
+  color: var(--ink-600);
+}
+/* Collapsed sidebar: the logo would sit on top of the open-sidebar button, so only the
+   button shows (OpenUI otherwise reveals it over the logo). */
+.knowledge-assistant .openui-agent-sidebar-header--collapsed .openui-agent-sidebar-header__logo {
+  display: none;
+}
+.knowledge-assistant
+  .openui-agent-sidebar-header--collapsed
+  .openui-agent-sidebar-header__toggle-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Phone drawer: OpenUI pads the header and list by 16px but not the actions row, so
+   New chat sat flush against the edge. */
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-primary-actions {
+  padding: 8px 16px 0;
+}
+/* Our "Chats" heading replaces OpenUI's hardcoded "Threads" group label. */
+.knowledge-assistant .openui-agent-thread-list-group {
+  display: none;
+}
+/* Tighter than OpenUI's 36px between the New chat block and the list, and its 12px
+   under the heading: the heading belongs to the list it names. */
+.knowledge-assistant .openui-agent-sidebar-container {
+  gap: 16px;
+}
+.knowledge-assistant .openui-agent-sidebar-content {
+  gap: 4px;
+}
+.chat-sidebar-heading {
+  margin: 0;
+  /* Must match OpenUI's chat-row padding, so the heading and chat titles share one edge. */
+  padding: 0 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
+}
+/* OpenUI pads chat rows 10px in the phone drawer. */
+.knowledge-assistant .openui-agent-container--mobile .chat-sidebar-heading {
+  padding: 0 10px;
+}
+.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-sidebar-heading {
+  display: none;
+}
+.knowledge-assistant .openui-agent-thread-button {
+  border-radius: 8px;
+  transition: background-color 160ms var(--chat-ease);
+}
+.knowledge-assistant .openui-agent-thread-button-title {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.knowledge-assistant .openui-agent-thread-button:hover {
+  background: var(--chat-hover);
+}
+.knowledge-assistant .openui-agent-thread-button--selected,
+.knowledge-assistant .openui-agent-thread-button--selected:hover {
+  background: var(--chat-selected);
+}
+.knowledge-assistant .openui-agent-thread-button--selected .openui-agent-thread-button-title {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ---- Welcome (an empty chat) ---- */
+
+.knowledge-assistant .openui-agent-welcome-screen {
+  display: grid;
+  place-items: end center;
+  height: 100%;
+  padding-bottom: 8px;
+}
+.chat-welcome {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  text-align: center;
+}
+.chat-welcome img {
+  border-radius: 18px;
+  box-shadow: var(--chat-shadow-md);
+}
+.chat-welcome h2 {
+  margin: 20px 0 8px;
+  color: var(--marsh-navy);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+.chat-welcome p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+/* Starters: a 2 x 2 grid of soft cards above the composer (one column on phones). */
+.knowledge-assistant .openui-agent-conversation-starter--long {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 600px) {
+  .knowledge-assistant .openui-agent-conversation-starter--long {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.knowledge-assistant .openui-agent-conversation-starter__separator {
+  display: none;
+}
+.knowledge-assistant .openui-agent-conversation-starter-item-long {
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--ink-100);
+  border-radius: 14px;
+  background: var(--chat-sidebar);
+  color: var(--ink-800);
+  font-size: 14px;
+  text-align: left;
+  transition:
+    background-color 160ms var(--chat-ease),
+    border-color 160ms var(--chat-ease),
+    transform 100ms var(--chat-ease);
+}
+.knowledge-assistant .openui-agent-conversation-starter-item-long:hover {
+  border-color: var(--ink-200);
+  background: var(--ink-50);
+}
+.knowledge-assistant .openui-agent-conversation-starter-item-long:active {
+  transform: scale(0.98);
+}
+.knowledge-assistant .openui-agent-conversation-starter-item-long__icon {
+  color: var(--ink-500);
+}
+
+/* ---- Conversation ---- */
+
+/* The scrollbar's space on both sides keeps the messages centred over the composer;
+   on one side only, they sat 5px left of it. */
+.knowledge-assistant .openui-agent-thread-scroll-area {
+  scrollbar-gutter: stable both-edges;
+}
+.knowledge-assistant .openui-agent-thread-messages,
+.knowledge-assistant .openui-agent-thread-composer {
+  width: 100%;
+  max-width: calc(var(--chat-column) + 32px);
+  margin-inline: auto;
+}
+/* A question: a quiet bubble in a faint Marsh light blue (MikeOSS's shape). */
+.knowledge-assistant .openui-shell-thread-message-user__content {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--ink-50);
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+/* The search step: one line of muted text, tight above the answer it led to (the
+   negative margin cancels most of OpenUI's 36px gap between messages). Done, it opens
+   to list each step, like MikeOSS's agent steps. */
+.chat-search {
+  margin: 0 0 -26px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.chat-search[role='status']:not(:has(details)) {
+  animation: chat-pulse 1.6s ease-in-out infinite;
+}
+@keyframes chat-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+.chat-search summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+  transition: color 120ms var(--chat-ease);
+}
+.chat-search summary::-webkit-details-marker {
+  display: none;
+}
+.chat-search summary:hover {
+  color: var(--text-secondary);
+}
+/* A small chevron: points right when closed, down when open. */
+.chat-search summary::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  margin-left: 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms var(--chat-ease);
+}
+.chat-search details[open] summary::after {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+.chat-search ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 4px 2px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--border-default);
+  line-height: 1.45;
+  list-style: none;
+}
+
+/* An answer: prose across the full column, Apple body size and leading. */
+.chat-answer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  font-size: 15.5px;
+  line-height: 1.7;
+  letter-spacing: -0.008em;
+}
+.chat-statement {
+  margin: 0;
+  color: var(--text-body);
+}
+/* Document names, bolded by the model, carry the Marsh navy. */
+.chat-statement strong,
+.chat-table strong {
+  color: var(--marsh-navy);
+  font-weight: 650;
+}
+.chat-answer [data-decline] {
+  max-width: 68ch;
+}
+
+/* Comparison table (AC7): plain rows under a faint light-blue header (MikeOSS's layout). */
+.chat-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--ink-100);
+  border-radius: 10px;
+}
+.chat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.chat-table th,
+.chat-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+.chat-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.chat-table th {
+  background: var(--ink-50);
+  color: var(--ink-800);
+  font-weight: 600;
+}
+/* OpenUI's header label sets its own weight and colour. */
+.chat-table .openui-table-head-label {
+  color: var(--ink-800);
+  font-weight: 600;
+}
+
+/* Markers are the review workspace's .rv-cite numerals, as small ink pills here;
+   the ::after widens the tap area to 24px without making the line taller. */
+.chat-cite {
+  /* Inline (not inline-flex) so the no-break space before it holds (CitationMarker.tsx). */
+  display: inline;
+  cursor: pointer;
+  position: relative;
+  top: -0.1em;
+  border-radius: 6px;
+  border-color: var(--ink-200);
+  background: var(--ink-50);
+  color: var(--ink-700);
+  transition:
+    background-color 120ms var(--chat-ease),
+    color 120ms var(--chat-ease);
+}
+.chat-cite:hover {
+  background: var(--ink-600);
+  border-color: var(--ink-600);
+  color: var(--text-inverse);
+}
+.chat-cite::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.chat-cites {
+  white-space: nowrap;
+}
+.chat-cite--checking {
+  opacity: 0.6;
+}
+/* Unverified: the quoted words weren't found in the passage (AC2). */
+.chat-cite--unverified {
+  border-color: var(--status-critical-fg);
+  background: var(--status-critical-bg);
+  color: var(--status-critical-fg);
+}
+
+/* ---- Composer: a translucent sheet floating over the conversation ---- */
+
+.knowledge-assistant .openui-agent-composer-slot {
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0), var(--surface-card) 40%);
+}
+.knowledge-assistant .openui-agent-thread-composer__input-wrapper {
+  border: 1px solid var(--border-default);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.9);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 4px 12px rgb(15 23 42 / 0.06);
+  transition:
+    border-color 160ms var(--chat-ease),
+    box-shadow 160ms var(--chat-ease);
+}
+.knowledge-assistant .openui-agent-thread-composer__input-wrapper:focus-within {
+  /* --graphite-500 is about 4.5:1 on white; a lighter border fell under 3:1. */
+  border-color: var(--graphite-500);
+  box-shadow: 0 4px 12px rgb(15 23 42 / 0.08);
+}
+.knowledge-assistant .openui-agent-thread-composer__input {
+  font-size: 15px;
+}
+/* The rounded sheet shows focus (:focus-within above); a square ring inside it would clash. */
+.knowledge-assistant .openui-agent-thread-composer__input:focus-visible {
+  outline: none;
+}
+.knowledge-assistant .openui-agent-thread-composer__input::placeholder {
+  color: var(--text-muted);
+}
+.knowledge-assistant .openui-agent-thread-composer__submit-button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--marsh-navy);
+}
+.knowledge-assistant .openui-agent-thread-composer__submit-button:active {
+  transform: scale(0.94);
+}
+/* The "latest message" arrow is gone: the thread now follows the answer as it
+   streams (scrollVariant="always"), and the arrow confused more than it helped. */
+.knowledge-assistant .openui-agent-thread-scroll-latest {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-assistant *,
+  .knowledge-assistant *::after {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .knowledge-assistant .openui-agent-thread-composer__input-wrapper {
+    background: var(--surface-card);
+    backdrop-filter: none;
+  }
+}
+
+/* The opened marker in ink, matching the chat (the review workspace uses AI violet). */
+.knowledge-assistant .chat-cite[aria-current='true'] {
+  border-color: var(--ink-600);
+  background: var(--ink-600);
+  color: var(--text-inverse);
+}
+/* The source panel and the decline box join the trial's type and corners. */
+.knowledge-assistant .chat-source,
+.knowledge-assistant .chat-source :not(code, pre, kbd, samp, .rv-mono),
+.chat-answer [data-decline] .ds-callout,
+.chat-answer [data-decline] .ds-callout * {
+  font-family: var(--chat-font);
+}
+.knowledge-assistant .chat-source {
+  border-color: var(--ink-100);
+  border-radius: 18px;
+  box-shadow: var(--chat-shadow-md);
+}
+.chat-answer [data-decline] .ds-callout {
+  border-radius: 14px;
+}
+/* Phones: the empty chat's greeting shrinks so the composer stays on screen;
+   without the scroll, the composer was pushed below the screen and unreachable. */
+@media (max-width: 600px) {
+  .knowledge-assistant .openui-agent-thread-chat-panel {
+    overflow-y: auto;
+  }
+  .chat-welcome {
+    padding-block: 12px;
+  }
+  /* The MarshBot header right above already shows the mark. */
+  .chat-welcome img {
+    display: none;
+  }
+  .chat-welcome h2 {
+    margin-top: 0;
+    font-size: 24px;
+  }
+  .chat-welcome p {
+    font-size: 15px;
+  }
+}
+
+/* The source panel: docked beside the chat on wide screens, like the review
+   workspace's 344px inspector; a sheet over the bottom of the chat below 1080px. */
+.chat-source {
+  overflow-y: auto;
+  margin: var(--space-6);
+  margin-left: 0;
+}
+.chat-source:focus {
+  outline: none;
+}
+.chat-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 12px 0 0;
+  font-size: var(--text-caption-size);
+  color: var(--status-low-fg);
+}
+.chat-source .ds-callout,
+.chat-source [role='alert'] {
+  margin-top: 12px;
+}
+@media (min-width: 1080px) {
+  .knowledge-assistant[data-source-open] {
+    grid-template-columns: minmax(0, 1fr) 344px;
+  }
+}
+@media (max-width: 1079px) {
+  .chat-source {
+    position: fixed;
+    z-index: 20;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    max-height: 70vh;
+    margin: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow-overlay);
+  }
 }

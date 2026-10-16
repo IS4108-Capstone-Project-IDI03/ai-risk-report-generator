@@ -42,7 +42,8 @@ def indexed(monkeypatch):
     except ValueError as error:  # chromadb: "Could not connect to a Chroma server"
         pytest.skip(f"needs the local Chroma server: {error}")
     # A fixed vector stands in for Cohere: this test is about labels, not meaning.
-    monkeypatch.setattr(indexer, "embed", lambda texts: [[0.1] * 1024 for _ in texts])
+    # It takes the indexer's progress callback (on_batch) and ignores it.
+    monkeypatch.setattr(indexer, "embed", lambda texts, **_: [[0.1] * 1024 for _ in texts])
     chunk = {"id": f"{DOC_ID}:0", "text": "Cold room doors.", "metadata": {"doc_id": DOC_ID}}
     indexer.index_chunks([{**chunk, "metadata": {**chunk["metadata"], **LABELS}}])
     yield

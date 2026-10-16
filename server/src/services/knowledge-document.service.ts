@@ -594,11 +594,13 @@ export async function uploadKnowledgeDocument(
   if (cannotOpen) throw new RejectedFileError(422, cannotOpen)
 
   // d. Read its details. Never fails the upload: no answer means every
-  // detail is Unconfirmed and an admin fills them in.
-  const record = labelledRecord(await labelDocument(pdf), fileName)
+  // detail is Unconfirmed and an admin fills them in. The id is chosen now so
+  // /label's paid calls are recorded against this document (EV-03); if a
+  // later step fails, they stay recorded, since they were still billed.
+  const id = new Types.ObjectId()
+  const record = labelledRecord(await labelDocument(pdf, String(id)), fileName)
 
   // e. Store the unaltered original in S3 (IN-01 AC4).
-  const id = new Types.ObjectId()
   const key = `knowledge/${id}.pdf`
   await storage.putObject(key, pdf, 'application/pdf')
 

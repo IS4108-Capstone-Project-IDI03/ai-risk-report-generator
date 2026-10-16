@@ -16,6 +16,10 @@ Resulting engine mapping
 |           | no        | RapidOcrOptions         (fastest on CPU)  |
 +-----------+-----------+-------------------------------------------+
 
+Every engine runs in ``OcrMode.DEFAULT``: only layout regions without extractable
+PDF text (scans, embedded images) are OCR'd, and the PDF's own text is kept
+wherever it exists. ``FULL_PAGE`` would OCR every page and discard that text.
+
 Formula enrichment is disabled even on GPU pipelines
 (GLM-OCR is much better at formula recognition than Nemotron).
 Only text will be extracted from the Nemotron OCR engine
@@ -67,7 +71,7 @@ def get_ocr_options() -> tuple[object, bool]:
         # macOS — use Apple's Vision framework via OcrMacOptions.
         # No external dependency needed; Vision is built into macOS.
         # GPU flag is ignored: Vision handles hardware acceleration internally.
-        ocr_options = OcrMacOptions(mode=OcrMode.FULL_PAGE)
+        ocr_options = OcrMacOptions(mode=OcrMode.DEFAULT)
         formula_enrichment = False
         engine_name = "OcrMac/Vision (macOS)"
     elif gpu:
@@ -92,17 +96,17 @@ def get_ocr_options() -> tuple[object, bool]:
                     "minimum required by Nemotron OCR kernels."
                 )
 
-            ocr_options = NemotronOcrOptions(mode=OcrMode.FULL_PAGE)
+            ocr_options = NemotronOcrOptions(mode=OcrMode.DEFAULT)
             engine_name = f"Nemotron (GPU, SM {major}.{minor})"
         except (ImportError, RuntimeError) as exc:
             logger.warning("Nemotron OCR unavailable (%s). Falling back to RapidOCR (CPU).", exc)
-            ocr_options = RapidOcrOptions(mode=OcrMode.FULL_PAGE)
+            ocr_options = RapidOcrOptions(mode=OcrMode.DEFAULT)
             engine_name = "RapidOCR (CPU, Nemotron fallback)"
         formula_enrichment = False
     else:
         # Windows / Linux without GPU — RapidOCR is faster than Tesseract CLI
         # on CPU because it runs ONNX-quantised PaddleOCR models.
-        ocr_options = RapidOcrOptions(mode=OcrMode.FULL_PAGE)
+        ocr_options = RapidOcrOptions(mode=OcrMode.DEFAULT)
         formula_enrichment = False
         engine_name = "RapidOCR (CPU)"
 

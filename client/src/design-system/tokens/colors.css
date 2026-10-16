@@ -108,4 +108,26 @@
   --ai-border: var(--violet-200);
 
   --focus-ring: 0 0 0 3px rgba(63, 110, 167, 0.32);
+
+  /* Chart series — usage and cost charts (EV-04). One hue family per billed
+     vendor, a dark and a light step where a vendor bills two services. They
+     mean "which vendor" only: red, amber, green and violet stay with severity
+     and AI provenance. Validated as stacked series on the card surface with
+     the dataviz validator (OKLab ΔE ×100): every pair that can share a bar
+     clears the normal-vision floor (≥15) and CVD ≥ 6. The light steps sit
+     below 3:1, so every chart ships its data as a table too. See
+     docs/design-system.md, "Charts". */
+  --chart-blue: #2a78d6;
+  --chart-aqua-light: #3cc497;
+  --chart-aqua-dark: #0d8a6a;
+  --chart-olive: #a4a528;
+  --chart-magenta-dark: #a8285f;
+  --chart-magenta-light: #ee86ad;
+  --chart-orange-dark: #c4561f;
+  --chart-orange-light: #f39a62;
+  /* Free services: never drawn as a part with any height, named in the legend only. */
+  --chart-neutral: var(--graphite-500);
+  /* Recessive chart chrome: hairline grid and the baseline. */
+  --chart-grid: var(--graphite-100);
+  --chart-axis: var(--graphite-200);
 }

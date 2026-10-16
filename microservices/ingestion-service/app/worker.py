@@ -27,6 +27,7 @@ from bullmq import Worker
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 
+from app import usage
 from app.matching import find_match
 from app.notifications import notify_ingestion, review_reason
 from app.pipeline import IngestionCancelledError, UnparsableDocumentError, run
@@ -147,7 +148,16 @@ def ingest_document(document_id: str) -> None:
     """Run one queued document through the pipeline; returns None, records the outcome.
 
     Raises whatever made ingestion fail, after recording it as the reason.
+    Whatever the outcome, the paid calls it made are posted to the gateway (EV-03).
     """
+    usage.start(document_id)
+    try:
+        _ingest_document(document_id)
+    finally:
+        usage.post(usage.finish())
+
+
+def _ingest_document(document_id: str) -> None:
     collection = documents()
     _id = ObjectId(document_id)
     # 1. Claim: one atomic find-and-set, so two workers cannot take the same

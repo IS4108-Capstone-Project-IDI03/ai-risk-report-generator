@@ -187,15 +187,15 @@ def test_gpu_falls_back_to_rapidocr_when_nemotron_import_fails(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_ocr_mode_is_full_page_on_all_engines(monkeypatch):
-    """All engines should use FULL_PAGE mode regardless of platform/GPU."""
+def test_ocr_mode_is_default_on_all_engines(monkeypatch):
+    """All engines OCR only regions without PDF text, regardless of platform/GPU."""
     from docling.datamodel.pipeline_options import OcrMode
 
     for system, gpu in [("Darwin", "false"), ("Windows", "false"), ("Windows", "true")]:
         _patch(monkeypatch, system, gpu)
         ocr_options, _ = get_ocr_options()
-        assert ocr_options.mode == OcrMode.FULL_PAGE, (
-            f"Expected FULL_PAGE for system={system}, GPU_ENABLED={gpu}, got {ocr_options.mode}"
+        assert ocr_options.mode == OcrMode.DEFAULT, (
+            f"Expected DEFAULT for system={system}, GPU_ENABLED={gpu}, got {ocr_options.mode}"
         )
 
 

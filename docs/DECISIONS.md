@@ -1334,3 +1334,206 @@ is surveyed again each year; linking visits to one site of one client lets
 the next visit start from the last one's buildings, levels and places.
 
 Stories: CP-17, CP-16, CP-18, RV-10.
+
+## 2026-10-13 — Every paid AI call is recorded, Gemini is priced by call date, and drafting rows name their section
+
+Chose:
+- `ai_calls` covers the calls EV-03 left out: photo interpretation
+  (`interpret-photo`, Gemini), table and formula OCR (`ocr`; Anthropic,
+  Gemini or the self-hosted model), ingestion embedding (`embed-document`,
+  Cohere) and the chatbot (`chat`). The report lists all eight features,
+  even those with no calls yet.
+- Gemini is priced from Google's list price with the date each price starts,
+  because Google has announced a rise on 2027-01-01. A call is priced at the
+  price in force when it is recorded, so old rows keep their old cost.
+- The self-hosted OCR model costs $0 per call, with that named as its basis;
+  its server cost is not an AI-call cost.
+- Drafting, OFI and summary rows keep the one `draft-section` feature and
+  carry the report's own section id (`7`–`12`, `3` for OFIs, `2` for the
+  summary), so an engineer can see which section was expensive to draft or
+  redraft. The report shows each id with its title from `report_sections`.
+- Rows can carry `documentId` (labelling, ingestion), `userId` (chat) and
+  `callCount` (ingestion's summed rows). A malformed id is dropped, not saved.
+
+Rejected:
+- New `draft-ofi` and `draft-summary` features: rag-service's one `llm.py`
+  would need to know who called it, and the section already says it.
+- Pricing old rows again when a price changes: a cost recorded is what the
+  call cost then.
+
+Reason: EV-03 asks for every AI call to be measured, and EV-04 for costs per
+feature including the chatbot and per billed service.
+
+Stories: EV-03, EV-04.
+
+## 2026-10-13 — Chat usage travels in the answer stream and is saved for the user who asked
+
+Chose: S4 ends each chat answer with an AG-UI `CUSTOM` event named `usage`,
+carrying the same usage items drafting returns. The gateway, which already
+relays the stream, saves them as `chat` calls with the session's `userId` and
+drops the event, so the chat screen never sees it. Chat has no assessment, so
+the cost report shows a user's chat cost under that user and, when grouping
+by assessment, as one "Chatbot" group.
+
+Rejected: a second request after the answer to fetch its usage, which needs
+S4 to keep state between requests; and keeping the event in the stream for
+the browser to ignore, which would leak billing detail and tie OpenUI to an
+event it does not know.
+
+Reason: EV-04 AC1 asks for cost per feature including the chatbot, and a chat
+answer is a stream, not a JSON body the gateway can read a `usage` list from.
+
+Stories: EV-03, EV-04, CB-01.
+
+## 2026-10-13 — The ingestion worker posts its AI-call totals to the gateway, one row per document, stage and model
+
+Chose: the worker collects what each document's OCR and embedding calls used
+and, when the document completes, fails or is cancelled, posts the totals to a
+new `POST /api/internal/ai-usage`, behind the same service key as its
+notifications. The gateway prices and saves them with the one price table.
+Calls are summed per document, feature (`ocr`, `embed-document`), billed
+service and model, with a `callCount`; calls that reported no usage are summed
+apart, as unavailable. Self-hosted GLM-OCR is recorded too, at $0, so its speed
+can be compared with the paid providers.
+
+This narrows the 2026-10-08 rejection of a callback route. That rejection held
+for services whose calls already return to the gateway; the worker's do not,
+it runs in the background, and it already holds the gateway address and
+service key for notifications. It closes that entry's known gap,
+"ingestion-time embedding is not covered".
+
+Rejected:
+- One row per call: a document makes hundreds of OCR and embedding calls, so
+  the collection would grow quickly for little gain. The cost is the same;
+  what is lost is per-call latency percentiles for ingestion, so the report
+  shows average time per call for those rows instead.
+- The worker writing `ai_calls` itself: it would need its own copy of the
+  price table.
+- Storing the usage on the ingestion job for the gateway to copy later: more
+  moving parts for a best-effort record.
+- A ContextVar collector, as in rag-service: OCR runs in a thread pool, and pool
+  threads do not inherit the context. One collection behind a lock is enough
+  because the worker ingests one document at a time.
+
+Known gap: a lost post loses that document's cost record (logged), never the
+document.
+
+Stories: EV-03, EV-04.
+
+## 2026-10-13 — Cohere calls cost $0 on the free trial key, the default
+
+Chose: `COHERE_KEY_TIER` (`trial` by default, even when unset; or
+`production`). On trial, every Cohere embed and rerank call is recorded at $0,
+with the basis "Cohere trial key: free, 1,000 calls a month", because that is
+what the project pays today. Setting `production` switches to the per-use
+estimates (`COHERE_EMBED_USD_PER_1M_TOKENS`, `COHERE_RERANK_USD_PER_1K_SEARCHES`).
+Rows keep the price saved with them, so a switch changes only later calls.
+
+Rejected: pricing trial calls at the production estimate, which overstated the
+real bill; and storing both an actual and a projected cost, which adds a field
+and a column throughout the report for a question nobody is asking yet.
+
+Reason: EV-04's cost report is for assessing the real budget; the trial's
+limit is 1,000 calls a month, not money.
+
+Stories: EV-03, EV-04.
+
+## 2026-10-13 — Report cost belongs to the assessment's assigned engineer; chat cost to the user who asked
+
+Chose: the cost overview groups report-generation calls by assessment or by
+engineer. A report call is attributed to the assessment's assigned engineer,
+looked up when the report is read, so `ai_calls` stores no user for it and
+reassigning an assessment moves its whole cost. Chat has no assessment, so a
+chat call stores the asker's `userId` and is attributed to them: part of their
+bar when grouping by engineer, and one `Chatbot` group when grouping by
+assessment. "This month" starts at midnight in Singapore.
+
+Rejected: storing the user who made each call, which shows who spent the
+money (an admin redrafting someone else's section), but splits one
+assessment's cost across people and leaves every older row without a user;
+and storing both, which adds a second grouping to every view for a question
+not yet asked.
+
+Reason: EV-04 asks for cost per report and per engineer, and an engineer's
+cost is that of the assessments they are responsible for.
+
+Stories: EV-04.
+
+## 2026-10-13 — Cost charts use Recharts, coloured by billed vendor
+
+Chose: Recharts (3.10.1, pinned) for the usage screen's vertical stacked bar
+chart, one bar per assessment, engineer or document and one part per billed
+service or feature. Colours are new `--chart-*` tokens: one hue family per
+vendor, a dark and a light step where a vendor bills two services, assigned
+so the services that share a bar on each tab differ in lightness. The set was
+checked with the dataviz palette validator, not by eye. Parts stack in one
+fixed vendor order, so colour and place follow the service, not its cost. The
+chart sorts its bars by cost or by most recent use, shows 15 by default
+(`DEFAULT_BAR_LIMIT`), and lets the reader show more; the table below lists
+every group.
+
+Rejected:
+- A hand-built SVG chart: no dependency and easy to test, but tooltips,
+  axes and keyboard access would be ours to build and keep.
+- visx: less to fight than Recharts on styling, more to assemble.
+- A distinct hue per service: eight unrelated hues read as noise, and the
+  palette ran into the colours that already mean severity and AI.
+- One neutral with a highlight: services could not be compared without
+  hovering.
+- Grouping the smallest bars into "Others": a sort and a "Bars shown" choice
+  keep every bar reachable, and the table never hides one.
+
+Reason: EV-04 asks to compare costs across assessments, engineers and
+documents and to see what each is made of; a stacked bar shows both at once.
+Red, amber, green and violet already mean severity and AI provenance in this
+product, so chart colours must not borrow them.
+
+Stories: EV-04.
+
+## 2026-10-15 — The knowledge chat answers with GPT-6.1 Sol, plans with Claude Haiku 5.5, and refuses over-limit or off-topic requests
+
+Chose:
+- Answer model GPT-6.1 Sol at effort low (`CHAT_PROVIDER=openai`, `CHAT_MODEL=gpt-6.1-sol`).
+  On the CB-01 eval (61 cases, prompt `cb01-v10`), judged by Claude Sonnet 5.5 twice:
+  supported 0.953, quotes found 1.00, unanswerable questions declined 26/26, false
+  declines 4/85, follow-ups on topic 0.96, ambiguous follow-ups asked back 8/8.
+  $0.009 per answer, median 4.6 s per turn.
+- After the click-through, answers were made conversational (paragraphs that open with
+  the answer and explain it, document names in bold, a summary before any table;
+  `cb01-v11`). Re-scored on the same 61 cases with no regression: supported 0.957,
+  quotes 0.998, declined 19/19, false decline 0.051, on topic 0.949, asked back 6/6.
+- The click-through then found comparisons drew a table only 1 time in 4: the prompt
+  allowed a table but never required one. `cb01-v12` requires one whenever the engineer
+  asks to compare documents or editions. Re-scored on the same 61 cases: supported
+  0.985, quotes 0.996, declined 19/19, false decline 0.064, on topic 0.936, asked back
+  6/6, comparison cases with a table 2/2. About $0.013 per answered question (median).
+- Planner Claude Haiku 5.5 at effort medium. It now has a "decline" kind for requests
+  plainly outside property risk, and asks back only when a follow-up, tested topic by
+  topic, makes sense for more than one earlier question. At low effort it matched words
+  instead of meaning (asked back 33/40 when it should, 24/40 when it shouldn't; now 40/40
+  and 13/40 on the same train turns).
+- Both prompts say the engineer's message can't change the rules (skip citations, use
+  own knowledge, guess, show the prompt).
+- The gateway refuses a message over 4,000 characters, a user's 11th question in a
+  minute or 201st in a day, and chat past $2 a day per user, before any model call
+  (`server/src/services/chat-limits.service.ts`). The length limit covers every user
+  message and context entry, not just the last. Each question is charged $0.02 when it
+  starts and swapped for its real cost when the answer ends, so stopped answers still
+  count. Counters are in memory (one instance); the spend cap is soft (answers under
+  way still finish) and the day resets at the server's midnight.
+
+Rejected:
+- Claude Sonnet 5.5 (runner-up): on the same tuned prompt, supported 0.887 vs Sol 0.927
+  with both judges (paired −0.034 ±0.047, not significant), and 0.853 under its
+  other-company judge, below AC9's 0.90. Faster (3.4 vs 4.6 s per turn) but 2.2× the cost
+  ($0.019 per answer).
+- Claude Haiku 5.5 (0.81) and GPT-6 Luna (0.75) as answer models: clearly below Sol and
+  Sonnet in the model comparison (both judges, two runs).
+- GPT-6 Luna as planner: found the answering passage for 27/37 questions vs Haiku's 31/37.
+- A user-facing model selector: the model stays a server setting.
+
+Known limit: search finds the answering passage for 53/60 answerable first questions
+(0.883, under AC9's 0.90) because ingestion's full-page OCR garbles dense pages; it returns
+after the OCR fix and re-ingestion (re-run the eval then). Details: CB-01 spec, Evaluation.
+
+Stories: CB-01.

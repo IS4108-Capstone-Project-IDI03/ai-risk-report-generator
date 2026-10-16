@@ -80,7 +80,7 @@ describe('POST /api/assessments', () => {
     expect(await SiteModel.countDocuments({ code: 'SITE-0001' })).toBe(1)
   })
 
-  it("links the site to its client, one client whatever the name's case or spacing (CP-17)", async () => {
+  it("links the site to its client, one client whatever the name's case or spacing (CP-17 AC1)", async () => {
     await create(body())
     await create(body({ client: '  straits   LOGISTICS ', ...ANOTHER_SITE }))
 
@@ -127,7 +127,7 @@ describe('POST /api/assessments', () => {
   })
 
   it('gives concurrent creates distinct references', async () => {
-    // Each its own site: one client can't have two of one name (CP-17 AC8).
+    // Each its own site: one client can't have two of one name (CP-17 AC10).
     const responses = await Promise.all(
       Array.from({ length: 5 }, (_, i) => create(body({ site: { ...SITE, name: `Hub ${i}` } }))),
     )
@@ -359,7 +359,7 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
 
     const saved = await edit(reference, {
       site: { ...SITE, name: 'Jurong Hub East', address: '' },
-      // The client can't change (CP-17 AC6): it is not part of an edit.
+      // The client can't change (CP-17 AC8): it is not part of an edit.
       client: 'Straits Freight',
       siteVisitDate: '',
       reportDueDate: '2026-10-30',

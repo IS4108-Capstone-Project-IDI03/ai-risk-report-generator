@@ -138,15 +138,15 @@ export type WorkflowState = {
     // Narrows the engineer list; not sent.
     engQuery: string
     jurisdiction: string
-    // The listed client chosen by a site's New visit (AC4), so its sites load
+    // The listed client chosen by a site's New visit (AC6), so its sites load
     // before the client list does; '' once the name is typed.
     clientId: string
     // The client's listed site the assessment is for, NEW_SITE to add one, or
-    // '' until one is chosen (CP-17 AC2).
+    // '' until one is chosen (CP-17 AC4).
     siteId: string
-    // Copy the listed site's latest visit's locations (AC3).
+    // Copy the listed site's latest visit's locations (AC5).
     copy: boolean
-    // Client and site names the engineer kept despite a likely typo (AC9).
+    // Client and site names the engineer kept despite a likely typo (AC11).
     kept: string[]
     // A new client or site name that looks like a listed one, asked about on
     // Create: use the listed one, or keep it as typed.

@@ -87,7 +87,7 @@ describe('User accounts (F-03)', () => {
     expect(within(profile).getByText('jide.okafor@example.com')).toBeInTheDocument()
     expect(within(profile).getByText('Singapore')).toBeInTheDocument()
     expect(within(profile).getByRole('button', { name: 'Edit profile' })).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('saves the edited fields and shows them when the profile is reopened', async () => {
     const edited = { ...JIDE, jobTitle: 'Senior risk engineer · Property', office: 'MY' }

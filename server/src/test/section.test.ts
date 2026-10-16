@@ -258,6 +258,8 @@ describe('drafting a report section (GN-01)', () => {
       'cohere-embed',
       'cohere-rerank',
     ])
+    // Tagged with the section, so the cost report can say which section cost what (EV-04).
+    expect(rows.map((r) => r.section)).toEqual(['7', '7', '7'])
     // The usage list is bookkeeping: it does not leak into the draft the browser gets.
     expect(JSON.stringify(response.body)).not.toContain('billed_service')
   })

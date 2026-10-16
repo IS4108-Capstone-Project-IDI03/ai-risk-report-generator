@@ -1634,7 +1634,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         countdown: dueCountdown(r),
       }))
     // The work list by client, then site, in name order, each site's visits in
-    // the order chosen (CP-17 AC7). A site saved on the gateway is
+    // the order chosen (CP-17 AC9). A site saved on the gateway is
     // grouped by its ids; the demo's by name. A search opens every client.
     const byName = (a: string, b: string) =>
       a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
@@ -1663,7 +1663,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       client.sites.set(siteKey, site)
       site.rows.push(r)
     }
-    // A site on the gateway, with a client, can be visited again (AC4): the
+    // A site on the gateway, with a client, can be visited again (AC6): the
     // create form opens on it, its copy ticked.
     const newVisit = (a: Assessment) => () =>
       setState({
@@ -2847,7 +2847,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         'All statuses',
         ...Object.values(STATUS_LABEL).filter((label) => label !== STATUS_LABEL.archived),
       ],
-      // Group by client, then site (CP-17 AC7); the button says what pressing it does.
+      // Group by client, then site (CP-17 AC9); the button says what pressing it does.
       workByClient: s.workByClient && !s.showArchived,
       toggleWorkByClient: () => setState({ workByClient: !s.workByClient }),
       workGroups,
@@ -2935,7 +2935,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
         })
       },
-      // Every client, whoever added it (CP-17 AC1), offered as the engineer types.
+      // Every client, whoever added it (CP-17 AC3), offered as the engineer types.
       clientNames: clients?.map((c) => c.name) ?? [],
       clientLocked: !!s.cfEdit,
       clientHint: s.cfEdit
@@ -2945,7 +2945,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           : s.cf.client.trim() && clients
             ? 'New client: it will be added to the list.'
             : '',
-      // A listed client's sites, then Add a new site (AC2).
+      // A listed client's sites, then Add a new site (AC4).
       pickingSite,
       sitesLoading: !s.cfEdit && !!listedClient && !clientSitesNow,
       cfSiteId: s.cf.siteId,
@@ -2971,12 +2971,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })
       },
       // A listed site's details are its own, and a shared site's are locked
-      // on its assessments (AC6).
+      // on its assessments (AC8).
       siteLocked,
       siteLockedHint: s.cfEdit
         ? 'Other assessments share this site, so its details can’t be changed here.'
         : 'From the listed site.',
-      // The copy offered for a listed site with locations (AC3).
+      // The copy offered for a listed site with locations (AC5).
       copyOffer:
         chosenSite?.latest && chosenSite.latest.locations > 0
           ? {
@@ -3000,7 +3000,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           : null,
       cfCopy: s.cf.copy,
       setCfCopy: (copy: boolean) => setState({ cf: { ...s.cf, copy } }),
-      // A likely typo asked about on Create (AC9).
+      // A likely typo asked about on Create (AC11).
       cfCheck: s.cf.check,
       acceptCfSuggestion: () => {
         const check = s.cf.check

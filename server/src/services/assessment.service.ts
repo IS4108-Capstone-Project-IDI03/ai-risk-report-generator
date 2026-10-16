@@ -64,7 +64,7 @@ const objectId = (message: string) => z.string(message).refine(isValidObjectId, 
 
 // A site's details: what a new site is created with, and what PUT
 // /api/assessments/:reference corrects while the site is not shared (RV-10
-// AC10, CP-17 AC6).
+// AC10, CP-17 AC8).
 const siteDetails = z.object(
   {
     name: required('Site name'),
@@ -91,7 +91,7 @@ const dueDateRule = {
 // Request body for POST /api/assessments (CP-17): the client is a listed one
 // (clientId) or a new name (client), and the site one of that client's
 // (siteId) or a new one (site). For a listed site, copyLocations, on unless
-// false, copies its latest visit's locations (AC3).
+// false, copies its latest visit's locations (AC5).
 export const newAssessmentSchema = z
   .object({
     clientId: objectId('Choose one of the listed clients, or name a new one.').optional(),
@@ -117,7 +117,7 @@ export const newAssessmentSchema = z
   .refine(dueOnOrAfterVisit, dueDateRule)
 
 // Request body for PUT /api/assessments/:reference. The engineer, client and
-// site stay as created (CP-17 AC6); only the site's details can be corrected.
+// site stay as created (CP-17 AC8); only the site's details can be corrected.
 export const assessmentDetailsSchema = z
   .object({ site: siteDetails, ...assessmentFields })
   .refine(dueOnOrAfterVisit, dueDateRule)
@@ -158,7 +158,7 @@ export type AssessmentDto = {
   captureStartedAt: Date | null
   createdAt: Date
   // Whether the site has another assessment that is not archived: its details
-  // are then shared, and can't be changed here (CP-17 AC6).
+  // are then shared, and can't be changed here (CP-17 AC8).
   siteShared: boolean
   site: {
     id: string
@@ -206,7 +206,7 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
     )
     site = added.toObject()
   }
-  // Each copied location is the new assessment's own, with a new id (AC5).
+  // Each copied location is the new assessment's own, with a new id (AC7).
   const copied = input.siteId && input.copyLocations ? await latestVisit(site._id) : null
   const locations = (copied?.locations ?? []).map(({ building, floor, name, key }) => ({
     building,
@@ -296,8 +296,8 @@ async function assignedAssessment(reference: string, user: SessionUser) {
 // Corrects an assessment's details and its site's (RV-10 AC10): only its
 // assigned engineer can, and not once it is archived, which keeps it read-only.
 // A date left empty is cleared. The engineer, report reference, client and
-// site never change (CP-17 AC6). Once the site has another assessment not
-// archived, its details are shared and can't be changed here (AC6); sending
+// site never change (CP-17 AC8). Once the site has another assessment not
+// archived, its details are shared and can't be changed here (AC8); sending
 // them unchanged is fine.
 export async function updateAssessment(
   reference: string,

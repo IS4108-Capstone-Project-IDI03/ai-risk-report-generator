@@ -1642,6 +1642,7 @@ dependencies = [
     { name = "chromadb-client" },
     { name = "cohere" },
     { name = "fastapi" },
+    { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -1653,7 +1654,6 @@ dependencies = [
 dev = [
     { name = "black" },
     { name = "httpx" },
-    { name = "openai" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -1667,7 +1667,7 @@ requires-dist = [
     { name = "cohere", specifier = ">=5.20,<6" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
-    { name = "openai", marker = "extra == 'dev'", specifier = ">=2" },
+    { name = "openai", specifier = ">=2" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
