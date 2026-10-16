@@ -27,6 +27,8 @@ import {
   type LabelAnswer,
 } from './ingestion.service'
 import * as storage from './storage.service'
+import { ReportOfiModel } from '../models/report-ofi.model'
+import { ReportSectionModel } from '../models/report-section.model'
 
 const text = (label: string, max: number) =>
   z
@@ -82,13 +84,22 @@ const onTheList = (allowed: string[]) =>
 
 // The details an admin corrects (KB-01) or auto-labelling reads (IN-05), as
 // Zod validation rules. Which details are asked depends on the
-// source type: a standard has an edition and may apply in all countries; a past
-// Marsh report has neither, but is about one facility type. A broken rule
+// source type: an FM or NFPA standard has an edition and may apply in all
+// countries; a local standard (a country's own code) has an edition but one
+// country and a free-text issuing body; a past Marsh report has neither edition
+// nor standard number, but is about one facility type. A broken rule
 // becomes a 400 naming the field.
 const common = {
   title: text('Title', 200),
   effectiveDate: z.iso.date('The date must be a valid date (YYYY-MM-DD).'),
 }
+// A standard (FM, NFPA or local) may apply to all facility types; blank means all.
+const standardFacilityType = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => value || 'all')
+  .refine(...onTheList([...FACILITY_TYPES, 'all']))
 export const documentDetailsSchema = z.discriminatedUnion(
   'sourceType',
   [
@@ -98,12 +109,22 @@ export const documentDetailsSchema = z.discriminatedUnion(
       edition: edition(),
       standardNumber: standardNumber(),
       jurisdiction: country(true),
-      facilityType: z
+      facilityType: standardFacilityType,
+    }),
+    z.object({
+      ...common,
+      sourceType: z.literal('local_standard'),
+      edition: edition(),
+      standardNumber: standardNumber(),
+      jurisdiction: country(false),
+      facilityType: standardFacilityType,
+      // Optional free text; blank means none.
+      issuingBody: z
         .string()
         .trim()
+        .max(100, 'Issuing body must be 100 characters or fewer.')
         .optional()
-        .transform((value) => value || 'all')
-        .refine(...onTheList([...FACILITY_TYPES, 'all'])),
+        .transform((value) => value || undefined),
     }),
     z.object({
       ...common,
@@ -112,7 +133,7 @@ export const documentDetailsSchema = z.discriminatedUnion(
       facilityType: text('Facility type', 100).refine(...onTheList(FACILITY_TYPES)),
     }),
   ],
-  'Choose a source type: FM standard, NFPA standard or Marsh report.',
+  'Choose a source type: FM standard, NFPA standard, local standard or Marsh report.',
 )
 export type DocumentDetails = z.infer<typeof documentDetailsSchema>
 
@@ -120,8 +141,9 @@ export type DocumentDetails = z.infer<typeof documentDetailsSchema>
 // It arrives in the query string because the request body is the PDF itself.
 export const uploadQuerySchema = z.object({ fileName: text('File name', 255) })
 
-// Who publishes each source type; the admin never types it.
-const ISSUING_BODY: Record<SourceType, string> = {
+// Who publishes each source type; the admin never types it. A local standard
+// has no fixed publisher: its issuing body is a detail of each document.
+const ISSUING_BODY: Record<Exclude<SourceType, 'local_standard'>, string> = {
   fm_standard: 'FM Global',
   nfpa_standard: 'NFPA',
   marsh_report: 'Marsh',
@@ -186,6 +208,7 @@ export type KnowledgeDocumentDto = {
   history: {
     sourceType: string | null
     title: string
+    issuingBody: string | null
     edition: string | null
     standardNumber: string | null
     effectiveDate: string | null
@@ -215,6 +238,8 @@ export type KnowledgeDocumentDto = {
   // For a withdrawn document: the active member of its edition family, which
   // blocks reinstating it (IN-07 AC15); null otherwise.
   reinstateBlockedBy: { id: string; title: string; edition: string | null } | null
+  // True when a report cites it, so it can be withdrawn but not deleted (IN-12). Display only.
+  cited: boolean
 }
 
 type Doc = IKnowledgeDocument & { _id: Types.ObjectId }
@@ -226,7 +251,36 @@ export const needsReview = (d: Pick<IKnowledgeDocument, 'unconfirmed' | 'match' 
 
 // The other documents a batch of DTOs refer to, read in one query each so a
 // long list never costs one lookup per row.
-type DtoRefs = { matched: Map<string, Doc>; newest: Map<string, Doc>; active: Map<string, Doc> }
+type DtoRefs = {
+  matched: Map<string, Doc>
+  newest: Map<string, Doc>
+  active: Map<string, Doc>
+  cited: Set<string>
+}
+
+// A citation of a knowledge passage: `C:<doc id>:<n>` (standard) or
+// `P:<doc id>:<n>` (past-report precedent).
+const PASSAGE_CITATION = /^[CP]:([0-9a-f]{24}):/
+
+/**
+ * Returns the ids of the documents any report section statement or OFI cites
+ * (IN-12). One query per collection, whatever the number of documents. A cited
+ * document can only be withdrawn, since deleting it would leave a report
+ * pointing at passages that no longer exist.
+ */
+export async function citedDocumentIds(): Promise<Set<string>> {
+  const [fromSections, standards, precedents] = await Promise.all([
+    ReportSectionModel.distinct('subsections.statements.citations') as Promise<string[]>,
+    ReportOfiModel.distinct('standards') as Promise<string[]>,
+    ReportOfiModel.distinct('precedent') as Promise<(string | null)[]>,
+  ])
+  const ids = new Set<string>()
+  for (const citation of [...fromSections, ...standards, ...precedents]) {
+    const id = typeof citation === 'string' ? PASSAGE_CITATION.exec(citation)?.[1] : undefined
+    if (id) ids.add(id)
+  }
+  return ids
+}
 
 // Builds the progress field from an ingestion job, computing elapsed times on
 // read and serialising stageLog dates to ISO strings.
@@ -278,6 +332,7 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     history: [...(d.history ?? [])].reverse().map((v) => ({
       sourceType: v.metadata.source_type,
       title: v.title,
+      issuingBody: v.issuingBody ?? null,
       edition: v.edition ?? null,
       standardNumber: v.standardNumber ?? null,
       effectiveDate: isoDay(v.metadata.effective_date),
@@ -315,6 +370,7 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     reinstateBlockedBy: blocker
       ? { id: String(blocker._id), title: blocker.title, edition: blocker.edition ?? null }
       : null,
+    cited: refs.cited.has(String(d._id)),
   }
 }
 
@@ -328,11 +384,12 @@ export async function toDtos(
 ): Promise<KnowledgeDocumentDto[]> {
   const matchIds = docs.flatMap((d) => (d.match ? [d.match.documentId] : []))
   const families = docs.flatMap((d) => (d.withdrawn && d.editionFamily ? [d.editionFamily] : []))
-  const [matchedDocs, members] = await Promise.all([
+  const [matchedDocs, members, cited] = await Promise.all([
     matchIds.length ? KnowledgeDocumentModel.find({ _id: { $in: matchIds } }).lean() : [],
     families.length ? KnowledgeDocumentModel.find({ editionFamily: { $in: families } }).lean() : [],
+    citedDocumentIds(),
   ])
-  const refs: DtoRefs = { matched: new Map(), newest: new Map(), active: new Map() }
+  const refs: DtoRefs = { matched: new Map(), newest: new Map(), active: new Map(), cited }
   for (const m of matchedDocs) refs.matched.set(String(m._id), m)
   for (const m of members) {
     const family = String(m.editionFamily)
@@ -381,7 +438,10 @@ function adminLabelling(
 function recordFields(details: DocumentDetails) {
   return {
     title: details.title,
-    issuingBody: ISSUING_BODY[details.sourceType],
+    issuingBody:
+      details.sourceType === 'local_standard'
+        ? (details.issuingBody ?? null)
+        : ISSUING_BODY[details.sourceType],
     edition: 'edition' in details ? details.edition : undefined,
     standardNumber: 'standardNumber' in details ? details.standardNumber : undefined,
     metadata: {
@@ -399,7 +459,7 @@ function identityDiffers(old: IKnowledgeDocument, next: ReturnType<typeof record
   return (
     old.edition !== next.edition ||
     old.standardNumber !== next.standardNumber ||
-    old.issuingBody !== next.issuingBody ||
+    (old.issuingBody ?? null) !== next.issuingBody ||
     old.metadata.source_type !== next.metadata.source_type
   )
 }
@@ -412,7 +472,7 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
   const b = next.metadata
   return (
     old.title !== next.title ||
-    old.issuingBody !== next.issuingBody ||
+    (old.issuingBody ?? null) !== next.issuingBody ||
     old.edition !== next.edition ||
     old.standardNumber !== next.standardNumber ||
     a.source_type !== b.source_type ||
@@ -507,14 +567,16 @@ const uploadDay = () => new Date(Date.now() + 8 * 3_600_000).toISOString().slice
 // Unconfirmed (null) instead of reaching the database. The title falls back to
 // the file name, but stays Unconfirmed.
 function labelledRecord(answer: LabelAnswer | null, fileName: string) {
-  const raw = (name: DetailName) => answer?.details[name]?.value
-  const valid = <T>(schema: z.ZodType<T>, name: DetailName): T | null => {
+  const raw = (name: DetailName | 'issuing_body') => answer?.details[name]?.value
+  const valid = <T>(schema: z.ZodType<T>, name: DetailName | 'issuing_body'): T | null => {
     const parsed = schema.safeParse(raw(name))
     return parsed.success ? parsed.data : null
   }
   const sourceType = SOURCE_TYPES.find((type) => type === raw('source_type')) ?? null
-  // Only a standard may apply to "all"; an unknown source type can't tell.
-  const allowAll = sourceType !== null && sourceType !== 'marsh_report'
+  // Only an FM or NFPA standard may apply to "all" countries; any standard may
+  // apply to all facility types. An unknown source type can't tell.
+  const isStandard = sourceType !== null && sourceType !== 'marsh_report'
+  const allowAll = isStandard && sourceType !== 'local_standard'
   const values = {
     source_type: sourceType,
     title: valid(text('Title', 200), 'title'),
@@ -525,7 +587,7 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
     effective_date: valid(common.effectiveDate, 'effective_date') ?? uploadDay(),
     jurisdiction: valid(country(allowAll), 'jurisdiction'),
     facility_type: valid(
-      z.string().refine(...onTheList(allowAll ? [...FACILITY_TYPES, 'all'] : FACILITY_TYPES)),
+      z.string().refine(...onTheList(isStandard ? [...FACILITY_TYPES, 'all'] : FACILITY_TYPES)),
       'facility_type',
     ),
   }
@@ -551,7 +613,15 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
   )
   return {
     title: values.title ?? fileName,
-    issuingBody: sourceType ? ISSUING_BODY[sourceType] : null,
+    // A local standard's issuing body is read from the file, not fixed; it is
+    // optional, so it is never Unconfirmed. Must match the /label answer in
+    // microservices/ingestion-service (`issuing_body`).
+    issuingBody:
+      sourceType === 'local_standard'
+        ? valid(text('Issuing body', 100), 'issuing_body')
+        : sourceType
+          ? ISSUING_BODY[sourceType]
+          : null,
     edition: values.edition ?? undefined,
     standardNumber: values.standard_number ?? undefined,
     metadata: {

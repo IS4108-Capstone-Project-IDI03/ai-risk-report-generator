@@ -37,6 +37,7 @@ export function reviewReasons(d: KnowledgeDocument): string[] {
 export const SOURCE_LABELS: Record<SourceType, string> = {
   fm_standard: 'FM standard',
   nfpa_standard: 'NFPA standard',
+  local_standard: 'Local standard',
   marsh_report: 'Marsh report',
 }
 

@@ -7,6 +7,8 @@ import { Types } from 'mongoose'
 import app from '../index'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
+import { ReportOfiModel } from '../models/report-ofi.model'
+import { ReportSectionModel } from '../models/report-section.model'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole } from './auth-test-helpers'
 
@@ -666,5 +668,127 @@ describe('reinstateBlockedBy on the DTO', () => {
 
     expect(find(body, a._id).reinstateBlockedBy).toBeNull()
     expect(find(body, lone._id).reinstateBlockedBy).toBeNull()
+  })
+})
+
+describe('DELETE /api/knowledge-documents/:id (IN-12)', () => {
+  const remove = (id: Types.ObjectId | string) => api.delete(`/api/knowledge-documents/${id}`)
+  const CITED = "A report cites this document, so it can't be deleted. Withdraw it instead."
+
+  it('deletes an uncited document: passages, file, job and record', async () => {
+    const doc = await seed()
+    await IngestionJobModel.create({
+      documentId: doc._id,
+      currentStage: 'complete',
+      stageLog: [],
+      currentStageStartedAt: new Date(),
+      startedAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const response = await remove(doc._id)
+
+    expect(response.status).toBe(204)
+    expect(calls[0]).toMatchObject({ method: 'DELETE', url: `/documents/${doc._id}/passages` })
+    expect(s3Deleted).toEqual([doc.file.key])
+    expect(await IngestionJobModel.countDocuments()).toBe(0)
+    expect(await reload(doc._id)).toBeNull()
+  })
+
+  it('refuses with the withdraw message when a report section cites a passage of it', async () => {
+    const doc = await seed()
+    // Raw insert: the test needs only the citation, not a whole valid draft.
+    await ReportSectionModel.collection.insertOne({
+      subsections: [{ statements: [{ text: 'x', citations: ['O:1', `C:${doc._id}:4`] }] }],
+    })
+
+    const response = await remove(doc._id)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(CITED)
+    expect(await reload(doc._id)).not.toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  it.each([
+    ['standards', { standards: [] as string[] }],
+    ['precedent', { standards: [], precedent: '' }],
+  ])('refuses when an OFI cites it in %s', async (field, over) => {
+    const doc = await seed()
+    if (field === 'standards') over.standards = [`C:${doc._id}:2`]
+    else (over as { precedent: string }).precedent = `P:${doc._id}:7`
+    await ReportOfiModel.collection.insertOne(over)
+
+    const response = await remove(doc._id)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(CITED)
+    expect(await reload(doc._id)).not.toBeNull()
+  })
+
+  it('is not stopped by a citation of a different document', async () => {
+    const doc = await seed()
+    await ReportOfiModel.collection.insertOne({ standards: [`C:${new Types.ObjectId()}:2`] })
+
+    expect((await remove(doc._id)).status).toBe(204)
+  })
+
+  it.each(['queued', 'processing'])('refuses while the document is %s', async (status) => {
+    const doc = await seed({ status })
+
+    const response = await remove(doc._id)
+
+    expect(response.status).toBe(409)
+    expect(await reload(doc._id)).not.toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  it('deletes a withdrawn document too', async () => {
+    const doc = await seed({ withdrawn: { at: new Date(), by: { id: 'u', name: 'U' } } })
+
+    expect((await remove(doc._id)).status).toBe(204)
+  })
+
+  it('answers 404 for an unknown id', async () => {
+    expect((await remove(new Types.ObjectId())).status).toBe(404)
+  })
+
+  it('answers 503 and keeps the record when the passages cannot be deleted', async () => {
+    const doc = await seed()
+    fail = ['/passages']
+
+    expect((await remove(doc._id)).status).toBe(503)
+    expect(await reload(doc._id)).not.toBeNull()
+    expect(s3Deleted).toEqual([])
+  })
+})
+
+describe('the cited flag on the document list (IN-12)', () => {
+  const listed = async (id: Types.ObjectId) =>
+    (await api.get('/api/knowledge-documents/ingested')).body.find(
+      (d: { id: string }) => d.id === String(id),
+    )
+
+  it('is true when a report section cites a passage, and false otherwise', async () => {
+    const cited = await seed()
+    const other = await seed()
+    await ReportSectionModel.collection.insertOne({
+      subsections: [{ statements: [{ text: 'x', citations: [`C:${cited._id}:4`] }] }],
+    })
+
+    expect((await listed(cited._id)).cited).toBe(true)
+    expect((await listed(other._id)).cited).toBe(false)
+  })
+
+  it('is true when an OFI cites it as a standard or a precedent', async () => {
+    const asStandard = await seed()
+    const asPrecedent = await seed()
+    await ReportOfiModel.collection.insertMany([
+      { standards: [`C:${asStandard._id}:1`] },
+      { standards: [], precedent: `P:${asPrecedent._id}:7` },
+    ])
+
+    expect((await listed(asStandard._id)).cited).toBe(true)
+    expect((await listed(asPrecedent._id)).cited).toBe(true)
   })
 })

@@ -63,6 +63,9 @@ def _grounded(
             )
         if source_type == "fm_standard":
             return bool(re.fullmatch(r"\d{1,2}-\d{1,3}", value) and _found(value, text))
+        # A local standard's number is free form ("CP 52", "SS 535"): it only has to be printed.
+        if source_type == "local_standard":
+            return _found(value, text)
         return False
     if detail == "edition":
         return bool(
@@ -106,19 +109,34 @@ def decide(classified: dict | None, extracted: dict, page_text: str, models: dic
         answer = extracted.get(d) or {}
         ok = _grounded(d, answer.get("value"), text, out["source_type"]["value"], page_text)
         out[d] = {
-            "value": answer["value"] if ok else None,
+            "value": answer["value"].strip() if ok else None,
             "confidence": 1.0 if ok else 0.0,
             "evidence": _evidence(answer) if ok else None,
             "model": models["free"],
         }
+    # Issuing body: only a local standard has one. Never Unconfirmed (not in config.DETAILS).
+    answer = extracted.get("issuing_body") or {}
+    ok = out["source_type"]["value"] == "local_standard" and _grounded(
+        "issuing_body", answer.get("value"), text
+    )
+    out["issuing_body"] = {
+        "value": answer["value"].strip() if ok else None,
+        "confidence": 1.0 if ok else 0.0,
+        "evidence": _evidence(answer) if ok else None,
+        "model": models["free"],
+    }
     # c. Cross-detail rules.
-    standard = out["source_type"]["value"] in config.STANDARDS
+    source = out["source_type"]["value"]
+    standard = source in config.STANDARDS
     if not standard:
         out["edition"].update(value=None, confidence=0.0, evidence=None)
+    local = source == "local_standard"
     for d in ("jurisdiction", "facility_type"):
-        if out[d]["value"] == "all" and not standard:
+        # A local standard belongs to one country, so "all" is no answer for its jurisdiction.
+        no_all = not standard or (local and d == "jurisdiction")
+        if out[d]["value"] == "all" and no_all:
             out[d].update(value=None, evidence=None)
-        elif out[d]["value"] is None and standard:
+        elif out[d]["value"] is None and not no_all:
             out[d].update(value="all", confidence=1.0, evidence=None, model="default")
     return out
 

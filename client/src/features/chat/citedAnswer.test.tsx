@@ -153,6 +153,40 @@ describe('Cited answer', () => {
     expect(screen.queryByText('AI answer')).not.toBeInTheDocument()
   })
 
+  it('gives each report its own paragraph and ends with a follow-up question', () => {
+    renderAnswer(
+      [
+        'root = Answer([p1, p2, f1])',
+        'p1 = Paragraph([s1])',
+        's1 = Statement("**Office Sample 1** found the pump run weekly.", [c1])',
+        'p2 = Paragraph([s2])',
+        's2 = Statement("**Office Sample 2** found no churn test records.", [c1])',
+        'c1 = Cite("P1", "weekly")',
+        'f1 = FollowUp("Want me to check what NFPA 25 asks for the same test?")',
+      ].join('\n'),
+    )
+    expect(screen.getByText('Office Sample 1').closest('p')).not.toBe(
+      screen.getByText('Office Sample 2').closest('p'),
+    )
+    const followUp = screen.getByText('Want me to check what NFPA 25 asks for the same test?')
+    // A question to pick up, not a claim: it carries no citation marker.
+    expect(followUp.closest('p')).not.toHaveTextContent(/\d$/)
+    expect(followUp.compareDocumentPosition(screen.getByText('Office Sample 2'))).toBe(
+      Node.DOCUMENT_POSITION_PRECEDING,
+    )
+  })
+
+  it('shows a document name in a follow-up question in bold, like the answer', () => {
+    renderAnswer(
+      [
+        'root = Answer([f1])',
+        'f1 = FollowUp("**Office Sample 2** also covers its transfer pump. Want me to go through it?")',
+      ].join('\n'),
+    )
+    expect(screen.getAllByText('Office Sample 2').at(-1)!.tagName).toBe('STRONG')
+    expect(screen.queryByText(/\*\*/)).toBeNull()
+  })
+
   it('opens a citation from the keyboard with Enter', () => {
     const select = renderAnswer(`${body}\n${meta}`)
     const marker = screen.getByRole('button', { name: /^Citation 1/ })

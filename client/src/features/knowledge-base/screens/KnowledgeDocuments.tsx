@@ -8,6 +8,8 @@ import { Button, Callout, EmptyState, IconRegistry, Input, Select } from '../../
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
 import { listIngestedDocuments, type DocumentVersion, type KnowledgeDocument } from '../api'
 import { needsReview } from '../display'
+import { CitedDeleteDialog } from '../components/CitedDeleteDialog'
+import { DeleteDocumentDialog } from '../components/DeleteDocumentDialog'
 import { DocumentGroup, type Group } from '../components/DocumentGroup'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
@@ -17,6 +19,7 @@ import { StatusChangeDialog } from '../components/StatusChangeDialog'
 const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'nfpa_standard', title: 'NFPA standards', icon: IconRegistry.evidence.standard },
+  { sourceType: 'local_standard', title: 'Local standards', icon: IconRegistry.evidence.standard },
   { sourceType: 'marsh_report', title: 'Past Marsh reports', icon: IconRegistry.evidence.report },
   // Documents whose source type labelling could not confirm (IN-05).
   { sourceType: null, title: 'Source type unconfirmed', icon: 'circle-help' },
@@ -94,6 +97,7 @@ export function KnowledgeDocuments({
   const [editing, setEditing] = useState<Editing | null>(null)
   const [historyOf, setHistoryOf] = useState<KnowledgeDocument | null>(null)
   const [changingStatus, setChangingStatus] = useState<KnowledgeDocument | null>(null)
+  const [deleting, setDeleting] = useState<KnowledgeDocument | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -144,6 +148,15 @@ export function KnowledgeDocuments({
     replaced(updated)
     setChangingStatus(null)
     notify(`${updated.title} ${updated.withdrawn ? 'withdrawn' : 'reinstated'}.`)
+  }
+  // Delete (IN-12): the row goes at once, and its open panel with it. The list is
+  // then reloaded, since a document that matched the deleted one is matched again.
+  const deleted = (gone: KnowledgeDocument) => {
+    setDocuments((list) => (list ?? []).filter((d) => d.id !== gone.id))
+    setDeleting(null)
+    setOpenId(null)
+    setAttempt((n) => n + 1)
+    notify(`${gone.title} deleted.`)
   }
   const clearFilters = () => setFilters(NO_FILTERS)
   const toggle = (id: string) => setOpenId((current) => (current === id ? null : id))
@@ -291,6 +304,7 @@ export function KnowledgeDocuments({
                   onEdit={(document) => setEditing({ document })}
                   onHistory={setHistoryOf}
                   onChangeStatus={setChangingStatus}
+                  onDelete={setDeleting}
                   onReview={(document) => onReview(document.id, filters)}
                 />
               )
@@ -316,6 +330,25 @@ export function KnowledgeDocuments({
           document={changingStatus}
           onClose={() => setChangingStatus(null)}
           onChanged={statusChanged}
+        />
+      )}
+
+      {deleting?.cited && (
+        <CitedDeleteDialog
+          document={deleting}
+          onClose={() => setDeleting(null)}
+          onWithdraw={() => {
+            setChangingStatus(deleting)
+            setDeleting(null)
+          }}
+        />
+      )}
+
+      {deleting && !deleting.cited && (
+        <DeleteDocumentDialog
+          document={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={deleted}
         />
       )}
 

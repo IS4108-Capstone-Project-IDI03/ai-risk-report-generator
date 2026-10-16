@@ -1,10 +1,12 @@
 // The chat screen's sidebar (CB-01): MarshBot's name, a "New chat" row and the "Chats" list.
+// The logo and name start a new chat too, as in most chat apps.
 // Built from OpenUI's own sidebar parts, placed inside <AgentInterface.Sidebar> by
 // screens/KnowledgeAssistant.tsx. OpenUI's default sidebar hardcodes "New Chat" and "Threads"
 // with no label props, so this composes the same parts with our words.
 import { useThreadList } from '@openuidev/react-headless'
 import { AgentInterface } from '@openuidev/react-ui'
 import { Icon } from '../../../design-system'
+import marshbot from '../marshbot.svg'
 
 /** The sidebar's contents: header, a New chat row, then the Chats heading and list. */
 export function ChatSidebar() {
@@ -13,7 +15,22 @@ export function ChatSidebar() {
   return (
     <>
       <div className="openui-agent-sidebar-actions">
-        <AgentInterface.SidebarHeader />
+        {/* Logo and name are one button passed into OpenUI's header, beside its own collapse
+            button; wrapping the whole header would put a button inside a button. */}
+        <AgentInterface.SidebarHeader
+          logo={
+            <button
+              type="button"
+              className="chat-brand"
+              aria-label="MarshBot, new chat"
+              onClick={startNewChat}
+            >
+              <img src={marshbot} alt="" className="openui-agent-sidebar-header__logo" />
+              <span className="openui-agent-sidebar-header__agent-name">MarshBot</span>
+            </button>
+          }
+          agentName={false}
+        />
         <div className="openui-agent-sidebar-primary-actions">
           {/* The label names the button when the sidebar is collapsed to icons. */}
           <AgentInterface.SidebarItem

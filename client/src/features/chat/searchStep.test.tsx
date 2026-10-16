@@ -29,6 +29,12 @@ describe('Search step', () => {
     expect(screen.getByText('Searched: Singapore · Office · Past reports')).toBeInTheDocument()
   })
 
+  it('names a local standards filter and a document the question named', () => {
+    const filters = { source_type: 'local_standard', document: 'CP 52 (2004)' }
+    render(<SearchStep activities={[search('complete', { query: 'q', filters }, { filters })]} />)
+    expect(screen.getByText('Searched: Local standards · CP 52 (2004)')).toBeInTheDocument()
+  })
+
   it('lists the steps it took behind the summary line', () => {
     render(
       <SearchStep

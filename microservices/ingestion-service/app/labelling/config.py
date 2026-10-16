@@ -25,14 +25,19 @@ DETAILS = (
     "facility_type",
 )
 FIXED_LIST = ("source_type", "jurisdiction", "facility_type")
-STANDARDS = ("fm_standard", "nfpa_standard")
+STANDARDS = ("fm_standard", "nfpa_standard", "local_standard")
 
 # Allowed values. Must match server/src/services/knowledge-document.service.ts
-# (FACILITY_TYPES) and client/src/features/assessments/demo-data.ts (JURISDICTIONS,
-# FACILITY_TYPES). "all" is valid for a standard only.
+# (SOURCE_TYPES, FACILITY_TYPES) and client/src/features/assessments/demo-data.ts
+# (JURISDICTIONS, FACILITY_TYPES). "all" is valid for a standard only, and for a
+# jurisdiction not for a local standard (it belongs to one country).
 SOURCE_TYPES = {
     "fm_standard": "FM Global property loss prevention data sheet",
     "nfpa_standard": "NFPA code or standard",
+    "local_standard": (
+        "A country's own fire or building code or standard, e.g. a Singapore Code of "
+        "Practice (CP) or Singapore Standard (SS)"
+    ),
     "marsh_report": "Marsh property risk engineering report",
 }
 JURISDICTIONS = {

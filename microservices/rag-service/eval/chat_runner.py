@@ -74,11 +74,11 @@ def pipeline_hooks():
         p.new["plan"] = result.model_dump()
         return result
 
-    def search(plan):
+    def search(plan, names=None):
         p = _pass.get()
         if p.cached is not None:
             return p.cached.get("passages") or []
-        passages = real["search"](plan)
+        passages = real["search"](plan, names)
         p.new["passages"] = passages
         return passages
 

@@ -82,6 +82,15 @@ function palette(variant: string, hover: boolean, active: boolean) {
         color: 'var(--action-danger)',
         border: '1px solid ' + (hover || active ? 'var(--action-danger)' : '#f0d4d4'),
       }
+    // Red text and the soft red edge of `danger-tonal`, no fill: a rare,
+    // irreversible row action set apart from the row's others (see
+    // docs/design-system.md).
+    case 'danger-outline':
+      return {
+        background: active || hover ? 'var(--red-50)' : 'transparent',
+        color: 'var(--action-danger)',
+        border: '1px solid ' + (hover || active ? 'var(--action-danger)' : '#f0d4d4'),
+      }
     case 'ghost':
       return {
         background: active

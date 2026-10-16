@@ -446,6 +446,12 @@
   display: block;
 }
 .kb-toggle strong {
+  /* At most two lines, then an ellipsis; the full title is in its title attribute. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
 }
@@ -498,19 +504,46 @@
   color: var(--text-body);
   overflow-wrap: anywhere;
 }
+/* Delete ends the actions' row; it never shrinks (IN-12). */
+.kb-delete {
+  flex: none;
+}
+/* One line on a wide screen; in the list layout the file facts and Delete move to
+   a second line together. */
 .kb-details-actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 12px 16px;
 }
-/* File name, size and upload time, pushed to the end of the actions' row. */
+/* The file's facts and Delete, pushed to the end of the actions' row. */
+.kb-details-end {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+/* The file's size and upload time. */
 .kb-file-line {
-  margin-left: auto;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--text-caption-size);
   color: var(--text-muted);
-  overflow-wrap: anywhere;
+}
+/* Must match the 1079px list layout below: the panel is narrower there, and on one
+   line the file facts would push Delete past the panel's edge. */
+@media (max-width: 1079px) {
+  .kb-details-actions {
+    flex-wrap: wrap;
+  }
+  .kb-details-end {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 760px) {
+  .kb-file-size {
+    display: none;
+  }
 }
 
 /* Below the app's 1080px stacking width the table becomes a list: chevron
@@ -685,4 +718,13 @@
 .kb-review-badge:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+/* Delete dialog (IN-12): the warning, the title field and any refusal, evenly spaced. */
+.kb-delete-body {
+  display: grid;
+  gap: var(--space-3);
+}
+.kb-delete-body p {
+  margin: 0;
 }

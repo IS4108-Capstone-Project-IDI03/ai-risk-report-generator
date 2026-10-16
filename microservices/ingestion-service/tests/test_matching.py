@@ -79,6 +79,64 @@ def test_a_different_issuing_body_or_number_is_not_the_same_standard(passages):
     assert matching.find_match(new, FakeDocuments(other_body, other_number, new)) is None
 
 
+def local_doc(number="CP 52", edition="2016", body="", **extra) -> dict:
+    """Return a local standard (a country's own code) whose issuing body is optional."""
+    return stored_doc(
+        edition=edition,
+        standardNumber=number,
+        issuingBody=body,
+        metadata={"source_type": "local_standard"},
+        **extra,
+    )
+
+
+@pytest.mark.parametrize("body", ["", "Singapore Standards Council"])
+def test_local_standard_editions_match_with_or_without_an_issuing_body(passages, body):
+    old, new = local_doc(edition="2004", body=body), local_doc(edition="2016", body=body)
+
+    match = matching.find_match(new, FakeDocuments(old, new))
+    assert (match["kind"], match["documentId"]) == ("newer_edition", old["_id"])
+    assert matching.find_match(old, FakeDocuments(old, new))["kind"] == "earlier_edition"
+
+
+@pytest.mark.parametrize("old_body", ["", "Singapore Standards Council"])
+def test_a_blank_body_on_one_local_edition_still_matches_by_number(passages, old_body):
+    new_body = "Singapore Standards Council" if not old_body else ""
+    old, new = local_doc(edition="2004", body=old_body), local_doc(edition="2016", body=new_body)
+
+    match = matching.find_match(new, FakeDocuments(old, new))
+    assert (match["kind"], match["documentId"]) == ("newer_edition", old["_id"])
+
+
+def test_local_standards_with_different_known_bodies_do_not_match(passages):
+    old = local_doc(edition="2004", body="Singapore Standards Council")
+    new = local_doc(edition="2016", body="Enterprise Singapore")
+
+    assert matching.find_match(new, FakeDocuments(old, new)) is None
+
+
+def test_a_local_standard_is_never_an_edition_of_an_fm_or_nfpa_standard(passages):
+    nfpa = stored_doc(edition="2004", standardNumber="CP 52", issuingBody="")
+    new = local_doc(edition="2016")
+
+    assert matching.find_match(new, FakeDocuments(nfpa, new)) is None
+
+
+def test_local_standards_with_different_numbers_do_not_match(passages):
+    old, new = local_doc("SS 535", edition="2004"), local_doc("CP 52", edition="2016")
+
+    assert matching.find_match(new, FakeDocuments(old, new)) is None
+
+
+def test_local_standards_without_body_or_number_are_not_tied_together(passages):
+    old = local_doc(number="", edition="2004", unconfirmed=["standardNumber"])
+    new = local_doc(number="", edition="2016", unconfirmed=["standardNumber"])
+    passages.add(str(old["_id"]), [A, B])
+    passages.add(str(new["_id"]), [A, B])
+
+    assert matching.find_match(new, FakeDocuments(old, new))["kind"] == "possible_copy"
+
+
 def test_titles_are_never_compared(passages):
     stored = stored_doc(title="Standard for Sprinklers", edition="2019")
     new = stored_doc(title="Something else entirely", edition="2022")

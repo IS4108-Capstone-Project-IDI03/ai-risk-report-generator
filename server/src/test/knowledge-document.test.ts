@@ -108,6 +108,8 @@ function labelAnswer(details: Record<string, string>) {
     'effectiveDate',
     'jurisdiction',
     'facilityType',
+    // Only a local standard's answer has it; older answers have no such key.
+    ...(details.issuingBody ? ['issuingBody'] : []),
   ]
   return {
     details: Object.fromEntries(
@@ -189,6 +191,53 @@ describe('POST /api/knowledge-documents', () => {
 
     expect(response.status).toBe(201)
     expect(response.body).toMatchObject({ issuingBody: 'FM Global', jurisdiction: 'all' })
+  })
+
+  const LOCAL = {
+    ...DETAILS,
+    fileName: 'CP 52.pdf',
+    title: 'CP 52: Automatic fire sprinkler system',
+    standardNumber: 'CP 52',
+    sourceType: 'local_standard',
+  }
+
+  it("takes a local standard's issuing body from the label answer", async () => {
+    const response = await upload(freshPdf(), {
+      ...LOCAL,
+      issuingBody: 'Singapore Standards Council',
+    })
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({
+      sourceType: 'local_standard',
+      issuingBody: 'Singapore Standards Council',
+      jurisdiction: 'SG',
+    })
+    expect(response.body.unconfirmed).toEqual([])
+  })
+
+  it("leaves a local standard's issuing body empty, not Unconfirmed, when the answer has none", async () => {
+    const response = await upload(freshPdf(), LOCAL)
+
+    expect(response.body.issuingBody).toBeNull()
+    expect(response.body.unconfirmed).toEqual([])
+  })
+
+  it('ignores an issuing body in the answer for an FM standard', async () => {
+    const response = await upload(freshPdf(), {
+      ...DETAILS,
+      sourceType: 'fm_standard',
+      issuingBody: 'Someone Else',
+    })
+
+    expect(response.body.issuingBody).toBe('FM Global')
+  })
+
+  it('stores a local standard for all countries as Unconfirmed', async () => {
+    const response = await upload(freshPdf(), { ...LOCAL, jurisdiction: 'all' })
+
+    expect(response.body.jurisdiction).toBeNull()
+    expect(response.body.unconfirmed).toContain('jurisdiction')
   })
 
   it("saves a Marsh report's details, with no edition", async () => {
@@ -681,6 +730,67 @@ describe('PUT /api/knowledge-documents/:id', () => {
     })
     const [listed] = (await api.get('/api/knowledge-documents/ingested')).body
     expect(listed).toMatchObject({ jurisdiction: 'SG', facilityType: 'Data centre' })
+  })
+
+  const LOCAL_CORRECTED = {
+    title: 'CP 52',
+    effectiveDate: '2020-01-01',
+    sourceType: 'local_standard',
+    edition: '2020',
+    standardNumber: 'CP 52',
+    jurisdiction: 'SG',
+    facilityType: 'all',
+    issuingBody: 'Singapore Standards Council',
+  }
+
+  it('corrects a document to a local standard with a country and issuing body', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const response = await correct(id, LOCAL_CORRECTED)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      sourceType: 'local_standard',
+      issuingBody: 'Singapore Standards Council',
+      jurisdiction: 'SG',
+      facilityType: 'all',
+    })
+  })
+
+  it('accepts a blank issuing body for a local standard', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const response = await correct(id, { ...LOCAL_CORRECTED, issuingBody: '  ' })
+
+    expect(response.status).toBe(200)
+    expect(response.body.issuingBody).toBeNull()
+  })
+
+  it.each([
+    ['all countries', { jurisdiction: 'all' }, 'jurisdiction'],
+    ['an issuing body over 100 characters', { issuingBody: 'x'.repeat(101) }, 'issuingBody'],
+  ])('rejects a local standard with %s', async (_name, over, field) => {
+    const id = await stored(REPORT)
+
+    const response = await correct(id, { ...LOCAL_CORRECTED, ...over })
+
+    expect(response.status).toBe(400)
+    expect(response.body.fields).toHaveProperty(field)
+  })
+
+  it('keeps the fixed issuing body for an FM standard even if one is sent', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    const response = await correct(id, {
+      ...LOCAL_CORRECTED,
+      sourceType: 'fm_standard',
+      issuingBody: 'Someone Else',
+    })
+
+    expect(response.body.issuingBody).toBe('FM Global')
   })
 
   // IN-05: a document uploaded with some details Unconfirmed, then completed.

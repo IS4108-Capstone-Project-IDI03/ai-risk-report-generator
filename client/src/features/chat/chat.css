@@ -322,6 +322,11 @@
   margin: 0;
   color: var(--text-body);
 }
+/* The follow-up question reads as the answer's last line, not a button or a chip. */
+.chat-followup {
+  margin: 0;
+  color: var(--text-body);
+}
 /* Document names, bolded by the model, carry the Marsh navy. */
 .chat-statement strong,
 .chat-table strong {
@@ -547,4 +552,28 @@
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: var(--shadow-overlay);
   }
+}
+/* The logo and name are a button that starts a new chat (ChatSidebar.tsx): no button look,
+   just the brand, with a focus ring for keyboard users. */
+.knowledge-assistant .chat-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  /* Takes the name's old place: it grows, so the collapse button stays at the far edge. */
+  flex-grow: 1;
+  min-width: 0;
+  text-align: left;
+}
+.knowledge-assistant .chat-brand:focus-visible {
+  outline: 2px solid var(--marsh-navy);
+  outline-offset: 2px;
+}
+/* Collapsed sidebar: the name would not fit beside the open-sidebar button. */
+.knowledge-assistant .openui-agent-sidebar-header--collapsed .chat-brand {
+  display: none;
 }

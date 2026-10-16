@@ -18,6 +18,7 @@ export function DocumentGroup({
   onEdit,
   onHistory,
   onChangeStatus,
+  onDelete,
   onReview,
 }: {
   group: Group
@@ -27,6 +28,7 @@ export function DocumentGroup({
   onEdit: (document: KnowledgeDocument) => void
   onHistory: (document: KnowledgeDocument) => void
   onChangeStatus: (document: KnowledgeDocument) => void
+  onDelete: (document: KnowledgeDocument) => void
   onReview: (document: KnowledgeDocument) => void
 }) {
   const id = `kb-group-${group.sourceType ?? 'unconfirmed'}`
@@ -44,7 +46,7 @@ export function DocumentGroup({
       {documents.length === 0 ? (
         <tr>
           <td colSpan={4} className="kb-list-note">
-            No {group.title.replace('Past ', 'past ')} yet.
+            No {group.title.replace(/^(Past|Local) /, (word) => word.toLowerCase())} yet.
           </td>
         </tr>
       ) : (
@@ -57,6 +59,7 @@ export function DocumentGroup({
             onEdit={() => onEdit(d)}
             onHistory={() => onHistory(d)}
             onChangeStatus={() => onChangeStatus(d)}
+            onDelete={() => onDelete(d)}
             onReview={() => onReview(d)}
           />
         ))

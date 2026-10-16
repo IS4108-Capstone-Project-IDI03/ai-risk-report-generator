@@ -5,16 +5,17 @@
 import { Input, Select } from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
 import type { DocumentDetails, SourceType, UnconfirmedDetail } from '../api'
-import { editionProblem, FACILITY_UNSET } from '../details'
+import { editionProblem, FACILITY_UNSET, isStandard } from '../details'
 
 const SOURCE_OPTIONS = [
   { value: '', label: 'Choose a source type' },
   { value: 'fm_standard', label: 'FM standard' },
   { value: 'nfpa_standard', label: 'NFPA standard' },
+  { value: 'local_standard', label: 'Local standard' },
   { value: 'marsh_report', label: 'Marsh report' },
 ]
-// A standard may apply everywhere; a past report is about one country and one
-// facility type, so it has no "all" choice.
+// An FM or NFPA standard may apply everywhere; a local standard or a past
+// report is about one country, so it has no "all" choice.
 const STANDARD_COUNTRIES = [{ value: 'all', label: 'All countries' }, ...JURISDICTIONS]
 const STANDARD_FACILITIES = [{ value: '', label: 'All facility types' }, ...FACILITY_TYPES]
 const REPORT_FACILITIES = [{ value: '', label: 'Choose a facility type' }, ...FACILITY_TYPES]
@@ -36,7 +37,8 @@ export function DetailsFields({
   unconfirmed?: UnconfirmedDetail[]
   onChange: (change: Partial<DocumentDetails>) => void
 }) {
-  const standard = details.sourceType === 'fm_standard' || details.sourceType === 'nfpa_standard'
+  const standard = isStandard(details.sourceType)
+  const local = details.sourceType === 'local_standard'
   const hint = (name: UnconfirmedDetail, value: string) =>
     unconfirmed.includes(name) && (value === '' || value === FACILITY_UNSET)
       ? unconfirmedHint
@@ -103,6 +105,17 @@ export function DetailsFields({
               onChange={(e) => onChange({ edition: e.target.value.replace(/\D/g, '').slice(0, 4) })}
             />
           )}
+          {/* A local standard has no fixed publisher, so the admin may name it. */}
+          {local && (
+            <Input
+              label="Issuing body"
+              maxLength={100}
+              placeholder="e.g. Singapore Standards Council"
+              value={details.issuingBody}
+              error={errors.issuingBody}
+              onChange={(e) => onChange({ issuingBody: e.target.value })}
+            />
+          )}
           <Input
             label={standard ? 'Effective date' : 'Report date'}
             type="date"
@@ -115,7 +128,7 @@ export function DetailsFields({
           <Select
             label="Country"
             required
-            options={countries(standard ? STANDARD_COUNTRIES : JURISDICTIONS)}
+            options={countries(standard && !local ? STANDARD_COUNTRIES : JURISDICTIONS)}
             value={details.jurisdiction}
             error={errors.jurisdiction}
             hint={hint('jurisdiction', details.jurisdiction)}

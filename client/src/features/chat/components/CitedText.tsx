@@ -2,15 +2,9 @@
 // model wrapped in **…** show in bold. The markers follow a no-break space, so a number
 // never starts a line on its own. Used by ../library.tsx.
 import type { ReactNode } from 'react'
+import { withBold } from './bold'
 
 const NO_BREAK_SPACE = ' '
-
-// Bold for **…**; everything else stays plain text (answer prompt: names only).
-function withBold(text: string) {
-  return text
-    .split(/\*\*(.+?)\*\*/g)
-    .map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part))
-}
 
 /** Renders the text, then a no-break space and its markers held together. */
 export function CitedText({ text, cites }: { text: string; cites: ReactNode }) {

@@ -9,7 +9,7 @@ import { reinstateDocument, withdrawDocument, type KnowledgeDocument } from '../
 
 const WITHDRAW = {
   verb: 'Withdraw',
-  variant: 'danger',
+  variant: 'danger-tonal',
   change: withdrawDocument,
   failed: "Couldn't withdraw this document",
   explain:

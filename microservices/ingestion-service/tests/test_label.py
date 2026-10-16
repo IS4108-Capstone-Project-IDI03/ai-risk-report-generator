@@ -226,15 +226,27 @@ def test_standard_number_grounding(fake, source, value, text, kept):
     assert ("standard_number" in body["unconfirmed"]) is not kept
 
 
-@pytest.mark.parametrize("error", [httpx.TimeoutException("slow"), RuntimeError("bad json")])
-def test_model_error_makes_everything_unconfirmed(fake, monkeypatch, error):
+def test_extract_failure_keeps_the_classifiers_fixed_list(fake, monkeypatch):
     def boom(text):
-        raise error
+        raise httpx.TimeoutException("slow")
 
     monkeypatch.setattr(models, "extract_details", boom)
     body = label(TEXT)
+    details = body["details"]
+    assert details["source_type"]["value"] == "fm_standard"
+    assert details["source_type"]["model"] == "jev"
+    assert (details["jurisdiction"]["value"], details["facility_type"]["value"]) == ("all", "all")
+    assert set(body["unconfirmed"]) == {"title", "edition", "standard_number"}
+
+
+def test_both_calls_failing_leaves_everything_unconfirmed(fake, monkeypatch):
+    def boom(text):
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(models, "extract_details", boom)
+    monkeypatch.setattr(models, "classify_details", boom)
+    body = label(TEXT)
     assert len(body["unconfirmed"]) == 6  # effective_date falls back to the upload date
-    assert "effective_date" not in body["unconfirmed"]
     assert all(d["value"] is None for d in body["details"].values() if d["model"] != "default")
 
 
@@ -440,3 +452,68 @@ def test_blank_settings_mean_the_defaults(monkeypatch):
         monkeypatch.setenv(name, "")
     assert (config.llm_provider(), config.llm_model()) == ("openai", "gpt-6-luna")
     assert (config.pages(), config.min_confidence()) == (20, 0.70)
+
+
+# ---- local_standard: a country's own code, e.g. Singapore CP 52 ----
+
+LOCAL_TEXT = (
+    "CP 52 Code of practice for automatic fire sprinkler system. "
+    "Issued by Singapore Standards Council. Edition 2020."
+)
+
+
+@pytest.fixture
+def local(fake):
+    fake["answers"] = {
+        **STANDARD,
+        "source_type": ans("local_standard"),
+        "title": ans("Code of practice for automatic fire sprinkler system"),
+        "edition": ans("2020"),
+        "standard_number": ans("CP 52"),
+        "jurisdiction": ans("SG"),
+        "issuing_body": ans("Singapore Standards Council"),
+    }
+    return fake
+
+
+def test_local_standard_keeps_its_country_and_free_form_number(local):
+    body = label(LOCAL_TEXT)
+    details = body["details"]
+    assert details["source_type"]["value"] == "local_standard"
+    assert details["jurisdiction"]["value"] == "SG"
+    assert details["standard_number"]["value"] == "CP 52"
+    assert details["edition"]["value"] == "2020"
+    assert details["effective_date"]["value"] == TODAY  # like a standard
+    assert details["issuing_body"]["value"] == "Singapore Standards Council"
+    assert body["unconfirmed"] == []
+
+
+def test_local_standard_jurisdiction_all_is_unconfirmed(local):
+    local["answers"]["jurisdiction"] = ans("all")
+    body = label(LOCAL_TEXT)
+    assert body["details"]["jurisdiction"]["value"] is None
+    assert body["unconfirmed"] == ["jurisdiction"]
+
+
+def test_local_standard_facility_type_may_be_all(local):
+    assert label(LOCAL_TEXT)["details"]["facility_type"]["value"] == "all"
+
+
+def test_issuing_body_is_null_for_other_source_types(local):
+    local["answers"]["source_type"] = ans("fm_standard")
+    local["answers"]["standard_number"] = ans("2-81")
+    assert label(LOCAL_TEXT + " Data Sheet 2-81")["details"]["issuing_body"]["value"] is None
+
+
+def test_issuing_body_never_makes_a_document_unconfirmed(local):
+    local["answers"]["issuing_body"] = ans(None)
+    body = label(LOCAL_TEXT)
+    assert body["details"]["issuing_body"]["value"] is None
+    assert "issuing_body" not in body["unconfirmed"]
+
+
+def test_openai_extract_schema_asks_for_issuing_body(monkeypatch):
+    from app.labelling.prompt import SCHEMA
+
+    assert "issuing_body" in SCHEMA["required"]
+    assert set(SCHEMA["properties"]) == set(SCHEMA["required"])

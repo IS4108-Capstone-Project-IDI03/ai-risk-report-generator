@@ -7,11 +7,18 @@ import type { ToolActivity } from '@openuidev/react-headless'
 const SOURCE: Record<string, string> = {
   fm_standard: 'FM standards',
   nfpa_standard: 'NFPA standards',
+  local_standard: 'Local standards',
   marsh_report: 'Past reports',
 }
 const COUNTRY = new Intl.DisplayNames(['en'], { type: 'region' })
 
-type Filters = { jurisdiction?: string; facility_type?: string; source_type?: string }
+// `document` is a document the question named, as the planner wrote it.
+type Filters = {
+  jurisdiction?: string
+  facility_type?: string
+  source_type?: string
+  document?: string
+}
 type Input = { query?: string; filters?: Filters; also?: string[] }
 type Result = { filters?: Filters; passages?: number; declined?: boolean }
 
@@ -20,6 +27,7 @@ function filterNames(f: Filters): string[] {
     f.jurisdiction && (COUNTRY.of(f.jurisdiction) ?? f.jurisdiction),
     f.facility_type,
     f.source_type && (SOURCE[f.source_type] ?? f.source_type),
+    f.document,
   ].filter((x): x is string => Boolean(x))
 }
 
