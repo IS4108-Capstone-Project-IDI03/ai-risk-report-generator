@@ -1,4 +1,6 @@
 import { Router, type Response } from 'express'
+import type { z } from 'zod'
+import type { SessionUser } from '../services/auth.service'
 import {
   archiveAssessment,
   assessmentDetailsSchema,
@@ -41,6 +43,16 @@ import {
   UnknownPhotoError,
 } from '../services/appendix.service'
 import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
+import {
+  getLossEstimates,
+  lossEstimatesSchema,
+  saveLossEstimates,
+} from '../services/loss-estimate.service'
+import {
+  getRiskQuality,
+  riskQualitySchema,
+  saveRiskQuality,
+} from '../services/risk-quality.service'
 import { RagServiceError } from '../services/rag.service'
 import {
   bulkAccept,
@@ -695,6 +707,51 @@ router.put('/:reference/appendix', requirePermission('assessments:edit'), async 
     }
   }
 })
+
+// Sections 4 and 5's inputs (GN-03): GET reads the engineer's scores or values
+// with the figures computed from them; PUT replaces them: 200, 400 when invalid,
+// 403 for anyone but the assigned engineer, 404, 409 once archived.
+function figureRoutes<T>(
+  path: string,
+  what: string,
+  schema: z.ZodType<T>,
+  get: (reference: string) => Promise<unknown>,
+  save: (reference: string, input: T, user: SessionUser) => Promise<unknown>,
+) {
+  router.get(`/:reference/${path}`, requirePermission('assessments:view'), async (req, res) => {
+    try {
+      res.json(await get(req.params.reference))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      throw error
+    }
+  })
+  router.put(`/:reference/${path}`, requirePermission('assessments:edit'), async (req, res) => {
+    const parsed = schema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: `The ${what} are invalid.`, fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res.json(await save(req.params.reference, parsed.data, res.locals.user!))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+      } else if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+      } else if (error instanceof AssessmentArchivedError) {
+        res.status(409).json({ error: error.message })
+      } else {
+        throw error
+      }
+    }
+  })
+}
+figureRoutes('risk-quality', 'scores', riskQualitySchema, getRiskQuality, saveRiskQuality)
+figureRoutes('loss-estimates', 'values', lossEstimatesSchema, getLossEstimates, saveLossEstimates)
 
 // Section 3 Opportunities for Improvement (GN-05): suggestions and the
 // accepted OFIs in report order. Read-only, so a knowledge admin can open it.
