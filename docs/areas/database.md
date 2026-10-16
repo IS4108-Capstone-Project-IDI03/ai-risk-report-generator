@@ -564,6 +564,10 @@ document has:
   `headings`).
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
   `config_version` (of `ofi.json`), `generated_at`.
+- `lossExpectancy` (optional): engineer-entered `current` and `after` pairs of
+  `pd` and `bi` amounts in US dollars (null when unknown), with `lossValuesUpdatedBy`
+  and `lossValuesUpdatedAt`. Each total is computed on read; it is null until both
+  inputs are present. Amounts must be non-negative with at most two decimal places.
 - `createdBy`, the engineer's user `_id`.
 - `metadata` with the five required fields: `source_type: 'ofi'`,
   `jurisdiction` and `facility_type` from the site, `COPE_dimension: 'all'`
@@ -572,9 +576,14 @@ document has:
 Not stored, but worked out when the list is read: the OFI `number`
 (`<site visit year>-NN`, in report order: Management Programs, then Physical
 Protection, then Other, each by acceptance time), `status` (`New`),
-`issueDate` (the site visit date). OFI issued by, insurer rec no., loss
-expectancy, related RTM ID, client response, advisory comment and loss
-scenario are left for people to fill: loss figures never come from a model.
+`issueDate` (the site visit date). OFI issued by, insurer rec no.,
+related RTM ID, client response, advisory comment and loss scenario are left for
+people to fill. Loss expectancy is editable in Review on accepted OFIs only via
+`PUT /api/assessments/:reference/ofis/:id/loss-values` with `{ current:
+{ pd, bi }, after: { pd, bi } }`: redrafting replaces every suggestion, so amounts
+entered on one would be lost, and a suggestion answers 409. Only the assigned
+engineer on an unarchived assessment can save; the response is the updated OFI
+list. No loss figure comes from a model.
 
 | Route | Does |
 | --- | --- |

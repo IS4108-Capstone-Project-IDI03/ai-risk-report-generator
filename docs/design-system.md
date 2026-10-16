@@ -225,3 +225,7 @@ with Add and Remove controls. Editing site values does not update these independ
 rows. Existing estimates initially show their previous rows and values. Save figures
 persists all levels and recalculates losses; an empty level is incomplete. The wider
 per-level table scrolls horizontally on smaller screens.
+
+OFIs retain the template's loss expectancy rows and columns. In Review, an accepted OFI's current and after-completion PD LE and BI LE amounts are edited
+inside the existing table cells, with "$" beside each amount as the template shows it, and Save loss values 12px below the table. Suggestions show no inputs.
+Total is calculated on save, not editable. Generation and other reviewers see the saved amounts without editing.

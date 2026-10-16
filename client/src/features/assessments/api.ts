@@ -510,7 +510,15 @@ export async function listSections(
 // A drafted Opportunity for Improvement for Section 3 (GN-05). Its value
 // lists come from rag-service generation/ofi.json; `priority` is the Risk
 // Assessment Matrix's value for likelihood x consequence, set in code.
+export type OfiLossValues = {
+  current: { pd: number | null; bi: number | null }
+  after: { pd: number | null; bi: number | null }
+}
 export type Ofi = {
+  lossExpectancy?: {
+    current: OfiLossValues['current'] & { total: number | null }
+    after: OfiLossValues['after'] & { total: number | null }
+  }
   id: string
   title: string
   category: string
@@ -562,6 +570,20 @@ export async function draftOfis(reference: string): Promise<OfiList> {
 export async function acceptOfi(reference: string, id: string): Promise<OfiList> {
   return (await request<OfiList>('POST', `${ofisPath(reference)}/${encodeURIComponent(id)}/accept`))
     .data
+}
+
+export async function saveOfiLossValues(
+  reference: string,
+  id: string,
+  values: OfiLossValues,
+): Promise<OfiList> {
+  return (
+    await request<OfiList>(
+      'PUT',
+      `${ofisPath(reference)}/${encodeURIComponent(id)}/loss-values`,
+      values,
+    )
+  ).data
 }
 
 // Drafts one section from the assessment's observations; the gateway saves it.

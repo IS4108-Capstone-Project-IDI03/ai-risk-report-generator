@@ -42,7 +42,15 @@ import {
   saveAppendix,
   UnknownPhotoError,
 } from '../services/appendix.service'
-import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
+import {
+  acceptOfi,
+  draftOfis,
+  listOfis,
+  OfiNotAcceptedError,
+  OfiNotFoundError,
+  ofiLossValuesSchema,
+  saveOfiLossValues,
+} from '../services/ofi.service'
 import {
   getLossEstimates,
   lossEstimatesSchema,
@@ -775,7 +783,8 @@ router.get('/:reference/ofis', requirePermission('assessments:view'), async (req
 })
 
 // What both OFI writes answer for each failure: 404, 403 for anyone but the
-// assigned engineer, 409 while a transcription is unfinished or once archived,
+// assigned engineer, 409 while a transcription is unfinished, once archived or
+// for loss values on a suggestion,
 // 503 when S4 fails (not 502, which the client reads as the gateway being down).
 function ofiFailure(error: unknown, res: Response) {
   if (error instanceof AssessmentNotFoundError || error instanceof OfiNotFoundError) {
@@ -784,7 +793,8 @@ function ofiFailure(error: unknown, res: Response) {
     res.status(403).json({ error: error.message })
   } else if (
     error instanceof TranscriptionInProgressError ||
-    error instanceof AssessmentArchivedError
+    error instanceof AssessmentArchivedError ||
+    error instanceof OfiNotAcceptedError
   ) {
     res.status(409).json({ error: error.message })
   } else if (error instanceof RagServiceError) {
@@ -811,6 +821,28 @@ router.post(
   async (req, res) => {
     try {
       res.json(await acceptOfi(req.params.reference, req.params.id, res.locals.user!))
+    } catch (error: unknown) {
+      ofiFailure(error, res)
+    }
+  },
+)
+
+router.put(
+  '/:reference/ofis/:id/loss-values',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    const parsed = ofiLossValuesSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({
+        error: 'Enter non-negative amounts with at most two decimal places.',
+        fields: fieldErrors(parsed.error),
+      })
+      return
+    }
+    try {
+      res.json(
+        await saveOfiLossValues(req.params.reference, req.params.id, parsed.data, res.locals.user!),
+      )
     } catch (error: unknown) {
       ofiFailure(error, res)
     }

@@ -4,7 +4,14 @@
 // screens/SectionDrafts.tsx, which passes its table's column grid. Calls api.ts.
 import { Fragment, useState } from 'react'
 import type * as React from 'react'
-import { AIDraftBlock, Badge, Button, EvidenceCitation } from '../../../design-system'
+import {
+  AIDraftBlock,
+  Badge,
+  Button,
+  Callout,
+  EvidenceCitation,
+  Input,
+} from '../../../design-system'
 import { OFI_CATEGORIES as CATEGORIES } from '../reviewDisplay'
 import {
   draftOfis,
@@ -12,8 +19,10 @@ import {
   type AcceptedOfi,
   type Ofi,
   type OfiList,
+  type OfiLossValues,
   type SavedObservation,
 } from '../api'
+import { formatAmount } from '../reportFigures'
 import { formatDay } from '../format'
 import { locationText } from '../locations'
 import { useOfis } from '../useOfis'
@@ -106,6 +115,7 @@ export function OfiBlock({
   number = null,
   observations,
   onAccept,
+  onSaveLossValues,
   busy = false,
   withSources = true,
 }: {
@@ -114,17 +124,43 @@ export function OfiBlock({
   number?: string | null
   observations: SavedObservation[]
   onAccept?: () => void
+  onSaveLossValues?: (values: OfiLossValues) => Promise<void>
   busy?: boolean
   withSources?: boolean
 }) {
   const [showSources, setShowSources] = useState(false)
+  const saved = JSON.stringify(ofi.lossExpectancy ?? null)
+  const [loaded, setLoaded] = useState(saved)
+  const [typed, setTyped] = useState(() => typedLossValues(ofi.lossExpectancy))
+  const [saveError, setSaveError] = useState<string | null>(null)
+  if (loaded !== saved) {
+    setLoaded(saved)
+    setTyped(typedLossValues(ofi.lossExpectancy))
+  }
+  const save = async () => {
+    setSaveError(null)
+    const pair = (v: { pd: string; bi: string }) => ({
+      pd: v.pd === '' ? null : Number(v.pd),
+      bi: v.bi === '' ? null : Number(v.bi),
+    })
+    try {
+      await onSaveLossValues?.({ current: pair(typed.current), after: pair(typed.after) })
+    } catch (e) {
+      setSaveError(
+        e instanceof GatewayError ? e.message : 'Loss values could not be saved. Try again.',
+      )
+    }
+  }
   const precedent = ofi.precedent ? ofi.sources[ofi.precedent] : null
   const count =
     ofi.observations.filter((id) => observations.some((o) => o.id === id)).length +
     ofi.standards.filter((id) => ofi.sources[id]).length +
     (precedent ? 1 : 0)
+  // A gap between the box and what follows it (save row, error, precedent, sources),
+  // or the save row sits flush against the box's border. 12px matches .rv-maturity's
+  // gap above Save scores (review.css).
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <AIDraftBlock
         heading={ofi.category}
         status="draft"
@@ -138,11 +174,38 @@ export function OfiBlock({
         // A table, not prose: as wide as an OFI in the report (OfisInReport).
         fullWidth
       >
-        <OfiTable number={number} title={ofi.title} rows={templateRows(ofi, observations)} />
+        <OfiTable
+          number={number}
+          title={ofi.title}
+          rows={templateRows(ofi, observations)}
+          lossExpectancy={ofi.lossExpectancy}
+          typed={onSaveLossValues ? typed : undefined}
+          onChange={setTyped}
+          disabled={busy}
+        />
       </AIDraftBlock>
+      {onSaveLossValues && ofi.category !== 'Management Programs' && (
+        <div className="rv-figures-actions">
+          <span className="rv-muted">Amounts in US$. Totals update when saved.</span>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busy}
+            onClick={() => void save()}
+            aria-label={`Save loss values for ${ofi.title}`}
+          >
+            Save loss values
+          </Button>
+        </div>
+      )}
+      {saveError && (
+        <Callout tone="danger" title="Loss values not saved">
+          {saveError}
+        </Callout>
+      )}
       {/* The precedent, outside the box since it is not part of the draft (AC2). */}
       {withSources && precedent && (
-        <p style={{ ...label, margin: '6px 0 0' }}>
+        <p style={{ ...label, margin: 0 }}>
           Based on past report:{' '}
           {[ofi.precedentReport ?? 'a past Marsh report', precedentTitle(precedent.text)]
             .filter(Boolean)
@@ -157,17 +220,45 @@ export function OfiBlock({
 // One OFI as Marsh's template lays it out (p. 8): a title row, then label and value
 // cells, two pairs to a row where the template has them side by side.
 // The template's loss expectancy cells, drawn as the row's own cells (below).
-const LOSS_FIGURES = Symbol('loss figures')
-type Cell = [string, React.ReactNode | typeof LOSS_FIGURES]
+function typedLossValues(values?: Ofi['lossExpectancy']) {
+  return {
+    current: { pd: String(values?.current.pd ?? ''), bi: String(values?.current.bi ?? '') },
+    after: { pd: String(values?.after.pd ?? ''), bi: String(values?.after.bi ?? '') },
+  }
+}
+type TypedLossValues = ReturnType<typeof typedLossValues>
+
+// A saved amount with the template's "$" beside it; "Not entered" stays bare.
+const dollars = (n: number | null) =>
+  n === null ? (
+    formatAmount(n)
+  ) : (
+    <span className="rv-figures-item">
+      <span aria-hidden="true">$</span>
+      <span>{formatAmount(n)}</span>
+    </span>
+  )
+
+const LOSS_FIGURES = Symbol('current loss figures')
+const AFTER_LOSS_FIGURES = Symbol('after loss figures')
+type Cell = [string, React.ReactNode | typeof LOSS_FIGURES | typeof AFTER_LOSS_FIGURES]
 function OfiTable({
   number,
   title,
   rows,
+  lossExpectancy,
+  typed,
+  onChange,
+  disabled,
 }: {
   // null for a suggestion: it is numbered once accepted.
   number: string | null
   title: string
   rows: Cell[][]
+  lossExpectancy?: Ofi['lossExpectancy']
+  typed?: TypedLossValues
+  onChange?: (values: TypedLossValues) => void
+  disabled?: boolean
 }) {
   const cell = {
     padding: '8px 12px',
@@ -183,65 +274,101 @@ function OfiTable({
     fontSize: '16px',
   } as const
   return (
-    <table
-      style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontFamily: 'var(--font-sans)',
-        fontSize: '15px',
-        lineHeight: '22px',
-      }}
-    >
-      {/* A label column, then six value columns: a row of one pair spans all six, two
+    <div className="rv-maturity-scroll">
+      <table
+        className="rv-ofi-table"
+        style={{
+          width: '100%',
+          minWidth: typed ? 680 : undefined,
+          borderCollapse: 'collapse',
+          fontFamily: 'var(--font-sans)',
+          fontSize: '15px',
+          lineHeight: '22px',
+        }}
+      >
+        {/* A label column, then six value columns: a row of one pair spans all six, two
           pairs split them, and loss expectancy gives each of its six cells one. */}
-      <colgroup>
-        <col style={{ width: '160px' }} />
-        {[1, 2, 3, 4, 5, 6].map((n) => (
-          <col key={n} />
-        ))}
-      </colgroup>
-      <thead>
-        <tr>
-          {/* Number left, title right, white on the navbar's navy, as in the template. */}
-          <th style={{ ...cell, ...heading }}>{number ?? '—'}</th>
-          <th colSpan={6} style={{ ...cell, ...heading }}>
-            {title}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((cells, i) => (
-          <tr key={i}>
-            {cells.map(([name, value], j) => (
-              <Fragment key={name}>
-                <th scope="row" style={{ ...cell, ...rowLabel }} colSpan={1}>
-                  {name}
-                </th>
-                {value === LOSS_FIGURES ? (
-                  // PD LE | $ | BI LE | $ | TOTAL | $, amounts left blank (never the model's).
-                  ['PD LE', 'BI LE', 'TOTAL'].map((figure) => (
-                    <Fragment key={figure}>
-                      <td style={{ ...cell, fontWeight: 600 }}>{figure}</td>
-                      <td style={cell}>$</td>
-                    </Fragment>
-                  ))
-                ) : (
-                  <td style={cell} colSpan={cells.length === 1 ? 6 : j === 0 ? 2 : 3}>
-                    {value}
-                  </td>
-                )}
-              </Fragment>
-            ))}
+        <colgroup>
+          <col style={{ width: '160px' }} />
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <col key={n} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            {/* Number left, title right, white on the navbar's navy, as in the template. */}
+            <th style={{ ...cell, ...heading }}>{number ?? '—'}</th>
+            <th colSpan={6} style={{ ...cell, ...heading }}>
+              {title}
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((cells, i) => (
+            <tr key={i}>
+              {cells.map(([name, value], j) => (
+                <Fragment key={name}>
+                  <th scope="row" style={{ ...cell, ...rowLabel }} colSpan={1}>
+                    {name}
+                  </th>
+                  {value === LOSS_FIGURES || value === AFTER_LOSS_FIGURES ? (
+                    // The template’s six cells; amounts are entered by the engineer.
+                    (['pd', 'bi', 'total'] as const).map((figure) => (
+                      <Fragment key={figure}>
+                        <td style={{ ...cell, fontWeight: 600 }}>
+                          {{ pd: 'PD LE', bi: 'BI LE', total: 'TOTAL' }[figure]}
+                        </td>
+                        <td style={cell}>
+                          {/* "$" beside the amount, as the template shows it (p. 8). */}
+                          {typed && figure !== 'total' ? (
+                            <span className="rv-figures-item">
+                              <span aria-hidden="true">$</span>
+                              <Input
+                                size="sm"
+                                type="number"
+                                min={0}
+                                max={1e13}
+                                step="0.01"
+                                disabled={disabled}
+                                aria-label={`${value === LOSS_FIGURES ? 'Current' : 'After completion'} ${figure === 'pd' ? 'PD LE' : 'BI LE'} (US$)`}
+                                value={typed[value === LOSS_FIGURES ? 'current' : 'after'][figure]}
+                                onChange={(e) => {
+                                  const period = value === LOSS_FIGURES ? 'current' : 'after'
+                                  onChange?.({
+                                    ...typed,
+                                    [period]: { ...typed[period], [figure]: e.target.value },
+                                  })
+                                }}
+                              />
+                            </span>
+                          ) : (
+                            dollars(
+                              lossExpectancy?.[value === LOSS_FIGURES ? 'current' : 'after'][
+                                figure
+                              ] ?? null,
+                            )
+                          )}
+                        </td>
+                      </Fragment>
+                    ))
+                  ) : (
+                    <td style={cell} colSpan={cells.length === 1 ? 6 : j === 0 ? 2 : 3}>
+                      {value}
+                    </td>
+                  )}
+                </Fragment>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
 // An OFI's rows as Marsh's template has them for its category (pp. 8-9): Physical
 // Protection and Other add the RTM, client, advisory and loss rows. A field nobody has
-// filled says so; loss figures are never the model's (backlog rule), so they stay open.
+// filled says so; loss figures are entered by the engineer.
 const OPEN = 'To be completed'
 
 // The Observation row (GN-07 AC14): the OFI's own wording, then each photo of the
@@ -311,7 +438,7 @@ function templateRows(ofi: Ofi, observations: SavedObservation[]): Cell[][] {
     [['Client response', OPEN]],
     [['Marsh advisory comment', OPEN]],
     [['Loss expectancy (current, in US$)', LOSS_FIGURES]],
-    [['Loss expectancy (after completion)', LOSS_FIGURES]],
+    [['Loss expectancy (after completion)', AFTER_LOSS_FIGURES]],
     [['Effort of implementation', ofi.effort]],
     [['Loss scenario', OPEN]],
   ]
@@ -321,7 +448,12 @@ function templateRows(ofi: Ofi, observations: SavedObservation[]): Cell[][] {
 function ReportOfi({ ofi, observations }: { ofi: AcceptedOfi; observations: SavedObservation[] }) {
   return (
     <div style={{ marginTop: '12px' }}>
-      <OfiTable number={ofi.number} title={ofi.title} rows={templateRows(ofi, observations)} />
+      <OfiTable
+        number={ofi.number}
+        title={ofi.title}
+        rows={templateRows(ofi, observations)}
+        lossExpectancy={ofi.lossExpectancy}
+      />
     </div>
   )
 }

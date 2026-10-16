@@ -111,7 +111,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 900px;
   padding: 20px clamp(16px, 2vw, 28px) 48px;
 }
 .rv-editor-bar {
@@ -863,4 +862,9 @@
 }
 .rv-damage-table th {
   width: auto;
+}
+
+.rv-ofi-table input {
+  width: 100%;
+  min-width: 80px;
 }
