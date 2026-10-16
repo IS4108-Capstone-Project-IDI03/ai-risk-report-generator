@@ -3,7 +3,7 @@
 // engineer types each value's % damage and each time element's outage months and
 // % impacted; the losses are the gateway's, as last saved (AC7). Used by
 // LossEstimateFigures.tsx.
-import { Input } from '../../../design-system'
+import { Button, IconButton, Input } from '../../../design-system'
 import type { LossEstimates } from '../api'
 import { formatAmount, type LOSS_LEVELS } from '../reportFigures'
 import type { TypedValue } from './LossValuesTable'
@@ -11,7 +11,7 @@ import type { TypedValue } from './LossValuesTable'
 // The engineer's entries for one level, as typed: % by PD row key, and months
 // and % by TE row key.
 export type TypedLevel = {
-  pd: Record<string, string>
+  damageRows: (TypedValue & { percent: string })[]
   te: Record<string, { months: string; percent: string }>
 }
 
@@ -19,7 +19,6 @@ const amount = (text: string) => formatAmount(text === '' ? null : Number(text))
 
 export function LossLevelBlock({
   meta,
-  pd,
   te,
   typed,
   result,
@@ -29,7 +28,6 @@ export function LossLevelBlock({
   assumptions,
 }: {
   meta: (typeof LOSS_LEVELS)[number]
-  pd: TypedValue[]
   te: TypedValue[]
   typed: TypedLevel
   result: LossEstimates['result']['levels'][number] | undefined
@@ -57,6 +55,12 @@ export function LossLevelBlock({
     ) : (
       value || '–'
     )
+
+  const setDamageRow = (key: string, change: Partial<TypedLevel['damageRows'][number]>) =>
+    onChange({
+      ...typed,
+      damageRows: typed.damageRows.map((r) => (r.key === key ? { ...r, ...change } : r)),
+    })
 
   return (
     <section aria-label={title} className="rv-figures-level">
@@ -94,7 +98,7 @@ export function LossLevelBlock({
       </div>
       <div className="rv-maturity-scroll">
         <table
-          className="rv-maturity-table rv-figures-table"
+          className="rv-maturity-table rv-figures-table rv-damage-table"
           aria-label={`Level ${meta.level} Property Damage`}
         >
           <thead>
@@ -106,21 +110,78 @@ export function LossLevelBlock({
             </tr>
           </thead>
           <tbody>
-            {pd.map((row) => (
+            {typed.damageRows.map((row, i) => (
               <tr key={row.key}>
-                <td>{row.item}</td>
-                <td>{amount(row.value)}</td>
+                <td>
+                  {canEdit ? (
+                    <div className="rv-figures-item">
+                      <Input
+                        size="sm"
+                        maxLength={100}
+                        aria-label={`Level ${meta.level} damage item ${i + 1}`}
+                        value={row.item}
+                        onChange={(e) => setDamageRow(row.key, { item: e.target.value })}
+                      />
+                      <IconButton
+                        icon="trash-2"
+                        size="sm"
+                        label={`Remove damage item ${i + 1} from Level ${meta.level}`}
+                        onClick={() =>
+                          onChange({
+                            ...typed,
+                            damageRows: typed.damageRows.filter((r) => r.key !== row.key),
+                          })
+                        }
+                      />
+                    </div>
+                  ) : (
+                    row.item
+                  )}
+                </td>
+                <td>
+                  {field(`Level ${meta.level} damage value ${i + 1}`, row.value, (value) =>
+                    setDamageRow(row.key, { value }),
+                  )}
+                </td>
                 <td>
                   {field(
                     `${row.item} % damage`,
-                    typed.pd[row.key] ?? '',
-                    (v) => onChange({ ...typed, pd: { ...typed.pd, [row.key]: v } }),
+                    row.percent,
+                    (percent) => setDamageRow(row.key, { percent }),
                     100,
                   )}
                 </td>
                 <td>{lossOf(result?.pd, row.key)}</td>
               </tr>
             ))}
+            {canEdit && (
+              <tr>
+                <td colSpan={4}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconLeft="plus"
+                    disabled={typed.damageRows.length >= 30}
+                    onClick={() =>
+                      onChange({
+                        ...typed,
+                        damageRows: [
+                          ...typed.damageRows,
+                          {
+                            key: `pd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                            item: '',
+                            value: '',
+                            percent: '',
+                          },
+                        ],
+                      })
+                    }
+                  >
+                    Add a damage item to Level {meta.level}
+                  </Button>
+                </td>
+              </tr>
+            )}
             <tr>
               <th scope="row" colSpan={3}>
                 Total Property Damage Loss

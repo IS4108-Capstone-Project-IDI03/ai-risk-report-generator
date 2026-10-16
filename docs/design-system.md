@@ -218,3 +218,10 @@ The checks that stand between a draft and an issued report.
 - **20. Every outstanding item is one click from its section.** Go to section switches to the review tab and selects that section, with its open item already showing in the right pane.
 - **21. Format and content are separate decisions.** DOCX for client review cycles, PDF for issue. Citations and the photograph appendix are independent of format, so a client-facing DOCX can carry the full evidence trail.
 - **26. Resolve everything to unblock.** Accept or edit all seven sections and resolve the three review items, and the callout turns to Ready to export with the button enabled.
+
+Section 5's Values table records site-wide insured values. Each loss level has
+its own editable property damage items, value and damage percentage,
+with Add and Remove controls. Editing site values does not update these independent
+rows. Existing estimates initially show their previous rows and values. Save figures
+persists all levels and recalculates losses; an empty level is incomplete. The wider
+per-level table scrolls horizontally on smaller screens.

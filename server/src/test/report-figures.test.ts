@@ -125,6 +125,40 @@ describe('Section 5 loss estimates (GN-03)', () => {
     expect(res.body.result.levels.map((l: { total: null }) => l.total)).toEqual([null, null, null])
   })
 
+  it('round-trips independent damage rows without changing site values', async () => {
+    await assessment()
+    const inputs = {
+      currency: 'SGD',
+      dateOfValues: '2026-01-01',
+      indemnityMonths: 12,
+      pd: [{ key: 'b', item: 'Buildings', value: 1000000 }],
+      te: [],
+      levels: [
+        {
+          level: 'I',
+          pd: [],
+          te: [],
+          damageRows: [
+            {
+              key: 'floor',
+              item: 'Level 5',
+              value: 100000,
+              percent: 50,
+            },
+          ],
+        },
+      ],
+    }
+    expect((await api.put(le).send(inputs)).status).toBe(200)
+    const loaded = await api.get(le)
+    expect(loaded.body.inputs).toEqual(inputs)
+    expect(loaded.body.result.values.pd).toBe(1000000)
+    expect(loaded.body.result.levels[0].pdLoss).toBe(50000)
+    inputs.levels[0].damageRows = []
+    expect((await api.put(le).send(inputs)).body.result.levels[0].pdLoss).toBeNull()
+    expect((await api.get(le)).body.inputs.levels[0].damageRows).toEqual([])
+  })
+
   it('saves the values with currency, date and indemnity period, and computes each level (AC5-AC7)', async () => {
     await assessment()
     const inputs = {

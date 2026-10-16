@@ -388,6 +388,12 @@ and Assumptions per level. `orchestrator.check_numbers_grounded` marks a
 statement unsupported when it holds a number found neither in the facts nor in
 its cited observations and standards, or names a rating other than the
 computed one. No eval: no figure comes from the model.
+Each loss level can have independent property damage items and engineer-entered
+values. Those values also reach the drafting facts. The table retains the original
+four columns: Property Damage, Value, % Damage and Property Damage. Site-wide
+insured values remain separate. Older estimates without `damageRows` retain their
+original calculation; saving them from Review copies their existing rows into
+independent level rows. An empty level remains incomplete, not zero loss.
 
 `eval/judge_ofis.py` scores drafted OFIs, and Marsh's own, on three cases from
 the sample reports (AC7).

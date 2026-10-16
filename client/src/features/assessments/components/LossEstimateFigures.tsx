@@ -28,7 +28,13 @@ function typedOf({ inputs }: LossEstimates): Typed {
         return [
           level,
           {
-            pd: Object.fromEntries((saved?.pd ?? []).map((r) => [r.key, toText(r.percent)])),
+            damageRows: (
+              saved?.damageRows ??
+              inputs.pd.map((r) => ({
+                ...r,
+                percent: saved?.pd.find((p) => p.key === r.key)?.percent ?? null,
+              }))
+            ).map((r) => ({ ...r, value: toText(r.value), percent: toText(r.percent) })),
             te: Object.fromEntries(
               (saved?.te ?? []).map((r) => [
                 r.key,
@@ -42,8 +48,7 @@ function typedOf({ inputs }: LossEstimates): Typed {
   }
 }
 
-// What is sent: every level, with a row for each current value, so a removed
-// value drops out of the levels and a new one appears not entered.
+// Damage rows belong to each level; time-element rows still follow the site values.
 function inputsOf(t: Typed): LossInputs {
   const row = (r: TypedValue) => ({ key: r.key, item: r.item.trim(), value: toFigure(r.value) })
   return {
@@ -54,7 +59,11 @@ function inputsOf(t: Typed): LossInputs {
     te: t.te.map(row),
     levels: LOSS_LEVELS.map(({ level }) => ({
       level,
-      pd: t.pd.map(({ key }) => ({ key, percent: toFigure(t.levels[level]?.pd[key] ?? '') })),
+      pd: [],
+      damageRows: t.levels[level].damageRows.map((r) => ({
+        ...row(r),
+        percent: toFigure(r.percent),
+      })),
       te: t.te.map(({ key }) => {
         const entry = t.levels[level]?.te[key]
         return {
@@ -114,6 +123,10 @@ export function LossEstimateFigures({
       <h3>Values</h3>
       <LossValuesTable typed={typed} totals={values} canEdit={canEdit} onChange={set} />
       <p className="rv-muted">{VALUES_NOTE}</p>
+      <p className="rv-muted">
+        Site values are the report’s overall insured values. Each loss level has its own property
+        damage items below; changing site values does not change those items.
+      </p>
 
       <div className="rv-maturity-scroll">
         <table className="rv-maturity-table" aria-label="Loss Estimate Definitions">
@@ -147,9 +160,8 @@ export function LossEstimateFigures({
         <LossLevelBlock
           key={meta.level}
           meta={meta}
-          pd={typed.pd}
           te={typed.te}
-          typed={typed.levels[meta.level] ?? { pd: {}, te: {} }}
+          typed={typed.levels[meta.level]}
           result={levels.find((l) => l.level === meta.level)}
           canEdit={canEdit}
           onChange={(level) => set({ levels: { ...typed.levels, [meta.level]: level } })}

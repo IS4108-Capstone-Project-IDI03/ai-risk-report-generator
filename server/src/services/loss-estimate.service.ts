@@ -39,6 +39,16 @@ export const lossEstimatesSchema = z
         z.object({
           level: z.enum(LOSS_LEVELS),
           pd: z.array(z.object({ key: z.string(), percent })).max(30),
+          // Absent on older estimates: retain their site-value rows unchanged.
+          damageRows: z
+            .array(
+              row.extend({
+                item: z.string().trim().min(1, 'Enter a name for each damage item.').max(100),
+                percent,
+              }),
+            )
+            .max(30)
+            .optional(),
           te: z
             .array(z.object({ key: z.string(), months: z.number().min(0).nullable(), percent }))
             .max(30),
@@ -53,6 +63,14 @@ export const lossEstimatesSchema = z
     if (new Set(input.levels.map((l) => l.level)).size !== input.levels.length)
       ctx.addIssue({ code: 'custom', message: 'Each level appears once.' })
     for (const level of input.levels) {
+      if (
+        level.damageRows &&
+        new Set(level.damageRows.map((r) => r.key)).size !== level.damageRows.length
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message: `Level ${level.level}: each damage row needs its own key.`,
+        })
       const named = [...level.pd, ...level.te].map((r) => r.key)
       if (named.some((k) => !keys.includes(k)))
         ctx.addIssue({
@@ -83,11 +101,18 @@ const total = (figures: (number | null)[]) =>
 export function estimate(input: LossInputs) {
   const levels = LOSS_LEVELS.map((level) => {
     const given = input.levels.find((l) => l.level === level)
-    const pd = input.pd.map((v) => {
-      const pct = given?.pd.find((r) => r.key === v.key)?.percent ?? null
-      const loss = v.value === null || pct === null ? null : cents((v.value * pct) / 100)
-      return { key: v.key, item: v.item, value: v.value, percent: pct, loss }
-    })
+    const pd =
+      given?.damageRows === undefined
+        ? input.pd.map((v) => {
+            const pct = given?.pd.find((r) => r.key === v.key)?.percent ?? null
+            const loss = v.value === null || pct === null ? null : cents((v.value * pct) / 100)
+            return { key: v.key, item: v.item, value: v.value, percent: pct, loss }
+          })
+        : given.damageRows.map((r) => ({
+            ...r,
+            loss:
+              r.value === null || r.percent === null ? null : cents((r.value * r.percent) / 100),
+          }))
     const te = input.te.map((v) => {
       const r = given?.te.find((t) => t.key === v.key)
       const months = r?.months ?? null
@@ -98,7 +123,7 @@ export function estimate(input: LossInputs) {
           : cents((v.value * months * pct) / (input.indemnityMonths * 100))
       return { key: v.key, item: v.item, value: v.value, months, percent: pct, loss }
     })
-    const pdLoss = total(pd.map((r) => r.loss))
+    const pdLoss = pd.length ? total(pd.map((r) => r.loss)) : null
     const teLoss = total(te.map((r) => r.loss))
     return { level, pd, te, pdLoss, teLoss, total: total([pdLoss, teLoss]) }
   })
@@ -183,7 +208,13 @@ export function lossEstimateFacts(saved: IAssessment['lossEstimates']) {
         (l) =>
           `Level ${l.level}: ` +
           [
-            ...l.pd.map((r) => `${r.item} ${r.percent}% damage, loss ${r.loss}`),
+            ...l.pd.map(
+              (r) =>
+                `${r.item} ${r.percent}% damage, loss ${r.loss}` +
+                (inputs.levels.find((entry) => entry.level === l.level)?.damageRows !== undefined
+                  ? `; value ${r.value}`
+                  : ''),
+            ),
             ...l.te.map(
               (r) => `${r.item} ${r.months} months at ${r.percent}% impacted, loss ${r.loss}`,
             ),

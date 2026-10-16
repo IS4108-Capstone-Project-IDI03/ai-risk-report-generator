@@ -1,7 +1,12 @@
 // Section 5's loss rules (GN-03 AC1, AC6, AC7): each level's property damage and
 // business interruption from the engineer's values, % and months.
 import { describe, expect, it } from 'vitest'
-import { estimate, lossEstimatesSchema, type LossInputs } from '../services/loss-estimate.service'
+import {
+  estimate,
+  lossEstimatesSchema,
+  lossEstimateFacts,
+  type LossInputs,
+} from '../services/loss-estimate.service'
 
 const INPUTS: LossInputs = {
   currency: 'SGD',
@@ -89,5 +94,60 @@ describe('lossEstimatesSchema', () => {
     expect(lossEstimatesSchema.safeParse(over).success).toBe(false)
 
     expect(lossEstimatesSchema.safeParse(INPUTS).success).toBe(true)
+  })
+})
+
+describe('independent property damage rows', () => {
+  const custom = () => ({
+    ...structuredClone(INPUTS),
+    levels: INPUTS.levels.map((l) => ({
+      ...structuredClone(l),
+      pd: [],
+      damageRows: [
+        {
+          key: 'floors',
+          item: 'Floors 27–29',
+          value: 300000,
+          percent: 50,
+        },
+      ],
+    })),
+  })
+
+  it('calculates independent rows, preserves site totals and passes their values to drafting', () => {
+    const input = custom()
+    input.levels[1].damageRows[0].value = 600000
+    const parsed = lossEstimatesSchema.parse(input)
+    const result = estimate(parsed)
+    expect(result.values.pd).toBe(3000000)
+    expect(result.levels.map((l) => l.pdLoss)).toEqual([150000, 300000, 150000])
+    const facts = lossEstimateFacts({ inputs: parsed, updatedAt: new Date(), updatedBy: null! })
+    expect(facts.facts).toContain('Floors 27–29 50% damage, loss 150000; value 300000')
+  })
+
+  it('keeps an explicitly empty level empty and incomplete rather than restoring site rows', () => {
+    const input = custom()
+    input.levels[0].damageRows = []
+    expect(estimate(input).levels[0]).toMatchObject({ pd: [], pdLoss: null, total: null })
+    expect(
+      lossEstimateFacts({ inputs: input, updatedAt: new Date(), updatedBy: null! }).missing,
+    ).toBeTruthy()
+  })
+
+  it('requires a name, unique keys, valid values and percentages for custom rows', () => {
+    for (const change of [{ item: '' }, { value: -1 }, { percent: 101 }]) {
+      const input = custom()
+      Object.assign(input.levels[0].damageRows[0], change)
+      expect(lossEstimatesSchema.safeParse(input).success).toBe(false)
+    }
+    const input = custom()
+    input.levels[0].damageRows.push(input.levels[0].damageRows[0])
+    expect(lossEstimatesSchema.safeParse(input).success).toBe(false)
+  })
+
+  it('leaves totals missing when a custom row has an unentered value', () => {
+    const input = lossEstimatesSchema.parse(custom())
+    input.levels[0].damageRows![0].value = null
+    expect(estimate(input).levels[0].pdLoss).toBeNull()
   })
 })

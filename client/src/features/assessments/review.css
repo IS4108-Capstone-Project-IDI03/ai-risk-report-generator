@@ -852,3 +852,15 @@
   width: 100%;
   min-width: 0;
 }
+
+/* Per-level damage inputs remain usable with horizontal scrolling on small screens. */
+.rv-damage-table {
+  min-width: 760px;
+}
+.rv-damage-table input {
+  width: 100%;
+  min-width: 0;
+}
+.rv-damage-table th {
+  width: auto;
+}

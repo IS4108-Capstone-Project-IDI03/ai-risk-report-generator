@@ -150,7 +150,10 @@ on read, never stored, and never written by the LLM.
 - `lossEstimates`: `inputs` (Mixed, checked by `lossEstimatesSchema` before
   saving: `currency`, `dateOfValues`, `indemnityMonths`, the `pd` and `te`
   value rows `{ key, item, value }`, and `levels` I-III each with `pd: [{ key,
-  percent }]` and `te: [{ key, months, percent }]` naming value rows by key)
+  percent }]` and `te: [{ key, months, percent }]` naming value rows by key,
+  plus optional `damageRows: [{ key, item, value, percent }]` for independent
+  property damage items per level. When absent, legacy site-value rows are used;
+  an explicit empty list stays empty and its PD total is `null`)
   and `updatedAt`. Rules in `loss-estimate.service.ts` (`le-v1`): PD loss =
   value x % damage; BI loss = value x months / indemnity months x % impacted;
   a missing input leaves its row and totals `null`, never 0.

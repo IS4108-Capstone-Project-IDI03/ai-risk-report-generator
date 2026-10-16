@@ -899,6 +899,7 @@ export type LossInputs = {
   levels: {
     level: LossLevel
     pd: { key: string; percent: number | null }[]
+    damageRows?: (ValueRow & { percent: number | null })[]
     te: { key: string; months: number | null; percent: number | null }[]
   }[]
 }

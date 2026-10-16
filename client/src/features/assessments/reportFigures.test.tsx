@@ -192,7 +192,12 @@ describe('Section 5 loss estimates', () => {
     const one = screen.getByRole('region', { name: 'Property – Level I Loss Estimate' })
     expect(within(one).getByText('Normal Loss Expectancy')).toBeVisible()
     const pd = within(one).getByRole('table', { name: 'Level I Property Damage' })
-    expect(within(pd).getByText('Buildings').closest('tr')).toHaveTextContent('50,000')
+    expect(
+      within(pd)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Property Damage', 'Value', '% Damage', 'Property Damage'])
+    expect(within(pd).getByDisplayValue('Buildings').closest('tr')).toHaveTextContent('50,000')
     expect(
       within(one).getByText('Total Level I Property Loss Estimate').closest('tr'),
     ).toHaveTextContent('60,000')
@@ -204,6 +209,36 @@ describe('Section 5 loss estimates', () => {
     expect(
       within(two).getByText('Total Level II Property Loss Estimate').closest('tr'),
     ).toHaveTextContent('Not entered')
+  })
+
+  it('edits, adds and removes damage items in one level without changing site values or other levels', async () => {
+    const puts = gateway(LOSS, () => LOSS)
+    render(<LossEstimateFigures reference="RPT-1" canEdit />)
+    const one = await screen.findByRole('region', { name: 'Property – Level I Loss Estimate' })
+    fireEvent.change(within(one).getByLabelText('Level I damage item 1'), {
+      target: { value: 'Floors 27–29' },
+    })
+    fireEvent.change(within(one).getByLabelText('Level I damage value 1'), {
+      target: { value: '300000' },
+    })
+    fireEvent.click(within(one).getByRole('button', { name: 'Add a damage item to Level I' }))
+    fireEvent.change(within(one).getByLabelText('Level I damage item 2'), {
+      target: { value: 'Roof' },
+    })
+    fireEvent.click(within(one).getByRole('button', { name: 'Remove damage item 2 from Level I' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save figures' }))
+    await waitFor(() => expect(puts).toHaveLength(1))
+    const sent = puts[0] as LossEstimates['inputs']
+    expect(sent.pd).toEqual(LOSS.inputs.pd)
+    expect(sent.levels[0].damageRows).toEqual([
+      {
+        key: 'b',
+        item: 'Floors 27–29',
+        value: 300000,
+        percent: 5,
+      },
+    ])
+    expect(sent.levels[1].damageRows?.[0]).toMatchObject({ item: 'Buildings', value: 1000000 })
   })
 
   it('saves the values and each level’s % and months as numbers (AC5, AC6)', async () => {
@@ -229,9 +264,14 @@ describe('Section 5 loss estimates', () => {
     expect(sent.pd[1]).toMatchObject({ item: '', value: null })
     expect(sent.levels.find((l) => l.level === 'II')).toEqual({
       level: 'II',
-      pd: [
-        { key: 'b', percent: 30 },
-        { key: sent.pd[1].key, percent: null },
+      pd: [],
+      damageRows: [
+        {
+          key: 'b',
+          item: 'Buildings',
+          value: 1_000_000,
+          percent: 30,
+        },
       ],
       te: [{ key: 'bi', months: 6, percent: 50 }],
     })
