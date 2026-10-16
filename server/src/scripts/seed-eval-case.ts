@@ -17,7 +17,8 @@ import { ReviewAuditModel } from '../models/review-audit.model'
 import { SiteModel } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { locationKey } from '../services/location.service'
-import { draftingEvidence } from '../services/section.service'
+import type { LossInputs } from '../services/loss-estimate.service'
+import { draftingEvidence, figureFacts } from '../services/section.service'
 
 // An assessment built from one GN-01 eval case (rag-service eval/cases/*.json): the
 // observations an engineer would have captured, written from a real Marsh report's
@@ -48,6 +49,11 @@ type Case = {
     location: string
     note: string
   }[]
+  // Sections 4 and 5's figures (GN-03), as the engineer would enter them in Review.
+  figures?: {
+    riskQuality: { category: string; current: number | null; potential: number | null }[]
+    lossEstimates: LossInputs
+  }
   // Citations name the case's observation ids, e.g. "off5-12".
   sections?: Record<
     string,
@@ -119,7 +125,7 @@ async function seed(name: string) {
         engineer: alex._id,
         locations: places.map((p) => ({ name: p, key: locationKey(p) })),
       },
-      $unset: { reportStatus: 1, archivedAt: 1 },
+      $unset: { reportStatus: 1, archivedAt: 1, riskQuality: 1, lossEstimates: 1 },
     },
     { upsert: true, returnDocument: 'after' },
   )
@@ -157,6 +163,17 @@ async function seed(name: string) {
     })
     saved.set(o.id, String(created._id))
   }
+  if (c.figures) {
+    const now = new Date()
+    Object.assign(assessment, {
+      riskQuality: { categories: c.figures.riskQuality, updatedAt: now, updatedBy: alex._id },
+      lossEstimates: { inputs: c.figures.lossEstimates, updatedAt: now, updatedBy: alex._id },
+    })
+    await AssessmentModel.updateOne(
+      { _id: assessment._id },
+      { $set: { riskQuality: assessment.riskQuality, lossEstimates: assessment.lossEstimates } },
+    )
+  }
   if (c.sections || c.ofis) await seedReport(c, assessment, site, saved, alex._id)
   console.log(
     `${reference} is ready with ${c.observations.length} observations from ${c.source}. ` +
@@ -172,7 +189,7 @@ async function seed(name: string) {
 // each section draft holds today's evidence, so none reads as out of date.
 async function seedReport(
   c: Case,
-  assessment: { _id: Types.ObjectId; reference: string },
+  assessment: { _id: Types.ObjectId; reference: string } & Parameters<typeof figureFacts>[1],
   site: { jurisdiction: string; facilityType: string },
   saved: Map<string, string>,
   engineer: Types.ObjectId,
@@ -197,7 +214,7 @@ async function seedReport(
   }
 
   for (const [sectionId, s] of Object.entries(c.sections ?? {})) {
-    // Sections 7-12 are in the template with their categories; 4-6 are not yet.
+    // Each section's categories, as the template has them.
     const cope: string[] = sectionsJson.sections[sectionId]?.cope_dimensions ?? []
     await ReportSectionModel.create({
       assessment: assessment._id,
@@ -214,6 +231,8 @@ async function seedReport(
       sources: {},
       questions: [],
       evidence,
+      // Sections 4 and 5 (GN-03): the figures they were drafted from, so they read as current.
+      facts: figureFacts(sectionId, assessment).facts,
       guardrail: { passed: true, unsupported_count: 0 },
       provenance: {
         ...SEED_PROVENANCE,

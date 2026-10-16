@@ -378,6 +378,17 @@ unsupported when its rank is not one of the five. `eval/score_ranks.py` drafts
 the cases in `eval/rank_cases` and counts exact and within-one matches with
 Marsh's ranks, next to an always-Embedded baseline (one paid call per case).
 
+Sections 4 and 5 (GN-03) are drafted like Sections 6-12, but only once the
+engineer's figures are complete (the gateway answers 422 otherwise). The
+gateway computes the Location Risk Quality Score and rating, and each loss
+level, from the figures, and sends them as `facts` (plain lines, e.g. "Current
+Location Risk Quality Rating: B"); the model writes only the wording: Section
+4's Risk Quality Rating Comments and Positive Points, and Section 5's Scenario
+and Assumptions per level. `orchestrator.check_numbers_grounded` marks a
+statement unsupported when it holds a number found neither in the facts nor in
+its cited observations and standards, or names a rating other than the
+computed one. No eval: no figure comes from the model.
+
 `eval/judge_ofis.py` scores drafted OFIs, and Marsh's own, on three cases from
 the sample reports (AC7).
 

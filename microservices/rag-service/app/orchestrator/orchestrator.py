@@ -73,6 +73,45 @@ def check_maturity_ranks(subsections: list[dict], guardrail: dict) -> dict:
     return {"passed": unsupported == 0, "unsupported_count": unsupported}
 
 
+# Sections 4 and 5 (GN-03): a number as written ("28.4", "1,000"), and a rating named in
+# words ("rated B", "a rating of A"). The facts' rating lines are written by the gateway
+# (section.service.ts, figureFacts): keep the two in step.
+_NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+_RATING = re.compile(r"\b[Rr]at(?:ed|ing)\s+(?:of\s+|as\s+)?([A-E])\b")
+
+
+def _numbers(text: str) -> set[float]:
+    # By value, so 80, 80.0 and 1,000 vs 1000 match however each was written.
+    return {float(n.replace(",", "")) for n in _NUMBER.findall(text)}
+
+
+def check_numbers_grounded(
+    subsections: list[dict], guardrail: dict, texts: dict[str, str], facts: str
+) -> dict:
+    """Mark a statement unsupported when it holds a number found neither in the facts nor in
+    the observations and standards it cites, or names a rating other than the computed one
+    (the potential one only where it says "potential"), so no figure is made up (AC4, AC9)."""
+    current = re.search(r"Current Location Risk Quality Rating: ([A-E])", facts)
+    potential = re.search(r"Potential Location Risk Quality Rating: ([A-E])", facts)
+    unsupported = guardrail["unsupported_count"]
+    for sub in subsections:
+        for statement in sub["statements"]:
+            text = statement["text"]
+            known = _numbers(facts).union(
+                *(_numbers(texts.get(c, "")) for c in statement["citations"])
+            )
+            allowed = {
+                m[1] for m in (current, potential if "potential" in text.lower() else None) if m
+            }
+            made_up = bool(_numbers(text) - known) or any(
+                r not in allowed for r in _RATING.findall(text)
+            )
+            if statement["supported"] and made_up:
+                statement["supported"] = False
+                unsupported += 1
+    return {"passed": unsupported == 0, "unsupported_count": unsupported}
+
+
 def _assemble_context(chunks: list[dict]) -> str:
     return "\n".join(str(chunk) for chunk in chunks)
 
@@ -145,7 +184,7 @@ def _nearest_first(per_observation: list[list[dict]]) -> dict[str, dict]:
     return standards
 
 
-def draft(section_id: str, assessment, observations, redraft=None) -> dict:
+def draft(section_id: str, assessment, observations, redraft=None, facts=None) -> dict:
     """Draft one report section (GN-01): retrieve, generate, check citations.
 
     `redraft`, when the engineer regenerates a section from the review workspace
@@ -209,6 +248,7 @@ def draft(section_id: str, assessment, observations, redraft=None) -> dict:
         precedents,
         config.LLM_EFFORT,
         redraft,
+        facts,
     )
 
     # The template, not the model, decides the subsections and their order (AC5).
@@ -227,6 +267,14 @@ def draft(section_id: str, assessment, observations, redraft=None) -> dict:
     guardrail = check_citations(subsections, citable)
     if section_id == "6":
         guardrail = check_maturity_ranks(subsections, guardrail)
+    if section_id in ("4", "5"):
+        # Everything the prompt shows of each observation, its location and standard included.
+        texts = {
+            f"O:{o.id}": " ".join(filter(None, [o.note, *o.transcripts, o.location, o.standard]))
+            for o in observations
+        }
+        texts |= {f"C:{cid}": chunk["text"] for cid, chunk in standards.items()}
+        guardrail = check_numbers_grounded(subsections, guardrail, texts, facts or "")
 
     # The cited passages, so the reviewer can open each one (RV-01 AC7). A cited past-report
     # passage is kept too, although it cannot support the statement that cites it.

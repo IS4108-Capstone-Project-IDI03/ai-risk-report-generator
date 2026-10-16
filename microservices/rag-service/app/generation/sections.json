@@ -2,6 +2,32 @@
   "version": "global-pre-v2.0-2026-02",
   "source": "Global PRE Report Template_v2.0_Feb 2026_BLANK.pdf. Writing conventions live in drafting-skill.md.",
   "sections": {
+    "4": {
+      "title": "Risk Quality Ratings and Comments",
+      "_about": "GN-03: template pp. 10-11. The scores, location score and rating are the engineer's and the gateway's (risk-quality.service.ts), sent as `facts`; the model writes only the comments. orchestrator.check_numbers_grounded checks them.",
+      "cope_dimensions": ["Construction", "Occupancy", "Protection", "Exposure"],
+      "min_observations": 1,
+      "instructions": "Unlike Sections 6-12, the figures here are the engineer's, given in the Facts from the engineer block: the category scores and the location risk quality rating. Write no score, number or rating of your own, and never change the rating given.\nUnder Risk Quality Rating Comments, write one or two statements giving an overall view of the site's risk in words, as Marsh does (e.g. \"Overall risk rating for the site can be considered to be above average risk of its class.\"), naming only the current rating given, if any. Under Positive Points, write one short statement per positive point the observations show, as in Marsh's bullet lists (e.g. \"Buildings were constructed of fire resistive construction materials.\", \"Good housekeeping observed for all areas visited.\"); the report introduces them with \"The positive points from the visit are the following:\", so do not write that line. Cite the observations for every statement. Give no advice: Opportunities for Improvement are Section 3.",
+      "subsections": [
+        { "heading": "Risk Quality Rating Comments", "kind": "narrative" },
+        { "heading": "Positive Points", "kind": "narrative" }
+      ]
+    },
+    "5": {
+      "title": "Loss Estimates",
+      "_about": "GN-03: template pp. 12-17. Values, % damage, outage months and every loss are the engineer's and the gateway's (loss-estimate.service.ts), sent as `facts`; the model writes only each level's Scenario and Assumptions. Level IV and Limitations are left out (Miya, 14 Oct).",
+      "cope_dimensions": ["Construction", "Occupancy", "Protection", "Exposure"],
+      "min_observations": 1,
+      "instructions": "Unlike Sections 6-12, this section's figures are the engineer's, given in the Facts from the engineer block: values, % damage, outage months and losses. Write no figure of your own: no money, percentage, number of months or loss; use only figures given in the facts or in your cited observations, unchanged.\nFor each level write a Scenario and its Assumptions, as in Marsh's reports, from the observations (construction, protection, compartmentation, emergency response):\n- Level I, Normal Loss Expectancy: primary protection systems are functioning and manual firefighting available.\n- Level II, Probable Maximum Loss: the primary protection system protecting the area with the largest PD/BI potential is not functioning; manual firefighting available.\n- Level III, Maximum Foreseeable Loss: fire protection systems are not functioning and no manual firefighting response.\nA Scenario says where the fire starts and its likely causes (e.g. electrical fault, improperly managed hot work, smoking), how it spreads given the site's construction and protection, and how it is controlled or where it stops. Assumptions say which areas are damaged and how (fire, smoke, water) and how the site recovers, in words; the engineer's % damage and months are shown in the tables.",
+      "subsections": [
+        { "heading": "Level I Scenario", "kind": "narrative" },
+        { "heading": "Level I Assumptions", "kind": "narrative" },
+        { "heading": "Level II Scenario", "kind": "narrative" },
+        { "heading": "Level II Assumptions", "kind": "narrative" },
+        { "heading": "Level III Scenario", "kind": "narrative" },
+        { "heading": "Level III Assumptions", "kind": "narrative" }
+      ]
+    },
     "6": {
       "title": "Management Programs",
       "_about": "GN-11: Marsh's 15 program categories and maturity scale, template pp. 18-19. A row is a fields statement '<Program>: <Rank>. <comment>'; orchestrator.MATURITY_RANKS checks the rank.",

@@ -90,6 +90,10 @@ class DraftSectionRequest(BaseModel):
     assessment: Assessment
     observations: list[Observation] = Field(min_length=1)
     redraft: Redraft | None = None
+    # Sections 4 and 5 (GN-03): the engineer's figures and the gateway's results, as
+    # lines of text, for the model to use unchanged.
+    # Bounded by the gateway's schema: 60 value rows, each listed once per level.
+    facts: Annotated[str, Field(max_length=40000)] | None = None
 
 
 # One report section as the gateway sends it for the Executive Summary: its text, flattened.
@@ -143,7 +147,13 @@ def draft_section(request: DraftSectionRequest) -> dict:
     if request.section_id not in TEMPLATE["sections"]:
         raise HTTPException(404, f"Section {request.section_id} is not in the report template")
     try:
-        return draft(request.section_id, request.assessment, request.observations, request.redraft)
+        return draft(
+            request.section_id,
+            request.assessment,
+            request.observations,
+            request.redraft,
+            request.facts,
+        )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 

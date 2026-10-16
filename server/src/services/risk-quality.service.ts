@@ -119,3 +119,23 @@ export async function saveRiskQuality(
   await AssessmentModel.updateOne({ _id: assessment._id }, { $set: { riskQuality } })
   return riskQualityOf(riskQuality)
 }
+
+// What drafting Section 4's comments is given (AC4): the computed scores and
+// ratings, and each category's scores, one per line, for the model to use
+// unchanged; or why it cannot be drafted yet (AC1). The rating lines' wording is
+// read by rag-service's check_numbers_grounded: keep the two in step.
+export function riskQualityFacts(saved: IAssessment['riskQuality']) {
+  const { categories, result } = riskQualityOf(saved)
+  const { current, potential } = result
+  if (!current || !potential)
+    return { missing: 'Enter all seven current and potential scores first.' }
+  return {
+    facts: [
+      `Current Location Risk Quality Score: ${current.score}`,
+      `Current Location Risk Quality Rating: ${current.rating}`,
+      `Potential Location Risk Quality Score: ${potential.score}`,
+      `Potential Location Risk Quality Rating: ${potential.rating}`,
+      ...categories.map((c) => `${c.category}: current ${c.current}, potential ${c.potential}`),
+    ].join('\n'),
+  }
+}

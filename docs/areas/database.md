@@ -139,6 +139,25 @@ non-deleted observations (`photoId`, `observationId`, `name`, `url`,
 twice, or a caption over 200 characters, 403, 404, 409 archived. The export
 (EX-01) is to read it.
 
+`riskQuality` and `lossEstimates` (GN-03) are Sections 4 and 5's figures, typed
+by the engineer in Review; every score, rating and loss is computed from them
+on read, never stored, and never written by the LLM.
+- `riskQuality`: `categories`, the seven main categories in template order,
+  each `{ category, current, potential }` (0-10, one decimal, or `null` while
+  not entered; potential >= current), and `updatedAt`. Rules in
+  `risk-quality.service.ts` (equal weights, provisional until Marsh's Global
+  Risk Quality Rating spreadsheet arrives; version `rqr-provisional-equal-v1`).
+- `lossEstimates`: `inputs` (Mixed, checked by `lossEstimatesSchema` before
+  saving: `currency`, `dateOfValues`, `indemnityMonths`, the `pd` and `te`
+  value rows `{ key, item, value }`, and `levels` I-III each with `pd: [{ key,
+  percent }]` and `te: [{ key, months, percent }]` naming value rows by key)
+  and `updatedAt`. Rules in `loss-estimate.service.ts` (`le-v1`): PD loss =
+  value x % damage; BI loss = value x months / indemnity months x % impacted;
+  a missing input leaves its row and totals `null`, never 0.
+`GET`/`PUT /api/assessments/:reference/risk-quality` and `/loss-estimates`
+read and replace them (PUT: assigned engineer only; 400 invalid, 403, 404, 409
+archived), returning the inputs with the computed `result` and `updatedAt`.
+
 `GET /api/assessments` returns assessments assigned to the authenticated risk
 engineer's user ID; knowledge admins receive all assessments. The derived status
 and sort order (most recent site visit first) are unchanged. Site/client/report-ID
@@ -393,7 +412,7 @@ filters, it is built in the browser from the observation list.
 ## Report sections (GN-01)
 
 `report_sections` holds one document per generated draft of a report section
-(7-12). Drafting the same section again adds a new document, so earlier drafts
+(4-12). Drafting the same section again adds a new document, so earlier drafts
 are kept. No draft is ever changed: the engineer's decisions on its findings
 are in the [review audit log](#review-audit-log-rv-02). The section's saved
 content is its newest draft, except that a replacement draft counts only once
@@ -418,6 +437,9 @@ accepted, and from when it was accepted. Each document has:
   citation can always be checked against what was drafted from. This stands in
   for CP-14's snapshot, which the team dropped.
 - `guardrail`: `{ passed, unsupported_count }`.
+- `facts`: Sections 4 and 5 only (GN-03), the engineer's figures the draft was
+  given, as sent to S4. The draft is out of date (`changeCounts.figures: 1`)
+  once the figures no longer give the same text.
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
   `template_version`, `generated_at` (AC7), and `instruction`: what the
   engineer asked a regenerated draft to change, or `null` (RV-02). A

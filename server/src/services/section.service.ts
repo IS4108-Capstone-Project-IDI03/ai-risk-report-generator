@@ -1,6 +1,6 @@
 import type { Types } from 'mongoose'
 import type { SessionUser } from './auth.service'
-import { AssessmentModel } from '../models/assessment.model'
+import { AssessmentModel, type IAssessment } from '../models/assessment.model'
 import { copeDimensionsOf, type CopeDimension } from '../models/observation.model'
 import { ReportSectionModel, type IReportSection } from '../models/report-section.model'
 import { ReviewAuditModel } from '../models/review-audit.model'
@@ -11,10 +11,12 @@ import { locationText } from './location.service'
 import { listObservations, type ObservationDto } from './observation.service'
 import { recordAiCalls } from './ai-usage.service'
 import { listTemplateSections, requestSectionDraft, type TemplateSection } from './rag.service'
+import { lossEstimateFacts } from './loss-estimate.service'
+import { riskQualityFacts } from './risk-quality.service'
 
 export class UnknownSectionError extends Error {
   constructor(sectionId: string) {
-    super(`Section ${sectionId} is not one of the report's drafted sections (6 to 12).`)
+    super(`Section ${sectionId} is not one of the report's drafted sections (4 to 12).`)
     this.name = 'UnknownSectionError'
   }
 }
@@ -34,6 +36,25 @@ export class InsufficientEvidenceError extends Error {
     )
     this.name = 'InsufficientEvidenceError'
   }
+}
+
+// Sections 4 and 5 (GN-03) before the engineer's figures are complete.
+export class MissingFiguresError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MissingFiguresError'
+  }
+}
+
+// The engineer's figures a Section 4 or 5 draft is given (`facts`), or why it
+// cannot be drafted yet (`missing`). Other sections have neither.
+export function figureFacts(
+  sectionId: string,
+  assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'>,
+): { facts?: string; missing?: string } {
+  if (sectionId === '4') return riskQualityFacts(assessment.riskQuality)
+  if (sectionId === '5') return lossEstimateFacts(assessment.lossEstimates)
+  return {}
 }
 
 export type SectionDraftDto = {
@@ -59,6 +80,8 @@ export type SectionSummaryDto = {
   // redraft takes in: the total, and each kind on its own (CP-08).
   changesSinceDraft: number
   changeCounts: ChangeCounts
+  // Sections 4 and 5 (GN-03): why the section cannot be drafted yet, else null.
+  inputsMissing: string | null
 }
 
 export function toDraftDto(s: IReportSection & { _id: unknown }): SectionDraftDto {
@@ -122,7 +145,9 @@ function toEvidence(o: ObservationDto): Evidence {
 // observations added since, ones whose note, transcripts or tags have changed,
 // and ones the draft was given that are no longer evidence, e.g. deleted or
 // uncategorised (CP-08 AC15).
-export type ChangeCounts = { added: number; changed: number; removed: number }
+// `figures` (GN-03): 1 when Section 4 or 5's figures changed since the draft;
+// present only then.
+export type ChangeCounts = { added: number; changed: number; removed: number; figures?: number }
 const NO_CHANGES: ChangeCounts = { added: 0, changed: 0, removed: 0 }
 // A draft's evidence as it is compared with now: drafts saved before an
 // observation could have several categories hold one string, read here as a
@@ -215,10 +240,14 @@ export type LoadedSection = {
   // The total of changeCounts, which decides whether the draft is out of date.
   changesSinceDraft: number
   changeCounts: ChangeCounts
+  inputsMissing: string | null
 }
 
 export async function loadSections(reference: string): Promise<LoadedSection[]> {
-  const assessment = await AssessmentModel.findOne({ reference }, '_id').lean()
+  const assessment = await AssessmentModel.findOne(
+    { reference },
+    '_id riskQuality lossEstimates',
+  ).lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   const [sections, observations, drafts] = await Promise.all([
     listTemplateSections(),
@@ -229,21 +258,31 @@ export async function loadSections(reference: string): Promise<LoadedSection[]> 
   const evidence = usable.map(toEvidence)
   return sections.map((section) => {
     const { saved: latest, replacement } = drafts.get(section.id) ?? NO_DRAFTS
-    const changeCounts = latest ? changesSince(latest.evidence, evidence) : NO_CHANGES
+    const { facts, missing } = figureFacts(section.id, assessment)
+    const counts = latest ? changesSince(latest.evidence, evidence) : NO_CHANGES
+    // Figures changed since the draft was written, or since cleared, make it out of
+    // date too (GN-03). Sections 6-12 have neither facts nor missing figures.
+    const figuresChanged = (facts !== undefined && latest?.facts !== facts) || missing !== undefined
+    const changeCounts = latest && figuresChanged ? { ...counts, figures: 1 } : counts
     return {
       section,
       usableObservations: usable.filter(isFiledUnder(section)).length,
       latest,
       replacement,
-      changesSinceDraft: changeCounts.added + changeCounts.changed + changeCounts.removed,
+      changesSinceDraft:
+        changeCounts.added +
+        changeCounts.changed +
+        changeCounts.removed +
+        (changeCounts.figures ?? 0),
       changeCounts,
+      inputsMissing: missing ?? null,
     }
   })
 }
 
 export async function listSections(reference: string): Promise<SectionSummaryDto[]> {
   return (await loadSections(reference)).map(
-    ({ section, usableObservations, latest, changesSinceDraft, changeCounts }) => ({
+    ({ section, usableObservations, latest, changesSinceDraft, changeCounts, inputsMissing }) => ({
       id: section.id,
       title: section.title,
       copeDimensions: section.cope_dimensions,
@@ -252,6 +291,7 @@ export async function listSections(reference: string): Promise<SectionSummaryDto
       latestDraft: latest ? toDraftDto(latest) : null,
       changesSinceDraft,
       changeCounts,
+      inputsMissing,
     }),
   )
 }
@@ -313,6 +353,9 @@ export async function writeDraft(
   if (own < section.min_observations) {
     throw new InsufficientEvidenceError(own, section.min_observations)
   }
+  // Sections 4 and 5 are drafted around the engineer's figures (GN-03), so not before.
+  const { facts, missing } = figureFacts(section.id, assessment)
+  if (missing) throw new MissingFiguresError(missing)
 
   const site = assessment.site!
   const draft = await requestSectionDraft({
@@ -324,6 +367,7 @@ export async function writeDraft(
     },
     observations: evidence,
     ...(redraft && { redraft: { instruction: redraft.instruction, current: redraft.current } }),
+    ...(facts && { facts }),
   })
 
   // The calls are billed even if saving the draft below fails, so record first.
@@ -336,6 +380,7 @@ export async function writeDraft(
     sources: draft.sources,
     questions: draft.questions,
     evidence,
+    facts,
     guardrail: draft.guardrail,
     provenance: {
       ...draft.provenance,

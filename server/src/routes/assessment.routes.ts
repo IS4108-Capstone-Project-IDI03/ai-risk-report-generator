@@ -75,6 +75,7 @@ import { draftSummary, getSummary, IncompleteSectionsError } from '../services/s
 import {
   draftSection,
   InsufficientEvidenceError,
+  MissingFiguresError,
   listSections,
   TranscriptionInProgressError,
   UnknownSectionError,
@@ -455,6 +456,10 @@ router.post(
         res.status(422).json({ error: error.message, found: error.found, needed: error.needed })
         return
       }
+      if (error instanceof MissingFiguresError) {
+        res.status(422).json({ error: error.message })
+        return
+      }
       if (error instanceof RagServiceError) {
         res.status(503).json({ error: error.message })
         return
@@ -494,6 +499,8 @@ function reviewFailure(error: unknown, res: Response) {
     res.status(409).json({ error: error.message })
   } else if (error instanceof InsufficientEvidenceError) {
     res.status(422).json({ error: error.message, found: error.found, needed: error.needed })
+  } else if (error instanceof MissingFiguresError) {
+    res.status(422).json({ error: error.message })
   } else if (error instanceof RagServiceError) {
     res.status(503).json({ error: error.message })
   } else {

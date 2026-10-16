@@ -23,9 +23,9 @@ PROGRAMS = [
 SECTION_6 = {**REQUEST, "section_id": "6"}
 
 
-def test_section_6_is_marshs_programs_table_and_comes_first():
+def test_section_6_is_marshs_programs_table_after_sections_4_and_5():
     section = TEMPLATE["sections"]["6"]
-    assert list(TEMPLATE["sections"])[0] == "6"
+    assert list(TEMPLATE["sections"])[2] == "6"
     assert section["title"] == "Management Programs"
     table, comments = section["subsections"]
     assert table == {"heading": "Management Programs", "kind": "fields", "fields": PROGRAMS}
@@ -79,6 +79,6 @@ def test_a_rank_outside_the_five_is_unsupported(monkeypatch):
     assert response.json()["guardrail"] == {"passed": False, "unsupported_count": 2}
 
 
-def test_the_sections_list_starts_with_section_6():
+def test_the_sections_list_has_section_6_after_4_and_5():
     sections = client.get("/sections").json()["sections"]
-    assert [s["id"] for s in sections] == ["6", "7", "8", "9", "10", "11", "12"]
+    assert [s["id"] for s in sections][:4] == ["4", "5", "6", "7"]

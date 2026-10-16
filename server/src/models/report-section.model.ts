@@ -38,6 +38,9 @@ export interface IReportSection {
     standard: string | null
   }[]
   guardrail: { passed: boolean; unsupported_count: number }
+  // Sections 4 and 5 (GN-03): the engineer's figures the draft was given, as
+  // sent; the draft is out of date once they no longer match.
+  facts?: string
   // Section 2 only (GN-07 AC4): the version of each section it summarised, to
   // tell when one has changed since. See summary.service.ts.
   summarised?: { sectionId: string; version: string }[]
@@ -94,6 +97,7 @@ const reportSectionSchema = new Schema<IReportSection>(
     ],
     sources: { type: Schema.Types.Mixed, default: {} },
     questions: { type: [String], default: [] },
+    facts: String,
     evidence: [
       {
         _id: false,

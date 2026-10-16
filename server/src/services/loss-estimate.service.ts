@@ -157,3 +157,39 @@ export async function saveLossEstimates(reference: string, input: LossInputs, us
   await AssessmentModel.updateOne({ _id: assessment._id }, { $set: { lossEstimates } })
   return lossEstimatesOf(lossEstimates)
 }
+
+// What drafting Section 5's scenarios is given (AC9): the values and each
+// level's figures, one level per line, for the model to use unchanged; or why
+// it cannot be drafted yet (AC1). Figures are written plain (1000000), as
+// rag-service's check_numbers_grounded reads them.
+export function lossEstimateFacts(saved: IAssessment['lossEstimates']) {
+  const { inputs, result } = lossEstimatesOf(saved)
+  const complete =
+    inputs.currency &&
+    inputs.dateOfValues &&
+    inputs.indemnityMonths &&
+    result.values.tiv !== null &&
+    result.levels.every((l) => l.total !== null)
+  if (!complete)
+    return {
+      missing:
+        'Enter the values, currency, date, indemnity period and every level’s % and months first.',
+    }
+  return {
+    facts: [
+      `Values in ${inputs.currency} as at ${inputs.dateOfValues}; indemnity period ${inputs.indemnityMonths} months.`,
+      ...[...inputs.pd, ...inputs.te].map((v) => `${v.item}: ${v.value}`),
+      ...result.levels.map(
+        (l) =>
+          `Level ${l.level}: ` +
+          [
+            ...l.pd.map((r) => `${r.item} ${r.percent}% damage, loss ${r.loss}`),
+            ...l.te.map(
+              (r) => `${r.item} ${r.months} months at ${r.percent}% impacted, loss ${r.loss}`,
+            ),
+          ].join('; ') +
+          `; total ${l.total}.`,
+      ),
+    ].join('\n'),
+  }
+}

@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
-PROMPT_VERSION = "gn01-v2.5"  # v2.5: a section's own `instructions` (GN-11 Section 6)
+PROMPT_VERSION = "gn01-v2.6"  # v2.6: Sections 4 and 5, with the engineer's `facts` (GN-03)
 # The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
 # and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
 # redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
@@ -176,6 +176,7 @@ def draft_section(
     precedents: list[dict],
     effort: str,
     redraft=None,
+    facts: str | None = None,
 ) -> tuple[SectionDraft, str]:
     """Return the model's draft of one section, and the model that wrote it.
 
@@ -199,6 +200,12 @@ def draft_section(
         [
             f"Assessment {assessment.reference}: {assessment.facility_type} in "
             f"{assessment.jurisdiction}.",
+            # Sections 4 and 5 (GN-03): figures the model must use unchanged, never make up.
+            *(
+                [f"Facts from the engineer (use unchanged):\n<facts>\n{facts}\n</facts>"]
+                if facts
+                else []
+            ),
             _block("observations", blocks[: len(own)]),
             _block("other_observations", blocks[len(own) :]),
             _block(

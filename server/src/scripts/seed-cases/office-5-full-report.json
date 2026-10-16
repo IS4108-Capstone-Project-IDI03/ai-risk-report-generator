@@ -1,5 +1,5 @@
 {
-  "_about": "A whole report for testing Section 2, the Executive Summary (GN-07): observations for Sections 7-12, saved drafts of Sections 4-12 written from them, and one accepted OFI. Observations off5-1 to off5-8 are Office Sample 5's (rag-service eval/cases/office-5-s7-construction.json); the rest, and every draft, are made up for testing and are not from a Marsh report. Kept out of rag-service eval/cases, which judge_sections.py drafts and judges in full. Run: npm run seed:case -- office-5-full-report",
+  "_about": "A whole report for testing Section 2, the Executive Summary (GN-07): observations for Sections 7-12, saved drafts of Sections 4-12 written from them, Sections 4 and 5's figures (GN-03: Office Sample 5's scores; the values are made up), and one accepted OFI. Observations off5-1 to off5-8 are Office Sample 5's (rag-service eval/cases/office-5-s7-construction.json); the rest, and every draft, are made up for testing and are not from a Marsh report. Kept out of rag-service eval/cases, which judge_sections.py drafts and judges in full. Run: npm run seed:case -- office-5-full-report",
   "name": "Office Sample 5, full report (seed for GN-07)",
   "source": "Office Sample 5 - Full report seed, Sections 3-12",
   "assessment": {
@@ -203,24 +203,34 @@
       "title": "Risk Quality Ratings and Comments",
       "subsections": [
         {
-          "heading": "Risk Quality Ratings and Comments",
+          "heading": "Risk Quality Rating Comments",
           "kind": "narrative",
           "statements": [
             {
-              "text": "Construction is rated Good: the building is of fire-resistive reinforced concrete construction with no combustible insulation on the facade.",
-              "citations": ["off5-1", "off5-2"]
+              "text": "Overall risk rating for the site can be considered to be above average risk of its class.",
+              "citations": ["off5-1", "off5-11"]
+            }
+          ]
+        },
+        {
+          "heading": "Positive Points",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "Buildings were constructed of fire resistive construction materials.",
+              "citations": ["off5-1"]
             },
             {
-              "text": "Fire protection is rated Above Average: the building is fully sprinklered with an automatic fire alarm monitored around the clock, although some sprinkler heads in the B3 service corridor are recessed into the ceiling.",
-              "citations": ["off5-11", "off5-12", "off5-14"]
+              "text": "The building is fully sprinklered, including the car park.",
+              "citations": ["off5-11"]
             },
             {
-              "text": "Management programs are rated Average: the server room's gaseous system is overdue for its room integrity test, and no annual pump flow test record was available.",
-              "citations": ["off5-13", "off5-15"]
+              "text": "The addressable fire alarm system is monitored around the clock from the fire command centre.",
+              "citations": ["off5-14"]
             },
             {
-              "text": "External exposure is rated Average: the basements lie in a flood-prone zone protected only by manually deployed barriers, and an active construction site with hot work lies about 40 m to the south.",
-              "citations": ["off5-17", "off5-22", "off5-25"]
+              "text": "Security is provided around the clock, with CCTV coverage.",
+              "citations": ["off5-18"]
             }
           ]
         }
@@ -230,20 +240,62 @@
       "title": "Loss Estimates",
       "subsections": [
         {
-          "heading": "Loss Estimates",
+          "heading": "Level I Scenario",
           "kind": "narrative",
           "statements": [
             {
-              "text": "The main loss scenario considered is a fire in the Level 5 server room spreading to the adjoining UPS room, given the room's overdue gaseous system test and point-type smoke detection only.",
+              "text": "A fire starts in the Level 5 tenant server room from an electrical fault and is controlled by the FM-200 system and the emergency response team.",
               "citations": ["off5-9", "off5-13"]
-            },
+            }
+          ]
+        },
+        {
+          "heading": "Level I Assumptions",
+          "kind": "narrative",
+          "statements": [
             {
-              "text": "A second scenario is flooding of the three basement levels, which hold the car park, chillers and transformers.",
-              "citations": ["off5-8", "off5-10", "off5-17"]
-            },
+              "text": "Fire and smoke damage is limited to the server room and the adjoining UPS room.",
+              "citations": ["off5-9"]
+            }
+          ]
+        },
+        {
+          "heading": "Level II Scenario",
+          "kind": "narrative",
+          "statements": [
             {
-              "text": "Loss figures are to be completed by the engineer from the site values.",
-              "citations": ["off5-1"]
+              "text": "A fire starts on an open-plan office floor; with the sprinklers impaired, it spreads across the floor plate and to the floors above through the internal stairs.",
+              "citations": ["off5-5", "off5-7"]
+            }
+          ]
+        },
+        {
+          "heading": "Level II Assumptions",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "The floors the fire reaches are fully damaged, with water damage to the floors below from firefighting.",
+              "citations": ["off5-7"]
+            }
+          ]
+        },
+        {
+          "heading": "Level III Scenario",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "With all fire protection impaired and no manual response, the fire spreads upward through the internal stairs and the curtain wall.",
+              "citations": ["off5-2", "off5-7"]
+            }
+          ]
+        },
+        {
+          "heading": "Level III Assumptions",
+          "kind": "narrative",
+          "statements": [
+            {
+              "text": "Damage extends over many floors of the tower; the surrounding roads keep the fire from neighbouring buildings.",
+              "citations": ["off5-16"]
             }
           ]
         }
@@ -561,6 +613,131 @@
             {
               "text": "Business Continuity Plans available?: No building-level plan; continuity is left to the tenants, and the server room tenant has its own disaster recovery site.",
               "citations": ["off5-20"]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "figures": {
+    "riskQuality": [
+      {
+        "category": "External Exposure",
+        "current": 9.0,
+        "potential": 10
+      },
+      {
+        "category": "Fire Protection",
+        "current": 8.1,
+        "potential": 10
+      },
+      {
+        "category": "Occupancy Hazards",
+        "current": 8.0,
+        "potential": 10
+      },
+      {
+        "category": "Construction",
+        "current": 9.3,
+        "potential": 10
+      },
+      {
+        "category": "Water Supply",
+        "current": 8.0,
+        "potential": 10
+      },
+      {
+        "category": "Surveillance",
+        "current": 8.0,
+        "potential": 10
+      },
+      {
+        "category": "Management Programs",
+        "current": 8.3,
+        "potential": 10
+      }
+    ],
+    "lossEstimates": {
+      "currency": "SGD",
+      "dateOfValues": "2026-01-01",
+      "indemnityMonths": 46,
+      "pd": [
+        {
+          "key": "pd-buildings",
+          "item": "Buildings",
+          "value": 1200000000
+        },
+        {
+          "key": "pd-contents",
+          "item": "Contents",
+          "value": 50000000
+        }
+      ],
+      "te": [
+        {
+          "key": "te-bi",
+          "item": "Business Interruption (Gross Revenue)",
+          "value": 400000000
+        }
+      ],
+      "levels": [
+        {
+          "level": "I",
+          "pd": [
+            {
+              "key": "pd-buildings",
+              "percent": 0.5
+            },
+            {
+              "key": "pd-contents",
+              "percent": 2
+            }
+          ],
+          "te": [
+            {
+              "key": "te-bi",
+              "months": 1,
+              "percent": 5
+            }
+          ]
+        },
+        {
+          "level": "II",
+          "pd": [
+            {
+              "key": "pd-buildings",
+              "percent": 6.1
+            },
+            {
+              "key": "pd-contents",
+              "percent": 8
+            }
+          ],
+          "te": [
+            {
+              "key": "te-bi",
+              "months": 8,
+              "percent": 11
+            }
+          ]
+        },
+        {
+          "level": "III",
+          "pd": [
+            {
+              "key": "pd-buildings",
+              "percent": 23
+            },
+            {
+              "key": "pd-contents",
+              "percent": 25
+            }
+          ],
+          "te": [
+            {
+              "key": "te-bi",
+              "months": 18,
+              "percent": 22
             }
           ]
         }
