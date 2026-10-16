@@ -834,6 +834,15 @@ describe('The Observations tab by location (CP-16)', () => {
   })
 
   it('opens newest first, naming each location in its row, and groups them on request', async () => {
+    // Observations can arrive before the separate request for empty locations.
+    const gateway = fetch
+    let releaseLocations!: () => void
+    const locationsReady = new Promise<void>((resolve) => {
+      releaseLocations = resolve
+    })
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+      url === LOCATIONS_URL ? locationsReady.then(() => gateway(url, init)) : gateway(url, init),
+    )
     const row = await openTab()
 
     expect(row).toHaveTextContent('Block A · Level 2 · Staircase')
@@ -844,7 +853,10 @@ describe('The Observations tab by location (CP-16)', () => {
     expect(order).not.toHaveAttribute('aria-pressed')
     fireEvent.click(order)
     expect(order).toHaveAccessibleName('Show newest first')
-    expect(placeGroup('Elsewhere on site · Guardhouse')).toHaveTextContent('No observations')
+    releaseLocations()
+    expect(
+      await screen.findByRole('group', { name: 'Elsewhere on site · Guardhouse' }),
+    ).toHaveTextContent('No observations')
     fireEvent.click(order)
     expect(order).toHaveAccessibleName('Group by location')
     expect(screen.queryByRole('group', { name: 'Elsewhere on site · Guardhouse' })).toBeNull()
