@@ -27,6 +27,8 @@ import {
   type LabelAnswer,
 } from './ingestion.service'
 import * as storage from './storage.service'
+import { ReportOfiModel } from '../models/report-ofi.model'
+import { ReportSectionModel } from '../models/report-section.model'
 
 const text = (label: string, max: number) =>
   z
@@ -236,6 +238,8 @@ export type KnowledgeDocumentDto = {
   // For a withdrawn document: the active member of its edition family, which
   // blocks reinstating it (IN-07 AC15); null otherwise.
   reinstateBlockedBy: { id: string; title: string; edition: string | null } | null
+  // True when a report cites it, so it can be withdrawn but not deleted (IN-12). Display only.
+  cited: boolean
 }
 
 type Doc = IKnowledgeDocument & { _id: Types.ObjectId }
@@ -247,7 +251,36 @@ export const needsReview = (d: Pick<IKnowledgeDocument, 'unconfirmed' | 'match' 
 
 // The other documents a batch of DTOs refer to, read in one query each so a
 // long list never costs one lookup per row.
-type DtoRefs = { matched: Map<string, Doc>; newest: Map<string, Doc>; active: Map<string, Doc> }
+type DtoRefs = {
+  matched: Map<string, Doc>
+  newest: Map<string, Doc>
+  active: Map<string, Doc>
+  cited: Set<string>
+}
+
+// A citation of a knowledge passage: `C:<doc id>:<n>` (standard) or
+// `P:<doc id>:<n>` (past-report precedent).
+const PASSAGE_CITATION = /^[CP]:([0-9a-f]{24}):/
+
+/**
+ * Returns the ids of the documents any report section statement or OFI cites
+ * (IN-12). One query per collection, whatever the number of documents. A cited
+ * document can only be withdrawn, since deleting it would leave a report
+ * pointing at passages that no longer exist.
+ */
+export async function citedDocumentIds(): Promise<Set<string>> {
+  const [fromSections, standards, precedents] = await Promise.all([
+    ReportSectionModel.distinct('subsections.statements.citations') as Promise<string[]>,
+    ReportOfiModel.distinct('standards') as Promise<string[]>,
+    ReportOfiModel.distinct('precedent') as Promise<(string | null)[]>,
+  ])
+  const ids = new Set<string>()
+  for (const citation of [...fromSections, ...standards, ...precedents]) {
+    const id = typeof citation === 'string' ? PASSAGE_CITATION.exec(citation)?.[1] : undefined
+    if (id) ids.add(id)
+  }
+  return ids
+}
 
 // Builds the progress field from an ingestion job, computing elapsed times on
 // read and serialising stageLog dates to ISO strings.
@@ -337,6 +370,7 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     reinstateBlockedBy: blocker
       ? { id: String(blocker._id), title: blocker.title, edition: blocker.edition ?? null }
       : null,
+    cited: refs.cited.has(String(d._id)),
   }
 }
 
@@ -350,11 +384,12 @@ export async function toDtos(
 ): Promise<KnowledgeDocumentDto[]> {
   const matchIds = docs.flatMap((d) => (d.match ? [d.match.documentId] : []))
   const families = docs.flatMap((d) => (d.withdrawn && d.editionFamily ? [d.editionFamily] : []))
-  const [matchedDocs, members] = await Promise.all([
+  const [matchedDocs, members, cited] = await Promise.all([
     matchIds.length ? KnowledgeDocumentModel.find({ _id: { $in: matchIds } }).lean() : [],
     families.length ? KnowledgeDocumentModel.find({ editionFamily: { $in: families } }).lean() : [],
+    citedDocumentIds(),
   ])
-  const refs: DtoRefs = { matched: new Map(), newest: new Map(), active: new Map() }
+  const refs: DtoRefs = { matched: new Map(), newest: new Map(), active: new Map(), cited }
   for (const m of matchedDocs) refs.matched.set(String(m._id), m)
   for (const m of members) {
     const family = String(m.editionFamily)

@@ -3,7 +3,8 @@
 // details, since the row's Review button covers it (IN-07). Withdrawn: who and
 // when (AC14), Reinstate and Edit history, but no Edit details (AC15);
 // Reinstate is off while another edition is active (IN-07 AC15). Withdraw and
-// Reinstate both open components/StatusChangeDialog.tsx. Used by
+// Reinstate both open components/StatusChangeDialog.tsx. Delete (IN-12) opens
+// components/DeleteDocumentDialog.tsx. Used by
 // components/DocumentRow.tsx.
 import type { ReactNode } from 'react'
 import { Button, IconRegistry } from '../../../design-system'
@@ -26,12 +27,14 @@ export function DocumentDetails({
   onEdit,
   onHistory,
   onChangeStatus,
+  onDelete,
 }: {
   id: string
   document: KnowledgeDocument
   onEdit: () => void
   onHistory: () => void
   onChangeStatus: () => void
+  onDelete: () => void
 }) {
   const standard = d.sourceType !== 'marsh_report'
   return (
@@ -111,11 +114,34 @@ export function DocumentDetails({
             Withdraw
           </Button>
         )}
-        {/* The file's facts are secondary, so they share the actions' row
-            instead of adding a second, half-empty row of details. */}
-        <span className="kb-file-line">
-          {d.fileName} · {fileSize(d.size)} · Uploaded {dateTime(d.uploadedAt)}
-        </span>
+        {/* The file's facts, then Delete, end the row together; in the list layout
+            they share a second line, so Delete is never left on a line alone. */}
+        <div className="kb-details-end">
+          {/* The file's size and upload time are secondary, so they share the actions'
+              row. Its name is left out: the title and View original stand for the file,
+              and a long name pushed Delete onto a second line (IN-12). */}
+          <span className="kb-file-line">
+            {/* Hidden on a phone, so the upload time and Delete still fit one line. */}
+            <span className="kb-file-size">{fileSize(d.size)} · </span>
+            Uploaded {dateTime(d.uploadedAt)}
+          </span>
+          {/* Last in the row, set apart from Withdraw by the file's facts. Not while it
+              is being ingested: Cancel covers that. A cited document gets a muted,
+              locked Delete that explains instead (IN-12). */}
+          {d.status !== 'queued' && d.status !== 'processing' && (
+            <Button
+              className="kb-delete"
+              variant={d.cited ? 'secondary' : 'danger-outline'}
+              size="sm"
+              iconLeft={d.cited ? 'lock' : IconRegistry.action.discard}
+              aria-label={d.cited ? 'Delete (cited by a report)' : undefined}
+              style={d.cited ? { color: 'var(--text-muted)' } : undefined}
+              onClick={onDelete}
+            >
+              Delete
+            </Button>
+          )}
+        </div>
       </div>
     </section>
   )

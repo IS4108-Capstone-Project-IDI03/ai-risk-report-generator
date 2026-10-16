@@ -140,6 +140,8 @@ export type KnowledgeDocument = {
   // For a withdrawn edition: the family's active edition, which must be
   // withdrawn before this one can be reinstated (IN-07 AC15); else null.
   reinstateBlockedBy: { id: string; title: string; edition: string | null } | null
+  // A report cites it: it can be withdrawn but not deleted (IN-12). Absent on older answers.
+  cited?: boolean
   // Live ingestion progress (E2); present only while `status` is `processing`.
   progress?: IngestionProgress
 }
@@ -216,6 +218,13 @@ export function withdrawDocument(id: string): Promise<KnowledgeDocument> {
   return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}/withdraw`, {
     method: 'POST',
   })
+}
+
+// Permanently deletes a document uploaded by mistake (IN-12). 204 on success;
+// rejects with the gateway's reason: 409 when a report cites it or it is still
+// being ingested, 503 when the knowledge base could not be updated.
+export function deleteKnowledgeDocument(id: string): Promise<void> {
+  return send(`/api/knowledge-documents/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 // Puts a withdrawn document back in use and returns it, `withdrawn` null (KB-01).

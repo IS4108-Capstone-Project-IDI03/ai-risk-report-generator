@@ -15,6 +15,7 @@ import {
   type ComparisonRow,
 } from './ingestion.service'
 import {
+  citedDocumentIds,
   KnowledgeDocumentNotFoundError,
   KnowledgeDocumentWrongStateError,
   labels,
@@ -260,4 +261,24 @@ export async function decideKnowledgeDocument(
     ])
   }
   return toDtoOf(document.toObject())
+}
+
+const CITED = "A report cites this document, so it can't be deleted. Withdraw it instead."
+
+/**
+ * Permanently deletes a document uploaded by mistake (IN-12): passages, file,
+ * ingestion job and record. Throws KnowledgeDocumentNotFoundError,
+ * KnowledgeDocumentWrongStateError (still being ingested, or cited by a report)
+ * or IngestionUnavailableError, in which case nothing changed.
+ */
+export async function deleteKnowledgeDocument(id: string): Promise<void> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  const document = await KnowledgeDocumentModel.findById(id)
+  if (!document) throw new KnowledgeDocumentNotFoundError()
+  if (document.status === 'queued' || document.status === 'processing') {
+    throw new KnowledgeDocumentWrongStateError('Stop the ingestion first, then delete it.')
+  }
+  // The authority for a refusal; the list's `cited` flag is only for display.
+  if ((await citedDocumentIds()).has(id)) throw new KnowledgeDocumentWrongStateError(CITED)
+  await discard(document)
 }

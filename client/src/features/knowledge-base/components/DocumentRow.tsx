@@ -18,6 +18,7 @@ export function DocumentRow({
   onEdit,
   onHistory,
   onChangeStatus,
+  onDelete,
   onReview,
 }: {
   document: KnowledgeDocument
@@ -26,6 +27,7 @@ export function DocumentRow({
   onEdit: () => void
   onHistory: () => void
   onChangeStatus: () => void
+  onDelete: () => void
   onReview: () => void
 }) {
   const panel = `kb-details-${d.id}`
@@ -48,7 +50,7 @@ export function DocumentRow({
             aria-controls={panel}
             onClick={onToggle}
           >
-            <strong>{d.title}</strong>
+            <strong title={d.title}>{d.title}</strong>
             <small>
               {d.edition
                 ? [standardName(d), `${d.edition} Edition`].filter(Boolean).join(' · ')
@@ -87,6 +89,8 @@ export function DocumentRow({
               target="_blank"
               rel="noreferrer"
               aria-label={`View original of ${d.title}`}
+              // The file's name, on hover: the details panel leaves it out.
+              title={d.fileName}
             >
               View original
             </a>
@@ -102,6 +106,7 @@ export function DocumentRow({
               onEdit={onEdit}
               onHistory={onHistory}
               onChangeStatus={onChangeStatus}
+              onDelete={onDelete}
             />
           </td>
         </tr>

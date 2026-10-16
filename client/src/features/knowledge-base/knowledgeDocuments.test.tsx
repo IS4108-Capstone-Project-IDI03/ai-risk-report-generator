@@ -81,13 +81,16 @@ const json = (status: number, body: unknown) =>
 // withdraw and reinstate calls are in `posts`). Other requests fail, so
 // screens fall back to demo data.
 const posts: string[] = []
+const deletes: string[] = []
 function mockGateway(
   active: object[],
   onPut: (id: string, body: Record<string, string>) => Promise<Response> = () => json(500, {}),
   onPost: (id: string, action: string) => Promise<Response> = () => json(500, {}),
+  onDelete: (id: string) => Promise<Response> = () => json(500, {}),
 ) {
   const puts: { id: string; body: Record<string, string> }[] = []
   posts.length = 0
+  deletes.length = 0
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (url === '/api/knowledge-documents/ingested') return json(200, active)
     const act = url.match(/^\/api\/knowledge-documents\/([^/]+)\/(withdraw|reinstate)$/)
@@ -96,6 +99,14 @@ function mockGateway(
       return onPost(act[1], act[2])
     }
     const id = url.match(/^\/api\/knowledge-documents\/([^/]+)$/)?.[1]
+    if (id && init?.method === 'DELETE') {
+      deletes.push(id)
+      // Like the gateway, a deleted document leaves the list the screen reloads.
+      return onDelete(id).then((response) => {
+        if (response.ok) active = active.filter((d) => (d as { id: string }).id !== id)
+        return response
+      })
+    }
     if (id && init?.method === 'PUT') {
       const body = JSON.parse(String(init.body))
       puts.push({ id, body })
@@ -439,10 +450,12 @@ describe('Knowledge base documents (KB-01)', () => {
 
     const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
     expect(within(details).getByText('Marsh report')).toBeInTheDocument()
-    // The file's facts are one line beside the actions, not three more details.
-    expect(
-      within(details).getByText(`x.pdf · 2 KB · Uploaded ${dateTime(REPORT.uploadedAt)}`),
-    ).toBeInTheDocument()
+    // The file's size and upload time sit beside the actions; its name is left out,
+    // since the title and View original already stand for the file (Jesper, 16 Oct).
+    expect(within(details).queryByText(/x\.pdf/)).not.toBeInTheDocument()
+    expect(details.querySelector('.kb-file-line')).toHaveTextContent(
+      `2 KB · Uploaded ${dateTime(REPORT.uploadedAt)}`,
+    )
     fireEvent.click(within(details).getByRole('button', { name: 'Edit details' }))
     expect(screen.getByRole('dialog', { name: 'Edit details' })).toBeInTheDocument()
   })
@@ -555,6 +568,153 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(posts).toEqual(['report/withdraw'])
     expect(screen.getByText(`${REPORT.title} withdrawn.`)).toBeInTheDocument()
+  })
+
+  it('names the file on View original when hovered, not in the details', async () => {
+    const long = 'a-very-long-file-name-'.repeat(8) + '.pdf'
+    mockGateway([{ ...REPORT, fileName: long }])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    expect(within(details).queryByText(long)).not.toBeInTheDocument()
+    expect(
+      within(await row(REPORT.title)).getByRole('link', {
+        name: `View original of ${REPORT.title}`,
+      }),
+    ).toHaveAttribute('title', long)
+  })
+
+  it('draws the Withdraw confirm as the soft red, not solid', async () => {
+    mockGateway([REPORT])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+    fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
+    const dialog = screen.getByRole('dialog', { name: `Withdraw ${REPORT.title}?` })
+
+    expect(within(dialog).getByRole('button', { name: 'Withdraw' }).style.background).toBe(
+      'var(--red-50)',
+    )
+  })
+
+  // IN-12: delete a document uploaded by mistake.
+  const openDelete = async (title: string) => {
+    const details = await open(title)
+    fireEvent.click(within(details).getByRole('button', { name: 'Delete' }))
+    return screen.getByRole('dialog', { name: `Delete ${title}?` })
+  }
+
+  it('deletes a document after typing its title, and closes the panel (IN-12 AC1)', async () => {
+    mockGateway([REPORT], undefined, undefined, () =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    )
+    await openKnowledgeBase()
+    const dialog = await openDelete(REPORT.title)
+    const confirm = within(dialog).getByRole('button', { name: 'Delete permanently' })
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    expect(confirm).toBeDisabled()
+
+    fireEvent.change(within(dialog).getByLabelText('Document title'), {
+      target: { value: 'Cold store' },
+    })
+    expect(confirm).toBeDisabled()
+    fireEvent.change(within(dialog).getByLabelText('Document title'), {
+      target: { value: `  ${REPORT.title} ` },
+    })
+    expect(confirm).toBeEnabled()
+    fireEvent.click(confirm)
+
+    expect(await screen.findByText(`${REPORT.title} deleted.`)).toBeInTheDocument()
+    expect(deletes).toEqual(['report'])
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: `Details of ${REPORT.title}` }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(REPORT.title, { selector: 'strong' })).not.toBeInTheDocument()
+  })
+
+  it("shows the server's reason and keeps the dialog open when a report cites the document (IN-12 AC2)", async () => {
+    const reason = "A report cites this document, so it can't be deleted. Withdraw it instead."
+    mockGateway([REPORT], undefined, undefined, () => json(409, { error: reason }))
+    await openKnowledgeBase()
+    const dialog = await openDelete(REPORT.title)
+    fireEvent.change(within(dialog).getByLabelText('Document title'), {
+      target: { value: REPORT.title },
+    })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(reason)
+    expect(within(await row(REPORT.title)).getByText('Active')).toBeInTheDocument()
+  })
+
+  it('has no Delete while a document is being ingested (IN-12 AC3)', async () => {
+    mockGateway([{ ...REPORT, status: 'processing' }])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    expect(within(details).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  })
+
+  it('draws Delete as red text with a soft red edge and no fill, apart from Withdraw', async () => {
+    mockGateway([REPORT])
+    await openKnowledgeBase()
+    const details = await open(REPORT.title)
+
+    const remove = within(details).getByRole('button', { name: 'Delete' })
+    expect(remove.style.background).toBe('transparent')
+    expect(remove.style.color).toBe('var(--action-danger)')
+    // A soft red edge, so it doesn't vanish into the panel.
+    expect(remove.style.border).toContain('solid')
+    expect(remove.style.border).not.toContain('transparent')
+    expect(within(details).getByRole('button', { name: 'Withdraw' }).style.background).not.toBe(
+      'transparent',
+    )
+  })
+
+  describe('a document a report cites (IN-12)', () => {
+    const CITED = { ...REPORT, cited: true }
+    const openCited = async () => {
+      const details = await open(CITED.title)
+      fireEvent.click(within(details).getByRole('button', { name: 'Delete (cited by a report)' }))
+      return screen.getByRole('dialog', { name: `Can't delete ${CITED.title}` })
+    }
+
+    it('shows Delete greyed with a lock, and explains instead of asking for the title', async () => {
+      mockGateway([CITED])
+      await openKnowledgeBase()
+      const dialog = await openCited()
+
+      const remove = within(
+        screen.getByRole('region', { name: `Details of ${CITED.title}` }),
+      ).getByRole('button', { name: 'Delete (cited by a report)' })
+      expect(remove.style.color).toBe('var(--text-muted)')
+      expect(remove.style.border).toContain('var(--border-default)')
+      expect(dialog).toHaveTextContent("A report cites this document, so it can't be deleted.")
+      expect(within(dialog).queryByLabelText('Document title')).not.toBeInTheDocument()
+      expect(deletes).toEqual([])
+    })
+
+    it('Withdraw instead closes the explanation and opens the Withdraw confirmation', async () => {
+      mockGateway([CITED])
+      await openKnowledgeBase()
+      const dialog = await openCited()
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw instead' }))
+
+      expect(screen.queryByRole('dialog', { name: `Can't delete ${CITED.title}` })).toBeNull()
+      expect(screen.getByRole('dialog', { name: `Withdraw ${CITED.title}?` })).toBeInTheDocument()
+    })
+
+    it('says a withdrawn document is already withdrawn, with only Close', async () => {
+      mockGateway([{ ...CITED, ...WITHDRAWN }])
+      await openKnowledgeBase()
+      const dialog = await openCited()
+
+      expect(dialog).toHaveTextContent('It is already withdrawn.')
+      expect(within(dialog).queryByRole('button', { name: 'Withdraw instead' })).toBeNull()
+      fireEvent.click(within(dialog).getAllByRole('button', { name: 'Close' }).at(-1)!)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
   })
 
   it('calls nothing when you cancel a withdrawal', async () => {

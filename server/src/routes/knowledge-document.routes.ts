@@ -24,6 +24,7 @@ import {
   compareKnowledgeDocument,
   decideKnowledgeDocument,
   decisionSchema,
+  deleteKnowledgeDocument,
 } from '../services/knowledge-document-decision.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
@@ -195,6 +196,18 @@ router.post('/:id/decision', requirePermission('knowledge:manage'), async (req, 
     res.json({
       document: await decideKnowledgeDocument(req.params.id, parsed.data.choice, { id, name }),
     })
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// Permanently deletes a document uploaded by mistake (IN-12). Answers: 204
+// deleted · 404 unknown · 409 still being ingested, or a report cites it ·
+// 503 the knowledge base could not be updated (nothing changed, retry).
+router.delete('/:id', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    await deleteKnowledgeDocument(req.params.id)
+    res.status(204).end()
   } catch (error: unknown) {
     answerStateChange(error, res)
   }
