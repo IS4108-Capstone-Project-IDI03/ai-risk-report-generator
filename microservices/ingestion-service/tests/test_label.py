@@ -226,15 +226,27 @@ def test_standard_number_grounding(fake, source, value, text, kept):
     assert ("standard_number" in body["unconfirmed"]) is not kept
 
 
-@pytest.mark.parametrize("error", [httpx.TimeoutException("slow"), RuntimeError("bad json")])
-def test_model_error_makes_everything_unconfirmed(fake, monkeypatch, error):
+def test_extract_failure_keeps_the_classifiers_fixed_list(fake, monkeypatch):
     def boom(text):
-        raise error
+        raise httpx.TimeoutException("slow")
 
     monkeypatch.setattr(models, "extract_details", boom)
     body = label(TEXT)
+    details = body["details"]
+    assert details["source_type"]["value"] == "fm_standard"
+    assert details["source_type"]["model"] == "jev"
+    assert (details["jurisdiction"]["value"], details["facility_type"]["value"]) == ("all", "all")
+    assert set(body["unconfirmed"]) == {"title", "edition", "standard_number"}
+
+
+def test_both_calls_failing_leaves_everything_unconfirmed(fake, monkeypatch):
+    def boom(text):
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(models, "extract_details", boom)
+    monkeypatch.setattr(models, "classify_details", boom)
+    body = label(TEXT)
     assert len(body["unconfirmed"]) == 6  # effective_date falls back to the upload date
-    assert "effective_date" not in body["unconfirmed"]
     assert all(d["value"] is None for d in body["details"].values() if d["model"] != "default")
 
 

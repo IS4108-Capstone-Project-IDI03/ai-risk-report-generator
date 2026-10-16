@@ -51,7 +51,10 @@ def label_pdf(pdf: bytes) -> dict:
                 logger.exception("Labelling call %s failed", name)
                 failed.add(name)
     if "extract" in failed:
-        classified, extracted = None, {}
+        # Keep the classifier's fixed-list answers (None if it failed too). Only the
+        # free-text details become Unconfirmed; without this, one LLM outage would
+        # throw away source type, country and facility type that Jev already gave.
+        classified, extracted = results.get("classify"), {}
     elif "classify" in failed:
         # Classifier down but the LLM answered: use the LLM's fixed-list answers, and
         # name the LLM so the stored model is truthful.
