@@ -49,10 +49,12 @@ def fake(monkeypatch):
     }
 
     def complete_json(system, user, schema, **kwargs):
+        calls.setdefault("plan", []).append(user)
         return state["plan"]
 
-    def retrieve(query, filters=None, include_withdrawn=False):
+    def retrieve(query, filters=None, include_withdrawn=False, **options):
         calls["search"].append((query, filters, include_withdrawn))
+        calls.setdefault("options", []).append(options)
         return state["passages"]
 
     def stream_text(system, messages, **kwargs):
@@ -446,3 +448,116 @@ def test_the_name_is_set_on_the_passage_for_the_eval_cache(fake):
     fake["passages"] = [passage]
     list(answer.answer_events([{"role": "user", "content": "q"}], [], [FM_DOC]))
     assert passage["metadata"]["document_name"] == "FM Global 2-81 (2026)"
+
+
+# ---- follow-ups after merge (16 Oct): every report, named documents, follow-up questions ------
+
+
+def _report(doc: str, score: float) -> dict:
+    return {
+        "id": f"{doc}:{score}",
+        "text": f"{doc} found the fire pump was not run weekly.",
+        "metadata": {"doc_id": doc, "page_start": 3, "page_end": 3},
+        "relevance_score": score,
+    }
+
+
+def test_report_searches_keep_the_best_passage_of_every_report(fake):
+    fake["plan"] = answer.Plan(
+        kind="search",
+        query="fire pump testing",
+        filters=answer.Filters(source_type="marsh_report"),
+        reply="",
+    )
+    # Ranked most relevant first, as search returns them; rep-c is below the cut-off.
+    fake["passages"] = [
+        _report("rep-a", 0.9),
+        _report("rep-a", 0.8),
+        _report("rep-b", 0.7),
+        _report("rep-d", 0.5),
+        _report("rep-c", 0.1),
+    ]
+    _ask("What did past reports say about fire pump testing?")
+    assert fake["calls"]["options"] == [{"candidates": 40, "top_n": None}]
+    sent = fake["calls"]["answer"][0][1][-1]["content"]
+    assert sent.count("[P") == 3  # one passage each for rep-a, rep-b and rep-d
+    assert "rep-a found" in sent and "rep-b found" in sent and "rep-d found" in sent
+    assert "rep-c found" not in sent
+
+
+def test_other_searches_keep_the_default_top_five(fake):
+    _ask("What clearance is needed above storage?")
+    assert fake["calls"]["options"] == [{}]
+
+
+def test_the_planner_sees_the_documents_it_can_name(fake):
+    body = {"messages": [{"role": "user", "content": "q"}], "documents": [FM_DOC, REPORT_DOC]}
+    client.post("/chat", json=body)
+    planned = fake["calls"]["plan"][0]
+    assert "FM Global 2-81 (2026)" in planned and "Orchard Tower survey 2024" in planned
+
+
+def test_a_named_document_limits_the_search_to_it_and_shows_its_name(fake):
+    fake["plan"] = answer.Plan(
+        kind="search",
+        query="smoke control",
+        filters=answer.Filters(source_type="marsh_report", document="orchard tower SURVEY 2024"),
+        reply="",
+    )
+    fake["passages"] = [_report("rep", 0.9)]
+    body = {"messages": [{"role": "user", "content": "q"}], "documents": [REPORT_DOC]}
+    events = [
+        json.loads(line[6:])
+        for line in client.post("/chat", json=body).text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert fake["calls"]["search"][0][1] == {"source_type": "marsh_report", "doc_id": ["rep"]}
+    shown = json.loads(next(e for e in events if e["type"] == "TOOL_CALL_ARGS")["delta"])
+    assert shown["filters"]["document"] == "orchard tower SURVEY 2024"
+
+
+def test_an_unknown_document_name_searches_without_it(fake):
+    fake["plan"] = answer.Plan(
+        kind="search", query="q", filters=answer.Filters(document="No such report"), reply=""
+    )
+    _ask("q")
+    assert fake["calls"]["search"][0][1] == {}
+
+
+def test_a_follow_up_question_stays_in_the_conversation(fake):
+    earlier = (
+        "root = Answer([p1, f1])\n"
+        'p1 = Paragraph([s1])\ns1 = Statement("Office 1 ran its pump weekly.", [])\n'
+        'f1 = FollowUp("Want me to go through the other office reports?")\n'
+    )
+    _ask("Fire pump testing in office reports?", earlier, "Yes please")
+    planned = fake["calls"]["plan"][0]
+    assert "Want me to go through the other office reports?" in planned
+
+
+def test_local_standards_are_a_source_type_filter():
+    assert answer.Filters(source_type="local_standard").source_type == "local_standard"
+
+
+def test_a_local_standard_without_an_issuing_body_is_named_by_its_number():
+    doc = {
+        "id": "cp",
+        "title": "Code of practice for sprinklers",
+        "standardNumber": "CP 52",
+        "edition": "2004",
+    }
+    assert answer.document_name(doc) == "CP 52 (2004)"
+
+
+def test_a_named_report_gets_its_top_passages_not_one(fake):
+    fake["plan"] = answer.Plan(
+        kind="search",
+        query="smoke control",
+        filters=answer.Filters(source_type="marsh_report", document="Orchard Tower survey 2024"),
+        reply="",
+    )
+    fake["passages"] = [_report("rep", 0.9), _report("rep", 0.8), _report("rep", 0.7)]
+    body = {"messages": [{"role": "user", "content": "q"}], "documents": [REPORT_DOC]}
+    client.post("/chat", json=body)
+    assert fake["calls"]["options"] == [{}]  # the default top 5 of that one report
+    assert fake["calls"]["answer"][0][1][-1]["content"].count("[P") == 3

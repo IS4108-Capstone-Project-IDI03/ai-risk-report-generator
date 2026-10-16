@@ -54,8 +54,17 @@ def _record_embed(response, started: float) -> None:
 
 
 def retrieve(
-    query: str, filters: dict[str, str | list[str]] | None = None, include_withdrawn: bool = False
+    query: str,
+    filters: dict[str, str | list[str]] | None = None,
+    include_withdrawn: bool = False,
+    candidates: int = 20,
+    top_n: int | None = 5,
 ) -> list[dict]:
+    """Return the reranked passages for a query: `candidates` from Chroma, best `top_n` kept.
+
+    `top_n=None` keeps every candidate, reranked; chat's report search uses that with 40
+    candidates to find every report. One rerank call either way (Cohere bills up to 100).
+    """
     if not query.strip():
         raise ValueError("Query must not be blank")
     try:
@@ -76,9 +85,9 @@ def retrieve(
         truncate="NONE",
     )
     _record_embed(embedding, started)
-    candidates = collection.query(
+    nearest = collection.query(
         query_embeddings=embedding.embeddings.float_,
-        n_results=min(20, count),
+        n_results=min(candidates, count),
         where=label_filter(filters or {}, include_withdrawn),
         include=["documents", "metadatas", "distances"],
     )
@@ -87,13 +96,13 @@ def retrieve(
         [
             {"id": id_, "text": text, "metadata": metadata, "distance": distance}
             for id_, text, metadata, distance in zip(
-                candidates["ids"][0],
-                candidates["documents"][0],
-                candidates["metadatas"][0],
-                candidates["distances"][0],
+                nearest["ids"][0],
+                nearest["documents"][0],
+                nearest["metadatas"][0],
+                nearest["distances"][0],
             )
         ],
-        top_n=5,
+        top_n=top_n,
     )
 
 

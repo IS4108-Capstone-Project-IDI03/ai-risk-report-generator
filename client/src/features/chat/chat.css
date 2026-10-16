@@ -322,6 +322,11 @@
   margin: 0;
   color: var(--text-body);
 }
+/* The follow-up question reads as the answer's last line, not a button or a chip. */
+.chat-followup {
+  margin: 0;
+  color: var(--text-body);
+}
 /* Document names, bolded by the model, carry the Marsh navy. */
 .chat-statement strong,
 .chat-table strong {

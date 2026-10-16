@@ -480,11 +480,14 @@ One question runs up to four paid steps:
 |---|---|---|
 | 1. Plan: rewrite the question as a search, or ask back, or decline | Claude Haiku 5.5 (`CHAT_PLAN_MODEL`) | tokens |
 | 2. Search: embed the query | Cohere embed-v4.0 | tokens |
-| 3. Rerank the 20 nearest passages to the best 5 | Cohere rerank-v3.5 | per search |
+| 3. Rerank the 20 nearest passages to the best 5 (past-report searches: the 40 nearest, keeping the best passage of each report above the cut-off) | Cohere rerank-v3.5 | per search |
 | 4. Answer from those passages, streamed | GPT-6.1 Sol (`CHAT_MODEL`) | tokens |
 
 Steps 2-4 are skipped when the planner asks back or declines, and step 4 is
 skipped when no passage is relevant enough. A comparison runs up to three searches.
+A past-report question can send one passage per matching report (up to the 40
+candidates), so its answer step costs more than a standards question (from 16 Oct,
+prompt `cb01-v13`; not yet measured).
 
 Measured on the CB-01 eval (61 cases, 90 questions, prompt `cb01-v12`, 15 Oct 2026),
 priced with `server/src/services/ai-pricing.service.ts`:

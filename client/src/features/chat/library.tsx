@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { createContext, useContext } from 'react'
 import { Callout } from '../../design-system'
 import { CitationMarker } from './components/CitationMarker'
+import { withBold } from './components/bold'
 import { CitedText } from './components/CitedText'
 import {
   CitationCheckContext,
@@ -141,11 +142,20 @@ const Meta = defineComponent({
   component: () => null,
 })
 
+// The one question an answer may end on, so the engineer can carry on the conversation.
+// It claims nothing, so it cites nothing and the quote check skips it.
+const FollowUp = defineComponent({
+  name: 'FollowUp',
+  description: 'One follow-up question the engineer may want next. No citations.',
+  props: z.object({ question: z.string() }),
+  component: ({ props }) => <p className="chat-followup">{withBold(props.question)}</p>,
+})
+
 const Answer = defineComponent({
   name: 'Answer',
   description: 'The whole answer: its blocks in order, then meta.',
   props: z.object({
-    blocks: z.array(z.union([Paragraph.ref, Statement.ref, CitedTable.ref])),
+    blocks: z.array(z.union([Paragraph.ref, Statement.ref, CitedTable.ref, FollowUp.ref])),
     meta: z.optional(Meta.ref),
   }),
   component: ({ props, renderNode }) => {
@@ -171,8 +181,8 @@ const Answer = defineComponent({
   },
 })
 
-/** The chat answer's component library: Answer, Paragraph, Statement, CitedTable, Cell, Cite, Meta. */
+/** The chat answer's component library: Answer and the blocks, citations and Meta inside it. */
 export const chatLibrary = createLibrary({
-  components: [Answer, Paragraph, Statement, CitedTable, Cell, Cite, Meta],
+  components: [Answer, Paragraph, Statement, CitedTable, Cell, Cite, FollowUp, Meta],
   root: 'Answer',
 })
