@@ -34,8 +34,14 @@ def test_search_batches_vectors_and_preserves_request_order(monkeypatch, size):
     requests.insert(1, ("past report", {"source_type": "past_report"}, 2))
     results = retriever.search(requests)
     assert results == [
-        [{"id": str(v[0]), "text": f"text {v[0]}", "metadata": {"page": v[0]},
-          "distance": v[0] / 100}]
+        [
+            {
+                "id": str(v[0]),
+                "text": f"text {v[0]}",
+                "metadata": {"page": v[0]},
+                "distance": v[0] / 100,
+            }
+        ]
         for v in vectors
     ]
     assert collection.query.call_count == (size + 19) // 20 + 1

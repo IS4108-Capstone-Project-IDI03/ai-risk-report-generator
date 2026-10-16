@@ -628,7 +628,8 @@ def test_a_redraft_is_given_the_decisions_and_instruction_and_records_them(monke
     system, user, _ = prompts[0]
     # The rules for using the saved draft and the instruction come after the usual prompt.
     assert "This is a redraft" in system
-    # The platform keeps accepted and edited statements as they are, so the model must not repeat them.
+    # The platform keeps accepted and edited statements as they are,
+    # so the model must not repeat them.
     assert "kept word for word" in system
     assert "Do not repeat what rejected statements say" in system
     # The saved draft, with each decision, and the instruction come after the evidence.

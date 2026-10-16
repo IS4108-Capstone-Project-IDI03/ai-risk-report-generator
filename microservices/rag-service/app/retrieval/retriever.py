@@ -126,9 +126,10 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
 
     Each request is `(query, filters, k)` and gets its `k` nearest passages, nearest
     first. All queries are embedded in one call, and requests sharing filters and `k`
-    share Chroma queries of at most 20 vectors. A Cohere trial key allows 10 calls a minute, so one search
-    per subsection with `retrieve()` (embed and rerank each) would hit the limit on a
-    large section, so callers rerank the combined hits once with `rerank()` (GN-01 AC14).
+    share Chroma queries of at most 20 vectors. A Cohere trial key allows 10 calls a
+    minute, so one search per subsection with `retrieve()` (embed and rerank each) would
+    hit the limit on a large section, so callers rerank the combined hits once with
+    `rerank()` (GN-01 AC14).
     """
     empty = [[] for _ in requests]
     if not requests:
