@@ -11,7 +11,12 @@ export const INGESTION_STATUSES = [
 ] as const
 export type IngestionStatus = (typeof INGESTION_STATUSES)[number]
 
-export const SOURCE_TYPES = ['fm_standard', 'nfpa_standard', 'local_standard', 'marsh_report'] as const
+export const SOURCE_TYPES = [
+  'fm_standard',
+  'nfpa_standard',
+  'local_standard',
+  'marsh_report',
+] as const
 export type SourceType = (typeof SOURCE_TYPES)[number]
 
 // One earlier version of a document's details (KB-01 AC9), kept when a
