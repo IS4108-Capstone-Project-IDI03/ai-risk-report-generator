@@ -68,6 +68,7 @@ import {
   decideFinding,
   decideReplacement,
   draftChoiceSchema,
+  draftSection,
   findingEditSchema,
   FindingNotFoundError,
   FindingStateError,
@@ -81,7 +82,6 @@ import {
 import { getReviewWorkspace } from '../services/review.service'
 import { draftSummary, getSummary, IncompleteSectionsError } from '../services/summary.service'
 import {
-  draftSection,
   InsufficientEvidenceError,
   MissingFiguresError,
   listSections,

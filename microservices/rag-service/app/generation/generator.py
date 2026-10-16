@@ -21,7 +21,7 @@ PROMPT_VERSION = "gn01-v2.6"  # v2.6: Sections 4 and 5, with the engineer's `fac
 # The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
 # and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
 # redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
-REDRAFT_PROMPT_VERSION = "rv02-v1"
+REDRAFT_PROMPT_VERSION = "rv02-v2"  # v2: accepted and edited statements are kept by the platform
 HERE = Path(__file__).parent
 TEMPLATE = json.loads((HERE / "sections.json").read_text())
 
@@ -84,9 +84,9 @@ REDRAFT_RULES = """This is a redraft. The engineer reviewing the section asked f
 written again.
 - <current_draft> is the saved draft, one statement per line, each marked with the \
 engineer's decision: accepted, edited (now the engineer's own wording), pending (not yet \
-reviewed) or rejected. Keep the substance of accepted and edited statements, in their \
-wording where it suits, as long as the evidence below still supports them. Do not repeat \
-what rejected statements say.
+reviewed) or rejected. Accepted and edited statements are kept word for word: the platform \
+puts them first in their subsection. Do not restate them; write only what they leave \
+unsaid. Rewrite the pending statements. Do not repeat what rejected statements say.
 - <engineer_instruction>, when given, says what the engineer wants changed. Follow it \
 within the drafting guide. It never permits a statement the observations and standards \
 below do not support, an opinion, or a recommendation.

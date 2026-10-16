@@ -330,13 +330,52 @@ export async function templateSection(sectionId: string): Promise<TemplateSectio
   return section
 }
 
-// What a regenerated draft (RV-02) is given beyond a first draft: the saved
-// draft's findings, each with the engineer's decision on it, and what they
-// asked to change. The new draft is saved as a replacement for that draft.
+// A finding the engineer accepted or edited, kept word for word in any new
+// draft of its section: its drafted text (the edit is carried as a decision),
+// citations and subsection.
+export type KeptFinding = {
+  heading: string
+  kind: IReportSection['subsections'][number]['kind']
+  text: string
+  citations: string[]
+  supported: boolean
+}
+
+// What a new draft of a reviewed section is given beyond a first draft: the
+// saved draft's findings, each with the engineer's decision on it, and what
+// they asked to change (RV-02). `keep` goes into the new draft as it is, with
+// the saved draft's sources it cites. With `replacementFor` (Regenerate), the
+// draft is a replacement for that draft; without it (Draft on Generation), it
+// is the section's content at once.
 export type Redraft = {
-  replacementFor: Types.ObjectId
+  replacementFor?: Types.ObjectId
   instruction: string | null
   current: { heading: string; text: string; decision: string }[]
+  keep: KeptFinding[]
+  keptSources: Record<string, unknown>
+}
+
+// The new draft's subsections with the kept findings first in their own
+// subsection, so an accepted finding is never lost to a redraft. A kept
+// finding whose subsection the new draft lacks gets that subsection back.
+function withKept(
+  subsections: IReportSection['subsections'],
+  keep: readonly KeptFinding[],
+): IReportSection['subsections'] {
+  const statements = (heading: string) =>
+    keep
+      .filter((k) => k.heading === heading)
+      .map(({ text, citations, supported }) => ({ text, citations, supported }))
+  const merged = subsections.map((sub) => ({
+    ...sub,
+    statements: [...statements(sub.heading), ...sub.statements],
+  }))
+  for (const { heading, kind } of keep) {
+    if (!merged.some((sub) => sub.heading === heading)) {
+      merged.push({ heading, kind, statements: statements(heading) })
+    }
+  }
+  return merged
 }
 
 // Drafts one of sections 7-12 from the assessment's observations through S4
@@ -376,8 +415,8 @@ export async function writeDraft(
     assessment: assessment._id,
     sectionId: section.id,
     title: draft.title,
-    subsections: draft.subsections,
-    sources: draft.sources,
+    subsections: withKept(draft.subsections, redraft?.keep ?? []),
+    sources: { ...redraft?.keptSources, ...draft.sources },
     questions: draft.questions,
     evidence,
     facts,
@@ -387,7 +426,7 @@ export async function writeDraft(
       generated_at: new Date(draft.provenance.generated_at),
       instruction: draft.provenance.instruction ?? redraft?.instruction ?? null,
     },
-    ...(redraft && { replacementFor: redraft.replacementFor }),
+    ...(redraft?.replacementFor && { replacementFor: redraft.replacementFor }),
     createdBy: user.id,
     metadata: {
       source_type: 'report_section',
@@ -406,19 +445,4 @@ export async function writeDraft(
     { $set: { reportStatus: 'draft' } },
   )
   return saved.toObject() as Draft
-}
-
-// Drafts one of sections 7-12 from the assessment's observations (GN-01).
-// Only the assigned engineer can, while the assessment is not archived. It can
-// be drafted again at any time, for example after more observations are added;
-// the new draft is the section's saved content at once. Regenerating from the
-// review workspace (RV-02) instead makes a replacement to accept or discard.
-export async function draftSection(
-  reference: string,
-  sectionId: string,
-  user: SessionUser,
-): Promise<SectionDraftDto> {
-  const assessment = await assessmentToDraft(reference, user)
-  const section = await templateSection(sectionId)
-  return toDraftDto(await writeDraft(assessment, section, user))
 }

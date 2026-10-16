@@ -628,6 +628,8 @@ def test_a_redraft_is_given_the_decisions_and_instruction_and_records_them(monke
     system, user, _ = prompts[0]
     # The rules for using the saved draft and the instruction come after the usual prompt.
     assert "This is a redraft" in system
+    # The platform keeps accepted and edited statements as they are, so the model must not repeat them.
+    assert "kept word for word" in system
     assert "Do not repeat what rejected statements say" in system
     # The saved draft, with each decision, and the instruction come after the evidence.
     evidence, redrafting = user.split("<current_draft>")
@@ -643,7 +645,7 @@ def test_a_redraft_is_given_the_decisions_and_instruction_and_records_them(monke
     assert [s["supported"] for s in statements] == [True, False]
     assert statements[0]["citations"] == ["O:obs1"]
     # The prompt it came from, and what the engineer asked for (GN-01 AC10).
-    assert body["provenance"]["prompt_version"] == "gn01-v2.6+rv02-v1"
+    assert body["provenance"]["prompt_version"] == "gn01-v2.6+rv02-v2"
     assert body["provenance"]["instruction"] == "Say more about the curtain wall."
 
 

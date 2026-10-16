@@ -55,6 +55,10 @@ export interface IReviewAuditEntry {
   instruction: string | null
   // Accepted by Bulk accept (AC7) rather than one at a time.
   bulk: boolean
+  // Set when the decision was copied onto a new draft of the section, which
+  // keeps the finding word for word: the earlier draft it was made on. `by`
+  // and `at` stay those of the original decision; the history shows only that.
+  carriedFrom?: Types.ObjectId | null
   // The signed-in user who decided, as they were then, and when (AC4).
   by: IStamp['by']
   at: Date
@@ -91,6 +95,7 @@ const reviewAuditSchema = new Schema<IReviewAuditEntry>(
     citations: { type: [String], default: [] },
     instruction: { type: String, default: null },
     bulk: { type: Boolean, default: false },
+    carriedFrom: { type: Schema.Types.ObjectId, ref: 'ReportSection', default: null },
     by: {
       id: { type: String, required: true },
       name: { type: String, required: true },

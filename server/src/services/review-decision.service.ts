@@ -1,6 +1,8 @@
 // Review decisions on report section drafts (RV-02): accepting, editing,
 // rejecting and restoring each generated finding, Bulk accept, and
-// regenerating a section as a replacement draft to accept or discard.
+// regenerating a section as a replacement draft to accept or discard. Also
+// drafting a section from Generation (GN-01), since any new draft of a
+// reviewed section keeps its accepted and edited findings word for word.
 //
 // A finding is one statement of a draft. Drafts are never changed: every
 // decision is one entry added to the review audit log, and a finding's state
@@ -17,8 +19,11 @@ import {
   assessmentToDraft,
   sectionDrafts,
   templateSection,
+  toDraftDto,
   writeDraft,
   type Draft,
+  type Redraft,
+  type SectionDraftDto,
 } from './section.service'
 
 export const FINDING_STATES = ['pending', 'accepted', 'edited', 'rejected'] as const
@@ -198,7 +203,7 @@ export async function assessmentHistory(assessment: Types.ObjectId): Promise<Rev
 // from the draft, which took them from the site and the section.
 function entry(
   draft: Draft,
-  user: SessionUser,
+  user: Pick<SessionUser, 'id' | 'name'>,
   fields: Pick<IReviewAuditEntry, 'action' | 'sequence'> & Partial<IReviewAuditEntry>,
   at = new Date(),
 ): IReviewAuditEntry {
@@ -345,12 +350,116 @@ export async function bulkAccept(
   return pending.length
 }
 
+// What a new draft of the section is given from its saved one: every finding
+// with its decision, for S4, and the accepted and edited ones to keep word for
+// word.
+function redraftOf(saved: Draft, findings: Finding[], instruction: string | null): Redraft {
+  const kept = findings.filter((f) => f.state === 'accepted' || f.state === 'edited')
+  const citations = new Set(kept.flatMap((f) => f.citations))
+  return {
+    instruction,
+    current: findings.map((f) => ({ heading: f.heading, text: f.text, decision: f.state })),
+    keep: kept.map((f) => ({
+      heading: f.heading,
+      kind: saved.subsections.find((sub) => sub.heading === f.heading)!.kind,
+      // The drafted text: an edit is carried as a decision, so Drafted text
+      // stays one click away.
+      text: f.generatedText,
+      citations: f.citations,
+      supported: f.supported,
+    })),
+    keptSources: Object.fromEntries(
+      // Absent, not {}, on a draft citing no passages: Mongoose drops empty objects.
+      Object.entries(saved.sources ?? {}).filter(([id]) => citations.has(id)),
+    ),
+  }
+}
+
+// Copies the kept findings' decisions onto the new draft, which put them first
+// in their subsection (withKept): an edit, then an accept if it was accepted.
+// New entries, as the log is append-only; each marked as carried and keeping
+// who decided and when.
+async function carryDecisions(saved: Draft, findings: Finding[], draft: Draft) {
+  const kept = findings.filter((f) => f.state === 'accepted' || f.state === 'edited')
+  const records = draft.subsections.flatMap((sub, i) =>
+    kept
+      .filter((f) => f.heading === sub.heading)
+      .flatMap((f, j) => {
+        const fields = {
+          finding: `${i}.${j}`,
+          heading: f.heading,
+          citations: f.citations,
+          carriedFrom: saved._id,
+        }
+        const edited = f.text !== f.generatedText
+        return [
+          ...(edited
+            ? [
+                entry(
+                  draft,
+                  f.decided!.by,
+                  {
+                    ...fields,
+                    action: 'edit',
+                    sequence: 0,
+                    before: f.generatedText,
+                    after: f.text,
+                  },
+                  f.decided!.at,
+                ),
+              ]
+            : []),
+          ...(f.state === 'accepted'
+            ? [
+                entry(
+                  draft,
+                  f.decided!.by,
+                  { ...fields, action: 'accept', sequence: edited ? 1 : 0, before: f.text },
+                  f.decided!.at,
+                ),
+              ]
+            : []),
+        ]
+      }),
+  )
+  if (records.length) await ReviewAuditModel.insertMany(records)
+}
+
+// Drafts a section from the Generation tab (GN-01): the new draft is the
+// section's saved content at once. Only the assigned engineer can, while the
+// assessment is not archived. Once findings are reviewed, the accepted and
+// edited ones are kept word for word, with their decisions, and S4 writes the
+// rest; rejected ones are not said again.
+export async function draftSection(
+  reference: string,
+  sectionId: string,
+  user: SessionUser,
+): Promise<SectionDraftDto> {
+  const assessment = await assessmentToDraft(reference, user)
+  const section = await templateSection(sectionId)
+  const { saved } = (await sectionDrafts(assessment._id)).get(sectionId) ?? { saved: null }
+  const findings = saved ? foldFindings(saved, await entriesFor([saved._id])) : []
+  // Nothing decided yet: drafted afresh, as a first draft.
+  const reviewed = saved && findings.some((f) => f.state !== 'pending')
+  const draft = await writeDraft(
+    assessment,
+    section,
+    user,
+    reviewed ? redraftOf(saved, findings, null) : undefined,
+  )
+  if (reviewed) await carryDecisions(saved, findings, draft)
+  return toDraftDto(draft)
+}
+
 // Regenerates one section (AC10): drafts it again through S4 as a
 // replacement for its saved draft, which stays the section's content, with
 // every decision on it, until the replacement is accepted. S4 is given the
 // saved draft's findings with the engineer's decision on each, and what they
-// asked to change. Other sections are untouched. One replacement waits at a
+// asked to change; the accepted and edited ones go into the replacement word
+// for word, decided. Other sections are untouched. One replacement waits at a
 // time.
+// ponytail: a finding decided while the replacement waits is not in it;
+// discard and regenerate to pick it up.
 export async function regenerateSection(
   reference: string,
   sectionId: string,
@@ -368,15 +477,16 @@ export async function regenerateSection(
 
   const findings = foldFindings(saved, await entriesFor([saved._id]))
   const draft = await writeDraft(assessment, section, user, {
+    ...redraftOf(saved, findings, instruction),
     replacementFor: saved._id,
-    instruction,
-    current: findings.map((f) => ({ heading: f.heading, text: f.text, decision: f.state })),
   })
+  await carryDecisions(saved, findings, draft)
   await append(entry(draft, user, { action: 'regenerate', sequence: 0, instruction }))
 }
 
 // Accepts a waiting replacement draft (AC11), which becomes the section's
-// saved content with every finding pending, or discards it (AC12), leaving
+// saved content, its kept findings still decided and the rest pending, or
+// discards it (AC12), leaving
 // the saved draft and its decisions as they were.
 export async function decideReplacement(
   reference: string,

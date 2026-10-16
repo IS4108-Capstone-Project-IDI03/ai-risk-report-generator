@@ -504,7 +504,8 @@ on the draft. Each entry has:
 - `heading` (the finding's subsection), `before` (its text when decided: what
   was accepted, edited or rejected), `after` (the engineer's text, for an
   edit), `citations` (its citations then), `instruction` (for a regenerated
-  draft), `bulk` (accepted by Bulk accept).
+  draft), `bulk` (accepted by Bulk accept), `carriedFrom` (see below; null
+  otherwise).
 - `by` `{ id, name }`, the signed-in user as they were then, and `at`.
 - `metadata` with the five required fields: `source_type: 'review_decision'`,
   `jurisdiction`, `facility_type` and `COPE_dimension` from the draft, and
@@ -515,6 +516,15 @@ from edited, keeping the engineer's text), `edit` makes it `edited` with the
 new text, `reject` makes it `rejected` (out of the draft), and `restore`
 returns it to its state before rejection. A decision that changes nothing
 records nothing.
+
+A new draft of a section with decided findings, from Regenerate or from
+Draft on Generation (`POST …/sections/:sectionId/draft`), keeps its accepted
+and edited findings word for word: they go first in their subsection, with
+the passages they cite, and S4 writes only the rest. Their decisions are
+copied onto the new draft as new entries (an `edit`, then an `accept` if it
+was accepted) with `carriedFrom` set to the earlier draft and the original
+`by` and `at`. The review history leaves these copies out, as it already
+lists the original decisions.
 
 Indexes: the unique `{ draft, finding, sequence }`, and
 `{ assessment, sectionId, at: -1 }` for a section's history.
@@ -537,7 +547,7 @@ a transcription in progress), 422 (too little evidence to regenerate), 503
 | `POST /api/assessments/:reference/sections/:sectionId/findings/:finding/restore` | Returns a rejected finding to its state before rejection. |
 | `POST /api/assessments/:reference/sections/:sectionId/bulk-accept` | Accepts every pending finding of the saved draft, one entry each with `bulk: true`; rejected and edited ones keep their decisions (AC7, AC8). |
 | `POST /api/assessments/:reference/sections/:sectionId/regenerate` | `{ instruction? }` (up to 1,000 characters): drafts the section again through S4 as a replacement for its saved draft (AC10). 201. Only one replacement waits at a time. |
-| `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11), every finding pending. |
+| `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11): kept findings keep their decisions, the rest are pending. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/discard` | Leaves the saved draft and its decisions as they were (AC12). |
 
 ## Opportunities for Improvement (GN-05)
