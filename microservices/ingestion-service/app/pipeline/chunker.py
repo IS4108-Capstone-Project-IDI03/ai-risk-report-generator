@@ -559,7 +559,9 @@ def _extract_table_chunk(
             pictures,
             doc_path=doc_path,
             doc_id=doc_id,
-            chunk_id=f"{doc_id}:picture:{position}",
+            # Named after the table: the chunk's own pictures, read by another
+            # job, already use `<doc>:picture:<n>`.
+            chunk_id=f"{chunk_id}:picture",
             meta=meta,
             headings=headings,
             position=position,

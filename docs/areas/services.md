@@ -203,7 +203,9 @@ eval.interpret_photos`).
   passage after the table's.
 - **Tables that read as nothing.** A table none of whose crops gives a record is often
   a photo or drawing Docling labelled as a table, so it is read once as a picture. A
-  table that read on some of its pages is not.
+  table that read on some of its pages is not. Its passage id is
+  `<id>:table:<n>:picture[:g<k>]`, so it never clashes with a picture of the same
+  chunk (`<id>:picture:<n>`).
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
