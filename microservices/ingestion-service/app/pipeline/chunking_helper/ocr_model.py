@@ -206,6 +206,27 @@ def _record(response: dict, started: float) -> None:
     )
 
 
+def _provider() -> str:
+    provider = os.getenv("OCR_PROVIDER", "").strip() or DEFAULT_OCR_PROVIDER
+    if provider not in OCR_PROVIDERS:
+        raise ValueError(f"OCR_PROVIDER {provider!r} is not supported; use one of {OCR_PROVIDERS}")
+    return provider
+
+
+def reader() -> str:
+    """Who reads crops now, as "<provider>:<model>", for passages that keep a reading."""
+    provider = _provider()
+    if provider == "anthropic":
+        from app.pipeline.chunking_helper import anthropic_ocr
+
+        return f"anthropic:{anthropic_ocr._model()}"
+    if provider == "gemini":
+        from app.pipeline.chunking_helper import gemini_ocr
+
+        return f"gemini:{gemini_ocr._model()}"
+    return f"glm:{os.getenv('GLMOCR_OCR_MODEL', '').strip() or 'glm-ocr'}"
+
+
 def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
     """Recognise one cropped region, returning table records, LaTeX or a picture description.
 
@@ -225,9 +246,7 @@ def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
         ValueError: for an unknown task, which is a programming error rather
             than a runtime condition.
     """
-    provider = os.getenv("OCR_PROVIDER", "").strip() or DEFAULT_OCR_PROVIDER
-    if provider not in OCR_PROVIDERS:
-        raise ValueError(f"OCR_PROVIDER {provider!r} is not supported; use one of {OCR_PROVIDERS}")
+    provider = _provider()
     # API providers are imported here so the GLM path never loads their SDKs.
     if provider == "anthropic":
         from app.pipeline.chunking_helper import anthropic_ocr
