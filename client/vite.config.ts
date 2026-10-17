@@ -16,6 +16,15 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    resolve: {
+      alias: [
+        // CB-02: react-pdf imports pdf.js's modern build, which needs Chrome 145+
+        // (Map.getOrInsertComputed). The legacy build carries polyfills; without
+        // this, opening the PDF tab on an older browser blanks the app.
+        // Must match the worker file in src/features/chat/components/PassagePdf.tsx.
+        { find: /^pdfjs-dist$/, replacement: 'pdfjs-dist/legacy/build/pdf.mjs' },
+      ],
+    },
     test: {
       environment: 'jsdom',
       // Mocks sign-in and resets the URL between tests (F-04, F-05).

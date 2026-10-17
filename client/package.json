@@ -17,9 +17,11 @@
     "@openuidev/react-headless": "0.17.1",
     "@openuidev/react-lang": "0.4.1",
     "@openuidev/react-ui": "0.17.1",
+    "pdfjs-dist": "6.3.289",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-is": "19.2.8",
+    "react-pdf": "11.0.0",
     "recharts": "3.10.1",
     "zod": "4.1.12",
     "zustand": "4.5.7"

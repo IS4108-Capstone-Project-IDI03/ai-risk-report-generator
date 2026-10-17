@@ -1,13 +1,19 @@
 // The source panel beside the conversation (CB-01 AC1, AC2, AC14): the opened citation's
 // document, edition, pages and quoted words, and whether those words were found there.
-// Shown by screens/KnowledgeAssistant.tsx; CB-02 adds the passage text and the PDF view here.
+// Shown by screens/KnowledgeAssistant.tsx. CB-02 adds the Passage and PDF tabs and the newer-edition warning.
 // Built from the review workspace's source viewer (assessments/review.css), so both read alike.
-import { useEffect, useRef } from 'react'
-import { Badge, Callout, Icon, IconButton, IconRegistry } from '../../../design-system'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Badge, Callout, Icon, IconButton, IconRegistry, Tabs } from '../../../design-system'
 import { calendarDate } from '../../knowledge-base/display'
 import { pages } from '../../assessments/reviewDisplay'
 import type { SelectedCitation } from './citationSelection'
 import { useDocument } from './documents'
+import { PdfErrorBoundary } from './PdfErrorBoundary'
+import { PassageText } from './PassageText'
+import { usePassage } from './usePassage'
+
+// Loaded on first use of the PDF tab, so pdf.js isn't in the chat's first download.
+const PassagePdf = lazy(() => import('./PassagePdf').then((m) => ({ default: m.PassagePdf })))
 
 type Props = { selected: SelectedCitation; onClose: () => void }
 
@@ -16,6 +22,10 @@ export function CitationPanel({ selected, onClose }: Props) {
   const panel = useRef<HTMLElement>(null)
   const { number, quote, state, source } = selected
   const doc = useDocument(source?.documentId)
+  // The tab chosen for this citation; a different citation opens on Passage again.
+  const [picked, setPicked] = useState<{ for: SelectedCitation; tab: string } | null>(null)
+  const tab = picked?.for === selected ? picked.tab : 'passage'
+  const loaded = usePassage(source?.passageId)
   // The quote check may omit a page; pages() takes a missing page as null.
   const range =
     source && pages({ pageStart: source.pageStart ?? null, pageEnd: source.pageEnd ?? null })
@@ -74,6 +84,12 @@ export function CitationPanel({ selected, onClose }: Props) {
         <dt>{range?.includes('–') ? 'Pages' : 'Page'}</dt>
         <dd className="rv-mono">{range ?? 'Not recorded'}</dd>
       </dl>
+      {doc?.newerEdition && (
+        <Callout tone="warning" title="Newer edition available">
+          A newer edition is in the knowledge base: {doc.newerEdition.title}
+          {doc.newerEdition.edition ? ` (${doc.newerEdition.edition})` : ''}.
+        </Callout>
+      )}
       <span className="rv-passage-label">Quoted words</span>
       <blockquote className="rv-passage">{quote}</blockquote>
       {state === 'verified' && (
@@ -95,6 +111,38 @@ export function CitationPanel({ selected, onClose }: Props) {
           newer edition says the same.
         </p>
       )}
+      <Tabs
+        items={[
+          { value: 'passage', label: 'Passage' },
+          { value: 'pdf', label: 'PDF' },
+        ]}
+        value={tab}
+        onChange={(value) => setPicked({ for: selected, tab: value })}
+        style={{ marginTop: 'var(--space-6)' }}
+      />
+      <div role="tabpanel" aria-label={tab === 'pdf' ? 'PDF' : 'Passage'} className="chat-tabpanel">
+        {loaded.status === 'loading' && <p className="rv-viewer-note">Loading the passage…</p>}
+        {loaded.status === 'error' && (
+          <p className="rv-viewer-note" role="alert">
+            The passage couldn't be loaded. Use "Open the original PDF" below.
+          </p>
+        )}
+        {loaded.status === 'ready' && tab === 'passage' && (
+          <PassageText text={loaded.passage.text} quote={quote} />
+        )}
+        {loaded.status === 'ready' && tab === 'pdf' && !doc && (
+          <p className="rv-viewer-note">
+            The document's details haven't loaded, so its PDF can't be shown.
+          </p>
+        )}
+        {loaded.status === 'ready' && tab === 'pdf' && doc && (
+          <PdfErrorBoundary key={number}>
+            <Suspense fallback={<p className="rv-viewer-note">Loading the page…</p>}>
+              <PassagePdf fileUrl={doc.fileUrl} passage={loaded.passage} quote={quote} />
+            </Suspense>
+          </PdfErrorBoundary>
+        )}
+      </div>
       {doc && (
         <a
           className="rv-viewer-link"

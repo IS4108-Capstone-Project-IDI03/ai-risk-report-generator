@@ -577,3 +577,43 @@
 .knowledge-assistant .openui-agent-sidebar-header--collapsed .chat-brand {
   display: none;
 }
+
+/* CB-02: the source panel's Passage and PDF tabs. The quoted words and the passage's box
+   wear the ink "selected" colours, as an opened source does in the review workspace.
+   Not amber: in the design system amber marks an unsupported claim. */
+.chat-source mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--ink-100);
+  color: var(--text-body);
+}
+.chat-tabpanel {
+  margin-top: var(--space-5);
+}
+.chat-passage-text {
+  max-height: 50vh;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--font-serif);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-body);
+  white-space: pre-wrap;
+}
+.chat-pdf-page {
+  position: relative;
+  line-height: 0;
+}
+.chat-pdf-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--border-focus);
+  background: color-mix(in srgb, var(--ink-500) 12%, transparent);
+  pointer-events: none;
+}
+/* Quoted words in the text layer: pdf.js text is transparent over the canvas, so the
+   mark is a coloured wash the page shows through. */
+.chat-pdf .react-pdf__Page__textContent mark {
+  background: color-mix(in srgb, var(--ink-500) 35%, transparent);
+  color: transparent;
+}
