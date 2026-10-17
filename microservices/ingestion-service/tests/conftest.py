@@ -20,7 +20,7 @@ Disable antivirus if fetching from Hugging Face still fails.
 
 Region OCR
 ----------
-`chunk()` sends every detected table and formula region to GLM-OCR over HTTP. Run
+`chunk()` sends every detected table, formula and picture region to the OCR layer. Run
 unstubbed, the default suite depends on a live Ollama/vLLM service, spends
 minutes per table on CPU inference, and can return different text between runs.
 
@@ -73,6 +73,7 @@ else:
 # than silently looking plausible.
 STUBBED_TABLE_TEXT = "stubbed table record"
 STUBBED_FORMULA_TEXT = "stubbed-formula"
+STUBBED_PICTURE_TEXT = "Image description (generated, other): stubbed picture"
 STUBBED_OCR_TEXT = "stubbed ocr document text"
 
 
@@ -92,11 +93,14 @@ def stub_region_ocr(request):
         yield
         return
 
-    from app.pipeline.chunking_helper import formula_parser, table_parser
+    from app.pipeline.chunking_helper import formula_parser, picture_parser, table_parser
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: STUBBED_TABLE_TEXT)
     monkeypatch.setattr(formula_parser, "recognise", lambda image_png, task: STUBBED_FORMULA_TEXT)
+    monkeypatch.setattr(
+        picture_parser, "recognise", lambda image_png, task, context="": STUBBED_PICTURE_TEXT
+    )
     try:
         yield
     finally:
