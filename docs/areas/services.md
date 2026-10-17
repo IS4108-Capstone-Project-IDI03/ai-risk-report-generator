@@ -138,6 +138,37 @@ eval.interpret_photos`).
    document's page total from `progress` (E2). Pages are shown rather than a chunk count because
    the chunk total is not knowable up front.
 
+### Tables, columns and what search reads (CB-01)
+
+- **Column order.** After the batches are joined and before headings are ranked,
+  `app/pipeline/columns.py` puts each two-column page in column order: blocks much
+  narrower than the page that fall in two clusters with a gap between are columns,
+  full-width blocks split the page into bands, and each band reads the left column,
+  then the right. A page without a gutter keeps Docling's order. After parsing,
+  clause numbers that run backwards inside a chapter (29.4.3 then 29.2.5) are logged
+  as warnings, so a page still out of order shows in the ingestion log.
+- **Tables.** The OCR provider reads a crop as `tables`: per table a printed title,
+  `header_rows`, `header_cols` and the grid (`chunking_helper/ocr_prompts.py`). Code
+  flattens it (`chunking_helper/table_text.py`): a column is labelled by the path of
+  its heading cells ("Inside Hose > gpm"), a row by its heading columns, and
+  heading rows are never stored as data. A crop with two tables gives two passages.
+  The first passage's title is Docling's caption when it has one, else the title in
+  the image. A table over about 1,400 characters is cut between rows into groups
+  that each repeat the title; ids are `<id>:table:<n>[:t<j>][:g<k>]`. The GLM path
+  still guesses the header and has no title.
+- **Passage metadata** gains `position` (the chunk's number in reading order),
+  and table passages `table_id` (shared by a table's groups) and `table_title`.
+- **What search reads.** The embedder and the reranker both see the heading trail
+  and then the text (`indexer.embedding_text`, `retriever.rank_text`; change them
+  together), while the stored text, quotes and pages stay plain. Short forms in a
+  question ("EH2") are spelled out first (`retrieval/glossary.py`). Chat widens its
+  best 3 hits to the rest of their table, or to the passages either side by
+  `position`, up to 3 extra passages and 3,000 characters per hit
+  (`retriever.widen`); withdrawn and unconfirmed passages are never added.
+  Drafting does not widen.
+- Passages indexed before this have no `position` or `table_id` and are not
+  widened; re-ingest a document to get the new passages.
+
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
 ## Automatic labelling (IN-05)
