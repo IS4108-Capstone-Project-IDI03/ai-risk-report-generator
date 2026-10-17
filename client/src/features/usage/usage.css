@@ -104,6 +104,59 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+/* A row that opens (components/DataTable.tsx): its chevron leads the row name. */
+.uc-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Pulls the chevron into the cell's padding so names stay on one left edge. */
+  margin-left: calc(var(--space-3) * -1);
+}
+.uc-table tbody tr[data-open] > * {
+  background: var(--surface-selected);
+}
+/* The opened row's calculation sits under it, indented to the row name. */
+.uc-table tbody .uc-expansion > td {
+  padding: var(--space-3) var(--space-5) var(--space-5) calc(var(--control-height-sm) + 12px);
+  background: var(--surface-header);
+  white-space: normal;
+}
+.uc-calc {
+  width: auto;
+  min-width: min(100%, 560px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  font-size: var(--text-caption-size);
+}
+.uc-calc tbody th {
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+  min-width: 16rem;
+}
+.uc-calc td[data-numeric] {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+.uc-calc tfoot > tr > * {
+  border-top: 1px solid var(--border-subtle);
+  text-align: right;
+  color: var(--text-primary);
+}
+.uc-calc tfoot th {
+  font-weight: var(--weight-semibold);
+}
+/* Why a rate is $0, or why a call has no price: under the figure, quieter. */
+.uc-note {
+  display: block;
+  font-family: var(--font-sans);
+  color: var(--text-muted);
+  white-space: normal;
+}
+.uc-calc-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
 .uc-bases {
   margin: 8px 0 0;
   padding-left: 20px;

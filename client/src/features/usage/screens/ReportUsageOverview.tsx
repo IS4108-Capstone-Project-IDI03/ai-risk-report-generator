@@ -182,6 +182,8 @@ export function ReportUsageOverview({
               </div>
             )}
             <OverviewTable
+              // A new period, split or grouping closes any open cost calculations.
+              key={JSON.stringify(query)}
               groupBy={groupBy}
               groups={shown.groups.filter((g) => groupBy === 'engineer' || matches(g, search))}
               showEngineer={isAdmin}

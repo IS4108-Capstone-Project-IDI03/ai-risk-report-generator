@@ -29,6 +29,10 @@ export function EstimateNotice({
           {noCost === 1 ? 'is' : 'are'} not included in the total.
         </p>
       )}
+      <p>
+        Tokens count input, output and cached input. Whisper is billed by audio time and Cohere
+        rerank by searches, so they add none. Open a row to see its cost worked out.
+      </p>
       {pricingBases.length > 0 && (
         <ul className="uc-bases" aria-label="Pricing bases">
           {pricingBases.map((b) => (

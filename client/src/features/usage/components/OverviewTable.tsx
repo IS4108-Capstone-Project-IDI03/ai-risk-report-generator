@@ -6,7 +6,9 @@ import { Button } from '../../../design-system'
 import { formatDay } from '../../assessments/format'
 import type { GroupBy, OverviewGroup } from '../api'
 import { formatCount, formatMoney } from '../format'
-import { DataTable, type DataColumn } from './DataTable'
+import { CostCalculationTable } from './CostCalculationTable'
+import { DataTable, type DataColumn, type RowExpansion } from './DataTable'
+import { TokensCell } from './TokensCell'
 
 const lastUsed: DataColumn<OverviewGroup> = {
   header: 'Last used',
@@ -15,8 +17,14 @@ const lastUsed: DataColumn<OverviewGroup> = {
 const counts: DataColumn<OverviewGroup>[] = [
   { header: 'Calls', numeric: true, cell: (g) => g.calls.toLocaleString('en-US') },
   { header: 'Without cost', numeric: true, cell: (g) => formatCount(g.callsWithoutCost) },
+  { header: 'Tokens', numeric: true, cell: (g) => <TokensCell tokens={g.totalTokens} /> },
   { header: 'Total cost', numeric: true, cell: (g) => formatMoney(g.estimatedCostUsd) },
 ]
+// Each row opens to show how its total cost is calculated.
+const calculation: RowExpansion<OverviewGroup> = {
+  label: (g) => `Show cost calculation for ${g.label}`,
+  content: (g) => <CostCalculationTable name={g.label} check={g} />,
+}
 
 export function OverviewTable({
   groupBy,
@@ -37,6 +45,7 @@ export function OverviewTable({
       <DataTable
         caption="Engineers and their cost"
         rows={groups}
+        expand={calculation}
         columns={[
           {
             header: 'Engineer',
@@ -59,6 +68,7 @@ export function OverviewTable({
     <DataTable
       caption="Assessments and their cost"
       rows={groups}
+      expand={calculation}
       columns={[
         {
           header: 'Assessment',

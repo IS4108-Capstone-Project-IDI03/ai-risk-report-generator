@@ -102,7 +102,11 @@ export function IngestionUsageTab() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <DocumentTable documents={shown.documents.filter((d) => matches(d, search))} />
+            <DocumentTable
+              // A new period or split closes any open cost calculations.
+              key={JSON.stringify(query)}
+              documents={shown.documents.filter((d) => matches(d, search))}
+            />
           </section>
         </>
       )}

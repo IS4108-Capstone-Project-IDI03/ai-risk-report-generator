@@ -21,6 +21,7 @@ export const SERVICE_LABELS: Record<string, string> = {
   'cohere-rerank': 'Cohere rerank',
   'openai-whisper': 'OpenAI Whisper',
   'openai-label': 'OpenAI labelling',
+  openai: 'OpenAI chat',
   'typesafe-jev': 'Typesafe JEV',
   'gemini-vision': 'Gemini photo reading',
   'gemini-ocr': 'Gemini OCR',
@@ -65,6 +66,38 @@ export function formatAxisMoney(usd: number): string {
 // A count with thousands separators; zero or missing is a dash, not 0 noise.
 export function formatCount(n: number): string {
   return n > 0 ? n.toLocaleString('en-US') : DASH
+}
+
+const COMPACT = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+
+// Tokens, short (1.6M) for a table cell; none is a dash. Pair with the full
+// count in a title so the exact figure is a hover away.
+export function formatTokens(n: number): string {
+  return n > 0 ? COMPACT.format(n) : DASH
+}
+
+// A cost line's quantity in its own unit: "200,000 tokens", "140 searches", "12.5 min".
+export function formatQuantity(quantity: number, unit: 'tokens' | 'searches' | 'minutes'): string {
+  if (unit === 'minutes') return `${quantity.toFixed(1)} min`
+  return `${Math.round(quantity).toLocaleString('en-US')} ${unit}`
+}
+
+const RATE = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+})
+const PER_LABELS: Record<number, string> = { 1_000_000: '1M ', 1000: '1K ', 1: '' }
+
+// A rate as the vendor states it: "$2.00 / 1M tokens", "$2.00 / 1K searches", "$0.006 / min".
+export function formatRate(
+  usdPer: number,
+  per: number,
+  unit: 'tokens' | 'searches' | 'minutes',
+): string {
+  const perLabel = PER_LABELS[per] ?? `${per.toLocaleString('en-US')} `
+  return `${RATE.format(usdPer)} / ${perLabel}${unit === 'minutes' ? 'min' : unit}`
 }
 
 export function formatMinutes(seconds: number): string {

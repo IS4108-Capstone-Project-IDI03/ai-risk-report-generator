@@ -75,16 +75,42 @@ export type OverviewQuery = {
   engineer?: string
 }
 
-// One assessment, engineer, or the Chatbot (key `chat`) in the overview.
-export type OverviewGroup = CostGroup & {
-  reference: string | null
-  client: string | null
-  siteName: string | null
-  engineerId: string | null
-  engineerName: string | null
-  calls: number
-  callsWithoutCost: number
+// One line of a row's cost calculation: quantity × usdPer / per = costUsd.
+// 'not priced' gathers calls stored without a cost; its note says why.
+export type CostLine = {
+  service: string
+  model: string
+  part: 'input' | 'output' | 'cached input' | 'searches' | 'audio' | 'not priced'
+  unit: 'tokens' | 'searches' | 'minutes'
+  quantity: number
+  usdPer: number
+  per: number
+  costUsd: number
+  note: string | null
 }
+// The calculated total beside the stored one; they differ only when prices
+// changed after the calls were recorded.
+export type Reconciliation = { calculatedUsd: number; recordedUsd: number; differenceUsd: number }
+
+// What every overview group and document carries for checking its cost by hand.
+export type CostCheck = {
+  // Tokens used, summed from what providers reported; never cost ÷ rate.
+  totalTokens: number
+  costLines: CostLine[]
+  reconciliation: Reconciliation
+}
+
+// One assessment, engineer, or the Chatbot (key `chat`) in the overview.
+export type OverviewGroup = CostGroup &
+  CostCheck & {
+    reference: string | null
+    client: string | null
+    siteName: string | null
+    engineerId: string | null
+    engineerName: string | null
+    calls: number
+    callsWithoutCost: number
+  }
 
 export type UsageOverview = {
   scope: OverviewQuery & { from: string | null }
@@ -99,18 +125,19 @@ export type IngestionQuery = { split: UsageView; range: Range }
 
 // What reading one knowledge document cost. `saved` is false for an upload
 // refused after labelling, or labelling from before calls named a document.
-export type DocumentUsage = CostGroup & {
-  title: string
-  fileName: string | null
-  status: string | null
-  saved: boolean
-  uploadedAt: string | null
-  pages: number | null
-  calls: number
-  callsWithoutCost: number
-  usdPerPage: number | null
-  avgMsPerCall: number | null
-}
+export type DocumentUsage = CostGroup &
+  CostCheck & {
+    title: string
+    fileName: string | null
+    status: string | null
+    saved: boolean
+    uploadedAt: string | null
+    pages: number | null
+    calls: number
+    callsWithoutCost: number
+    usdPerPage: number | null
+    avgMsPerCall: number | null
+  }
 
 export type IngestionUsage = {
   scope: IngestionQuery & { from: string | null }
