@@ -1650,3 +1650,17 @@ Rejected:
 Known limits: a difference appears when prices changed after recording (`npm --prefix server run migrate:prices` only reprices rows that had no price). The labelling copy must be kept in step with `labelling/config.py` by hand.
 
 Stories: EV-04, EV-03.
+
+## 2026-10-18 — Each AI call stores the rates it was charged at
+
+Chose: `estimateCost` returns the parts of a cost (quantity, rate, cost each) and the gateway stores them on the call as `ai_calls.costParts`. The cost report builds each row's lines from them instead of re-pricing at today's rates, so the lines always add up to the row's total and the Calculated / Recorded / Difference footer becomes one Total. The labelling service sends the rates behind its `cost_usd`, and the gateway's copy of its `PRICES` table is gone. `npm --prefix server run migrate:cost-parts` backfills older rows once, only where today's rates reproduce the stored cost exactly; the rest show as "rates not recorded" at their stored cost.
+
+Reason: rates change, and re-pricing an old call at today's rate misstates what it was charged. A dated price table would only be right while nobody edits a past price; the rate stored on the call cannot drift.
+
+Rejected:
+- Dated price tables for every vendor (as Gemini's): correct only if every change is added as a new dated entry, never edited in place.
+- Recalculating old rows at today's rates: a second code path that shows rates the call was not charged.
+
+Supersedes the "difference means prices changed" part of the entry above.
+
+Stories: EV-04, EV-03.
