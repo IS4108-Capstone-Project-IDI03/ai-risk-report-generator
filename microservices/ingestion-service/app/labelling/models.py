@@ -64,6 +64,9 @@ def _usage(model: str, price_key: str, tokens_in: int, tokens_out: int, started:
         "input_tokens": tokens_in,
         "output_tokens": tokens_out,
         "cost_usd": cost,
+        # The rates behind cost_usd; the gateway stores them with the call (EV-04).
+        "input_usd_per_1m": price_in,
+        "output_usd_per_1m": price_out,
         "seconds": seconds,
     }
 
