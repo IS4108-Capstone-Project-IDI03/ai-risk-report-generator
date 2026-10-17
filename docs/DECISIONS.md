@@ -1635,3 +1635,18 @@ now look their items up in the document as pictures do. On FM-200 pages 45-55, 5
 unchanged. Table documents must be re-ingested for this too.
 
 Stories: IN-13, IN-03, IN-12, CP-05.
+
+## 2026-10-18 — Each cost row shows its tokens and opens to its calculation, priced by the same parts estimateCost stores
+
+Chose: overview groups and ingested documents carry `totalTokens`, `costLines` (quantity × rate = cost per service, model, part and rate) and `reconciliation` (calculated beside recorded). The screen adds a Tokens column and a chevron per row that opens the calculation. `estimateCost` now prices through `costBreakdown`, the function that builds the lines, so a line cannot disagree with the cost it explains; labelling, priced by the ingestion service, is shown from a copy of its `PRICES` table.
+
+Reason: a total cost could not be checked by hand. Tokens are summed from the stored provider counts, never cost ÷ rate, which would only restate the cost. Whisper and Cohere rerank bill in minutes and searches, so their lines carry their own unit rather than being forced into tokens.
+
+Rejected:
+- One calculation table for the whole period: it cannot answer why one assessment costs what it does.
+- Fetching a row's lines when it is opened: a new endpoint, a loading state per row; the rows are already in memory when the group is built.
+- Whole-row click to open: the Assessment and Engineer cells already open the drill-in and narrow the overview.
+
+Known limits: a difference appears when prices changed after recording (`npm --prefix server run migrate:prices` only reprices rows that had no price). The labelling copy must be kept in step with `labelling/config.py` by hand.
+
+Stories: EV-04, EV-03.
