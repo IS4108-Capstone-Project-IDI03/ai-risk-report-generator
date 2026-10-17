@@ -89,7 +89,7 @@ def _has_formula_chunk(dl_chunk) -> bool:
     return has_formula
 
 
-def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk) -> list[dict]:
+def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk, doc=None) -> list[dict]:
     """Bounding boxes of items in `dl_chunk`, optionally filtered by label.
 
     Each entry is ``{"page": int, "bbox": [float, ...], "coord_origin": str}``
@@ -98,15 +98,32 @@ def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk) -> list[dict]:
 
     When no label is supplied, each entry also carries ``is_table`` and the
     source item's ``text``. Text is attached only to the first provenance box
-    for an item so multi-box items are not emitted repeatedly.
+    for an item so multi-box items are not emitted repeatedly. With `doc`, the
+    text is read from the document's own item (a chunk's items carry none),
+    and the caption items of a table, or of a picture that will be read, give
+    no text: each caption leads its own passage.
     """
 
+    items = getattr(dl_chunk.meta, "doc_items", None) or []
+    resolved = [_resolved(item, doc) for item in items]
+    caption_refs = {
+        ref.cref
+        for item in resolved
+        if getattr(item, "label", None) == DocItemLabel.TABLE
+        or (
+            getattr(item, "label", None) == DocItemLabel.PICTURE
+            and any(worth_reading(box["bbox"]) for box in _picture_boxes(item))
+        )
+        for ref in getattr(item, "captions", None) or []
+    }
     boxes: list[dict] = []
-    for item_index, item in enumerate(getattr(dl_chunk.meta, "doc_items", None) or []):
+    for item_index, item in enumerate(items):
         item_label_value = getattr(item, "label", None)
         if item_label is not None and item_label_value != item_label:
             continue
 
+        is_caption = getattr(item, "self_ref", None) in caption_refs
+        text = "" if is_caption else getattr(resolved[item_index], "text", "")
         for prov_index, prov in enumerate(getattr(item, "prov", None) or []):
             bbox = getattr(prov, "bbox", None)
             if bbox is None:
@@ -117,7 +134,7 @@ def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk) -> list[dict]:
                     "bbox": [float(bbox.l), float(bbox.t), float(bbox.r), float(bbox.b)],
                     "coord_origin": str(getattr(bbox, "coord_origin", "")),
                     "is_table": item_label_value == DocItemLabel.TABLE,
-                    "text": getattr(item, "text", "") if prov_index == 0 else "",
+                    "text": text if prov_index == 0 else "",
                     "item": item_index,  # which doc item the box belongs to
                 }
             )
@@ -263,9 +280,7 @@ def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
     each picture is read once.
     """
     items = getattr(dl_chunk.meta, "doc_items", None) or []
-    # HybridChunker hands back plain DocItems (no text, no captions); the
-    # document holds the real items.
-    resolved = {item.self_ref: RefItem(cref=item.self_ref).resolve(doc) for item in items}
+    resolved = {item.self_ref: _resolved(item, doc) for item in items}
     kept: dict[str, list[dict]] = {}
     for item in items:
         if getattr(item, "label", None) != DocItemLabel.PICTURE:
@@ -343,12 +358,24 @@ def _build_section_trails(doc) -> dict[str, list[str]]:
     return trails
 
 
+def _resolved(item, doc):
+    """The document's own item for a chunk item.
+
+    HybridChunker hands back plain DocItems that keep only label, self_ref and
+    prov: no text, no captions. The document holds the real item.
+    """
+    self_ref = getattr(item, "self_ref", None)
+    if not self_ref or doc is None or not hasattr(doc, "pages"):
+        return item  # not from a DoclingDocument
+    return RefItem(cref=self_ref).resolve(doc)
+
+
 def _table_caption(dl_chunk, doc) -> str:
     """The printed caption Docling tied to a chunk's table, or "" (it is in no chunk text)."""
     for item in getattr(dl_chunk.meta, "doc_items", None) or []:
         if getattr(item, "label", None) != DocItemLabel.TABLE:
             continue
-        caption_text = getattr(item, "caption_text", None)
+        caption_text = getattr(_resolved(item, doc), "caption_text", None)
         text = caption_text(doc) if callable(caption_text) else ""
         if isinstance(text, str) and text.strip():
             return " ".join(text.split())
@@ -756,7 +783,9 @@ def chunk(
             if _is_table_chunk(dl_chunk):
                 # Docling's linearised table text is discarded on purpose — it
                 # has already lost the row/column structure.
-                table_bboxes = _unseen_bboxes(_detect_bboxes(None, dl_chunk), seen_chunk_bboxes)
+                table_bboxes = _unseen_bboxes(
+                    _detect_bboxes(None, dl_chunk, doc), seen_chunk_bboxes
+                )
                 if table_bboxes:
                     # Counted as seen when queued (not when decoded), so a table
                     # split across chunks is read once even while OCR runs in

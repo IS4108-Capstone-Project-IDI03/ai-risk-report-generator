@@ -14,6 +14,7 @@ Regressions pinned here:
 
 from types import SimpleNamespace
 
+import doc_builders
 import pytest
 
 from app.pipeline import chunker
@@ -376,3 +377,37 @@ def test_eleventh_page_tables_keep_repeated_characters(monkeypatch):
     )
 
     assert result[0]["text"] == "Appendix ......... 12"
+
+
+# --- real Docling chunks ------------------------------------------------------
+# HybridChunker hands back plain DocItems (no text, no captions), unlike the
+# duck-typed fakes above, so these run the real chunk() over a real document.
+
+
+def test_a_real_table_passage_leads_with_its_caption_once(monkeypatch):
+    monkeypatch.setattr(chunker, "parse_table", lambda **kwargs: "Agent: FM-200; Qty: 2")
+    doc = doc_builders.document()
+    doc_builders.table(doc, (10, 370, 290, 300), caption="Table 4 Agent quantities")
+
+    [passage] = doc_builders.chunk_document(doc)
+
+    assert passage["text"] == "Table 4 Agent quantities\nAgent: FM-200; Qty: 2"
+    assert passage["metadata"]["table_title"] == "Table 4 Agent quantities"
+
+
+def test_the_prose_beside_a_real_table_stays_with_it_and_the_caption_appears_once(monkeypatch):
+    monkeypatch.setattr(chunker, "parse_table", lambda **kwargs: "Agent: FM-200; Qty: 2")
+    doc = doc_builders.document()
+    text_box = doc_builders.prov(1, 10, 390, 290, 380)
+    doc.add_text(chunker.DocItemLabel.TEXT, "Agent quantities are below.", prov=text_box)
+    doc_builders.table(doc, (10, 370, 290, 300), caption="Table 4 Agent quantities")
+    after_box = doc_builders.prov(1, 10, 280, 290, 270)
+    doc.add_text(chunker.DocItemLabel.TEXT, "Quantities are by weight.", prov=after_box)
+
+    [passage] = doc_builders.chunk_document(doc)
+
+    assert passage["text"] == (
+        "Agent quantities are below.\n\n"
+        "Table 4 Agent quantities\nAgent: FM-200; Qty: 2\n\n"
+        "Quantities are by weight."
+    )

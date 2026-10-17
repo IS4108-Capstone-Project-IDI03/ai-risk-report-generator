@@ -1625,8 +1625,13 @@ Known limits: drafting and chat do not yet show that a quoted description is
 generated (follow-up story); `generated_text` is there for it. A tall narrow figure
 under 72 pt wide is skipped (FM-200 Figure 16, 59 x 243 pt); an area rule would
 keep it. A picture before a table in the same chunk is placed after the table.
-Table captions and the prose beside a table read empty in real runs, because
-HybridChunker hands back plain DocItems; pictures look their items up in the
-document, tables do not yet. Documents must be re-ingested to gain picture passages.
+Documents must be re-ingested to gain picture passages.
+
+Found on the way: HybridChunker hands back plain DocItems (label, self_ref and prov
+only), so table passages had silently lost Docling's caption and the prose beside
+the table since the CB-01 change; its tests used fakes that carried text. Tables
+now look their items up in the document as pictures do. On FM-200 pages 45-55, 5 of
+7 table passages gained their printed title and 6 the prose beside them; ids are
+unchanged. Table documents must be re-ingested for this too.
 
 Stories: IN-13, IN-03, IN-12, CP-05.

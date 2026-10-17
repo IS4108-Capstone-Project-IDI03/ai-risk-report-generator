@@ -7,48 +7,21 @@ it records what it was asked and returns a canned description.
 """
 
 import pytest
-from docling_core.types.doc import (
-    BoundingBox,
-    CoordOrigin,
-    DocItemLabel,
-    DoclingDocument,
-    ProvenanceItem,
-    Size,
-    TableCell,
-    TableData,
-)
+from doc_builders import chunk_document as _chunk
+from doc_builders import document as _document
+from doc_builders import picture as _picture
+from doc_builders import prov as _prov
+from doc_builders import table as _table
+from docling_core.types.doc import DocItemLabel
 
 from app.pipeline import chunker
-from app.pipeline.parser import ParsedDocument
 
-DOC_PATH = "unused.pdf"  # the reader is faked, so no PDF is opened
 PUMP_ROOM = "Image description (generated, photograph): A pump room with two pumps."
-
-
-def _prov(page, left, top, right, bottom):
-    bbox = BoundingBox(l=left, t=top, r=right, b=bottom, coord_origin=CoordOrigin.BOTTOMLEFT)
-    return ProvenanceItem(page_no=page, bbox=bbox, charspan=(0, 0))
-
-
-def _document(pages=1):
-    doc = DoclingDocument(name="report")
-    for page in range(1, pages + 1):
-        doc.add_page(page_no=page, size=Size(width=300, height=400))
-    return doc
-
-
-def _picture(doc, box, caption=None, page=1):
-    caption_item = None
-    if caption:
-        caption_item = doc.add_text(
-            DocItemLabel.CAPTION, caption, prov=_prov(page, box[0], box[3] - 2, box[2], box[3] - 12)
-        )
-    return doc.add_picture(caption=caption_item, prov=_prov(page, *box))
 
 
 @pytest.fixture
 def reader(monkeypatch):
-    """Fake picture reader: records each call, answers from `reader.answers` by caption."""
+    """Fake picture reader: records each call and answers with a canned description."""
     calls: list[dict] = []
 
     def _parse_picture(bbox, page, file_path, coord_origin="", context=""):
@@ -57,11 +30,6 @@ def reader(monkeypatch):
 
     monkeypatch.setattr(chunker, "parse_picture", _parse_picture)
     return calls
-
-
-def _chunk(doc):
-    parsed = ParsedDocument(doc_name="report", docling_document=doc, page_count=len(doc.pages))
-    return chunker.chunk(parsed, doc_path=DOC_PATH, doc_id="report")
 
 
 def test_a_captioned_picture_becomes_a_passage_with_its_place_in_the_document(reader):
@@ -198,25 +166,6 @@ def test_a_picture_docling_repeats_is_read_once(reader):
         f"Figure 3 Pump room\n{PUMP_ROOM}",
         "Aisles were clear.",
     ]
-
-
-def _table(doc, box, page=1):
-    data = TableData(
-        num_rows=2,
-        num_cols=2,
-        table_cells=[
-            TableCell(
-                text=text,
-                start_row_offset_idx=row,
-                end_row_offset_idx=row + 1,
-                start_col_offset_idx=col,
-                end_col_offset_idx=col + 1,
-                column_header=row == 0,
-            )
-            for row, col, text in [(0, 0, "Agent"), (0, 1, "Qty"), (1, 0, "FM-200"), (1, 1, "2")]
-        ],
-    )
-    return doc.add_table(data=data, prov=_prov(page, *box))
 
 
 def test_a_picture_beside_a_table_is_kept_as_its_own_passage(reader, monkeypatch):
