@@ -113,6 +113,8 @@ def test_a_table_split_across_chunks_is_read_once_even_if_it_fails(monkeypatch):
         return None
 
     monkeypatch.setattr(chunker, "parse_table", parse_table)
+    # Nor is it read as a picture (IN-13): GLM, or nothing found there either.
+    monkeypatch.setattr(chunker, "parse_picture", lambda **kw: None)
     chunks = [
         _chunk("table, first part", LABEL.TABLE, _prov(2)),
         _chunk("table, second part", LABEL.TABLE, _prov(2)),

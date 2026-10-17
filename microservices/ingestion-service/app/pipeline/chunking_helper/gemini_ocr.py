@@ -1,4 +1,4 @@
-"""Gemini reads cropped table and formula regions (OCR_PROVIDER=gemini).
+"""Gemini reads cropped table, formula and picture regions (OCR_PROVIDER=gemini).
 
 The client pattern is copied from speech-ocr-service's photo interpreter
 (`app/processors/vision.py`): one `genai.Client` held open for the call, a
@@ -18,7 +18,7 @@ from google import genai
 from pydantic import BaseModel, ValidationError
 
 from app import usage
-from app.pipeline.chunking_helper.ocr_prompts import TASKS
+from app.pipeline.chunking_helper.ocr_prompts import task_spec
 from app.pipeline.chunking_helper.rate_limit import (
     call_with_waits,
     is_transient_status,
@@ -70,7 +70,7 @@ def _hint(error: Exception) -> float | None:
     return None
 
 
-def _ask(prompt: str, schema: type[BaseModel], data: str):
+def _ask(prompt: str, schema: type[BaseModel], data: str, context: str = ""):
     started = time.perf_counter()
     with _client() as client:
         result = client.interactions.create(
@@ -79,6 +79,7 @@ def _ask(prompt: str, schema: type[BaseModel], data: str):
             input=[
                 {"type": "image", "data": data, "mime_type": "image/png"},
                 {"type": "text", "text": prompt},
+                *([{"type": "text", "text": context}] if context else []),
             ],
             response_format={
                 "type": "text",
@@ -107,17 +108,17 @@ def _record(result, started: float) -> None:
     )
 
 
-def recognise(image_png: bytes, task: str) -> str | None:
+def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
     """Read one cropped region; same contract as `ocr_model.recognise`.
 
     Returns None when Gemini rejects the request for another reason or answers
     in an unexpected form, so one unreadable region never fails the document.
     """
-    prompt, schema, to_text = TASKS[task]
+    prompt, schema, to_text = task_spec(task)
     data = base64.b64encode(image_png).decode("ascii")
     try:
         result = call_with_waits(
-            lambda: _ask(prompt, schema, data), _is_transient, _hint, "Gemini", task
+            lambda: _ask(prompt, schema, data, context), _is_transient, _hint, "Gemini", task
         )
     except OcrUnavailableError:
         raise

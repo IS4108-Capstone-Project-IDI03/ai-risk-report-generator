@@ -1,6 +1,7 @@
-"""Table and formula OCR: `recognise()` and the GLM-OCR provider behind it.
+"""Table, formula and picture OCR: `recognise()` and the GLM-OCR provider behind it.
 
-`recognise()` is the one entry point for the table and formula extractors.
+`recognise()` is the one entry point for the table, formula and picture extractors.
+GLM-OCR cannot describe a picture, so under `glm` pictures are left unread.
 `OCR_PROVIDER` picks who reads the crop: `gemini` (`gemini_ocr`, an API call)
 or `glm` (the self-hosted GLM-OCR below). Both return the same chunk text.
 `glmocr` is an optional install (the local-ocr extra), so the cloud image can
@@ -205,13 +206,36 @@ def _record(response: dict, started: float) -> None:
     )
 
 
-def recognise(image_png: bytes, task: str) -> str | None:
-    """Recognise one cropped region, returning table records or LaTeX text.
+def _provider() -> str:
+    provider = os.getenv("OCR_PROVIDER", "").strip() or DEFAULT_OCR_PROVIDER
+    if provider not in OCR_PROVIDERS:
+        raise ValueError(f"OCR_PROVIDER {provider!r} is not supported; use one of {OCR_PROVIDERS}")
+    return provider
+
+
+def reader() -> str:
+    """Who reads crops now, as "<provider>:<model>", for passages that keep a reading."""
+    provider = _provider()
+    if provider == "anthropic":
+        from app.pipeline.chunking_helper import anthropic_ocr
+
+        return f"anthropic:{anthropic_ocr._model()}"
+    if provider == "gemini":
+        from app.pipeline.chunking_helper import gemini_ocr
+
+        return f"gemini:{gemini_ocr._model()}"
+    return f"glm:{os.getenv('GLMOCR_OCR_MODEL', '').strip() or 'glm-ocr'}"
+
+
+def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
+    """Recognise one cropped region, returning table records, LaTeX or a picture description.
 
     Args:
         image_png: the region as PNG bytes (see `image_crop.crop_png`).
-        task: one of `TASK_PROMPTS` — "table", "formula" or "text". Selects the
-            prompt the model was trained on for that content type.
+        task: "table", "formula" or "picture" ("text" on GLM only). Selects the
+            prompt for that content type.
+        context: where the region sits (heading trail, caption), sent after the
+            prompt. Only pictures use it.
 
     Returns:
         The recognised text, or None when the service errored or returned
@@ -222,24 +246,26 @@ def recognise(image_png: bytes, task: str) -> str | None:
         ValueError: for an unknown task, which is a programming error rather
             than a runtime condition.
     """
+    provider = _provider()
+    # API providers are imported here so the GLM path never loads their SDKs.
+    if provider == "anthropic":
+        from app.pipeline.chunking_helper import anthropic_ocr
+
+        return anthropic_ocr.recognise(image_png, task, context)
+    if provider == "gemini":
+        from app.pipeline.chunking_helper import gemini_ocr
+
+        return gemini_ocr.recognise(image_png, task, context)
+
+    # GLM-OCR only transcribes, so a picture is left unread: its caption and the
+    # prose around it are still indexed as plain text.
+    if task == "picture":
+        return None
     try:
         prompt = TASK_PROMPTS[task]
     except KeyError:
         expected = sorted(TASK_PROMPTS)
         raise ValueError(f"unknown OCR task {task!r}; expected one of {expected}") from None
-
-    provider = os.getenv("OCR_PROVIDER", "").strip() or DEFAULT_OCR_PROVIDER
-    if provider not in OCR_PROVIDERS:
-        raise ValueError(f"OCR_PROVIDER {provider!r} is not supported; use one of {OCR_PROVIDERS}")
-    # API providers are imported here so the GLM path never loads their SDKs.
-    if provider == "anthropic":
-        from app.pipeline.chunking_helper import anthropic_ocr
-
-        return anthropic_ocr.recognise(image_png, task)
-    if provider == "gemini":
-        from app.pipeline.chunking_helper import gemini_ocr
-
-        return gemini_ocr.recognise(image_png, task)
 
     token_budgets = _token_budgets()
 

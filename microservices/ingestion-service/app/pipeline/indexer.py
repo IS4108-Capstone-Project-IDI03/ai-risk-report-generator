@@ -21,6 +21,10 @@ Chunk (as produced by chunker.chunk and consumed here):
         "page_end":     int,  # present only when known
         "bbox":         list[float], # flattened [l, t, r, b] values in page order
         "bbox_pages":   list[int],   # page of each 4-number box in bbox (IN-12)
+        # A described picture's passage only (IN-13): its text holds a model's words.
+        "generated_text": str,   # "picture_description"
+        "generated_by":   str,   # "<provider>:<model>" that wrote it
+        "prompt_version": str,   # picture prompt version, e.g. "pic-v1"
     },
 }
 Note: the embedding is NOT a chunk field — index_chunks computes it from `text`.

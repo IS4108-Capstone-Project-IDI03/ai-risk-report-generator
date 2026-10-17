@@ -160,6 +160,12 @@ def test_unknown_task_is_a_programming_error(fake_client):
         ocr_model.recognise(PNG, "barcode")
 
 
+def test_glm_leaves_pictures_unread_without_calling_the_service(fake_client):
+    # GLM-OCR can only transcribe; it cannot describe a photo.
+    assert ocr_model.recognise(PNG, "picture", context="Caption: Figure 3") is None
+    assert not any(client.payloads for client in fake_client.instances)
+
+
 # --- response handling --------------------------------------------------------
 
 

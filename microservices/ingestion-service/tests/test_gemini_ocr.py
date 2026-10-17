@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.pipeline.chunking_helper import gemini_ocr, ocr_model, rate_limit
+from app.pipeline.chunking_helper.ocr_prompts import PICTURE_PROMPT
 from app.pipeline.errors import OcrUnavailableError
 
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
@@ -161,3 +162,17 @@ def test_a_rejected_api_key_fails_loudly_instead_of_dropping_every_table(gemini)
 
     with pytest.raises(_HttpError):
         ocr_model.recognise(PNG, "table")
+
+
+def test_a_picture_is_read_with_where_it_sits(gemini):
+    gemini.replies.append(
+        json.dumps({"kind": "diagram", "description": "A riser layout.", "visible_text": "R1"})
+    )
+
+    reading = ocr_model.recognise(PNG, "picture", context="Caption: Figure 3 Riser")
+
+    assert reading == "Image description (generated, diagram): A riser layout.\nText in image: R1"
+    image, prompt, context = gemini.requests[0]["input"]
+    assert image["type"] == "image"
+    assert prompt["text"] == PICTURE_PROMPT
+    assert context["text"] == "Caption: Figure 3 Riser"

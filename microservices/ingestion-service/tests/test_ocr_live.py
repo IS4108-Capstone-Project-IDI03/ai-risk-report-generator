@@ -29,6 +29,9 @@ FM200 = Path(__file__).parent / "test_files" / "Tyco Hygood FM-200 Engineered Ma
 # agent-weight formula on page 49 (padded so the whole line is in the crop).
 TABLE_PAGE, TABLE_BOX = 48, (71, 153, 524, 382)
 FORMULA_PAGE, FORMULA_BOX = 49, (126, 174, 300, 198)
+# The site photo of an OFI observation in a redacted past report (IN-13).
+OFFICE = Path(__file__).parent / "test_files" / "Office Sample 5 - PRE 2026 - REDACTED.pdf"
+PHOTO_PAGE, PHOTO_BOX = 9, (219, 387, 459, 567)
 
 
 KEY_FOR = {"anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY"}
@@ -54,8 +57,8 @@ def api_provider(monkeypatch):
         monkeypatch.setenv("OCR_MODEL", model)
 
 
-def _crop(page: int, box: tuple) -> bytes:
-    with pymupdf.open(FM200) as document:
+def _crop(page: int, box: tuple, pdf: Path = FM200) -> bytes:
+    with pymupdf.open(pdf) as document:
         return crop_png(document, box, page, coord_origin="TOPLEFT", dpi=200)
 
 
@@ -71,3 +74,11 @@ def test_live_formula_crop_reads_as_latex():
 
     print(f"\n--- page {FORMULA_PAGE} formula ---\n{text}")
     assert text and "W" in text
+
+
+def test_live_site_photo_reads_as_a_generated_description():
+    context = "Section: Opportunities for Improvement > New OFI > Observation"
+    text = ocr_model.recognise(_crop(PHOTO_PAGE, PHOTO_BOX, OFFICE), "picture", context)
+
+    print(f"\n--- page {PHOTO_PAGE} photo ---\n{text}")
+    assert text and text.startswith("Image description (generated, ")

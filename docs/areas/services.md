@@ -169,6 +169,42 @@ eval.interpret_photos`).
 - Passages indexed before this have no `position` or `table_id` and are not
   widened; re-ingest a document to get the new passages.
 
+### Pictures (IN-13)
+
+- **Finding them.** Docling's layout model labels photos, diagrams and charts as
+  pictures. The chunker's serializer writes a placeholder for each
+  (`PICTURE_PLACEHOLDER`), so the picture and its bbox reach its chunk; the
+  placeholder never reaches passage text. Pictures under 72 pt on either side
+  (logos, icons) are treated as absent (`picture_parser.worth_reading`), and a
+  picture Docling repeats is read once (the same box check as tables).
+- **Reading them.** In pass 2, with the tables and formulas, each picture is cropped
+  (`chunking_helper/picture_parser.py`) and sent to the `picture` task of
+  `ocr_model.recognise`, with its heading trail and caption as context. The prompt
+  (`ocr_prompts.PICTURE_PROMPT`, `pic-v1`) follows S5's photo reader: describe only
+  what is visible, leave out what cannot be made out, say nothing about causes,
+  consequences or compliance, and never invent a hazard. The model answers with a
+  kind, a description and the text printed in the image.
+
+  | Step | anthropic / gemini | glm |
+  |---|---|---|
+  | Detection, slot, dedup | shared | shared |
+  | Crop | shared with tables | shared with tables |
+  | Reading | `picture` task, same call path, rate limits and usage (`ocr`) | left unread, no call |
+  | Passage | caption, description, nearby prose; marked generated | caption and nearby prose only |
+
+- **The passage.** One per picture: the caption, then `Image description (generated,
+  <kind>): …` and `Text in image: …`, with the prose before or after it in the same
+  chunk. It keeps the picture's own `bbox`/`bbox_pages`, the chunk's pages, heading
+  trail and `position`; ids are `<id>:picture:<n>[:g<k>]`, and `:g<k>` keeps a
+  chunk's pictures in reading order at search time. A read picture's passage carries
+  `generated_text: picture_description`, `generated_by` (`<provider>:<model>`) and
+  `prompt_version`. `section` comes from the pages as for any passage, so a past
+  report's Appendix A photos are `Appendix`. A picture beside a table gets its own
+  passage after the table's.
+- **Tables that read as nothing.** A table none of whose crops gives a record is often
+  a photo or drawing Docling labelled as a table, so it is read once as a picture. A
+  table that read on some of its pages is not.
+
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
 ## Automatic labelling (IN-05)
