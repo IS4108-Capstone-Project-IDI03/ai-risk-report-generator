@@ -47,7 +47,18 @@ class _HttpError(Exception):
         self.body = body
 
 
-TABLE_ANSWER = json.dumps({"rows": [["Agent", "Qty"], ["FM-200", "2"]], "header": "row"})
+TABLE_ANSWER = json.dumps(
+    {
+        "tables": [
+            {
+                "title": "",
+                "header_rows": 1,
+                "header_cols": 0,
+                "rows": [["Agent", "Qty"], ["FM-200", "2"]],
+            }
+        ]
+    }
+)
 
 
 @pytest.fixture
@@ -68,23 +79,29 @@ def test_table_crop_comes_back_as_records(gemini):
     assert ocr_model.recognise(PNG, "table") == "Agent: FM-200; Qty: 2"
 
 
-def test_column_headings_named_by_gemini_label_each_record(gemini):
-    # The length heuristic alone reads this as headerless; Gemini's answer says
-    # the first column holds the headings.
+def test_headings_on_both_axes_label_each_record(gemini):
+    # Gemini says one heading row and one heading column: each value is labelled
+    # by its column heading and its row heading.
     gemini.replies.append(
         json.dumps(
             {
-                "rows": [
-                    ["Agent", "FM-200", "Novec 1230"],
-                    ["Design concentration", "7.0%", "4.5%"],
-                ],
-                "header": "column",
+                "tables": [
+                    {
+                        "title": "Table 4 Design concentration",
+                        "header_rows": 1,
+                        "header_cols": 1,
+                        "rows": [
+                            ["Agent", "FM-200", "Novec 1230"],
+                            ["Design concentration", "7.0%", "4.5%"],
+                        ],
+                    }
+                ]
             }
         )
     )
 
     assert ocr_model.recognise(PNG, "table") == (
-        "Agent: FM-200; Design concentration: 7.0%\nAgent: Novec 1230; Design concentration: 4.5%"
+        "### Table 4 Design concentration\nDesign concentration | FM-200: 7.0%; Novec 1230: 4.5%"
     )
 
 

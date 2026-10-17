@@ -112,6 +112,18 @@ def _storable(chunks: list[dict]) -> list[dict]:
     return out
 
 
+def embedding_text(chunk: dict) -> str:
+    """What a passage is embedded as: its heading trail, then its text.
+
+    The trail ("Chapter 20 > 20.15 Water Supply") says what a passage is about when
+    its own words don't, e.g. a table whose title is a heading. Search shows and
+    quotes the plain text, so only the vector sees the trail. The rag-service
+    reranker builds the same string (`retriever.rank_text`); change them together.
+    """
+    trail = " > ".join((chunk.get("metadata") or {}).get("headings") or [])
+    return f"{trail}\n{chunk['text']}" if trail else chunk["text"]
+
+
 def index_chunks(chunks: list[dict], reporter=None, page_total: int | None = None) -> int:
     """Embed and upsert chunks; return how many passages were stored.
 
@@ -133,7 +145,7 @@ def index_chunks(chunks: list[dict], reporter=None, page_total: int | None = Non
         if reporter and page_reached[embedded]:
             reporter.update_pages(page_reached[embedded], page_total)
 
-    vectors = embed(texts, on_batch=on_batch)
+    vectors = embed([embedding_text(chunk) for chunk in chunks], on_batch=on_batch)
     index_type = "spann" if os.getenv("CHROMA_MODE", "local").strip().lower() == "cloud" else "hnsw"
     collection = chroma_client().get_or_create_collection(
         name=COLLECTION,

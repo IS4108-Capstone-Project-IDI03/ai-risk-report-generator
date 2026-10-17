@@ -234,7 +234,7 @@ def test_usage_from_every_step_reaches_the_result(fake, monkeypatch):
     # later step (search, the answer) must still land in the result for the cost log.
     from app import usage
 
-    def retrieve(query, filters=None, include_withdrawn=False):
+    def retrieve(query, filters=None, include_withdrawn=False, **options):
         usage.record("retrieval", "cohere-rerank", "rerank-v3.5", 0.0, search_units=1)
         return fake["passages"]
 
@@ -369,7 +369,7 @@ def test_extra_searches_each_run_and_the_model_gets_the_best_three_of_each(fake,
     nfpa, fm = _passages("nfpa", 5), _passages("fm", 5)
     fm[0] = nfpa[1]  # a repeated passage must reach the model once only
 
-    def retrieve(query, filters=None, include_withdrawn=False):
+    def retrieve(query, filters=None, include_withdrawn=False, **options):
         fake["calls"]["search"].append((query, filters, include_withdrawn))
         return nfpa if "NFPA" in query else fm
 
@@ -392,7 +392,7 @@ def test_extra_searches_each_run_and_the_model_gets_the_best_three_of_each(fake,
 
 
 def test_a_plan_without_extra_searches_searches_once_and_keeps_five(fake, monkeypatch):
-    def retrieve(query, filters=None, include_withdrawn=False):
+    def retrieve(query, filters=None, include_withdrawn=False, **options):
         fake["calls"]["search"].append(query)
         return _passages("a", 5)
 
@@ -487,7 +487,7 @@ def test_report_searches_keep_the_best_passage_of_every_report(fake):
 
 def test_other_searches_keep_the_default_top_five(fake):
     _ask("What clearance is needed above storage?")
-    assert fake["calls"]["options"] == [{}]
+    assert fake["calls"]["options"] == [{"expand": True}]
 
 
 def test_the_planner_sees_the_documents_it_can_name(fake):
@@ -559,5 +559,5 @@ def test_a_named_report_gets_its_top_passages_not_one(fake):
     fake["passages"] = [_report("rep", 0.9), _report("rep", 0.8), _report("rep", 0.7)]
     body = {"messages": [{"role": "user", "content": "q"}], "documents": [REPORT_DOC]}
     client.post("/chat", json=body)
-    assert fake["calls"]["options"] == [{}]  # the default top 5 of that one report
+    assert fake["calls"]["options"] == [{"expand": True}]  # the default top 5 of that one report
     assert fake["calls"]["answer"][0][1][-1]["content"].count("[P") == 3

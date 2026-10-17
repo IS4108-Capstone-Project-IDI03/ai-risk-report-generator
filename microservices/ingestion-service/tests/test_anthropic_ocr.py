@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from app.pipeline.chunking_helper import anthropic_ocr, ocr_model, rate_limit
-from app.pipeline.chunking_helper.ocr_prompts import FormulaReading, TableReading
+from app.pipeline.chunking_helper.ocr_prompts import FormulaReading, TableBlock, TableReading
 from app.pipeline.errors import OcrUnavailableError
 
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
@@ -59,7 +59,18 @@ def claude(monkeypatch):
 
 def test_table_crop_comes_back_as_records(claude):
     claude.replies.append(
-        _answer(TableReading(rows=[["Agent", "Qty"], ["FM-200", "2"]], header="row"))
+        _answer(
+            TableReading(
+                tables=[
+                    TableBlock(
+                        title="",
+                        header_rows=1,
+                        header_cols=0,
+                        rows=[["Agent", "Qty"], ["FM-200", "2"]],
+                    )
+                ]
+            )
+        )
     )
 
     assert ocr_model.recognise(PNG, "table") == "Agent: FM-200; Qty: 2"

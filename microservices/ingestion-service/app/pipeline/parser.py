@@ -39,6 +39,7 @@ from docling_core.types.doc import (
 )
 from docling_parse.pdf_parser import DoclingPdfParser
 
+from app.pipeline.columns import log_clause_jumps, reorder_columns
 from app.pipeline.errors import DocumentTimeoutError, UnparsableDocumentError
 from app.pipeline.ocr_config import get_ocr_options
 from app.pipeline.progress import NoOpReporter
@@ -401,12 +402,15 @@ def parse(
             reporter.update_pages(batch[1], page_count)
 
     doc = docs[0] if len(docs) == 1 else DoclingDocument.concatenate(docs)
+    # Two-column pages first, so headings are ranked and chunks cut in column order.
+    reorder_columns(doc)
     # One pass over the whole document, so a heading is ranked against those
     # in every batch, as a single convert call would.
     HeadingHierarchyModel(_HEADING_OPTIONS).assign_heading_levels(
         doc, parsed_pages=parsed_pages, outline=_document_outline(source)
     )
 
+    log_clause_jumps(doc)
     text_blocks, tables, images = _extract_text_blocks(doc)
 
     if not text_blocks and not tables and not images:

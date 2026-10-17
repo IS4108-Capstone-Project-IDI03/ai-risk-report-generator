@@ -2,11 +2,13 @@
 
 import json
 import os
+import re
 import time
 
 from chromadb.errors import NotFoundError
 
 from app import usage
+from app.retrieval.glossary import expand_query
 from app.retrieval_config import (
     COLLECTION,
     EMBEDDING_DIMENSION,
@@ -53,20 +55,33 @@ def _record_embed(response, started: float) -> None:
     )
 
 
+# Chat widens its best hits: a table is read whole, any other passage with its
+# neighbours, so an answer cut across passages (a clause and its list, a table's
+# row groups) reaches the model together. Extras are capped so context stays small.
+EXPAND_HITS = 3
+EXPAND_EXTRA = 3
+EXPAND_CHARS = 3000
+BREAK = "\n\n"
+
+
 def retrieve(
     query: str,
     filters: dict[str, str | list[str]] | None = None,
     include_withdrawn: bool = False,
     candidates: int = 20,
     top_n: int | None = 5,
+    expand: bool = False,
 ) -> list[dict]:
     """Return the reranked passages for a query: `candidates` from Chroma, best `top_n` kept.
 
     `top_n=None` keeps every candidate, reranked; chat's report search uses that with 40
     candidates to find every report. One rerank call either way (Cohere bills up to 100).
+    `expand` widens the best few hits to their table or neighbours (`widen`).
+    Short forms in the query ("EH2") are spelled out before it is embedded and reranked.
     """
     if not query.strip():
         raise ValueError("Query must not be blank")
+    query = expand_query(query)
     try:
         collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
     except NotFoundError:
@@ -91,7 +106,7 @@ def retrieve(
         where=label_filter(filters or {}, include_withdrawn),
         include=["documents", "metadatas", "distances"],
     )
-    return rerank(
+    hits = rerank(
         query,
         [
             {"id": id_, "text": text, "metadata": metadata, "distance": distance}
@@ -104,6 +119,101 @@ def retrieve(
         ],
         top_n=top_n,
     )
+    return widen(hits, collection, include_withdrawn) if expand else hits
+
+
+def rank_text(passage: dict) -> str:
+    """The passage as the reranker reads it: heading trail, then text.
+
+    Ingestion embeds the same string (`indexer.embedding_text`); change them together.
+    """
+    trail = " > ".join((passage.get("metadata") or {}).get("headings") or [])
+    return f"{trail}\n{passage['text']}" if trail else passage["text"]
+
+
+def _group(passage_id: str) -> int:
+    """Row group number from an id like `doc:table:5:g2`; 0 for any other passage."""
+    found = re.search(r":g(\d+)(?::part\d+)?$", passage_id)
+    return int(found.group(1)) if found else 0
+
+
+def _around(hit: dict, collection, include_withdrawn: bool) -> list[dict]:
+    """The other passages of the hit's table, else its neighbours, in reading order."""
+    meta = hit["metadata"]
+    doc_id = meta.get("doc_id")
+    position = meta.get("position")
+    if doc_id is None:
+        return []
+    if meta.get("table_id"):
+        where = [{"doc_id": doc_id}, {"table_id": meta["table_id"]}]
+    elif isinstance(position, int):
+        where = [{"doc_id": doc_id}, {"position": {"$in": [position - 1, position + 1]}}]
+    else:
+        return []
+    hidden = ["needs_review"] if include_withdrawn else ["withdrawn", "needs_review"]
+    found = collection.get(
+        where={"$and": [*where, {"status": {"$nin": hidden}}]},
+        include=["documents", "metadatas"],
+    )
+    others = [
+        {"id": id_, "text": text, "metadata": metadata}
+        for id_, text, metadata in zip(found["ids"], found["documents"], found["metadatas"])
+        if id_ != hit["id"]
+    ]
+    others.sort(key=lambda p: (p["metadata"].get("position", 0), _group(p["id"])))
+    return others
+
+
+def widen(hits: list[dict], collection, include_withdrawn: bool = False) -> list[dict]:
+    """Merge each of the best hits with its table or neighbours into one passage.
+
+    The hit keeps its id, rank and score; its text becomes the whole table, or the
+    neighbours before and after it, and its pages cover them all. At most
+    `EXPAND_EXTRA` passages and `EXPAND_CHARS` characters are added per hit, nearest
+    first, and withdrawn or unconfirmed passages are never added.
+    """
+    widened = []
+    for rank, hit in enumerate(hits):
+        if rank >= EXPAND_HITS:
+            widened.append(hit)
+            continue
+        position, group = hit["metadata"].get("position", 0), _group(hit["id"])
+        nearest = sorted(
+            _around(hit, collection, include_withdrawn),
+            key=lambda p: (
+                abs(p["metadata"].get("position", 0) - position),
+                abs(_group(p["id"]) - group),
+            ),
+        )
+        extra, size = [], 0
+        for other in nearest[:EXPAND_EXTRA]:
+            if size + len(other["text"]) > EXPAND_CHARS:
+                break
+            extra.append(other)
+            size += len(other["text"])
+        if not extra:
+            widened.append(hit)
+            continue
+        members = sorted(
+            [hit, *extra], key=lambda p: (p["metadata"].get("position", 0), _group(p["id"]))
+        )
+        pages = [
+            page
+            for member in members
+            for page in (member["metadata"].get("page_start"), member["metadata"].get("page_end"))
+            if isinstance(page, int)
+        ]
+        meta = dict(hit["metadata"])
+        if pages:
+            meta["page_start"], meta["page_end"] = min(pages), max(pages)
+        widened.append(
+            {
+                **hit,
+                "text": BREAK.join(member["text"] for member in members),
+                "metadata": {**meta, "widened_from": [member["id"] for member in members]},
+            }
+        )
+    return widened
 
 
 def rerank(query: str, passages: list[dict], top_n: int | None = None) -> list[dict]:
@@ -120,7 +230,7 @@ def rerank(query: str, passages: list[dict], top_n: int | None = None) -> list[d
     ranked = cohere_client().rerank(
         model=model,
         query=query,
-        documents=[p["text"] for p in passages],
+        documents=[rank_text(p) for p in passages],
         top_n=min(top_n or len(passages), len(passages)),
     )
     usage.record(

@@ -1543,3 +1543,43 @@ Stories: CB-01.
 Chose: a fourth source type, `local_standard`, for a country's own code (e.g. Singapore CP 52, SS 535). It behaves like an FM or NFPA standard (edition, standard number, supersedable) except that its jurisdiction is always one country (never `all`) and its issuing body is a free-text detail per document (optional, up to 100 characters, read from the file by labelling and editable by the admin) instead of a fixed publisher. The knowledge base lists them under "Local standards", after NFPA standards.
 
 Reason: reports cite NFPA, FM Global and local guidelines; CP 52 is cited by all 11 sample reports. Report drafting does not search local standards yet; that is left to the report-generation owners.
+
+## 2026-10-17 — Tables keep their headings and title, two-column pages are read by column, and search reads the heading trail
+
+Chose:
+- The table reader returns each table's printed title, how many top rows and left
+  columns are headings, and the grid. Code builds the labels, so stacked headings
+  become a path ("Inside Hose > gpm") and headings on both axes label every value.
+  A crop with two tables gives two passages, each under its own title (Docling's
+  caption when there is one). Long tables are cut between rows into groups that
+  repeat the title.
+- `columns.py` reads a two-column page left column, then right, before headings are
+  ranked. Clause numbers that run backwards are logged as a cross-check.
+- The embedder and the reranker see the heading trail before the text. Short forms
+  in a question ("EH2") are spelled out. Chat widens its best 3 hits to their whole
+  table or neighbouring passages (capped); drafting does not.
+
+Reason: CB-01's search missed answers inside tables and on two-column pages (the
+hose stream table, EH2 density, the light-hazard coverage table, the dry valve trip
+test row, the hydraulic nameplate list). The title and the headings were never in
+the text that was embedded or reranked, a header row came out as data, and two
+tables or two columns in one block averaged out what each was about.
+
+Rejected:
+- Widening a hit to every passage under its parent heading: in the nameplate case
+  the list sat under the wrong heading, so its siblings were not the list's, and a
+  broad heading would add dozens of passages. Neighbours by position and a table's
+  own groups are bounded and fix the same cuts.
+- Asking the model to merge multi-row headings itself: counts of heading rows and
+  columns are easy to get right; merged strings risk changing printed numbers.
+- Re-reading flagged pages with a vision model for column order: costly; kept as a
+  fallback if the geometric rule proves too weak on real pages.
+
+This reverses "Fixing two-row table headings" in the 2026-10-10 decision, which
+judged that retrieval only needs the gist. The CB-01 misses show it does not.
+
+Known limits: table schema and embedded text change, so affected documents must be
+re-ingested (NFPA 13, FM 2.81 and FM 2.0 first); old passages are not widened. A
+table continued on a page that shows no heading row has bare values on that page.
+
+Stories: CB-01, IN-03.

@@ -81,7 +81,7 @@ def env(tmp_path, monkeypatch):
         last = user.strip().splitlines()[-1]
         return answer.Plan(kind="search", query=last, reply="")
 
-    def retrieve(query, filters=None, include_withdrawn=False):
+    def retrieve(query, filters=None, include_withdrawn=False, **options):
         calls["search"].append(query)
         if "earthquake" in query:
             return [P_FM | {"relevance_score": 0.01}]

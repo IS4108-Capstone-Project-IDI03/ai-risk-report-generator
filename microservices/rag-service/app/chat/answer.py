@@ -182,7 +182,7 @@ def _search(query: str, filters: dict, include_withdrawn: bool) -> list[dict]:
     """
     # A search limited to one named document wants its top passages, not one per report.
     if filters.get("source_type") != "marsh_report" or "doc_id" in filters:
-        return retrieve(query, filters, include_withdrawn)
+        return retrieve(query, filters, include_withdrawn, expand=True)
     ranked = retrieve(query, filters, include_withdrawn, candidates=REPORT_CANDIDATES, top_n=None)
     best: dict = {}
     for p in ranked:  # most relevant first, so the first passage of a report is its best
