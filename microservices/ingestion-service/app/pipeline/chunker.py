@@ -47,7 +47,7 @@ from app.pipeline.chunking_helper.formula_parser import parse_formula_bbox
 from app.pipeline.chunking_helper.ocr_model import reader
 from app.pipeline.chunking_helper.ocr_prompts import PICTURE_PROMPT_VERSION
 from app.pipeline.chunking_helper.page_cache import close_document
-from app.pipeline.chunking_helper.picture_parser import parse_picture
+from app.pipeline.chunking_helper.picture_parser import parse_picture, worth_reading
 from app.pipeline.chunking_helper.table_parser import parse_table
 from app.pipeline.chunking_helper.table_text import group_records, split_tables
 from app.pipeline.parser import ParsedDocument
@@ -178,6 +178,10 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
     # page_no -> [origin, l, t, r, b] accumulated to a union rectangle.
     per_page: dict[int, dict] = {}
     for item in getattr(dl_chunk.meta, "doc_items", None) or []:
+        # A picture left in a text chunk (too small, or already read) is not
+        # part of the text's region.
+        if getattr(item, "label", None) == DocItemLabel.PICTURE:
+            continue
         for prov in getattr(item, "prov", None) or []:
             bbox = getattr(prov, "bbox", None)
             page = getattr(prov, "page_no", None)
@@ -229,60 +233,73 @@ def _is_picture_chunk(dl_chunk) -> bool:
     return any(item.label == DocItemLabel.PICTURE for item in dl_chunk.meta.doc_items)
 
 
+def _picture_boxes(item) -> list[dict]:
+    """A picture item's own boxes, as `_bboxes_match` compares them."""
+    boxes = [
+        {
+            "page": prov.page_no,
+            "bbox": [float(v) for v in (prov.bbox.l, prov.bbox.t, prov.bbox.r, prov.bbox.b)],
+            "coord_origin": str(getattr(prov.bbox, "coord_origin", "")),
+            "is_table": False,
+            "is_picture": True,
+        }
+        for prov in getattr(item, "prov", None) or []
+        if getattr(prov, "bbox", None) is not None
+    ]
+    return _bbox_area_deduplication(boxes)
+
+
 def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
     """Each picture in a chunk, in reading order, with the prose that sits by it.
 
     A picture carries its own boxes, its caption, and the chunk's prose: text
     before the first picture goes with it, text after a picture stays with that
     picture. A picture's own caption items are left out of the prose, as the
-    caption already leads its passage. A picture whose boxes are all in
-    `seen_bboxes` (Docling repeated it) is left out, and its new boxes are added
-    there, so each picture is read once.
+    caption already leads its passage.
+
+    Pictures that are not described are treated as absent, so the chunk stays
+    ordinary text: logo-sized ones (`worth_reading`), and ones whose boxes are
+    all in `seen_bboxes` (Docling repeated them). New boxes are added there, so
+    each picture is read once.
     """
     items = getattr(dl_chunk.meta, "doc_items", None) or []
     # HybridChunker hands back plain DocItems (no text, no captions); the
     # document holds the real items.
     resolved = {item.self_ref: RefItem(cref=item.self_ref).resolve(doc) for item in items}
+    kept: dict[str, list[dict]] = {}
+    for item in items:
+        if getattr(item, "label", None) != DocItemLabel.PICTURE:
+            continue
+        boxes = [box for box in _picture_boxes(item) if worth_reading(box["bbox"])]
+        boxes = _unseen_bboxes(boxes, seen_bboxes)
+        if boxes:
+            seen_bboxes.extend(boxes)
+            kept[item.self_ref] = boxes
     caption_refs = {
         ref.cref
-        for picture in resolved.values()
-        if isinstance(picture, PictureItem)
-        for ref in picture.captions
+        for self_ref in kept
+        if isinstance(resolved[self_ref], PictureItem)
+        for ref in resolved[self_ref].captions
     }
 
     pictures: list[dict] = []
     before: list[str] = []
     for item in items:
-        if getattr(item, "label", None) != DocItemLabel.PICTURE:
-            text = (getattr(resolved[item.self_ref], "text", "") or "").strip()
-            if text and item.self_ref not in caption_refs:
-                (pictures[-1]["after"] if pictures else before).append(text)
+        if item.self_ref in kept:
+            picture = resolved[item.self_ref]
+            caption = picture.caption_text(doc) if isinstance(picture, PictureItem) else ""
+            pictures.append(
+                {
+                    "boxes": kept[item.self_ref],
+                    "caption": " ".join(caption.split()),
+                    "before": [] if pictures else before,
+                    "after": [],
+                }
+            )
             continue
-        boxes = [
-            {
-                "page": prov.page_no,
-                "bbox": [float(v) for v in (prov.bbox.l, prov.bbox.t, prov.bbox.r, prov.bbox.b)],
-                "coord_origin": str(getattr(prov.bbox, "coord_origin", "")),
-                "is_table": False,
-                "is_picture": True,
-            }
-            for prov in getattr(item, "prov", None) or []
-            if getattr(prov, "bbox", None) is not None
-        ]
-        boxes = _unseen_bboxes(_bbox_area_deduplication(boxes), seen_bboxes)
-        if not boxes:
-            continue
-        seen_bboxes.extend(boxes)
-        picture = resolved[item.self_ref]
-        caption = picture.caption_text(doc) if isinstance(picture, PictureItem) else ""
-        pictures.append(
-            {
-                "boxes": boxes,
-                "caption": " ".join(caption.split()),
-                "before": [] if pictures else before,
-                "after": [],
-            }
-        )
+        text = (getattr(resolved[item.self_ref], "text", "") or "").strip()
+        if text and item.self_ref not in caption_refs:
+            (pictures[-1]["after"] if pictures else before).append(text)
     return pictures
 
 
@@ -511,7 +528,7 @@ def _extract_table_chunk(
     ]
 
     def read_as_pictures() -> list[dict]:
-        passages = _extract_picture_chunk(
+        return _extract_picture_chunk(
             pictures,
             doc_path=doc_path,
             doc_id=doc_id,
@@ -520,7 +537,6 @@ def _extract_table_chunk(
             headings=headings,
             position=position,
         )
-        return [passage for passage in passages if passage["text"]]
 
     if not tables:
         if pictures:
@@ -603,14 +619,16 @@ def _extract_picture_chunk(
                 generated_by=reader(),
                 prompt_version=PICTURE_PROMPT_VERSION,
             )
+        text = "\n\n".join(part for part in [*picture["before"], body, *picture["after"]] if part)
+        if not text:
+            # Unread, with no caption or prose (a logo): nothing to index.
+            continue
         passages.append(
             {
                 # `:g<k>` orders a chunk's pictures at search time, as it does a
                 # table's row groups (rag-service `_group`).
                 "id": chunk_id if len(pictures) == 1 else f"{chunk_id}:g{index}",
-                "text": "\n\n".join(
-                    part for part in [*picture["before"], body, *picture["after"]] if part
-                ),
+                "text": text,
                 "metadata": metadata,
             }
         )

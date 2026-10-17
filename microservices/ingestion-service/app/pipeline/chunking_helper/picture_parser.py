@@ -16,6 +16,12 @@ from app.pipeline.chunking_helper.page_cache import PDF_LOCK, load_document
 MIN_PICTURE_POINTS = 72
 
 
+def worth_reading(bbox) -> bool:
+    """Whether a picture box is big enough to describe (not a logo or icon)."""
+    left, top, right, bottom = bbox
+    return min(abs(right - left), abs(top - bottom)) >= MIN_PICTURE_POINTS
+
+
 def parse_picture(
     bbox, page: int, file_path: str, coord_origin: str = "", context: str = ""
 ) -> str | None:
@@ -32,8 +38,7 @@ def parse_picture(
     the provider gave up), and for a picture under `MIN_PICTURE_POINTS` on a
     side; the caller then keeps the caption and prose only.
     """
-    left, top, right, bottom = bbox
-    if min(abs(right - left), abs(top - bottom)) < MIN_PICTURE_POINTS:
+    if not worth_reading(bbox):
         return None
 
     with PDF_LOCK:

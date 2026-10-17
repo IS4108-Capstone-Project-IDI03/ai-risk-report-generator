@@ -49,7 +49,8 @@ document or a property risk survey report. Describe it for a risk engineer who c
 - description: two to four sentences on what the image shows. For a photograph of a site, \
 name the details that matter to property risk (damage, hazards, equipment and its condition, \
 site conditions) only where they can be seen.
-- visible_text: any text printed in the image, exactly as printed. Empty if there is none.
+- visible_text: any text printed in the image, exactly as printed. If there is none, leave \
+it as an empty string.
 
 Describe only what is visible. If a detail cannot be made out, leave it out rather than guess. \
 Say nothing about causes, consequences, compliance or recommendations. If the image shows \

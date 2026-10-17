@@ -158,6 +158,31 @@ def test_a_picture_left_unread_keeps_its_caption_and_prose_unmarked(monkeypatch)
     assert chunker.PICTURE_PLACEHOLDER not in passage["text"]
 
 
+def test_text_beside_a_logo_sized_picture_stays_an_ordinary_passage(reader):
+    # Office Sample 5 p15, FM-200 p11: a small icon must not turn the text into a
+    # picture passage whose bbox points at the icon.
+    doc = _document()
+    doc.add_text(DocItemLabel.TEXT, "Clean-up takes a month.", prov=_prov(1, 10, 375, 200, 365))
+    _picture(doc, (210, 375, 255, 364))  # 45 x 11 pt
+
+    [passage] = _chunk(doc)
+
+    assert passage["id"] == "report:0"
+    assert passage["text"] == "Clean-up takes a month."
+    assert passage["metadata"]["bbox"] == [10.0, 375.0, 200.0, 365.0]
+    assert reader == []
+
+
+def test_an_unread_picture_with_no_caption_or_prose_leaves_no_passage(monkeypatch):
+    # A cover page of logo-sized pictures, each skipped unread (FM-200 page 1).
+    monkeypatch.setattr(chunker, "parse_picture", lambda **kwargs: None)
+    doc = _document()
+    _picture(doc, (10, 390, 136, 331))
+    _picture(doc, (150, 390, 276, 331))
+
+    assert _chunk(doc) == []
+
+
 def test_a_picture_docling_repeats_is_read_once(reader):
     doc = _document()
     doc.add_heading("Fire Protection", level=1, prov=_prov(1, 10, 390, 200, 380))
