@@ -12,7 +12,13 @@ import httpx
 import pytest
 
 from app.pipeline.chunking_helper import anthropic_ocr, ocr_model, rate_limit
-from app.pipeline.chunking_helper.ocr_prompts import FormulaReading, TableBlock, TableReading
+from app.pipeline.chunking_helper.ocr_prompts import (
+    PICTURE_PROMPT,
+    FormulaReading,
+    PictureReading,
+    TableBlock,
+    TableReading,
+)
 from app.pipeline.errors import OcrUnavailableError
 
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
@@ -141,3 +147,49 @@ def test_claude_reads_crops_when_no_provider_is_set(claude, monkeypatch):
     claude.replies.append(_answer(FormulaReading(latex="x")))
 
     assert ocr_model.recognise(PNG, "formula") == "x"
+
+
+def test_picture_crop_comes_back_as_a_generated_description(claude):
+    claude.replies.append(
+        _answer(
+            PictureReading(
+                kind="photograph",
+                description="A sprinkler head with paint over its glass bulb.",
+                visible_text="K-80",
+            )
+        )
+    )
+
+    assert ocr_model.recognise(PNG, "picture") == (
+        "Image description (generated, photograph): "
+        "A sprinkler head with paint over its glass bulb.\n"
+        "Text in image: K-80"
+    )
+
+
+def test_a_picture_without_printed_text_has_no_text_line(claude):
+    claude.replies.append(
+        _answer(PictureReading(kind="photograph", description="A clear exit.", visible_text=""))
+    )
+
+    assert ocr_model.recognise(PNG, "picture") == (
+        "Image description (generated, photograph): A clear exit."
+    )
+
+
+def test_a_picture_is_asked_about_with_where_it_sits(claude):
+    claude.replies.append(_answer(PictureReading(kind="diagram", description="d", visible_text="")))
+
+    ocr_model.recognise(
+        PNG, "picture", context="Section: Fire Protection > Sprinklers\nCaption: Figure 3 Riser"
+    )
+
+    image, prompt, context = claude.requests[0]["messages"][0]["content"]
+    assert image["type"] == "image"
+    assert prompt["text"] == PICTURE_PROMPT
+    assert context["text"] == "Section: Fire Protection > Sprinklers\nCaption: Figure 3 Riser"
+
+
+def test_an_unknown_task_is_a_programming_error(claude):
+    with pytest.raises(ValueError, match="unknown OCR task"):
+        ocr_model.recognise(PNG, "barcode")

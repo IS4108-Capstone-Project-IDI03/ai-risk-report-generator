@@ -1,4 +1,4 @@
-"""Claude reads cropped table and formula regions (OCR_PROVIDER=anthropic).
+"""Claude reads cropped table, formula and picture regions (OCR_PROVIDER=anthropic).
 
 Uses the official SDK's structured outputs (`messages.parse` with a pydantic
 schema), so the answer arrives already validated. The SDK itself retries rate
@@ -17,7 +17,7 @@ import anthropic
 from pydantic import BaseModel
 
 from app import usage
-from app.pipeline.chunking_helper.ocr_prompts import TASKS
+from app.pipeline.chunking_helper.ocr_prompts import task_spec
 from app.pipeline.chunking_helper.rate_limit import (
     call_with_waits,
     is_transient_status,
@@ -40,7 +40,7 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic(max_retries=MAX_RETRIES)
 
 
-def _ask(prompt: str, schema: type[BaseModel], data: str):
+def _ask(prompt: str, schema: type[BaseModel], data: str, context: str = ""):
     started = time.perf_counter()
     response = _client().messages.parse(
         model=_model(),
@@ -57,6 +57,7 @@ def _ask(prompt: str, schema: type[BaseModel], data: str):
                         "source": {"type": "base64", "media_type": "image/png", "data": data},
                     },
                     {"type": "text", "text": prompt},
+                    *([{"type": "text", "text": context}] if context else []),
                 ],
             }
         ],
@@ -90,13 +91,13 @@ def _hint(error: Exception) -> float | None:
     return parse_seconds(response.headers.get("retry-after")) if response is not None else None
 
 
-def recognise(image_png: bytes, task: str) -> str | None:
+def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
     """Read one cropped region; same contract as `ocr_model.recognise`."""
-    prompt, schema, to_text = TASKS[task]
+    prompt, schema, to_text = task_spec(task)
     data = base64.standard_b64encode(image_png).decode("ascii")
     try:
         response = call_with_waits(
-            lambda: _ask(prompt, schema, data), _is_transient, _hint, "Claude", task
+            lambda: _ask(prompt, schema, data, context), _is_transient, _hint, "Claude", task
         )
     except (
         anthropic.AuthenticationError,
