@@ -540,8 +540,9 @@ export type SectionDraft = {
   createdAt: string
 }
 
-// What changed in a draft's evidence since it was written, by kind (CP-08).
-export type ChangeCounts = { added: number; changed: number; removed: number }
+// What changed in a draft's evidence since it was written, by kind (CP-08), and
+// `figures` (GN-03): 1, present only when Section 4 or 5's figures changed.
+export type ChangeCounts = { added: number; changed: number; removed: number; figures?: number }
 
 export type ReportSection = {
   id: string
@@ -554,12 +555,14 @@ export type ReportSection = {
   // takes them in. The total, and each kind on its own (CP-08).
   changesSinceDraft: number
   changeCounts: ChangeCounts
+  // Sections 4 and 5 (GN-03): why the section cannot be drafted yet, else null.
+  inputsMissing: string | null
 }
 
 const sectionsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/sections`
 
-// Sections 7-12, each with its usable evidence and newest draft.
+// Sections 4-12, each with its usable evidence and newest draft.
 export async function listSections(
   reference: string,
   signal?: AbortSignal,
@@ -570,7 +573,15 @@ export async function listSections(
 // A drafted Opportunity for Improvement for Section 3 (GN-05). Its value
 // lists come from rag-service generation/ofi.json; `priority` is the Risk
 // Assessment Matrix's value for likelihood x consequence, set in code.
+export type OfiLossValues = {
+  current: { pd: number | null; bi: number | null }
+  after: { pd: number | null; bi: number | null }
+}
 export type Ofi = {
+  lossExpectancy?: {
+    current: OfiLossValues['current'] & { total: number | null }
+    after: OfiLossValues['after'] & { total: number | null }
+  }
   id: string
   title: string
   category: string
@@ -622,6 +633,20 @@ export async function draftOfis(reference: string): Promise<OfiList> {
 export async function acceptOfi(reference: string, id: string): Promise<OfiList> {
   return (await request<OfiList>('POST', `${ofisPath(reference)}/${encodeURIComponent(id)}/accept`))
     .data
+}
+
+export async function saveOfiLossValues(
+  reference: string,
+  id: string,
+  values: OfiLossValues,
+): Promise<OfiList> {
+  return (
+    await request<OfiList>(
+      'PUT',
+      `${ofisPath(reference)}/${encodeURIComponent(id)}/loss-values`,
+      values,
+    )
+  ).data
 }
 
 // Drafts one section from the assessment's observations; the gateway saves it.
@@ -913,4 +938,87 @@ export async function saveAppendix(
   photos: { photoId: string; caption: string }[],
 ): Promise<AppendixList> {
   return (await request<AppendixList>('PUT', appendixPath(reference), { photos })).data
+}
+
+// Section 4 Risk Quality Ratings (GN-03): the engineer's seven category scores,
+// and the location score and rating the gateway computes from them. A side is
+// null until all seven of its scores are entered.
+export type CategoryScore = { category: string; current: number | null; potential: number | null }
+export type Rated = { score: number; rating: string; band: string }
+export type RiskQuality = {
+  categories: CategoryScore[]
+  result: {
+    current: Rated | null
+    potential: Rated | null
+    basis: {
+      weights: { category: string; weight: number }[]
+      legend: string[]
+      rulesVersion: string
+    }
+  }
+  updatedAt: string | null
+}
+
+const riskQualityPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/risk-quality`
+
+export async function getRiskQuality(reference: string, signal?: AbortSignal) {
+  return (await request<RiskQuality>('GET', riskQualityPath(reference), undefined, signal)).data
+}
+
+export async function saveRiskQuality(reference: string, categories: CategoryScore[]) {
+  return (await request<RiskQuality>('PUT', riskQualityPath(reference), { categories })).data
+}
+
+// Section 5 Loss Estimates (GN-03): the site values, each level's % damage and
+// outage months, and the losses the gateway computes from them. A loss is null
+// while any input it needs is not entered.
+export type ValueRow = { key: string; item: string; value: number | null }
+export type LossLevel = 'I' | 'II' | 'III'
+export type LossInputs = {
+  currency: string | null
+  dateOfValues: string | null
+  indemnityMonths: number | null
+  pd: ValueRow[]
+  te: ValueRow[]
+  levels: {
+    level: LossLevel
+    pd: { key: string; percent: number | null }[]
+    damageRows?: (ValueRow & { percent: number | null })[]
+    te: { key: string; months: number | null; percent: number | null }[]
+  }[]
+}
+type LossRow = {
+  key: string
+  item: string
+  value: number | null
+  percent: number | null
+  loss: number | null
+}
+export type LossEstimates = {
+  inputs: LossInputs
+  result: {
+    values: { pd: number | null; te: number | null; tiv: number | null }
+    levels: {
+      level: LossLevel
+      pd: LossRow[]
+      te: (LossRow & { months: number | null })[]
+      pdLoss: number | null
+      teLoss: number | null
+      total: number | null
+    }[]
+    rulesVersion: string
+  }
+  updatedAt: string | null
+}
+
+const lossEstimatesPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/loss-estimates`
+
+export async function getLossEstimates(reference: string, signal?: AbortSignal) {
+  return (await request<LossEstimates>('GET', lossEstimatesPath(reference), undefined, signal)).data
+}
+
+export async function saveLossEstimates(reference: string, inputs: LossInputs) {
+  return (await request<LossEstimates>('PUT', lossEstimatesPath(reference), inputs)).data
 }

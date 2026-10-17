@@ -4,7 +4,14 @@
 // Rendered by screens/ReviewWorkspace.tsx. Calls the gateway's accept route (api.ts).
 import { useState } from 'react'
 import { Button, Callout } from '../../../design-system'
-import { acceptOfi, GatewayError, type OfiList, type SavedObservation } from '../api'
+import {
+  acceptOfi,
+  saveOfiLossValues,
+  GatewayError,
+  type OfiLossValues,
+  type OfiList,
+  type SavedObservation,
+} from '../api'
 import { OFI_CATEGORIES } from '../reviewDisplay'
 import { OfiBlock } from './OfiSuggestions'
 
@@ -46,6 +53,16 @@ export function OfiReviewPanel({
     setBusy(false)
   }
 
+  const saveLossValues = async (id: string, values: OfiLossValues) => {
+    setBusy(true)
+    try {
+      setOfis(await saveOfiLossValues(reference, id, values))
+      onAccepted?.()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const { suggestions, accepted } = ofis
   return (
     <>
@@ -79,6 +96,7 @@ export function OfiReviewPanel({
               ofi={o}
               observations={observations}
               busy={busy}
+              // No loss values here: redrafting replaces suggestions, so they'd be lost.
               onAccept={canAccept ? () => void accept([o.id]) : undefined}
             />
           ))}
@@ -90,7 +108,14 @@ export function OfiReviewPanel({
           <p className="rv-muted">No Opportunities for Improvement are in the report yet.</p>
         ) : (
           OFI_CATEGORIES.flatMap((c) => accepted.filter((o) => o.category === c)).map((o) => (
-            <OfiBlock key={o.id} ofi={o} number={o.number} observations={observations} />
+            <OfiBlock
+              key={o.id}
+              ofi={o}
+              number={o.number}
+              observations={observations}
+              busy={busy}
+              onSaveLossValues={canAccept ? (values) => saveLossValues(o.id, values) : undefined}
+            />
           ))
         )}
       </section>

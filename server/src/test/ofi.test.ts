@@ -337,3 +337,58 @@ describe('Opportunities for Improvement (GN-05)', () => {
     expect(response.body.error).toBe('The model declined to draft.')
   })
 })
+
+it('saves engineer-entered loss values on an accepted OFI and calculates totals', async () => {
+  await assessment()
+  const { suggestions } = (await api.post(`${url}/draft`)).body
+  const id = suggestions[0].id
+  const values = { current: { pd: 0.1, bi: 0.2 }, after: { pd: 0, bi: null } }
+  await api.post(`${url}/${id}/accept`)
+  const saved = await api.put(`${url}/${id}/loss-values`).send(values)
+  expect(saved.status).toBe(200)
+  expect(saved.body.accepted[0].lossExpectancy).toEqual({
+    current: { pd: 0.1, bi: 0.2, total: 0.3 },
+    after: { pd: 0, bi: null, total: null },
+  })
+  expect((await api.get(url)).body.accepted[0].lossExpectancy.current.total).toBe(0.3)
+  const updated = await api
+    .put(`${url}/${id}/loss-values`)
+    .send({ ...values, after: { pd: 10, bi: 20 } })
+  expect(updated.body.accepted[0].lossExpectancy.after.total).toBe(30)
+  const record = await ReportOfiModel.findById(id).lean()
+  expect(String(record?.lossValuesUpdatedBy)).toBe(String(engineer._id))
+  expect(record?.lossValuesUpdatedAt).toBeInstanceOf(Date)
+  expect(record?.description).toBe(OFI.description)
+})
+
+// Redrafting replaces suggestions, so values typed on one would be lost.
+it('refuses loss values on a suggestion', async () => {
+  await assessment()
+  const { suggestions } = (await api.post(`${url}/draft`)).body
+  const values = { current: { pd: 1, bi: 2 }, after: { pd: null, bi: null } }
+  const res = await api.put(`${url}/${suggestions[0].id}/loss-values`).send(values)
+  expect(res.status).toBe(409)
+  expect(res.body.error).toMatch(/Accept/)
+  expect((await ReportOfiModel.findById(suggestions[0].id).lean())?.lossExpectancy).toBeUndefined()
+})
+
+it('validates OFI amounts and protects the assigned assessment', async () => {
+  const { assessment: a } = await assessment()
+  const { suggestions } = (await api.post(`${url}/draft`)).body
+  await api.post(`${url}/${suggestions[0].id}/accept`)
+  const path = `${url}/${suggestions[0].id}/loss-values`
+  const values = { current: { pd: 100, bi: 20 }, after: { pd: null, bi: null } }
+  for (const pd of [-1, 0.001, 1e14, '100']) {
+    expect((await api.put(path).send({ ...values, current: { pd, bi: 0 } })).status).toBe(400)
+  }
+  expect(
+    (await api.put(path).send({ ...values, current: { ...values.current, total: 1 } })).status,
+  ).toBe(400)
+  expect((await signedInAsRole(app, 'risk_engineer').put(path).send(values)).status).toBe(403)
+  expect((await signedInAsRole(app, 'knowledge_admin').put(path).send(values)).status).toBe(403)
+  expect((await api.put(`${url}/${new Types.ObjectId()}/loss-values`).send(values)).status).toBe(
+    404,
+  )
+  await AssessmentModel.updateOne({ _id: a._id }, { $set: { archivedAt: new Date() } })
+  expect((await api.put(path).send(values)).status).toBe(409)
+})

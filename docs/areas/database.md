@@ -169,6 +169,28 @@ non-deleted observations (`photoId`, `observationId`, `name`, `url`,
 twice, or a caption over 200 characters, 403, 404, 409 archived. The export
 (EX-01) is to read it.
 
+`riskQuality` and `lossEstimates` (GN-03) are Sections 4 and 5's figures, typed
+by the engineer in Review; every score, rating and loss is computed from them
+on read, never stored, and never written by the LLM.
+- `riskQuality`: `categories`, the seven main categories in template order,
+  each `{ category, current, potential }` (0-10, one decimal, or `null` while
+  not entered; potential >= current), and `updatedAt`. Rules in
+  `risk-quality.service.ts` (equal weights, provisional until Marsh's Global
+  Risk Quality Rating spreadsheet arrives; version `rqr-provisional-equal-v1`).
+- `lossEstimates`: `inputs` (Mixed, checked by `lossEstimatesSchema` before
+  saving: `currency`, `dateOfValues`, `indemnityMonths`, the `pd` and `te`
+  value rows `{ key, item, value }`, and `levels` I-III each with `pd: [{ key,
+  percent }]` and `te: [{ key, months, percent }]` naming value rows by key,
+  plus optional `damageRows: [{ key, item, value, percent }]` for independent
+  property damage items per level. When absent, legacy site-value rows are used;
+  an explicit empty list stays empty and its PD total is `null`)
+  and `updatedAt`. Rules in `loss-estimate.service.ts` (`le-v1`): PD loss =
+  value x % damage; BI loss = value x months / indemnity months x % impacted;
+  a missing input leaves its row and totals `null`, never 0.
+`GET`/`PUT /api/assessments/:reference/risk-quality` and `/loss-estimates`
+read and replace them (PUT: assigned engineer only; 400 invalid, 403, 404, 409
+archived), returning the inputs with the computed `result` and `updatedAt`.
+
 `GET /api/assessments` returns assessments assigned to the authenticated risk
 engineer's user ID; knowledge admins receive all assessments. The derived status
 and sort order (most recent site visit first) are unchanged. Site/client/report-ID
@@ -427,7 +449,7 @@ filters, it is built in the browser from the observation list.
 ## Report sections (GN-01)
 
 `report_sections` holds one document per generated draft of a report section
-(7-12). Drafting the same section again adds a new document, so earlier drafts
+(4-12). Drafting the same section again adds a new document, so earlier drafts
 are kept. No draft is ever changed: the engineer's decisions on its findings
 are in the [review audit log](#review-audit-log-rv-02). The section's saved
 content is its newest draft, except that a replacement draft counts only once
@@ -452,6 +474,9 @@ accepted, and from when it was accepted. Each document has:
   citation can always be checked against what was drafted from. This stands in
   for CP-14's snapshot, which the team dropped.
 - `guardrail`: `{ passed, unsupported_count }`.
+- `facts`: Sections 4 and 5 only (GN-03), the engineer's figures the draft was
+  given, as sent to S4. The draft is out of date (`changeCounts.figures: 1`)
+  once the figures no longer give the same text.
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
   `template_version`, `generated_at` (AC7), and `instruction`: what the
   engineer asked a regenerated draft to change, or `null` (RV-02). A
@@ -513,7 +538,8 @@ on the draft. Each entry has:
 - `heading` (the finding's subsection), `before` (its text when decided: what
   was accepted, edited or rejected), `after` (the engineer's text, for an
   edit), `citations` (its citations then), `instruction` (for a regenerated
-  draft), `bulk` (accepted by Bulk accept).
+  draft), `bulk` (accepted by Bulk accept), `carriedFrom` (see below; null
+  otherwise).
 - `by` `{ id, name }`, the signed-in user as they were then, and `at`.
 - `metadata` with the five required fields: `source_type: 'review_decision'`,
   `jurisdiction`, `facility_type` and `COPE_dimension` from the draft, and
@@ -524,6 +550,15 @@ from edited, keeping the engineer's text), `edit` makes it `edited` with the
 new text, `reject` makes it `rejected` (out of the draft), and `restore`
 returns it to its state before rejection. A decision that changes nothing
 records nothing.
+
+A new draft of a section with decided findings, from Regenerate or from
+Draft on Generation (`POST …/sections/:sectionId/draft`), keeps its accepted
+and edited findings word for word: they go first in their subsection, with
+the passages they cite, and S4 writes only the rest. Their decisions are
+copied onto the new draft as new entries (an `edit`, then an `accept` if it
+was accepted) with `carriedFrom` set to the earlier draft and the original
+`by` and `at`. The review history leaves these copies out, as it already
+lists the original decisions.
 
 Indexes: the unique `{ draft, finding, sequence }`, and
 `{ assessment, sectionId, at: -1 }` for a section's history.
@@ -546,7 +581,7 @@ a transcription in progress), 422 (too little evidence to regenerate), 503
 | `POST /api/assessments/:reference/sections/:sectionId/findings/:finding/restore` | Returns a rejected finding to its state before rejection. |
 | `POST /api/assessments/:reference/sections/:sectionId/bulk-accept` | Accepts every pending finding of the saved draft, one entry each with `bulk: true`; rejected and edited ones keep their decisions (AC7, AC8). |
 | `POST /api/assessments/:reference/sections/:sectionId/regenerate` | `{ instruction? }` (up to 1,000 characters): drafts the section again through S4 as a replacement for its saved draft (AC10). 201. Only one replacement waits at a time. |
-| `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11), every finding pending. |
+| `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11): kept findings keep their decisions, the rest are pending. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/discard` | Leaves the saved draft and its decisions as they were (AC12). |
 
 ## Opportunities for Improvement (GN-05)
@@ -573,6 +608,10 @@ document has:
   `headings`).
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
   `config_version` (of `ofi.json`), `generated_at`.
+- `lossExpectancy` (optional): engineer-entered `current` and `after` pairs of
+  `pd` and `bi` amounts in US dollars (null when unknown), with `lossValuesUpdatedBy`
+  and `lossValuesUpdatedAt`. Each total is computed on read; it is null until both
+  inputs are present. Amounts must be non-negative with at most two decimal places.
 - `createdBy`, the engineer's user `_id`.
 - `metadata` with the five required fields: `source_type: 'ofi'`,
   `jurisdiction` and `facility_type` from the site, `COPE_dimension: 'all'`
@@ -581,9 +620,14 @@ document has:
 Not stored, but worked out when the list is read: the OFI `number`
 (`<site visit year>-NN`, in report order: Management Programs, then Physical
 Protection, then Other, each by acceptance time), `status` (`New`),
-`issueDate` (the site visit date). OFI issued by, insurer rec no., loss
-expectancy, related RTM ID, client response, advisory comment and loss
-scenario are left for people to fill: loss figures never come from a model.
+`issueDate` (the site visit date). OFI issued by, insurer rec no.,
+related RTM ID, client response, advisory comment and loss scenario are left for
+people to fill. Loss expectancy is editable in Review on accepted OFIs only via
+`PUT /api/assessments/:reference/ofis/:id/loss-values` with `{ current:
+{ pd, bi }, after: { pd, bi } }`: redrafting replaces every suggestion, so amounts
+entered on one would be lost, and a suggestion answers 409. Only the assigned
+engineer on an unarchived assessment can save; the response is the updated OFI
+list. No loss figure comes from a model.
 
 | Route | Does |
 | --- | --- |

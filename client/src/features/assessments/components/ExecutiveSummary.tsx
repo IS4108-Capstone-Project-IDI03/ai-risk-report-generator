@@ -72,7 +72,9 @@ export function ExecutiveSummary({
       <AIDraftBlock
         heading={narrative.heading}
         status={unsupported ? 'flagged' : 'draft'}
-        confidence={unsupported ? 'low' : 'medium'}
+        // No status badge or confidence meter: it is all AI drafted, and a weak
+        // statement carries its own Unsupported flag (Miya, 15 Oct).
+        quiet
         evidenceCount={new Set(narrative.statements.flatMap((s) => s.citations)).size}
         fullWidth={fullWidth}
       >

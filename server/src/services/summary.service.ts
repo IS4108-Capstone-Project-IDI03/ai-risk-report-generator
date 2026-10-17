@@ -4,6 +4,7 @@
 // Calls S4 through rag.service.ts.
 import type { Types } from 'mongoose'
 import type { SessionUser } from './auth.service'
+import { createHash } from 'node:crypto'
 import { AssessmentModel, type IAssessment } from '../models/assessment.model'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
@@ -15,6 +16,7 @@ import { requestSummaryDraft } from './rag.service'
 import { entriesFor, foldFindings } from './review-decision.service'
 import {
   assessmentToDraft,
+  figureFacts,
   sectionDrafts,
   toDraftDto,
   type SectionDraftDto,
@@ -114,10 +116,14 @@ export function purposeAndScope(
 // edit is summarised as edited and a rejected finding not at all; its version is
 // the draft's id and how many decisions it has. Section 3: the accepted OFIs' ids.
 // A null version means the section is not complete.
-async function currentSections(assessment: Types.ObjectId) {
+async function currentSections(
+  assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'> & { _id: Types.ObjectId },
+) {
   const [drafts, accepted] = await Promise.all([
-    sectionDrafts(assessment),
-    ReportOfiModel.find({ assessment, state: 'accepted' }).sort({ acceptedAt: 1 }).lean(),
+    sectionDrafts(assessment._id),
+    ReportOfiModel.find({ assessment: assessment._id, state: 'accepted' })
+      .sort({ acceptedAt: 1 })
+      .lean(),
   ])
   const saved = SUMMARISED_SECTIONS.flatMap((s) => drafts.get(s.id)?.saved ?? [])
   const entries = await entriesFor(saved.map((d) => d._id))
@@ -135,7 +141,10 @@ async function currentSections(assessment: Types.ObjectId) {
       }
     }
     const draft = drafts.get(s.id)?.saved
-    if (!draft) return { ...s, version: null, text: '' }
+    // Sections 4 and 5 (GN-03) also need their figures complete, and are read with
+    // them, so changing a figure changes the version too.
+    const { facts, missing } = figureFacts(s.id, assessment)
+    if (!draft || missing) return { ...s, version: null, text: '' }
     const decisions = entries.filter((e) => String(e.draft) === String(draft._id)).length
     // Each heading that still has a finding, then its findings' text now. Tables
     // are filled from measured values (GN-03), never by a draft, so carry nothing.
@@ -143,10 +152,14 @@ async function currentSections(assessment: Types.ObjectId) {
     const headings = [...new Set(findings.map((f) => f.heading))]
     return {
       ...s,
-      version: `${draft._id}:${decisions}`,
-      text: headings
-        .flatMap((h) => [h, ...findings.filter((f) => f.heading === h).map((f) => f.text)])
-        .join('\n'),
+      version: `${draft._id}:${decisions}${facts ? `:${createHash('sha1').update(facts).digest('hex')}` : ''}`,
+      text: [
+        ...(facts ? [facts] : []),
+        ...headings.flatMap((h) => [
+          h,
+          ...findings.filter((f) => f.heading === h).map((f) => f.text),
+        ]),
+      ].join('\n'),
     }
   })
 }
@@ -175,7 +188,7 @@ export async function getSummary(reference: string): Promise<SummaryDto> {
   if (!assessment) throw new AssessmentNotFoundError(reference)
   const client = clientNameOf(assessment.site, assessment.client)
   const [sections, latest] = await Promise.all([
-    currentSections(assessment._id),
+    currentSections(assessment),
     ReportSectionModel.findOne({ assessment: assessment._id, sectionId: '2' })
       .sort({ createdAt: -1 })
       .lean(),
@@ -205,7 +218,7 @@ export async function draftSummary(reference: string, user: SessionUser): Promis
   const site = assessment.site!
 
   // 2. Every section must be complete; otherwise no paid call is made.
-  const sections = await currentSections(assessment._id)
+  const sections = await currentSections(assessment)
   const missing = sections.filter((s) => !s.version)
   if (missing.length) throw new IncompleteSectionsError(missing.map(ref))
 

@@ -19,6 +19,10 @@ export type AIDraftBlockProps = {
   style?: React.CSSProperties
   // Lets the body use the box's full width, for a table rather than prose.
   fullWidth?: boolean
+  // Leaves out the status badge and confidence meter, keeping the AI styling: in
+  // Review the violet box already marks AI text, and each finding carries its own
+  // decision, so only exceptions and decisions are labelled (Miya, 15 Oct).
+  quiet?: boolean
 }
 import { useState } from 'react'
 const STATUS: Record<string, { tone: string; label: string; icon: string }> = {
@@ -56,6 +60,7 @@ function AIDraftBlock({
   onShowEvidence,
   style = {},
   fullWidth = false,
+  quiet = false,
 }: AIDraftBlockProps) {
   const [hover, setHover] = useState(false)
   const s = STATUS[status] || STATUS.draft
@@ -96,15 +101,17 @@ function AIDraftBlock({
             {heading}
           </span>
         ) : null}
-        <Badge tone={s.tone} icon={s.icon}>
-          {s.label}
-        </Badge>
+        {!quiet && (
+          <Badge tone={s.tone} icon={s.icon}>
+            {s.label}
+          </Badge>
+        )}
         <span
           style={{
             flex: 1,
           }}
         />
-        {isAI ? <ConfidenceIndicator level={confidence} /> : null}
+        {isAI && !quiet ? <ConfidenceIndicator level={confidence} /> : null}
       </header>
       <div
         style={{

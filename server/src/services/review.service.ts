@@ -351,7 +351,10 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
         id: section.id,
         title: section.title,
         copeDimensions: section.cope_dimensions,
-        history: entries.filter((e) => e.sectionId === section.id).map(historyEntry),
+        // A carried decision repeats one already listed (review-decision.service).
+        history: entries
+          .filter((e) => e.sectionId === section.id && !e.carriedFrom)
+          .map(historyEntry),
         replacement: replacement && toReplacement(replacement, section, documents, entries),
       }
       if (!latest) {

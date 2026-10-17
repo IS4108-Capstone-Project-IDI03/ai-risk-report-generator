@@ -13,12 +13,14 @@ import {
   claimsOf,
   describeChanges,
   FINDING_BADGE,
+  maturityEntries,
   plural,
   statementId,
   type Claim,
   type ReviewFocus,
 } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
+import { MaturityTable } from './MaturityTable'
 
 type Citing = {
   sectionId: string
@@ -49,7 +51,13 @@ function Finding({
   focus,
   describe,
   onCite,
-}: Citing & { claim: Claim; actions?: FindingActions }) {
+  shown,
+}: Citing & {
+  claim: Claim
+  actions?: FindingActions
+  // The text to show, when not the claim's whole text: a Section 6 row's comment.
+  shown?: string
+}) {
   const { review } = claim
   // In the engineer's words rather than the draft's: edited, and perhaps
   // accepted since.
@@ -73,7 +81,7 @@ function Finding({
           (claim.supported ? '' : ' is-unsupported')
         }
       >
-        <span className="rv-statement-text">{claim.text}</span>
+        <span className="rv-statement-text">{shown ?? claim.text}</span>
         {claim.citations.map((c, n) => (
           <CitationMark
             key={n}
@@ -92,9 +100,12 @@ function Finding({
         )}
       </p>
       <div className="rv-finding-bar">
-        <Badge tone={badge.tone} icon={badge.icon}>
-          {badge.label}
-        </Badge>
+        {/* Only a decision is labelled: a pending finding is marked by its violet rule. */}
+        {review.state !== 'pending' && (
+          <Badge tone={badge.tone} icon={badge.icon}>
+            {badge.label}
+          </Badge>
+        )}
         {review.by && review.at && (
           <span className="rv-finding-by">
             {review.by.name} · {formatDayYearTime(new Date(review.at))}
@@ -182,6 +193,15 @@ function DraftSubsection({
       </div>
     )
   }
+  // Section 6's programs are Marsh's two tables (GN-11); each row is still a finding.
+  if (citing.sectionId === '6' && sub.heading === 'Management Programs') {
+    const { entries, unplaced } = maturityEntries(
+      claims,
+      (claim) => claim.text,
+      (claim, comment) => <Finding claim={claim} actions={actions} shown={comment} {...citing} />,
+    )
+    return <MaturityTable entries={entries} unplaced={unplaced} />
+  }
   const cited = [...new Set(claims.flatMap((c) => c.citations))]
   const pending = claims.filter((c) => c.review.state === 'pending')
   const unsupported = pending.some((c) => !c.supported)
@@ -199,13 +219,17 @@ function DraftSubsection({
             ? 'edited'
             : 'accepted'
       }
-      // Every citation resolves, but whether each source says what the
-      // statement claims is not checked yet (GN-02), so this is never high.
-      confidence={unsupported ? 'low' : 'medium'}
+      // No status badge or confidence meter: the box marks AI text, each finding
+      // its decision, and Unsupported its exception (Miya, 15 Oct).
+      quiet
       evidenceCount={cited.length}
       // Opens the subsection's first source beside the draft.
       onShowEvidence={() => citing.onCite(cited[0] ?? null, null)}
     >
+      {/* Marsh's lead-in to Section 4's positive points (GN-03): fixed, so not drafted. */}
+      {citing.sectionId === '4' && sub.heading === 'Positive Points' && (
+        <p className="rv-muted">The positive points from the visit are the following:</p>
+      )}
       {claims.map((claim) => (
         <Finding key={claim.key} claim={claim} actions={actions} {...citing} />
       ))}
@@ -227,6 +251,7 @@ export function DraftEditor({
   onGenerate,
   actions,
   header,
+  figures,
   ...citing
 }: Omit<Citing, 'sectionId'> & {
   section: ReviewSection
@@ -237,6 +262,11 @@ export function DraftEditor({
   onGenerate: () => void
   actions?: FindingActions
   header?: React.ReactNode
+  // Sections 4 and 5 (GN-03): the engineer's figures, shown above the draft and
+  // before there is one, since they must be entered first. As a function (Section
+  // 5), it is given each subsection's findings by heading and lays them out itself,
+  // inside Marsh's per-level tables, so they are not listed again below.
+  figures?: React.ReactNode | ((drafted: Map<string, React.ReactNode>) => React.ReactNode)
 }) {
   const { draft, review } = section
 
@@ -249,6 +279,30 @@ export function DraftEditor({
   }, [section.id, citing.focus.statement])
 
   const claims = draft ? claimsOf(draft) : []
+  const placesFindings = typeof figures === 'function'
+  // Each subsection's findings, with their decisions, for figures that place them;
+  // a subsection with none is left out, so it reads as not drafted.
+  const drafted = new Map<string, React.ReactNode>(
+    (draft?.subsections ?? []).flatMap((sub, i) => {
+      const own = claims.filter((c) => c.key.startsWith(`${i}.`))
+      return own.length
+        ? [
+            [
+              sub.heading,
+              own.map((claim) => (
+                <Finding
+                  key={claim.key}
+                  claim={claim}
+                  actions={actions}
+                  sectionId={section.id}
+                  {...citing}
+                />
+              )),
+            ] as const,
+          ]
+        : []
+    }),
+  )
   return (
     <section aria-label="Draft editor" className="om-scroll rv-editor">
       <div className="rv-editor-inner">
@@ -276,6 +330,7 @@ export function DraftEditor({
         <h2>
           {section.id}. {section.title}
         </h2>
+        {placesFindings ? figures(drafted) : figures}
         {!draft ? (
           <EmptyState
             icon="file-text"
@@ -332,16 +387,17 @@ export function DraftEditor({
                 </ul>
               </Callout>
             )}
-            {draft.subsections.map((sub, i) => (
-              <DraftSubsection
-                key={sub.heading}
-                sub={sub}
-                claims={claims.filter((c) => c.key.startsWith(`${i}.`))}
-                actions={actions}
-                sectionId={section.id}
-                {...citing}
-              />
-            ))}
+            {!placesFindings &&
+              draft.subsections.map((sub, i) => (
+                <DraftSubsection
+                  key={sub.heading}
+                  sub={sub}
+                  claims={claims.filter((c) => c.key.startsWith(`${i}.`))}
+                  actions={actions}
+                  sectionId={section.id}
+                  {...citing}
+                />
+              ))}
           </>
         )}
       </div>

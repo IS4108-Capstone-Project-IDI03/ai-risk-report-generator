@@ -2,6 +2,7 @@
 // S4, accepting them into the report, and listing both. Called by
 // assessment.routes; calls rag.service and the report_ofis collection.
 import { Types } from 'mongoose'
+import { z } from 'zod'
 import type { SessionUser } from './auth.service'
 import { AssessmentModel } from '../models/assessment.model'
 import { ReportOfiModel, type IReportOfi } from '../models/report-ofi.model'
@@ -45,7 +46,20 @@ function toDto({
   acceptedBy: _b,
   ...o
 }: Ofi & { __v?: number }) {
-  return { id: String(_id), ...o, sources: o.sources ?? {} }
+  const figures = (v?: { pd: number | null; bi: number | null }) => ({
+    pd: v?.pd ?? null,
+    bi: v?.bi ?? null,
+    total: v?.pd == null || v?.bi == null ? null : Math.round((v.pd + v.bi) * 100) / 100,
+  })
+  return {
+    id: String(_id),
+    ...o,
+    sources: o.sources ?? {},
+    lossExpectancy: {
+      current: figures(o.lossExpectancy?.current),
+      after: figures(o.lossExpectancy?.after),
+    },
+  }
 }
 
 // Suggestions (never in the report, AC3) and accepted OFIs in report order,
@@ -129,6 +143,7 @@ export async function draftOfis(reference: string, user: SessionUser) {
   const saved = await ReportOfiModel.insertMany(
     draft.ofis.map((o) => ({
       ...o,
+      lossExpectancy: undefined,
       assessment: assessment._id,
       state: 'suggested',
       // Each OFI keeps only the passages it cites (AC2).
@@ -166,6 +181,46 @@ export async function acceptOfi(reference: string, id: string, user: SessionUser
     { $set: { state: 'accepted', acceptedAt: new Date(), acceptedBy: user.id } },
   )
   if (!ofi && !(await ReportOfiModel.exists({ _id: id, assessment: assessment._id }))) {
+    throw new OfiNotFoundError(id)
+  }
+  return listFor(assessment)
+}
+
+// Loss values on a suggestion would be lost when OFIs are redrafted, as that
+// replaces every suggestion; so they are entered only once accepted.
+export class OfiNotAcceptedError extends Error {
+  constructor() {
+    super('Accept this Opportunity for Improvement before entering its loss values.')
+    this.name = 'OfiNotAcceptedError'
+  }
+}
+
+const lossAmount = z.number().min(0).max(1e13).multipleOf(0.01).nullable()
+const lossPair = z.object({ pd: lossAmount, bi: lossAmount }).strict()
+export const ofiLossValuesSchema = z.object({ current: lossPair, after: lossPair }).strict()
+
+export async function saveOfiLossValues(
+  reference: string,
+  id: string,
+  input: z.infer<typeof ofiLossValuesSchema>,
+  user: SessionUser,
+) {
+  const assessment = await assessmentToDraft(reference, user)
+  if (!Types.ObjectId.isValid(id)) throw new OfiNotFoundError(id)
+  const saved = await ReportOfiModel.findOneAndUpdate(
+    { _id: id, assessment: assessment._id, state: 'accepted' },
+    {
+      $set: {
+        lossExpectancy: input,
+        lossValuesUpdatedAt: new Date(),
+        lossValuesUpdatedBy: user.id,
+      },
+    },
+  )
+  if (!saved) {
+    if (await ReportOfiModel.exists({ _id: id, assessment: assessment._id })) {
+      throw new OfiNotAcceptedError()
+    }
     throw new OfiNotFoundError(id)
   }
   return listFor(assessment)

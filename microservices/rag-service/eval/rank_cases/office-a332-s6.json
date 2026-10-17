@@ -1,0 +1,211 @@
+{
+  "_about": "GN-11 AC6: a Section 6 rank eval case. Observations are field notes written from the report's own Section 6 comments; `expected` is Marsh's rank per program, with the observations that evidence it (none: the row should be left Not assessed). Scored by eval/score_ranks.py, never by judge_sections.py.",
+  "name": "Office (a332), Section 6",
+  "source": "Office report …a332, Section 6",
+  "exclude_doc_id": "6acc7f173e96a6760f66a332",
+  "assessment": {
+    "reference": "EVAL-S6-OFFICE",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "standards": []
+  },
+  "observations": [
+    {
+      "id": "a332-1",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "bldg in good condition. structural inspection every 5 yrs by PE civil, report to BCA"
+    },
+    {
+      "id": "a332-2",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Electrical rooms",
+      "note": "planned preventive + predictive maint by 3rd party LEWs. annual IR thermography LT/HT boards, transformers, DBs, risers. annual shutdown maint, PD test + DGA on transformers, annual load test gensets, quarterly no-load test, annual lightning test. bldg opened 2025 so first DGA/PD test due Jun 2026"
+    },
+    {
+      "id": "a332-3",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Plant rooms",
+      "note": "lifts, chillers, AHUs maintained by contractors per manufacturer recommendation"
+    },
+    {
+      "id": "a332-4",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Fire command centre",
+      "note": "FP impairments managed with an isolation form only. no formal impairment programme"
+    },
+    {
+      "id": "a332-5",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Fire pump room",
+      "note": "service contract w 3rd party for FP equipment. annual dry riser servicing, monthly fire pump service + test run, monthly wet riser pumps, monthly smoke detector testing (100% every 5 yrs), monthly FA servicing, quarterly VESDA, quarterly water monitors. servicing report needs improving"
+    },
+    {
+      "id": "a332-6",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Basement 3",
+      "note": "underground bulk diesel tank tops up day tanks of 3 gensets. day tanks bunded, leak detection to FCC. diesel piping in 2hr containment. licensed under SCDF petroleum & flammable materials licence"
+    },
+    {
+      "id": "a332-7",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "housekeeping generally good in areas inspected"
+    },
+    {
+      "id": "a332-8",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Fire command centre",
+      "note": "hot work permit system w checklist - 11m combustible clearance, fire watch during and after hot work"
+    },
+    {
+      "id": "a332-9",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Management office",
+      "note": "MOC involves the different stakeholders, risk assessment conducted"
+    },
+    {
+      "id": "a332-10",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Fire command centre",
+      "note": "ERP for fire, bomb threat, pandemic. 6-man ERT (site mgmt controller, site incident controller, 4 ERT from maint + security) both shifts. min 2 fire drills a year"
+    },
+    {
+      "id": "a332-11",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "facility technicians do daily morning inspections"
+    },
+    {
+      "id": "a332-12",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "smoking prohibited on site, well enforced - no cigarette butts seen anywhere"
+    },
+    {
+      "id": "a332-13",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Management office",
+      "note": "all contractors go through site-specific induction before any work"
+    },
+    {
+      "id": "a332-14",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Management office",
+      "note": "BCP established at corporate level"
+    },
+    {
+      "id": "a332-15",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "BCA Green Mark Platinum Super Low Energy certified"
+    }
+  ],
+  "expected": {
+    "Building Maintenance": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-1"
+      ]
+    },
+    "Electrical Maintenance": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-2"
+      ]
+    },
+    "Equipment Maintenance": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-3"
+      ]
+    },
+    "Fire Protection Impairment Management": {
+      "rank": "Established",
+      "evidence": [
+        "a332-4"
+      ]
+    },
+    "Fire Protection System Maintenance & Testing": {
+      "rank": "Established",
+      "evidence": [
+        "a332-5"
+      ]
+    },
+    "Hazardous Materials Handling": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-6"
+      ]
+    },
+    "Housekeeping": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-7"
+      ]
+    },
+    "Hot Work Permit System": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-8"
+      ]
+    },
+    "Management of Change": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-9"
+      ]
+    },
+    "Emergency Response Planning": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-10"
+      ]
+    },
+    "Self-Inspections": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-11"
+      ]
+    },
+    "Smoking Controls": {
+      "rank": "Optimized",
+      "evidence": [
+        "a332-12"
+      ]
+    },
+    "Contractor Management": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-13"
+      ]
+    },
+    "Business Continuity Planning": {
+      "rank": "Embedded",
+      "evidence": [
+        "a332-14"
+      ]
+    },
+    "Environmental, Social & Governance (ESG)": {
+      "rank": "Optimized",
+      "evidence": [
+        "a332-15"
+      ]
+    }
+  }
+}

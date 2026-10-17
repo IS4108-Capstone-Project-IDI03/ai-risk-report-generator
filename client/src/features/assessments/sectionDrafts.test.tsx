@@ -78,6 +78,7 @@ const section = (fields: Partial<ReportSection>): ReportSection => ({
   minObservations: 1,
   usableObservations: 1,
   latestDraft: null,
+  inputsMissing: null,
   changesSinceDraft: 0,
   changeCounts: { added: 0, changed: 0, removed: 0 },
   ...fields,
@@ -168,7 +169,7 @@ async function openGenerateTab() {
   )!
   fireEvent.click(row)
   fireEvent.click(screen.getByRole('tab', { name: /Generation/ }))
-  await screen.findByText('Draft sections 7 to 12')
+  await screen.findByText('Draft sections 2 to 12')
 }
 
 afterEach(() => {
@@ -218,7 +219,7 @@ it('drafts a section of a saved assessment and shows the draft without its citat
   expect(screen.getByRole('button', { name: 'Redraft section' })).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Review report' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: /Draft (all|remaining) sections/ })).toBeNull()
-  expect(screen.getByText(/1 of 1 section drafted · 1 needs attention/)).toBeInTheDocument()
+  expect(screen.getByText(/2 of 12 sections drafted · 1 needs attention/)).toBeInTheDocument()
 }, 15_000) // Many role queries over the whole app; slow when every test file runs at once.
 
 it('fills the width with a draft opened on Generation, rather than holding it to prose width', async () => {
@@ -253,10 +254,33 @@ it('drafts every section with enough evidence, one after another', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: 'Draft all sections' }))
 
-  await screen.findByText(/2 of 2 sections drafted · 1 needs attention/)
+  // Over Marsh's 12 sections: Section 1 (always ready) and the two drafted here.
+  await screen.findByText(/3 of 12 sections drafted · 1 needs attention/)
   // The section without evidence is left out of the run.
   expect(drafted).toEqual(['7', '9'])
   expect(screen.getAllByText('Drafted')).toHaveLength(2)
+}, 15_000)
+
+it('asks for Section 4 or 5’s figures before drafting it, and leaves it out of Draft all (GN-03)', async () => {
+  const ratings = section({
+    id: '4',
+    title: 'Risk Quality Ratings and Comments',
+    inputsMissing: 'Enter all seven current and potential scores first.',
+  })
+  const drafted = mockGateway(() => json(201, DRAFT), [ratings, section({})])
+  await openGenerateTab()
+
+  const row = screen.getByText('Risk Quality Ratings and Comments').closest('.generation-row')!
+  expect(within(row as HTMLElement).getByText('Figures needed')).toBeVisible()
+  expect(
+    within(row as HTMLElement).getByText(/Enter all seven current and potential scores first\./),
+  ).toBeVisible()
+  expect(within(row as HTMLElement).queryByRole('button', { name: 'Draft section' })).toBeNull()
+  expect(within(row as HTMLElement).getByRole('button', { name: 'Enter figures' })).toBeVisible()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Draft all sections' }))
+  await screen.findByText(/2 of 12 sections drafted · 1 needs attention/)
+  expect(drafted).toEqual(['7'])
 }, 15_000)
 
 it('says when a draft is missing newer evidence, by kind, leaving out kinds with none', async () => {
@@ -321,6 +345,12 @@ it('embeds no photos and opens no sources in a draft on Generation; Review shows
   render(<DraftView draft={DRAFT} />)
   expect(screen.queryByRole('img')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /sources?$/ })).not.toBeInTheDocument()
+  // One label for a weak statement, on the statement: everything here is AI drafted,
+  // so the box carries no "AI draft" or "Needs review" badge (Miya, 15 Oct).
+  expect(screen.getByText('Unsupported')).toBeVisible()
+  expect(screen.queryByText('Needs review')).toBeNull()
+  expect(screen.queryByText('AI draft')).toBeNull()
+  expect(screen.queryByText(/confidence/i)).toBeNull()
 })
 
 it('shows the corrected transcript in draft evidence and keeps the original behind a toggle', () => {

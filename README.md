@@ -95,6 +95,17 @@ regenerates a section with an instruction as a replacement to accept or
 discard (RV-02); every decision is kept in an append-only audit log, shown as
 each section's review history, and the rail totals the decisions.
 
+In Section 5's Review editor, each loss level has its own property damage items,
+values and damage percentages. Site-wide insured values remain in
+the Values table. Existing estimates keep their figures; saving converts their
+level rows to independent items. Losses are calculated by the gateway on save,
+and the level values are supplied to scenario drafting.
+
+In Review → Section 3, the assigned engineer can edit the current and
+after-completion PD LE and BI LE amounts in US dollars for accepted OFIs with
+loss expectancy rows. Totals are calculated from the entered amounts; unknown
+values stay empty. Suggestions take no amounts, as redrafting replaces them.
+
 ## Running the stack locally
 
 One `.env.example` covers both run modes — pick one per session, don't mix them

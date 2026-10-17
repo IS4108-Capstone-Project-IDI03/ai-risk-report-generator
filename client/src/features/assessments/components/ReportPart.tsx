@@ -5,11 +5,14 @@ import { Button } from '../../../design-system'
 // heading as DraftEditor, so moving between parts feels the same.
 export function ReportPart({
   title,
+  position,
   onPrevious,
   onNext,
   children,
 }: {
   title: string
+  // e.g. "1 of 11": this part among all of the report's.
+  position: string
   onPrevious?: () => void
   onNext?: () => void
   children: React.ReactNode
@@ -18,7 +21,7 @@ export function ReportPart({
     <section aria-label="Draft editor" className="om-scroll rv-editor">
       <div className="rv-editor-inner">
         <div className="rv-editor-bar">
-          <p className="rv-label">Draft editor</p>
+          <p className="rv-label">Draft editor · {position}</p>
           <Button
             variant="ghost"
             size="sm"

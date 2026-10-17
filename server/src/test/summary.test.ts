@@ -147,9 +147,43 @@ function acceptedOfi(assessment: Types.ObjectId, title = 'Supervise control valv
   })
 }
 
-// Every section the Executive Summary needs: an accepted OFI and drafts of 4-12.
+// Sections 4 and 5's figures (GN-03), all entered: every category 8 out of 10,
+// and one value with each level's % and months.
+const FIGURES = {
+  riskQuality: {
+    categories: [
+      'External Exposure',
+      'Fire Protection',
+      'Occupancy Hazards',
+      'Construction',
+      'Water Supply',
+      'Surveillance',
+      'Management Programs',
+    ].map((category) => ({ category, current: 8, potential: 10 })),
+    updatedAt: new Date(),
+  },
+  lossEstimates: {
+    inputs: {
+      currency: 'SGD',
+      dateOfValues: '2026-01-01',
+      indemnityMonths: 12,
+      pd: [{ key: 'b', item: 'Buildings', value: 1000 }],
+      te: [],
+      levels: ['I', 'II', 'III'].map((level) => ({
+        level,
+        pd: [{ key: 'b', percent: 10 }],
+        te: [],
+      })),
+    },
+    updatedAt: new Date(),
+  },
+}
+
+// Every section the Executive Summary needs: an accepted OFI, Sections 4 and
+// 5's figures, and drafts of 4-12.
 async function completeReport(id: Types.ObjectId) {
   await acceptedOfi(id)
+  await AssessmentModel.updateOne({ _id: id }, { $set: FIGURES })
   for (const n of ['4', '5', '6', '7', '8', '9', '10', '11', '12']) await section(id, n)
 }
 
@@ -267,6 +301,8 @@ describe('Section 2 Executive Summary (GN-07 AC2-AC4)', () => {
       '12',
     ])
     expect(sent.sections[0].text).toBe('Priority 1 — Supervise control valves: Lock valves open.')
+    // Sections 4 and 5 are read with the engineer's figures first (GN-03).
+    expect(sent.sections[1].text).toMatch(/^Current Location Risk Quality Score: 80\n/)
     // A table the draft never writes is left out of the text.
     expect(sent.sections[4].text).toBe('Narrative\nSection 7 text.')
     expect(response.body.subsections).toEqual([

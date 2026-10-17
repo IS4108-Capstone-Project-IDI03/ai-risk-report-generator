@@ -563,8 +563,10 @@ describe('regenerating a section (RV-02 AC10-AC12)', () => {
       instruction: 'Name the riser.',
       requestedBy: { name: 'Alex Rowe' },
     })
-    // Its findings wait for decisions once it is accepted.
-    expect(seventh.replacement!.draft.subsections[0].statements[0].review.state).toBe('pending')
+    // The edited finding is kept word for word, still edited; the rest wait for decisions.
+    expect(seventh.replacement!.draft.subsections[0].statements.map((f) => f.review.state)).toEqual(
+      ['edited', 'pending'],
+    )
     expect(seventh.history[0]).toMatchObject({
       action: 'regenerate',
       instruction: 'Name the riser.',
@@ -583,7 +585,7 @@ describe('regenerating a section (RV-02 AC10-AC12)', () => {
     expect(drafts).toHaveBeenCalledOnce()
   })
 
-  it('makes an accepted replacement the saved section content (AC11)', async () => {
+  it('makes an accepted replacement the saved section content, keeping accepted findings (AC11)', async () => {
     const { seven, riser } = await drafted()
     drafts.mockImplementation(() => json(REPLACEMENT(String(riser._id))))
     await api.post(review('/7/findings/0.0/accept')).send({ draftId: seven })
@@ -598,11 +600,15 @@ describe('regenerating a section (RV-02 AC10-AC12)', () => {
     const section = sectionOf(response.body, '7')
     expect(section.draft.id).toBe(replacementId)
     expect(section.replacement).toBeNull()
-    expect(findingsOf(section)[0]).toMatchObject({
-      text: 'Level 3 riser penetrations lack fire stopping.',
-      review: { state: 'pending' },
-    })
-    expect(section.findings).toEqual({ total: 1, pending: 1, accepted: 0, edited: 0, rejected: 0 })
+    // The accepted finding is kept word for word and still accepted; the new one waits.
+    expect(findingsOf(section)).toMatchObject([
+      {
+        text: 'Riser penetrations at Level 3 were not fire-stopped.',
+        review: { state: 'accepted', by: { name: 'Alex Rowe' } },
+      },
+      { text: 'Level 3 riser penetrations lack fire stopping.', review: { state: 'pending' } },
+    ])
+    expect(section.findings).toEqual({ total: 2, pending: 1, accepted: 1, edited: 0, rejected: 0 })
     expect(section.draft.provenance).toMatchObject({
       prompt_version: 'gn01-v2.4+rv02-v1',
       instruction: 'Name the riser.',
@@ -618,6 +624,54 @@ describe('regenerating a section (RV-02 AC10-AC12)', () => {
     // A decided replacement cannot be decided again.
     const twice = await api.post(review('/7/replacement/discard')).send({ draftId: replacementId })
     expect(twice.status).toBe(404)
+  })
+
+  it('keeps accepted and edited findings word for word when the section is drafted again from Generation', async () => {
+    const { seven, nine, riser } = await drafted()
+    const accepted = await api.post(review('/7/findings/0.0/accept')).send({ draftId: seven })
+    const acceptedAt = sectionOf(accepted.body, '7').draft.subsections[0].statements[0].review.at
+    await api.put(review('/7/findings/0.1')).send({ draftId: seven, text: 'Edited text.' })
+    await api.post(review('/7/findings/0.2/reject')).send({ draftId: seven })
+    drafts.mockImplementation(() => json(REPLACEMENT(String(riser._id))))
+
+    const response = await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    expect(response.status).toBe(201)
+    // S4 is told the decisions, so it does not say the kept or rejected findings again.
+    expect(drafts.mock.calls[0][0]).toMatchObject({
+      redraft: {
+        instruction: null,
+        current: [
+          { decision: 'accepted' },
+          { text: 'Edited text.', decision: 'edited' },
+          { decision: 'rejected' },
+        ],
+      },
+    })
+    const workspace = await api.get(`/api/assessments/${REFERENCE}/review`)
+    const section = sectionOf(workspace.body, '7')
+    // The new draft is the content at once: kept findings first, decided as before.
+    expect(section.draft.id).toBe(response.body.id)
+    expect(findingsOf(section)).toMatchObject([
+      {
+        text: 'Riser penetrations at Level 3 were not fire-stopped.',
+        review: { state: 'accepted', at: acceptedAt },
+      },
+      {
+        text: 'Edited text.',
+        generatedText: 'The building is of steel-framed construction.',
+        review: { state: 'edited' },
+      },
+      { text: 'Level 3 riser penetrations lack fire stopping.', review: { state: 'pending' } },
+    ])
+    // The copies are not listed again in the history.
+    expect(section.history.map((e) => e.action)).toEqual(['reject', 'edit', 'accept'])
+    // A section with nothing decided is drafted afresh.
+    await api.post(`/api/assessments/${REFERENCE}/sections/9/draft`)
+    expect(drafts.mock.calls[1][0]).not.toHaveProperty('redraft')
+    expect(
+      sectionOf((await api.get(`/api/assessments/${REFERENCE}/review`)).body, '9').draft.id,
+    ).not.toBe(nine)
   })
 
   it('leaves the saved section content unchanged when the replacement is discarded (AC12)', async () => {

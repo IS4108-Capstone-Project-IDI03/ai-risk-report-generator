@@ -4,14 +4,20 @@ import { Badge, Button } from '../../../design-system'
 import type { ReportSection, ReviewSection } from '../api'
 import { StatBox, type BoxContent } from '../components/StatBox'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { reportProgress } from '../reviewDisplay'
+import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
 import { useSections } from '../useSections'
+import { useSummary } from '../useSummary'
 
 // What the drafting and review boxes, and the sections list, are drawn from:
 // null when there is nothing to load (the assessment is not on the server).
 type Report = {
   sections: ReportSection[] | null
   sectionsError: string | null
+  // For the drafting box's count over all 12 sections: Section 2 drafted, OFIs accepted.
+  summaryDrafted: boolean
+  ofisAccepted: number
   review: ReviewSection[] | null
   reviewError: string | null
 } | null
@@ -29,7 +35,21 @@ export function Overview({ v }: { v: AssessmentWorkflow }) {
 function LiveOverview({ v, reference }: { v: AssessmentWorkflow; reference: string }) {
   const { sections, loadError: sectionsError } = useSections(reference)
   const { sections: review, loadError: reviewError } = useReview(reference)
-  return <OverviewLayout v={v} report={{ sections, sectionsError, review, reviewError }} />
+  const { summary } = useSummary(reference)
+  const { ofis } = useOfis(reference)
+  return (
+    <OverviewLayout
+      v={v}
+      report={{
+        sections,
+        sectionsError,
+        review,
+        reviewError,
+        summaryDrafted: !!summary?.executiveSummary.draft,
+        ofisAccepted: Array.isArray(ofis?.accepted) ? ofis.accepted.length : 0,
+      }}
+    />
+  )
 }
 
 const card: React.CSSProperties = {
@@ -85,10 +105,15 @@ function draftingBox(report: Report): BoxContent {
   const ready = all.filter(
     (s) => !s.latestDraft && s.usableObservations >= s.minObservations,
   ).length
-  const figure = { value: drafted.length + '/' + all.length, unit: 'sections drafted' }
+  // Over Marsh's 12 sections, as the Review rail and Generation count them.
+  const progress = reportProgress({
+    summaryDrafted: report.summaryDrafted,
+    ofisAccepted: report.ofisAccepted,
+    sectionsDrafted: drafted.length,
+  })
+  const figure = { value: progress.done + '/' + progress.total, unit: 'sections drafted' }
   if (stale) return { ...figure, note: stale + ' out of date', tone: 'warning' }
-  if (drafted.length && drafted.length === all.length)
-    return { ...figure, note: 'All drafted', tone: 'ok' }
+  if (progress.done === progress.total) return { ...figure, note: 'All drafted', tone: 'ok' }
   return {
     ...figure,
     note: ready

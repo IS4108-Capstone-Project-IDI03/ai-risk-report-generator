@@ -111,7 +111,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 900px;
   padding: 20px clamp(16px, 2vw, 28px) 48px;
 }
 .rv-editor-bar {
@@ -703,4 +702,169 @@
 .rv-ofi-group-head .rv-muted {
   flex: 1 1 320px;
   margin: 0;
+}
+
+/* Section 6 Management Programs (GN-11): Marsh's two tables. Each rank's colour is its
+   cell's solid fill, as in the template's legend: red, orange, yellow, green, blue. */
+.rv-maturity {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-maturity-scroll {
+  overflow-x: auto;
+}
+.rv-maturity-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface-card);
+  font-size: 14px;
+  line-height: 20px;
+}
+.rv-maturity-table th,
+.rv-maturity-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+.rv-maturity-table thead th {
+  background: var(--surface-nav);
+  color: var(--text-inverse);
+  font-weight: 600;
+}
+.rv-maturity-table tbody th {
+  width: 210px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.rv-rank {
+  width: 120px;
+  font-weight: 600;
+}
+/* Marsh's own legend colours (sampled from the Global PRE template's maturity table).
+   The design system has no such bright set, so they are kept here. Marsh sets white text
+   on them; dark text is used instead, since white on these fills is below 4.5:1. */
+.rv-maturity {
+  --rank-undeveloped: #f25d4c;
+  --rank-formalized: #ff9400;
+  --rank-established: #ffc100;
+  --rank-embedded: #00ad49;
+  --rank-optimized: #00a4e3;
+}
+.rv-maturity-table .rv-rank-undeveloped,
+.rv-maturity-table .rv-rank-formalized,
+.rv-maturity-table .rv-rank-established,
+.rv-maturity-table .rv-rank-embedded,
+.rv-maturity-table .rv-rank-optimized {
+  color: var(--graphite-900);
+}
+.rv-maturity-table .rv-rank-undeveloped {
+  background: var(--rank-undeveloped);
+}
+.rv-maturity-table .rv-rank-formalized {
+  background: var(--rank-formalized);
+}
+.rv-maturity-table .rv-rank-established {
+  background: var(--rank-established);
+}
+.rv-maturity-table .rv-rank-embedded {
+  background: var(--rank-embedded);
+}
+.rv-maturity-table .rv-rank-optimized {
+  background: var(--rank-optimized);
+}
+
+.rv-maturity-unplaced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--status-moderate-fg);
+  border-radius: var(--radius-md);
+  background: var(--status-moderate-bg);
+}
+
+/* Sections 4 and 5's figures (GN-03): Section 6's table look, with inputs in the cells. */
+.rv-figures-table td:has(input) {
+  padding: 4px 8px;
+  min-width: 96px;
+}
+.rv-figures-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rv-figures-level {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+.rv-figures-level h3,
+.rv-figures-level-name {
+  margin: 0;
+}
+.rv-figures-level-name {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+/* Section 5's Values table (GN-03): the template's one table, PD beside TE. Its
+   item cells hold the text box and its remove button, so no extra column. */
+.rv-values-table {
+  min-width: 720px;
+}
+.rv-values-table th {
+  width: auto;
+}
+.rv-values-head,
+.rv-values-period {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.rv-values-period {
+  margin-top: 4px;
+  font-weight: 400;
+  font-style: italic;
+}
+.rv-values-head input,
+.rv-values-period input {
+  max-width: 180px;
+}
+.rv-figures-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rv-figures-item > label {
+  flex: 1;
+  min-width: 0;
+}
+/* Text boxes take their cell's width, so the table fits the editor instead of
+   being as wide as every box's default size. */
+.rv-values-table input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Per-level damage inputs remain usable with horizontal scrolling on small screens. */
+.rv-damage-table {
+  min-width: 760px;
+}
+.rv-damage-table input {
+  width: 100%;
+  min-width: 0;
+}
+.rv-damage-table th {
+  width: auto;
+}
+
+.rv-ofi-table input {
+  width: 100%;
+  min-width: 80px;
 }

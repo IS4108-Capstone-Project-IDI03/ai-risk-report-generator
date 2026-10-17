@@ -136,7 +136,8 @@ it('is a section row with its state; a suggestion is shown read-only and stays o
 
   const card = screen.getByText('Supervise sprinkler control valves').closest('article')!
   expect(within(card).getByText('Priority 1')).toBeInTheDocument()
-  expect(within(card).getByText('AI draft')).toBeInTheDocument()
+  // No "AI draft" badge: everything here is AI drafted (Miya, 15 Oct).
+  expect(within(card).queryByText('AI draft')).toBeNull()
   // Generation only generates (Miya, 12 Oct): accepting, sources and the precedent
   // are on the Review tab.
   expect(screen.getByText(/Accept them in Review/)).toBeInTheDocument()
@@ -269,4 +270,74 @@ it('offers no drafting or accepting to someone who cannot draft', async () => {
   renderReview(false)
   expect(await screen.findByText('Improve Hot Work Permit')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /^Accept/ })).toBeNull()
+})
+
+it('edits only OFI loss amounts and shows the calculated totals returned by the gateway', async () => {
+  const writes: unknown[] = []
+  let list: OfiList = { suggestions: [], accepted: [accepted(SUGGESTION, '2026-01')] }
+  vi.stubGlobal('fetch', (_url: string, init?: RequestInit) => {
+    if (init?.method === 'PUT') {
+      const values = JSON.parse(String(init.body))
+      writes.push(values)
+      list = {
+        ...list,
+        accepted: [
+          {
+            ...list.accepted[0],
+            lossExpectancy: {
+              current: { ...values.current, total: 1500 },
+              after: { ...values.after, total: null },
+            },
+          },
+        ],
+      }
+    }
+    return json(list)
+  })
+  renderReview()
+  await screen.findByLabelText('Current PD LE (US$)')
+  fireEvent.change(screen.getByLabelText('Current PD LE (US$)'), {
+    target: { value: '1000' },
+  })
+  fireEvent.change(screen.getByLabelText('Current BI LE (US$)'), {
+    target: { value: '500' },
+  })
+  expect(screen.getAllByRole('spinbutton')).toHaveLength(4)
+  fireEvent.click(screen.getByRole('button', { name: `Save loss values for ${SUGGESTION.title}` }))
+  expect(await screen.findByText('1,500')).toBeInTheDocument()
+  expect(writes).toEqual([{ current: { pd: 1000, bi: 500 }, after: { pd: null, bi: null } }])
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+it('keeps inline loss amounts when saving fails', async () => {
+  vi.stubGlobal('fetch', (_url: string, init?: RequestInit) =>
+    init?.method === 'PUT'
+      ? Promise.resolve(
+          new Response(JSON.stringify({ error: 'The assessment is archived.' }), { status: 409 }),
+        )
+      : json({ suggestions: [], accepted: [accepted(SUGGESTION, '2026-01')] }),
+  )
+  renderReview()
+  await screen.findByLabelText('Current PD LE (US$)')
+  fireEvent.change(screen.getByLabelText('Current PD LE (US$)'), { target: { value: '123' } })
+  fireEvent.click(screen.getByRole('button', { name: `Save loss values for ${SUGGESTION.title}` }))
+  expect(await screen.findByText('The assessment is archived.')).toBeInTheDocument()
+  expect(screen.getByLabelText('Current PD LE (US$)')).toHaveValue(123)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+it('offers loss editing only once an OFI is accepted', async () => {
+  mockGateway([SUGGESTION])
+  renderReview()
+  await screen.findByText(SUGGESTION.title)
+  expect(screen.queryByRole('button', { name: /Save loss values/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+})
+
+it('does not offer loss editing to a read-only reviewer', async () => {
+  mockGateway([SUGGESTION])
+  renderReview(false)
+  await screen.findByText(SUGGESTION.title)
+  expect(screen.queryByRole('button', { name: /Save loss values/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
 })

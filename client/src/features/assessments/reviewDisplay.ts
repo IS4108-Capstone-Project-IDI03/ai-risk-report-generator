@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 // How the review workspace (RV-01) reads a draft: citation numbers, claims,
 // pages and the labels of each section's completion and review states, and
 // of each finding's review decision and history entry (RV-02).
@@ -18,7 +19,7 @@ type Draft = ReviewDraft
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-export function describeChanges({ added, changed, removed }: ChangeCounts) {
+export function describeChanges({ added, changed, removed, figures }: ChangeCounts) {
   const kinds = (
     [
       [added, 'added'],
@@ -29,6 +30,8 @@ export function describeChanges({ added, changed, removed }: ChangeCounts) {
   const words = kinds.map(([n, kind], i) =>
     i === 0 ? `${plural(n, 'observation')} ${kind}` : `${n} ${kind}`,
   )
+  // Section 4 or 5's figures (GN-03), after any observation changes.
+  if (figures) words.push(words.length ? 'the figures changed' : 'The figures changed')
   return words.length > 1
     ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
     : (words[0] ?? '')
@@ -169,3 +172,100 @@ export const statementId = (sectionId: string, claim: string) =>
 // Section 3's OFI categories in Marsh's report order (template pp. 8-9). Shared by
 // Generation's OFI list and Review's (OfiSuggestions, OfiReviewPanel).
 export const OFI_CATEGORIES = ['Management Programs', 'Physical Protection', 'Other']
+
+// Section 6's programs and maturity scale (GN-11), as Marsh's template has them
+// (pp. 18-19). Keep in step with rag-service generation/sections.json, section "6".
+export const MANAGEMENT_PROGRAMS = [
+  'Building Maintenance',
+  'Electrical Maintenance',
+  'Equipment Maintenance',
+  'Fire Protection Impairment Management',
+  'Fire Protection System Maintenance & Testing',
+  'Hazardous Materials Handling',
+  'Housekeeping',
+  'Hot Work Permit System',
+  'Management of Change',
+  'Emergency Response Planning',
+  'Self-Inspections',
+  'Smoking Controls',
+  'Contractor Management',
+  'Business Continuity Planning',
+  'Environmental, Social & Governance (ESG)',
+]
+// Lowest first. Each rank's colour is in review.css (.rv-rank-<rank>), as in Marsh's legend.
+export const MATURITY_SCALE = [
+  { rank: 'Undeveloped', definition: 'Informal actions with little or no systematic procedures.' },
+  {
+    rank: 'Formalized',
+    definition: 'Programs and procedures are established. Full familiarity is uncertain.',
+  },
+  {
+    rank: 'Established',
+    definition:
+      'Programs and procedures are communicated throughout the organization. Orientation is ongoing.',
+  },
+  {
+    rank: 'Embedded',
+    definition:
+      'Ownership is established at most or all organizational levels. Training and some exercises is conducted.',
+  },
+  {
+    rank: 'Optimized',
+    definition:
+      'Full ownership with active program maintenance, testing, exercising and continuous improvement.',
+  },
+]
+const RANKS = new Set(MATURITY_SCALE.map((m) => m.rank))
+
+// A Management Programs row, "<Program>: <Rank>. <comment>", as the draft writes it, and
+// as rag-service orchestrator._PROGRAM_ROW reads it (rank ends at a word boundary).
+// `rank` is null when the text names no rank of the five (an engineer's edit may not).
+export function programRow(text: string) {
+  const row = text.match(/^([^:]+):\s*(\w+)\b[.,;:]?\s*(.*)$/s)
+  if (!row) return { program: null, rank: null, comment: text }
+  const [, program, word, comment] = row
+  return RANKS.has(word)
+    ? { program: program.trim(), rank: word, comment }
+    : // Not a rank: the whole text after the colon, as written.
+      { program: program.trim(), rank: null, comment: text.slice(text.indexOf(':') + 1).trim() }
+}
+
+// A draft's Management Programs rows sorted into Section 6's table, for MaturityTable.
+// A row naming none of the 15 programs, or a second row for one, goes to `unplaced`,
+// shown under the table: never dropped, so a flagged or decidable row stays in view.
+export function maturityEntries<T>(
+  rows: T[],
+  textOf: (row: T) => string,
+  render: (row: T, comment: string) => ReactNode,
+) {
+  const entries = new Map<string, { rank: string | null; comment: ReactNode }>()
+  const unplaced: ReactNode[] = []
+  const programs = new Set(MANAGEMENT_PROGRAMS)
+  for (const row of rows) {
+    const { program, rank, comment } = programRow(textOf(row))
+    if (program && programs.has(program) && !entries.has(program))
+      entries.set(program, { rank, comment: render(row, comment) })
+    else unplaced.push(render(row, textOf(row)))
+  }
+  return { entries, unplaced }
+}
+
+// How many of Marsh's 12 report sections are drafted, for every "N of 12 sections
+// drafted" (Review rail, Generation, Overview). Section 1 is always ready: it is filled
+// in from the assessment's details. Section 2 needs its draft, Section 3 an accepted
+// OFI, and 4-12 their own drafts (4 and 5 can be drafted only once their figures
+// are entered; GN-03).
+export const REPORT_SECTIONS = 12
+export function reportProgress({
+  summaryDrafted,
+  ofisAccepted,
+  sectionsDrafted,
+}: {
+  summaryDrafted: boolean
+  ofisAccepted: number
+  // Drafted sections among 4-12.
+  sectionsDrafted: number
+}) {
+  const done = 1 + Number(summaryDrafted) + Number(ofisAccepted > 0) + sectionsDrafted
+  return { done, total: REPORT_SECTIONS, percent: Math.round((done / REPORT_SECTIONS) * 100) }
+}

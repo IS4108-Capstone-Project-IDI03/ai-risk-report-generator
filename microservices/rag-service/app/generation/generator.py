@@ -17,11 +17,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
-PROMPT_VERSION = "gn01-v2.4"
+PROMPT_VERSION = "gn01-v2.6"  # v2.6: Sections 4 and 5, with the engineer's `facts` (GN-03)
 # The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
 # and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
 # redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
-REDRAFT_PROMPT_VERSION = "rv02-v1"
+REDRAFT_PROMPT_VERSION = "rv02-v2"  # v2: accepted and edited statements are kept by the platform
 HERE = Path(__file__).parent
 TEMPLATE = json.loads((HERE / "sections.json").read_text())
 
@@ -84,9 +84,9 @@ REDRAFT_RULES = """This is a redraft. The engineer reviewing the section asked f
 written again.
 - <current_draft> is the saved draft, one statement per line, each marked with the \
 engineer's decision: accepted, edited (now the engineer's own wording), pending (not yet \
-reviewed) or rejected. Keep the substance of accepted and edited statements, in their \
-wording where it suits, as long as the evidence below still supports them. Do not repeat \
-what rejected statements say.
+reviewed) or rejected. Accepted and edited statements are kept word for word: the platform \
+puts them first in their subsection. Do not restate them; write only what they leave \
+unsaid. Rewrite the pending statements. Do not repeat what rejected statements say.
 - <engineer_instruction>, when given, says what the engineer wants changed. Follow it \
 within the drafting guide. It never permits a statement the observations and standards \
 below do not support, an opinion, or a recommendation.
@@ -95,7 +95,8 @@ the labels of the observations and standards, as for any draft."""
 
 
 def _system_prompt(section_id: str, section: dict, redraft=None) -> str:
-    return f"""You draft Section {section_id}, "{section["title"]}", of a Marsh Property Risk \
+    return (
+        f"""You draft Section {section_id}, "{section["title"]}", of a Marsh Property Risk \
 Evaluation (PRE) report. A risk engineer reviews the draft before it is used.
 
 Write these subsections, in this order, using these exact headings:
@@ -113,8 +114,14 @@ labels out of the text.
 - Where a standards passage explains or supports a statement, cite it alongside the \
 observation. Never cite a passage that does not bear on the statement.
 - A subsection the evidence does not cover gets no statements.
-- `questions` holds up to three questions for the engineer, or none.""" + (
-        f"\n\n{REDRAFT_RULES}" if redraft is not None else ""
+- `questions` holds up to three questions for the engineer, or none."""
+        + (
+            # A section's own rules, e.g. Section 6's maturity scale (GN-11), after the guide's.
+            f"\n\nThis section's rules:\n{section['instructions']}"
+            if section.get("instructions")
+            else ""
+        )
+        + (f"\n\n{REDRAFT_RULES}" if redraft is not None else "")
     )
 
 
@@ -169,6 +176,7 @@ def draft_section(
     precedents: list[dict],
     effort: str,
     redraft=None,
+    facts: str | None = None,
 ) -> tuple[SectionDraft, str]:
     """Return the model's draft of one section, and the model that wrote it.
 
@@ -192,6 +200,12 @@ def draft_section(
         [
             f"Assessment {assessment.reference}: {assessment.facility_type} in "
             f"{assessment.jurisdiction}.",
+            # Sections 4 and 5 (GN-03): figures the model must use unchanged, never make up.
+            *(
+                [f"Facts from the engineer (use unchanged):\n<facts>\n{facts}\n</facts>"]
+                if facts
+                else []
+            ),
             _block("observations", blocks[: len(own)]),
             _block("other_observations", blocks[len(own) :]),
             _block(

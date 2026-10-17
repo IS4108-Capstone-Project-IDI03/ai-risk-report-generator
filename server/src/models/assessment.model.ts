@@ -44,6 +44,18 @@ export interface IAssessment {
   // Appendix A's photos (GN-07), in report order, each one of its observations'
   // photos with the caption shown under it. See appendix.service.ts.
   appendixPhotos: { photo: Types.ObjectId; caption: string }[]
+  // Section 4's category scores (GN-03), entered by the engineer; the rating is
+  // computed from them on read. See risk-quality.service.ts.
+  riskQuality?: {
+    categories: { category: string; current: number | null; potential: number | null }[]
+    updatedAt: Date
+    // Who saved them: the engineer's user _id.
+    updatedBy: Types.ObjectId
+  }
+  // Section 5's values, % damage and outage months (GN-03), validated by
+  // lossEstimatesSchema before saving; losses are computed on read. See
+  // loss-estimate.service.ts.
+  lossEstimates?: { inputs: unknown; updatedAt: Date; updatedBy: Types.ObjectId }
   createdAt: Date
   updatedAt: Date
 }
@@ -95,6 +107,17 @@ const assessmentSchema = new Schema<IAssessment>(
         caption: { type: String, trim: true, maxlength: 200, default: '' },
       },
     ],
+    riskQuality: {
+      categories: [{ _id: false, category: String, current: Number, potential: Number }],
+      updatedAt: Date,
+      updatedBy: Schema.Types.ObjectId,
+    },
+    // Mixed: nested rows whose shape lossEstimatesSchema already checks.
+    lossEstimates: {
+      inputs: Schema.Types.Mixed,
+      updatedAt: Date,
+      updatedBy: Schema.Types.ObjectId,
+    },
   },
   {
     timestamps: true,

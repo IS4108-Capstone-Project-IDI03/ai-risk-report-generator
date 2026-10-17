@@ -8,6 +8,12 @@ export const OFI_STATES = ['suggested', 'accepted'] as const
 export interface IReportOfi {
   assessment: Types.ObjectId
   state: (typeof OFI_STATES)[number]
+  lossExpectancy?: {
+    current: { pd: number | null; bi: number | null }
+    after: { pd: number | null; bi: number | null }
+  }
+  lossValuesUpdatedBy?: Types.ObjectId
+  lossValuesUpdatedAt?: Date
   acceptedAt?: Date
   acceptedBy?: Types.ObjectId
   // The model's fields, from the value lists in rag-service generation/ofi.json.
@@ -55,6 +61,18 @@ const reportOfiSchema = new Schema<IReportOfi>(
   {
     assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true },
     state: { type: String, enum: OFI_STATES, required: true },
+    lossExpectancy: {
+      type: new Schema(
+        {
+          current: { pd: { type: Number, default: null }, bi: { type: Number, default: null } },
+          after: { pd: { type: Number, default: null }, bi: { type: Number, default: null } },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
+    lossValuesUpdatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    lossValuesUpdatedAt: Date,
     acceptedAt: Date,
     acceptedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     title: required,

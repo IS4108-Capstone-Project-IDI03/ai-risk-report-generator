@@ -361,7 +361,8 @@ it("shows each section's completion and review state in the navigation (AC5, AC6
   expect(within(row(/Fire Protection/)).getByText('AI draft')).toBeVisible()
   expect(within(row(/External Exposures/)).getByText('Not started')).toBeVisible()
   expect(within(row(/External Exposures/)).getByText('Not drafted')).toBeVisible()
-  expect(within(nav).getByText('2 of 3 sections drafted')).toBeInTheDocument()
+  // Counted over Marsh's 12 sections: Section 1 is always ready, then 7 and 9.
+  expect(within(nav).getByText('3 of 12 sections drafted')).toBeInTheDocument()
   expect(within(nav).getByText('1 section needs review')).toBeInTheDocument()
 }, 15_000)
 
@@ -446,7 +447,8 @@ it('moves between sections and shows one without a draft as not drafted', async 
 
   fireEvent.click(within(nav).getByRole('button', { name: /External Exposures/ }))
   expect(within(editor()).getByText('Not drafted yet')).toBeInTheDocument()
-  expect(within(editor()).getByRole('button', { name: 'Next' })).toBeDisabled()
+  // The last section leads on to Appendix A (GN-07), so its Next is live.
+  expect(within(editor()).getByRole('button', { name: 'Next' })).toBeEnabled()
   expect(within(panel()).getByText(/no draft, so nothing is cited yet/)).toBeInTheDocument()
   // Its button leads to drafting.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Go to Generation' }))
@@ -511,11 +513,12 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   fireEvent.click(three)
   // Laid out like a section's draft: the editor bar, the provenance, then each OFI in an
   // AI draft box.
-  // Counted with the other sections: section 3 is first of four here (3, 7, 9, 10).
-  expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+  // Counted with every part of the report: 1, 2, 3, 7, 9, 10 and Appendix A here.
+  expect(within(editor()).getByText('Draft editor · 3 of 7')).toBeInTheDocument()
   expect(within(editor()).getByText(/prompt gn05-v4/)).toBeInTheDocument()
-  // Each in an AI draft box: the suggestion waiting to be accepted, and the OFI in the report.
-  expect(within(editor()).getAllByText('AI draft')).toHaveLength(2)
+  // In Review the AI boxes carry no "AI draft" badge: their violet styling marks them,
+  // and only exceptions and decisions are labelled (Miya, 15 Oct).
+  expect(within(editor()).queryByText('AI draft')).toBeNull()
   expect(within(editor()).getByText('2026-01')).toBeInTheDocument()
   expect(within(editor()).getByText('Lock Open Sprinkler Control Valve')).toBeInTheDocument()
   // Suggestions are accepted here, not on Generation (GN-07, 12 Oct), and stay out
@@ -531,10 +534,10 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   // Next leads into the first section.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Next' }))
   expect(within(editor()).getByRole('heading', { name: '7. Construction' })).toBeVisible()
-  expect(within(editor()).getByText('Draft editor · 2 of 4')).toBeInTheDocument()
+  expect(within(editor()).getByText('Draft editor · 4 of 7')).toBeInTheDocument()
   // And Previous leads back to it.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Previous' }))
-  expect(within(editor()).getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+  expect(within(editor()).getByText('Draft editor · 3 of 7')).toBeInTheDocument()
   ofis = { suggestions: [], accepted: [] }
 })
 
@@ -722,7 +725,11 @@ it('shows each finding’s decision, leaves rejected ones out of the draft and t
 it('accepts a pending finding (AC1)', async () => {
   await openReview()
   await screen.findByRole('region', { name: 'Draft editor' })
-  expect(within(findingOf(1)).getByText('Pending review')).toBeInTheDocument()
+  // A pending finding is marked by its violet rule, not a badge, and its box has no
+  // status badge or confidence meter (Miya, 15 Oct).
+  expect(within(findingOf(1)).queryByText('Pending review')).toBeNull()
+  expect(within(editor()).queryByText(/confidence/i)).toBeNull()
+  expect(within(editor()).queryByText('AI draft')).toBeNull()
   decide = reply([
     seven([{ ...RISER, review: decided('accepted') }, VALVES, ROOF]),
     FIRE,
@@ -740,7 +747,7 @@ it('accepts a pending finding (AC1)', async () => {
     },
   ])
   expect(within(findingOf(1)).queryByRole('button', { name: 'Accept finding 1' })).toBeNull()
-  expect(within(findingOf(2)).getByText('Pending review')).toBeInTheDocument()
+  expect(within(findingOf(2)).queryByText('Accepted')).toBeNull()
 }, 15_000)
 
 it('saves an edited finding’s text, keeping the dialog open with the reason when refused (AC2)', async () => {
@@ -1040,7 +1047,7 @@ it('shows decisions without the actions to whoever may not decide', async () => 
     />,
   )
   await screen.findByRole('region', { name: 'Draft editor' })
-  expect(within(findingOf(1)).getByText('Pending review')).toBeInTheDocument()
+  expect(within(findingOf(1)).queryByText('Accepted')).toBeNull()
   expect(screen.queryByRole('button', { name: /^(Accept|Edit|Reject) finding/ })).toBeNull()
   expect(screen.queryByRole('button', { name: /^Bulk accept/ })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Regenerate' })).toBeNull()

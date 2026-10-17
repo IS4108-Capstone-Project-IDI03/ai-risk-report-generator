@@ -1,4 +1,6 @@
 import { Router, type Response } from 'express'
+import type { z } from 'zod'
+import type { SessionUser } from '../services/auth.service'
 import {
   archiveAssessment,
   assessmentDetailsSchema,
@@ -46,7 +48,25 @@ import {
   saveAppendix,
   UnknownPhotoError,
 } from '../services/appendix.service'
-import { acceptOfi, draftOfis, listOfis, OfiNotFoundError } from '../services/ofi.service'
+import {
+  acceptOfi,
+  draftOfis,
+  listOfis,
+  OfiNotAcceptedError,
+  OfiNotFoundError,
+  ofiLossValuesSchema,
+  saveOfiLossValues,
+} from '../services/ofi.service'
+import {
+  getLossEstimates,
+  lossEstimatesSchema,
+  saveLossEstimates,
+} from '../services/loss-estimate.service'
+import {
+  getRiskQuality,
+  riskQualitySchema,
+  saveRiskQuality,
+} from '../services/risk-quality.service'
 import { RagServiceError } from '../services/rag.service'
 import {
   bulkAccept,
@@ -54,6 +74,7 @@ import {
   decideFinding,
   decideReplacement,
   draftChoiceSchema,
+  draftSection,
   findingEditSchema,
   FindingNotFoundError,
   FindingStateError,
@@ -67,8 +88,8 @@ import {
 import { getReviewWorkspace } from '../services/review.service'
 import { draftSummary, getSummary, IncompleteSectionsError } from '../services/summary.service'
 import {
-  draftSection,
   InsufficientEvidenceError,
+  MissingFiguresError,
   listSections,
   TranscriptionInProgressError,
   UnknownSectionError,
@@ -473,6 +494,10 @@ router.post(
         res.status(422).json({ error: error.message, found: error.found, needed: error.needed })
         return
       }
+      if (error instanceof MissingFiguresError) {
+        res.status(422).json({ error: error.message })
+        return
+      }
       if (error instanceof RagServiceError) {
         res.status(503).json({ error: error.message })
         return
@@ -512,6 +537,8 @@ function reviewFailure(error: unknown, res: Response) {
     res.status(409).json({ error: error.message })
   } else if (error instanceof InsufficientEvidenceError) {
     res.status(422).json({ error: error.message, found: error.found, needed: error.needed })
+  } else if (error instanceof MissingFiguresError) {
+    res.status(422).json({ error: error.message })
   } else if (error instanceof RagServiceError) {
     res.status(503).json({ error: error.message })
   } else {
@@ -726,6 +753,51 @@ router.put('/:reference/appendix', requirePermission('assessments:edit'), async 
   }
 })
 
+// Sections 4 and 5's inputs (GN-03): GET reads the engineer's scores or values
+// with the figures computed from them; PUT replaces them: 200, 400 when invalid,
+// 403 for anyone but the assigned engineer, 404, 409 once archived.
+function figureRoutes<T>(
+  path: string,
+  what: string,
+  schema: z.ZodType<T>,
+  get: (reference: string) => Promise<unknown>,
+  save: (reference: string, input: T, user: SessionUser) => Promise<unknown>,
+) {
+  router.get(`/:reference/${path}`, requirePermission('assessments:view'), async (req, res) => {
+    try {
+      res.json(await get(req.params.reference))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      throw error
+    }
+  })
+  router.put(`/:reference/${path}`, requirePermission('assessments:edit'), async (req, res) => {
+    const parsed = schema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: `The ${what} are invalid.`, fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res.json(await save(req.params.reference, parsed.data, res.locals.user!))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) {
+        res.status(404).json({ error: error.message })
+      } else if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+      } else if (error instanceof AssessmentArchivedError) {
+        res.status(409).json({ error: error.message })
+      } else {
+        throw error
+      }
+    }
+  })
+}
+figureRoutes('risk-quality', 'scores', riskQualitySchema, getRiskQuality, saveRiskQuality)
+figureRoutes('loss-estimates', 'values', lossEstimatesSchema, getLossEstimates, saveLossEstimates)
+
 // Section 3 Opportunities for Improvement (GN-05): suggestions and the
 // accepted OFIs in report order. Read-only, so a knowledge admin can open it.
 router.get('/:reference/ofis', requirePermission('assessments:view'), async (req, res) => {
@@ -741,7 +813,8 @@ router.get('/:reference/ofis', requirePermission('assessments:view'), async (req
 })
 
 // What both OFI writes answer for each failure: 404, 403 for anyone but the
-// assigned engineer, 409 while a transcription is unfinished or once archived,
+// assigned engineer, 409 while a transcription is unfinished, once archived or
+// for loss values on a suggestion,
 // 503 when S4 fails (not 502, which the client reads as the gateway being down).
 function ofiFailure(error: unknown, res: Response) {
   if (error instanceof AssessmentNotFoundError || error instanceof OfiNotFoundError) {
@@ -750,7 +823,8 @@ function ofiFailure(error: unknown, res: Response) {
     res.status(403).json({ error: error.message })
   } else if (
     error instanceof TranscriptionInProgressError ||
-    error instanceof AssessmentArchivedError
+    error instanceof AssessmentArchivedError ||
+    error instanceof OfiNotAcceptedError
   ) {
     res.status(409).json({ error: error.message })
   } else if (error instanceof RagServiceError) {
@@ -777,6 +851,28 @@ router.post(
   async (req, res) => {
     try {
       res.json(await acceptOfi(req.params.reference, req.params.id, res.locals.user!))
+    } catch (error: unknown) {
+      ofiFailure(error, res)
+    }
+  },
+)
+
+router.put(
+  '/:reference/ofis/:id/loss-values',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    const parsed = ofiLossValuesSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({
+        error: 'Enter non-negative amounts with at most two decimal places.',
+        fields: fieldErrors(parsed.error),
+      })
+      return
+    }
+    try {
+      res.json(
+        await saveOfiLossValues(req.params.reference, req.params.id, parsed.data, res.locals.user!),
+      )
     } catch (error: unknown) {
       ofiFailure(error, res)
     }

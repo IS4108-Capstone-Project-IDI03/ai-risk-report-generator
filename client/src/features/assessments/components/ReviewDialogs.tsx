@@ -161,7 +161,7 @@ export function RegenerateDialog({
     <Dialog
       className="ds-dialog-sheet"
       title={`Regenerate ${section.id}. ${section.title}?`}
-      description="The section is drafted again from its evidence as a replacement. The saved draft, and your decisions on it, stay the section's content until you accept the replacement."
+      description="The section is drafted again from its evidence as a replacement. The saved draft, and your decisions on it, stay the section's content until you accept the replacement. Findings you accepted or edited are kept in it word for word."
       width={560}
       onClose={onClose}
       footer={

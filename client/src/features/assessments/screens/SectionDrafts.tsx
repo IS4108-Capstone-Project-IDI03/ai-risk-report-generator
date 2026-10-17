@@ -1,11 +1,14 @@
 import { Fragment, useRef, useState } from 'react'
 import { AIDraftBlock, Badge, Button, Callout, ProgressBar } from '../../../design-system'
 import { draftSection, GatewayError, type ReportSection, type SectionDraft } from '../api'
-import { describeChanges } from '../reviewDisplay'
+import { describeChanges, maturityEntries, reportProgress } from '../reviewDisplay'
+import { MaturityTable } from '../components/MaturityTable'
 import { OfiRow } from '../components/OfiSuggestions'
 import { SummaryRow } from '../components/SummaryRow'
 import { useObservations } from '../useObservations'
+import { useOfis } from '../useOfis'
 import { useSections } from '../useSections'
+import { useSummary } from '../useSummary'
 
 const card = {
   background: 'var(--surface-card)',
@@ -19,7 +22,31 @@ const muted = { margin: 0, fontSize: '15px', color: 'var(--text-secondary)' } as
 // One subsection of a draft as Generation shows it: the text only. Its citations and
 // their sources are read in Review (RV-01), since Generation only generates (Miya,
 // 12 Oct). Unsupported statements stay flagged, so a weak draft is seen at once.
-function SubsectionDraft({ sub }: { sub: SectionDraft['subsections'][number] }) {
+function SubsectionDraft({
+  sub,
+  sectionId,
+}: {
+  sub: SectionDraft['subsections'][number]
+  sectionId: string
+}) {
+  // Section 6's programs are Marsh's two tables, not prose (GN-11).
+  if (sectionId === '6' && sub.heading === 'Management Programs') {
+    const { entries, unplaced } = maturityEntries(
+      sub.statements,
+      (s) => s.text,
+      (s, comment) => (
+        <>
+          {comment}
+          {!s.supported && (
+            <Badge tone="moderate" icon="triangle-alert" style={{ marginLeft: '8px' }}>
+              Unsupported
+            </Badge>
+          )}
+        </>
+      ),
+    )
+    return <MaturityTable entries={entries} unplaced={unplaced} />
+  }
   if (sub.kind === 'table') {
     return (
       <div style={{ ...card, padding: '14px 20px' }}>
@@ -44,9 +71,9 @@ function SubsectionDraft({ sub }: { sub: SectionDraft['subsections'][number] }) 
         fullWidth
         heading={sub.heading}
         status={unsupported ? 'flagged' : 'draft'}
-        // Every citation resolves, but whether each source says what the
-        // statement claims is not checked yet, so this is never high.
-        confidence={unsupported ? 'low' : 'medium'}
+        // No status badge or confidence meter: everything here is AI drafted, and a
+        // weak statement carries its own Unsupported flag (Miya, 15 Oct).
+        quiet
       >
         {sub.statements.map((s, i) => (
           <p key={i} style={{ margin: i ? '10px 0 0' : 0 }}>
@@ -107,7 +134,7 @@ export function DraftView({ draft }: { draft: SectionDraft }) {
         </Callout>
       )}
       {draft.subsections.map((sub) => (
-        <SubsectionDraft key={sub.heading} sub={sub} />
+        <SubsectionDraft key={sub.heading} sub={sub} sectionId={draft.sectionId} />
       ))}
     </section>
   )
@@ -120,12 +147,14 @@ const STATE = {
   queued: { tone: 'neutral', icon: 'ellipsis', label: 'Queued' },
   ready: { tone: 'neutral', icon: 'circle-dashed', label: 'Not drafted' },
   insufficient: { tone: 'moderate', icon: 'triangle-alert', label: 'Insufficient evidence' },
+  // Sections 4 and 5 (GN-03) before the engineer's figures are entered in Review.
+  figures: { tone: 'moderate', icon: 'triangle-alert', label: 'Figures needed' },
   failed: { tone: 'critical', icon: 'octagon-alert', label: 'Failed' },
 } as const
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-// Sections 7-12 of the report for a saved assessment (GN-01), laid out like
+// Sections 4-12 of the report for a saved assessment (GN-01, GN-03), laid out like
 // the demo generation screen. Draft one section from its row, or the whole
 // report from the header: every section with enough evidence that has no
 // draft yet, one at a time.
@@ -152,10 +181,21 @@ export function SectionDrafts({
   const { observations } = useObservations(reference, true)
 
   const hasEvidence = (s: ReportSection) => s.usableObservations >= s.minObservations
-  const pending = (sections ?? []).filter((s) => !s.latestDraft && hasEvidence(s))
-  const draftable = (sections ?? []).filter(hasEvidence)
+  // Enough evidence, and for Sections 4 and 5 their figures (GN-03).
+  const ready = (s: ReportSection) => hasEvidence(s) && !s.inputsMissing
+  const pending = (sections ?? []).filter((s) => !s.latestDraft && ready(s))
+  const draftable = (sections ?? []).filter(ready)
   const done = draftable.filter((s) => s.latestDraft).length
   const running = drafting !== null
+  // Section 2's state, refetched when a section's draft changes (its missing and
+  // out-of-date lists depend on them), and the OFIs, for the report-wide count.
+  const summaryState = useSummary(reference, (sections ?? []).map((s) => s.latestDraft?.id).join())
+  const { ofis } = useOfis(reference)
+  const progress = reportProgress({
+    summaryDrafted: !!summaryState.summary?.executiveSummary.draft,
+    ofisAccepted: Array.isArray(ofis?.accepted) ? ofis.accepted.length : 0,
+    sectionsDrafted: (sections ?? []).filter((s) => s.latestDraft).length,
+  })
 
   // Drafts the sections one after another. Stopping takes effect once the
   // section being drafted is saved, so no paid call is thrown away.
@@ -209,15 +249,19 @@ export function SectionDrafts({
           ? STATE.failed
           : s.latestDraft
             ? STATE.drafted
-            : hasEvidence(s)
-              ? STATE.ready
-              : STATE.insufficient
-  const attention = (sections ?? []).filter((s) => !hasEvidence(s) || failures[s.id]).length
+            : !hasEvidence(s)
+              ? STATE.insufficient
+              : s.inputsMissing
+                ? STATE.figures
+                : STATE.ready
+  const attention = (sections ?? []).filter(
+    (s) => !hasEvidence(s) || failures[s.id] || (!s.latestDraft && s.inputsMissing),
+  ).length
 
   return (
     <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
       <div style={{ maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Callout tone="ai" title={running ? 'Drafting in progress' : 'Draft sections 7 to 12'}>
+        <Callout tone="ai" title={running ? 'Drafting in progress' : 'Draft sections 2 to 12'}>
           {running
             ? 'Sections appear here as each one completes. Each takes a minute or two.'
             : 'Draft one section from its row, or every section at once. Each section is drafted from the observations filed under its categories, observations from other categories where they concern it, and the standards in the knowledge base. Uncategorised observations are not used. Every statement cites its evidence.'}
@@ -242,8 +286,9 @@ export function SectionDrafts({
             >
               <div style={{ flex: '1', minWidth: '200px' }}>
                 <ProgressBar
-                  value={draftable.length ? Math.round((done / draftable.length) * 100) : 0}
-                  label={`${done} of ${plural(draftable.length, 'section')} drafted`}
+                  // Over Marsh's 12 sections, as the Review rail and Overview count them.
+                  value={progress.percent}
+                  label={`${progress.done} of ${plural(progress.total, 'section')} drafted`}
                   showValue={true}
                   tone="ai"
                 />
@@ -294,11 +339,7 @@ export function SectionDrafts({
               <span />
             </div>
             {/* Section 2 opens the report's drafted sections (GN-07). */}
-            <SummaryRow
-              reference={reference}
-              canDraft={canDraft}
-              refreshKey={(sections ?? []).map((s) => s.latestDraft?.id).join()}
-            />
+            <SummaryRow reference={reference} canDraft={canDraft} summaryState={summaryState} />
             {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
             <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
             {sections.map((s) => {
@@ -376,6 +417,19 @@ export function SectionDrafts({
                             {s.copeDimensions.join(' or ')}.
                           </span>
                         )}
+                        {state === STATE.figures && (
+                          <span
+                            style={{
+                              display: 'block',
+                              marginTop: '4px',
+                              fontSize: '14px',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {s.inputsMissing} Enter them in Review; the model writes only the
+                            wording around them.
+                          </span>
+                        )}
                       </span>
                       <span className="generation-status">
                         <Badge tone={state.tone} icon={state.icon}>
@@ -409,7 +463,12 @@ export function SectionDrafts({
                             Capture evidence
                           </Button>
                         )}
-                        {canDraft && hasEvidence(s) && (
+                        {state === STATE.figures && (
+                          <Button variant="ghost" size="sm" iconLeft="pencil" onClick={onReview}>
+                            Enter figures
+                          </Button>
+                        )}
+                        {canDraft && ready(s) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -480,7 +539,7 @@ export function SectionDrafts({
               }}
             >
               <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
-                {done} of {plural(draftable.length, 'section')} drafted ·{' '}
+                {progress.done} of {plural(progress.total, 'section')} drafted ·{' '}
                 {attention
                   ? `${attention} need${attention === 1 ? 's' : ''} attention`
                   : 'nothing outstanding in drafting'}
