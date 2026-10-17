@@ -115,15 +115,14 @@
 .uc-table tbody tr[data-open] > * {
   background: var(--surface-selected);
 }
-/* The opened row's calculation sits under it, indented to the row name. */
+/* The opened row's calculation sits under it, as wide as the table. */
 .uc-table tbody .uc-expansion > td {
-  padding: var(--space-3) var(--space-5) var(--space-5) calc(var(--control-height-sm) + 12px);
+  padding: var(--space-3) var(--space-5) var(--space-5);
   background: var(--surface-header);
   white-space: normal;
 }
 .uc-calc {
-  width: auto;
-  min-width: min(100%, 560px);
+  width: 100%;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-card);
