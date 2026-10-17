@@ -102,7 +102,7 @@ def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk) -> list[dict]:
     """
 
     boxes: list[dict] = []
-    for item in getattr(dl_chunk.meta, "doc_items", None) or []:
+    for item_index, item in enumerate(getattr(dl_chunk.meta, "doc_items", None) or []):
         item_label_value = getattr(item, "label", None)
         if item_label is not None and item_label_value != item_label:
             continue
@@ -118,6 +118,7 @@ def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk) -> list[dict]:
                     "coord_origin": str(getattr(bbox, "coord_origin", "")),
                     "is_table": item_label_value == DocItemLabel.TABLE,
                     "text": getattr(item, "text", "") if prov_index == 0 else "",
+                    "item": item_index,  # which doc item the box belongs to
                 }
             )
     return _bbox_area_deduplication(boxes)
@@ -469,6 +470,8 @@ def _extract_table_chunk(
     before: list[str] = []
     after: list[str] = []
     readings: list[str] = []
+    unread: list[dict] = []
+    read_items: set = set()
     for box in table_bboxes:
         if not box.get("is_table", True):
             text = str(box.get("text", "")).strip()
@@ -482,8 +485,11 @@ def _extract_table_chunk(
             file_path=doc_path,
             coord_origin=box.get("coord_origin", ""),
         )
-        if parsed:
+        if parsed and any(table.records for table in split_tables(parsed)):
             readings.append(parsed)
+            read_items.add(box.get("item"))
+        else:
+            unread.append(box)
 
     text = "\n\n".join(readings)
     if text and _is_first_pages(table_bboxes):
@@ -492,8 +498,34 @@ def _extract_table_chunk(
     metadata = _build_metadata(
         meta, doc_id, headings=headings, bboxes=table_bboxes, position=position
     )
+    # A table item none of whose boxes read as a table is often a photo or
+    # drawing Docling labelled as a table (IN-13): it is read again as a
+    # picture. An item that read on some pages is a real table and is not.
+    unread_items: dict = {}
+    for box in unread:
+        if box.get("item") not in read_items:
+            unread_items.setdefault(box.get("item"), []).append(box)
+    pictures = [
+        {"boxes": boxes, "caption": "" if tables else caption.strip(), "before": [], "after": []}
+        for boxes in unread_items.values()
+    ]
+
+    def read_as_pictures() -> list[dict]:
+        passages = _extract_picture_chunk(
+            pictures,
+            doc_path=doc_path,
+            doc_id=doc_id,
+            chunk_id=f"{doc_id}:picture:{position}",
+            meta=meta,
+            headings=headings,
+            position=position,
+        )
+        return [passage for passage in passages if passage["text"]]
 
     if not tables:
+        if pictures:
+            pictures[0]["before"], pictures[-1]["after"] = before, after
+            return read_as_pictures() or None
         prose = "\n\n".join(before + after)
         return [{"id": chunk_id, "text": prose, "metadata": metadata}] if prose else None
 
@@ -517,7 +549,8 @@ def _extract_table_chunk(
             )
     chunks[0]["text"] = "\n\n".join(before + [chunks[0]["text"]])
     chunks[-1]["text"] = "\n\n".join([chunks[-1]["text"]] + after)
-    return chunks
+    # The tables carry the prose; an unread box beside them follows as a picture.
+    return chunks + read_as_pictures()
 
 
 def _picture_context(headings: list[str] | None, caption: str) -> str:

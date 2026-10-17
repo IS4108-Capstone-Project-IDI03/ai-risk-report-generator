@@ -226,6 +226,8 @@ def test_multi_page_table_is_joined_in_page_order(spy_parse_table):
 
 def test_extract_table_chunk_returns_none_when_nothing_decodes(monkeypatch):
     monkeypatch.setattr(chunker, "parse_table", lambda **kwargs: None)
+    # Nor as a picture (IN-13): GLM, or nothing found there either.
+    monkeypatch.setattr(chunker, "parse_picture", lambda **kwargs: None)
     dl_chunk = _chunk(_table_item(_prov(1, 10, 300, 200, 100)))
     boxes = chunker._detect_bboxes(chunker.DocItemLabel.TABLE, dl_chunk)
 

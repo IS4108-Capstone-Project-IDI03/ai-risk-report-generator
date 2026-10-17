@@ -207,3 +207,69 @@ def test_a_picture_beside_a_table_is_kept_as_its_own_passage(reader, monkeypatch
     assert passages[0]["text"] == "Agent: FM-200; Qty: 2"
     assert passages[1]["text"] == f"Figure 3 Pump room\n{PUMP_ROOM}"
     assert len(reader) == 1
+
+
+# --- a table crop that reads as no table is read as a picture -----------------
+
+
+def test_a_table_that_reads_as_no_table_is_described_as_a_picture(reader, monkeypatch):
+    # Docling sometimes labels a photo or a drawing as a table.
+    monkeypatch.setattr(chunker, "parse_table", lambda **kwargs: None)
+    doc = _document()
+    doc.add_heading("Site Plan", level=1, prov=_prov(1, 10, 390, 200, 380))
+    _table(doc, (10, 370, 290, 200))
+
+    [passage] = _chunk(doc)
+
+    assert passage["id"] == "report:picture:0"
+    assert passage["text"] == PUMP_ROOM
+    meta = passage["metadata"]
+    assert meta["bbox"] == [10.0, 370.0, 290.0, 200.0]
+    assert meta["bbox_pages"] == [1]
+    assert meta["generated_text"] == "picture_description"
+    assert reader[0]["context"] == "Section: Site Plan"
+
+
+def test_a_table_that_reads_is_never_read_as_a_picture(reader, monkeypatch):
+    monkeypatch.setattr(chunker, "parse_table", lambda **kwargs: "Agent: FM-200; Qty: 2")
+    doc = _document()
+    _table(doc, (10, 370, 290, 200))
+
+    [passage] = _chunk(doc)
+
+    assert passage["text"] == "Agent: FM-200; Qty: 2"
+    assert reader == []
+
+
+def test_of_two_tables_the_one_that_reads_as_no_table_follows_as_a_picture(reader, monkeypatch):
+    def parse_table(**kwargs):
+        return "Agent: FM-200; Qty: 2" if kwargs["bbox"][1] == 370.0 else None
+
+    monkeypatch.setattr(chunker, "parse_table", parse_table)
+    doc = _document()
+    doc.add_heading("Fire Protection", level=1, prov=_prov(1, 10, 390, 200, 380))
+    _table(doc, (10, 370, 290, 300))
+    _table(doc, (10, 280, 290, 100))
+
+    passages = _chunk(doc)
+
+    assert [p["text"] for p in passages] == ["Agent: FM-200; Qty: 2", PUMP_ROOM]
+    assert passages[1]["metadata"]["bbox"] == [10.0, 280.0, 290.0, 100.0]
+    assert passages[1]["metadata"]["generated_text"] == "picture_description"
+
+
+def test_a_table_unreadable_on_one_of_its_pages_is_not_read_as_a_picture(reader, monkeypatch):
+    # It read on page 1, so it is a real table; page 2's crop just failed.
+    monkeypatch.setattr(
+        chunker,
+        "parse_table",
+        lambda **kwargs: "Agent: FM-200; Qty: 2" if kwargs["page"] == 1 else None,
+    )
+    doc = _document(pages=2)
+    table = _table(doc, (10, 370, 290, 200))
+    table.prov.append(_prov(2, 10, 390, 290, 300))
+
+    [passage] = _chunk(doc)
+
+    assert passage["text"] == "Agent: FM-200; Qty: 2"
+    assert reader == []
