@@ -195,7 +195,7 @@ def test_a_table_that_reads_as_no_table_is_described_as_a_picture(reader, monkey
 
     [passage] = _chunk(doc)
 
-    assert passage["id"] == "report:picture:0"
+    assert passage["id"] == "report:table:0:picture"
     assert passage["text"] == PUMP_ROOM
     meta = passage["metadata"]
     assert meta["bbox"] == [10.0, 370.0, 290.0, 200.0]
@@ -230,6 +230,19 @@ def test_of_two_tables_the_one_that_reads_as_no_table_follows_as_a_picture(reade
     assert [p["text"] for p in passages] == ["Agent: FM-200; Qty: 2", PUMP_ROOM]
     assert passages[1]["metadata"]["bbox"] == [10.0, 280.0, 290.0, 100.0]
     assert passages[1]["metadata"]["generated_text"] == "picture_description"
+
+
+def test_a_table_read_as_a_picture_and_a_picture_beside_it_get_different_ids(reader, monkeypatch):
+    # Both are pictures of the same chunk, read by two jobs; ids must not clash.
+    monkeypatch.setattr(chunker, "parse_table", lambda **kwargs: None)
+    doc = _document()
+    doc.add_heading("Site Plan", level=1, prov=_prov(1, 10, 390, 200, 380))
+    _table(doc, (10, 370, 290, 300))
+    _picture(doc, (50, 280, 250, 130), caption="Figure 3 Pump room")
+
+    passages = _chunk(doc)
+
+    assert [p["id"] for p in passages] == ["report:table:0:picture", "report:picture:0"]
 
 
 def test_a_table_unreadable_on_one_of_its_pages_is_not_read_as_a_picture(reader, monkeypatch):
