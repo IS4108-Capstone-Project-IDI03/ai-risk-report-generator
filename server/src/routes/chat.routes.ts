@@ -10,7 +10,12 @@ import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
 import { checkChatLimits } from '../services/chat-limits.service'
 import { chatUsageTap } from '../services/chat-usage.service'
-import { openChatStream, RagServiceError, withChatDocuments } from '../services/rag.service'
+import {
+  getPassage,
+  openChatStream,
+  RagServiceError,
+  withChatDocuments,
+} from '../services/rag.service'
 
 const router = Router()
 
@@ -76,6 +81,18 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
     chatUsageTap(userId),
     res,
   ).catch(() => {})
+})
+
+// One passage behind a citation (CB-02): its text and page boxes, passed through from S4.
+router.get('/passages/:id', requirePermission('knowledge:view'), async (req, res) => {
+  try {
+    res.json(await getPassage(req.params.id))
+  } catch (error: unknown) {
+    if (!(error instanceof RagServiceError)) throw error
+    // 404 means S4 doesn't know the id; anything else (down, failed) is 503.
+    if (error.status === 404) res.status(404).json({ error: error.message })
+    else res.status(503).json({ error: error.message })
+  }
 })
 
 export default router

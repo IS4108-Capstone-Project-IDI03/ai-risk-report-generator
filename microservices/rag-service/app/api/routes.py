@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.chat.answer import answer_events
+from app.chat.passages import get_passage
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.orchestrator.orchestrator import draft, draft_ofis_for, draft_summary_for, run
@@ -215,3 +216,12 @@ def chat(request: ChatRequest) -> StreamingResponse:
     documents = [d.model_dump() for d in request.documents]
     events = answer_events(messages, [c.value for c in request.context], documents)
     return StreamingResponse(events, media_type="text/event-stream")
+
+
+@router.get("/passages/{passage_id}")
+def passage(passage_id: str) -> dict:
+    """Return one passage's text and page boxes for the citation panel (CB-02)."""
+    found = get_passage(passage_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Passage not found.")
+    return found
