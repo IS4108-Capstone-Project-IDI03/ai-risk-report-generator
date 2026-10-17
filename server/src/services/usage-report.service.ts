@@ -3,6 +3,7 @@
 // (for the assigned engineer, client and site) and users (for names).
 import { Types } from 'mongoose'
 import { AI_FEATURES, AiCallModel, type IAiCall } from '../models/ai-call.model'
+import { costBreakdown, type PricedPart } from './ai-pricing.service'
 import { AssessmentModel } from '../models/assessment.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
@@ -79,6 +80,17 @@ const sum = (rows: IAiCall[], pick: (r: IAiCall) => number | null) =>
 const callsIn = (rows: IAiCall[]) => rows.reduce((n, r) => n + (r.callCount ?? 1), 0)
 // Of those, the calls with no cost: counted, never added to a total as 0.
 const uncosted = (rows: IAiCall[]) => callsIn(rows.filter((r) => r.estimatedCostUsd === null))
+// Tokens the rows used, summed from what the providers reported, never worked
+// back from cost. Whisper and Cohere rerank bill in other units, so add none.
+// OpenAI's input already includes its cached tokens (Anthropic's does not).
+const tokensIn = (rows: IAiCall[]) =>
+  sum(
+    rows,
+    (r) =>
+      (r.inputTokens ?? 0) +
+      (r.outputTokens ?? 0) +
+      (r.billedService === 'openai' ? 0 : (r.cacheReadTokens ?? 0)),
+  )
 
 // Nearest-rank percentile of an ascending list: the smallest value that at
 // least p% of the values are at or below.
@@ -289,18 +301,98 @@ function groupRows(rows: IAiCall[], keyOf: (r: IAiCall) => string): Map<string, 
   return groups
 }
 
+// One line of a row's cost calculation: quantity × usdPer / per = costUsd.
+export type CostLine = Omit<PricedPart, 'part'> & {
+  service: string
+  model: string
+  // 'not priced' gathers calls stored without a cost; its note says why.
+  part: PricedPart['part'] | 'not priced'
+}
+type LinePart = Omit<CostLine, 'service' | 'model'>
+
+// A row's parts: priced as estimateCost priced it, or one 'not priced' part
+// when it was stored without a cost (AC7), never priced here as if it had one.
+function partsOf(r: IAiCall): LinePart[] {
+  if (r.estimatedCostUsd === null)
+    return [
+      {
+        part: 'not priced',
+        unit: 'tokens',
+        quantity: tokensIn([r]),
+        usdPer: 0,
+        per: 1e6,
+        costUsd: 0,
+        note: r.pricingBasis,
+      },
+    ]
+  return costBreakdown(r.billedService, r.model, r, new Date(r.createdAt)) ?? []
+}
+// The calculated total beside the stored one; they differ only when prices
+// changed after the calls were recorded.
+export type Reconciliation = { calculatedUsd: number; recordedUsd: number; differenceUsd: number }
+
+const PART_ORDER: CostLine['part'][] = [
+  'input',
+  'output',
+  'cached input',
+  'searches',
+  'audio',
+  'not priced',
+]
+
+// How a set of rows' cost is made up, one line per service, model, part and
+// rate, in a fixed order: by service, model and part, an older rate first.
+function costLines(rows: IAiCall[]): CostLine[] {
+  const lines = new Map<string, CostLine & { firstAt: number }>()
+  for (const r of rows) {
+    const at = +new Date(r.createdAt)
+    for (const p of partsOf(r)) {
+      const key = [r.billedService, r.model, p.part, p.usdPer].join('|')
+      const line = lines.get(key)
+      if (line) {
+        line.quantity += p.quantity
+        line.costUsd += p.costUsd
+        line.firstAt = Math.min(line.firstAt, at)
+      } else lines.set(key, { service: r.billedService, model: r.model, ...p, firstAt: at })
+    }
+  }
+  return (
+    [...lines.values()]
+      // A part nothing used (no cache reads, say) only adds a $0 line to read past.
+      .filter((l) => l.quantity > 0 || l.part === 'not priced')
+      .sort(
+        (a, b) =>
+          a.service.localeCompare(b.service) ||
+          a.model.localeCompare(b.model) ||
+          PART_ORDER.indexOf(a.part) - PART_ORDER.indexOf(b.part) ||
+          a.firstAt - b.firstAt,
+      )
+      .map(({ firstAt: _, ...l }) => ({ ...l, costUsd: round(l.costUsd) }))
+  )
+}
+
+function reconcile(lines: CostLine[], rows: IAiCall[]): Reconciliation {
+  const calculatedUsd = round(lines.reduce((t, l) => t + l.costUsd, 0))
+  const recordedUsd = round(sum(rows, (r) => r.estimatedCostUsd))
+  return { calculatedUsd, recordedUsd, differenceUsd: round(calculatedUsd - recordedUsd) }
+}
+
 // What every group shows: calls, cost, last use, and its bar's stacked parts.
 function groupTotals(key: string, members: IAiCall[], splitKey: SplitKey) {
   const segments: Record<string, number> = {}
   for (const r of members)
     if (r.estimatedCostUsd !== null)
       segments[splitKey(r)] = round((segments[splitKey(r)] ?? 0) + r.estimatedCostUsd)
+  const lines = costLines(members)
   return {
     key,
     lastActivityAt: new Date(Math.max(...members.map((r) => +new Date(r.createdAt)))).toISOString(),
     calls: callsIn(members),
     estimatedCostUsd: round(sum(members, (r) => r.estimatedCostUsd)),
     callsWithoutCost: uncosted(members),
+    totalTokens: tokensIn(members),
+    costLines: lines,
+    reconciliation: reconcile(lines, members),
     segments,
   }
 }
@@ -392,6 +484,9 @@ export type OverviewGroup = {
   calls: number
   estimatedCostUsd: number
   callsWithoutCost: number
+  totalTokens: number
+  costLines: CostLine[]
+  reconciliation: Reconciliation
   // Cost per split key (billed service or feature); the bar's stacked parts.
   segments: Record<string, number>
 }
@@ -527,6 +622,7 @@ const OVERVIEW_CSV_COLUMNS: [string, (g: OverviewGroup) => unknown][] = [
   ['last_activity', (g) => g.lastActivityAt],
   ['calls', (g) => g.calls],
   ['calls_without_cost', (g) => g.callsWithoutCost],
+  ['total_tokens', (g) => g.totalTokens],
   ['estimated_cost_usd', (g) => g.estimatedCostUsd],
 ]
 
@@ -563,6 +659,9 @@ export type DocumentUsage = {
   calls: number
   estimatedCostUsd: number
   callsWithoutCost: number
+  totalTokens: number
+  costLines: CostLine[]
+  reconciliation: Reconciliation
   usdPerPage: number | null
   avgMsPerCall: number | null
   lastActivityAt: string
@@ -654,6 +753,7 @@ const INGESTION_CSV_COLUMNS: [string, (d: DocumentUsage) => unknown][] = [
   ['pages', (d) => d.pages],
   ['calls', (d) => d.calls],
   ['calls_without_cost', (d) => d.callsWithoutCost],
+  ['total_tokens', (d) => d.totalTokens],
   ['estimated_cost_usd', (d) => d.estimatedCostUsd],
   ['usd_per_page', (d) => d.usdPerPage],
 ]

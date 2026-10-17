@@ -555,10 +555,11 @@ describe('GET /api/usage/overview/export.csv (EV-04 AC4)', () => {
     )
     const lines = res.text.trim().split('\n')
     expect(lines[0]).toBe(
-      'group,reference,client,site,engineer,last_activity,calls,calls_without_cost,estimated_cost_usd,anthropic,cohere-embed',
+      'group,reference,client,site,engineer,last_activity,calls,calls_without_cost,total_tokens,estimated_cost_usd,anthropic,cohere-embed',
     )
-    expect(lines[1]).toMatch(/^RPT-B,RPT-B,C,Site,jide,[^,]+,1,0,2,2,0$/)
-    expect(lines[2]).toMatch(/^RPT-A,RPT-A,C,Site,alex,[^,]+,2,0,0\.6,0\.5,0\.1$/)
+    // Each call used 1,000 input + 500 output tokens.
+    expect(lines[1]).toMatch(/^RPT-B,RPT-B,C,Site,jide,[^,]+,1,0,1500,2,2,0$/)
+    expect(lines[2]).toMatch(/^RPT-A,RPT-A,C,Site,alex,[^,]+,2,0,3000,0\.6,0\.5,0\.1$/)
   })
 
   it('keeps to the risk engineer’s own scope and refuses an unknown grouping', async () => {
@@ -721,9 +722,12 @@ describe('GET /api/usage/ingestion (EV-04, ingestion tab)', () => {
     )
     const [head, row] = res.text.trim().split('\n')
     expect(head).toBe(
-      'title,file_name,status,uploaded_at,pages,calls,calls_without_cost,estimated_cost_usd,usd_per_page,gemini-ocr,anthropic',
+      'title,file_name,status,uploaded_at,pages,calls,calls_without_cost,total_tokens,estimated_cost_usd,usd_per_page,gemini-ocr,anthropic',
     )
-    expect(row).toBe('NFPA 13,nfpa13.pdf,complete,2026-10-01T00:00:00.000Z,40,2,0,0.8,0.02,0.6,0.2')
+    // Two calls of 1,000 input + 500 output tokens each.
+    expect(row).toBe(
+      'NFPA 13,nfpa13.pdf,complete,2026-10-01T00:00:00.000Z,40,2,0,3000,0.8,0.02,0.6,0.2',
+    )
     expect(
       (await asAlex.get('/api/usage/ingestion/export.csv?split=service&range=all')).status,
     ).toBe(403)
@@ -742,5 +746,335 @@ describe('latency with summed ingestion rows (EV-04 AC5)', () => {
 
     expect(ocr.latency).toEqual({ avgMs: 100, p50Ms: 100, p95Ms: 100, maxMs: 100 })
     expect(ocr.calls).toBe(5)
+  })
+})
+
+describe('per-row tokens and cost calculation (EV-04)', () => {
+  // Hand-worked: Sonnet 5.5 at $2 in, $10 out, $0.1 cache-read per 1M tokens.
+  // 1,000,000 in = $2.00; 100,000 out = $1.00; 500,000 cached = $0.05. $3.05 in all.
+  const sonnet = () =>
+    call({
+      model: 'claude-sonnet-5-5',
+      inputTokens: 1_000_000,
+      outputTokens: 100_000,
+      cacheReadTokens: 500_000,
+      estimatedCostUsd: 3.05,
+    })
+  const firstGroup = async () => {
+    const res = await asSana.get('/api/usage/overview?groupBy=assessment&split=service&range=all')
+    return res.body.groups[0]
+  }
+
+  it('gives each assessment its total tokens: input, output and cached', async () => {
+    await assessments()
+    await seed([sonnet()])
+
+    expect((await firstGroup()).totalTokens).toBe(1_600_000)
+  })
+
+  it('counts OpenAI cached tokens once: its input already includes them', async () => {
+    // 300,000 in (100,000 of them cached) + 50,000 out = 350,000 tokens.
+    await seed([
+      call({
+        feature: 'chat',
+        billedService: 'openai',
+        model: 'gpt-6.1-sol',
+        reportId: undefined,
+        userId: sana._id,
+        inputTokens: 300_000,
+        outputTokens: 50_000,
+        cacheReadTokens: 100_000,
+        estimatedCostUsd: 1.1,
+      }),
+    ])
+
+    expect((await firstGroup()).totalTokens).toBe(350_000)
+  })
+
+  it('breaks a Claude assessment into input, output and cached lines that add up to its cost', async () => {
+    await assessments()
+    await seed([sonnet()])
+
+    const g = await firstGroup()
+
+    const line = {
+      service: 'anthropic',
+      model: 'claude-sonnet-5-5',
+      unit: 'tokens',
+      per: 1_000_000,
+    }
+    expect(g.costLines).toEqual([
+      { ...line, part: 'input', quantity: 1_000_000, usdPer: 2, costUsd: 2, note: null },
+      { ...line, part: 'output', quantity: 100_000, usdPer: 10, costUsd: 1, note: null },
+      { ...line, part: 'cached input', quantity: 500_000, usdPer: 0.1, costUsd: 0.05, note: null },
+    ])
+    expect(g.reconciliation).toEqual({ calculatedUsd: 3.05, recordedUsd: 3.05, differenceUsd: 0 })
+  })
+
+  it('prices OpenAI input net of its cached tokens', async () => {
+    // gpt-6.1-sol at $2 in, $10 out, $2 cached per 1M. 300,000 in, 100,000 of
+    // them cached: 200,000 × $2 = $0.40; 50,000 × $10 = $0.50; 100,000 × $2 = $0.20.
+    await seed([
+      call({
+        feature: 'chat',
+        billedService: 'openai',
+        model: 'gpt-6.1-sol',
+        reportId: undefined,
+        userId: sana._id,
+        inputTokens: 300_000,
+        outputTokens: 50_000,
+        cacheReadTokens: 100_000,
+        estimatedCostUsd: 1.1,
+      }),
+    ])
+
+    const g = await firstGroup()
+
+    expect(
+      g.costLines.map((l: { part: string; quantity: number; costUsd: number }) => [
+        l.part,
+        l.quantity,
+        l.costUsd,
+      ]),
+    ).toEqual([
+      ['input', 200_000, 0.4],
+      ['output', 50_000, 0.5],
+      ['cached input', 100_000, 0.2],
+    ])
+    expect(g.reconciliation).toEqual({ calculatedUsd: 1.1, recordedUsd: 1.1, differenceUsd: 0 })
+  })
+
+  it('shows Whisper in minutes, outside the token count', async () => {
+    // 600 seconds = 10 minutes × $0.006 = $0.06.
+    await assessments()
+    await seed([
+      call({
+        feature: 'transcribe',
+        billedService: 'openai-whisper',
+        model: 'whisper-1',
+        inputTokens: null,
+        outputTokens: null,
+        cacheReadTokens: null,
+        audioSeconds: 600,
+        estimatedCostUsd: 0.06,
+      }),
+    ])
+
+    const g = await firstGroup()
+
+    expect(g.totalTokens).toBe(0)
+    expect(g.costLines).toEqual([
+      {
+        service: 'openai-whisper',
+        model: 'whisper-1',
+        part: 'audio',
+        unit: 'minutes',
+        quantity: 10,
+        usdPer: 0.006,
+        per: 1,
+        costUsd: 0.06,
+        note: null,
+      },
+    ])
+  })
+
+  it('shows trial-key Cohere at $0 with its reason, rerank in searches', async () => {
+    await assessments()
+    const cohere = {
+      feature: 'retrieval',
+      model: 'embed-v4.0',
+      outputTokens: null,
+      cacheReadTokens: null,
+    }
+    await seed([
+      call({ ...cohere, billedService: 'cohere-embed', inputTokens: 90_000, estimatedCostUsd: 0 }),
+      call({
+        ...cohere,
+        billedService: 'cohere-rerank',
+        model: 'rerank-v3.5',
+        inputTokens: null,
+        searchUnits: 140,
+        estimatedCostUsd: 0,
+      }),
+    ])
+
+    const g = await firstGroup()
+
+    expect(g.totalTokens).toBe(90_000)
+    expect(g.costLines).toEqual([
+      expect.objectContaining({
+        part: 'input',
+        unit: 'tokens',
+        quantity: 90_000,
+        usdPer: 0,
+        costUsd: 0,
+        note: 'Trial key: free',
+      }),
+      expect.objectContaining({
+        part: 'searches',
+        unit: 'searches',
+        quantity: 140,
+        usdPer: 0,
+        costUsd: 0,
+        note: 'Trial key: free',
+      }),
+    ])
+  })
+
+  it('splits Gemini lines at the 2027 price change', async () => {
+    // gemini-3.8-flash input: $0.75 per 1M until 2026-12-31, $1.50 from 2027-01-01.
+    await assessments()
+    const gemini = (iso: string, cost: number) => ({
+      ...call({
+        feature: 'interpret-photo',
+        billedService: 'gemini-vision',
+        model: 'gemini-3.8-flash',
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        cacheReadTokens: null,
+        estimatedCostUsd: cost,
+      }),
+      callCount: 1,
+      createdAt: new Date(iso),
+    })
+    // Saved straight to the collection so each keeps the time it was made.
+    await AiCallModel.collection.insertMany([
+      gemini('2026-12-31T00:00:00Z', 0.75),
+      gemini('2027-01-02T00:00:00Z', 1.5),
+    ])
+
+    const g = await firstGroup()
+    const inputs = g.costLines.filter((l: { part: string }) => l.part === 'input')
+
+    expect(
+      inputs.map((l: { quantity: number; usdPer: number; costUsd: number }) => [
+        l.quantity,
+        l.usdPer,
+        l.costUsd,
+      ]),
+    ).toEqual([
+      [1_000_000, 0.75, 0.75],
+      [1_000_000, 1.5, 1.5],
+    ])
+    expect(g.reconciliation.differenceUsd).toBe(0)
+  })
+
+  it('lists calls without a cost as a not-priced line, outside the calculated total', async () => {
+    await assessments()
+    await seed([
+      sonnet(),
+      call({
+        model: 'claude-unknown-9',
+        inputTokens: 10_000,
+        outputTokens: 2_000,
+        cacheReadTokens: 0,
+        estimatedCostUsd: null,
+        pricingBasis: 'no price for model',
+      }),
+    ])
+
+    const g = await firstGroup()
+
+    expect(g.costLines).toContainEqual({
+      service: 'anthropic',
+      model: 'claude-unknown-9',
+      part: 'not priced',
+      unit: 'tokens',
+      quantity: 12_000,
+      usdPer: 0,
+      per: 1_000_000,
+      costUsd: 0,
+      note: 'no price for model',
+    })
+    expect(g.reconciliation).toEqual({ calculatedUsd: 3.05, recordedUsd: 3.05, differenceUsd: 0 })
+  })
+
+  it("shows the difference when a stored cost no longer matches today's rate", async () => {
+    // Recorded at an older price: $3.00 then, $3.05 at today's rates.
+    await assessments()
+    await seed([{ ...sonnet(), estimatedCostUsd: 3 }])
+
+    expect((await firstGroup()).reconciliation).toEqual({
+      calculatedUsd: 3.05,
+      recordedUsd: 3,
+      differenceUsd: 0.05,
+    })
+  })
+
+  it("gives each ingested document its tokens and cost lines, labelling at the ingestion service's price", async () => {
+    // Labelling with gpt-6-luna at $0.10 in, $0.50 out per 1M (ingestion PRICES):
+    // 1,000,000 in = $0.10; 200,000 out = $0.10.
+    const documentId = new Types.ObjectId()
+    await seed([
+      call({
+        feature: 'label-document',
+        billedService: 'openai-label',
+        model: 'gpt-6-luna',
+        reportId: undefined,
+        documentId,
+        inputTokens: 1_000_000,
+        outputTokens: 200_000,
+        cacheReadTokens: null,
+        estimatedCostUsd: 0.2,
+        pricingBasis: 'ingestion-service PRICES table',
+      }),
+    ])
+
+    const res = await asSana.get('/api/usage/ingestion?split=service&range=all')
+    const doc = res.body.documents[0]
+
+    expect(doc.totalTokens).toBe(1_200_000)
+    expect(
+      doc.costLines.map((l: { part: string; usdPer: number; costUsd: number }) => [
+        l.part,
+        l.usdPer,
+        l.costUsd,
+      ]),
+    ).toEqual([
+      ['input', 0.1, 0.1],
+      ['output', 0.5, 0.1],
+    ])
+    expect(doc.reconciliation.differenceUsd).toBe(0)
+  })
+
+  it('shows self-hosted OCR tokens at $0, and why', async () => {
+    await seed([
+      call({
+        feature: 'ocr',
+        billedService: 'self-hosted-ocr',
+        model: 'docling-ocr',
+        reportId: undefined,
+        documentId: new Types.ObjectId(),
+        inputTokens: 4_000,
+        outputTokens: 1_000,
+        cacheReadTokens: null,
+        estimatedCostUsd: 0,
+      }),
+    ])
+
+    const res = await asSana.get('/api/usage/ingestion?split=service&range=all')
+    const doc = res.body.documents[0]
+
+    expect(doc.totalTokens).toBe(5_000)
+    expect(
+      doc.costLines.map((l: { part: string; quantity: number; costUsd: number; note: string }) => [
+        l.part,
+        l.quantity,
+        l.costUsd,
+        l.note,
+      ]),
+    ).toEqual([
+      ['input', 4_000, 0, 'Self-hosted'],
+      ['output', 1_000, 0, 'Self-hosted'],
+    ])
+  })
+
+  it('leaves out parts a call did not use', async () => {
+    await assessments()
+    await seed([call()]) // Opus, no cache reads
+
+    const parts = (await firstGroup()).costLines.map((l: { part: string }) => l.part)
+
+    expect(parts).toEqual(['input', 'output'])
   })
 })

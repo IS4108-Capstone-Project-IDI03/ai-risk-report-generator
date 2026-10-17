@@ -48,6 +48,14 @@ const GEMINI_PRICES: Record<string, DatedPrice[]> = {
 }
 const GEMINI_BASIS = 'Google list price, ai.google.dev/gemini-api/docs/pricing, 2026-10-13'
 const SELF_HOSTED_BASIS = 'self-hosted model, no per-call price'
+// Labelling is priced by the ingestion service itself (labelling/config.py
+// PRICES, USD per 1M tokens, no cache term); copied here only so the report can
+// show its calculation. Keep the two in step.
+const LABEL_PRICES: Record<string, { in: number; out: number }> = {
+  jev: { in: 0.042, out: 0 },
+  'openai-decisions': { in: 0.1, out: 0 },
+  'gpt-6-luna': { in: 0.1, out: 0.5 },
+}
 
 type Cost = { estimatedCostUsd: number | null; pricingBasis: string }
 const unpriced = (pricingBasis: string): Cost => ({ estimatedCostUsd: null, pricingBasis })
@@ -61,18 +69,126 @@ function priceFor<T>(table: Record<string, T>, model: string): T | undefined {
   return key ? table[key] : undefined
 }
 
-// Prices a token-billed call from a model table (Claude or OpenAI).
-function tokenCost(call: WireUsage, prices: Record<string, TokenPrice>, basis: string): Cost {
-  const p = priceFor(prices, call.model)
-  if (!p) return unpriced('no price for model')
-  // Without both counts the sum would silently drop a term and look like a real cost.
-  if (call.input_tokens == null || call.output_tokens == null) return unpriced('incomplete usage')
-  const usd =
-    (call.input_tokens * p.in +
-      call.output_tokens * p.out +
-      (call.cache_read_tokens ?? 0) * p.cacheRead) /
-    1e6
-  return { estimatedCostUsd: usd, pricingBasis: basis }
+// What a call used, as the report reads it from ai_calls.
+export type Amounts = {
+  inputTokens: number | null
+  outputTokens: number | null
+  cacheReadTokens: number | null
+  searchUnits: number | null
+  audioSeconds: number | null
+}
+// One billed part of a call: quantity × usdPer / per = costUsd (EV-04).
+export type PricedPart = {
+  part: 'input' | 'output' | 'cached input' | 'searches' | 'audio'
+  unit: 'tokens' | 'searches' | 'minutes'
+  quantity: number
+  usdPer: number
+  per: number
+  costUsd: number
+  // Why a rate is $0, for a reader checking the sum; null otherwise.
+  note: string | null
+}
+
+const part = (
+  name: PricedPart['part'],
+  unit: PricedPart['unit'],
+  quantity: number,
+  usdPer: number,
+  per: number,
+  note: string | null = null,
+): PricedPart => ({
+  part: name,
+  unit,
+  quantity,
+  usdPer,
+  per,
+  costUsd: (quantity * usdPer) / per,
+  note,
+})
+const totalOf = (parts: PricedPart[]) => parts.reduce((t, p) => t + p.costUsd, 0)
+
+// The three token parts of a Claude or OpenAI call, per 1M tokens.
+function tokenParts(p: TokenPrice, input: number, output: number, cached: number): PricedPart[] {
+  return [
+    part('input', 'tokens', input, p.in, 1e6),
+    part('output', 'tokens', output, p.out, 1e6),
+    part('cached input', 'tokens', cached, p.cacheRead, 1e6),
+  ]
+}
+
+/**
+ * Returns how a call's cost is made up, part by part (quantity × rate), or
+ * null when it has no price. estimateCost prices through the same parts, so
+ * the calculation the report shows matches the cost it stored.
+ */
+export function costBreakdown(
+  billedService: string,
+  model: string,
+  amounts: Amounts,
+  at: Date = new Date(),
+): PricedPart[] | null {
+  const input = amounts.inputTokens ?? 0
+  const output = amounts.outputTokens ?? 0
+  const cached = amounts.cacheReadTokens ?? 0
+  switch (billedService) {
+    case 'anthropic': {
+      const p = priceFor(CLAUDE_PRICES, model)
+      return p ? tokenParts(p, input, output, cached) : null
+    }
+    case 'openai': {
+      // OpenAI's input includes the cached tokens, so only the rest is billed as input.
+      const p = priceFor(OPENAI_PRICES, model)
+      return p ? tokenParts(p, input - cached, output, cached) : null
+    }
+    case 'openai-whisper':
+      return [part('audio', 'minutes', (amounts.audioSeconds ?? 0) / 60, WHISPER_USD_PER_MINUTE, 1)]
+    case 'cohere-embed':
+    case 'cohere-rerank': {
+      const trial = config.prices.cohereKeyTier === 'trial'
+      const note = trial ? 'Trial key: free' : null
+      return billedService === 'cohere-embed'
+        ? [part('input', 'tokens', input, trial ? 0 : config.prices.cohereEmbedUsdPer1M, 1e6, note)]
+        : [
+            part(
+              'searches',
+              'searches',
+              amounts.searchUnits ?? 0,
+              trial ? 0 : config.prices.cohereRerankUsdPer1K,
+              1000,
+              note,
+            ),
+          ]
+    }
+    case 'gemini-vision':
+    case 'gemini-ocr': {
+      const p = geminiPrice(model, at)
+      return p
+        ? [part('input', 'tokens', input, p.in, 1e6), part('output', 'tokens', output, p.out, 1e6)]
+        : null
+    }
+    case 'self-hosted-ocr':
+      return [
+        part('input', 'tokens', input, 0, 1e6, 'Self-hosted'),
+        part('output', 'tokens', output, 0, 1e6, 'Self-hosted'),
+      ]
+    case 'openai-label':
+    case 'typesafe-jev': {
+      const p = priceFor(LABEL_PRICES, model)
+      return p
+        ? [part('input', 'tokens', input, p.in, 1e6), part('output', 'tokens', output, p.out, 1e6)]
+        : null
+    }
+    default:
+      return null
+  }
+}
+
+// The Gemini price in force on the day a call was made.
+function geminiPrice(model: string, at: Date): DatedPrice | null {
+  const dated = priceFor(GEMINI_PRICES, model)
+  if (!dated) return null
+  const day = at.toISOString().slice(0, 10)
+  return dated.find((d) => d.from <= day) ?? dated[dated.length - 1]
 }
 
 /** Returns the estimated cost of one call made at `at`, and the basis of the price used. */
@@ -85,48 +201,49 @@ export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
     return { estimatedCostUsd: 0, pricingBasis: COHERE_TRIAL_BASIS }
   if (call.usage_status === 'unavailable') return unpriced('provider gave no usage')
 
+  const basis = PRICED_BASES[call.billed_service]
+  if (!basis) return unpriced('no price for service')
+  const parts = costBreakdown(
+    call.billed_service,
+    call.model,
+    {
+      inputTokens: call.input_tokens,
+      outputTokens: call.output_tokens,
+      cacheReadTokens: call.cache_read_tokens,
+      searchUnits: call.search_units,
+      audioSeconds: call.audio_seconds,
+    },
+    at,
+  )
+  if (!parts) return unpriced('no price for model')
+  const missing = missingUsage(call)
+  if (missing) return unpriced(missing)
+  return { estimatedCostUsd: totalOf(parts), pricingBasis: basis }
+}
+
+// The services estimateCost prices, and where each price came from. Labelling
+// is priced by the ingestion service, so it is not here.
+const PRICED_BASES: Record<string, string> = {
+  anthropic: CLAUDE_BASIS,
+  openai: OPENAI_BASIS,
+  'cohere-embed': COHERE_BASIS,
+  'cohere-rerank': COHERE_BASIS,
+  'openai-whisper': WHISPER_BASIS,
+  'gemini-vision': GEMINI_BASIS,
+  'gemini-ocr': GEMINI_BASIS,
+}
+
+// Why a call's usage is too incomplete to price, or null. Without every
+// amount its price needs, the sum would silently drop a term and look real.
+function missingUsage(call: WireUsage): string | null {
   switch (call.billed_service) {
-    case 'anthropic':
-      return tokenCost(call, CLAUDE_PRICES, CLAUDE_BASIS)
-    case 'openai': {
-      // OpenAI's input_tokens already includes the cached tokens (Anthropic's doesn't),
-      // so without this they would be billed twice.
-      const uncached =
-        call.input_tokens == null ? null : call.input_tokens - (call.cache_read_tokens ?? 0)
-      return tokenCost({ ...call, input_tokens: uncached }, OPENAI_PRICES, OPENAI_BASIS)
-    }
     case 'cohere-embed':
-      if (call.input_tokens == null) return unpriced('incomplete usage')
-      return {
-        estimatedCostUsd: (call.input_tokens * config.prices.cohereEmbedUsdPer1M) / 1e6,
-        pricingBasis: COHERE_BASIS,
-      }
+      return call.input_tokens == null ? 'incomplete usage' : null
     case 'cohere-rerank':
-      if (call.search_units == null) return unpriced('incomplete usage')
-      return {
-        estimatedCostUsd: (call.search_units * config.prices.cohereRerankUsdPer1K) / 1000,
-        pricingBasis: COHERE_BASIS,
-      }
+      return call.search_units == null ? 'incomplete usage' : null
     case 'openai-whisper':
-      if (call.audio_seconds == null) return unpriced('no audio length reported')
-      return {
-        estimatedCostUsd: (call.audio_seconds / 60) * WHISPER_USD_PER_MINUTE,
-        pricingBasis: WHISPER_BASIS,
-      }
-    case 'gemini-vision':
-    case 'gemini-ocr': {
-      const dated = priceFor(GEMINI_PRICES, call.model)
-      if (!dated) return unpriced('no price for model')
-      if (call.input_tokens == null || call.output_tokens == null)
-        return unpriced('incomplete usage')
-      const day = at.toISOString().slice(0, 10)
-      const p = dated.find((d) => d.from <= day) ?? dated[dated.length - 1]
-      return {
-        estimatedCostUsd: (call.input_tokens * p.in + call.output_tokens * p.out) / 1e6,
-        pricingBasis: GEMINI_BASIS,
-      }
-    }
+      return call.audio_seconds == null ? 'no audio length reported' : null
     default:
-      return unpriced('no price for service')
+      return call.input_tokens == null || call.output_tokens == null ? 'incomplete usage' : null
   }
 }
