@@ -12,6 +12,9 @@ Docling chunk metadata is mapped as:
 ``page_start`` / ``page_end`` are ints (present only when page provenance is known)
 ``bbox`` is a flat list of float coordinates, in page order, when provenance is known.
 ``bbox_pages`` names the page of each 4-number box in ``bbox``, in the same order.
+``position`` is the chunk's number in reading order (the number in its id).
+Table chunks also carry ``table_id`` (shared by a table's row groups) and
+``table_title``.
 ``doc_id`` is the foreign key back to the source document BUT not implemented yet.
 
 Chunk sizing: Defaults to 512-token and triggers overflow, warnings on long chunks.
@@ -37,6 +40,7 @@ from docling_core.types.doc import (
 from app.pipeline.chunking_helper.formula_parser import parse_formula_bbox
 from app.pipeline.chunking_helper.page_cache import close_document
 from app.pipeline.chunking_helper.table_parser import parse_table
+from app.pipeline.chunking_helper.table_text import group_records, split_tables
 from app.pipeline.parser import ParsedDocument
 
 # --- chunk sizing
@@ -233,6 +237,18 @@ def _build_section_trails(doc) -> dict[str, list[str]]:
     return trails
 
 
+def _table_caption(dl_chunk, doc) -> str:
+    """The printed caption Docling tied to a chunk's table, or "" (it is in no chunk text)."""
+    for item in getattr(dl_chunk.meta, "doc_items", None) or []:
+        if getattr(item, "label", None) != DocItemLabel.TABLE:
+            continue
+        caption_text = getattr(item, "caption_text", None)
+        text = caption_text(doc) if callable(caption_text) else ""
+        if isinstance(text, str) and text.strip():
+            return " ".join(text.split())
+    return ""
+
+
 def _chunk_trail(dl_chunk, trails: dict[str, list[str]]) -> list[str]:
     """Heading trail for a chunk, via the self_ref of its first doc item."""
     for item in getattr(dl_chunk.meta, "doc_items", None) or []:
@@ -297,6 +313,7 @@ def _build_metadata(
     doc_id: str,
     headings: list[str] | None = None,
     bboxes: list[dict] | None = None,
+    position: int | None = None,
 ) -> dict:
     # Prefer the nested trail computed from heading levels (passed in); fall back
     # to Docling's flat per-chunk headings only if no trail was provided.
@@ -309,6 +326,9 @@ def _build_metadata(
     metadata: dict = {
         "doc_id": doc_id,  # foreign key back to the source document
     }
+    # Place in reading order (the id's number), so search can fetch a hit's neighbours.
+    if position is not None:
+        metadata["position"] = position
     # `headings` is the chunk's heading trail (outermost -> nearest). Chroma
     # accepts a homogeneous list of str, but rejects an empty list, so only set
     # the key when there is at least one heading. Join for display when needed.
@@ -335,8 +355,10 @@ def _extract_table_chunk(
     chunk_id: str,
     meta,
     headings: list[str] | None = None,
-) -> dict | None:
-    """Extract a table into a single index-ready chunk, or None.
+    caption: str = "",
+    position: int | None = None,
+) -> list[dict] | None:
+    """Extract a region's tables into index-ready chunks, or None.
 
     Runs as one pass-2 OCR job (see `chunk`): its slot was reserved in reading
     order when the table was met, so it may finish in any order.
@@ -345,20 +367,25 @@ def _extract_table_chunk(
     tables are sent to the table parser; other entries contribute their source
     text directly.
 
-    The table is emitted as ONE chunk and never token-split: splitting a table
-    mid-row is exactly the failure this path exists to avoid, so a table that
-    exceeds `MAX_CHUNK_TOKENS` is still kept whole. A table spanning pages is
-    decoded page by page and joined in order.
+    Each table is its own chunk(s), led by its title (Docling's `caption` for the
+    first table, else the title the reader found in the image). A crop holding
+    two tables gives two; a table over `GROUP_CHARS` is cut between rows into
+    groups that each repeat the title, so one answering row is not drowned by
+    the rest. Every chunk carries `table_id`, shared by its groups, so a hit can
+    be widened to the whole table at search time. A table spanning pages is
+    decoded page by page and its pages joined in order.
 
-    Returns None when no region decoded, so the caller skips the table rather
+    Returns None when nothing decoded, so the caller skips the table rather
     than indexing an empty chunk.
     """
-    parts: list[str] = []
+    before: list[str] = []
+    after: list[str] = []
+    readings: list[str] = []
     for box in table_bboxes:
         if not box.get("is_table", True):
             text = str(box.get("text", "")).strip()
             if text:
-                parts.append(text)
+                (after if readings else before).append(text)
             continue
 
         parsed = parse_table(
@@ -368,25 +395,41 @@ def _extract_table_chunk(
             coord_origin=box.get("coord_origin", ""),
         )
         if parsed:
-            parts.append(parsed)
+            readings.append(parsed)
 
-    if not parts:
-        return None
-
-    text = "\n\n".join(parts)
-    if _is_first_pages(table_bboxes):
+    text = "\n\n".join(readings)
+    if text and _is_first_pages(table_bboxes):
         text = _clean_toc_leaders(text)
+    tables = [table for table in split_tables(text) if table.records]
+    metadata = _build_metadata(
+        meta, doc_id, headings=headings, bboxes=table_bboxes, position=position
+    )
 
-    return {
-        "id": chunk_id,
-        "text": text,
-        "metadata": _build_metadata(
-            meta,
-            doc_id,
-            headings=headings,
-            bboxes=table_bboxes,
-        ),
-    }
+    if not tables:
+        prose = "\n\n".join(before + after)
+        return [{"id": chunk_id, "text": prose, "metadata": metadata}] if prose else None
+
+    chunks: list[dict] = []
+    for index, table in enumerate(tables):
+        table_id = chunk_id if len(tables) == 1 else f"{chunk_id}:t{index}"
+        title = (caption.strip() if index == 0 else "") or table.title
+        groups = group_records(table.records)
+        for part, records in enumerate(groups):
+            chunk_text = "\n".join(([title] if title else []) + records)
+            chunks.append(
+                {
+                    "id": table_id if len(groups) == 1 else f"{table_id}:g{part}",
+                    "text": chunk_text,
+                    "metadata": {
+                        **metadata,
+                        "table_id": table_id,
+                        **({"table_title": title} if title else {}),
+                    },
+                }
+            )
+    chunks[0]["text"] = "\n\n".join(before + [chunks[0]["text"]])
+    chunks[-1]["text"] = "\n\n".join([chunks[-1]["text"]] + after)
+    return chunks
 
 
 def _extract_formula_chunk(chunk_bboxes: list[dict], file_path: str) -> str:
@@ -472,7 +515,7 @@ def chunk(
     # its slot in `chunks` now and its OCR job queued in `ocr_jobs`; pass 2 runs
     # the jobs several at a time and fills the slots, so order and ids never
     # depend on which OCR call finishes first.
-    chunks: list[dict | None] = []
+    chunks: list[dict | list[dict] | None] = []
     ocr_jobs: list[tuple[int, str, Callable[[], Any]]] = []
     seen_chunk_bboxes: list[dict] = []
     try:
@@ -508,6 +551,8 @@ def chunk(
                     chunk_id=f"{resolved_doc_id}:table:{n}",
                     meta=dl_chunk.meta,
                     headings=trail,
+                    caption=_table_caption(dl_chunk, doc),
+                    position=n,
                 )
                 ocr_jobs.append((len(chunks), "table", job))
                 chunks.append(None)  # filled (or dropped) in pass 2
@@ -532,6 +577,7 @@ def chunk(
                         resolved_doc_id,
                         headings=trail,
                         bboxes=chunk_bboxes,
+                        position=n,
                     ),
                 }
             )
@@ -546,7 +592,13 @@ def chunk(
         # Release the PDF handle even if a region blows up mid-document.
         close_document()
 
-    return [c for c in chunks if c is not None]
+    # A table slot holds the list of chunks its tables and row groups became.
+    return [
+        passage
+        for slot in chunks
+        if slot is not None
+        for passage in (slot if isinstance(slot, list) else [slot])
+    ]
 
 
 def _check_cancelled(reporter) -> None:
@@ -563,7 +615,7 @@ def _ocr_concurrency() -> int:
 def _run_ocr_jobs(jobs: list[tuple[int, str, Callable[[], Any]]], chunks: list, reporter) -> None:
     """Pass 2: run queued table/formula OCR concurrently and fill their slots.
 
-    A table job returns its chunk (or None, which drops the slot); a formula job
+    A table job returns its chunks (or None, which drops the slot); a formula job
     returns decoded text, which replaces Docling's placeholder when not empty.
     Cancellation is checked as each region finishes; queued regions are then
     dropped and only the calls already in flight are waited for.

@@ -132,7 +132,7 @@ def test_chunk_metadata_omits_empty_optional_values(monkeypatch):
         doc_id="fm200",
     )
 
-    assert result[0]["metadata"] == {"doc_id": "fm200"}
+    assert result[0]["metadata"] == {"doc_id": "fm200", "position": 0}
 
 
 def test_first_ten_page_text_chunk_leaders_are_removed(monkeypatch):

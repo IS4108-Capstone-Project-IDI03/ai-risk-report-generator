@@ -162,6 +162,7 @@ def test_chunk_replaces_formula_placeholder_and_keeps_bbox_metadata(monkeypatch)
             "text": r"\frac{x}{y}",
             "metadata": {
                 "doc_id": "fm200",
+                "position": 0,
                 "page_start": 5,
                 "page_end": 5,
                 "bbox": [40.0, 380.0, 160.0, 340.0],

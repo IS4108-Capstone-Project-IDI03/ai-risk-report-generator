@@ -145,13 +145,15 @@ def test_extract_table_chunk_builds_an_index_ready_chunk(spy_parse_table):
         headings=["Manual", "System Components"],
     )
 
-    assert result["id"] == "fm200:table:7"
-    assert result["text"] == "| table p4 |"
-    assert result["metadata"]["doc_id"] == "fm200"
-    assert result["metadata"]["headings"] == ["Manual", "System Components"]
-    assert result["metadata"]["page_start"] == 4
-    assert result["metadata"]["page_end"] == 4
-    assert result["metadata"]["bbox"] == [10.0, 300.0, 200.0, 100.0]
+    (passage,) = result
+    assert passage["id"] == "fm200:table:7"
+    assert passage["text"] == "| table p4 |"
+    assert passage["metadata"]["doc_id"] == "fm200"
+    assert passage["metadata"]["headings"] == ["Manual", "System Components"]
+    assert passage["metadata"]["page_start"] == 4
+    assert passage["metadata"]["page_end"] == 4
+    assert passage["metadata"]["bbox"] == [10.0, 300.0, 200.0, 100.0]
+    assert passage["metadata"]["table_id"] == "fm200:table:7"
 
 
 def test_extract_table_chunk_keeps_text_items_in_a_mixed_chunk(spy_parse_table):
@@ -169,7 +171,7 @@ def test_extract_table_chunk_keeps_text_items_in_a_mixed_chunk(spy_parse_table):
         meta=dl_chunk.meta,
     )
 
-    assert result["text"] == "| table p4 |\n\ntext beside table"
+    assert result[0]["text"] == "| table p4 |\n\ntext beside table"
 
 
 def test_extract_table_chunk_passes_the_pdf_path_not_the_doc_id(spy_parse_table):
@@ -215,10 +217,11 @@ def test_multi_page_table_is_joined_in_page_order(spy_parse_table):
         meta=dl_chunk.meta,
     )
 
-    # Kept as ONE chunk spanning both pages, never token-split mid-row.
-    assert result["text"] == "| table p4 |\n\n| table p5 |"
-    assert result["metadata"]["page_start"] == 4
-    assert result["metadata"]["page_end"] == 5
+    # Kept as ONE chunk spanning both pages, never cut mid-row.
+    (passage,) = result
+    assert passage["text"] == "| table p4 |\n| table p5 |"
+    assert passage["metadata"]["page_start"] == 4
+    assert passage["metadata"]["page_end"] == 5
 
 
 def test_extract_table_chunk_returns_none_when_nothing_decodes(monkeypatch):
@@ -327,7 +330,7 @@ def test_partially_decoded_table_keeps_the_readable_pages(monkeypatch):
         meta=dl_chunk.meta,
     )
 
-    assert result["text"] == "| table p4 |"
+    assert result[0]["text"] == "| table p4 |"
 
 
 def test_first_ten_page_table_of_contents_leaders_are_removed(monkeypatch):
@@ -351,7 +354,7 @@ def test_first_ten_page_table_of_contents_leaders_are_removed(monkeypatch):
         meta=dl_chunk.meta,
     )
 
-    assert result["text"] == "Risk Overview 5\nFire-resistant 12\nSection 20\nRisk-based 2.0"
+    assert result[0]["text"] == "Risk Overview 5\nFire-resistant 12\nSection 20\nRisk-based 2.0"
 
 
 def test_eleventh_page_tables_keep_repeated_characters(monkeypatch):
@@ -370,4 +373,4 @@ def test_eleventh_page_tables_keep_repeated_characters(monkeypatch):
         meta=dl_chunk.meta,
     )
 
-    assert result["text"] == "Appendix ......... 12"
+    assert result[0]["text"] == "Appendix ......... 12"

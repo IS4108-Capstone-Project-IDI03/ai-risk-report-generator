@@ -593,10 +593,13 @@ class _FakeClaude:
         self.messages = self
 
     def parse(self, **_):
-        from app.pipeline.chunking_helper.ocr_prompts import TableReading
+        from app.pipeline.chunking_helper.ocr_prompts import TableBlock, TableReading
 
+        table = TableBlock(
+            title="", header_rows=1, header_cols=0, rows=[["Agent", "Qty"], ["FM-200", "2"]]
+        )
         return SimpleNamespace(
-            parsed_output=TableReading(rows=[["Agent", "Qty"], ["FM-200", "2"]], header="row"),
+            parsed_output=TableReading(tables=[table]),
             stop_reason="end_turn",
             model="claude-haiku-5-5",
             usage=SimpleNamespace(
@@ -702,7 +705,10 @@ def test_gemini_ocr_counts_its_thinking_as_output(documents, posted, monkeypatch
         def create(self, **_):
             return SimpleNamespace(
                 status="completed",
-                output_text='{"rows": [["Agent"], ["FM-200"]], "header": "row"}',
+                output_text=(
+                    '{"tables": [{"title": "", "header_rows": 1, "header_cols": 0, '
+                    '"rows": [["Agent"], ["FM-200"]]}]}'
+                ),
                 model="gemini-3.8-flash",
                 usage=SimpleNamespace(
                     total_input_tokens=800, total_output_tokens=50, total_thought_tokens=150
