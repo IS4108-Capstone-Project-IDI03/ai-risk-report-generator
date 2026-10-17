@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { config } from '../config'
 import { AiCallModel } from '../models/ai-call.model'
 import { estimateCost } from '../services/ai-pricing.service'
+import { backfillCostParts } from '../scripts/backfill-cost-parts'
 import { repriceAiCalls } from '../scripts/reprice-ai-calls'
 import { labelUsageToWire, recordAiCalls, type WireUsage } from '../services/ai-usage.service'
 import { labelDocument } from '../services/ingestion.service'
@@ -36,6 +37,27 @@ describe('estimateCost (AC3)', () => {
     expect(pricingBasis).toContain('platform.claude.com')
   })
 
+  it('returns the parts the cost is made of: quantity, rate and cost each', () => {
+    // Opus at $4 in, $20 out, $0.2 cached per 1M tokens.
+    const { costParts } = estimateCost(item())
+    const tokens = { unit: 'tokens', per: 1e6, note: null }
+    expect(costParts).toEqual([
+      { ...tokens, part: 'input', quantity: 1000, usdPer: 4, costUsd: expect.closeTo(0.004, 10) },
+      { ...tokens, part: 'output', quantity: 500, usdPer: 20, costUsd: expect.closeTo(0.01, 10) },
+      {
+        ...tokens,
+        part: 'cached input',
+        quantity: 2000,
+        usdPer: 0.2,
+        costUsd: expect.closeTo(0.0004, 10),
+      },
+    ])
+  })
+
+  it('has no parts when there is no price', () => {
+    expect(estimateCost(item({ model: 'claude-future-9' })).costParts).toBeNull()
+  })
+
   it('matches a dated model id to its price', () => {
     const cost = estimateCost(item({ model: 'claude-haiku-4-5-20251001' }))
     expect(cost.estimatedCostUsd).toBeCloseTo((1000 * 1 + 500 * 5 + 2000 * 0.1) / 1e6, 8)
@@ -61,7 +83,11 @@ describe('estimateCost (AC3)', () => {
 
   it('has no cost for a model it has no price for', () => {
     const cost = estimateCost(item({ model: 'claude-future-9' }))
-    expect(cost).toEqual({ estimatedCostUsd: null, pricingBasis: 'no price for model' })
+    expect(cost).toEqual({
+      estimatedCostUsd: null,
+      pricingBasis: 'no price for model',
+      costParts: null,
+    })
   })
 
   it('prices Whisper by the minute of audio', () => {
@@ -117,6 +143,7 @@ describe('estimateCost (AC3)', () => {
     expect(estimateCost(gemini({ model: 'gemini-9-ultra' }))).toEqual({
       estimatedCostUsd: null,
       pricingBasis: 'no price for model',
+      costParts: null,
     })
   })
 
@@ -160,6 +187,23 @@ describe('recordAiCalls (AC1-AC7)', () => {
     })
     expect(row?.estimatedCostUsd).toBeGreaterThan(0)
     expect(row?.pricingBasis).toBeTruthy()
+  })
+
+  it('stores the rates each call was priced at, so its cost can be explained later', async () => {
+    await recordAiCalls([item({ cache_read_tokens: 0 })])
+    const row = await AiCallModel.findOne().lean()
+    // Opus: 1,000 in × $4/1M = $0.004; 500 out × $20/1M = $0.01.
+    expect(row?.costParts).toEqual([
+      expect.objectContaining({ part: 'input', quantity: 1000, usdPer: 4, per: 1e6 }),
+      expect.objectContaining({ part: 'output', quantity: 500, usdPer: 20, per: 1e6 }),
+      expect.objectContaining({ part: 'cached input', quantity: 0, usdPer: 0.2, per: 1e6 }),
+    ])
+  })
+
+  it('stores no rates for a call with no price, unlike a row saved before rates were kept', async () => {
+    await recordAiCalls([item({ model: 'claude-future-9' })])
+    const row = await AiCallModel.findOne().lean()
+    expect(row).toHaveProperty('costParts', null)
   })
 
   it('marks missing usage as unavailable, never zero', async () => {
@@ -311,6 +355,29 @@ describe('callers record what their service returned', () => {
     expect(rows[0].pricingBasis).toContain('ingestion-service')
   })
 
+  it('stores the rates the labelling service priced its calls at', async () => {
+    // gpt-6-luna at $0.10 in, $0.50 out per 1M: 1,000,000 in = $0.10; 200,000 out = $0.10.
+    const usage = [
+      {
+        model: 'gpt-6-luna',
+        input_tokens: 1_000_000,
+        output_tokens: 200_000,
+        cost_usd: 0.2,
+        seconds: 2,
+        input_usd_per_1m: 0.1,
+        output_usd_per_1m: 0.5,
+      },
+    ]
+    vi.mocked(fetch).mockResolvedValue(json({ details: {}, unconfirmed: [], usage }))
+    await labelDocument(Buffer.from('%PDF'))
+    const row = await AiCallModel.findOne().lean()
+    expect(row?.estimatedCostUsd).toBe(0.2)
+    expect(row?.costParts).toEqual([
+      expect.objectContaining({ part: 'input', quantity: 1_000_000, usdPer: 0.1, costUsd: 0.1 }),
+      expect.objectContaining({ part: 'output', quantity: 200_000, usdPer: 0.5, costUsd: 0.1 }),
+    ])
+  })
+
   it('maps labelling usage items into the common shape', () => {
     const [wire] = labelUsageToWire([
       { model: 'gpt-6-luna', input_tokens: 10, output_tokens: 5, cost_usd: 0.1, seconds: 2 },
@@ -344,6 +411,8 @@ describe('Cohere price settings', () => {
     search_units: 1000,
   })
 
+  const COHERE_TRIAL = expect.stringContaining('trial key')
+
   it('prices nothing on the free trial key, the default, and says so', () => {
     expect(config.prices.cohereKeyTier).toBe('trial')
     for (const call of [embed(), rerank]) {
@@ -352,9 +421,8 @@ describe('Cohere price settings', () => {
       expect(cost.pricingBasis).toContain('trial key')
     }
     // Free whatever it reports.
-    expect(estimateCost(embed({ input_tokens: null, usage_status: 'unavailable' }))).toEqual(
-      estimateCost(embed()),
-    )
+    const nothing = estimateCost(embed({ input_tokens: null, usage_status: 'unavailable' }))
+    expect(nothing).toMatchObject({ estimatedCostUsd: 0, pricingBasis: COHERE_TRIAL })
   })
 
   it('prices embed tokens and rerank searches as labelled estimates on a production key', () => {
@@ -382,6 +450,61 @@ describe('Cohere price settings', () => {
   })
 })
 
+describe('backfillCostParts', () => {
+  const old = {
+    feature: 'draft-section',
+    billedService: 'anthropic',
+    model: 'claude-sonnet-5-5',
+    inputTokens: 1000,
+    outputTokens: 500,
+    cacheReadTokens: 0,
+    usageStatus: 'recorded',
+    pricingBasis: 'Anthropic list price, 2026-10-08',
+  }
+
+  it("stores today's rates on old rows they reproduce exactly, and leaves the rest", async () => {
+    await AiCallModel.insertMany([
+      // 1,000 in × $2/1M + 500 out × $10/1M = $0.007: today's rates.
+      { ...old, reportId: 'match', estimatedCostUsd: 0.007 },
+      // Saved at an earlier price: today's rates would misstate it.
+      { ...old, reportId: 'earlier', estimatedCostUsd: 0.005 },
+      // Labelling, priced by the ingestion service: gpt-6-luna at $0.10 in, $0.50 out.
+      {
+        ...old,
+        feature: 'label-document',
+        billedService: 'openai-label',
+        model: 'gpt-6-luna',
+        reportId: 'label',
+        inputTokens: 1_000_000,
+        outputTokens: 200_000,
+        cacheReadTokens: null,
+        estimatedCostUsd: 0.2,
+        pricingBasis: 'ingestion-service PRICES table',
+      },
+      // No cost: nothing to explain.
+      { ...old, reportId: 'free', estimatedCostUsd: null, pricingBasis: 'no price for model' },
+    ])
+
+    expect(await backfillCostParts()).toEqual({ stored: 2, left: 1 })
+
+    const parts = async (reportId: string) =>
+      (await AiCallModel.findOne({ reportId }).lean())?.costParts
+    expect(await parts('match')).toEqual([
+      expect.objectContaining({ part: 'input', quantity: 1000, usdPer: 2 }),
+      expect.objectContaining({ part: 'output', quantity: 500, usdPer: 10 }),
+      expect.objectContaining({ part: 'cached input', quantity: 0, usdPer: 0.1 }),
+    ])
+    expect(await parts('label')).toEqual([
+      expect.objectContaining({ part: 'input', quantity: 1_000_000, usdPer: 0.1 }),
+      expect.objectContaining({ part: 'output', quantity: 200_000, usdPer: 0.5 }),
+    ])
+    expect(await parts('earlier')).toBeUndefined()
+    expect(await parts('free')).toBeUndefined()
+    // Safe to run again: nothing left that it can match.
+    expect(await backfillCostParts()).toEqual({ stored: 0, left: 1 })
+  })
+})
+
 describe('repriceAiCalls', () => {
   it('prices rows saved before their model had a price, and leaves the rest', async () => {
     const row = {
@@ -404,6 +527,9 @@ describe('repriceAiCalls', () => {
     const sonnet = await AiCallModel.findOne({ model: 'claude-sonnet-5-5' }).lean()
     expect(sonnet?.estimatedCostUsd).toBeCloseTo((1000 * 2 + 500 * 10) / 1e6, 8)
     expect(sonnet?.pricingBasis).toContain('platform.claude.com')
+    expect(sonnet?.costParts).toContainEqual(
+      expect.objectContaining({ part: 'input', quantity: 1000, usdPer: 2 }),
+    )
     const future = await AiCallModel.findOne({ model: 'claude-future-9' }).lean()
     expect(future?.estimatedCostUsd).toBeNull()
   })

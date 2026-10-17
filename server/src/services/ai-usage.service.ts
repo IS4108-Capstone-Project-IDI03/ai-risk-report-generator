@@ -6,7 +6,7 @@
 // (the ingestion worker's OCR and embedding). Calls ai-pricing.service.ts for the cost.
 import { Types } from 'mongoose'
 import { AI_FEATURES, AiCallModel, BILLED_SERVICES, type IAiCall } from '../models/ai-call.model'
-import { estimateCost } from './ai-pricing.service'
+import { estimateCost, tokenPartsAt, type Cost } from './ai-pricing.service'
 import type { InterpretationResult } from './speech.service'
 
 // One usage item as the services send it. Must match the "Wire contract" in
@@ -25,9 +25,12 @@ export type WireUsage = {
   // Only ingestion sends these: how many calls one item sums, and for which document.
   call_count?: number
   document_id?: string
-  // Only labelling sends these: it prices its own calls (ingestion-service PRICES).
+  // Only labelling sends these: it prices its own calls (ingestion-service PRICES),
+  // and says at what rates (USD per 1M tokens) so they are stored with the call.
   cost_usd?: number | null
   pricing_basis?: string
+  input_usd_per_1m?: number | null
+  output_usd_per_1m?: number | null
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -65,6 +68,8 @@ export function labelUsageToWire(items: unknown): WireUsage[] {
       audio_seconds: null,
       usage_status: 'recorded' as const,
       cost_usd: num(u.cost_usd),
+      input_usd_per_1m: num(u.input_usd_per_1m),
+      output_usd_per_1m: num(u.output_usd_per_1m),
       pricing_basis:
         'ingestion-service PRICES table (microservices/ingestion-service/app/labelling/config.py)',
     }))
@@ -121,10 +126,20 @@ function isUnavailable(u: WireUsage): boolean {
 }
 
 /** Returns the cost of one usage item: its own cost_usd if sent, else the estimate. */
-export function usageCost(u: WireUsage): { estimatedCostUsd: number | null; pricingBasis: string } {
+export function usageCost(u: WireUsage): Cost {
   const unavailable = isUnavailable(u)
   if (!unavailable && typeof u.cost_usd === 'number') {
-    return { estimatedCostUsd: u.cost_usd, pricingBasis: u.pricing_basis ?? 'service-supplied' }
+    const rateIn = num(u.input_usd_per_1m)
+    const rateOut = num(u.output_usd_per_1m)
+    return {
+      estimatedCostUsd: u.cost_usd,
+      pricingBasis: u.pricing_basis ?? 'service-supplied',
+      // A sender that names no rates (an older ingestion service) leaves none to store.
+      costParts:
+        rateIn === null || rateOut === null
+          ? null
+          : tokenPartsAt(rateIn, rateOut, num(u.input_tokens) ?? 0, num(u.output_tokens) ?? 0),
+    }
   }
   return estimateCost(unavailable ? { ...u, usage_status: 'unavailable' } : u)
 }

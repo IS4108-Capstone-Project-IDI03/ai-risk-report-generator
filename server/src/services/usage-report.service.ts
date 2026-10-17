@@ -2,8 +2,7 @@
 // Called by routes/usage.routes.ts. Reads models/ai-call.model.ts, assessments
 // (for the assigned engineer, client and site) and users (for names).
 import { Types } from 'mongoose'
-import { AI_FEATURES, AiCallModel, type IAiCall } from '../models/ai-call.model'
-import { costBreakdown, type PricedPart } from './ai-pricing.service'
+import { AI_FEATURES, AiCallModel, type CostPart, type IAiCall } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
@@ -302,34 +301,26 @@ function groupRows(rows: IAiCall[], keyOf: (r: IAiCall) => string): Map<string, 
 }
 
 // One line of a row's cost calculation: quantity × usdPer / per = costUsd.
-export type CostLine = Omit<PricedPart, 'part'> & {
+export type CostLine = Omit<CostPart, 'part'> & {
   service: string
   model: string
-  // 'not priced' gathers calls stored without a cost; its note says why.
-  part: PricedPart['part'] | 'not priced'
+  // 'not priced' gathers calls stored without a cost; 'rates not recorded'
+  // calls saved before rates were kept, at their stored cost. Notes say why.
+  part: CostPart['part'] | 'not priced' | 'rates not recorded'
 }
 type LinePart = Omit<CostLine, 'service' | 'model'>
 
-// A row's parts: priced as estimateCost priced it, or one 'not priced' part
-// when it was stored without a cost (AC7), never priced here as if it had one.
+// A row's parts, at the rates it was charged when saved, never re-priced
+// here: prices change, and a re-priced line would misstate what it cost.
 function partsOf(r: IAiCall): LinePart[] {
-  if (r.estimatedCostUsd === null)
-    return [
-      {
-        part: 'not priced',
-        unit: 'tokens',
-        quantity: tokensIn([r]),
-        usdPer: 0,
-        per: 1e6,
-        costUsd: 0,
-        note: r.pricingBasis,
-      },
-    ]
-  return costBreakdown(r.billedService, r.model, r, new Date(r.createdAt)) ?? []
+  const whole = (part: 'not priced' | 'rates not recorded', costUsd: number, note: string) => [
+    { part, unit: 'tokens' as const, quantity: tokensIn([r]), usdPer: 0, per: 1e6, costUsd, note },
+  ]
+  // A call with no cost is shown, never priced as if it had one (AC7).
+  if (r.estimatedCostUsd === null) return whole('not priced', 0, r.pricingBasis)
+  if (r.costParts) return r.costParts
+  return whole('rates not recorded', r.estimatedCostUsd, 'Saved before rates were recorded')
 }
-// The calculated total beside the stored one; they differ only when prices
-// changed after the calls were recorded.
-export type Reconciliation = { calculatedUsd: number; recordedUsd: number; differenceUsd: number }
 
 const PART_ORDER: CostLine['part'][] = [
   'input',
@@ -337,6 +328,7 @@ const PART_ORDER: CostLine['part'][] = [
   'cached input',
   'searches',
   'audio',
+  'rates not recorded',
   'not priced',
 ]
 
@@ -359,7 +351,7 @@ function costLines(rows: IAiCall[]): CostLine[] {
   return (
     [...lines.values()]
       // A part nothing used (no cache reads, say) only adds a $0 line to read past.
-      .filter((l) => l.quantity > 0 || l.part === 'not priced')
+      .filter((l) => l.quantity > 0 || l.costUsd > 0 || l.part === 'not priced')
       .sort(
         (a, b) =>
           a.service.localeCompare(b.service) ||
@@ -371,19 +363,12 @@ function costLines(rows: IAiCall[]): CostLine[] {
   )
 }
 
-function reconcile(lines: CostLine[], rows: IAiCall[]): Reconciliation {
-  const calculatedUsd = round(lines.reduce((t, l) => t + l.costUsd, 0))
-  const recordedUsd = round(sum(rows, (r) => r.estimatedCostUsd))
-  return { calculatedUsd, recordedUsd, differenceUsd: round(calculatedUsd - recordedUsd) }
-}
-
 // What every group shows: calls, cost, last use, and its bar's stacked parts.
 function groupTotals(key: string, members: IAiCall[], splitKey: SplitKey) {
   const segments: Record<string, number> = {}
   for (const r of members)
     if (r.estimatedCostUsd !== null)
       segments[splitKey(r)] = round((segments[splitKey(r)] ?? 0) + r.estimatedCostUsd)
-  const lines = costLines(members)
   return {
     key,
     lastActivityAt: new Date(Math.max(...members.map((r) => +new Date(r.createdAt)))).toISOString(),
@@ -391,8 +376,8 @@ function groupTotals(key: string, members: IAiCall[], splitKey: SplitKey) {
     estimatedCostUsd: round(sum(members, (r) => r.estimatedCostUsd)),
     callsWithoutCost: uncosted(members),
     totalTokens: tokensIn(members),
-    costLines: lines,
-    reconciliation: reconcile(lines, members),
+    // At the rates stored with each call, so they add up to estimatedCostUsd.
+    costLines: costLines(members),
     segments,
   }
 }
@@ -486,7 +471,6 @@ export type OverviewGroup = {
   callsWithoutCost: number
   totalTokens: number
   costLines: CostLine[]
-  reconciliation: Reconciliation
   // Cost per split key (billed service or feature); the bar's stacked parts.
   segments: Record<string, number>
 }
@@ -661,7 +645,6 @@ export type DocumentUsage = {
   callsWithoutCost: number
   totalTokens: number
   costLines: CostLine[]
-  reconciliation: Reconciliation
   usdPerPage: number | null
   avgMsPerCall: number | null
   lastActivityAt: string

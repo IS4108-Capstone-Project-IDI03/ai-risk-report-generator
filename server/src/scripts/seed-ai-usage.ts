@@ -70,6 +70,7 @@ function row(
     usageStatus: call.usage_status,
     estimatedCostUsd: cost.estimatedCostUsd,
     pricingBasis: `${DEMO} - ${cost.pricingBasis}`,
+    costParts: cost.costParts,
     createdAt,
   }
 }

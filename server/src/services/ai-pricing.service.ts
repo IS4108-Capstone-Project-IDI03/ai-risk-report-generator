@@ -2,6 +2,7 @@
 // Called by ai-usage.service.ts. The prices are list prices: an estimate, not
 // an invoice. Update the table (and its date) when a vendor changes prices.
 import { config } from '../config'
+import type { CostPart } from '../models/ai-call.model'
 import type { WireUsage } from './ai-usage.service'
 
 type TokenPrice = { in: number; out: number; cacheRead: number }
@@ -48,17 +49,18 @@ const GEMINI_PRICES: Record<string, DatedPrice[]> = {
 }
 const GEMINI_BASIS = 'Google list price, ai.google.dev/gemini-api/docs/pricing, 2026-10-13'
 const SELF_HOSTED_BASIS = 'self-hosted model, no per-call price'
-// Labelling is priced by the ingestion service itself (labelling/config.py
-// PRICES, USD per 1M tokens, no cache term); copied here only so the report can
-// show its calculation. Keep the two in step.
-const LABEL_PRICES: Record<string, { in: number; out: number }> = {
-  jev: { in: 0.042, out: 0 },
-  'openai-decisions': { in: 0.1, out: 0 },
-  'gpt-6-luna': { in: 0.1, out: 0.5 },
-}
 
-type Cost = { estimatedCostUsd: number | null; pricingBasis: string }
-const unpriced = (pricingBasis: string): Cost => ({ estimatedCostUsd: null, pricingBasis })
+// costParts is null when there is no cost: nothing to explain.
+export type Cost = {
+  estimatedCostUsd: number | null
+  pricingBasis: string
+  costParts: PricedPart[] | null
+}
+const unpriced = (pricingBasis: string): Cost => ({
+  estimatedCostUsd: null,
+  pricingBasis,
+  costParts: null,
+})
 
 // The entry for the longest key the model id starts with, so dated or
 // suffixed ids (claude-haiku-4-5-20251001) match their base model.
@@ -69,25 +71,16 @@ function priceFor<T>(table: Record<string, T>, model: string): T | undefined {
   return key ? table[key] : undefined
 }
 
-// What a call used, as the report reads it from ai_calls.
-export type Amounts = {
+// What a call used, in ai_calls' names.
+type Amounts = {
   inputTokens: number | null
   outputTokens: number | null
   cacheReadTokens: number | null
   searchUnits: number | null
   audioSeconds: number | null
 }
-// One billed part of a call: quantity × usdPer / per = costUsd (EV-04).
-export type PricedPart = {
-  part: 'input' | 'output' | 'cached input' | 'searches' | 'audio'
-  unit: 'tokens' | 'searches' | 'minutes'
-  quantity: number
-  usdPer: number
-  per: number
-  costUsd: number
-  // Why a rate is $0, for a reader checking the sum; null otherwise.
-  note: string | null
-}
+// One billed part of a call, as stored on it (models/ai-call.model.ts).
+export type PricedPart = CostPart
 
 const part = (
   name: PricedPart['part'],
@@ -116,12 +109,23 @@ function tokenParts(p: TokenPrice, input: number, output: number, cached: number
   ]
 }
 
-/**
- * Returns how a call's cost is made up, part by part (quantity × rate), or
- * null when it has no price. estimateCost prices through the same parts, so
- * the calculation the report shows matches the cost it stored.
- */
-export function costBreakdown(
+/** Returns the input and output parts of a call priced elsewhere, at its sender's rates per 1M tokens. */
+export function tokenPartsAt(
+  usdPer1MIn: number,
+  usdPer1MOut: number,
+  input: number,
+  output: number,
+): PricedPart[] {
+  return [
+    part('input', 'tokens', input, usdPer1MIn, 1e6),
+    part('output', 'tokens', output, usdPer1MOut, 1e6),
+  ]
+}
+
+// How a call's cost is made up, part by part (quantity × rate), or null when
+// it has no price. estimateCost sums these and returns them, so the parts
+// stored with a call always add up to its cost.
+function costBreakdown(
   billedService: string,
   model: string,
   amounts: Amounts,
@@ -171,13 +175,8 @@ export function costBreakdown(
         part('input', 'tokens', input, 0, 1e6, 'Self-hosted'),
         part('output', 'tokens', output, 0, 1e6, 'Self-hosted'),
       ]
-    case 'openai-label':
-    case 'typesafe-jev': {
-      const p = priceFor(LABEL_PRICES, model)
-      return p
-        ? [part('input', 'tokens', input, p.in, 1e6), part('output', 'tokens', output, p.out, 1e6)]
-        : null
-    }
+    // Labelling (openai-label, typesafe-jev) is priced by the ingestion service,
+    // which sends its rates with each call: see tokenPartsAt.
     default:
       return null
   }
@@ -191,18 +190,12 @@ function geminiPrice(model: string, at: Date): DatedPrice | null {
   return dated.find((d) => d.from <= day) ?? dated[dated.length - 1]
 }
 
-/** Returns the estimated cost of one call made at `at`, and the basis of the price used. */
+/**
+ * Returns the estimated cost of one call made at `at`, the basis of the price
+ * used, and the parts it is made of (each quantity × rate), stored with the
+ * call so its cost can be explained whatever the prices become.
+ */
 export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
-  // Free whatever it reports, so a reading with no token counts is $0, not uncosted.
-  if (call.billed_service === 'self-hosted-ocr')
-    return { estimatedCostUsd: 0, pricingBasis: SELF_HOSTED_BASIS }
-  const cohere = call.billed_service === 'cohere-embed' || call.billed_service === 'cohere-rerank'
-  if (cohere && config.prices.cohereKeyTier === 'trial')
-    return { estimatedCostUsd: 0, pricingBasis: COHERE_TRIAL_BASIS }
-  if (call.usage_status === 'unavailable') return unpriced('provider gave no usage')
-
-  const basis = PRICED_BASES[call.billed_service]
-  if (!basis) return unpriced('no price for service')
   const parts = costBreakdown(
     call.billed_service,
     call.model,
@@ -215,10 +208,20 @@ export function estimateCost(call: WireUsage, at: Date = new Date()): Cost {
     },
     at,
   )
+  // Free whatever it reports, so a reading with no token counts is $0, not uncosted.
+  if (call.billed_service === 'self-hosted-ocr')
+    return { estimatedCostUsd: 0, pricingBasis: SELF_HOSTED_BASIS, costParts: parts }
+  const cohere = call.billed_service === 'cohere-embed' || call.billed_service === 'cohere-rerank'
+  if (cohere && config.prices.cohereKeyTier === 'trial')
+    return { estimatedCostUsd: 0, pricingBasis: COHERE_TRIAL_BASIS, costParts: parts }
+  if (call.usage_status === 'unavailable') return unpriced('provider gave no usage')
+
+  const basis = PRICED_BASES[call.billed_service]
+  if (!basis) return unpriced('no price for service')
   if (!parts) return unpriced('no price for model')
   const missing = missingUsage(call)
   if (missing) return unpriced(missing)
-  return { estimatedCostUsd: totalOf(parts), pricingBasis: basis }
+  return { estimatedCostUsd: totalOf(parts), pricingBasis: basis, costParts: parts }
 }
 
 // The services estimateCost prices, and where each price came from. Labelling

@@ -58,10 +58,38 @@ export interface IAiCall {
   estimatedCostUsd: number | null
   // Where the price came from, in words, so a cost can be explained later.
   pricingBasis: string
+  // What the cost is made of, at the rates charged when it was saved (EV-04):
+  // null when there is no cost; absent on rows saved before rates were kept.
+  costParts?: CostPart[] | null
   createdAt: Date
 }
 
+// One billed part of a call: quantity × usdPer / per = costUsd.
+export type CostPart = {
+  part: 'input' | 'output' | 'cached input' | 'searches' | 'audio'
+  unit: 'tokens' | 'searches' | 'minutes'
+  quantity: number
+  usdPer: number
+  per: number
+  costUsd: number
+  // Why a rate is $0 (trial key, self-hosted), for a reader checking the sum.
+  note: string | null
+}
+
 const count = { type: Number, default: null }
+
+const costPartSchema = new Schema<CostPart>(
+  {
+    part: { type: String, required: true },
+    unit: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    usdPer: { type: Number, required: true },
+    per: { type: Number, required: true },
+    costUsd: { type: Number, required: true },
+    note: { type: String, default: null },
+  },
+  { _id: false },
+)
 
 const aiCallSchema = new Schema<IAiCall>(
   {
@@ -82,6 +110,8 @@ const aiCallSchema = new Schema<IAiCall>(
     usageStatus: { type: String, required: true, enum: ['recorded', 'unavailable'] },
     estimatedCostUsd: count,
     pricingBasis: { type: String, required: true },
+    // No default: an absent field marks a row saved before rates were kept.
+    costParts: { type: [costPartSchema], default: undefined },
   },
   { timestamps: { createdAt: true, updatedAt: false }, collection: 'ai_calls' },
 )
