@@ -23,7 +23,6 @@ const group = (key: string, over: Record<string, unknown> = {}) => ({
   callsWithoutCost: 0,
   totalTokens: 0,
   costLines: [],
-  reconciliation: { calculatedUsd: 0.5, recordedUsd: 0.5, differenceUsd: 0 },
   segments: { anthropic: 0.5 },
   ...over,
 })
@@ -51,8 +50,19 @@ const OVERVIEW = {
       estimatedCostUsd: 2,
       totalTokens: 1_600_000,
       segments: { anthropic: 1.8, 'gemini-vision': 0.2 },
+      // Adds up to its $2.00: Sonnet 900,000 in × $2/1M = $1.80, plus a Gemini
+      // call saved before rates were kept, at its stored $0.20.
       costLines: [
-        line({ quantity: 1_025_000, costUsd: 2.05 }),
+        line({ quantity: 900_000, costUsd: 1.8 }),
+        line({
+          service: 'gemini-vision',
+          model: 'gemini-3.8-flash',
+          part: 'rates not recorded',
+          quantity: 210_000,
+          usdPer: 0,
+          costUsd: 0.2,
+          note: 'Saved before rates were recorded',
+        }),
         line({
           service: 'cohere-rerank',
           model: 'rerank-v3.5',
@@ -73,8 +83,6 @@ const OVERVIEW = {
           note: 'no price for model',
         }),
       ],
-      // Recorded at an older price.
-      reconciliation: { calculatedUsd: 2.05, recordedUsd: 2, differenceUsd: 0.05 },
     }),
     group('RPT-2', {
       client: 'Borealis',
@@ -284,9 +292,9 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     const output = within(calc).getByRole('row', { name: /claude-sonnet-5-5 — output/ })
     for (const text of ['10,000 tokens', '$10.00 / 1M tokens', '$0.1000'])
       expect(output).toHaveTextContent(text)
-    expect(within(calc).getByRole('row', { name: /Calculated/ })).toHaveTextContent('$0.5000')
-    expect(within(calc).getByRole('row', { name: /Recorded/ })).toHaveTextContent('$0.5000')
-    expect(within(calc).getByRole('row', { name: /Difference/ })).toHaveTextContent('$0.00')
+    // One total: the lines are at the rates charged, so they add up to the row's cost.
+    expect(within(calc).getByRole('row', { name: /^Total/ })).toHaveTextContent('$0.5000')
+    expect(within(calc).queryByRole('row', { name: /Difference/ })).toBeNull()
   })
 
   it('keeps several calculations open at once, and closes them for a new period', async () => {
@@ -385,7 +393,7 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     ).toBeInTheDocument()
   })
 
-  it('explains a free rate, a call with no price, and a price changed since recording', async () => {
+  it('explains a free rate, a call with no price, and a call saved before rates were kept', async () => {
     mockGateway()
     await openUsage()
     fireEvent.click(screen.getByRole('button', { name: 'Show cost calculation for RPT-1' }))
@@ -399,9 +407,14 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     expect(unpriced).toHaveTextContent('no price for model')
     expect(unpriced).not.toHaveTextContent('$0.00 / 1M tokens')
 
-    const difference = within(calc).getByRole('row', { name: /Difference/ })
-    expect(difference).toHaveTextContent('$0.0500')
-    expect(difference).toHaveTextContent('Prices changed since recording')
+    // Its stored cost, with no rate, since none was kept.
+    const old = within(calc).getByRole('row', { name: /gemini-3\.8-flash — rates not recorded/ })
+    for (const text of ['210,000 tokens', 'Saved before rates were recorded', '$0.2000'])
+      expect(old).toHaveTextContent(text)
+    expect(old).not.toHaveTextContent('/ 1M tokens')
+
+    expect(within(calc).getByRole('row', { name: /^Total/ })).toHaveTextContent('$2.00')
+    expect(within(calc).queryByText('Prices changed since recording')).toBeNull()
   })
 
   it('says when a row has nothing to calculate', async () => {

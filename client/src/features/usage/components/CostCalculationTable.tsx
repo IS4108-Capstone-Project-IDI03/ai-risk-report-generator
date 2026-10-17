@@ -1,16 +1,15 @@
 // How one row's cost is made up (EV-04): each billed part as quantity × rate =
-// cost, then the calculated total beside the recorded one. Shown when a row of
-// the overview or document table is expanded.
-import { Badge } from '../../../design-system'
+// cost, at the rates stored with each call when it was made, then the total.
+// Shown when a row of the overview or document table is expanded.
 import type { CostCheck, CostLine } from '../api'
 import { DASH, formatMoney, formatQuantity, formatRate, SERVICE_LABELS } from '../format'
 
-// Rounding leaves sub-cent dust; a real difference is a price changed since.
-const PRICE_CHANGED_USD = 0.000001
+// A line with no rate to show: a call with no cost, or one saved before rates were kept.
+const hasNoRate = (line: CostLine) =>
+  line.part === 'not priced' || line.part === 'rates not recorded'
 
 function RateCell({ line }: { line: CostLine }) {
-  // A call stored without a cost has no rate, only the reason.
-  if (line.part === 'not priced') return <span className="uc-note">{line.note}</span>
+  if (hasNoRate(line)) return <span className="uc-note">{line.note}</span>
   return (
     <>
       {formatRate(line.usdPer, line.per, line.unit)}
@@ -20,9 +19,9 @@ function RateCell({ line }: { line: CostLine }) {
 }
 
 export function CostCalculationTable({ name, check }: { name: string; check: CostCheck }) {
-  const { costLines, reconciliation } = check
+  const { costLines } = check
   if (!costLines.length) return <p className="uc-calc-empty">No priced calls in this period.</p>
-  const changed = Math.abs(reconciliation.differenceUsd) > PRICE_CHANGED_USD
+  const total = costLines.reduce((t, l) => t + l.costUsd, 0)
   return (
     <table className="uc-table uc-calc">
       <caption>{`Cost calculation for ${name}`}</caption>
@@ -57,26 +56,9 @@ export function CostCalculationTable({ name, check }: { name: string; check: Cos
       <tfoot>
         <tr>
           <th scope="row" colSpan={3}>
-            Calculated
+            Total
           </th>
-          <td data-numeric>{formatMoney(reconciliation.calculatedUsd)}</td>
-        </tr>
-        <tr>
-          <th scope="row" colSpan={3}>
-            Recorded
-          </th>
-          <td data-numeric>{formatMoney(reconciliation.recordedUsd)}</td>
-        </tr>
-        <tr>
-          <th scope="row" colSpan={3}>
-            Difference
-            {changed && (
-              <Badge tone="neutral" style={{ marginLeft: 8 }}>
-                Prices changed since recording
-              </Badge>
-            )}
-          </th>
-          <td data-numeric>{formatMoney(reconciliation.differenceUsd)}</td>
+          <td data-numeric>{formatMoney(total)}</td>
         </tr>
       </tfoot>
     </table>

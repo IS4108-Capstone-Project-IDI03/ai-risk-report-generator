@@ -24,7 +24,6 @@ const doc = (key: string, over: Record<string, unknown> = {}) => ({
   segments: { 'gemini-ocr': 0.6, anthropic: 0.2 },
   totalTokens: 0,
   costLines: [],
-  reconciliation: { calculatedUsd: 0, recordedUsd: 0, differenceUsd: 0 },
   ...over,
 })
 
@@ -54,7 +53,6 @@ const NFPA_CHECK = {
     tokens('anthropic', 'claude-haiku-5-5', 'output', 200_000, 0.5),
     tokens('gemini-ocr', 'gemini-3.8-flash', 'input', 800_000, 0.75),
   ],
-  reconciliation: { calculatedUsd: 0.8, recordedUsd: 0.8, differenceUsd: 0 },
 }
 
 const INGESTION = {
@@ -165,7 +163,7 @@ describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
     const ocr = within(calc).getByRole('row', { name: /^Gemini OCR · gemini-3\.8-flash — input/ })
     for (const text of ['800,000 tokens', '$0.75 / 1M tokens', '$0.6000'])
       expect(ocr).toHaveTextContent(text)
-    expect(within(calc).getByRole('row', { name: /Calculated/ })).toHaveTextContent('$0.8000')
+    expect(within(calc).getByRole('row', { name: /^Total/ })).toHaveTextContent('$0.8000')
   })
 
   it('shows each document’s cost for the last 30 days, split by billed service', async () => {

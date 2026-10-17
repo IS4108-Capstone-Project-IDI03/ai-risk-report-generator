@@ -75,12 +75,15 @@ export type OverviewQuery = {
   engineer?: string
 }
 
-// One line of a row's cost calculation: quantity × usdPer / per = costUsd.
-// 'not priced' gathers calls stored without a cost; its note says why.
+// One line of a row's cost calculation: quantity × usdPer / per = costUsd, at
+// the rates stored with each call when it was made. 'not priced' gathers calls
+// with no cost; 'rates not recorded' calls saved before rates were kept, at
+// their stored cost. Their notes say why.
 export type CostLine = {
   service: string
   model: string
-  part: 'input' | 'output' | 'cached input' | 'searches' | 'audio' | 'not priced'
+  part:
+    'input' | 'output' | 'cached input' | 'searches' | 'audio' | 'not priced' | 'rates not recorded'
   unit: 'tokens' | 'searches' | 'minutes'
   quantity: number
   usdPer: number
@@ -88,16 +91,13 @@ export type CostLine = {
   costUsd: number
   note: string | null
 }
-// The calculated total beside the stored one; they differ only when prices
-// changed after the calls were recorded.
-export type Reconciliation = { calculatedUsd: number; recordedUsd: number; differenceUsd: number }
 
-// What every overview group and document carries for checking its cost by hand.
+// What every overview group and document carries for checking its cost by
+// hand. Its lines add up to the row's total cost.
 export type CostCheck = {
   // Tokens used, summed from what providers reported; never cost ÷ rate.
   totalTokens: number
   costLines: CostLine[]
-  reconciliation: Reconciliation
 }
 
 // One assessment, engineer, or the Chatbot (key `chat`) in the overview.
