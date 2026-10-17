@@ -126,6 +126,8 @@ const CitedTable = defineComponent({
 const MetaSource = z.object({
   label: z.string(),
   documentId: z.string(),
+  // The passage's id, for fetching its text (CB-02). Sent by rag-service answer.py's meta line.
+  passageId: z.string().optional(),
   pageStart: z.number().optional(),
   pageEnd: z.number().optional(),
   withdrawn: z.boolean().optional(),

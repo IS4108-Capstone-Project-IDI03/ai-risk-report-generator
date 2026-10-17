@@ -137,6 +137,17 @@ describe('Cited answer', () => {
     )
   })
 
+  it("carries the passage's id from the server's meta line to the opened citation (CB-02)", () => {
+    const select = renderAnswer(
+      `${body}\n${meta.replace('label: "P1", documentId: "d1"', 'label: "P1", documentId: "d1", passageId: "c1"')}`,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Citation 1/ }))
+    expect(select).toHaveBeenCalledWith(
+      expect.objectContaining({ source: expect.objectContaining({ passageId: 'c1' }) }),
+      expect.any(HTMLElement),
+    )
+  })
+
   it('flows a paragraph of statements into one block, with document names in bold', () => {
     renderAnswer(
       [

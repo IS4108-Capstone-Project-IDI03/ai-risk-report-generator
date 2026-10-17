@@ -7,6 +7,7 @@ import { createContext, useContext } from 'react'
 export type CitedSource = {
   label: string
   documentId: string
+  passageId?: string
   pageStart?: number
   pageEnd?: number
   withdrawn?: boolean
