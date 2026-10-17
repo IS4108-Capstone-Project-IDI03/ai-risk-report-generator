@@ -222,6 +222,20 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a failed document has retained processing state, when I select Retry, then processing resumes from the failed stage without resubmitting the document.
   </details>
 
+- [ ] **IN-13** — Interpret photos and images in documents with their context (risk engineer, deps: IN-01, IN-03)
+  <details><summary>Goal / AC</summary>
+
+  Goal: interpret and extract the photos and images embedded in documents with their contextual meaning, so visual evidence or references retain their meaning.
+
+  Ingestion reads each picture Docling locates with the table/formula OCR provider (`OCR_PROVIDER`), using rules taken from S5's photo reader (CP-05). Under GLM pictures are left unread. The description is searchable but labelled as generated. See `docs/DECISIONS.md` (2026-10-17, pictures).
+
+  1. Given a document contains a photo or image within a known bounding box, when extraction runs, then the image is identified and its visual content is described in a structured textual representation that preserves its relevant meaning.
+  2. Given an image appears alongside a caption, label, or explanatory text, when extraction completes, then the image description retains its association with that text and the relevant surrounding document content.
+  3. Given an image originates on a PDF page, when I inspect the extracted content, then its original PDF page number and bounding box are retained.
+  4. Given multiple images appear in a document section, when extraction completes, then each image retains its original position and reading order within the section.
+  5. Given an image contains risk-relevant visual evidence, such as property damage, safety hazards, equipment conditions, or site conditions, when extraction runs, then the description captures the observable details relevant to risk assessment without presenting unverified assumptions as facts.
+  </details>
+
 ## E3 — Knowledge Base & Online RAG Pipeline
 
 - [ ] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)

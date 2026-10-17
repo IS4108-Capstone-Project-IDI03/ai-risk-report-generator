@@ -1583,3 +1583,50 @@ re-ingested (NFPA 13, FM 2.81 and FM 2.0 first); old passages are not widened. A
 table continued on a page that shows no heading row has bare values on that page.
 
 Stories: CB-01, IN-03.
+
+## 2026-10-17 — Pictures in knowledge documents are described by the OCR provider, labelled as generated
+
+Chose:
+- Each picture Docling locates is cropped and read by the table/formula OCR provider
+  (`OCR_PROVIDER`, Claude Haiku 5.5 by default) as a new `picture` task, in the same
+  pass and thread pool as tables. The prompt takes S5's photo-reading rules (CP-05):
+  only what is visible, nothing guessed, no causes, consequences or compliance, never
+  an invented hazard. The heading trail and caption are sent as context, to know what
+  to look at, not as fact.
+- Under GLM pictures are left unread: GLM-OCR can transcribe but not describe. The
+  caption and nearby prose stay searchable as before.
+- The description is searchable, but its text says "Image description (generated,
+  …)" and its passage records who wrote it (`generated_by`, `prompt_version`).
+- One passage per picture, built like a table's: its own bbox and page, the chunk's
+  heading trail and position, nearby prose kept with it.
+- Pictures under 72 pt on either side are skipped as logos and icons (Office Sample 5
+  and FM-200 logos are 24–59 pt tall). A picture Docling repeats is read once by the
+  tables' box check; distinct pictures on one page each keep their own passage.
+- A table none of whose crops reads as a table is read once as a picture: Docling
+  sometimes labels a photo or drawing as a table.
+
+Reason: past reports carry site photos and standards carry diagrams whose meaning
+was lost: an uncaptioned picture was in no passage at all. The OCR provider already
+crops regions, waits out rate limits and records usage, so pictures need a prompt,
+not a pipeline.
+
+Rejected:
+- Calling S5's photo interpreter: it reads S3 keys for one observation, answers in
+  an observation's form (COPE category, hazard type), is Gemini-only (the team's key
+  was rejected on 10 Oct) and would add a network hop per picture.
+- Reading pictures on RapidOCR's "returned empty result" warning: it is a log line
+  inside Docling, not data, and a photo it fires on is already labelled a picture.
+- Merging overlapping or contained picture boxes: only near-identical boxes are one
+  picture; nothing on the sample PDFs needed more.
+- Leaving descriptions unmarked: a draft could quote a model's words as the
+  document's.
+
+Known limits: drafting and chat do not yet show that a quoted description is
+generated (follow-up story); `generated_text` is there for it. A tall narrow figure
+under 72 pt wide is skipped (FM-200 Figure 16, 59 x 243 pt); an area rule would
+keep it. A picture before a table in the same chunk is placed after the table.
+Table captions and the prose beside a table read empty in real runs, because
+HybridChunker hands back plain DocItems; pictures look their items up in the
+document, tables do not yet. Documents must be re-ingested to gain picture passages.
+
+Stories: IN-13, IN-03, IN-12, CP-05.
