@@ -108,7 +108,7 @@ def _fakes(cases: list[dict], mode: str):
             return answer.Plan(kind="chat", query="", reply="Glad to help.")
         return answer.Plan(kind="search", query=text, reply="")
 
-    def search(query, filters=None, include_withdrawn=False):
+    def search(query, filters=None, include_withdrawn=False, **options):
         turn = turns.get(query, {})
         if mode == "null-decline" or turn.get("expect") == "decline":
             return []
