@@ -32,6 +32,10 @@ def transcribe(s3_key: str) -> dict:
             model=WHISPER_MODEL,
             file=(os.path.basename(s3_key), audio),
             response_format="verbose_json",
+            # Without this, Whisper guesses the language from the first 30s and
+            # can mistake Singapore-accented English for Malay, then write the
+            # transcript in Malay. Reports are in English, so pin it.
+            language="en",
         )
     except Exception as error:
         raise TranscriptionError(f"Whisper could not transcribe the recording: {error}") from error

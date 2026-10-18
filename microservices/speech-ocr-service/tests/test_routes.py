@@ -36,17 +36,19 @@ class FakeOpenAI:
     error = None
     file = None
     response_format = None
+    language = None
     duration = 4.2  # None means the mock returns no duration
 
     def __init__(self):
         self.audio = self
         self.transcriptions = self
 
-    def create(self, model, file, response_format):
+    def create(self, model, file, response_format, language=None):
         if FakeOpenAI.error:
             raise FakeOpenAI.error
         FakeOpenAI.file = file
         FakeOpenAI.response_format = response_format
+        FakeOpenAI.language = language
         attrs = {"text": "Sprinkler valve chained open."}
         if FakeOpenAI.duration is not None:
             attrs["duration"] = FakeOpenAI.duration
@@ -73,6 +75,8 @@ def test_transcribe_reads_s3_and_returns_whisper_text(monkeypatch):
     # The file name keeps its extension so Whisper can decode it.
     assert FakeOpenAI.file == ("abc.webm", b"fake audio")
     assert FakeOpenAI.response_format == "verbose_json"
+    # Pinned to English, so accented speech is never written out in Malay.
+    assert FakeOpenAI.language == "en"
     [usage] = body["usage"]
     assert usage["feature"] == "transcribe"
     assert usage["billed_service"] == "openai-whisper"
