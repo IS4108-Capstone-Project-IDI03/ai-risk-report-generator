@@ -1307,3 +1307,126 @@ describe('usage and rates on the detail pages (EV-04)', () => {
     expect((await asSana.get('/api/usage/summary')).body.rateRows).toEqual([])
   })
 })
+
+describe('GET /api/usage/ingestion/:key, one document (EV-04)', () => {
+  const nfpa = new Types.ObjectId()
+  const document = () =>
+    KnowledgeDocumentModel.collection.insertOne({
+      _id: nfpa,
+      title: 'NFPA 13',
+      fileName: 'nfpa13.pdf',
+      status: 'complete',
+      createdAt: new Date('2026-10-01T00:00:00Z'),
+    })
+  // Labelling with gpt-6-luna at $0.10 in, $0.50 out per 1M, as the ingestion
+  // service priced it: 1,000,000 in = $0.10; 200,000 out = $0.10.
+  const labelling = () =>
+    labelUsageToWire([
+      {
+        model: 'gpt-6-luna',
+        input_tokens: 1_000_000,
+        output_tokens: 200_000,
+        cost_usd: 0.2,
+        seconds: 2,
+        input_usd_per_1m: 0.1,
+        output_usd_per_1m: 0.5,
+      },
+    ])
+  // Four OCR calls summed into one row by the worker, 4 seconds in all.
+  // Gemini 3.8 Flash at $0.75 in, $3.75 out per 1M: 400,000 in = $0.30; 40,000 out = $0.15.
+  const ocr = (documentId: string): WireUsage => ({
+    feature: 'ocr',
+    billed_service: 'gemini-ocr',
+    model: 'gemini-3.8-flash',
+    duration_ms: 4000,
+    input_tokens: 400_000,
+    output_tokens: 40_000,
+    cache_read_tokens: null,
+    search_units: null,
+    audio_seconds: null,
+    usage_status: 'recorded',
+    call_count: 4,
+    document_id: documentId,
+  })
+  const open = (key: string, as = asSana) => as.get(`/api/usage/ingestion/${key}`)
+
+  it('gives a document its details, cost per stage, and usage at the rates charged', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-02T00:00:00Z'))
+    await document()
+    await IngestionJobModel.collection.insertOne({ documentId: nfpa, pageTotal: 40 })
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+    await recordAiCalls([ocr(String(nfpa))])
+    vi.useRealTimers()
+
+    const res = await open(String(nfpa))
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({
+      key: String(nfpa),
+      title: 'NFPA 13',
+      fileName: 'nfpa13.pdf',
+      status: 'complete',
+      saved: true,
+      uploadedAt: '2026-10-01T00:00:00.000Z',
+      pages: 40,
+      totals: { calls: 5, estimatedCostUsd: 0.65, callsWithoutCost: 0 },
+    })
+    expect(res.body.byFeatureService.map((f: { feature: string }) => f.feature)).toEqual([
+      'ocr',
+      'label-document',
+    ])
+    const per1M = (quantity: number, usdPer: number, costUsd: number) => ({
+      quantity,
+      unit: 'tokens',
+      usdPer,
+      per: 1e6,
+      costUsd,
+      note: null,
+    })
+    expect(res.body.rateRows).toEqual([
+      expect.objectContaining({
+        feature: 'ocr',
+        model: 'gemini-3.8-flash',
+        calls: 4,
+        cells: { input: per1M(400_000, 0.75, 0.3), output: per1M(40_000, 3.75, 0.15) },
+        costUsd: 0.45,
+        avgMsPerCall: 1000,
+      }),
+      expect.objectContaining({
+        feature: 'label-document',
+        model: 'gpt-6-luna',
+        calls: 1,
+        cells: { input: per1M(1_000_000, 0.1, 0.1), output: per1M(200_000, 0.5, 0.1) },
+        costUsd: 0.2,
+        avgMsPerCall: 2000,
+      }),
+    ])
+  })
+
+  it('opens labelling from before calls named their document, and an upload never saved', async () => {
+    await recordAiCalls(labelling())
+    const refused = new Types.ObjectId()
+    await recordAiCalls(labelling(), { documentId: String(refused) })
+
+    const unlinked = await open('unlinked')
+    const unsaved = await open(String(refused))
+
+    expect(unlinked.body).toMatchObject({ title: 'Not linked to a document', saved: false })
+    expect(unlinked.body.totals.calls).toBe(1)
+    expect(unsaved.body).toMatchObject({ title: 'Upload not saved', saved: false, pages: null })
+  })
+
+  it('has nothing for a document with no calls, or a key that is not one', async () => {
+    await document()
+
+    expect((await open(String(nfpa))).status).toBe(404)
+    expect((await open('not-an-id')).status).toBe(404)
+  })
+
+  it('is for knowledge admins only', async () => {
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+
+    expect((await open(String(nfpa), asAlex)).status).toBe(403)
+  })
+})

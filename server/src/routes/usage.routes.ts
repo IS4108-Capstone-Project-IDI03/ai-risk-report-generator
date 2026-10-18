@@ -10,6 +10,7 @@ import {
   OVERVIEW_RANGES,
   OVERVIEW_SPLITS,
   ingestionCsv,
+  documentUsage,
   type IngestionQuery,
   ingestionUsage,
   type OverviewQuery,
@@ -102,6 +103,16 @@ router.get('/ingestion/export.csv', ...ingestionAccess, async (req, res) => {
     `attachment; filename="usage-ingestion-${query.split}-${query.range}.csv"`,
   )
   res.send(csv)
+})
+
+// After export.csv, so that path is not read as a document key.
+router.get('/ingestion/:key', ...ingestionAccess, async (req, res) => {
+  const usage = await documentUsage(String(req.params.key))
+  if (!usage) {
+    res.status(404).json({ error: 'No AI calls are recorded for that document.' })
+    return
+  }
+  res.json(usage)
 })
 
 router.get('/summary', requirePermission('usage:view'), async (req, res) => {

@@ -802,6 +802,76 @@ type StoredDocument = {
   createdAt?: Date
 }
 
+// A document's ingestion rows are keyed by its id, or one unlinked group.
+const documentKeyOf = (r: IAiCall) => (r.documentId ? String(r.documentId) : UNLINKED_GROUP)
+
+// What a document's rows show about it: from the stored document and its
+// ingestion job, or a stand-in title when it is not stored.
+type DocumentHeader = Pick<
+  DocumentUsage,
+  'key' | 'title' | 'fileName' | 'status' | 'saved' | 'uploadedAt' | 'pages'
+>
+async function documentHeaders(ids: string[]): Promise<(key: string) => DocumentHeader> {
+  const stored = new Map(
+    (
+      await KnowledgeDocumentModel.find(
+        { _id: { $in: ids } },
+        'title fileName status createdAt',
+      ).lean<StoredDocument[]>()
+    ).map((d) => [String(d._id), d]),
+  )
+  const pages = new Map(
+    (await IngestionJobModel.find({ documentId: { $in: ids } }, 'documentId pageTotal').lean()).map(
+      (j) => [String(j.documentId), j.pageTotal ?? null],
+    ),
+  )
+  return (key) => {
+    const doc = stored.get(key)
+    return {
+      key,
+      title: doc
+        ? (doc.title ?? doc.fileName ?? 'Untitled')
+        : key === UNLINKED_GROUP
+          ? 'Not linked to a document'
+          : 'Upload not saved',
+      fileName: doc?.fileName ?? null,
+      status: doc?.status ?? null,
+      saved: !!doc,
+      uploadedAt: doc?.createdAt ? new Date(doc.createdAt).toISOString() : null,
+      pages: pages.get(key) ?? null,
+    }
+  }
+}
+
+export type DocumentUsageDetail = DocumentHeader & {
+  totals: UsageSummary['totals']
+  // Cost per stage (labelling, OCR, embedding), split by the service that billed it.
+  byFeatureService: FeatureServiceRow[]
+  rateRows: RateRow[]
+}
+
+/**
+ * Returns one document's ingestion cost, all time: its details, cost per stage
+ * and usage at the rates charged. Null when no calls name it. `key` is a
+ * document id, or `unlinked` for labelling from before calls named their document.
+ */
+export async function documentUsage(key: string): Promise<DocumentUsageDetail | null> {
+  const linked = key !== UNLINKED_GROUP
+  if (linked && !Types.ObjectId.isValid(key)) return null
+  const rows = await AiCallModel.find({
+    feature: { $in: [...INGESTION_FEATURES] },
+    documentId: linked ? new Types.ObjectId(key) : { $exists: false },
+  }).lean<IAiCall[]>()
+  if (!rows.length) return null
+  const headerOf = await documentHeaders(linked ? [key] : [])
+  return {
+    ...headerOf(key),
+    totals: totalsOf(rows),
+    byFeatureService: byFeatureService(rows),
+    rateRows: rateRows(rows),
+  }
+}
+
 /**
  * Returns what labelling, OCR and embedding cost per knowledge document, for
  * the period chosen. For knowledge admins: documents are shared, so the cost
@@ -816,39 +886,17 @@ export async function ingestionUsage(query: IngestionQuery): Promise<IngestionUs
   }).lean<IAiCall[]>()
 
   const ids = [...new Set(rows.flatMap((r) => (r.documentId ? [String(r.documentId)] : [])))]
-  const stored = new Map(
-    (
-      await KnowledgeDocumentModel.find(
-        { _id: { $in: ids } },
-        'title fileName status createdAt',
-      ).lean<StoredDocument[]>()
-    ).map((d) => [String(d._id), d]),
-  )
-  const pages = new Map(
-    (await IngestionJobModel.find({ documentId: { $in: ids } }, 'documentId pageTotal').lean()).map(
-      (j) => [String(j.documentId), j.pageTotal ?? null],
-    ),
-  )
+  const headerOf = await documentHeaders(ids)
 
   const splitKey = splitKeyFor(query.split)
-  const groups = groupRows(rows, (r) => (r.documentId ? String(r.documentId) : UNLINKED_GROUP))
+  const groups = groupRows(rows, documentKeyOf)
   const documents = [...groups].map(([key, members]): DocumentUsage => {
     const shared = groupTotals(key, members, splitKey)
-    const doc = stored.get(key)
-    const pageCount = pages.get(key) ?? null
+    const header = headerOf(key)
     return {
       ...shared,
-      title: doc
-        ? (doc.title ?? doc.fileName ?? 'Untitled')
-        : key === UNLINKED_GROUP
-          ? 'Not linked to a document'
-          : 'Upload not saved',
-      fileName: doc?.fileName ?? null,
-      status: doc?.status ?? null,
-      saved: !!doc,
-      uploadedAt: doc?.createdAt ? new Date(doc.createdAt).toISOString() : null,
-      pages: pageCount,
-      usdPerPage: pageCount ? round(shared.estimatedCostUsd / pageCount) : null,
+      ...header,
+      usdPerPage: header.pages ? round(shared.estimatedCostUsd / header.pages) : null,
       avgMsPerCall: avgMsPerCall(members),
     }
   })
