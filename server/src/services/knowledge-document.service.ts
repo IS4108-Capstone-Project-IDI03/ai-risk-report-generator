@@ -27,6 +27,7 @@ import {
   type LabelAnswer,
 } from './ingestion.service'
 import * as storage from './storage.service'
+import { getObjectRangeStream } from './file-copy.service'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 
@@ -723,7 +724,8 @@ export class KnowledgeDocumentNotFoundError extends Error {
   }
 }
 
-// The unaltered original from S3 (AC4).
+// The unaltered original from S3 (AC4). `open` streams all of it, or one byte range so the
+// chat's PDF viewer can fetch only the pages it shows (CB-02; served from a local copy).
 export async function getKnowledgeDocumentFile(id: string) {
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
   const document = await KnowledgeDocumentModel.findById(id, 'file fileName').lean()
@@ -731,8 +733,36 @@ export async function getKnowledgeDocumentFile(id: string) {
   return {
     fileName: document.fileName,
     size: document.file.size,
-    stream: await storage.getObjectStream(document.file.key),
+    sha256: document.file.sha256,
+    open: (range?: [number, number]) =>
+      range
+        ? getObjectRangeStream(document.file.key, `${document.file.sha256}.pdf`, range)
+        : storage.getObjectStream(document.file.key),
   }
+}
+
+/**
+ * Returns the inclusive [first, last] bytes an HTTP Range header asks for, null to send the
+ * whole file, or 'unsatisfiable' when the range starts past the end.
+ */
+// One range only ("bytes=0-1023", "bytes=4096-", "bytes=-500"): pdf.js asks for one at a time.
+// Anything else (several ranges, malformed) is ignored and the whole file sent, which HTTP
+// allows (RFC 9110).
+export function byteRange(
+  header: string | undefined,
+  size: number,
+): [number, number] | null | 'unsatisfiable' {
+  const match = header?.match(/^bytes=(\d*)-(\d*)$/)
+  if (!match || (!match[1] && !match[2])) return null
+  if (!match[1]) {
+    // "bytes=-500": the last 500 bytes.
+    const count = Number(match[2])
+    return count === 0 ? 'unsatisfiable' : [Math.max(size - count, 0), size - 1]
+  }
+  const start = Number(match[1])
+  if (start >= size) return 'unsatisfiable'
+  if (match[2] && Number(match[2]) < start) return null
+  return [start, match[2] ? Math.min(Number(match[2]), size - 1) : size - 1]
 }
 
 const HOUR = 60 * 60 * 1000

@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'crypto'
 import { Readable } from 'stream'
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,9 +19,12 @@ import { signedInAsRole } from './auth-test-helpers'
 // S3 stands in as a map, the queue as a spy, and the ingestion service's PDF
 // check and /label as one stubbed fetch, routed by URL.
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
+// How often a file is read from S3 (CB-02: once, then ranges come from the local copy).
+const s3Reads = vi.hoisted(() => ({ count: 0 }))
 vi.mock('../services/storage.service', () => ({
   putObject: async (key: string, body: Buffer) => void s3.set(key, body),
   getObjectStream: async (key: string) => {
+    s3Reads.count++
     const body = s3.get(key) as Buffer & { failMidStream?: boolean }
     if (!body.failMidStream) return Readable.from([body])
     return new Readable({
@@ -1208,6 +1212,64 @@ describe('GET /api/knowledge-documents/:id/file', () => {
     expect(response.status).toBe(200)
     expect(response.headers['content-type']).toBe('application/pdf')
     expect(Buffer.from(response.body)).toEqual(PDF)
+  })
+
+  // CB-02: the PDF viewer opens fast. A document's file never changes under its id, so the
+  // browser may keep it; and pdf.js fetches only the byte ranges it needs from a large PDF.
+  it('lets the browser keep the file and fetch parts of it', async () => {
+    const { body } = await upload(PDF)
+
+    const response = await api.get(body.fileUrl)
+
+    expect(response.headers['cache-control']).toBe('private, max-age=86400, immutable')
+    expect(response.headers['accept-ranges']).toBe('bytes')
+    // A validator: without it Chrome won't keep the 206 parts it fetched (Chrome's cache rule).
+    const sha256 = createHash('sha256').update(PDF).digest('hex')
+    expect(response.headers.etag).toBe(`"${sha256}"`)
+  })
+
+  it('returns only the asked-for bytes for a range request', async () => {
+    const { body } = await upload(PDF)
+
+    const part = await api.get(body.fileUrl).set('Range', 'bytes=2-5').buffer(true)
+    const tail = await api.get(body.fileUrl).set('Range', 'bytes=4-').buffer(true)
+
+    expect(part.status).toBe(206)
+    expect(part.headers['content-range']).toBe(`bytes 2-5/${PDF.length}`)
+    expect(Buffer.from(part.body)).toEqual(PDF.subarray(2, 6))
+    expect(Buffer.from(tail.body)).toEqual(PDF.subarray(4))
+    const last = await api.get(body.fileUrl).set('Range', 'bytes=-3').buffer(true)
+    expect(Buffer.from(last.body)).toEqual(PDF.subarray(-3))
+  })
+
+  it('reads the file from S3 once, then serves its ranges from a local copy', async () => {
+    // Unique bytes, so no earlier test's local copy (named by the file's sha256) is reused.
+    const unique = Buffer.concat([PDF, Buffer.from(`%${randomUUID()}`)])
+    const { body } = await upload(unique)
+    s3Reads.count = 0
+
+    const parts = await Promise.all(
+      [0, 8, 16].map((at) =>
+        api
+          .get(body.fileUrl)
+          .set('Range', `bytes=${at}-${at + 7}`)
+          .buffer(true),
+      ),
+    )
+
+    expect(parts.map((p) => Buffer.from(p.body))).toEqual(
+      [0, 8, 16].map((at) => unique.subarray(at, at + 8)),
+    )
+    expect(s3Reads.count).toBe(1)
+  })
+
+  it('refuses a range past the end of the file', async () => {
+    const { body } = await upload(PDF)
+
+    const response = await api.get(body.fileUrl).set('Range', `bytes=${PDF.length + 10}-`)
+
+    expect(response.status).toBe(416)
+    expect(response.headers['content-range']).toBe(`bytes */${PDF.length}`)
   })
 
   it('ends the response without crashing the gateway when S3 fails mid-stream', async () => {
