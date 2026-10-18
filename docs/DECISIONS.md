@@ -1664,3 +1664,19 @@ Rejected:
 Supersedes the "difference means prices changed" part of the entry above.
 
 Stories: EV-04, EV-03.
+
+## 2026-10-18 — Rates are shown on the detail pages, one table per way of billing
+
+Chose: the overview and ingestion tables go back to their totals: no Tokens column, no per-row dropdown. An assessment's drill-in shows its usage and rates, and each knowledge document gets the same detail page from the Ingestion tab (`GET /api/usage/ingestion/:key`). Calls are grouped into one table per way of billing (Claude and OpenAI; other token models; Cohere embeddings; Cohere rerank; Whisper), each quantity with the rate stored on its calls beneath it. The "How these costs are worked out" box is gone: the totals card keeps its Estimated badge and shows calls without a cost (EV-04 AC7).
+
+Reason: the dropdown crowded the main tables, and the drill-in already existed for exactly this. One table per way of billing keeps every column meaningful: the old Usage table's five unit columns were mostly dashes, since each feature bills in one to three of them. Cache reads (drafting, chat, Claude OCR), search units (rerank) and audio (Whisper, billed per minute) are all recorded and all priced, so none was dropped. Ingestion keeps a time per call but not a Speed table: its calls are saved as totals per stage, so only the average is known.
+
+Rejected:
+- One combined table with a column per unit: mostly empty cells.
+- A separate rate column beside each quantity: ten columns for Claude; the rate sits under its quantity instead.
+
+Known limits: the Chatbot and Unassigned rows have no drill-in, so chat cost has no rates view. A document's detail page is all time, while the list is for the period chosen, as for assessments.
+
+Supersedes the per-row dropdown and Tokens column in the first entry of this date.
+
+Stories: EV-04.
