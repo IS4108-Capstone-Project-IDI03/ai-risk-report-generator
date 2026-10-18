@@ -52,6 +52,8 @@ def parse_table(bbox, page: int, file_path: str, coord_origin: str = "") -> str 
         )
 
     reading = recognise(image_png, task="table")
+    if reading is None:
+        log.warning("Table on page %s: OCR gave no reading; the table is left unread.", page)
     missing = numbers_not_in_text_layer(reading, text_layer) if reading else []
     if missing:
         log.warning(

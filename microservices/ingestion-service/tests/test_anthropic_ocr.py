@@ -1,10 +1,11 @@
 """Claude as the table/formula OCR provider (OCR_PROVIDER=anthropic).
 
 Driven through the public `ocr_model.recognise`. Only the network boundary,
-`anthropic_ocr._client`, is replaced: the fake answers `messages.parse` the way
-the SDK does, with the answer already validated into `parsed_output`.
+`anthropic_ocr._client`, is replaced: the fake answers `messages.create` the way
+the API does, with the answer as JSON text and a `stop_reason`.
 """
 
+import logging
 from types import SimpleNamespace
 
 import anthropic
@@ -32,7 +33,7 @@ class _FakeClaude:
         self.requests: list[dict] = []
         self.messages = self
 
-    def parse(self, **kwargs):
+    def create(self, **kwargs):
         self.requests.append(kwargs)
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
@@ -46,8 +47,21 @@ def _status_error(status: int, headers=None):
     return anthropic.APIStatusError(f"HTTP {status}", response=response, body=None)
 
 
-def _answer(parsed, stop_reason="end_turn"):
-    return SimpleNamespace(parsed_output=parsed, stop_reason=stop_reason)
+def _text_answer(text: str, stop_reason="end_turn"):
+    content = [SimpleNamespace(type="text", text=text)] if text else []
+    return SimpleNamespace(content=content, stop_reason=stop_reason)
+
+
+def _answer(reading, stop_reason="end_turn"):
+    return _text_answer(reading.model_dump_json() if reading else "", stop_reason)
+
+
+def _table(rows):
+    return TableReading(tables=[TableBlock(title="", header_rows=1, header_cols=0, rows=rows)])
+
+
+# What production got for the page 98 FM-200 agent table: JSON stopped partway.
+CUT_OFF = '{"tables":[{"title":"","header_rows":1,"header_cols":1,"rows":[["E2-N'
 
 
 @pytest.fixture
@@ -64,28 +78,55 @@ def claude(monkeypatch):
 
 
 def test_table_crop_comes_back_as_records(claude):
-    claude.replies.append(
-        _answer(
-            TableReading(
-                tables=[
-                    TableBlock(
-                        title="",
-                        header_rows=1,
-                        header_cols=0,
-                        rows=[["Agent", "Qty"], ["FM-200", "2"]],
-                    )
-                ]
-            )
-        )
-    )
+    claude.replies.append(_answer(_table([["Agent", "Qty"], ["FM-200", "2"]])))
 
     assert ocr_model.recognise(PNG, "table") == "Agent: FM-200; Qty: 2"
 
 
-def test_a_refused_region_is_left_unread(claude):
-    claude.replies.append(_answer(None, stop_reason="refusal"))
+def test_the_answer_is_asked_for_as_json_matching_the_tasks_schema(claude):
+    claude.replies.append(_answer(FormulaReading(latex="x")))
 
-    assert ocr_model.recognise(PNG, "table") is None
+    ocr_model.recognise(PNG, "formula")
+
+    output_config = claude.requests[0]["output_config"]
+    assert output_config["effort"] == "low"
+    assert output_config["format"]["type"] == "json_schema"
+    assert output_config["format"]["schema"]["required"] == ["latex"]
+
+
+def test_a_region_refused_twice_is_left_unread(claude, caplog):
+    claude.replies += [_answer(None, stop_reason="refusal")] * 2
+
+    with caplog.at_level(logging.WARNING):
+        assert ocr_model.recognise(PNG, "table") is None
+
+    assert len(claude.requests) == 2
+    assert "stop_reason=refusal" in caplog.text
+    assert "table region left unread after 2 attempts" in caplog.text
+
+
+def test_an_answer_stopped_partway_through_is_asked_again(claude, caplog):
+    claude.replies += [
+        _text_answer(CUT_OFF, stop_reason="refusal"),
+        _answer(_table([["Nozzle", "Pressure"], ["E2-N1", "6.887 bar"]])),
+    ]
+
+    with caplog.at_level(logging.WARNING):
+        assert ocr_model.recognise(PNG, "table") == "Nozzle: E2-N1; Pressure: 6.887 bar"
+
+    assert f"stop_reason=refusal, {len(CUT_OFF)} characters" in caplog.text
+    assert "read the table region on attempt 2" in caplog.text
+
+
+def test_invalid_json_twice_leaves_the_region_unread_instead_of_failing_the_document(
+    claude, caplog
+):
+    claude.replies += [_text_answer(CUT_OFF)] * 2
+
+    with caplog.at_level(logging.WARNING):
+        assert ocr_model.recognise(PNG, "table") is None
+
+    assert "invalid TableReading" in caplog.text
 
 
 def test_a_rejected_request_leaves_the_region_unread(claude):
