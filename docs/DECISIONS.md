@@ -1675,8 +1675,20 @@ Rejected:
 - One combined table with a column per unit: mostly empty cells.
 - A separate rate column beside each quantity: ten columns for Claude; the rate sits under its quantity instead.
 
-Known limits: the Chatbot and Unassigned rows have no drill-in, so chat cost has no rates view. A document's detail page is all time, while the list is for the period chosen, as for assessments.
+Known limits: the Unassigned row has no drill-in. A document's detail page is all time, while the list is for the period chosen, as for assessments.
 
 Supersedes the per-row dropdown and Tokens column in the first entry of this date.
 
 Stories: EV-04.
+
+## 2026-10-18 — The chatbot has its own cost page, charted by day
+
+Chose: the overview's Chatbot row opens a page for the period on screen: totals, cost per Singapore day (a bar per day in date order, every day shown, split by billed service, with the same figures as a table), cost per person who asked, and usage and rates with a CSV export (`GET /api/usage/chat`). The chart gained an in-order mode so days are not sorted by cost.
+
+Reason: chat cost accrues daily per person, under per-person daily limits (CB-01), unlike an assessment or a document, whose cost is mostly incurred once; so its page answers "how much, when, and by whom" rather than all-time totals.
+
+Rejected:
+- Charting tokens over time: chat uses more than one model at very different prices, so a token line would mislead; tokens are in the usage and rates tables, per model, at the rate charged.
+- Counting questions per day: `ai_calls` holds calls, one question makes several, and calls carry no question id.
+
+Stories: EV-04, CB-01.
