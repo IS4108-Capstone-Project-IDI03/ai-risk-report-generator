@@ -152,6 +152,29 @@
   color: var(--text-muted);
   white-space: normal;
 }
+/* A detail page's usage and rates (components/RateTables.tsx): each quantity
+   with the rate it was charged at beneath it, in figures, quieter. */
+.uc-rates td[data-numeric] {
+  font-family: var(--font-mono);
+  vertical-align: top;
+}
+.uc-rate {
+  display: block;
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+.uc-rates .uc-note {
+  font-size: var(--text-caption-size);
+}
+.uc-rates tfoot > tr > * {
+  border-top: 1px solid var(--border-default);
+  text-align: right;
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+.uc-section-note {
+  color: var(--text-secondary);
+}
 .uc-calc-empty {
   margin: 0;
   color: var(--text-muted);

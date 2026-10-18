@@ -145,6 +145,34 @@ const row = (key: string, over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
+// One quantity at the rate it was charged, per 1M tokens unless overridden.
+const cell = (
+  quantity: number,
+  usdPer: number | null,
+  costUsd: number | null,
+  note: string | null = null,
+) => ({
+  quantity,
+  unit: 'tokens',
+  usdPer,
+  per: 1_000_000,
+  costUsd,
+  note,
+})
+// One row of the drill-in's usage and rates: a feature's calls to one model.
+const rateRow = (over: Record<string, unknown> = {}) => ({
+  feature: 'draft-section',
+  service: 'anthropic',
+  model: 'claude-sonnet-5-5',
+  calls: 5,
+  rates: 'charged',
+  note: null,
+  cells: {},
+  costUsd: 0,
+  avgMsPerCall: 850,
+  ...over,
+})
+
 const SUMMARY = {
   scope: { reportId: 'RPT-1' },
   reports: ['RPT-1'],
@@ -183,6 +211,38 @@ const SUMMARY = {
     },
   ],
   pricingBases: OVERVIEW.pricingBases,
+  rateRows: [
+    // Sonnet: 1,000,000 in × $2/1M = $2.00; 100,000 out × $10/1M = $1.00.
+    rateRow({
+      cells: { input: cell(1_000_000, 2, 2), output: cell(100_000, 10, 1) },
+      costUsd: 3,
+    }),
+    rateRow({
+      feature: 'retrieval',
+      service: 'cohere-rerank',
+      model: 'rerank-v3.5',
+      calls: 4,
+      cells: {
+        searches: { ...cell(8, 0, 0, 'Trial key: free'), unit: 'searches', per: 1000 },
+      },
+      costUsd: 0,
+    }),
+    rateRow({
+      feature: 'transcribe',
+      service: 'openai-whisper',
+      model: 'whisper-1',
+      calls: 3,
+      cells: { audio: { ...cell(1.5, 0.006, 0.009), unit: 'minutes', per: 1 } },
+      costUsd: 0.009,
+    }),
+    rateRow({
+      model: 'claude-unknown-9',
+      rates: 'not priced',
+      note: 'no price for model',
+      cells: { input: cell(12_000, null, null) },
+      costUsd: null,
+    }),
+  ],
 }
 
 const json = (status: number, body: unknown) =>
@@ -505,15 +565,53 @@ describe('Usage and costs: one assessment (EV-04 AC2)', LAZY_SCREEN, () => {
     ).toBeInTheDocument()
   })
 
-  it('shows cost, usage and speed per feature with friendly names', async () => {
+  it('shows cost and speed per feature with friendly names', async () => {
     await openRpt1()
     const cost = screen.getByRole('table', { name: 'Cost by feature' })
     for (const name of ['Drafting', 'Retrieval (search)', 'Voice transcription'])
       expect(within(cost).getByRole('rowheader', { name })).toBeInTheDocument()
-    const usage = screen.getByRole('table', { name: 'Usage by feature' })
-    expect(within(usage).getByRole('row', { name: /Drafting/ })).toHaveTextContent('12,000')
     const speed = screen.getByRole('table', { name: 'Speed by feature' })
     expect(within(speed).getByRole('row', { name: /Drafting/ })).toHaveTextContent('850 ms')
+  })
+
+  it('shows usage at the rates charged, one table per way of billing', async () => {
+    await openRpt1()
+    expect(screen.queryByRole('table', { name: 'Usage by feature' })).toBeNull()
+
+    const claude = screen.getByRole('table', { name: 'Claude and OpenAI: usage and rates' })
+    const headers = within(claude)
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent)
+    expect(headers).toEqual([
+      'Feature',
+      'Model',
+      'Calls',
+      'Input tokens',
+      'Output tokens',
+      'Cached input tokens',
+      'Cost',
+    ])
+    const sonnet = within(claude).getByRole('row', { name: /claude-sonnet-5-5/ })
+    for (const text of ['Drafting', '1,000,000', '@ $2.00 / 1M tokens', '100,000', '$3.00'])
+      expect(sonnet).toHaveTextContent(text)
+    const unpriced = within(claude).getByRole('row', { name: /claude-unknown-9/ })
+    expect(unpriced).toHaveTextContent('12,000')
+    expect(unpriced).toHaveTextContent('no price for model')
+    expect(unpriced).not.toHaveTextContent('@')
+    expect(within(claude).getByRole('row', { name: /Subtotal/ })).toHaveTextContent('$3.00')
+
+    const rerank = screen.getByRole('table', { name: 'Cohere rerank: usage and rates' })
+    expect(
+      within(rerank)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent),
+    ).toContain('Searches')
+    expect(rerank).toHaveTextContent('Trial key: free')
+    const whisper = screen.getByRole('table', { name: 'OpenAI Whisper: usage and rates' })
+    expect(within(whisper).getByRole('row', { name: /Voice transcription/ })).toHaveTextContent(
+      '1.5',
+    )
+    expect(whisper).toHaveTextContent('@ $0.006 / min')
   })
 
   it('switches the breakdown to billed services, and exports the one shown', async () => {

@@ -61,6 +61,34 @@ export type UsageSummary = {
   byFeatureService: FeatureServiceRow[]
   bySection: SectionRow[]
   pricingBases: PricingBasis[]
+  // Only for one chosen report; empty otherwise.
+  rateRows: RateRow[]
+}
+
+export type RatePart = 'input' | 'output' | 'cached input' | 'searches' | 'audio'
+// One quantity with the rate its calls were charged at when made:
+// quantity × usdPer / per = costUsd. Rate and cost are null when not known.
+export type RateCell = {
+  quantity: number
+  unit: 'tokens' | 'searches' | 'minutes'
+  usdPer: number | null
+  per: number
+  costUsd: number | null
+  // Why a rate is $0 (trial key, self-hosted).
+  note: string | null
+}
+// A feature's calls to one model at one set of rates. 'not recorded': saved
+// before rates were kept, at its stored cost; 'not priced': no cost. `note` says why.
+export type RateRow = {
+  feature: string
+  service: string
+  model: string
+  calls: number
+  rates: 'charged' | 'not recorded' | 'not priced'
+  note: string | null
+  cells: Partial<Record<RatePart, RateCell>>
+  costUsd: number | null
+  avgMsPerCall: number | null
 }
 
 export type UsageView = 'feature' | 'service'
