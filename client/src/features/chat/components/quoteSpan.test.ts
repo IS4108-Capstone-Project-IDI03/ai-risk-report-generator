@@ -1,6 +1,6 @@
-// Table test for the quote locator (CB-02 AC1, AC2): the three match tiers and the miss.
+// Table test for the quote locator (CB-02 AC1, AC2): the match tiers and the miss.
 import { describe, expect, it } from 'vitest'
-import { markItems, quoteSpan } from './quoteSpan'
+import { quoteSpan } from './quoteSpan'
 
 const TEXT = 'Valves must be\n  inspected   weekly, and records kept.'
 
@@ -26,14 +26,15 @@ describe('quoteSpan', () => {
   })
 })
 
-describe('markItems', () => {
-  it('marks only the part of each text item inside the span, escaping HTML', () => {
-    // Items joined with one space: "ab <c" + " " + "de f" -> quote "<c de" spans both.
-    const mark = markItems(['ab <c', 'de f'], [3, 8])
-    expect(mark(0)).toBe('ab <mark>&lt;c</mark>')
-    expect(mark(1)).toBe('<mark>de</mark> f')
+describe('quoteSpan across PDF line breaks', () => {
+  // pdf.js drops the hyphen of a word split over two lines, and the items are joined with a
+  // space, so "measurement" reads "measure ment".
+  const PAGE = 'A test performed by the flow and measure ment of water from one hydrant'
+  it('finds a quote whose word was split over two lines', () => {
+    const span = quoteSpan('the flow and measurement of water', PAGE, { acrossLineBreaks: true })
+    expect(span && PAGE.slice(span[0], span[1])).toBe('the flow and measure ment of water')
   })
-  it('leaves an item outside the span as escaped plain text', () => {
-    expect(markItems(['a&b', 'cd'], [4, 6])(0)).toBe('a&amp;b')
+  it('stays strict without the option, as the server does', () => {
+    expect(quoteSpan('the flow and measurement of water', PAGE)).toBeNull()
   })
 })
