@@ -34,3 +34,12 @@ class OcrUnavailableError(Exception):
     Indexing without the region would show the document Complete with its
     numbers missing from search.
     """
+
+
+class OcrAnswerUnusable(Exception):
+    """Raised when every answer for a region was refused, cut off or invalid.
+
+    Unlike an answer that finds nothing (a photo labelled as a table), this says
+    nothing about what the region holds, so the table parser falls back to the
+    PDF's text layer. `ocr_model.recognise` turns it into None for other callers.
+    """

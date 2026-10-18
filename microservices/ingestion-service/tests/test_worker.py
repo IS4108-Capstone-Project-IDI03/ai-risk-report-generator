@@ -587,19 +587,21 @@ def test_a_failed_ingestion_removes_the_passages_it_already_wrote(documents, mon
 
 
 class _FakeClaude:
-    """`anthropic.Anthropic` answering every `messages.parse` with a table and usage."""
+    """`anthropic.Anthropic` answering every `messages.create` with a table and usage."""
 
     def __init__(self):
         self.messages = self
 
-    def parse(self, **_):
+    def create(self, **_):
         from app.pipeline.chunking_helper.ocr_prompts import TableBlock, TableReading
 
         table = TableBlock(
             title="", header_rows=1, header_cols=0, rows=[["Agent", "Qty"], ["FM-200", "2"]]
         )
         return SimpleNamespace(
-            parsed_output=TableReading(tables=[table]),
+            content=[
+                SimpleNamespace(type="text", text=TableReading(tables=[table]).model_dump_json())
+            ],
             stop_reason="end_turn",
             model="claude-haiku-5-5",
             usage=SimpleNamespace(

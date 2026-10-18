@@ -85,7 +85,7 @@ def test_table_and_formula_share_the_same_handle(pdf_path, fake_recognise, monke
     """The regression: separate caches meant two open handles per document."""
     from app.pipeline.chunking_helper import table_parser
 
-    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: "| a |")
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task, **_: "| a |")
 
     parse(pdf_path, coord_origin="TOPLEFT")
     first = page_cache.load_document(pdf_path)

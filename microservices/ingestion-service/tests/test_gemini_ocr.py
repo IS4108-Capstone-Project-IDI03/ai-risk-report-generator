@@ -6,13 +6,14 @@ raises) the way `genai.Client().interactions.create` would.
 """
 
 import json
+import logging
 from types import SimpleNamespace
 
 import pytest
 
 from app.pipeline.chunking_helper import gemini_ocr, ocr_model, rate_limit
 from app.pipeline.chunking_helper.ocr_prompts import PICTURE_PROMPT
-from app.pipeline.errors import OcrUnavailableError
+from app.pipeline.errors import OcrAnswerUnusable, OcrUnavailableError
 
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
 
@@ -142,12 +143,31 @@ def test_a_rejected_request_leaves_the_region_unread(gemini):
     assert gemini.pauses == []
 
 
-def test_an_answer_without_text_leaves_the_region_unread(gemini, monkeypatch):
+def test_an_answer_without_text_leaves_the_region_unread(gemini, monkeypatch, caplog):
     # A safety block or cut-off answer comes back with no text (as in S5's interpreter).
     blocked = SimpleNamespace(status="incomplete", output_text=None)
     monkeypatch.setattr(gemini, "create", lambda **kwargs: blocked)
 
-    assert ocr_model.recognise(PNG, "formula") is None
+    with caplog.at_level(logging.WARNING):
+        assert ocr_model.recognise(PNG, "formula") is None
+
+    assert "unusable formula reading: status=incomplete, 0 characters" in caplog.text
+
+
+def test_a_caller_with_a_fallback_is_told_the_answer_was_unusable(gemini):
+    gemini.replies.append('{"tables":[{"title":"","header_rows":1,"header_cols":1,"rows":[["E2-N')
+
+    with pytest.raises(OcrAnswerUnusable):
+        ocr_model.recognise(PNG, "table", raise_if_unusable=True)
+
+    assert len(gemini.requests) == 1
+
+
+def test_an_answer_that_finds_no_table_is_not_unusable(gemini):
+    # A photo labelled as a table: read once as a picture (IN-13), never from the PDF text.
+    gemini.replies.append('{"tables": []}')
+
+    assert ocr_model.recognise(PNG, "table", raise_if_unusable=True) is None
 
 
 def test_an_unknown_provider_is_named_in_the_error(monkeypatch):
