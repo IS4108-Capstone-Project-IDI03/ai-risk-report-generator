@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
-PROMPT_VERSION = "gn01-v2.6"  # v2.6: Sections 4 and 5, with the engineer's `facts` (GN-03)
+PROMPT_VERSION = "gn01-v2.9"  # v2.9: Sections 4 and 5 end with a convention check; 4 names the potential
 # The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
 # and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
 # redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
