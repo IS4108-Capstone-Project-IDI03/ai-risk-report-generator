@@ -81,18 +81,6 @@ const sum = (rows: IAiCall[], pick: (r: IAiCall) => number | null) =>
 const callsIn = (rows: IAiCall[]) => rows.reduce((n, r) => n + (r.callCount ?? 1), 0)
 // Of those, the calls with no cost: counted, never added to a total as 0.
 const uncosted = (rows: IAiCall[]) => callsIn(rows.filter((r) => r.estimatedCostUsd === null))
-// Tokens the rows used, summed from what the providers reported, never worked
-// back from cost. Whisper and Cohere rerank bill in other units, so add none.
-// OpenAI's input already includes its cached tokens (Anthropic's does not).
-const tokensIn = (rows: IAiCall[]) =>
-  sum(
-    rows,
-    (r) =>
-      (r.inputTokens ?? 0) +
-      (r.outputTokens ?? 0) +
-      (r.billedService === 'openai' ? 0 : (r.cacheReadTokens ?? 0)),
-  )
-
 // Nearest-rank percentile of an ascending list: the smallest value that at
 // least p% of the values are at or below.
 function percentile(sorted: number[], p: number): number | null {
@@ -303,69 +291,6 @@ function groupRows(rows: IAiCall[], keyOf: (r: IAiCall) => string): Map<string, 
   return groups
 }
 
-// One line of a row's cost calculation: quantity × usdPer / per = costUsd.
-export type CostLine = Omit<CostPart, 'part'> & {
-  service: string
-  model: string
-  // 'not priced' gathers calls stored without a cost; 'rates not recorded'
-  // calls saved before rates were kept, at their stored cost. Notes say why.
-  part: CostPart['part'] | 'not priced' | 'rates not recorded'
-}
-type LinePart = Omit<CostLine, 'service' | 'model'>
-
-// A row's parts, at the rates it was charged when saved, never re-priced
-// here: prices change, and a re-priced line would misstate what it cost.
-function partsOf(r: IAiCall): LinePart[] {
-  const whole = (part: 'not priced' | 'rates not recorded', costUsd: number, note: string) => [
-    { part, unit: 'tokens' as const, quantity: tokensIn([r]), usdPer: 0, per: 1e6, costUsd, note },
-  ]
-  // A call with no cost is shown, never priced as if it had one (AC7).
-  if (r.estimatedCostUsd === null) return whole('not priced', 0, r.pricingBasis)
-  if (r.costParts) return r.costParts
-  return whole('rates not recorded', r.estimatedCostUsd, 'Saved before rates were recorded')
-}
-
-const PART_ORDER: CostLine['part'][] = [
-  'input',
-  'output',
-  'cached input',
-  'searches',
-  'audio',
-  'rates not recorded',
-  'not priced',
-]
-
-// How a set of rows' cost is made up, one line per service, model, part and
-// rate, in a fixed order: by service, model and part, an older rate first.
-function costLines(rows: IAiCall[]): CostLine[] {
-  const lines = new Map<string, CostLine & { firstAt: number }>()
-  for (const r of rows) {
-    const at = +new Date(r.createdAt)
-    for (const p of partsOf(r)) {
-      const key = [r.billedService, r.model, p.part, p.usdPer].join('|')
-      const line = lines.get(key)
-      if (line) {
-        line.quantity += p.quantity
-        line.costUsd += p.costUsd
-        line.firstAt = Math.min(line.firstAt, at)
-      } else lines.set(key, { service: r.billedService, model: r.model, ...p, firstAt: at })
-    }
-  }
-  return (
-    [...lines.values()]
-      // A part nothing used (no cache reads, say) only adds a $0 line to read past.
-      .filter((l) => l.quantity > 0 || l.costUsd > 0 || l.part === 'not priced')
-      .sort(
-        (a, b) =>
-          a.service.localeCompare(b.service) ||
-          a.model.localeCompare(b.model) ||
-          PART_ORDER.indexOf(a.part) - PART_ORDER.indexOf(b.part) ||
-          a.firstAt - b.firstAt,
-      )
-      .map(({ firstAt: _, ...l }) => ({ ...l, costUsd: round(l.costUsd) }))
-  )
-}
-
 // One quantity on a detail page, with the rate its calls were charged at:
 // quantity × usdPer / per = costUsd. Rate and cost are null when not known.
 export type RateCell = Omit<CostPart, 'part' | 'usdPer' | 'costUsd'> & {
@@ -510,9 +435,6 @@ function groupTotals(key: string, members: IAiCall[], splitKey: SplitKey) {
     calls: callsIn(members),
     estimatedCostUsd: round(sum(members, (r) => r.estimatedCostUsd)),
     callsWithoutCost: uncosted(members),
-    totalTokens: tokensIn(members),
-    // At the rates stored with each call, so they add up to estimatedCostUsd.
-    costLines: costLines(members),
     segments,
   }
 }
@@ -604,8 +526,6 @@ export type OverviewGroup = {
   calls: number
   estimatedCostUsd: number
   callsWithoutCost: number
-  totalTokens: number
-  costLines: CostLine[]
   // Cost per split key (billed service or feature); the bar's stacked parts.
   segments: Record<string, number>
 }
@@ -741,7 +661,6 @@ const OVERVIEW_CSV_COLUMNS: [string, (g: OverviewGroup) => unknown][] = [
   ['last_activity', (g) => g.lastActivityAt],
   ['calls', (g) => g.calls],
   ['calls_without_cost', (g) => g.callsWithoutCost],
-  ['total_tokens', (g) => g.totalTokens],
   ['estimated_cost_usd', (g) => g.estimatedCostUsd],
 ]
 
@@ -778,8 +697,6 @@ export type DocumentUsage = {
   calls: number
   estimatedCostUsd: number
   callsWithoutCost: number
-  totalTokens: number
-  costLines: CostLine[]
   usdPerPage: number | null
   avgMsPerCall: number | null
   lastActivityAt: string
@@ -919,7 +836,6 @@ const INGESTION_CSV_COLUMNS: [string, (d: DocumentUsage) => unknown][] = [
   ['pages', (d) => d.pages],
   ['calls', (d) => d.calls],
   ['calls_without_cost', (d) => d.callsWithoutCost],
-  ['total_tokens', (d) => d.totalTokens],
   ['estimated_cost_usd', (d) => d.estimatedCostUsd],
   ['usd_per_page', (d) => d.usdPerPage],
 ]
