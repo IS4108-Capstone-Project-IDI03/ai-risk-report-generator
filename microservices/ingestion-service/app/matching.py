@@ -7,6 +7,7 @@ No model calls: the vectors were made at indexing time.
 """
 
 import os
+import re
 
 import numpy as np
 from chromadb.errors import NotFoundError
@@ -221,6 +222,25 @@ def find_match(doc: dict, documents) -> dict | None:
     return {"kind": kind, "documentId": other["_id"], **counts[str(other["_id"])]}
 
 
+_SUB_INDEX = re.compile(r"(?:t|g|part)(\d+)")
+
+
+def _reading_order(passage_id: str) -> tuple:
+    """Sort key for the chunker's ids, e.g. `doc:5:part2`, `doc:table:5:t1:g0`, `doc:picture:5:g1`.
+
+    Chunk number first; at one number a table's passages (and the pictures read
+    out of it, `:picture`) come before the chunk's own pictures, as `chunk` emits them.
+    """
+    segments = passage_id.split(":")[1:]
+    kind = segments.pop(0) if segments[0] in ("table", "picture") else ""
+    n = int(segments.pop(0))
+    rest = tuple(
+        (1, 0) if s == "picture" else (0, int(_SUB_INDEX.fullmatch(s).group(1)))
+        for s in segments
+    )
+    return (n, kind == "picture", rest)
+
+
 def _passages(doc_id: str) -> list[dict]:
     """Return a document's passages in reading order, with text, pages and vector."""
     collection = passages_collection()
@@ -241,7 +261,7 @@ def _passages(doc_id: str) -> list[dict]:
             found["ids"], found["documents"], found["metadatas"], found["embeddings"]
         )
     ]
-    return sorted(rows, key=lambda r: int(r["id"].rsplit(":", 1)[1]))
+    return sorted(rows, key=lambda r: _reading_order(r["id"]))
 
 
 def _public(passage: dict) -> dict:
