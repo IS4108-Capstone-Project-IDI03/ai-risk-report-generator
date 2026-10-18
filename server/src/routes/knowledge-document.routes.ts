@@ -9,6 +9,7 @@ import {
   cancelIngestion,
   documentDetailsSchema,
   getKnowledgeDocumentFile,
+  byteRange,
   KnowledgeDocumentWrongStateError,
   KnowledgeDocumentNotFoundError,
   listIngestedDocuments,
@@ -213,19 +214,35 @@ router.delete('/:id', requirePermission('knowledge:manage'), async (req, res) =>
   }
 })
 
-// Streams the original PDF from S3, inline so the browser opens it.
+// Streams the original PDF from S3, inline so the browser opens it. CB-02: a document's file
+// never changes under its id, so the signed-in user's browser may keep it for a day
+// (`private`: never a shared cache, the file needs a login). And it answers a Range request
+// with just those bytes, so pdf.js draws a page of an 86 MB standard without the whole file.
 router.get('/:id/file', requirePermission('knowledge:view'), async (req, res) => {
   try {
     const file = await getKnowledgeDocumentFile(req.params.id)
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Length': String(file.size),
       'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+      'Cache-Control': 'private, max-age=86400, immutable',
+      'Accept-Ranges': 'bytes',
+      // The file's fingerprint: Chrome only keeps fetched byte ranges that carry one.
+      ETag: `"${file.sha256}"`,
     })
+    const range = byteRange(req.headers.range, file.size)
+    if (range === 'unsatisfiable') {
+      res.status(416).set('Content-Range', `bytes */${file.size}`).end()
+      return
+    }
+    const [first, last] = range ?? [0, file.size - 1]
+    if (range) res.status(206).set('Content-Range', `bytes ${first}-${last}/${file.size}`)
+    res.set('Content-Length', String(last - first + 1))
     // pipeline destroys the response if S3 fails mid-stream, rather than
     // leaving an unhandled stream error that would crash the gateway.
-    pipeline(file.stream, res, (error) => {
-      if (error) console.error('Streaming the original failed:', error.message)
+    pipeline(await file.open(range ?? undefined), res, (error) => {
+      // pdf.js cancels its first full request once it learns ranges work: not a failure.
+      if (error && error.code !== 'ERR_STREAM_PREMATURE_CLOSE')
+        console.error('Streaming the original failed:', error.message)
     })
   } catch (error: unknown) {
     if (error instanceof KnowledgeDocumentNotFoundError) {

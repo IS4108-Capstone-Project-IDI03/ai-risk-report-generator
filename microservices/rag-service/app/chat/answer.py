@@ -341,8 +341,10 @@ def _check(program: str, passages: list[dict]) -> tuple[list[dict], str]:
                 "withdrawn": meta.get("status") == "withdrawn",
             }
         )
+    # passageId lets the citation panel fetch the passage text and boxes (CB-02).
     sources = [
-        f'{{label: "{label}", documentId: {json.dumps(p["metadata"].get("doc_id") or "")}, '
+        f'{{label: "{label}", passageId: {json.dumps(p["id"])}, '
+        f"documentId: {json.dumps(p['metadata'].get('doc_id') or '')}, "
         f"pageStart: {p['metadata'].get('page_start') or 0}, "
         f"pageEnd: {p['metadata'].get('page_end') or 0}, "
         f"withdrawn: {'true' if p['metadata'].get('status') == 'withdrawn' else 'false'}}}"

@@ -20,7 +20,12 @@
   --chat-ease: cubic-bezier(0.23, 1, 0.32, 1);
   /* One column for questions, answers and the composer, so their edges line up. */
   --chat-column: 768px;
+  /* Quoted words in the source panel (CB-02): a highlighter yellow, chosen by Jesper on 17 Oct
+     over the ink blues, which were hard to tell apart. Lighter than the amber that marks an
+     unsupported claim (--amber-100), and not a design-system token yet. */
+  --chat-highlight: #fde68a;
 
+  position: relative; /* the source panel covers the chat on narrow screens */
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   /* OpenUI sizes itself to the whole window (100dvw x 100dvh); without this it
@@ -53,6 +58,9 @@
    screen never scrolls it; without this a dead 10px strip shows on the right edge. */
 .om-scroll:has(.knowledge-assistant) {
   scrollbar-gutter: auto;
+  /* The source panel's layout follows this area's width, not the window's, so collapsing the
+     app's sidebar counts (CB-02). */
+  container: chat-area / inline-size;
 }
 
 /* ---- Sidebar: brand, New chat, Chats ---- */
@@ -483,11 +491,6 @@
 .chat-answer [data-decline] .ds-callout * {
   font-family: var(--chat-font);
 }
-.knowledge-assistant .chat-source {
-  border-color: var(--ink-100);
-  border-radius: 18px;
-  box-shadow: var(--chat-shadow-md);
-}
 .chat-answer [data-decline] .ds-callout {
   border-radius: 14px;
 }
@@ -513,45 +516,124 @@
   }
 }
 
-/* The source panel: docked beside the chat on wide screens, like the review
-   workspace's 344px inspector; a sheet over the bottom of the chat below 1080px. */
-.chat-source {
-  overflow-y: auto;
-  margin: var(--space-6);
-  margin-left: 0;
+/* The source panel (CB-02). Docked beside the chat when the chat area is 900px or wider:
+   a flush column, its width a share of the room (useSplitWidth.ts sets --chat-panel-width),
+   with a drag handle on its left edge. Narrower, or expanded on the PDF tab, it covers the
+   chat area with the chat hidden. Covering is the default, so it also holds where the
+   container query doesn't apply. Below 768px of its own width OpenUI turns compact (its chats
+   list becomes a drawer over the chat), so a narrow chat beside the panel still works. */
+.knowledge-assistant .chat-source {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface-card);
 }
 .chat-source:focus {
   outline: none;
 }
-.chat-check {
+/* Hidden, not just covered: otherwise Tab walks from the panel into the unseen chat.
+   Not `visibility`, which OpenUI's buttons set back to visible; this also keeps the chat's
+   scroll position for when the engineer goes back. */
+.knowledge-assistant[data-source-open] .openui-agent-container {
+  content-visibility: hidden;
+}
+/* Tabs on the left, the way out on the right; one quiet line under them. */
+.chat-source-bar {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: 12px 0 0;
-  font-size: var(--text-caption-size);
-  color: var(--status-low-fg);
+  flex: none;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 12px 0 20px;
+  border-bottom: 1px solid var(--ink-100);
 }
-.chat-source .ds-callout,
-.chat-source [role='alert'] {
-  margin-top: 12px;
+.chat-source-bar > button {
+  align-self: center;
 }
-@media (min-width: 1080px) {
+.chat-source-back {
+  margin-left: -8px;
+}
+/* The design-system buttons set display inline, hence !important to hide them. Expand is
+   docked-only: covering the chat, the panel already has all the room. */
+.chat-source-close,
+.chat-pdf-expand,
+.chat-split-handle {
+  display: none !important;
+}
+@container chat-area (max-width: 600px) {
+  .chat-source-bar {
+    padding-left: 16px;
+  }
+}
+@container chat-area (min-width: 900px) {
   .knowledge-assistant[data-source-open] {
-    grid-template-columns: minmax(0, 1fr) 344px;
+    grid-template-columns: minmax(0, 1fr) var(--chat-panel-width, 40%);
+  }
+  /* Tighter sides beside the panel, so the chat's white space goes to the panel. */
+  .knowledge-assistant[data-source-open] .openui-agent-thread-messages,
+  .knowledge-assistant[data-source-open] .openui-agent-thread-composer {
+    padding-inline: 8px;
+  }
+  .knowledge-assistant[data-source-open]:not(:has(.chat-source[data-expanded]))
+    .openui-agent-container {
+    content-visibility: visible;
+  }
+  .knowledge-assistant .chat-source:not([data-expanded]) {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    border-left: 1px solid var(--ink-100);
+  }
+  .chat-source-back {
+    display: none !important;
+  }
+  .chat-source-close,
+  .chat-pdf-expand {
+    display: inline-flex !important;
+  }
+  .chat-source:not([data-expanded]) .chat-split-handle {
+    display: block !important;
   }
 }
-@media (max-width: 1079px) {
-  .chat-source {
-    position: fixed;
-    z-index: 20;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    max-height: 70vh;
-    margin: 0;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    box-shadow: var(--shadow-overlay);
-  }
+/* The handle: a 12px grip astride the panel's edge, showing a 2px ink line on hover, focus
+   and while dragging. */
+.chat-split-handle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.chat-split-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 150ms var(--chat-ease);
+}
+.chat-split-handle:hover::after,
+.chat-split-handle:focus-visible::after,
+.chat-resizing .chat-split-handle::after {
+  background: var(--ink-500);
+}
+.chat-split-handle:focus-visible {
+  outline: none;
+}
+/* While dragging: the resize cursor everywhere, and no text selected by the sweep. */
+.chat-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+.chat-resizing .knowledge-assistant {
+  pointer-events: none;
 }
 /* The logo and name are a button that starts a new chat (ChatSidebar.tsx): no button look,
    just the brand, with a focus ring for keyboard users. */
@@ -576,4 +658,217 @@
 /* Collapsed sidebar: the name would not fit beside the open-sidebar button. */
 .knowledge-assistant .openui-agent-sidebar-header--collapsed .chat-brand {
   display: none;
+}
+
+/* CB-02: the Passage and PDF tabs. Each fills the panel below the tab bar and scrolls on its
+   own, so the panel itself never does. */
+.chat-tabpanel {
+  flex: 1;
+  min-height: 0;
+}
+.chat-tabpanel[hidden] {
+  display: none;
+}
+.chat-tabpanel--passage {
+  overflow-y: auto;
+  padding: 20px 20px 32px;
+}
+@container chat-area (max-width: 600px) {
+  .chat-tabpanel--passage {
+    padding-inline: 16px;
+  }
+}
+.chat-tabpanel--pdf {
+  display: flex;
+  flex-direction: column;
+}
+/* Notes shown in place of the viewer (loading, couldn't load) line up with the bar's padding;
+   flush against the edge, "Loading the PDF…" looked misplaced. */
+.chat-tabpanel--pdf > .rv-viewer-note {
+  margin: 0;
+  padding: 16px 20px;
+}
+.chat-pdf-scroll .rv-viewer-note {
+  margin: 0;
+  padding: 4px 4px;
+  line-height: 1.5;
+}
+
+/* Passage tab (PassageDetails.tsx). */
+.chat-details {
+  max-width: 72ch;
+}
+.chat-details-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.chat-details h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.chat-details .rv-meta {
+  margin: 10px 0 16px;
+}
+.chat-details .ds-callout {
+  margin-bottom: 12px;
+}
+.chat-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 16px;
+  color: var(--status-low-fg);
+  font-size: var(--text-caption-size);
+}
+.chat-check strong {
+  font-weight: 650;
+}
+/* The quoted words wear a highlighter yellow, in the passage and on the PDF page. */
+.chat-source mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--chat-highlight);
+  color: var(--text-body);
+}
+.chat-passage-text {
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-body);
+  white-space: pre-wrap;
+}
+
+/* PDF tab (PdfViewer.tsx): a slim bar, then the page on a quiet grey ground. */
+.chat-pdf {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.chat-pdf-bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--ink-100);
+  color: var(--text-secondary);
+  font-size: var(--text-caption-size);
+}
+.chat-pdf-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.chat-pdf-count {
+  min-width: 5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chat-pdf-spacer {
+  flex: 1;
+}
+/* Expand and open-original: set apart from the page and zoom controls by a hairline. */
+.chat-pdf-actions {
+  gap: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--ink-100);
+}
+/* Phones: one row, so the page keeps the height. */
+@container chat-area (max-width: 600px) {
+  .chat-pdf-bar {
+    gap: 4px 8px;
+    padding-inline: 8px;
+  }
+  .chat-pdf-actions {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+/* A link styled as the bar's icon buttons (it opens a new tab, so it stays an <a>). */
+.chat-pdf-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  border-bottom: 0; /* the app's links are underlined with a border */
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: background-color 120ms var(--chat-ease);
+}
+.chat-pdf-open:hover {
+  background: var(--chat-hover);
+  color: var(--text-primary);
+}
+.chat-pdf-note {
+  flex: none;
+  margin: 0;
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--ink-100);
+  background: var(--chat-sidebar);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-caption-size);
+  text-align: left;
+}
+.chat-pdf-return {
+  cursor: pointer;
+  color: var(--text-link);
+}
+.chat-pdf-return:hover {
+  text-decoration: underline;
+}
+/* Must match GUTTER in PdfViewer.tsx (16px each side). */
+.chat-pdf-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: var(--chat-sidebar);
+}
+.chat-pdf-scroll:focus-visible {
+  outline-offset: -2px;
+}
+.chat-pdf-page {
+  position: relative;
+  width: max-content;
+  margin-inline: auto;
+  line-height: 0;
+  box-shadow: var(--chat-shadow-md);
+}
+/* The blank page shown while pdf.js loads or draws (PdfViewer.tsx), in the page's place. */
+.chat-pdf-sheet {
+  margin-inline: auto;
+  background: var(--surface-card);
+  box-shadow: var(--chat-shadow-md);
+}
+.chat-pdf-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px solid var(--marsh-navy);
+  border-radius: 2px;
+  pointer-events: none;
+}
+/* Quoted words on the page (quoteRects.ts): a highlighter wash multiplied into the drawn
+   page, so the black text stays crisp under the yellow. */
+.chat-pdf-mark {
+  position: absolute;
+  border-radius: 1px;
+  background: var(--chat-highlight);
+  mix-blend-mode: multiply;
+  pointer-events: none;
 }

@@ -11,6 +11,8 @@ export type DocSummary = {
   date?: string | null
   fileUrl: string
   withdrawn: boolean
+  // Set when this edition has a later one in the knowledge base (CB-02 AC4).
+  newerEdition?: KnowledgeDocument['newerEdition']
 }
 
 export const DocumentsContext = createContext<Map<string, DocSummary>>(new Map())
@@ -25,6 +27,7 @@ function summaryOf(d: KnowledgeDocument): DocSummary {
     date: d.effectiveDate,
     fileUrl: d.fileUrl,
     withdrawn: Boolean(d.withdrawn),
+    newerEdition: d.newerEdition,
   }
 }
 

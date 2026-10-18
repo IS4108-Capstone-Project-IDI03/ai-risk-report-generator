@@ -5,11 +5,12 @@
 // Rendered by AssessmentApp for the 'chat' screen, loaded on first open.
 import { AgentInterface } from '@openuidev/react-ui'
 import '@openuidev/react-ui/components.css'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import '../../assessments/review.css'
 import { chatLLM } from '../api'
 import { ChatSidebar } from '../components/ChatSidebar'
 import { CitationPanel } from '../components/CitationPanel'
+import { preloadPdfViewer } from '../components/pdfViewerLoader'
 import { CloseOnChatChange } from '../components/CloseOnChatChange'
 import { CitationSelectionContext, type SelectedCitation } from '../components/citationSelection'
 import { DocumentsContext, useDocumentMap } from '../components/documents'
@@ -27,10 +28,14 @@ export function KnowledgeAssistant() {
   const [selected, setSelected] = useState<SelectedCitation | null>(null)
   // The marker that opened the panel, so focus returns to it on close.
   const opener = useRef<HTMLElement | null>(null)
-  const close = useCallback(() => {
-    setSelected(null)
-    opener.current?.focus()
-  }, [])
+  const close = useCallback(() => setSelected(null), [])
+  // The PDF viewer's code downloads once the chat is up, ready for the first PDF tab click.
+  useEffect(preloadPdfViewer, [])
+  // Focus goes back once the panel is gone: while it covers the chat, the chat is hidden and
+  // can't take focus.
+  useEffect(() => {
+    if (!selected) opener.current?.focus()
+  }, [selected])
   const selection = useMemo(
     () => ({
       selected,

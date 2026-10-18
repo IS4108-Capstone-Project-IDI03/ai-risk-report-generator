@@ -215,3 +215,61 @@ describe('POST /api/chat', () => {
     expect(res.body.error).toMatch(/could not be reached/)
   })
 })
+
+// GET /api/chat/passages/:id (CB-02): S4's passage, passed through to the citation panel.
+describe('GET /api/chat/passages/:id', () => {
+  const PASSAGE = {
+    id: 'p1',
+    documentId: 'd1',
+    text: 'Sprinklers shall be fitted.',
+    headings: ['Chapter 8'],
+    pageStart: 4,
+    pageEnd: 4,
+    boxes: [{ page: 4, l: 1, t: 700, r: 300, b: 650 }],
+  }
+
+  it("passes S4's passage through", async () => {
+    const asked = vi.fn()
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked(url)
+      return Response.json(PASSAGE)
+    })
+    const res = await engineer.get('/api/chat/passages/p1')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual(PASSAGE)
+    expect(asked).toHaveBeenCalledWith(expect.stringMatching(/\/passages\/p1$/))
+  })
+
+  it('is 404 when S4 does not know the passage', async () => {
+    vi.stubGlobal('fetch', async () =>
+      Response.json({ detail: 'Passage not found.' }, { status: 404 }),
+    )
+    const res = await engineer.get('/api/chat/passages/nope')
+    expect(res.status).toBe(404)
+    expect(res.body.error).toBe('Passage not found.')
+  })
+
+  it('is 503 when S4 cannot be reached', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('fetch failed')
+    })
+    expect((await engineer.get('/api/chat/passages/p1')).status).toBe(503)
+  })
+
+  it('is 503 when S4 fails', async () => {
+    vi.stubGlobal('fetch', async () => new Response('boom', { status: 500 }))
+    expect((await engineer.get('/api/chat/passages/p1')).status).toBe(503)
+  })
+
+  it('needs a signed-in user', async () => {
+    expect((await request(app).get('/api/chat/passages/p1')).status).toBe(401)
+  })
+
+  it('is 403 for a role without knowledge:view', async () => {
+    const nobody = signedInAsRole(app, 'nobody' as never)
+    const fetched = vi.fn()
+    vi.stubGlobal('fetch', fetched)
+    expect((await nobody.get('/api/chat/passages/p1')).status).toBe(403)
+    expect(fetched).not.toHaveBeenCalled()
+  })
+})

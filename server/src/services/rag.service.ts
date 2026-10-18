@@ -10,7 +10,11 @@ export async function generateReport(_body: unknown) {
 
 // Its message is the reason to show the engineer.
 export class RagServiceError extends Error {
-  constructor(message: string) {
+  // `status` is S4's HTTP status when it answered; absent when it was unreachable.
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
     super(message)
     this.name = 'RagServiceError'
   }
@@ -31,6 +35,7 @@ async function callRag<T>(path: string, init?: RequestInit): Promise<T> {
       typeof body.detail === 'string'
         ? body.detail
         : `The drafting service failed with status ${response.status}.`,
+      response.status,
     )
   }
   return body as T
@@ -51,6 +56,14 @@ export async function withChatDocuments(body: unknown): Promise<object> {
     ...(d.edition && { edition: d.edition }),
   }))
   return { ...(body as object), documents }
+}
+
+/**
+ * Returns one passage's text and page boxes from S4 for the citation panel (CB-02).
+ * Throws RagServiceError; its `status` is 404 when S4 doesn't know the passage.
+ */
+export function getPassage(id: string): Promise<object> {
+  return callRag(`/passages/${encodeURIComponent(id)}`)
 }
 
 /**

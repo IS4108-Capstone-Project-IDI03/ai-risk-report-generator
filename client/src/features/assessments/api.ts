@@ -200,7 +200,8 @@ export function reportSessionEnded() {
   window.dispatchEvent(new Event(SESSION_ENDED_EVENT))
 }
 
-async function request<T>(
+/** Returns a gateway call's status and parsed body; a 401 also ends the session (F-04). */
+export async function request<T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,

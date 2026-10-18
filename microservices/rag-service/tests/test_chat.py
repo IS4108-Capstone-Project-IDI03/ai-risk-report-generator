@@ -561,3 +561,8 @@ def test_a_named_report_gets_its_top_passages_not_one(fake):
     client.post("/chat", json=body)
     assert fake["calls"]["options"] == [{"expand": True}]  # the default top 5 of that one report
     assert fake["calls"]["answer"][0][1][-1]["content"].count("[P") == 3
+
+
+def test_the_meta_line_names_each_passage_id_so_the_panel_can_open_it(fake):
+    # CB-02: the citation panel fetches the passage by this id.
+    assert f"passageId: {json.dumps(P1['id'])}" in _program(_ask("Clearance?"))

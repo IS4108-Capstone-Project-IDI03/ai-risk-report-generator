@@ -137,6 +137,17 @@ describe('Cited answer', () => {
     )
   })
 
+  it("carries the passage's id from the server's meta line to the opened citation (CB-02)", () => {
+    const select = renderAnswer(
+      `${body}\n${meta.replace('label: "P1", documentId: "d1"', 'label: "P1", documentId: "d1", passageId: "c1"')}`,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Citation 1/ }))
+    expect(select).toHaveBeenCalledWith(
+      expect.objectContaining({ source: expect.objectContaining({ passageId: 'c1' }) }),
+      expect.any(HTMLElement),
+    )
+  })
+
   it('flows a paragraph of statements into one block, with document names in bold', () => {
     renderAnswer(
       [
@@ -174,6 +185,22 @@ describe('Cited answer', () => {
     expect(followUp.compareDocumentPosition(screen.getByText('Office Sample 2'))).toBe(
       Node.DOCUMENT_POSITION_PRECEDING,
     )
+  })
+
+  it('writes the section sign as the word Section (Jesper, 17 Oct)', () => {
+    renderAnswer(
+      [
+        'root = Answer([s1, f1])',
+        's1 = Statement("See § 8.15.1, §9.2 and §§ 10.1–10.3.", [c1])',
+        'c1 = Cite("P1", "§ 8.15.1")',
+        'f1 = FollowUp("Want me to check §8.16?")',
+      ].join('\n'),
+    )
+    expect(
+      screen.getByText(/See Section 8\.15\.1, Section 9\.2 and Sections 10\.1–10\.3\./),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Want me to check Section 8.16?')).toBeInTheDocument()
+    expect(screen.queryByText(/§/)).toBeNull()
   })
 
   it('shows a document name in a follow-up question in bold, like the answer', () => {
