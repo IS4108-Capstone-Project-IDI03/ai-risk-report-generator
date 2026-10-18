@@ -890,3 +890,103 @@ export function ingestionCsv(usage: IngestionUsage): string {
   )
   return [csvLine(head), ...lines].join('\n') + '\n'
 }
+
+// ── Chatbot: what the knowledge assistant's chat cost, day by day ─────────
+
+// A chat day, or a person who asked: what their calls cost.
+export type ChatGroup = {
+  key: string
+  calls: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+  // The day's or person's latest call; null for a day with none.
+  lastActivityAt: string | null
+  // Cost per billed service: the day's bar's stacked parts.
+  segments: Record<string, number>
+}
+
+export type ChatUsage = {
+  scope: { range: OverviewQuery['range']; from: string | null }
+  totals: UsageSummary['totals']
+  splitKeys: string[]
+  // Every day of the period, oldest first, in Singapore: a day with no chat is 0.
+  byDay: ChatGroup[]
+  // Each person who asked, costliest first.
+  byUser: (ChatGroup & { name: string })[]
+  rateRows: RateRow[]
+}
+
+// The Singapore calendar day of a moment, as YYYY-MM-DD.
+const singaporeDay = (at: Date | number) =>
+  new Date(+at + SINGAPORE_OFFSET_MS).toISOString().slice(0, 10)
+
+function chatGroup(key: string, members: IAiCall[]): ChatGroup {
+  const segments: Record<string, number> = {}
+  for (const r of members)
+    if (r.estimatedCostUsd !== null)
+      segments[r.billedService] = round((segments[r.billedService] ?? 0) + r.estimatedCostUsd)
+  return {
+    key,
+    calls: callsIn(members),
+    estimatedCostUsd: round(sum(members, (r) => r.estimatedCostUsd)),
+    callsWithoutCost: uncosted(members),
+    lastActivityAt: members.length
+      ? new Date(Math.max(...members.map((r) => +new Date(r.createdAt)))).toISOString()
+      : null,
+    segments,
+  }
+}
+
+/**
+ * Returns the chat's cost for the period chosen: totals, every day (Singapore
+ * time, empty days included), each person who asked, and the usage at the
+ * rates charged. A knowledge admin sees everyone's chat; a risk engineer
+ * only their own.
+ */
+export async function chatUsage(
+  user: SessionUser,
+  range: OverviewQuery['range'],
+  now = new Date(),
+): Promise<ChatUsage> {
+  const from = rangeStart(range, now)
+  const mine = user.role === 'knowledge_admin' ? {} : { userId: new Types.ObjectId(user.id) }
+  const rows = await AiCallModel.find({
+    feature: 'chat',
+    ...mine,
+    ...(from && { createdAt: { $gte: from } }),
+  }).lean<IAiCall[]>()
+
+  const perDay = groupRows(rows, (r) => singaporeDay(new Date(r.createdAt)))
+  const byDay: ChatGroup[] = []
+  const first = from ?? (rows.length ? Math.min(...rows.map((r) => +new Date(r.createdAt))) : null)
+  if (first !== null)
+    for (let day = singaporeDay(first); day <= singaporeDay(now);) {
+      byDay.push(chatGroup(day, perDay.get(day) ?? []))
+      day = new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10)
+    }
+
+  const perUser = groupRows(rows, (r) => (r.userId ? String(r.userId) : 'unknown'))
+  const names = new Map(
+    (
+      await UserModel.find(
+        { _id: { $in: [...perUser.keys()].filter((k) => Types.ObjectId.isValid(k)) } },
+        'name',
+      ).lean()
+    ).map((u) => [String(u._id), u.name]),
+  )
+  const byUser = [...perUser]
+    .map(([key, members]) => ({
+      ...chatGroup(key, members),
+      name: names.get(key) ?? 'Unknown user',
+    }))
+    .sort(byCostThenKey)
+
+  return {
+    scope: { range, from: from?.toISOString() ?? null },
+    totals: totalsOf(rows),
+    splitKeys: splitKeysOf(rows, splitKeyFor('service')),
+    byDay,
+    byUser,
+    rateRows: rateRows(rows),
+  }
+}

@@ -1181,3 +1181,123 @@ describe('GET /api/usage/ingestion/:key, one document (EV-04)', () => {
     expect((await asAlex.get(`/api/usage/ingestion/${nfpa}/export.csv`)).status).toBe(403)
   })
 })
+
+describe('GET /api/usage/chat, the chatbot (EV-04, CB-01)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // One chat answer from gpt-6.1-sol at $2 in, $10 out per 1M:
+  // 1,000 in = $0.002; 500 out = $0.005. $0.007 each.
+  const answer: WireUsage = {
+    feature: 'chat',
+    billed_service: 'openai',
+    model: 'gpt-6.1-sol',
+    duration_ms: 100,
+    input_tokens: 1000,
+    output_tokens: 500,
+    cache_read_tokens: 0,
+    search_units: null,
+    audio_seconds: null,
+    usage_status: 'recorded',
+  }
+  const askedAt = async (iso: string, who: { _id: Types.ObjectId }) => {
+    vi.setSystemTime(new Date(iso))
+    await recordAiCalls([answer], { userId: String(who._id) })
+  }
+  // Now is 13 Oct 2026, 18:00 in Singapore. Alex asked on 11 Oct and, at 04:00
+  // Singapore time, on 13 Oct; Jide on 13 Oct. Last week is 6–13 Oct.
+  async function chats() {
+    await UserModel.collection.insertMany([alex, jide, sana])
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await askedAt('2026-10-11T02:00:00Z', alex)
+    await askedAt('2026-10-12T20:00:00Z', alex)
+    await askedAt('2026-10-13T01:00:00Z', jide)
+    vi.setSystemTime(new Date('2026-10-13T10:00:00Z'))
+  }
+
+  it('gives the chat cost per day in Singapore, every day of the period, split by service', async () => {
+    await chats()
+
+    const { status, body } = await asSana.get('/api/usage/chat?range=7d')
+
+    expect(status).toBe(200)
+    expect(body.totals).toMatchObject({ calls: 3, estimatedCostUsd: 0.021, callsWithoutCost: 0 })
+    expect(body.splitKeys).toEqual(['openai'])
+    expect(body.byDay.map((d: { key: string }) => d.key)).toEqual([
+      '2026-10-06',
+      '2026-10-07',
+      '2026-10-08',
+      '2026-10-09',
+      '2026-10-10',
+      '2026-10-11',
+      '2026-10-12',
+      '2026-10-13',
+    ])
+    const day = (key: string) => body.byDay.find((d: { key: string }) => d.key === key)
+    expect(day('2026-10-11')).toMatchObject({
+      calls: 1,
+      estimatedCostUsd: 0.007,
+      segments: { openai: 0.007 },
+    })
+    expect(day('2026-10-12')).toMatchObject({ calls: 0, estimatedCostUsd: 0, segments: {} })
+    expect(day('2026-10-13')).toMatchObject({ calls: 2, estimatedCostUsd: 0.014 })
+  })
+
+  it('gives each person who asked their cost, costliest first, and the usage at the rates charged', async () => {
+    await chats()
+
+    const { body } = await asSana.get('/api/usage/chat?range=7d')
+
+    expect(body.byUser).toEqual([
+      expect.objectContaining({
+        key: String(alex._id),
+        name: 'alex',
+        calls: 2,
+        estimatedCostUsd: 0.014,
+      }),
+      expect.objectContaining({
+        key: String(jide._id),
+        name: 'jide',
+        calls: 1,
+        estimatedCostUsd: 0.007,
+      }),
+    ])
+    expect(body.rateRows).toEqual([
+      expect.objectContaining({
+        feature: 'chat',
+        service: 'openai',
+        model: 'gpt-6.1-sol',
+        calls: 3,
+        costUsd: 0.021,
+      }),
+    ])
+  })
+
+  it('shows a risk engineer only their own chat', async () => {
+    await chats()
+
+    const { body } = await asAlex.get('/api/usage/chat?range=7d')
+
+    expect(body.totals.calls).toBe(2)
+    expect(body.byUser.map((u: { name: string }) => u.name)).toEqual(['alex'])
+  })
+
+  it('rejects an unknown period', async () => {
+    expect((await asSana.get('/api/usage/chat?range=1y')).status).toBe(400)
+  })
+
+  it("exports the chat's usage and rates for the period", async () => {
+    await chats()
+
+    const res = await asSana.get('/api/usage/chat/export.csv?range=7d')
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-chat-rates-7d.csv"',
+    )
+    expect(res.text.trim().split('\n').slice(1)).toEqual([
+      'chat,openai,gpt-6.1-sol,charged,input,3000,tokens,2,1000000,0.006,3,100,',
+      'chat,openai,gpt-6.1-sol,charged,output,1500,tokens,10,1000000,0.015,3,100,',
+    ])
+    expect((await asSana.get('/api/usage/chat/export.csv?range=1y')).status).toBe(400)
+  })
+})

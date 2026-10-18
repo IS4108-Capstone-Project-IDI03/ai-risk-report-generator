@@ -6,6 +6,7 @@ import { Router } from 'express'
 import { isValidObjectId } from 'mongoose'
 import { requirePermission } from '../middleware/auth.middleware'
 import {
+  chatUsage,
   OVERVIEW_GROUPS,
   OVERVIEW_RANGES,
   OVERVIEW_SPLITS,
@@ -127,6 +128,29 @@ router.get('/ingestion/:key/export.csv', ...ingestionAccess, async (req, res) =>
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename="usage-document-${name}.csv"`)
   res.send(ratesCsv(usage.rateRows))
+})
+
+// The chatbot's cost for a period: a knowledge admin sees everyone's chat, a
+// risk engineer their own (the service scopes it).
+router.get('/chat', requirePermission('usage:view'), async (req, res) => {
+  const range = oneOf(OVERVIEW_RANGES, req.query.range)
+  if (!range) {
+    res.status(400).json({ error: `range must be one of ${OVERVIEW_RANGES.join(', ')}.` })
+    return
+  }
+  res.json(await chatUsage(res.locals.user!, range))
+})
+
+router.get('/chat/export.csv', requirePermission('usage:view'), async (req, res) => {
+  const range = oneOf(OVERVIEW_RANGES, req.query.range)
+  if (!range) {
+    res.status(400).json({ error: `range must be one of ${OVERVIEW_RANGES.join(', ')}.` })
+    return
+  }
+  const csv = ratesCsv((await chatUsage(res.locals.user!, range)).rateRows)
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="usage-chat-rates-${range}.csv"`)
+  res.send(csv)
 })
 
 router.get('/summary', requirePermission('usage:view'), async (req, res) => {
