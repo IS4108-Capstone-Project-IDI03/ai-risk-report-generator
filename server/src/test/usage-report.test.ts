@@ -1150,4 +1150,34 @@ describe('GET /api/usage/ingestion/:key, one document (EV-04)', () => {
 
     expect((await open(String(nfpa), asAlex)).status).toBe(403)
   })
+
+  it("exports a document's usage and rates as CSV, named after it", async () => {
+    await document()
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+    await recordAiCalls([ocr(String(nfpa))])
+
+    const res = await asSana.get(`/api/usage/ingestion/${nfpa}/export.csv`)
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toMatch(/text\/csv/)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-document-NFPA_13.csv"',
+    )
+    expect(res.text.trim().split('\n')).toEqual([
+      'feature,service,model,rates,part,quantity,unit,usd_per,per,cost_usd,calls,avg_ms_per_call,note',
+      'ocr,gemini-ocr,gemini-3.8-flash,charged,input,400000,tokens,0.75,1000000,0.3,4,1000,',
+      'ocr,gemini-ocr,gemini-3.8-flash,charged,output,40000,tokens,3.75,1000000,0.15,4,1000,',
+      'label-document,openai-label,gpt-6-luna,charged,input,1000000,tokens,0.1,1000000,0.1,1,2000,',
+      'label-document,openai-label,gpt-6-luna,charged,output,200000,tokens,0.5,1000000,0.1,1,2000,',
+    ])
+  })
+
+  it('exports nothing for a document with no calls, and only for knowledge admins', async () => {
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+
+    expect(
+      (await asSana.get(`/api/usage/ingestion/${new Types.ObjectId()}/export.csv`)).status,
+    ).toBe(404)
+    expect((await asAlex.get(`/api/usage/ingestion/${nfpa}/export.csv`)).status).toBe(403)
+  })
 })

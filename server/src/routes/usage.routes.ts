@@ -116,6 +116,19 @@ router.get('/ingestion/:key', ...ingestionAccess, async (req, res) => {
   res.json(usage)
 })
 
+router.get('/ingestion/:key/export.csv', ...ingestionAccess, async (req, res) => {
+  const usage = await documentUsage(String(req.params.key))
+  if (!usage) {
+    res.status(404).json({ error: 'No AI calls are recorded for that document.' })
+    return
+  }
+  // The title goes into the file name, so strip anything a header could not carry.
+  const name = usage.title.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80)
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="usage-document-${name}.csv"`)
+  res.send(ratesCsv(usage.rateRows))
+})
+
 router.get('/summary', requirePermission('usage:view'), async (req, res) => {
   try {
     res.json(await summarizeUsage(res.locals.user!, reportIdOf(req.query)))
