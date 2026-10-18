@@ -100,6 +100,34 @@ export function formatDayKey(key: string, withYear = true): string {
   return withYear ? `${short} ${year}` : short
 }
 
+// A Singapore month key (2026-09) as "Sep 2026", or "Sep" for a chart axis.
+export function formatMonthKey(key: string, withYear = true): string {
+  const [year, month] = key.split('-').map(Number)
+  return withYear ? `${MONTHS[month - 1]} ${year}` : MONTHS[month - 1]
+}
+
+const LONG_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+// A calendar period in full: "October 2026", or "2026" for a year.
+export function formatPeriod(period: 'month' | 'year', at: string): string {
+  if (period === 'year') return at
+  const [year, month] = at.split('-').map(Number)
+  return `${LONG_MONTHS[month - 1]} ${year}`
+}
+
 // Milliseconds as "850 ms" or "1.2 s"; null (no data) is a dash.
 export function formatDuration(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms)) return DASH

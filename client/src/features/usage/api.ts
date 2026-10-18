@@ -163,26 +163,33 @@ export type DocumentUsageDetail = {
   rateRows: RateRow[]
 }
 
-// A chat day (key YYYY-MM-DD, Singapore) or a person who asked (key: user id).
+// A chat day (key YYYY-MM-DD) or month (YYYY-MM), Singapore time, or a person
+// who asked (key: user id).
 export type ChatGroup = {
   key: string
   calls: number
   estimatedCostUsd: number
   callsWithoutCost: number
-  // Null for a day with no chat.
+  // Null for a day or month with no chat.
   lastActivityAt: string | null
   segments: Record<string, number>
 }
 
-// The chatbot's cost for a period: every day, oldest first, and each person
-// who asked, costliest first. A risk engineer gets only their own chat.
+// A calendar month (at: YYYY-MM) or year (at: YYYY), Singapore time.
+export type ChatPeriod = { period: 'month' | 'year'; at: string }
+
+// The chatbot's cost for a month or year: a bucket per day or month up to
+// today, oldest first, and each person who asked, costliest first. A risk
+// engineer gets only their own chat. `complete`: the period has ended.
 export type ChatUsage = {
-  scope: { range: Range; from: string | null }
+  scope: ChatPeriod & { complete: boolean }
   totals: Totals
   splitKeys: string[]
-  byDay: ChatGroup[]
+  buckets: ChatGroup[]
   byUser: (ChatGroup & { name: string })[]
   rateRows: RateRow[]
+  // The period before, to compare against.
+  previous: { at: string; calls: number; estimatedCostUsd: number }
 }
 
 // `request` also ends the session on a 401.
@@ -234,13 +241,13 @@ export function documentExportUrl(key: string): string {
   return `/api/usage/ingestion/${encodeURIComponent(key)}/export.csv`
 }
 
-export function getChatUsage(range: Range, signal?: AbortSignal): Promise<ChatUsage> {
-  return request<ChatUsage>(`/api/usage/chat?${new URLSearchParams({ range })}`, { signal })
+export function getChatUsage(chosen: ChatPeriod, signal?: AbortSignal): Promise<ChatUsage> {
+  return request<ChatUsage>(`/api/usage/chat?${new URLSearchParams(chosen)}`, { signal })
 }
 
 // The chat's usage at the rates charged, for the period, one line per billed part.
-export function chatExportUrl(range: Range): string {
-  return `/api/usage/chat/export.csv?${new URLSearchParams({ range })}`
+export function chatExportUrl(chosen: ChatPeriod): string {
+  return `/api/usage/chat/export.csv?${new URLSearchParams(chosen)}`
 }
 
 export function ingestionExportUrl(q: IngestionQuery): string {

@@ -188,35 +188,47 @@ const SUMMARY = {
   ],
 }
 
-// The chatbot's page: two days of a week, two people who asked, and the
-// answers' usage at the rates charged (gpt-6.1-sol, $0.007 an answer).
-const chatDay = (key: string, calls: number) => ({
+// The chatbot's page. Now is 13 Oct 2026. October so far: three answers
+// (gpt-6.1-sol, $0.007 each); September: one; August: half an answer's worth.
+const chatBucket = (key: string, calls: number) => ({
   key,
   calls,
   estimatedCostUsd: calls * 0.007,
   callsWithoutCost: 0,
-  lastActivityAt: calls ? `${key}T04:00:00.000Z` : null,
+  lastActivityAt: calls ? `${key.slice(0, 7)}-11T04:00:00.000Z` : null,
   segments: calls ? { openai: calls * 0.007 } : {},
 })
-const CHAT = {
-  scope: { range: '30d', from: '2026-09-13T10:00:00.000Z' },
-  totals: { calls: 3, estimatedCostUsd: 0.021, callsWithoutCost: 0, estimatedCalls: 0 },
-  splitKeys: ['openai'],
-  byDay: [chatDay('2026-10-11', 1), chatDay('2026-10-12', 0), chatDay('2026-10-13', 2)],
-  byUser: [
-    { ...chatDay(ALEX, 2), name: 'Alex Tan' },
-    { ...chatDay(JIDE, 1), name: 'Jide Okafor' },
-  ],
-  rateRows: [
-    rateRow({
-      feature: 'chat',
-      service: 'openai',
-      model: 'gpt-6.1-sol',
-      calls: 3,
-      cells: { input: cell(3000, 2, 0.006), output: cell(1500, 10, 0.015) },
-      costUsd: 0.021,
-    }),
-  ],
+const chatFor = (period: string, at: string) => {
+  const october = period === 'month' && at === '2026-10'
+  const calls = period === 'year' ? 4 : october ? 3 : 1
+  return {
+    scope: { period, at, complete: period === 'month' && !october },
+    totals: { calls, estimatedCostUsd: calls * 0.007, callsWithoutCost: 0, estimatedCalls: 0 },
+    splitKeys: ['openai'],
+    buckets:
+      period === 'year'
+        ? [chatBucket('2026-09', 1), chatBucket('2026-10', 3)]
+        : october
+          ? [chatBucket('2026-10-11', 1), chatBucket('2026-10-12', 0), chatBucket('2026-10-13', 2)]
+          : [chatBucket(`${at}-20`, 1)],
+    byUser: [{ ...chatBucket(ALEX, calls), name: 'Alex Tan' }],
+    rateRows: [
+      rateRow({
+        feature: 'chat',
+        service: 'openai',
+        model: 'gpt-6.1-sol',
+        calls,
+        cells: {
+          input: cell(calls * 1000, 2, calls * 0.002),
+          output: cell(calls * 500, 10, calls * 0.005),
+        },
+        costUsd: calls * 0.007,
+      }),
+    ],
+    previous: october
+      ? { at: '2026-09', calls: 1, estimatedCostUsd: 0.007 }
+      : { at: period === 'year' ? '2025' : '2026-08', calls: 1, estimatedCostUsd: 0.0035 },
+  }
 }
 
 const json = (status: number, body: unknown) =>
@@ -227,7 +239,10 @@ const json = (status: number, body: unknown) =>
 // Answers the overview by grouping and the summary for a report, like the gateway.
 function defaultAnswer(url: string) {
   if (url.startsWith('/api/usage/summary')) return json(200, SUMMARY)
-  if (url.startsWith('/api/usage/chat')) return json(200, CHAT)
+  if (url.startsWith('/api/usage/chat')) {
+    const q = new URL(url, 'http://x').searchParams
+    return json(200, chatFor(q.get('period')!, q.get('at')!))
+  }
   const query = new URL(url, 'http://x').searchParams
   return json(200, query.get('groupBy') === 'engineer' ? BY_ENGINEER : OVERVIEW)
 }
@@ -273,6 +288,7 @@ beforeEach(() =>
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 // The screen and its chart library load on first open, which is slow while
@@ -374,15 +390,29 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     expect(screen.queryByRole('button', { name: /^Show cost calculation/ })).toBeNull()
   })
 
-  it('opens the chatbot from its row: cost per day and per person, and usage at the rates charged', async () => {
+  // Now is 13 Oct 2026, 18:00 in Singapore; only Date is faked.
+  async function openChatbot() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-13T10:00:00Z'))
     const urls = mockGateway()
     await openUsage()
     const chat = within(assessmentTable()).getByRole('row', { name: /Chatbot/ })
     fireEvent.click(within(chat).getByRole('button', { name: 'Chatbot' }))
+    await screen.findByRole('heading', { name: 'Chatbot' })
+    return urls
+  }
+  const chatQuery = (urls: string[]) =>
+    new URL(urls.filter((u) => u.startsWith('/api/usage/chat?')).at(-1)!, 'http://x').search
 
-    expect(await screen.findByRole('heading', { name: 'Chatbot' })).toBeInTheDocument()
-    expect(urls()).toContain('/api/usage/chat?range=30d')
-    expect(screen.getByText('Last 30 days')).toBeInTheDocument()
+  it('opens the chatbot on this month: cost per day and per person, and usage at the rates charged', async () => {
+    const urls = await openChatbot()
+
+    expect(chatQuery(urls())).toBe('?period=month&at=2026-10')
+    expect(screen.getByRole('status', { name: 'Period shown' })).toHaveTextContent('October 2026')
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'This month' })).toBeNull()
+    // A month still under way is not compared with a whole one.
+    expect(screen.queryByText(/vs September 2026/)).toBeNull()
     expect(screen.getByText('Total estimated cost').parentElement).toHaveTextContent('$0.0210')
     expect(
       screen.getByRole('table', { name: 'Cost per day, split by service' }),
@@ -400,28 +430,56 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
       expect.stringMatching(/^13 Oct 2026.*\$0\.0140$/),
     ])
     const people = screen.getByRole('table', { name: 'Chat cost per person' })
-    expect(within(people).getByRole('row', { name: /Alex Tan/ })).toHaveTextContent('$0.0140')
-
+    expect(within(people).getByRole('row', { name: /Alex Tan/ })).toHaveTextContent('$0.0210')
     const rates = screen.getByRole('table', { name: 'Claude and OpenAI: usage and rates' })
     expect(within(rates).getByRole('row', { name: /gpt-6\.1-sol/ })).toHaveTextContent(
       '@ $2.00 / 1M tokens',
     )
     expect(screen.getByRole('link', { name: 'Export rates CSV' })).toHaveAttribute(
       'href',
-      '/api/usage/chat/export.csv?range=30d',
+      '/api/usage/chat/export.csv?period=month&at=2026-10',
     )
   })
 
-  it('opens the chatbot for the period chosen, and goes back', async () => {
-    const urls = mockGateway()
-    await openUsage()
-    fireEvent.change(screen.getByLabelText('Period'), { target: { value: '7d' } })
-    await waitFor(() => expect(lastQuery(urls()).get('range')).toBe('7d'))
-    const chat = within(assessmentTable()).getByRole('row', { name: /Chatbot/ })
-    fireEvent.click(within(chat).getByRole('button', { name: 'Chatbot' }))
+  it('steps back a month, compares a finished month with the one before, and returns to this month', async () => {
+    const urls = await openChatbot()
 
-    await screen.findByRole('heading', { name: 'Chatbot' })
-    expect(urls()).toContain('/api/usage/chat?range=7d')
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=month&at=2026-09'))
+    expect(screen.getByRole('status', { name: 'Period shown' })).toHaveTextContent('September 2026')
+    expect(await screen.findByText(/100% vs August 2026/)).toHaveTextContent('Up')
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeEnabled()
+    expect(screen.getByRole('link', { name: 'Export rates CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/chat/export.csv?period=month&at=2026-09',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'This month' }))
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=month&at=2026-10'))
+  })
+
+  it('shows the year a bar per month, stepping by year', async () => {
+    const urls = await openChatbot()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Year' }))
+
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=year&at=2026'))
+    expect(screen.getByRole('status', { name: 'Period shown' })).toHaveTextContent('2026')
+    expect(screen.getByRole('button', { name: 'Next year' })).toBeDisabled()
+    const months = await screen.findByRole('table', { name: 'Chat cost per month' })
+    expect(
+      within(months)
+        .getAllByRole('row')
+        .slice(1)
+        .map((r) => r.textContent),
+    ).toEqual([expect.stringMatching(/^Sep 2026/), expect.stringMatching(/^Oct 2026/)])
+    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=year&at=2025'))
+  })
+
+  it('goes back from the chatbot to every assessment', async () => {
+    await openChatbot()
     fireEvent.click(screen.getByRole('button', { name: 'All assessments' }))
     expect(
       await screen.findByRole('table', { name: 'Assessments and their cost' }),

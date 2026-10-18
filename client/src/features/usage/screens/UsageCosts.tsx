@@ -5,7 +5,7 @@
 // document cost, each document opening its own detail page.
 import { useState } from 'react'
 import { IconRegistry, Tabs } from '../../../design-system'
-import type { DocumentUsage, OverviewGroup, Range } from '../api'
+import type { DocumentUsage, OverviewGroup } from '../api'
 import '../usage.css'
 import { AssessmentUsageDetail } from './AssessmentUsageDetail'
 import { ChatUsageDetail } from './ChatUsageDetail'
@@ -19,14 +19,20 @@ export function UsageCosts({ isAdmin }: { isAdmin: boolean }) {
   const [tab, setTab] = useState<Tab>('reports')
   const [assessment, setAssessment] = useState<OverviewGroup | null>(null)
   const [document, setDocument] = useState<DocumentUsage | null>(null)
-  // The chatbot's page is open, for this period.
-  const [chat, setChat] = useState<Range | null>(null)
+  // The chatbot's page is open.
+  const [chat, setChat] = useState(false)
   if (assessment)
     return <AssessmentUsageDetail assessment={assessment} onBack={() => setAssessment(null)} />
-  if (chat) return <ChatUsageDetail range={chat} onBack={() => setChat(null)} />
+  if (chat) return <ChatUsageDetail onBack={() => setChat(false)} />
   if (document) return <DocumentUsageDetail document={document} onBack={() => setDocument(null)} />
   if (!isAdmin)
-    return <ReportUsageOverview isAdmin={false} onOpen={setAssessment} onOpenChat={setChat} />
+    return (
+      <ReportUsageOverview
+        isAdmin={false}
+        onOpen={setAssessment}
+        onOpenChat={() => setChat(true)}
+      />
+    )
   return (
     <div className="uc-tabs">
       <Tabs
@@ -39,7 +45,7 @@ export function UsageCosts({ isAdmin }: { isAdmin: boolean }) {
         ]}
       />
       {tab === 'reports' ? (
-        <ReportUsageOverview isAdmin onOpen={setAssessment} onOpenChat={setChat} />
+        <ReportUsageOverview isAdmin onOpen={setAssessment} onOpenChat={() => setChat(true)} />
       ) : (
         <IngestionUsageTab onOpen={setDocument} />
       )}

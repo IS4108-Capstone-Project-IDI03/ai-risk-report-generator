@@ -139,6 +139,35 @@
   justify-content: space-between;
   gap: var(--space-3) var(--space-5);
 }
+/* The chatbot's period: Month / Year, then ‹ October 2026 ›. */
+.uc-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+}
+.uc-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.uc-stepper-label {
+  min-width: 10rem;
+  text-align: center;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+/* A finished period beside the one before, under the totals. */
+.uc-totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.uc-compare {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
 .uc-section-note {
   color: var(--text-secondary);
 }
