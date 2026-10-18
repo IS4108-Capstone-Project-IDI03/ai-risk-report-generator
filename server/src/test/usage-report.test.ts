@@ -977,6 +977,56 @@ describe('usage and rates on the detail pages (EV-04)', () => {
 
     expect((await asSana.get('/api/usage/summary')).body.rateRows).toEqual([])
   })
+
+  it("exports an assessment's usage and rates, one line per billed part, adding up to its total", async () => {
+    // Sonnet at $2 / $10 / $0.1 per 1M: $2.00 + $1.00 + $0.05. Whisper: 10 min × $0.006 = $0.06.
+    // An Opus call saved before rates were kept, at its stored $0.50. In all, $3.61.
+    await assessments()
+    await record([
+      wire({
+        model: 'claude-sonnet-5-5',
+        input_tokens: 1_000_000,
+        output_tokens: 100_000,
+        cache_read_tokens: 500_000,
+      }),
+      wire({
+        feature: 'transcribe',
+        billed_service: 'openai-whisper',
+        model: 'whisper-1',
+        input_tokens: null,
+        output_tokens: null,
+        cache_read_tokens: null,
+        audio_seconds: 600,
+      }),
+      wire({ model: 'claude-unknown-9', input_tokens: 10_000, output_tokens: 2_000 }),
+    ])
+    await seed([call()]) // no costParts
+
+    const res = await asSana.get('/api/usage/export.csv?groupBy=rates&reportId=RPT-A')
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-disposition']).toBe('attachment; filename="usage-rates-RPT-A.csv"')
+    const lines = res.text.trim().split('\n')
+    const old = 'Saved before rates were recorded'
+    expect(lines).toEqual([
+      'feature,service,model,rates,part,quantity,unit,usd_per,per,cost_usd,calls,avg_ms_per_call,note',
+      `draft-section,anthropic,claude-opus-5-5,not recorded,input,1000,tokens,,1000000,,1,100,${old}`,
+      `draft-section,anthropic,claude-opus-5-5,not recorded,output,500,tokens,,1000000,,1,100,${old}`,
+      `draft-section,anthropic,claude-opus-5-5,not recorded,stored cost,,,,,0.5,1,100,${old}`,
+      'draft-section,anthropic,claude-sonnet-5-5,charged,input,1000000,tokens,2,1000000,2,1,100,',
+      'draft-section,anthropic,claude-sonnet-5-5,charged,output,100000,tokens,10,1000000,1,1,100,',
+      'draft-section,anthropic,claude-sonnet-5-5,charged,cached input,500000,tokens,0.1,1000000,0.05,1,100,',
+      'draft-section,anthropic,claude-unknown-9,not priced,input,10000,tokens,,1000000,,1,100,no price for model',
+      'draft-section,anthropic,claude-unknown-9,not priced,output,2000,tokens,,1000000,,1,100,no price for model',
+      'transcribe,openai-whisper,whisper-1,charged,audio,10,minutes,0.006,1,0.06,1,100,',
+    ])
+    const costs = lines.slice(1).map((l) => Number(l.split(',')[9] || 0))
+    expect(costs.reduce((t, c) => t + c, 0)).toBeCloseTo(3.61, 6)
+  })
+
+  it('exports rates only for a chosen assessment', async () => {
+    expect((await asSana.get('/api/usage/export.csv?groupBy=rates')).status).toBe(400)
+  })
 })
 
 describe('GET /api/usage/ingestion/:key, one document (EV-04)', () => {

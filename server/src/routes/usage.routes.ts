@@ -15,6 +15,7 @@ import {
   ingestionUsage,
   type OverviewQuery,
   overviewCsv,
+  ratesCsv,
   ReportNotInScopeError,
   summarizeUsage,
   usageCsv,
@@ -129,17 +130,24 @@ router.get('/summary', requirePermission('usage:view'), async (req, res) => {
 
 router.get('/export.csv', requirePermission('usage:view'), async (req, res) => {
   const groupBy = req.query.groupBy
-  if (groupBy !== 'feature' && groupBy !== 'service') {
-    res.status(400).json({ error: 'groupBy must be "feature" or "service".' })
+  const reportId = reportIdOf(req.query)
+  if (groupBy !== 'feature' && groupBy !== 'service' && groupBy !== 'rates') {
+    res.status(400).json({ error: 'groupBy must be "feature", "service" or "rates".' })
+    return
+  }
+  // Rates are kept per assessment: its usage at the rates charged.
+  if (groupBy === 'rates' && !reportId) {
+    res.status(400).json({ error: 'groupBy "rates" needs a reportId.' })
     return
   }
   try {
-    const reportId = reportIdOf(req.query)
-    const csv = usageCsv(await summarizeUsage(res.locals.user!, reportId), groupBy)
+    const summary = await summarizeUsage(res.locals.user!, reportId)
+    const csv = groupBy === 'rates' ? ratesCsv(summary.rateRows) : usageCsv(summary, groupBy)
     // The report id goes into the file name, so strip anything a header could not carry.
     const suffix = reportId ? `-${reportId.replace(/[^A-Za-z0-9._-]/g, '_')}` : ''
+    const name = groupBy === 'rates' ? `usage-rates${suffix}` : `usage-by-${groupBy}${suffix}`
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-    res.setHeader('Content-Disposition', `attachment; filename="usage-by-${groupBy}${suffix}.csv"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${name}.csv"`)
     res.send(csv)
   } catch (error) {
     if (error instanceof ReportNotInScopeError) {

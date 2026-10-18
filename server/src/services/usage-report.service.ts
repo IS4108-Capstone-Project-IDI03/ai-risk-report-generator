@@ -272,6 +272,45 @@ export function usageCsv(summary: UsageSummary, groupBy: 'feature' | 'service'):
   return [head.join(','), ...lines].join('\n') + '\n'
 }
 
+const RATE_PARTS: CostPart['part'][] = ['input', 'output', 'cached input', 'searches', 'audio']
+const RATES_CSV_HEAD =
+  'feature,service,model,rates,part,quantity,unit,usd_per,per,cost_usd,calls,avg_ms_per_call,note'
+
+/**
+ * Returns a detail page's usage and rates as CSV text: one line per billed
+ * part, quantity × usd_per ÷ per = cost_usd. A row saved before rates were
+ * kept adds a "stored cost" line, so cost_usd adds up to the total; a call
+ * with no price has no cost.
+ */
+export function ratesCsv(rows: RateRow[]): string {
+  const lines: string[] = []
+  for (const r of rows) {
+    const row = [r.feature, r.service, r.model, r.rates]
+    const tail = (note: string | null) => [r.calls, r.avgMsPerCall, note]
+    for (const part of RATE_PARTS) {
+      const c = r.cells[part]
+      if (c)
+        lines.push(
+          csvLine([
+            ...row,
+            part,
+            c.quantity,
+            c.unit,
+            c.usdPer,
+            c.per,
+            c.costUsd,
+            ...tail(c.note ?? r.note),
+          ]),
+        )
+    }
+    if (r.rates === 'not recorded')
+      lines.push(
+        csvLine([...row, 'stored cost', null, null, null, null, r.costUsd, ...tail(r.note)]),
+      )
+  }
+  return [RATES_CSV_HEAD, ...lines].join('\n') + '\n'
+}
+
 // ── Shared by the overview and the ingestion view ─────────────────────────
 
 type SplitKey = (r: IAiCall) => string
