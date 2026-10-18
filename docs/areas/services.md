@@ -156,10 +156,15 @@ eval.interpret_photos`).
   the image. A table over about 1,400 characters is cut between rows into groups
   that each repeat the title; ids are `<id>:table:<n>[:t<j>][:g<k>]`. The GLM path
   still guesses the header and has no title.
-- **Unusable answers (Claude).** Claude's safety filter sometimes refuses a crop, at
+- **Unusable answers.** Claude's safety filter sometimes refuses a crop, at
   times partway through the JSON (FM-200 agent tables). `anthropic_ocr` validates the
-  answer itself, asks once more, then leaves the region unread instead of failing the
-  document. Each attempt is logged with its `stop_reason`, and the table with its page.
+  answer itself and asks once more; `gemini_ocr` does not ask again (temperature 0) and
+  logs Gemini's `status`. If the answer is still unusable, the table parser reads the
+  table's rows from the PDF text (PyMuPDF `find_tables`, strategy `text`): one record
+  per row, words in reading order, no headings. With no text layer or fewer than 2 rows
+  it stays unread; formulas and pictures are left unread. Nothing fails the document.
+  Each attempt is logged with its `stop_reason`, and the fallback with its page. An
+  answer that finds no table is not unusable: that table is still read as a picture.
 - **Passage metadata** gains `position` (the chunk's number in reading order),
   and table passages `table_id` (shared by a table's groups) and `table_title`.
 - **What search reads.** The embedder and the reranker both see the heading trail

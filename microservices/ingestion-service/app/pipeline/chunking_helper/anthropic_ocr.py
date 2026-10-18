@@ -4,7 +4,9 @@ Uses structured outputs through `messages.create` and validates the answer here,
 not with `messages.parse`: `parse` raises on any incomplete JSON, and the safety
 filter sometimes stops an answer partway through (seen on FM-200 agent tables),
 which would fail the whole document. A refused, cut-off or invalid answer is
-asked once more, since refusals are not repeatable, then left unread (None).
+asked once more, since refusals are not repeatable, then OcrAnswerUnusable is
+raised: the table parser reads the PDF's text layer instead, and
+`ocr_model.recognise` gives every other caller None.
 
 The SDK itself retries rate limits, server errors and dropped connections a few
 times (`MAX_RETRIES`); after that `rate_limit` waits them out, and a region still
@@ -27,6 +29,7 @@ from app.pipeline.chunking_helper.rate_limit import (
     is_transient_status,
     parse_seconds,
 )
+from app.pipeline.errors import OcrAnswerUnusable
 
 log = logging.getLogger(__name__)
 
@@ -146,5 +149,5 @@ def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
             MAX_ATTEMPTS,
             problem,
         )
-    log.warning("Claude OCR: %s region left unread after %s attempts.", task, MAX_ATTEMPTS)
-    return None
+    log.warning("Claude OCR: no usable %s reading after %s attempts.", task, MAX_ATTEMPTS)
+    raise OcrAnswerUnusable(f"Claude gave no usable {task} reading after {MAX_ATTEMPTS} attempts")

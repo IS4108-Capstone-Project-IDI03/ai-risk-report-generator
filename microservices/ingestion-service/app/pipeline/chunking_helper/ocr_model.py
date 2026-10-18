@@ -35,6 +35,8 @@ from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
 
+from app.pipeline.errors import OcrAnswerUnusable
+
 try:
     from glmocr.config import OCRApiConfig, load_config
     from glmocr.ocr_client import OCRClient
@@ -227,7 +229,9 @@ def reader() -> str:
     return f"glm:{os.getenv('GLMOCR_OCR_MODEL', '').strip() or 'glm-ocr'}"
 
 
-def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
+def recognise(
+    image_png: bytes, task: str, context: str = "", *, raise_if_unusable: bool = False
+) -> str | None:
     """Recognise one cropped region, returning table records, LaTeX or a picture description.
 
     Args:
@@ -236,6 +240,9 @@ def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
             prompt for that content type.
         context: where the region sits (heading trail, caption), sent after the
             prompt. Only pictures use it.
+        raise_if_unusable: raise OcrAnswerUnusable, instead of returning None,
+            when every answer was refused, cut off or invalid, for a caller with
+            its own fallback (the table parser). Claude and Gemini only.
 
     Returns:
         The recognised text, or None when the service errored or returned
@@ -248,14 +255,17 @@ def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
     """
     provider = _provider()
     # API providers are imported here so the GLM path never loads their SDKs.
-    if provider == "anthropic":
-        from app.pipeline.chunking_helper import anthropic_ocr
-
-        return anthropic_ocr.recognise(image_png, task, context)
-    if provider == "gemini":
-        from app.pipeline.chunking_helper import gemini_ocr
-
-        return gemini_ocr.recognise(image_png, task, context)
+    if provider in ("anthropic", "gemini"):
+        if provider == "anthropic":
+            from app.pipeline.chunking_helper import anthropic_ocr as api_ocr
+        else:
+            from app.pipeline.chunking_helper import gemini_ocr as api_ocr
+        try:
+            return api_ocr.recognise(image_png, task, context)
+        except OcrAnswerUnusable:
+            if raise_if_unusable:
+                raise
+            return None
 
     # GLM-OCR only transcribes, so a picture is left unread: its caption and the
     # prose around it are still indexed as plain text.

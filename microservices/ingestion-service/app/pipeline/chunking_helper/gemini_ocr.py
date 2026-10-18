@@ -6,6 +6,11 @@ JSON `response_format` built from a pydantic schema, `store=False`.
 
 Rate limits, server errors and dropped connections are waited out by
 `rate_limit`; a region still refused fails the document (OcrUnavailableError).
+
+A blocked, cut-off or invalid answer raises OcrAnswerUnusable without asking
+again (at temperature 0 the same answer would likely come back): the table
+parser reads the PDF's text layer instead, and `ocr_model.recognise` gives every
+other caller None.
 """
 
 import base64
@@ -24,7 +29,7 @@ from app.pipeline.chunking_helper.rate_limit import (
     is_transient_status,
     parse_seconds,
 )
-from app.pipeline.errors import OcrUnavailableError
+from app.pipeline.errors import OcrAnswerUnusable, OcrUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -111,8 +116,9 @@ def _record(result, started: float) -> None:
 def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
     """Read one cropped region; same contract as `ocr_model.recognise`.
 
-    Returns None when Gemini rejects the request for another reason or answers
-    in an unexpected form, so one unreadable region never fails the document.
+    Returns None when Gemini rejects the request for another reason, and raises
+    OcrAnswerUnusable when it answers in an unexpected form, so one unreadable
+    region never fails the document.
     """
     prompt, schema, to_text = task_spec(task)
     data = base64.b64encode(image_png).decode("ascii")
@@ -131,5 +137,12 @@ def recognise(image_png: bytes, task: str, context: str = "") -> str | None:
     try:
         return to_text(schema.model_validate_json(result.output_text)) or None
     except ValidationError as error:
-        log.warning("Gemini OCR answered a %s region in an unexpected form: %s", task, error)
-        return None
+        text = result.output_text or ""
+        log.warning(
+            "Gemini OCR: unusable %s reading: status=%s, %s characters of answer (%s)",
+            task,
+            getattr(result, "status", None),
+            len(text),
+            error.errors()[0]["msg"],
+        )
+        raise OcrAnswerUnusable(f"Gemini gave no usable {task} reading") from error

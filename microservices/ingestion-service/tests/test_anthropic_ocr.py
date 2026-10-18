@@ -20,7 +20,7 @@ from app.pipeline.chunking_helper.ocr_prompts import (
     TableBlock,
     TableReading,
 )
-from app.pipeline.errors import OcrUnavailableError
+from app.pipeline.errors import OcrAnswerUnusable, OcrUnavailableError
 
 PNG = b"\x89PNG\r\n\x1a\nfake-pixels"
 
@@ -102,7 +102,22 @@ def test_a_region_refused_twice_is_left_unread(claude, caplog):
 
     assert len(claude.requests) == 2
     assert "stop_reason=refusal" in caplog.text
-    assert "table region left unread after 2 attempts" in caplog.text
+    assert "no usable table reading after 2 attempts" in caplog.text
+
+
+def test_a_caller_with_a_fallback_is_told_the_answer_was_unusable(claude):
+    claude.replies += [_answer(None, stop_reason="refusal")] * 2
+
+    with pytest.raises(OcrAnswerUnusable):
+        ocr_model.recognise(PNG, "table", raise_if_unusable=True)
+
+
+def test_an_answer_that_finds_no_table_is_not_unusable(claude):
+    # A photo labelled as a table: read once as a picture (IN-13), never from the PDF text.
+    claude.replies.append(_answer(TableReading(tables=[])))
+
+    assert ocr_model.recognise(PNG, "table", raise_if_unusable=True) is None
+    assert len(claude.requests) == 1
 
 
 def test_an_answer_stopped_partway_through_is_asked_again(claude, caplog):

@@ -11,6 +11,7 @@ import pymupdf
 import pytest
 
 from app.pipeline.chunking_helper import page_cache, table_parser
+from app.pipeline.errors import OcrAnswerUnusable
 
 PAGE_WIDTH = 300
 PAGE_HEIGHT = 400
@@ -40,8 +41,8 @@ def fake_recognise(monkeypatch):
     """Record what the OCR layer was asked to read, and return canned records."""
     calls: list[dict] = []
 
-    def _recognise(image_png, task):
-        calls.append({"image": image_png, "task": task})
+    def _recognise(image_png, task, **kwargs):
+        calls.append({"image": image_png, "task": task, **kwargs})
         return TABLE_RECORDS
 
     monkeypatch.setattr(table_parser, "recognise", _recognise)
@@ -98,7 +99,7 @@ def test_degenerate_bbox_returns_none_without_calling_ocr(pdf_path, fake_recogni
 
 
 def test_ocr_failure_returns_none(pdf_path, monkeypatch):
-    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: None)
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task, **_: None)
     # A table the model could not read is dropped, not indexed empty.
     assert parse(pdf_path) is None
 
@@ -127,7 +128,7 @@ def test_a_number_missing_from_the_pdf_is_logged_and_the_reading_kept(
     numbers_pdf, monkeypatch, caplog
 ):
     reading = "Temp: 70; Volume: 2.2075\nTemp: 80; Volume: 2.2583"  # 2.2583 is misread
-    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: reading)
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task, **_: reading)
 
     with caplog.at_level(logging.WARNING):
         result = parse(numbers_pdf, bbox=NUMBERS_BOX, coord_origin="TOPLEFT")
@@ -139,10 +140,67 @@ def test_a_number_missing_from_the_pdf_is_logged_and_the_reading_kept(
 
 def test_a_region_without_a_text_layer_is_not_checked(numbers_pdf, monkeypatch, caplog):
     # A scanned page has no text to compare with: no warning, whatever was read.
-    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: "Temp: 70")
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task, **_: "Temp: 70")
 
     with caplog.at_level(logging.WARNING):
         result = parse(numbers_pdf, bbox=(40, 200, 260, 300), coord_origin="TOPLEFT")
 
     assert result == "Temp: 70"
     assert caplog.text == ""
+
+
+# --- text-layer fallback ------------------------------------------------------
+# When every OCR answer was refused, cut off or invalid, the rows are read from
+# the PDF text instead: one record per row, without headings.
+
+ROWS_BOX = (40, 40, 280, 160)  # top-left origin, around the printed rows
+PRINTED_ROWS = [
+    ("Nozzle", "Agent", "Pressure"),
+    ("E2-N1", "67.9 kg", "6.887 bar"),
+    ("E2-N2", "67.9 kg", "6.887 bar"),
+    ("E2-N3", "67.8 kg", "6.069 bar"),
+    ("E2-N4", "67.8 kg", "6.069 bar"),
+]
+
+
+@pytest.fixture
+def rows_pdf(tmp_path):
+    doc = pymupdf.open()
+    page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+    for index, row in enumerate(PRINTED_ROWS):
+        for x, cell in zip((50, 120, 200), row):
+            page.insert_text((x, 60 + 20 * index), cell)
+    out = tmp_path / "rows.pdf"
+    doc.save(str(out))
+    doc.close()
+    return str(out)
+
+
+def _unusable(image_png, task, **_):
+    raise OcrAnswerUnusable("refused twice")
+
+
+def test_the_parser_asks_ocr_to_report_an_unusable_answer(pdf_path, fake_recognise):
+    parse(pdf_path)
+    assert fake_recognise[0]["raise_if_unusable"] is True
+
+
+def test_a_table_ocr_could_not_read_is_read_from_the_pdf_text(rows_pdf, monkeypatch, caplog):
+    monkeypatch.setattr(table_parser, "recognise", _unusable)
+
+    with caplog.at_level(logging.WARNING):
+        result = parse(rows_pdf, bbox=ROWS_BOX, coord_origin="TOPLEFT")
+
+    assert result == "\n".join(" ".join(row) for row in PRINTED_ROWS)
+    assert "page 1" in caplog.text and "read 5 rows from the PDF text" in caplog.text
+
+
+def test_with_no_table_in_the_pdf_text_the_table_stays_unread(rows_pdf, monkeypatch, caplog):
+    # A scanned page, or a region with no rows: nothing to fall back on.
+    monkeypatch.setattr(table_parser, "recognise", _unusable)
+
+    with caplog.at_level(logging.WARNING):
+        result = parse(rows_pdf, bbox=(40, 250, 260, 350), coord_origin="TOPLEFT")
+
+    assert result is None
+    assert "the table is left unread" in caplog.text

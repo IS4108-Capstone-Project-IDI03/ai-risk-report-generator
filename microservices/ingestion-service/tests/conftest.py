@@ -96,7 +96,7 @@ def stub_region_ocr(request):
     from app.pipeline.chunking_helper import formula_parser, picture_parser, table_parser
 
     monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task: STUBBED_TABLE_TEXT)
+    monkeypatch.setattr(table_parser, "recognise", lambda image_png, task, **_: STUBBED_TABLE_TEXT)
     monkeypatch.setattr(formula_parser, "recognise", lambda image_png, task: STUBBED_FORMULA_TEXT)
     monkeypatch.setattr(
         picture_parser, "recognise", lambda image_png, task, context="": STUBBED_PICTURE_TEXT
