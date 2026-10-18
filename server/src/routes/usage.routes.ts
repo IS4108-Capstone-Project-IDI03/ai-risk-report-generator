@@ -6,6 +6,7 @@ import { Router } from 'express'
 import { isValidObjectId } from 'mongoose'
 import { requirePermission } from '../middleware/auth.middleware'
 import {
+  chatPeriodOf,
   chatUsage,
   OVERVIEW_GROUPS,
   OVERVIEW_RANGES,
@@ -130,26 +131,29 @@ router.get('/ingestion/:key/export.csv', ...ingestionAccess, async (req, res) =>
   res.send(ratesCsv(usage.rateRows))
 })
 
-// The chatbot's cost for a period: a knowledge admin sees everyone's chat, a
-// risk engineer their own (the service scopes it).
+// The chatbot's cost for a calendar month or year (Singapore time): a knowledge
+// admin sees everyone's chat, a risk engineer their own (the service scopes it).
+const CHAT_PERIOD_ERROR = 'period must be "month" with at=YYYY-MM, or "year" with at=YYYY.'
+
 router.get('/chat', requirePermission('usage:view'), async (req, res) => {
-  const range = oneOf(OVERVIEW_RANGES, req.query.range)
-  if (!range) {
-    res.status(400).json({ error: `range must be one of ${OVERVIEW_RANGES.join(', ')}.` })
+  const period = chatPeriodOf(req.query.period, req.query.at)
+  if (!period) {
+    res.status(400).json({ error: CHAT_PERIOD_ERROR })
     return
   }
-  res.json(await chatUsage(res.locals.user!, range))
+  res.json(await chatUsage(res.locals.user!, period))
 })
 
 router.get('/chat/export.csv', requirePermission('usage:view'), async (req, res) => {
-  const range = oneOf(OVERVIEW_RANGES, req.query.range)
-  if (!range) {
-    res.status(400).json({ error: `range must be one of ${OVERVIEW_RANGES.join(', ')}.` })
+  const period = chatPeriodOf(req.query.period, req.query.at)
+  if (!period) {
+    res.status(400).json({ error: CHAT_PERIOD_ERROR })
     return
   }
-  const csv = ratesCsv((await chatUsage(res.locals.user!, range)).rateRows)
+  const csv = ratesCsv((await chatUsage(res.locals.user!, period)).rateRows)
+  // The period is digits and a dash, so the name needs no cleaning.
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-  res.setHeader('Content-Disposition', `attachment; filename="usage-chat-rates-${range}.csv"`)
+  res.setHeader('Content-Disposition', `attachment; filename="usage-chat-rates-${period.at}.csv"`)
   res.send(csv)
 })
 

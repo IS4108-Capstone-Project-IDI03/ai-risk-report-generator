@@ -1203,49 +1203,80 @@ describe('GET /api/usage/chat, the chatbot (EV-04, CB-01)', () => {
     vi.setSystemTime(new Date(iso))
     await recordAiCalls([answer], { userId: String(who._id) })
   }
-  // Now is 13 Oct 2026, 18:00 in Singapore. Alex asked on 11 Oct and, at 04:00
-  // Singapore time, on 13 Oct; Jide on 13 Oct. Last week is 6–13 Oct.
+  // Now is 13 Oct 2026, 18:00 in Singapore. Alex asked on 20 Sep, 11 Oct and
+  // (04:00 Singapore time) 13 Oct; Jide at 01:00 on 1 Oct, Singapore time,
+  // which is still 30 Sep in UTC.
   async function chats() {
     await UserModel.collection.insertMany([alex, jide, sana])
     vi.useFakeTimers({ toFake: ['Date'] })
+    await askedAt('2026-09-20T02:00:00Z', alex)
+    await askedAt('2026-09-30T17:00:00Z', jide)
     await askedAt('2026-10-11T02:00:00Z', alex)
     await askedAt('2026-10-12T20:00:00Z', alex)
-    await askedAt('2026-10-13T01:00:00Z', jide)
     vi.setSystemTime(new Date('2026-10-13T10:00:00Z'))
   }
+  const chat = (query: string, as = asSana) => as.get(`/api/usage/chat?${query}`)
+  type Bucket = { key: string; calls: number; estimatedCostUsd: number }
 
-  it('gives the chat cost per day in Singapore, every day of the period, split by service', async () => {
+  it('gives a month a bar per Singapore day, up to today, and the month before to compare', async () => {
     await chats()
 
-    const { status, body } = await asSana.get('/api/usage/chat?range=7d')
+    const { status, body } = await chat('period=month&at=2026-10')
 
     expect(status).toBe(200)
+    expect(body.scope).toMatchObject({ period: 'month', at: '2026-10', complete: false })
     expect(body.totals).toMatchObject({ calls: 3, estimatedCostUsd: 0.021, callsWithoutCost: 0 })
     expect(body.splitKeys).toEqual(['openai'])
-    expect(body.byDay.map((d: { key: string }) => d.key)).toEqual([
-      '2026-10-06',
-      '2026-10-07',
-      '2026-10-08',
-      '2026-10-09',
-      '2026-10-10',
-      '2026-10-11',
-      '2026-10-12',
-      '2026-10-13',
-    ])
-    const day = (key: string) => body.byDay.find((d: { key: string }) => d.key === key)
-    expect(day('2026-10-11')).toMatchObject({
+    expect(body.buckets.map((b: Bucket) => b.key)).toEqual(
+      Array.from({ length: 13 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`),
+    )
+    const day = (key: string) => body.buckets.find((b: Bucket) => b.key === key)
+    expect(day('2026-10-01')).toMatchObject({
       calls: 1,
       estimatedCostUsd: 0.007,
       segments: { openai: 0.007 },
     })
     expect(day('2026-10-12')).toMatchObject({ calls: 0, estimatedCostUsd: 0, segments: {} })
-    expect(day('2026-10-13')).toMatchObject({ calls: 2, estimatedCostUsd: 0.014 })
+    expect(day('2026-10-13')).toMatchObject({ calls: 1, estimatedCostUsd: 0.007 })
+    expect(body.previous).toEqual({ at: '2026-09', calls: 1, estimatedCostUsd: 0.007 })
+  })
+
+  it('gives a finished month every day, marked complete', async () => {
+    await chats()
+
+    const { body } = await chat('period=month&at=2026-09')
+
+    expect(body.scope.complete).toBe(true)
+    expect(body.buckets).toHaveLength(30)
+    expect(body.totals.calls).toBe(1)
+    expect(body.previous).toEqual({ at: '2026-08', calls: 0, estimatedCostUsd: 0 })
+  })
+
+  it('gives a year a bar per month, up to this month, and the year before to compare', async () => {
+    await chats()
+
+    const { body } = await chat('period=year&at=2026')
+
+    expect(body.scope).toMatchObject({ period: 'year', at: '2026', complete: false })
+    expect(body.buckets.map((b: Bucket) => [b.key, b.calls])).toEqual([
+      ['2026-01', 0],
+      ['2026-02', 0],
+      ['2026-03', 0],
+      ['2026-04', 0],
+      ['2026-05', 0],
+      ['2026-06', 0],
+      ['2026-07', 0],
+      ['2026-08', 0],
+      ['2026-09', 1],
+      ['2026-10', 3],
+    ])
+    expect(body.previous).toEqual({ at: '2025', calls: 0, estimatedCostUsd: 0 })
   })
 
   it('gives each person who asked their cost, costliest first, and the usage at the rates charged', async () => {
     await chats()
 
-    const { body } = await asSana.get('/api/usage/chat?range=7d')
+    const { body } = await chat('period=month&at=2026-10')
 
     expect(body.byUser).toEqual([
       expect.objectContaining({
@@ -1275,29 +1306,35 @@ describe('GET /api/usage/chat, the chatbot (EV-04, CB-01)', () => {
   it('shows a risk engineer only their own chat', async () => {
     await chats()
 
-    const { body } = await asAlex.get('/api/usage/chat?range=7d')
+    const { body } = await chat('period=month&at=2026-10', asAlex)
 
     expect(body.totals.calls).toBe(2)
     expect(body.byUser.map((u: { name: string }) => u.name)).toEqual(['alex'])
+    expect(body.previous.calls).toBe(1)
   })
 
-  it('rejects an unknown period', async () => {
-    expect((await asSana.get('/api/usage/chat?range=1y')).status).toBe(400)
+  it('rejects a period it does not know', async () => {
+    for (const query of [
+      'period=week&at=2026-10',
+      'period=month&at=2026-13',
+      'period=month',
+      'period=year&at=2026-10',
+    ])
+      expect((await chat(query)).status).toBe(400)
   })
 
   it("exports the chat's usage and rates for the period", async () => {
     await chats()
 
-    const res = await asSana.get('/api/usage/chat/export.csv?range=7d')
+    const res = await asSana.get('/api/usage/chat/export.csv?period=month&at=2026-10')
 
     expect(res.status).toBe(200)
     expect(res.headers['content-disposition']).toBe(
-      'attachment; filename="usage-chat-rates-7d.csv"',
+      'attachment; filename="usage-chat-rates-2026-10.csv"',
     )
     expect(res.text.trim().split('\n').slice(1)).toEqual([
       'chat,openai,gpt-6.1-sol,charged,input,3000,tokens,2,1000000,0.006,3,100,',
       'chat,openai,gpt-6.1-sol,charged,output,1500,tokens,10,1000000,0.015,3,100,',
     ])
-    expect((await asSana.get('/api/usage/chat/export.csv?range=1y')).status).toBe(400)
   })
 })

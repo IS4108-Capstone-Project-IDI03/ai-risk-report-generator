@@ -891,29 +891,43 @@ export function ingestionCsv(usage: IngestionUsage): string {
   return [csvLine(head), ...lines].join('\n') + '\n'
 }
 
-// ── Chatbot: what the knowledge assistant's chat cost, day by day ─────────
+// ── Chatbot: what the knowledge assistant's chat cost, by month or year ───
 
-// A chat day, or a person who asked: what their calls cost.
+// A chat day or month, or a person who asked: what their calls cost.
 export type ChatGroup = {
   key: string
   calls: number
   estimatedCostUsd: number
   callsWithoutCost: number
-  // The day's or person's latest call; null for a day with none.
+  // The latest call; null for a day or month with none.
   lastActivityAt: string | null
-  // Cost per billed service: the day's bar's stacked parts.
+  // Cost per billed service: the bar's stacked parts.
   segments: Record<string, number>
 }
 
+// A calendar month (at: YYYY-MM) or year (at: YYYY) in Singapore time.
+export type ChatPeriod = { period: 'month' | 'year'; at: string }
+
 export type ChatUsage = {
-  scope: { range: OverviewQuery['range']; from: string | null }
+  // complete: the period has ended, so it can be compared with the one before.
+  scope: ChatPeriod & { from: string; to: string; complete: boolean }
   totals: UsageSummary['totals']
   splitKeys: string[]
-  // Every day of the period, oldest first, in Singapore: a day with no chat is 0.
-  byDay: ChatGroup[]
+  // A month's days or a year's months, oldest first, up to today: none is 0.
+  buckets: ChatGroup[]
   // Each person who asked, costliest first.
   byUser: (ChatGroup & { name: string })[]
   rateRows: RateRow[]
+  // The period before, to compare against.
+  previous: { at: string; calls: number; estimatedCostUsd: number }
+}
+
+/** Returns the chat period asked for, or null when it is not a real month or year. */
+export function chatPeriodOf(period: unknown, at: unknown): ChatPeriod | null {
+  if (typeof at !== 'string') return null
+  if (period === 'month' && /^\d{4}-(0[1-9]|1[0-2])$/.test(at)) return { period, at }
+  if (period === 'year' && /^\d{4}$/.test(at)) return { period, at }
+  return null
 }
 
 // The Singapore calendar day of a moment, as YYYY-MM-DD.
@@ -937,33 +951,59 @@ function chatGroup(key: string, members: IAiCall[]): ChatGroup {
   }
 }
 
+// Where a period starts and ends (Singapore midnight), and the one before it.
+function periodBounds({ period, at }: ChatPeriod) {
+  const year = Number(at.slice(0, 4))
+  const month = period === 'month' ? Number(at.slice(5, 7)) - 1 : 0
+  const start = (y: number, m: number) => new Date(Date.UTC(y, m, 1) - SINGAPORE_OFFSET_MS)
+  if (period === 'year')
+    return { from: start(year, 0), to: start(year + 1, 0), previous: String(year - 1) }
+  const before = new Date(Date.UTC(year, month - 1, 1)).toISOString().slice(0, 7)
+  return { from: start(year, month), to: start(year, month + 1), previous: before }
+}
+
+// The bucket keys of a period up to today: its days (YYYY-MM-DD) or months (YYYY-MM).
+function bucketKeys({ period, at }: ChatPeriod, now: Date): string[] {
+  const today = singaporeDay(now)
+  const keys: string[] = []
+  if (period === 'year') {
+    for (let m = 1; m <= 12; m++) keys.push(`${at}-${String(m).padStart(2, '0')}`)
+    return keys.filter((k) => k <= today.slice(0, 7))
+  }
+  for (let day = `${at}-01`; day.startsWith(at) && day <= today;) {
+    keys.push(day)
+    day = new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10)
+  }
+  return keys
+}
+
 /**
- * Returns the chat's cost for the period chosen: totals, every day (Singapore
- * time, empty days included), each person who asked, and the usage at the
- * rates charged. A knowledge admin sees everyone's chat; a risk engineer
- * only their own.
+ * Returns the chat's cost for a calendar month or year in Singapore time:
+ * totals, a bar per day or month up to today, each person who asked, the
+ * usage at the rates charged, and the period before to compare. A knowledge
+ * admin sees everyone's chat; a risk engineer only their own.
  */
 export async function chatUsage(
   user: SessionUser,
-  range: OverviewQuery['range'],
+  chosen: ChatPeriod,
   now = new Date(),
 ): Promise<ChatUsage> {
-  const from = rangeStart(range, now)
+  const { from, to, previous } = periodBounds(chosen)
   const mine = user.role === 'knowledge_admin' ? {} : { userId: new Types.ObjectId(user.id) }
-  const rows = await AiCallModel.find({
-    feature: 'chat',
-    ...mine,
-    ...(from && { createdAt: { $gte: from } }),
-  }).lean<IAiCall[]>()
+  const chatBetween = (start: Date, end: Date) =>
+    AiCallModel.find({ feature: 'chat', ...mine, createdAt: { $gte: start, $lt: end } }).lean<
+      IAiCall[]
+    >()
+  const rows = await chatBetween(from, to)
+  const before = periodBounds({ period: chosen.period, at: previous })
+  const earlier = await chatBetween(before.from, before.to)
 
-  const perDay = groupRows(rows, (r) => singaporeDay(new Date(r.createdAt)))
-  const byDay: ChatGroup[] = []
-  const first = from ?? (rows.length ? Math.min(...rows.map((r) => +new Date(r.createdAt))) : null)
-  if (first !== null)
-    for (let day = singaporeDay(first); day <= singaporeDay(now);) {
-      byDay.push(chatGroup(day, perDay.get(day) ?? []))
-      day = new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10)
-    }
+  const bucketOf = (r: IAiCall) => {
+    const day = singaporeDay(new Date(r.createdAt))
+    return chosen.period === 'year' ? day.slice(0, 7) : day
+  }
+  const perBucket = groupRows(rows, bucketOf)
+  const buckets = bucketKeys(chosen, now).map((key) => chatGroup(key, perBucket.get(key) ?? []))
 
   const perUser = groupRows(rows, (r) => (r.userId ? String(r.userId) : 'unknown'))
   const names = new Map(
@@ -982,11 +1022,21 @@ export async function chatUsage(
     .sort(byCostThenKey)
 
   return {
-    scope: { range, from: from?.toISOString() ?? null },
+    scope: {
+      ...chosen,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      complete: to <= now,
+    },
     totals: totalsOf(rows),
     splitKeys: splitKeysOf(rows, splitKeyFor('service')),
-    byDay,
+    buckets,
     byUser,
     rateRows: rateRows(rows),
+    previous: {
+      at: previous,
+      calls: callsIn(earlier),
+      estimatedCostUsd: round(sum(earlier, (r) => r.estimatedCostUsd)),
+    },
   }
 }
