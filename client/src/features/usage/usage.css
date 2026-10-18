@@ -131,6 +131,14 @@
   color: var(--text-primary);
   font-weight: var(--weight-semibold);
 }
+/* A section heading with its own action (the rates export) on the right. */
+.uc-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
 .uc-section-note {
   color: var(--text-secondary);
 }

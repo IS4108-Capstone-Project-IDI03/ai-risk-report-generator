@@ -465,6 +465,14 @@ describe('Usage and costs: one assessment (EV-04 AC2)', LAZY_SCREEN, () => {
     expect(whisper).toHaveTextContent('@ $0.006 / min')
   })
 
+  it('exports the usage and rates', async () => {
+    await openRpt1()
+    expect(screen.getByRole('link', { name: 'Export rates CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/export.csv?groupBy=rates&reportId=RPT-1',
+    )
+  })
+
   it('switches the breakdown to billed services, and exports the one shown', async () => {
     await openRpt1()
     expect(screen.getByRole('link', { name: 'Export CSV' })).toHaveAttribute(

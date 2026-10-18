@@ -287,6 +287,17 @@ describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
     expect(within(rates).getByRole('row', { name: /Subtotal/ })).toHaveTextContent('$0.6500')
   })
 
+  it('exports the document’s usage and rates', async () => {
+    mockGateway()
+    await openIngestion()
+    const table = await screen.findByRole('table', { name: 'Documents and their cost' })
+    fireEvent.click(within(table).getByRole('button', { name: /^NFPA 13/ }))
+    expect(await screen.findByRole('link', { name: 'Export CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/ingestion/d1/export.csv',
+    )
+  })
+
   it('goes back to every document', async () => {
     mockGateway()
     await openIngestion()

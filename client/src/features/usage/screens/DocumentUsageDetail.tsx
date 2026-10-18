@@ -4,7 +4,7 @@
 // shown by screens/UsageCosts.tsx. Calls GET /api/usage/ingestion/:key.
 import { Button, Callout } from '../../../design-system'
 import { formatDay } from '../../assessments/format'
-import { getDocumentUsage, type DocumentUsage } from '../api'
+import { documentExportUrl, getDocumentUsage, type DocumentUsage } from '../api'
 import type { CostGroup } from '../chart'
 import { CostSummary } from '../components/CostSummary'
 import { RateTables } from '../components/RateTables'
@@ -44,6 +44,11 @@ export function DocumentUsageDetail({
         <Button variant="ghost" iconLeft="arrow-left" onClick={onBack}>
           All documents
         </Button>
+        {shown && (
+          <a className="uc-export" href={documentExportUrl(document.key)} download>
+            Export CSV
+          </a>
+        )}
       </div>
       <header className="uc-detail-head uc-document-head">
         <h2>{document.title}</h2>

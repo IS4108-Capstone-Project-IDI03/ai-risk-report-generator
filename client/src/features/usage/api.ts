@@ -202,6 +202,16 @@ export function getDocumentUsage(key: string, signal?: AbortSignal): Promise<Doc
   })
 }
 
+// One assessment's usage at the rates charged, one line per billed part.
+export function ratesExportUrl(reportId: string): string {
+  return `/api/usage/export.csv?${new URLSearchParams({ groupBy: 'rates', reportId })}`
+}
+
+// One document's usage at the rates charged, one line per billed part.
+export function documentExportUrl(key: string): string {
+  return `/api/usage/ingestion/${encodeURIComponent(key)}/export.csv`
+}
+
 export function ingestionExportUrl(q: IngestionQuery): string {
   return `/api/usage/ingestion/export.csv?${ingestionParams(q)}`
 }
