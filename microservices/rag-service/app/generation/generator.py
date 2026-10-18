@@ -335,7 +335,7 @@ def draft_ofis(
 
 # Section 2 Executive Summary (GN-07): summarises the report's own sections, so nothing is
 # retrieved. Bump SUMMARY_PROMPT_VERSION whenever the prompt changes.
-SUMMARY_PROMPT_VERSION = "gn07-v1"
+SUMMARY_PROMPT_VERSION = "gn07-v2"  # v2: keep the sections' exact scope
 
 
 class SummaryDraft(BaseModel):
@@ -350,6 +350,10 @@ Evaluation (PRE) report. A risk engineer reviews it before it is used.
 Summarise only what the report's <sections> say: the site's main exposures and the \
 highest-priority Opportunities for Improvement. Add no fact, figure, standard or \
 judgement the sections do not state.
+
+Shortening must not change meaning. Keep floor ranges, areas, damage types (fire, \
+smoke, water) and who does what exactly as the section states: write "L27 to L36", not \
+"ten floors above"; never widen a condition from one area or party to another.
 
 Follow this drafting guide:
 
