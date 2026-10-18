@@ -235,8 +235,7 @@ def _reading_order(passage_id: str) -> tuple:
     kind = segments.pop(0) if segments[0] in ("table", "picture") else ""
     n = int(segments.pop(0))
     rest = tuple(
-        (1, 0) if s == "picture" else (0, int(_SUB_INDEX.fullmatch(s).group(1)))
-        for s in segments
+        (1, 0) if s == "picture" else (0, int(_SUB_INDEX.fullmatch(s).group(1))) for s in segments
     )
     return (n, kind == "picture", rest)
 
