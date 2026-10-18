@@ -1,12 +1,15 @@
 // The overview's table (EV-04): every assessment or engineer with its cost,
 // including those past the chart's bar limit. Choosing an assessment opens it;
-// choosing an engineer narrows the overview to their assessments. The Chatbot
-// and Unassigned rows have nothing to open. Used by screens/ReportUsageOverview.tsx.
+// choosing an engineer narrows the overview to their assessments; choosing the
+// Chatbot opens the chat's own page. The Unassigned row has nothing to open. Used by screens/ReportUsageOverview.tsx.
 import { Button } from '../../../design-system'
 import { formatDay } from '../../assessments/format'
 import type { GroupBy, OverviewGroup } from '../api'
 import { formatCount, formatMoney } from '../format'
 import { DataTable, type DataColumn } from './DataTable'
+
+// The overview's group for chat, which has no assessment.
+const CHAT_GROUP = 'chat'
 
 const lastUsed: DataColumn<OverviewGroup> = {
   header: 'Last used',
@@ -23,6 +26,7 @@ export function OverviewTable({
   groups,
   showEngineer,
   onOpen,
+  onOpenChat,
   onChooseEngineer,
 }: {
   groupBy: GroupBy
@@ -30,6 +34,7 @@ export function OverviewTable({
   // A risk engineer sees only their own assessments, so no engineer column.
   showEngineer: boolean
   onOpen: (group: OverviewGroup) => void
+  onOpenChat: () => void
   onChooseEngineer: (group: OverviewGroup) => void
 }) {
   if (groupBy === 'engineer')
@@ -66,6 +71,10 @@ export function OverviewTable({
             g.reference ? (
               <Button variant="link" size="sm" onClick={() => onOpen(g)}>
                 {g.reference}
+              </Button>
+            ) : g.key === CHAT_GROUP ? (
+              <Button variant="link" size="sm" onClick={onOpenChat}>
+                {g.label}
               </Button>
             ) : (
               g.label

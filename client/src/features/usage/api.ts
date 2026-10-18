@@ -163,6 +163,28 @@ export type DocumentUsageDetail = {
   rateRows: RateRow[]
 }
 
+// A chat day (key YYYY-MM-DD, Singapore) or a person who asked (key: user id).
+export type ChatGroup = {
+  key: string
+  calls: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+  // Null for a day with no chat.
+  lastActivityAt: string | null
+  segments: Record<string, number>
+}
+
+// The chatbot's cost for a period: every day, oldest first, and each person
+// who asked, costliest first. A risk engineer gets only their own chat.
+export type ChatUsage = {
+  scope: { range: Range; from: string | null }
+  totals: Totals
+  splitKeys: string[]
+  byDay: ChatGroup[]
+  byUser: (ChatGroup & { name: string })[]
+  rateRows: RateRow[]
+}
+
 // `request` also ends the session on a 401.
 export function getUsageSummary(reportId: string, signal?: AbortSignal): Promise<UsageSummary> {
   const query = reportId ? `?reportId=${encodeURIComponent(reportId)}` : ''
@@ -210,6 +232,15 @@ export function ratesExportUrl(reportId: string): string {
 // One document's usage at the rates charged, one line per billed part.
 export function documentExportUrl(key: string): string {
   return `/api/usage/ingestion/${encodeURIComponent(key)}/export.csv`
+}
+
+export function getChatUsage(range: Range, signal?: AbortSignal): Promise<ChatUsage> {
+  return request<ChatUsage>(`/api/usage/chat?${new URLSearchParams({ range })}`, { signal })
+}
+
+// The chat's usage at the rates charged, for the period, one line per billed part.
+export function chatExportUrl(range: Range): string {
+  return `/api/usage/chat/export.csv?${new URLSearchParams({ range })}`
 }
 
 export function ingestionExportUrl(q: IngestionQuery): string {

@@ -31,9 +31,12 @@ const matches = (g: OverviewGroup, search: string) =>
 export function ReportUsageOverview({
   isAdmin,
   onOpen,
+  onOpenChat,
 }: {
   isAdmin: boolean
   onOpen: (assessment: OverviewGroup) => void
+  // The chatbot's page, for the period on screen.
+  onOpenChat: (range: Range) => void
 }) {
   const [range, setRange] = useState<Range>(DEFAULT_RANGE)
   const [split, setSplit] = useState<UsageView>('service')
@@ -152,6 +155,7 @@ export function ReportUsageOverview({
                 if (!group) return
                 if (groupBy === 'engineer' && group.engineerId) chooseEngineer(group.engineerId)
                 if (groupBy === 'assessment' && group.reference) onOpen(group)
+                if (groupBy === 'assessment' && group.key === 'chat') onOpenChat(range)
               }}
             />
           </section>
@@ -184,6 +188,7 @@ export function ReportUsageOverview({
               groups={shown.groups.filter((g) => groupBy === 'engineer' || matches(g, search))}
               showEngineer={isAdmin}
               onOpen={onOpen}
+              onOpenChat={() => onOpenChat(range)}
               onChooseEngineer={(g) => g.engineerId && chooseEngineer(g.engineerId)}
             />
           </section>

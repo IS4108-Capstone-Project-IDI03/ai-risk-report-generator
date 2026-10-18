@@ -90,6 +90,16 @@ export function formatMinutes(seconds: number): string {
   return seconds > 0 ? (seconds / 60).toFixed(1) : DASH
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// A Singapore day key (2026-10-11) as "11 Oct 2026", or "11 Oct" for a chart
+// axis. Read from the key itself, so the viewer's time zone cannot move it.
+export function formatDayKey(key: string, withYear = true): string {
+  const [year, month, day] = key.split('-').map(Number)
+  const short = `${day} ${MONTHS[month - 1]}`
+  return withYear ? `${short} ${year}` : short
+}
+
 // Milliseconds as "850 ms" or "1.2 s"; null (no data) is a dash.
 export function formatDuration(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms)) return DASH

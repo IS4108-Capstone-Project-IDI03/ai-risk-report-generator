@@ -188,6 +188,37 @@ const SUMMARY = {
   ],
 }
 
+// The chatbot's page: two days of a week, two people who asked, and the
+// answers' usage at the rates charged (gpt-6.1-sol, $0.007 an answer).
+const chatDay = (key: string, calls: number) => ({
+  key,
+  calls,
+  estimatedCostUsd: calls * 0.007,
+  callsWithoutCost: 0,
+  lastActivityAt: calls ? `${key}T04:00:00.000Z` : null,
+  segments: calls ? { openai: calls * 0.007 } : {},
+})
+const CHAT = {
+  scope: { range: '30d', from: '2026-09-13T10:00:00.000Z' },
+  totals: { calls: 3, estimatedCostUsd: 0.021, callsWithoutCost: 0, estimatedCalls: 0 },
+  splitKeys: ['openai'],
+  byDay: [chatDay('2026-10-11', 1), chatDay('2026-10-12', 0), chatDay('2026-10-13', 2)],
+  byUser: [
+    { ...chatDay(ALEX, 2), name: 'Alex Tan' },
+    { ...chatDay(JIDE, 1), name: 'Jide Okafor' },
+  ],
+  rateRows: [
+    rateRow({
+      feature: 'chat',
+      service: 'openai',
+      model: 'gpt-6.1-sol',
+      calls: 3,
+      cells: { input: cell(3000, 2, 0.006), output: cell(1500, 10, 0.015) },
+      costUsd: 0.021,
+    }),
+  ],
+}
+
 const json = (status: number, body: unknown) =>
   Promise.resolve(
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }),
@@ -196,6 +227,7 @@ const json = (status: number, body: unknown) =>
 // Answers the overview by grouping and the summary for a report, like the gateway.
 function defaultAnswer(url: string) {
   if (url.startsWith('/api/usage/summary')) return json(200, SUMMARY)
+  if (url.startsWith('/api/usage/chat')) return json(200, CHAT)
   const query = new URL(url, 'http://x').searchParams
   return json(200, query.get('groupBy') === 'engineer' ? BY_ENGINEER : OVERVIEW)
 }
@@ -342,11 +374,58 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     expect(screen.queryByRole('button', { name: /^Show cost calculation/ })).toBeNull()
   })
 
-  it('shows chat as a row with nothing to open', async () => {
-    mockGateway()
+  it('opens the chatbot from its row: cost per day and per person, and usage at the rates charged', async () => {
+    const urls = mockGateway()
     await openUsage()
     const chat = within(assessmentTable()).getByRole('row', { name: /Chatbot/ })
-    expect(within(chat).queryByRole('button')).toBeNull()
+    fireEvent.click(within(chat).getByRole('button', { name: 'Chatbot' }))
+
+    expect(await screen.findByRole('heading', { name: 'Chatbot' })).toBeInTheDocument()
+    expect(urls()).toContain('/api/usage/chat?range=30d')
+    expect(screen.getByText('Last 30 days')).toBeInTheDocument()
+    expect(screen.getByText('Total estimated cost').parentElement).toHaveTextContent('$0.0210')
+    expect(
+      screen.getByRole('table', { name: 'Cost per day, split by service' }),
+    ).toBeInTheDocument()
+
+    const days = screen.getByRole('table', { name: 'Chat cost per day' })
+    expect(
+      within(days)
+        .getAllByRole('row')
+        .slice(1)
+        .map((r) => r.textContent),
+    ).toEqual([
+      expect.stringMatching(/^11 Oct 2026.*\$0\.0070$/),
+      expect.stringMatching(/^12 Oct 2026/),
+      expect.stringMatching(/^13 Oct 2026.*\$0\.0140$/),
+    ])
+    const people = screen.getByRole('table', { name: 'Chat cost per person' })
+    expect(within(people).getByRole('row', { name: /Alex Tan/ })).toHaveTextContent('$0.0140')
+
+    const rates = screen.getByRole('table', { name: 'Claude and OpenAI: usage and rates' })
+    expect(within(rates).getByRole('row', { name: /gpt-6\.1-sol/ })).toHaveTextContent(
+      '@ $2.00 / 1M tokens',
+    )
+    expect(screen.getByRole('link', { name: 'Export rates CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/chat/export.csv?range=30d',
+    )
+  })
+
+  it('opens the chatbot for the period chosen, and goes back', async () => {
+    const urls = mockGateway()
+    await openUsage()
+    fireEvent.change(screen.getByLabelText('Period'), { target: { value: '7d' } })
+    await waitFor(() => expect(lastQuery(urls()).get('range')).toBe('7d'))
+    const chat = within(assessmentTable()).getByRole('row', { name: /Chatbot/ })
+    fireEvent.click(within(chat).getByRole('button', { name: 'Chatbot' }))
+
+    await screen.findByRole('heading', { name: 'Chatbot' })
+    expect(urls()).toContain('/api/usage/chat?range=7d')
+    fireEvent.click(screen.getByRole('button', { name: 'All assessments' }))
+    expect(
+      await screen.findByRole('table', { name: 'Assessments and their cost' }),
+    ).toBeInTheDocument()
   })
 
   it('shows a risk engineer their own assessments, with no engineer controls', async () => {
