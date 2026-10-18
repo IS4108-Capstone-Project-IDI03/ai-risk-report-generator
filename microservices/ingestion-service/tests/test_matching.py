@@ -372,6 +372,31 @@ def test_comparison_orders_new_passages_numerically(passages):
     assert [r["new"]["text"] for r in rows if r["new"]] == [str(n) for n in range(11)]
 
 
+def test_comparison_orders_table_picture_and_split_passages_by_reading_order(passages):
+    in_order = [
+        "new:1",
+        "new:1:part2",
+        "new:1:part10",
+        "new:table:2:t0:g0",
+        "new:table:2:t0:g1",
+        "new:table:2:t1",
+        "new:table:2:picture",
+        "new:picture:2:g0",
+        "new:picture:2:g1",
+        "new:picture:3",
+        "new:table:4:g2:part1",
+        "new:table:4:g10",
+        "new:12",
+    ]
+    for id_ in reversed(in_order):
+        passages.rows[id_] = {"text": id_, "meta": {"doc_id": "new"}, "vector": A}
+    passages.add("old", [B], ["only"])
+
+    rows = matching.comparison_rows("new", "old")
+
+    assert [r["new"]["text"] for r in rows if r["new"]] == in_order
+
+
 def test_a_document_never_matches_its_own_edition_family(passages):
     family = object()
     old = stored_doc(edition="2019", editionFamily=family)
