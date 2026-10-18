@@ -1,0 +1,195 @@
+{
+  "_about": "Facts: Office Sample 5's real Level II and III floors, % damage and months, in loss-estimate.service.ts lossEstimateFacts wording. The PDF redacts every amount, so values use the seed's made-up building value (per floor = /49), and Level I (absent from the report) is the seed's. Marsh's text has no Level I.",
+  "name": "Office Sample 5, section 5 Loss Estimates",
+  "source": "Office Sample 5 - PRE 2026 - REDACTED.pdf, Section 4 (pp. 10-13; this template numbers it 5)",
+  "exclude_doc_id": "6ac0b458a99acf65e6f594e7",
+  "assessment": {
+    "reference": "EVAL-OFFICE-5",
+    "jurisdiction": "SG",
+    "facility_type": "Office"
+  },
+  "observations": [
+    {
+      "id": "off5-1",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "46 storeys + 3 bsmts. RC cols/beams, RC slabs, flat conc roof. internal walls masonry, core RC."
+    },
+    {
+      "id": "off5-2",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Facade",
+      "note": "facade - unitised alu curtain wall, dbl glazed low-E / toughened. alu spandrels w 50mm rockwool. slab edge gap filled 135mm rockwool, 2hr. no combustible insulation on facade"
+    },
+    {
+      "id": "off5-3",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Office floors",
+      "note": "office partitions drywall - gypsum, alu studs, rockwool infill"
+    },
+    {
+      "id": "off5-4",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Basement 2 car park",
+      "note": "link to next bldg at B2 carpark, 2hr fire shutter. link not used, shutter perm shut"
+    },
+    {
+      "id": "off5-5",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Electrical rooms",
+      "note": "so the office floors are open plan, no separation within a floor except the utility rooms. elec rooms are 2 hour walls and floors with 2 hour doors, and every elec room we went into had the cable penetrations sealed"
+    },
+    {
+      "id": "off5-6",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Risers",
+      "note": "telecom risers triple vol, fire stopped every 3 flrs - the ones we saw ok. riser doors 1hr"
+    },
+    {
+      "id": "off5-7",
+      "COPE_dimension": "Construction",
+      "severity": "moderate",
+      "location": "Tenant floors",
+      "note": "internal stairs L27-29, L34-35, L40-41, L45-46. smoke det activated 2hr roller shutters round each stair"
+    },
+    {
+      "id": "off5-8",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Basements",
+      "note": "carpark all 3 bsmts, 351 lots + 6 accessible"
+    },
+    {
+      "id": "off5-9",
+      "COPE_dimension": "Occupancy",
+      "severity": "moderate",
+      "location": "Level 5 server room",
+      "note": "tenant server room L5, approx 40 racks. UPS room next door, VRLA batteries. diesel genset at roof, 2 x 2000 kVA, day tank 1000 L, tested monthly on load per FM"
+    },
+    {
+      "id": "off5-10",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Basement 3 plant room",
+      "note": "3 x water cooled chillers B3, cooling towers on roof. 22 kV incomer from SP, 2 x transformers B1. no boilers. no hazardous storage apart from genset diesel"
+    },
+    {
+      "id": "off5-11",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "wet pipe sprinklers throughout incl car park, OH1 office / OH2 carpark. sprinkler tanks B3 2 x 300 m3. jockey + duty elec + standby diesel pump"
+    },
+    {
+      "id": "off5-12",
+      "COPE_dimension": "Protection",
+      "severity": "high",
+      "location": "B3 service corridor",
+      "note": "few sprinkler heads recessed >50% into ceiling at B3 service corridor - obstructs spray pattern. FM said ceiling was lowered last yr"
+    },
+    {
+      "id": "off5-13",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Level 5 server room",
+      "note": "FM-200 in server room, last discharge/room integrity test 2023 - over due. no VESDA, only point smoke detectors"
+    },
+    {
+      "id": "off5-14",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Fire command centre",
+      "note": "addressable fire alarm, monitored 24/7 by FCC on L1, direct link to SCDF. hose reels + extinguishers every floor, wet riser"
+    },
+    {
+      "id": "off5-15",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Fire pump room",
+      "note": "weekly pump churn test logs ok but last annual flow test record not available. diesel pump fuel tank 3/4 full"
+    },
+    {
+      "id": "off5-16",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Site boundary",
+      "note": "bounded by public roads N and E, MRT station S (underground link closed off), 30 storey office W approx 25 m away"
+    },
+    {
+      "id": "off5-17",
+      "COPE_dimension": "Exposure",
+      "severity": "moderate",
+      "location": "Basements",
+      "note": "low lying area, PUB flood map - in flood prone zone. flood barriers at carpark ramp, manual, deployed by security on heavy rain warning. no flood since 2010 per FM"
+    },
+    {
+      "id": "off5-18",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Lobby",
+      "note": "security 24/7, 6 guards per shift. CCTV ~300 cams recorded 30 days, monitored at FCC. card access turnstiles at lobby, lift destination control"
+    },
+    {
+      "id": "off5-19",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Loading bay",
+      "note": "loading bay manned 7am-10pm, after hours shutter locked + intruder alarm. carpark barrier + LPR"
+    },
+    {
+      "id": "off5-20",
+      "COPE_dimension": [
+        "Occupancy",
+        "Exposure"
+      ],
+      "severity": "moderate",
+      "location": "Whole building",
+      "note": "multi-tenant office, ~4000 occupants. building ERP exists, reviewed 2025, fire drill twice a yr. no BCP for the building itself - left to tenants. server room tenant has own DR site"
+    },
+    {
+      "id": "off5-21",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Site boundary",
+      "note": "CBD location, flat site approx 8,000 m2. SCDF fire stn ~2 km, response under 10 min per FM. hydrants on Rd N and E"
+    },
+    {
+      "id": "off5-22",
+      "COPE_dimension": "Exposure",
+      "severity": "moderate",
+      "location": "Site boundary",
+      "note": "construction site to the S across the road - 2 tower cranes, hot works on going. approx 40 m from our facade"
+    },
+    {
+      "id": "off5-23",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Roof",
+      "note": "lightning protection on roof, last tested 2025. windstorm - SG no typhoons, but sumatra squalls; roof plant tied down, curtain wall designed for wind load per FM"
+    },
+    {
+      "id": "off5-24",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Whole building",
+      "note": "earthquake - SG low seismic zone, only tremors felt from sumatra quakes. no damage history. no seismic bracing on sprinkler pipes"
+    },
+    {
+      "id": "off5-25",
+      "COPE_dimension": "Exposure",
+      "severity": "moderate",
+      "location": "Basement 3 plant room",
+      "note": "B3 plant room + transformers in B1 below flood level. sump pumps x2 in B3, on genset supply, but no high water alarm to FCC"
+    }
+  ],
+  "notes_style": "Observations as in the full-report seed (server/src/scripts/seed-cases/office-5-full-report.json): off5-1 to off5-8 from Office Sample 5, the rest made up.",
+  "section_id": "5",
+  "facts": "Values in SGD as at 2026-01-01; indemnity period 46 months.\nBuildings: 1200000000\nContents: 50000000\nBusiness Interruption (Gross Revenue): 400000000\nLevel I: Buildings 0.5% damage, loss 6000000; Contents 2% damage, loss 1000000; Business Interruption (Gross Revenue) 1 months at 5% impacted, loss 434782.61; total 7434782.61.\nLevel II: L27 to L29 100% damage, loss 73469388; value 73469388; L30 to L31 30% damage, loss 14693877.6; value 48979592; L22 to L26 15% damage, loss 18367347; value 122448980; Business Interruption (Gross Revenue) 8 months at 11% impacted, loss 7652173.91; total 114182786.51.\nLevel III: L27 to L36 100% damage, loss 244897960; value 244897960; L17 to L26 15% damage, loss 36734694; value 244897960; Business Interruption (Gross Revenue) 18 months at 22% impacted, loss 34434782.61; total 316067436.61.",
+  "reference": "Level II Scenario\nThe PML scenario will be a fire starting within a tenant space on Level 27 with internal staircase leading upto L29 of [PROPERTY]. The fire may be caused by one of the following: fault in electrical fixture/appliance, improperly managed hot work activity, smoking, etc. As the building's sprinkler and automatic fire detection systems are assumed to be impaired (per the PML definition) the fire will reach a fully grown state and spread across the L27 floor plate due to an absence of horizontal fire compartmentation, and via continuity of combustibles. The fire will also spread vertically to 2 upper floors via internal unenclosed staircases from L27 to L29 (fire shutters won't be operational as fire detection systems are assumed to be impaired), prior to response by the emergency response team/fire brigade. The fire is expected to be contained at L29 with the timely response of emergency responders. Smoke, fire and water damage is anticipated to be sustained on L30 to L31, in addition to water damage in varying degrees to 5 floors below L27 (L22 to L26).\n\nLevel II Assumptions\nEach floor from L27 to L29 is assumed to be 100% damaged (from fire/smoke), L30 to L31 is assumed to be 30% damaged (from smoke/water), while each floor from L22 to L26 is assumed to be 15% damaged (from water). Total number of floors in [PROPERTY] = 46 + 3. It will take about 1 month for investigation and clean-up, up to 7 months for full reinstatement works involving the fire-damaged floors (L27 to L31) to be completed. Tenants will not be able to operate out of the building/affected floors during the clean-up/reinstatement/recovery period and will have to relocate to other sites. For L22 to L26, tenants are still able to operate out of the existing units with ongoing repair for water damages. Assuming lost rental income for an 8 month period, the BI PML is estimated based on a percentage of affected lettable area.\n\nLevel III Scenario\nThe MFL scenario will be a fire starting within a tenant space on Level 27 (with internal staircase upto L29) of [PROPERTY]. The fire may be caused by one of the following: fault in electrical fixture/appliance, improperly managed hot work activity, smoking, etc. As the building's sprinkler and automatic fire detection systems are assumed to be impaired the fire will reach a fully grown state and spread across the L27 floor plate due to an absence of horizontal fire compartmentation, and via continuity of combustibles. With the local fire brigade assumed to be delayed for 2 hours (as per MFL), the fire will spread vertically to the upper floors via internal unenclosed staircases, breached floor penetrations and the building's exterior glass curtain walls, resulting in fire and associated smoke damage to 10 upper floors (i.e. L27 to L36). Water damage from a manual fighting (after 2 hours) will result in water damages in varying degrees to 10 floors below L27 (L26 to L17). The fire is not anticipated to spread to other Towers due to spatial separation and lack of continuous combustibles.\n\nLevel III Assumptions\nEach floor from L27 to L36 is assumed to be 100% damaged (from fire/smoke), while each floor from L26 to L17 is assumed to be 15% damaged (from water). It will take about 2 months for investigation and clean-up, up to 14 months for full reinstatement works involving the fire-damaged floors (L27 to L36) to be completed, in addition to another 2 months for recovery of business to previous levels. Tenants will not be able to operate out of the building/affected floors during the clean-up/reinstatement/recovery period and will have to relocate to other sites. For L26 to L17, tenants are still able to operate out of the existing units with ongoing repair for water damages. Assuming lost rental income for an 18 month period, the BI PML is estimated based on a percentage of affected lettable area."
+}

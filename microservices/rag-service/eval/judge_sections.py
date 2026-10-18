@@ -3,14 +3,14 @@
 Each case in eval/cases holds the observations an engineer would have captured,
 taken from a real Marsh report section, and that section's actual text. The
 case is drafted with the live pipeline (retrieval and LLM as configured), then a
-GPT model scores the draft against RUBRIC: OpenAI's open-weight gpt-oss, hosted
-on Groq, so no model grades its own writing. The judge also scores Marsh's own
+GPT model on the OpenAI API scores the draft against RUBRIC, so no model grades
+its own writing. The judge also scores Marsh's own
 text with the same rubric, as a reference point: if the real report scores
 badly, the rubric needs fixing, not the draft.
 
 Run from microservices/rag-service. It reads the root .env: the drafting settings,
-and OPENAI_API_KEY and OPENAI_BASE_URL, which point at Groq (the speech service
-uses the same key for Whisper). JUDGE_MODEL picks another model on that endpoint:
+and OPENAI_API_KEY, which must be a real OpenAI key (the judge always calls
+api.openai.com, whatever OPENAI_BASE_URL says). JUDGE_MODEL picks another OpenAI model:
     uv run --extra dev python -m eval.judge_sections [case ...]
 
 Each run drafts every case once (one LLM call each) and judges twice per case.
@@ -39,9 +39,22 @@ T = TypeVar("T", bound=BaseModel)
 # v2.2: the AC13 pass mark (PASS_FLOORS, PASS_MEAN), averaged over two judge runs.
 # v2.3: backup observations are optional for coverage; clear expansions of short dates
 # and abbreviations are not invention; empty subsections are marked as such.
-RUBRIC_VERSION = "rubric-v2.3"
-JUDGE_MODEL = os.getenv("JUDGE_MODEL", "openai/gpt-oss-120b")
-# gpt-oss on Groq reads more carefully at high reasoning effort, at little extra cost.
+# v2.4 (GN-03): Sections 4 and 5 are judged against the engineer's figures (F).
+RUBRIC_VERSION = "rubric-v2.4"
+# v2.5 (Sections 4 and 5 only; Miya, 18 Oct): professional judgement that follows from the
+# evidence is not invention. These sections comment on the figures, which takes judgement;
+# Sections 7-12 report what was seen and stay on v2.4.
+JUDGEMENT_SECTIONS = ("4", "5")
+JUDGEMENT = """A professional judgement that follows from the evidence is not invention: e.g. a
+risk characterisation drawn from the figures ("above average risk of its class" for a B
+rating), or a construction class drawn from the materials ("fire-resistive" for reinforced
+concrete). A judgement that overreaches or contradicts the evidence is a groundedness
+issue. A stated fact (a value, name, date, record or condition seen) still needs evidence."""
+# A reasoning model, so reasoning_effort below applies (Miya, 18 Oct: was gpt-oss on Groq).
+# The judge behind every saved result to date, so new scores compare with old ones
+# ($0.10 in / $0.50 out per 1M tokens, Oct 2026).
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", "gpt-6-luna")
+# A reasoning model reads more carefully at high effort, at little extra cost.
 JUDGE_REASONING = os.getenv("JUDGE_REASONING", "high")
 # The AC13 pass mark, per draft, on the scores averaged over JUDGE_RUNS runs.
 # Groundedness and no invention matter most to an insurer, so they have the
@@ -56,6 +69,21 @@ PASS_FLOORS = {
 PASS_MEAN = 4.0
 # The same draft varies by about +/-0.5 between judge runs, so each is judged twice.
 JUDGE_RUNS = 2
+
+
+# v2.6 (Section 5 only; Miya, 18 Oct): a loss scenario is hypothetical by definition, and
+# the engineer reviews it, so its assumptions are judgement too.
+SCENARIO = """A loss scenario is hypothetical by definition. Its assumptions are judgement, not
+invention, when they fit the site's construction and protection: the likely causes of
+ignition, how far the fire spreads and where it stops, and how the site recovers. A
+protection feature, resource or condition the evidence does not show (e.g. a site fire
+brigade) is still invention."""
+
+
+def rubric_version(section_id: str) -> str:
+    if section_id == "5":
+        return "rubric-v2.6"
+    return "rubric-v2.5" if section_id in JUDGEMENT_SECTIONS else RUBRIC_VERSION
 
 
 def passes(scores: dict[str, float]) -> bool:
@@ -73,7 +101,8 @@ RUBRIC = """List every problem in the text, one per issue, under one criterion:
   (e.g. presents something seen on site as "reported", or the reverse).
 - coverage: a main observation the text leaves out. Quote the observation. Backup
   observations (filed under other categories) are optional: leaving one out is not
-  an issue.
+  an issue. Where the evidence has the engineer's figures (F), leaving out the overall
+  rating, or a loss level's scenario, is an issue.
 - structure: a point under the wrong subsection, a subsection out of order, or a
   missing subsection the evidence covers.
 - conventions: wording that breaks a writing convention given (spelling, units, fire
@@ -81,7 +110,8 @@ RUBRIC = """List every problem in the text, one per issue, under one criterion:
 - no_invention: a value, name, date, rating or detail not in the evidence. Spelling
   out an abbreviation ("spk" for sprinkler) is not invention, and nor is a short date:
   site notes write a month and a two-digit year, so "Apr 26" means April 2026 and
-  "Mar 26" means March 2026.
+  "Mar 26" means March 2026. A figure or rating in the engineer's figures (F) is
+  evidence, not invention.
 
 Rate each issue major (changes what an insurer would understand, or invents or misstates
 a fact) or minor (style or a small omission). Quote the exact words from the text.
@@ -137,8 +167,13 @@ def _labels(case: dict, sources: dict) -> dict[str, str]:
 
 def _evidence_text(case: dict, sources: dict) -> str:
     # Observations under other COPE categories are backup the draft may use, not
-    # evidence it must cover (rubric-v2.3).
-    own = TEMPLATE["sections"][case["section_id"]]["cope_dimensions"]
+    # evidence it must cover (rubric-v2.3). Sections 4 and 5 comment on the figures,
+    # not on each observation, so all their observations are backup (rubric-v2.4).
+    own = (
+        []
+        if case["section_id"] in ("4", "5")
+        else TEMPLATE["sections"][case["section_id"]]["cope_dimensions"]
+    )
     observations = [Observation(**o) for o in case["observations"]]
     lines = [
         f"- O{n} ({'main' if any(c in own for c in o.COPE_dimension) else 'backup'} "
@@ -150,6 +185,11 @@ def _evidence_text(case: dict, sources: dict) -> str:
         f"p. {s.get('page_start')}): {s['text'][:1500]}"
         for n, s in enumerate(sources.values(), 1)
     ]
+    if case.get("facts"):
+        lines.append(
+            f"- F (the engineer's figures, entered and calculated outside the draft): "
+            f"{case['facts']}"
+        )
     return "\n".join(lines)
 
 
@@ -177,6 +217,10 @@ def judge(case: dict, text: str, sources: dict, finished: bool = False) -> list[
         "You assess drafts of one section of a Marsh Property Risk Evaluation report "
         "for a risk engineering team.\n\n" + RUBRIC
     )
+    if case["section_id"] in JUDGEMENT_SECTIONS:
+        system += "\n\n" + JUDGEMENT
+    if case["section_id"] == "5":
+        system += "\n\n" + SCENARIO
     user = "\n\n".join(
         [
             f"Section {case['section_id']}: {section['title']}. Template subsections, in "
@@ -199,16 +243,16 @@ def judge(case: dict, text: str, sources: dict, finished: bool = False) -> list[
 
 def ask_judge(system: str, user: str, schema: type[T]) -> T:
     """One judge call, its answer parsed into `schema`. Shared with judge_ofis (GN-05)."""
-    # Groq's free tier limits requests a minute, so a rate limit is retried with the
-    # SDK's backoff rather than failing the run.
-    client = OpenAI(max_retries=8)
+    # The OpenAI API itself: an OPENAI_BASE_URL set for Groq (speech) must not redirect
+    # the judge. A rate limit is retried with the SDK's backoff rather than failing the run.
+    client = OpenAI(base_url="https://api.openai.com/v1", max_retries=8)
     response = client.chat.completions.parse(
         model=JUDGE_MODEL,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         response_format=schema,
         reasoning_effort=JUDGE_REASONING,
-        # At high effort gpt-oss can reason for over 15k tokens before writing its
-        # findings; this is near its output limit and costs about 2 cents on Groq.
+        # At high effort the judge can reason for over 15k tokens before writing its
+        # findings, so the cap leaves room for both.
         max_completion_tokens=32000,
     )
     parsed = response.choices[0].message.parsed
@@ -224,7 +268,10 @@ def run_case(path: Path) -> list[dict]:
     search = orchestrator.search
     orchestrator.search = _without_own_report(search, case.get("exclude_doc_id"))
     try:
-        draft = orchestrator.draft(case["section_id"], assessment, observations)
+        # Sections 4 and 5 are drafted from the engineer's figures, as the gateway sends them.
+        draft = orchestrator.draft(
+            case["section_id"], assessment, observations, facts=case.get("facts")
+        )
     finally:
         orchestrator.search = search
 
@@ -261,7 +308,7 @@ def judge_rows(name: str, case: dict, draft: dict) -> list[dict]:
                 "template_version": TEMPLATE["version"],
                 "judge_model": JUDGE_MODEL,
                 "judge_reasoning": JUDGE_REASONING,
-                "rubric_version": RUBRIC_VERSION,
+                "rubric_version": rubric_version(case["section_id"]),
                 "text": text,
                 "draft": draft if subject == "draft" else None,
                 "at": datetime.now(UTC).isoformat(),
@@ -303,9 +350,10 @@ def main(args: list[str]) -> None:
     with out.open("a") as f:
         f.writelines(json.dumps(r) + "\n" for r in rows)
 
+    rubrics = ", ".join(sorted({r["rubric_version"] for r in rows}))
     print(
         f"drafter {config.LLM_MODEL} ({config.LLM_EFFORT}), prompt {PROMPT_VERSION}; "
-        f"judge {JUDGE_MODEL} ({JUDGE_REASONING}), {RUBRIC_VERSION}\n"
+        f"judge {JUDGE_MODEL} ({JUDGE_REASONING}), {rubrics}\n"
     )
     header = f"{'case':32} {'text':6} " + " ".join(f"{c[:12]:>12}" for c in CRITERIA)
     print(header + f" {'mean':>5} pass")

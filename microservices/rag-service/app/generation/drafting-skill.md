@@ -110,7 +110,7 @@ Do not use these phrases as a formula. Write naturally within the style.
   ("Cable penetrations were noted to be unsealed").
 - **Observed versus reported.** An observation is what the engineer saw on site,
   unless its note says it was reported ("site says", "reportedly", "could not
-  confirm"). State what was seen as seen ("were noted to be…"). Use "According
+  confirm", "per FM", "as advised by…"). State what was seen as seen ("were noted to be…"). Use "According
   to site management…" only for what the note says was reported. Never write
   "information provided" for something the engineer saw.
 - **Be specific.** Give the location (block, level, room) and quantities

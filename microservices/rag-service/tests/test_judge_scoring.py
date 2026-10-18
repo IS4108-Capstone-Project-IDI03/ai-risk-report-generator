@@ -82,3 +82,73 @@ def test_the_judge_is_told_which_observations_are_backup():
     text = _evidence_text(case, {})
     assert "- O1 (main observation, Protection, B1): spk CV shut" in text
     assert "- O2 (backup observation, Occupancy, L5): UPS next door" in text
+
+
+# GN-03 addendum: Sections 4 and 5 are drafted from the engineer's figures (`facts`).
+def test_the_judge_sees_the_engineers_figures_and_none_when_there_are_none():
+    from eval.judge_sections import _evidence_text
+
+    obs = [{"id": "a", "COPE_dimension": "Protection", "location": "B1", "note": "spk ok"}]
+    with_facts = {"section_id": "4", "observations": obs, "facts": "Current Rating: B"}
+    assert (
+        "- F (the engineer's figures, entered and calculated outside the draft): "
+        "Current Rating: B" in _evidence_text(with_facts, {})
+    )
+    assert "- F " not in _evidence_text({"section_id": "9", "observations": obs}, {})
+
+
+def test_sections_4_and_5_treat_every_observation_as_backup():
+    from eval.judge_sections import _evidence_text
+
+    obs = [{"id": "a", "COPE_dimension": "Protection", "location": "B1", "note": "spk ok"}]
+    for section in ("4", "5"):
+        text = _evidence_text({"section_id": section, "observations": obs}, {})
+        assert "- O1 (backup observation, Protection, B1): spk ok" in text
+
+
+def test_a_case_is_drafted_with_its_facts(monkeypatch, tmp_path):
+    import json
+
+    from eval import judge_sections
+
+    seen = {}
+
+    def draft(section_id, assessment, observations, facts=None):
+        seen["facts"] = facts
+        return {"subsections": [], "sources": {}}
+
+    monkeypatch.setattr(judge_sections.orchestrator, "draft", draft)
+    monkeypatch.setattr(judge_sections, "judge_rows", lambda name, case, d: [])
+    case = {
+        "section_id": "5",
+        "assessment": {"reference": "R", "jurisdiction": "SG", "facility_type": "Office"},
+        "observations": [],
+        "facts": "Level I: total 100.",
+    }
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps(case))
+    judge_sections.run_case(path)
+    assert seen["facts"] == "Level I: total 100."
+
+
+def test_only_sections_4_and_5_accept_professional_judgement(monkeypatch):
+    from eval import judge_sections
+
+    systems = []
+    monkeypatch.setattr(
+        judge_sections,
+        "ask_judge",
+        lambda system, user, schema: systems.append(system) or schema(issues=[]),
+    )
+    for section in ("4", "5", "7"):
+        judge_sections.judge({"section_id": section, "observations": []}, "text", {})
+    four, five, seven = systems
+    assert judge_sections.JUDGEMENT in four and judge_sections.JUDGEMENT in five
+    # Sections 7-12 keep rubric-v2.4 unchanged.
+    assert judge_sections.JUDGEMENT not in seven
+    # Only Section 5 treats loss-scenario assumptions as judgement (v2.6).
+    assert judge_sections.SCENARIO in five
+    assert judge_sections.SCENARIO not in four and judge_sections.SCENARIO not in seven
+    assert judge_sections.rubric_version("5") == "rubric-v2.6"
+    assert judge_sections.rubric_version("4") == "rubric-v2.5"
+    assert judge_sections.rubric_version("7") == "rubric-v2.4"
