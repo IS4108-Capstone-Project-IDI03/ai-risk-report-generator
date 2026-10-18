@@ -23,7 +23,7 @@ import { useLoad } from '../useLoad'
 const matches = (d: DocumentUsage, search: string) =>
   !search || [d.title, d.fileName].some((t) => t?.toLowerCase().includes(search.toLowerCase()))
 
-export function IngestionUsageTab() {
+export function IngestionUsageTab({ onOpen }: { onOpen: (document: DocumentUsage) => void }) {
   const [range, setRange] = useState<Range>(DEFAULT_RANGE)
   const [split, setSplit] = useState<UsageView>('service')
   const [search, setSearch] = useState('')
@@ -100,7 +100,10 @@ export function IngestionUsageTab() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <DocumentTable documents={shown.documents.filter((d) => matches(d, search))} />
+            <DocumentTable
+              documents={shown.documents.filter((d) => matches(d, search))}
+              onOpen={onOpen}
+            />
           </section>
         </>
       )}

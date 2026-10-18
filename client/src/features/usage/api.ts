@@ -148,6 +148,21 @@ export type IngestionUsage = {
   pricingBases: PricingBasis[]
 }
 
+// One document's ingestion cost, all time (its detail page).
+export type DocumentUsageDetail = {
+  key: string
+  title: string
+  fileName: string | null
+  status: string | null
+  saved: boolean
+  uploadedAt: string | null
+  pages: number | null
+  totals: Totals
+  // Cost per stage (labelling, OCR, embedding), split by the service that billed it.
+  byFeatureService: FeatureServiceRow[]
+  rateRows: RateRow[]
+}
+
 // `request` also ends the session on a 401.
 export function getUsageSummary(reportId: string, signal?: AbortSignal): Promise<UsageSummary> {
   const query = reportId ? `?reportId=${encodeURIComponent(reportId)}` : ''
@@ -179,6 +194,12 @@ export function getIngestionUsage(
   signal?: AbortSignal,
 ): Promise<IngestionUsage> {
   return request<IngestionUsage>(`/api/usage/ingestion?${ingestionParams(q)}`, { signal })
+}
+
+export function getDocumentUsage(key: string, signal?: AbortSignal): Promise<DocumentUsageDetail> {
+  return request<DocumentUsageDetail>(`/api/usage/ingestion/${encodeURIComponent(key)}`, {
+    signal,
+  })
 }
 
 export function ingestionExportUrl(q: IngestionQuery): string {

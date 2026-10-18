@@ -322,6 +322,10 @@
   line-height: var(--text-h3-lh);
   color: var(--text-primary);
 }
+/* A document's title is prose, not an identifier like a report reference. */
+.uc-document-head h2 {
+  font-family: var(--font-sans);
+}
 .uc-detail-head p {
   margin: var(--space-2) 0 0;
   color: var(--text-secondary);
