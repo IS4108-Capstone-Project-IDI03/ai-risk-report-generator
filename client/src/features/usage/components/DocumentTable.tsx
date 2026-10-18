@@ -1,24 +1,17 @@
 // The Ingestion tab's table (EV-04): every knowledge document with what reading
 // it cost, including those past the chart's bar limit. A document refused
-// after labelling, or labelled before calls named it, shows as not saved. Each
-// row opens to show how its cost is calculated.
+// after labelling, or labelled before calls named it, shows as not saved.
 // Used by screens/IngestionUsageTab.tsx.
 import { formatDay } from '../../assessments/format'
 import type { DocumentUsage } from '../api'
 import { DASH, formatCount, formatDuration, formatMoney, statusLabel } from '../format'
-import { CostCalculationTable } from './CostCalculationTable'
 import { DataTable } from './DataTable'
-import { TokensCell } from './TokensCell'
 
 export function DocumentTable({ documents }: { documents: DocumentUsage[] }) {
   return (
     <DataTable
       caption="Documents and their cost"
       rows={documents}
-      expand={{
-        label: (d) => `Show cost calculation for ${d.title}`,
-        content: (d) => <CostCalculationTable name={d.title} check={d} />,
-      }}
       columns={[
         { header: 'Document', cell: (d) => d.title },
         { header: 'Status', cell: (d) => statusLabel(d.status) },
@@ -30,7 +23,6 @@ export function DocumentTable({ documents }: { documents: DocumentUsage[] }) {
         { header: 'Calls', numeric: true, cell: (d) => d.calls.toLocaleString('en-US') },
         { header: 'Without cost', numeric: true, cell: (d) => formatCount(d.callsWithoutCost) },
         { header: 'Time per call', numeric: true, cell: (d) => formatDuration(d.avgMsPerCall) },
-        { header: 'Tokens', numeric: true, cell: (d) => <TokensCell tokens={d.totalTokens} /> },
         { header: 'Total cost', numeric: true, cell: (d) => formatMoney(d.estimatedCostUsd) },
         {
           header: 'Cost per page',

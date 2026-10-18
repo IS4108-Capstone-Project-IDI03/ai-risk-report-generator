@@ -68,20 +68,6 @@ export function formatCount(n: number): string {
   return n > 0 ? n.toLocaleString('en-US') : DASH
 }
 
-const COMPACT = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
-
-// Tokens, short (1.6M) for a table cell; none is a dash. Pair with the full
-// count in a title so the exact figure is a hover away.
-export function formatTokens(n: number): string {
-  return n > 0 ? COMPACT.format(n) : DASH
-}
-
-// A cost line's quantity in its own unit: "200,000 tokens", "140 searches", "12.5 min".
-export function formatQuantity(quantity: number, unit: 'tokens' | 'searches' | 'minutes'): string {
-  if (unit === 'minutes') return `${quantity.toFixed(1)} min`
-  return `${Math.round(quantity).toLocaleString('en-US')} ${unit}`
-}
-
 const RATE = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',

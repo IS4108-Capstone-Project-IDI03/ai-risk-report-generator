@@ -21,23 +21,7 @@ const group = (key: string, over: Record<string, unknown> = {}) => ({
   calls: 3,
   estimatedCostUsd: 0.5,
   callsWithoutCost: 0,
-  totalTokens: 0,
-  costLines: [],
   segments: { anthropic: 0.5 },
-  ...over,
-})
-
-// One line of a row's cost calculation, as the gateway sends it.
-const line = (over: Record<string, unknown> = {}) => ({
-  service: 'anthropic',
-  model: 'claude-sonnet-5-5',
-  part: 'input',
-  unit: 'tokens',
-  quantity: 1_000_000,
-  usdPer: 2,
-  per: 1_000_000,
-  costUsd: 2,
-  note: null,
   ...over,
 })
 
@@ -48,53 +32,13 @@ const OVERVIEW = {
   groups: [
     group('RPT-1', {
       estimatedCostUsd: 2,
-      totalTokens: 1_600_000,
       segments: { anthropic: 1.8, 'gemini-vision': 0.2 },
-      // Adds up to its $2.00: Sonnet 900,000 in × $2/1M = $1.80, plus a Gemini
-      // call saved before rates were kept, at its stored $0.20.
-      costLines: [
-        line({ quantity: 900_000, costUsd: 1.8 }),
-        line({
-          service: 'gemini-vision',
-          model: 'gemini-3.8-flash',
-          part: 'rates not recorded',
-          quantity: 210_000,
-          usdPer: 0,
-          costUsd: 0.2,
-          note: 'Saved before rates were recorded',
-        }),
-        line({
-          service: 'cohere-rerank',
-          model: 'rerank-v3.5',
-          part: 'searches',
-          unit: 'searches',
-          quantity: 140,
-          usdPer: 0,
-          per: 1000,
-          costUsd: 0,
-          note: 'Trial key: free',
-        }),
-        line({
-          model: 'claude-unknown-9',
-          part: 'not priced',
-          quantity: 12_000,
-          usdPer: 0,
-          costUsd: 0,
-          note: 'no price for model',
-        }),
-      ],
     }),
     group('RPT-2', {
       client: 'Borealis',
       siteName: 'Tuas warehouse',
       engineerId: JIDE,
       engineerName: 'Jide Okafor',
-      // Sonnet: 200,000 in × $2/1M = $0.40; 10,000 out × $10/1M = $0.10.
-      totalTokens: 210_000,
-      costLines: [
-        line({ quantity: 200_000, costUsd: 0.4 }),
-        line({ part: 'output', quantity: 10_000, usdPer: 10, costUsd: 0.1 }),
-      ],
     }),
     group('chat', {
       label: 'Chatbot',
@@ -105,7 +49,6 @@ const OVERVIEW = {
       engineerName: null,
       estimatedCostUsd: 0,
       segments: {},
-      costLines: [line({ service: 'openai', model: 'gpt-6.1-sol', quantity: 0, costUsd: 0 })],
     }),
   ],
   pricingBases: [
@@ -323,56 +266,6 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     expect(screen.getByRole('table', { name: 'Cost by assessment' })).toBeInTheDocument()
   })
 
-  it('shows each assessment’s tokens beside its total cost', async () => {
-    mockGateway()
-    await openUsage()
-    const headers = within(assessmentTable())
-      .getAllByRole('columnheader')
-      .map((h) => h.textContent)
-    expect(headers.slice(-2)).toEqual(['Tokens', 'Total cost'])
-    const first = within(assessmentTable()).getByRole('row', { name: /RPT-1/ })
-    const tokens = within(first).getByTitle('1,600,000 tokens')
-    expect(tokens).toHaveTextContent('1.6M')
-  })
-
-  it('opens an assessment’s cost calculation from its chevron: quantity × rate = cost', async () => {
-    mockGateway()
-    await openUsage()
-    const toggle = screen.getByRole('button', { name: 'Show cost calculation for RPT-2' })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('table', { name: 'Cost calculation for RPT-2' })).toBeNull()
-
-    fireEvent.click(toggle)
-
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    const calc = screen.getByRole('table', { name: 'Cost calculation for RPT-2' })
-    const input = within(calc).getByRole('row', { name: /claude-sonnet-5-5 — input/ })
-    for (const text of ['Anthropic (Claude)', '200,000 tokens', '$2.00 / 1M tokens', '$0.4000'])
-      expect(input).toHaveTextContent(text)
-    const output = within(calc).getByRole('row', { name: /claude-sonnet-5-5 — output/ })
-    for (const text of ['10,000 tokens', '$10.00 / 1M tokens', '$0.1000'])
-      expect(output).toHaveTextContent(text)
-    // One total: the lines are at the rates charged, so they add up to the row's cost.
-    expect(within(calc).getByRole('row', { name: /^Total/ })).toHaveTextContent('$0.5000')
-    expect(within(calc).queryByRole('row', { name: /Difference/ })).toBeNull()
-  })
-
-  it('keeps several calculations open at once, and closes them for a new period', async () => {
-    const urls = mockGateway()
-    await openUsage()
-    fireEvent.click(screen.getByRole('button', { name: 'Show cost calculation for RPT-1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Show cost calculation for RPT-2' }))
-    expect(screen.getByRole('table', { name: 'Cost calculation for RPT-1' })).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Cost calculation for RPT-2' })).toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Period'), { target: { value: '7d' } })
-    await waitFor(() => expect(lastQuery(urls()).get('range')).toBe('7d'))
-
-    await waitFor(() =>
-      expect(screen.queryAllByRole('table', { name: /^Cost calculation for/ })).toHaveLength(0),
-    )
-  })
-
   it('reloads for the period and split chosen', async () => {
     const urls = mockGateway()
     await openUsage()
@@ -430,72 +323,30 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     )
   })
 
-  it('explains estimates, calls without cost and pricing bases', async () => {
+  it('shows calls without a cost and estimated prices in the totals, with no notice box', async () => {
     mockGateway()
     await openUsage()
-    expect(screen.getByText(/3 of 12 calls use an estimated price/)).toBeInTheDocument()
-    expect(screen.getByText(/2 calls have no cost and are not included/)).toBeInTheDocument()
-    const bases = screen.getByRole('list', { name: 'Pricing bases' })
-    expect(within(bases).getByText('estimate')).toBeInTheDocument()
-    // Why Tokens can look short beside the cost.
-    expect(
-      screen.getByText(/Whisper is billed by audio time and Cohere rerank by searches/),
-    ).toBeInTheDocument()
+    const totals = screen.getByText('Total estimated cost').closest('section') as HTMLElement
+    expect(within(totals).getByText('Estimated')).toBeInTheDocument()
+    expect(within(totals).getByText('Calls without cost').parentElement).toHaveTextContent('2')
+    expect(screen.queryByText('How these costs are worked out')).toBeNull()
   })
 
-  it('shows chat as a row with no assessment to open, but its cost calculation', async () => {
+  it('keeps the table to its totals: no tokens, nothing to expand', async () => {
+    mockGateway()
+    await openUsage()
+    const headers = within(assessmentTable())
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent)
+    expect(headers).not.toContain('Tokens')
+    expect(screen.queryByRole('button', { name: /^Show cost calculation/ })).toBeNull()
+  })
+
+  it('shows chat as a row with nothing to open', async () => {
     mockGateway()
     await openUsage()
     const chat = within(assessmentTable()).getByRole('row', { name: /Chatbot/ })
-    expect(within(chat).queryByRole('button', { name: 'Chatbot' })).toBeNull()
-    expect(
-      within(chat).getByRole('button', { name: 'Show cost calculation for Chatbot' }),
-    ).toBeInTheDocument()
-  })
-
-  it('explains a free rate, a call with no price, and a call saved before rates were kept', async () => {
-    mockGateway()
-    await openUsage()
-    fireEvent.click(screen.getByRole('button', { name: 'Show cost calculation for RPT-1' }))
-    const calc = screen.getByRole('table', { name: 'Cost calculation for RPT-1' })
-
-    const rerank = within(calc).getByRole('row', { name: /rerank-v3\.5 — searches/ })
-    for (const text of ['140 searches', '$0.00 / 1K searches', 'Trial key: free'])
-      expect(rerank).toHaveTextContent(text)
-    const unpriced = within(calc).getByRole('row', { name: /claude-unknown-9 — not priced/ })
-    expect(unpriced).toHaveTextContent('12,000 tokens')
-    expect(unpriced).toHaveTextContent('no price for model')
-    expect(unpriced).not.toHaveTextContent('$0.00 / 1M tokens')
-
-    // Its stored cost, with no rate, since none was kept.
-    const old = within(calc).getByRole('row', { name: /gemini-3\.8-flash — rates not recorded/ })
-    for (const text of ['210,000 tokens', 'Saved before rates were recorded', '$0.2000'])
-      expect(old).toHaveTextContent(text)
-    expect(old).not.toHaveTextContent('/ 1M tokens')
-
-    expect(within(calc).getByRole('row', { name: /^Total/ })).toHaveTextContent('$2.00')
-    expect(within(calc).queryByText('Prices changed since recording')).toBeNull()
-  })
-
-  it('says when a row has nothing to calculate', async () => {
-    mockGateway()
-    await openUsage()
-    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'engineer' } })
-    const engineers = await screen.findByRole('table', { name: 'Engineers and their cost' })
-    fireEvent.click(
-      within(engineers).getByRole('button', { name: 'Show cost calculation for Alex Tan' }),
-    )
-    expect(screen.getByText('No priced calls in this period.')).toBeInTheDocument()
-  })
-
-  it('names the chat’s OpenAI calls in its cost calculation', async () => {
-    mockGateway()
-    await openUsage()
-    fireEvent.click(screen.getByRole('button', { name: 'Show cost calculation for Chatbot' }))
-    const calc = screen.getByRole('table', { name: 'Cost calculation for Chatbot' })
-    expect(
-      within(calc).getByRole('row', { name: /^OpenAI chat · gpt-6\.1-sol — input/ }),
-    ).toBeInTheDocument()
+    expect(within(chat).queryByRole('button')).toBeNull()
   })
 
   it('shows a risk engineer their own assessments, with no engineer controls', async () => {

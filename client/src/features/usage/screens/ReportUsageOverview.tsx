@@ -16,7 +16,6 @@ import {
   type UsageView,
 } from '../api'
 import { CostSummary } from '../components/CostSummary'
-import { EstimateNotice } from '../components/EstimateNotice'
 import { OverviewTable } from '../components/OverviewTable'
 import { StackedCostChart } from '../components/StackedCostChart'
 import { DEFAULT_RANGE, RANGES, SPLITS } from '../options'
@@ -140,7 +139,6 @@ export function ReportUsageOverview({
       {shown && shown.totals.calls > 0 && (
         <>
           <CostSummary totals={shown.totals} />
-          <EstimateNotice summary={shown} />
           <section className="uc-section" aria-labelledby="uc-chart-heading">
             <h2 id="uc-chart-heading">
               {groupBy === 'engineer' ? 'Cost by engineer' : 'Cost by assessment'}
@@ -182,8 +180,6 @@ export function ReportUsageOverview({
               </div>
             )}
             <OverviewTable
-              // A new period, split or grouping closes any open cost calculations.
-              key={JSON.stringify(query)}
               groupBy={groupBy}
               groups={shown.groups.filter((g) => groupBy === 'engineer' || matches(g, search))}
               showEngineer={isAdmin}

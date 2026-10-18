@@ -22,45 +22,15 @@ const doc = (key: string, over: Record<string, unknown> = {}) => ({
   avgMsPerCall: 2200,
   lastActivityAt: '2026-10-01T00:00:00.000Z',
   segments: { 'gemini-ocr': 0.6, anthropic: 0.2 },
-  totalTokens: 0,
-  costLines: [],
   ...over,
 })
-
-// Hand-worked: Gemini OCR 800,000 in × $0.75/1M = $0.60; Haiku 5.5 labelling
-// 1,000,000 in × $0.10/1M = $0.10 and 200,000 out × $0.50/1M = $0.10. $0.80.
-const tokens = (
-  service: string,
-  model: string,
-  part: string,
-  quantity: number,
-  usdPer: number,
-) => ({
-  service,
-  model,
-  part,
-  unit: 'tokens',
-  quantity,
-  usdPer,
-  per: 1_000_000,
-  costUsd: (quantity * usdPer) / 1_000_000,
-  note: null,
-})
-const NFPA_CHECK = {
-  totalTokens: 2_000_000,
-  costLines: [
-    tokens('anthropic', 'claude-haiku-5-5', 'input', 1_000_000, 0.1),
-    tokens('anthropic', 'claude-haiku-5-5', 'output', 200_000, 0.5),
-    tokens('gemini-ocr', 'gemini-3.8-flash', 'input', 800_000, 0.75),
-  ],
-}
 
 const INGESTION = {
   scope: { split: 'service', range: '30d', from: null },
   totals: { calls: 40, estimatedCostUsd: 1.1, callsWithoutCost: 0, estimatedCalls: 0 },
   splitKeys: ['gemini-ocr', 'anthropic'],
   documents: [
-    doc('d1', NFPA_CHECK),
+    doc('d1'),
     doc('d2', {
       title: 'Old scanned code',
       fileName: 'scan.pdf',
@@ -142,30 +112,6 @@ afterEach(() => {
 
 // The screen and its chart library load on first open; allow for a busy run.
 describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
-  it('shows each document’s tokens and opens its cost calculation', async () => {
-    mockGateway()
-    await openIngestion()
-    const table = await screen.findByRole('table', { name: 'Documents and their cost' })
-    const headers = within(table)
-      .getAllByRole('columnheader')
-      .map((h) => h.textContent)
-    expect(headers.slice(-3)).toEqual(['Tokens', 'Total cost', 'Cost per page'])
-    const nfpa = within(table).getByRole('row', { name: /NFPA 13/ })
-    expect(within(nfpa).getByTitle('2,000,000 tokens')).toHaveTextContent('2M')
-
-    fireEvent.click(
-      within(nfpa).getByRole('button', {
-        name: 'Show cost calculation for NFPA 13: Standard for the Installation of Sprinkler Systems',
-      }),
-    )
-
-    const calc = screen.getByRole('table', { name: /^Cost calculation for NFPA 13/ })
-    const ocr = within(calc).getByRole('row', { name: /^Gemini OCR · gemini-3\.8-flash — input/ })
-    for (const text of ['800,000 tokens', '$0.75 / 1M tokens', '$0.6000'])
-      expect(ocr).toHaveTextContent(text)
-    expect(within(calc).getByRole('row', { name: /^Total/ })).toHaveTextContent('$0.8000')
-  })
-
   it('shows each document’s cost for the last 30 days, split by billed service', async () => {
     const urls = mockGateway()
     await openIngestion()

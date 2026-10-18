@@ -9,7 +9,6 @@ import { exportUrl, getUsageSummary, type OverviewGroup, type UsageView } from '
 import type { CostGroup } from '../chart'
 import { BreakdownTable } from '../components/BreakdownTable'
 import { CostSummary } from '../components/CostSummary'
-import { EstimateNotice } from '../components/EstimateNotice'
 import { LatencyTable } from '../components/LatencyTable'
 import { RateTables } from '../components/RateTables'
 import { SectionTable } from '../components/SectionTable'
@@ -93,7 +92,6 @@ export function AssessmentUsageDetail({
       {shown && shown.totals.calls > 0 && (
         <>
           <CostSummary totals={shown.totals} />
-          <EstimateNotice summary={shown} />
           <section className="uc-section" aria-labelledby="uc-features">
             <h2 id="uc-features">Cost by feature</h2>
             <StackedCostChart
