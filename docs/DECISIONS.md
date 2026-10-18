@@ -1692,3 +1692,18 @@ Rejected:
 - Counting questions per day: `ai_calls` holds calls, one question makes several, and calls carry no question id.
 
 Stories: EV-04, CB-01.
+
+## 2026-10-18 — The chatbot's cost is stepped by calendar month or year
+
+Chose: the chatbot page has its own period, separate from the overview's rolling ones: Month (a bar per Singapore day) or Year (a bar per month), stepped back and forward (‹ October 2026 ›), opening on this month. A finished period shows its change from the one before (↑ 18% vs September 2026); a period still under way shows none.
+
+Reason: budgets and bills are monthly (EV-04's goal is the ongoing budget), so calendar months give totals that can be compared and reconciled, and stepping reaches any earlier month. A rolling window moves every day, cannot go back, and "All time" as one bar per day stops being readable after a few months. Comparing a part month with a whole one would always read as a fall.
+
+Rejected:
+- Weeks: they straddle months, so weekly totals never add up to a bill; a month's daily bars already show the weekday pattern.
+- A calendar or date-range picker: the buckets are days or months, so it offers precision nothing uses, and the design system has no accessible one. A stepper and "This month" cover the common moves.
+- Comparing a month so far with the same days of the month before: fair, but harder to read than no comparison until the month ends.
+
+Supersedes the period-follows-the-overview part of the entry above.
+
+Stories: EV-04, CB-01.
