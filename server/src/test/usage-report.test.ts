@@ -1095,3 +1095,215 @@ describe('per-row tokens and cost calculation (EV-04)', () => {
     ])
   })
 })
+
+describe('usage and rates on the detail pages (EV-04)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // A usage item as the services send it, saved the way the gateway saves it.
+  const wire = (over: Partial<WireUsage> = {}): WireUsage => ({
+    feature: 'draft-section',
+    billed_service: 'anthropic',
+    model: 'claude-opus-5-5',
+    duration_ms: 100,
+    input_tokens: 1000,
+    output_tokens: 500,
+    cache_read_tokens: 0,
+    search_units: null,
+    audio_seconds: null,
+    usage_status: 'recorded',
+    ...over,
+  })
+  const record = (items: WireUsage[], context: CallContext = { reportId: 'RPT-A' }) =>
+    recordAiCalls(items, context)
+  const rowsOf = async (reportId = 'RPT-A') =>
+    (await asSana.get(`/api/usage/summary?reportId=${reportId}`)).body.rateRows
+  const tokens = (
+    quantity: number,
+    usdPer: number,
+    costUsd: number,
+    note: string | null = null,
+  ) => ({
+    quantity,
+    unit: 'tokens',
+    usdPer,
+    per: 1e6,
+    costUsd,
+    note,
+  })
+
+  it('gives an assessment one row per feature and model, each quantity at the rate it was charged', async () => {
+    // Sonnet 5.5 at $2 in, $10 out, $0.1 cached per 1M: 1,000,000 in = $2.00;
+    // 100,000 out = $1.00; 500,000 cached = $0.05. $3.05 in all.
+    await assessments()
+    await record([
+      wire({
+        model: 'claude-sonnet-5-5',
+        input_tokens: 1_000_000,
+        output_tokens: 100_000,
+        cache_read_tokens: 500_000,
+      }),
+    ])
+
+    expect(await rowsOf()).toEqual([
+      {
+        feature: 'draft-section',
+        service: 'anthropic',
+        model: 'claude-sonnet-5-5',
+        calls: 1,
+        rates: 'charged',
+        note: null,
+        cells: {
+          input: tokens(1_000_000, 2, 2),
+          output: tokens(100_000, 10, 1),
+          'cached input': tokens(500_000, 0.1, 0.05),
+        },
+        costUsd: 3.05,
+        avgMsPerCall: 100,
+      },
+    ])
+  })
+
+  it('prices OpenAI input net of its cached tokens', async () => {
+    // gpt-6.1-sol at $2 in, $10 out, $2 cached per 1M. 300,000 in, 100,000 of
+    // them cached: 200,000 × $2 = $0.40; 50,000 × $10 = $0.50; 100,000 × $2 = $0.20.
+    await assessments()
+    await record([
+      wire({
+        billed_service: 'openai',
+        model: 'gpt-6.1-sol',
+        input_tokens: 300_000,
+        output_tokens: 50_000,
+        cache_read_tokens: 100_000,
+      }),
+    ])
+
+    const [row] = await rowsOf()
+
+    expect(row.cells).toEqual({
+      input: tokens(200_000, 2, 0.4),
+      output: tokens(50_000, 10, 0.5),
+      'cached input': tokens(100_000, 2, 0.2),
+    })
+    expect(row.costUsd).toBe(1.1)
+  })
+
+  it('gives Whisper audio minutes, Cohere searches, and a trial key its reason', async () => {
+    // 600 seconds = 10 minutes × $0.006 = $0.06. Cohere is free on the trial key.
+    await assessments()
+    const none = { input_tokens: null, output_tokens: null, cache_read_tokens: null }
+    await record([
+      wire({
+        ...none,
+        feature: 'transcribe',
+        billed_service: 'openai-whisper',
+        model: 'whisper-1',
+        audio_seconds: 600,
+      }),
+      wire({
+        ...none,
+        feature: 'retrieval',
+        billed_service: 'cohere-rerank',
+        model: 'rerank-v3.5',
+        search_units: 140,
+      }),
+    ])
+
+    const rows = await rowsOf()
+    const cellsOf = (service: string) =>
+      rows.find((r: { service: string }) => r.service === service).cells
+
+    expect(cellsOf('openai-whisper')).toEqual({
+      audio: { quantity: 10, unit: 'minutes', usdPer: 0.006, per: 1, costUsd: 0.06, note: null },
+    })
+    expect(cellsOf('cohere-rerank')).toEqual({
+      searches: {
+        quantity: 140,
+        unit: 'searches',
+        usdPer: 0,
+        per: 1000,
+        costUsd: 0,
+        note: 'Trial key: free',
+      },
+    })
+  })
+
+  it('starts a new row when the rate changed, older rate first', async () => {
+    // gemini-3.8-flash input: $0.75 per 1M until 2026-12-31, $1.50 from 2027-01-01.
+    await assessments()
+    const gemini = wire({
+      feature: 'interpret-photo',
+      billed_service: 'gemini-vision',
+      model: 'gemini-3.8-flash',
+      input_tokens: 1_000_000,
+      output_tokens: 0,
+      cache_read_tokens: null,
+    })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-01-02T00:00:00Z'))
+    await record([gemini])
+    vi.setSystemTime(new Date('2026-12-31T00:00:00Z'))
+    await record([gemini, gemini])
+    vi.useRealTimers()
+
+    const rows = await rowsOf()
+
+    expect(
+      rows.map((r: { calls: number; cells: { input: { usdPer: number } }; costUsd: number }) => [
+        r.calls,
+        r.cells.input.usdPer,
+        r.costUsd,
+      ]),
+    ).toEqual([
+      [2, 0.75, 1.5],
+      [1, 1.5, 1.5],
+    ])
+  })
+
+  it('shows a call with no price, and one saved before rates were kept, without rates', async () => {
+    await assessments()
+    await record([wire({ model: 'claude-unknown-9', input_tokens: 10_000, output_tokens: 2_000 })])
+    // No costParts: saved before EV-04 kept rates, and not matched by the backfill.
+    await seed([
+      call({
+        model: 'claude-sonnet-5-5',
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        estimatedCostUsd: 3,
+      }),
+    ])
+
+    const rows = await rowsOf()
+    const unrated = (input: number) => ({
+      quantity: input,
+      unit: 'tokens',
+      usdPer: null,
+      per: 1e6,
+      costUsd: null,
+      note: null,
+    })
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        model: 'claude-sonnet-5-5',
+        rates: 'not recorded',
+        note: 'Saved before rates were recorded',
+        cells: { input: unrated(1_000_000) },
+        costUsd: 3,
+      }),
+      expect.objectContaining({
+        model: 'claude-unknown-9',
+        rates: 'not priced',
+        note: 'no price for model',
+        cells: { input: unrated(10_000), output: unrated(2_000) },
+        costUsd: null,
+      }),
+    ])
+  })
+
+  it('has no rate rows without a chosen assessment', async () => {
+    await assessments()
+    await record([wire()])
+
+    expect((await asSana.get('/api/usage/summary')).body.rateRows).toEqual([])
+  })
+})

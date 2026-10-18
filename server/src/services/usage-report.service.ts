@@ -67,6 +67,8 @@ export type UsageSummary = {
   byFeatureService: FeatureServiceRow[]
   // Only for one chosen report; empty otherwise.
   bySection: SectionRow[]
+  // Only for one chosen report; empty otherwise.
+  rateRows: RateRow[]
   pricingBases: { basis: string; calls: number; isEstimate: boolean }[]
 }
 
@@ -189,6 +191,7 @@ export async function summarizeUsage(user: SessionUser, reportId?: string): Prom
     byService,
     byFeatureService: byFeatureService(rows),
     bySection: reportId ? bySection(rows) : [],
+    rateRows: reportId ? rateRows(rows) : [],
     pricingBases: [...bases].map(([basis, calls]) => ({
       basis,
       calls,
@@ -361,6 +364,138 @@ function costLines(rows: IAiCall[]): CostLine[] {
       )
       .map(({ firstAt: _, ...l }) => ({ ...l, costUsd: round(l.costUsd) }))
   )
+}
+
+// One quantity on a detail page, with the rate its calls were charged at:
+// quantity × usdPer / per = costUsd. Rate and cost are null when not known.
+export type RateCell = Omit<CostPart, 'part' | 'usdPer' | 'costUsd'> & {
+  usdPer: number | null
+  costUsd: number | null
+}
+// One row of a detail page's usage and rates: a feature's calls to one model
+// at one set of rates (a rate change starts a new row).
+export type RateRow = {
+  feature: IAiCall['feature']
+  service: IAiCall['billedService']
+  model: string
+  calls: number
+  // 'charged': each cell carries the rate stored with its calls. 'not recorded':
+  // saved before rates were kept, at its stored cost. 'not priced': no cost.
+  rates: 'charged' | 'not recorded' | 'not priced'
+  // Why a row has no rates; null when charged.
+  note: string | null
+  cells: Partial<Record<CostPart['part'], RateCell>>
+  costUsd: number | null
+  avgMsPerCall: number | null
+}
+
+const UNITS: Record<CostPart['part'], Pick<RateCell, 'unit' | 'per'>> = {
+  input: { unit: 'tokens', per: 1e6 },
+  output: { unit: 'tokens', per: 1e6 },
+  'cached input': { unit: 'tokens', per: 1e6 },
+  searches: { unit: 'searches', per: 1000 },
+  audio: { unit: 'minutes', per: 1 },
+}
+
+// What a call used, as its parts, when no rates were stored with it.
+function amountsOf(r: IAiCall): [CostPart['part'], number][] {
+  const cached = r.cacheReadTokens ?? 0
+  // OpenAI's input already includes its cached tokens (Anthropic's does not).
+  const input = (r.inputTokens ?? 0) - (r.billedService === 'openai' ? cached : 0)
+  return [
+    ['input', input],
+    ['output', r.outputTokens ?? 0],
+    ['cached input', cached],
+    ['searches', r.searchUnits ?? 0],
+    ['audio', (r.audioSeconds ?? 0) / 60],
+  ]
+}
+
+function cellsOf(r: IAiCall): RateRow['cells'] {
+  const cells: RateRow['cells'] = {}
+  if (r.estimatedCostUsd !== null && r.costParts) {
+    for (const { part, ...cell } of r.costParts) cells[part] = cell
+  } else {
+    for (const [part, quantity] of amountsOf(r))
+      cells[part] = { ...UNITS[part], quantity, usdPer: null, costUsd: null, note: null }
+  }
+  return cells
+}
+
+function ratesOf(r: IAiCall): RateRow['rates'] {
+  if (r.estimatedCostUsd === null) return 'not priced'
+  return r.costParts ? 'charged' : 'not recorded'
+}
+
+/** Returns the rows' usage per feature, service, model and rate, at the rates they were charged. */
+function rateRows(rows: IAiCall[]): RateRow[] {
+  const groups = new Map<string, { row: RateRow; members: IAiCall[]; firstAt: number }>()
+  for (const r of rows) {
+    const rates = ratesOf(r)
+    const cells = cellsOf(r)
+    const signature = Object.entries(cells)
+      .map(([part, c]) => `${part}:${c.usdPer}`)
+      .sort()
+      .join(',')
+    const key = [r.feature, r.billedService, r.model, rates, signature].join('|')
+    const at = +new Date(r.createdAt)
+    const group = groups.get(key)
+    if (!group) {
+      groups.set(key, {
+        row: {
+          feature: r.feature,
+          service: r.billedService,
+          model: r.model,
+          calls: 0,
+          rates,
+          note:
+            rates === 'charged'
+              ? null
+              : rates === 'not priced'
+                ? r.pricingBasis
+                : 'Saved before rates were recorded',
+          cells,
+          costUsd: null,
+          avgMsPerCall: null,
+        },
+        members: [r],
+        firstAt: at,
+      })
+      continue
+    }
+    group.members.push(r)
+    group.firstAt = Math.min(group.firstAt, at)
+    for (const [part, c] of Object.entries(cells) as [CostPart['part'], RateCell][]) {
+      const into = group.row.cells[part]
+      if (!into) group.row.cells[part] = c
+      else {
+        into.quantity += c.quantity
+        if (into.costUsd !== null && c.costUsd !== null) into.costUsd += c.costUsd
+      }
+    }
+  }
+  return [...groups.values()]
+    .sort(
+      (a, b) =>
+        a.row.service.localeCompare(b.row.service) ||
+        a.row.feature.localeCompare(b.row.feature) ||
+        a.row.model.localeCompare(b.row.model) ||
+        a.firstAt - b.firstAt,
+    )
+    .map(({ row, members }) => {
+      const cells: RateRow['cells'] = {}
+      // A part nothing used (no cache reads, say) is a dash, not a $0 cell.
+      for (const [part, c] of Object.entries(row.cells) as [CostPart['part'], RateCell][])
+        if (c.quantity > 0 || (c.costUsd ?? 0) > 0)
+          cells[part] = { ...c, costUsd: c.costUsd === null ? null : round(c.costUsd) }
+      return {
+        ...row,
+        calls: callsIn(members),
+        cells,
+        costUsd: row.rates === 'not priced' ? null : round(sum(members, (m) => m.estimatedCostUsd)),
+        avgMsPerCall: avgMsPerCall(members),
+      }
+    })
 }
 
 // What every group shows: calls, cost, last use, and its bar's stacked parts.
