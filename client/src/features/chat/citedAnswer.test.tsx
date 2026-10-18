@@ -187,6 +187,22 @@ describe('Cited answer', () => {
     )
   })
 
+  it('writes the section sign as the word Section (Jesper, 17 Oct)', () => {
+    renderAnswer(
+      [
+        'root = Answer([s1, f1])',
+        's1 = Statement("See § 8.15.1, §9.2 and §§ 10.1–10.3.", [c1])',
+        'c1 = Cite("P1", "§ 8.15.1")',
+        'f1 = FollowUp("Want me to check §8.16?")',
+      ].join('\n'),
+    )
+    expect(
+      screen.getByText(/See Section 8\.15\.1, Section 9\.2 and Sections 10\.1–10\.3\./),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Want me to check Section 8.16?')).toBeInTheDocument()
+    expect(screen.queryByText(/§/)).toBeNull()
+  })
+
   it('shows a document name in a follow-up question in bold, like the answer', () => {
     renderAnswer(
       [
