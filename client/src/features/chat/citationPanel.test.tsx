@@ -90,6 +90,18 @@ vi.mock('./components/pdfSource', () => ({ openPdfSource: async (url: string) =>
 
 afterEach(cleanup)
 
+// Node in CI has no localStorage (a laptop's may), so the width tests bring their own.
+function stubLocalStorage() {
+  const kept = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => kept.get(k) ?? null,
+    setItem: (k: string, v: string) => void kept.set(k, v),
+    removeItem: (k: string) => void kept.delete(k),
+    clear: () => kept.clear(),
+  })
+}
+afterEach(() => vi.unstubAllGlobals())
+
 const PASSAGE: Passage = {
   id: 'c1',
   documentId: 'd1',
@@ -186,7 +198,7 @@ describe('Source panel', () => {
   })
 
   it('resizes from its handle with the arrow keys, remembering a width per tab', async () => {
-    localStorage.clear()
+    stubLocalStorage()
     renderPanel(cited())
     const handle = screen.getByRole('separator', { name: 'Resize the source panel' })
     expect(handle).toHaveAttribute('aria-valuenow', '40')
@@ -201,10 +213,10 @@ describe('Source panel', () => {
   })
 
   it('ignores a stored width that is not a number', () => {
+    stubLocalStorage()
     localStorage.setItem('chat-panel-share', '{"passage":"x"}')
     renderPanel(cited())
     expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '40')
-    localStorage.clear()
   })
 
   it('closes from its button and from the Escape key', () => {
