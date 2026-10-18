@@ -6,14 +6,18 @@ import { Router } from 'express'
 import { isValidObjectId } from 'mongoose'
 import { requirePermission } from '../middleware/auth.middleware'
 import {
+  chatPeriodOf,
+  chatUsage,
   OVERVIEW_GROUPS,
   OVERVIEW_RANGES,
   OVERVIEW_SPLITS,
   ingestionCsv,
+  documentUsage,
   type IngestionQuery,
   ingestionUsage,
   type OverviewQuery,
   overviewCsv,
+  ratesCsv,
   ReportNotInScopeError,
   summarizeUsage,
   usageCsv,
@@ -104,6 +108,55 @@ router.get('/ingestion/export.csv', ...ingestionAccess, async (req, res) => {
   res.send(csv)
 })
 
+// After export.csv, so that path is not read as a document key.
+router.get('/ingestion/:key', ...ingestionAccess, async (req, res) => {
+  const usage = await documentUsage(String(req.params.key))
+  if (!usage) {
+    res.status(404).json({ error: 'No AI calls are recorded for that document.' })
+    return
+  }
+  res.json(usage)
+})
+
+router.get('/ingestion/:key/export.csv', ...ingestionAccess, async (req, res) => {
+  const usage = await documentUsage(String(req.params.key))
+  if (!usage) {
+    res.status(404).json({ error: 'No AI calls are recorded for that document.' })
+    return
+  }
+  // The title goes into the file name, so strip anything a header could not carry.
+  const name = usage.title.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80)
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="usage-document-${name}.csv"`)
+  res.send(ratesCsv(usage.rateRows))
+})
+
+// The chatbot's cost for a calendar month or year (Singapore time): a knowledge
+// admin sees everyone's chat, a risk engineer their own (the service scopes it).
+const CHAT_PERIOD_ERROR = 'period must be "month" with at=YYYY-MM, or "year" with at=YYYY.'
+
+router.get('/chat', requirePermission('usage:view'), async (req, res) => {
+  const period = chatPeriodOf(req.query.period, req.query.at)
+  if (!period) {
+    res.status(400).json({ error: CHAT_PERIOD_ERROR })
+    return
+  }
+  res.json(await chatUsage(res.locals.user!, period))
+})
+
+router.get('/chat/export.csv', requirePermission('usage:view'), async (req, res) => {
+  const period = chatPeriodOf(req.query.period, req.query.at)
+  if (!period) {
+    res.status(400).json({ error: CHAT_PERIOD_ERROR })
+    return
+  }
+  const csv = ratesCsv((await chatUsage(res.locals.user!, period)).rateRows)
+  // The period is digits and a dash, so the name needs no cleaning.
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="usage-chat-rates-${period.at}.csv"`)
+  res.send(csv)
+})
+
 router.get('/summary', requirePermission('usage:view'), async (req, res) => {
   try {
     res.json(await summarizeUsage(res.locals.user!, reportIdOf(req.query)))
@@ -118,17 +171,24 @@ router.get('/summary', requirePermission('usage:view'), async (req, res) => {
 
 router.get('/export.csv', requirePermission('usage:view'), async (req, res) => {
   const groupBy = req.query.groupBy
-  if (groupBy !== 'feature' && groupBy !== 'service') {
-    res.status(400).json({ error: 'groupBy must be "feature" or "service".' })
+  const reportId = reportIdOf(req.query)
+  if (groupBy !== 'feature' && groupBy !== 'service' && groupBy !== 'rates') {
+    res.status(400).json({ error: 'groupBy must be "feature", "service" or "rates".' })
+    return
+  }
+  // Rates are kept per assessment: its usage at the rates charged.
+  if (groupBy === 'rates' && !reportId) {
+    res.status(400).json({ error: 'groupBy "rates" needs a reportId.' })
     return
   }
   try {
-    const reportId = reportIdOf(req.query)
-    const csv = usageCsv(await summarizeUsage(res.locals.user!, reportId), groupBy)
+    const summary = await summarizeUsage(res.locals.user!, reportId)
+    const csv = groupBy === 'rates' ? ratesCsv(summary.rateRows) : usageCsv(summary, groupBy)
     // The report id goes into the file name, so strip anything a header could not carry.
     const suffix = reportId ? `-${reportId.replace(/[^A-Za-z0-9._-]/g, '_')}` : ''
+    const name = groupBy === 'rates' ? `usage-rates${suffix}` : `usage-by-${groupBy}${suffix}`
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-    res.setHeader('Content-Disposition', `attachment; filename="usage-by-${groupBy}${suffix}.csv"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${name}.csv"`)
     res.send(csv)
   } catch (error) {
     if (error instanceof ReportNotInScopeError) {

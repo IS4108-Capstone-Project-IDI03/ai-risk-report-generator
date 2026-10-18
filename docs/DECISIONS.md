@@ -1635,3 +1635,75 @@ now look their items up in the document as pictures do. On FM-200 pages 45-55, 5
 unchanged. Table documents must be re-ingested for this too.
 
 Stories: IN-13, IN-03, IN-12, CP-05.
+
+## 2026-10-18 — Each cost row shows its tokens and opens to its calculation, priced by the same parts estimateCost stores
+
+Chose: overview groups and ingested documents carry `totalTokens`, `costLines` (quantity × rate = cost per service, model, part and rate) and `reconciliation` (calculated beside recorded). The screen adds a Tokens column and a chevron per row that opens the calculation. `estimateCost` now prices through `costBreakdown`, the function that builds the lines, so a line cannot disagree with the cost it explains; labelling, priced by the ingestion service, is shown from a copy of its `PRICES` table.
+
+Reason: a total cost could not be checked by hand. Tokens are summed from the stored provider counts, never cost ÷ rate, which would only restate the cost. Whisper and Cohere rerank bill in minutes and searches, so their lines carry their own unit rather than being forced into tokens.
+
+Rejected:
+- One calculation table for the whole period: it cannot answer why one assessment costs what it does.
+- Fetching a row's lines when it is opened: a new endpoint, a loading state per row; the rows are already in memory when the group is built.
+- Whole-row click to open: the Assessment and Engineer cells already open the drill-in and narrow the overview.
+
+Known limits: a difference appears when prices changed after recording (`npm --prefix server run migrate:prices` only reprices rows that had no price). The labelling copy must be kept in step with `labelling/config.py` by hand.
+
+Stories: EV-04, EV-03.
+
+## 2026-10-18 — Each AI call stores the rates it was charged at
+
+Chose: `estimateCost` returns the parts of a cost (quantity, rate, cost each) and the gateway stores them on the call as `ai_calls.costParts`. The cost report builds each row's lines from them instead of re-pricing at today's rates, so the lines always add up to the row's total and the Calculated / Recorded / Difference footer becomes one Total. The labelling service sends the rates behind its `cost_usd`, and the gateway's copy of its `PRICES` table is gone. `npm --prefix server run migrate:cost-parts` backfills older rows once, only where today's rates reproduce the stored cost exactly; the rest show as "rates not recorded" at their stored cost.
+
+Reason: rates change, and re-pricing an old call at today's rate misstates what it was charged. A dated price table would only be right while nobody edits a past price; the rate stored on the call cannot drift.
+
+Rejected:
+- Dated price tables for every vendor (as Gemini's): correct only if every change is added as a new dated entry, never edited in place.
+- Recalculating old rows at today's rates: a second code path that shows rates the call was not charged.
+
+Supersedes the "difference means prices changed" part of the entry above.
+
+Stories: EV-04, EV-03.
+
+## 2026-10-18 — Rates are shown on the detail pages, one table per way of billing
+
+Chose: the overview and ingestion tables go back to their totals: no Tokens column, no per-row dropdown. An assessment's drill-in shows its usage and rates, and each knowledge document gets the same detail page from the Ingestion tab (`GET /api/usage/ingestion/:key`). Calls are grouped into one table per way of billing (Claude and OpenAI; other token models; Cohere embeddings; Cohere rerank; Whisper), each quantity with the rate stored on its calls beneath it. The "How these costs are worked out" box is gone: the totals card keeps its Estimated badge and shows calls without a cost (EV-04 AC7).
+
+Reason: the dropdown crowded the main tables, and the drill-in already existed for exactly this. One table per way of billing keeps every column meaningful: the old Usage table's five unit columns were mostly dashes, since each feature bills in one to three of them. Cache reads (drafting, chat, Claude OCR), search units (rerank) and audio (Whisper, billed per minute) are all recorded and all priced, so none was dropped. Ingestion keeps a time per call but not a Speed table: its calls are saved as totals per stage, so only the average is known.
+
+Rejected:
+- One combined table with a column per unit: mostly empty cells.
+- A separate rate column beside each quantity: ten columns for Claude; the rate sits under its quantity instead.
+
+Known limits: the Unassigned row has no drill-in. A document's detail page is all time, while the list is for the period chosen, as for assessments.
+
+Supersedes the per-row dropdown and Tokens column in the first entry of this date.
+
+Stories: EV-04.
+
+## 2026-10-18 — The chatbot has its own cost page, charted by day
+
+Chose: the overview's Chatbot row opens a page for the period on screen: totals, cost per Singapore day (a bar per day in date order, every day shown, split by billed service, with the same figures as a table), cost per person who asked, and usage and rates with a CSV export (`GET /api/usage/chat`). The chart gained an in-order mode so days are not sorted by cost.
+
+Reason: chat cost accrues daily per person, under per-person daily limits (CB-01), unlike an assessment or a document, whose cost is mostly incurred once; so its page answers "how much, when, and by whom" rather than all-time totals.
+
+Rejected:
+- Charting tokens over time: chat uses more than one model at very different prices, so a token line would mislead; tokens are in the usage and rates tables, per model, at the rate charged.
+- Counting questions per day: `ai_calls` holds calls, one question makes several, and calls carry no question id.
+
+Stories: EV-04, CB-01.
+
+## 2026-10-18 — The chatbot's cost is stepped by calendar month or year
+
+Chose: the chatbot page has its own period, separate from the overview's rolling ones: Month (a bar per Singapore day) or Year (a bar per month), stepped back and forward (‹ October 2026 ›), opening on this month. A finished period shows its change from the one before (↑ 18% vs September 2026); a period still under way shows none.
+
+Reason: budgets and bills are monthly (EV-04's goal is the ongoing budget), so calendar months give totals that can be compared and reconciled, and stepping reaches any earlier month. A rolling window moves every day, cannot go back, and "All time" as one bar per day stops being readable after a few months. Comparing a part month with a whole one would always read as a fall.
+
+Rejected:
+- Weeks: they straddle months, so weekly totals never add up to a bill; a month's daily bars already show the weekday pattern.
+- A calendar or date-range picker: the buckets are days or months, so it offers precision nothing uses, and the design system has no accessible one. A stepper and "This month" cover the common moves.
+- Comparing a month so far with the same days of the month before: fair, but harder to read than no comparison until the month ends.
+
+Supersedes the period-follows-the-overview part of the entry above.
+
+Stories: EV-04, CB-01.

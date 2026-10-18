@@ -3,6 +3,12 @@ import { Types } from 'mongoose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
+import {
+  labelUsageToWire,
+  recordAiCalls,
+  type CallContext,
+  type WireUsage,
+} from '../services/ai-usage.service'
 import { AssessmentModel } from '../models/assessment.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
@@ -742,5 +748,593 @@ describe('latency with summed ingestion rows (EV-04 AC5)', () => {
 
     expect(ocr.latency).toEqual({ avgMs: 100, p50Ms: 100, p95Ms: 100, maxMs: 100 })
     expect(ocr.calls).toBe(5)
+  })
+})
+
+describe('usage and rates on the detail pages (EV-04)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // A usage item as the services send it, saved the way the gateway saves it.
+  const wire = (over: Partial<WireUsage> = {}): WireUsage => ({
+    feature: 'draft-section',
+    billed_service: 'anthropic',
+    model: 'claude-opus-5-5',
+    duration_ms: 100,
+    input_tokens: 1000,
+    output_tokens: 500,
+    cache_read_tokens: 0,
+    search_units: null,
+    audio_seconds: null,
+    usage_status: 'recorded',
+    ...over,
+  })
+  const record = (items: WireUsage[], context: CallContext = { reportId: 'RPT-A' }) =>
+    recordAiCalls(items, context)
+  const rowsOf = async (reportId = 'RPT-A') =>
+    (await asSana.get(`/api/usage/summary?reportId=${reportId}`)).body.rateRows
+  const tokens = (
+    quantity: number,
+    usdPer: number,
+    costUsd: number,
+    note: string | null = null,
+  ) => ({
+    quantity,
+    unit: 'tokens',
+    usdPer,
+    per: 1e6,
+    costUsd,
+    note,
+  })
+
+  it('gives an assessment one row per feature and model, each quantity at the rate it was charged', async () => {
+    // Sonnet 5.5 at $2 in, $10 out, $0.1 cached per 1M: 1,000,000 in = $2.00;
+    // 100,000 out = $1.00; 500,000 cached = $0.05. $3.05 in all.
+    await assessments()
+    await record([
+      wire({
+        model: 'claude-sonnet-5-5',
+        input_tokens: 1_000_000,
+        output_tokens: 100_000,
+        cache_read_tokens: 500_000,
+      }),
+    ])
+
+    expect(await rowsOf()).toEqual([
+      {
+        feature: 'draft-section',
+        service: 'anthropic',
+        model: 'claude-sonnet-5-5',
+        calls: 1,
+        rates: 'charged',
+        note: null,
+        cells: {
+          input: tokens(1_000_000, 2, 2),
+          output: tokens(100_000, 10, 1),
+          'cached input': tokens(500_000, 0.1, 0.05),
+        },
+        costUsd: 3.05,
+        avgMsPerCall: 100,
+      },
+    ])
+  })
+
+  it('prices OpenAI input net of its cached tokens', async () => {
+    // gpt-6.1-sol at $2 in, $10 out, $2 cached per 1M. 300,000 in, 100,000 of
+    // them cached: 200,000 × $2 = $0.40; 50,000 × $10 = $0.50; 100,000 × $2 = $0.20.
+    await assessments()
+    await record([
+      wire({
+        billed_service: 'openai',
+        model: 'gpt-6.1-sol',
+        input_tokens: 300_000,
+        output_tokens: 50_000,
+        cache_read_tokens: 100_000,
+      }),
+    ])
+
+    const [row] = await rowsOf()
+
+    expect(row.cells).toEqual({
+      input: tokens(200_000, 2, 0.4),
+      output: tokens(50_000, 10, 0.5),
+      'cached input': tokens(100_000, 2, 0.2),
+    })
+    expect(row.costUsd).toBe(1.1)
+  })
+
+  it('gives Whisper audio minutes, Cohere searches, and a trial key its reason', async () => {
+    // 600 seconds = 10 minutes × $0.006 = $0.06. Cohere is free on the trial key.
+    await assessments()
+    const none = { input_tokens: null, output_tokens: null, cache_read_tokens: null }
+    await record([
+      wire({
+        ...none,
+        feature: 'transcribe',
+        billed_service: 'openai-whisper',
+        model: 'whisper-1',
+        audio_seconds: 600,
+      }),
+      wire({
+        ...none,
+        feature: 'retrieval',
+        billed_service: 'cohere-rerank',
+        model: 'rerank-v3.5',
+        search_units: 140,
+      }),
+    ])
+
+    const rows = await rowsOf()
+    const cellsOf = (service: string) =>
+      rows.find((r: { service: string }) => r.service === service).cells
+
+    expect(cellsOf('openai-whisper')).toEqual({
+      audio: { quantity: 10, unit: 'minutes', usdPer: 0.006, per: 1, costUsd: 0.06, note: null },
+    })
+    expect(cellsOf('cohere-rerank')).toEqual({
+      searches: {
+        quantity: 140,
+        unit: 'searches',
+        usdPer: 0,
+        per: 1000,
+        costUsd: 0,
+        note: 'Trial key: free',
+      },
+    })
+  })
+
+  it('starts a new row when the rate changed, older rate first', async () => {
+    // gemini-3.8-flash input: $0.75 per 1M until 2026-12-31, $1.50 from 2027-01-01.
+    await assessments()
+    const gemini = wire({
+      feature: 'interpret-photo',
+      billed_service: 'gemini-vision',
+      model: 'gemini-3.8-flash',
+      input_tokens: 1_000_000,
+      output_tokens: 0,
+      cache_read_tokens: null,
+    })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-01-02T00:00:00Z'))
+    await record([gemini])
+    vi.setSystemTime(new Date('2026-12-31T00:00:00Z'))
+    await record([gemini, gemini])
+    vi.useRealTimers()
+
+    const rows = await rowsOf()
+
+    expect(
+      rows.map((r: { calls: number; cells: { input: { usdPer: number } }; costUsd: number }) => [
+        r.calls,
+        r.cells.input.usdPer,
+        r.costUsd,
+      ]),
+    ).toEqual([
+      [2, 0.75, 1.5],
+      [1, 1.5, 1.5],
+    ])
+  })
+
+  it('shows a call with no price, and one saved before rates were kept, without rates', async () => {
+    await assessments()
+    await record([wire({ model: 'claude-unknown-9', input_tokens: 10_000, output_tokens: 2_000 })])
+    // No costParts: saved before EV-04 kept rates, and not matched by the backfill.
+    await seed([
+      call({
+        model: 'claude-sonnet-5-5',
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        estimatedCostUsd: 3,
+      }),
+    ])
+
+    const rows = await rowsOf()
+    const unrated = (input: number) => ({
+      quantity: input,
+      unit: 'tokens',
+      usdPer: null,
+      per: 1e6,
+      costUsd: null,
+      note: null,
+    })
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        model: 'claude-sonnet-5-5',
+        rates: 'not recorded',
+        note: 'Saved before rates were recorded',
+        cells: { input: unrated(1_000_000) },
+        costUsd: 3,
+      }),
+      expect.objectContaining({
+        model: 'claude-unknown-9',
+        rates: 'not priced',
+        note: 'no price for model',
+        cells: { input: unrated(10_000), output: unrated(2_000) },
+        costUsd: null,
+      }),
+    ])
+  })
+
+  it('keeps the overview and ingestion lists to their totals: rates are on the detail pages', async () => {
+    await assessments()
+    await record([wire()])
+    await record([wire({ feature: 'ocr', document_id: String(new Types.ObjectId()) })], {})
+
+    const overview = await asSana.get(
+      '/api/usage/overview?groupBy=assessment&split=service&range=all',
+    )
+    const ingestion = await asSana.get('/api/usage/ingestion?split=service&range=all')
+
+    for (const row of [overview.body.groups[0], ingestion.body.documents[0]]) {
+      expect(row).not.toHaveProperty('totalTokens')
+      expect(row).not.toHaveProperty('costLines')
+    }
+  })
+
+  it('has no rate rows without a chosen assessment', async () => {
+    await assessments()
+    await record([wire()])
+
+    expect((await asSana.get('/api/usage/summary')).body.rateRows).toEqual([])
+  })
+
+  it("exports an assessment's usage and rates, one line per billed part, adding up to its total", async () => {
+    // Sonnet at $2 / $10 / $0.1 per 1M: $2.00 + $1.00 + $0.05. Whisper: 10 min × $0.006 = $0.06.
+    // An Opus call saved before rates were kept, at its stored $0.50. In all, $3.61.
+    await assessments()
+    await record([
+      wire({
+        model: 'claude-sonnet-5-5',
+        input_tokens: 1_000_000,
+        output_tokens: 100_000,
+        cache_read_tokens: 500_000,
+      }),
+      wire({
+        feature: 'transcribe',
+        billed_service: 'openai-whisper',
+        model: 'whisper-1',
+        input_tokens: null,
+        output_tokens: null,
+        cache_read_tokens: null,
+        audio_seconds: 600,
+      }),
+      wire({ model: 'claude-unknown-9', input_tokens: 10_000, output_tokens: 2_000 }),
+    ])
+    await seed([call()]) // no costParts
+
+    const res = await asSana.get('/api/usage/export.csv?groupBy=rates&reportId=RPT-A')
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-disposition']).toBe('attachment; filename="usage-rates-RPT-A.csv"')
+    const lines = res.text.trim().split('\n')
+    const old = 'Saved before rates were recorded'
+    expect(lines).toEqual([
+      'feature,service,model,rates,part,quantity,unit,usd_per,per,cost_usd,calls,avg_ms_per_call,note',
+      `draft-section,anthropic,claude-opus-5-5,not recorded,input,1000,tokens,,1000000,,1,100,${old}`,
+      `draft-section,anthropic,claude-opus-5-5,not recorded,output,500,tokens,,1000000,,1,100,${old}`,
+      `draft-section,anthropic,claude-opus-5-5,not recorded,stored cost,,,,,0.5,1,100,${old}`,
+      'draft-section,anthropic,claude-sonnet-5-5,charged,input,1000000,tokens,2,1000000,2,1,100,',
+      'draft-section,anthropic,claude-sonnet-5-5,charged,output,100000,tokens,10,1000000,1,1,100,',
+      'draft-section,anthropic,claude-sonnet-5-5,charged,cached input,500000,tokens,0.1,1000000,0.05,1,100,',
+      'draft-section,anthropic,claude-unknown-9,not priced,input,10000,tokens,,1000000,,1,100,no price for model',
+      'draft-section,anthropic,claude-unknown-9,not priced,output,2000,tokens,,1000000,,1,100,no price for model',
+      'transcribe,openai-whisper,whisper-1,charged,audio,10,minutes,0.006,1,0.06,1,100,',
+    ])
+    const costs = lines.slice(1).map((l) => Number(l.split(',')[9] || 0))
+    expect(costs.reduce((t, c) => t + c, 0)).toBeCloseTo(3.61, 6)
+  })
+
+  it('exports rates only for a chosen assessment', async () => {
+    expect((await asSana.get('/api/usage/export.csv?groupBy=rates')).status).toBe(400)
+  })
+})
+
+describe('GET /api/usage/ingestion/:key, one document (EV-04)', () => {
+  const nfpa = new Types.ObjectId()
+  const document = () =>
+    KnowledgeDocumentModel.collection.insertOne({
+      _id: nfpa,
+      title: 'NFPA 13',
+      fileName: 'nfpa13.pdf',
+      status: 'complete',
+      createdAt: new Date('2026-10-01T00:00:00Z'),
+    })
+  // Labelling with gpt-6-luna at $0.10 in, $0.50 out per 1M, as the ingestion
+  // service priced it: 1,000,000 in = $0.10; 200,000 out = $0.10.
+  const labelling = () =>
+    labelUsageToWire([
+      {
+        model: 'gpt-6-luna',
+        input_tokens: 1_000_000,
+        output_tokens: 200_000,
+        cost_usd: 0.2,
+        seconds: 2,
+        input_usd_per_1m: 0.1,
+        output_usd_per_1m: 0.5,
+      },
+    ])
+  // Four OCR calls summed into one row by the worker, 4 seconds in all.
+  // Gemini 3.8 Flash at $0.75 in, $3.75 out per 1M: 400,000 in = $0.30; 40,000 out = $0.15.
+  const ocr = (documentId: string): WireUsage => ({
+    feature: 'ocr',
+    billed_service: 'gemini-ocr',
+    model: 'gemini-3.8-flash',
+    duration_ms: 4000,
+    input_tokens: 400_000,
+    output_tokens: 40_000,
+    cache_read_tokens: null,
+    search_units: null,
+    audio_seconds: null,
+    usage_status: 'recorded',
+    call_count: 4,
+    document_id: documentId,
+  })
+  const open = (key: string, as = asSana) => as.get(`/api/usage/ingestion/${key}`)
+
+  it('gives a document its details, cost per stage, and usage at the rates charged', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-02T00:00:00Z'))
+    await document()
+    await IngestionJobModel.collection.insertOne({ documentId: nfpa, pageTotal: 40 })
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+    await recordAiCalls([ocr(String(nfpa))])
+    vi.useRealTimers()
+
+    const res = await open(String(nfpa))
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({
+      key: String(nfpa),
+      title: 'NFPA 13',
+      fileName: 'nfpa13.pdf',
+      status: 'complete',
+      saved: true,
+      uploadedAt: '2026-10-01T00:00:00.000Z',
+      pages: 40,
+      totals: { calls: 5, estimatedCostUsd: 0.65, callsWithoutCost: 0 },
+    })
+    expect(res.body.byFeatureService.map((f: { feature: string }) => f.feature)).toEqual([
+      'ocr',
+      'label-document',
+    ])
+    const per1M = (quantity: number, usdPer: number, costUsd: number) => ({
+      quantity,
+      unit: 'tokens',
+      usdPer,
+      per: 1e6,
+      costUsd,
+      note: null,
+    })
+    expect(res.body.rateRows).toEqual([
+      expect.objectContaining({
+        feature: 'ocr',
+        model: 'gemini-3.8-flash',
+        calls: 4,
+        cells: { input: per1M(400_000, 0.75, 0.3), output: per1M(40_000, 3.75, 0.15) },
+        costUsd: 0.45,
+        avgMsPerCall: 1000,
+      }),
+      expect.objectContaining({
+        feature: 'label-document',
+        model: 'gpt-6-luna',
+        calls: 1,
+        cells: { input: per1M(1_000_000, 0.1, 0.1), output: per1M(200_000, 0.5, 0.1) },
+        costUsd: 0.2,
+        avgMsPerCall: 2000,
+      }),
+    ])
+  })
+
+  it('opens labelling from before calls named their document, and an upload never saved', async () => {
+    await recordAiCalls(labelling())
+    const refused = new Types.ObjectId()
+    await recordAiCalls(labelling(), { documentId: String(refused) })
+
+    const unlinked = await open('unlinked')
+    const unsaved = await open(String(refused))
+
+    expect(unlinked.body).toMatchObject({ title: 'Not linked to a document', saved: false })
+    expect(unlinked.body.totals.calls).toBe(1)
+    expect(unsaved.body).toMatchObject({ title: 'Upload not saved', saved: false, pages: null })
+  })
+
+  it('has nothing for a document with no calls, or a key that is not one', async () => {
+    await document()
+
+    expect((await open(String(nfpa))).status).toBe(404)
+    expect((await open('not-an-id')).status).toBe(404)
+  })
+
+  it('is for knowledge admins only', async () => {
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+
+    expect((await open(String(nfpa), asAlex)).status).toBe(403)
+  })
+
+  it("exports a document's usage and rates as CSV, named after it", async () => {
+    await document()
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+    await recordAiCalls([ocr(String(nfpa))])
+
+    const res = await asSana.get(`/api/usage/ingestion/${nfpa}/export.csv`)
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toMatch(/text\/csv/)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-document-NFPA_13.csv"',
+    )
+    expect(res.text.trim().split('\n')).toEqual([
+      'feature,service,model,rates,part,quantity,unit,usd_per,per,cost_usd,calls,avg_ms_per_call,note',
+      'ocr,gemini-ocr,gemini-3.8-flash,charged,input,400000,tokens,0.75,1000000,0.3,4,1000,',
+      'ocr,gemini-ocr,gemini-3.8-flash,charged,output,40000,tokens,3.75,1000000,0.15,4,1000,',
+      'label-document,openai-label,gpt-6-luna,charged,input,1000000,tokens,0.1,1000000,0.1,1,2000,',
+      'label-document,openai-label,gpt-6-luna,charged,output,200000,tokens,0.5,1000000,0.1,1,2000,',
+    ])
+  })
+
+  it('exports nothing for a document with no calls, and only for knowledge admins', async () => {
+    await recordAiCalls(labelling(), { documentId: String(nfpa) })
+
+    expect(
+      (await asSana.get(`/api/usage/ingestion/${new Types.ObjectId()}/export.csv`)).status,
+    ).toBe(404)
+    expect((await asAlex.get(`/api/usage/ingestion/${nfpa}/export.csv`)).status).toBe(403)
+  })
+})
+
+describe('GET /api/usage/chat, the chatbot (EV-04, CB-01)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // One chat answer from gpt-6.1-sol at $2 in, $10 out per 1M:
+  // 1,000 in = $0.002; 500 out = $0.005. $0.007 each.
+  const answer: WireUsage = {
+    feature: 'chat',
+    billed_service: 'openai',
+    model: 'gpt-6.1-sol',
+    duration_ms: 100,
+    input_tokens: 1000,
+    output_tokens: 500,
+    cache_read_tokens: 0,
+    search_units: null,
+    audio_seconds: null,
+    usage_status: 'recorded',
+  }
+  const askedAt = async (iso: string, who: { _id: Types.ObjectId }) => {
+    vi.setSystemTime(new Date(iso))
+    await recordAiCalls([answer], { userId: String(who._id) })
+  }
+  // Now is 13 Oct 2026, 18:00 in Singapore. Alex asked on 20 Sep, 11 Oct and
+  // (04:00 Singapore time) 13 Oct; Jide at 01:00 on 1 Oct, Singapore time,
+  // which is still 30 Sep in UTC.
+  async function chats() {
+    await UserModel.collection.insertMany([alex, jide, sana])
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await askedAt('2026-09-20T02:00:00Z', alex)
+    await askedAt('2026-09-30T17:00:00Z', jide)
+    await askedAt('2026-10-11T02:00:00Z', alex)
+    await askedAt('2026-10-12T20:00:00Z', alex)
+    vi.setSystemTime(new Date('2026-10-13T10:00:00Z'))
+  }
+  const chat = (query: string, as = asSana) => as.get(`/api/usage/chat?${query}`)
+  type Bucket = { key: string; calls: number; estimatedCostUsd: number }
+
+  it('gives a month a bar per Singapore day, up to today, and the month before to compare', async () => {
+    await chats()
+
+    const { status, body } = await chat('period=month&at=2026-10')
+
+    expect(status).toBe(200)
+    expect(body.scope).toMatchObject({ period: 'month', at: '2026-10', complete: false })
+    expect(body.totals).toMatchObject({ calls: 3, estimatedCostUsd: 0.021, callsWithoutCost: 0 })
+    expect(body.splitKeys).toEqual(['openai'])
+    expect(body.buckets.map((b: Bucket) => b.key)).toEqual(
+      Array.from({ length: 13 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`),
+    )
+    const day = (key: string) => body.buckets.find((b: Bucket) => b.key === key)
+    expect(day('2026-10-01')).toMatchObject({
+      calls: 1,
+      estimatedCostUsd: 0.007,
+      segments: { openai: 0.007 },
+    })
+    expect(day('2026-10-12')).toMatchObject({ calls: 0, estimatedCostUsd: 0, segments: {} })
+    expect(day('2026-10-13')).toMatchObject({ calls: 1, estimatedCostUsd: 0.007 })
+    expect(body.previous).toEqual({ at: '2026-09', calls: 1, estimatedCostUsd: 0.007 })
+  })
+
+  it('gives a finished month every day, marked complete', async () => {
+    await chats()
+
+    const { body } = await chat('period=month&at=2026-09')
+
+    expect(body.scope.complete).toBe(true)
+    expect(body.buckets).toHaveLength(30)
+    expect(body.totals.calls).toBe(1)
+    expect(body.previous).toEqual({ at: '2026-08', calls: 0, estimatedCostUsd: 0 })
+  })
+
+  it('gives a year a bar per month, up to this month, and the year before to compare', async () => {
+    await chats()
+
+    const { body } = await chat('period=year&at=2026')
+
+    expect(body.scope).toMatchObject({ period: 'year', at: '2026', complete: false })
+    expect(body.buckets.map((b: Bucket) => [b.key, b.calls])).toEqual([
+      ['2026-01', 0],
+      ['2026-02', 0],
+      ['2026-03', 0],
+      ['2026-04', 0],
+      ['2026-05', 0],
+      ['2026-06', 0],
+      ['2026-07', 0],
+      ['2026-08', 0],
+      ['2026-09', 1],
+      ['2026-10', 3],
+    ])
+    expect(body.previous).toEqual({ at: '2025', calls: 0, estimatedCostUsd: 0 })
+  })
+
+  it('gives each person who asked their cost, costliest first, and the usage at the rates charged', async () => {
+    await chats()
+
+    const { body } = await chat('period=month&at=2026-10')
+
+    expect(body.byUser).toEqual([
+      expect.objectContaining({
+        key: String(alex._id),
+        name: 'alex',
+        calls: 2,
+        estimatedCostUsd: 0.014,
+      }),
+      expect.objectContaining({
+        key: String(jide._id),
+        name: 'jide',
+        calls: 1,
+        estimatedCostUsd: 0.007,
+      }),
+    ])
+    expect(body.rateRows).toEqual([
+      expect.objectContaining({
+        feature: 'chat',
+        service: 'openai',
+        model: 'gpt-6.1-sol',
+        calls: 3,
+        costUsd: 0.021,
+      }),
+    ])
+  })
+
+  it('shows a risk engineer only their own chat', async () => {
+    await chats()
+
+    const { body } = await chat('period=month&at=2026-10', asAlex)
+
+    expect(body.totals.calls).toBe(2)
+    expect(body.byUser.map((u: { name: string }) => u.name)).toEqual(['alex'])
+    expect(body.previous.calls).toBe(1)
+  })
+
+  it('rejects a period it does not know', async () => {
+    for (const query of [
+      'period=week&at=2026-10',
+      'period=month&at=2026-13',
+      'period=month',
+      'period=year&at=2026-10',
+    ])
+      expect((await chat(query)).status).toBe(400)
+  })
+
+  it("exports the chat's usage and rates for the period", async () => {
+    await chats()
+
+    const res = await asSana.get('/api/usage/chat/export.csv?period=month&at=2026-10')
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="usage-chat-rates-2026-10.csv"',
+    )
+    expect(res.text.trim().split('\n').slice(1)).toEqual([
+      'chat,openai,gpt-6.1-sol,charged,input,3000,tokens,2,1000000,0.006,3,100,',
+      'chat,openai,gpt-6.1-sol,charged,output,1500,tokens,10,1000000,0.015,3,100,',
+    ])
   })
 })

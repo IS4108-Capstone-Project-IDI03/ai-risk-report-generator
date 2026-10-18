@@ -2,12 +2,14 @@
 // loaded on first open (it brings the chart library). Opens on the
 // report-generation overview; choosing an assessment opens its drill-in. A
 // knowledge admin also has the Ingestion tab: what reading each knowledge
-// document cost.
+// document cost, each document opening its own detail page.
 import { useState } from 'react'
 import { IconRegistry, Tabs } from '../../../design-system'
-import type { OverviewGroup } from '../api'
+import type { DocumentUsage, OverviewGroup } from '../api'
 import '../usage.css'
 import { AssessmentUsageDetail } from './AssessmentUsageDetail'
+import { ChatUsageDetail } from './ChatUsageDetail'
+import { DocumentUsageDetail } from './DocumentUsageDetail'
 import { IngestionUsageTab } from './IngestionUsageTab'
 import { ReportUsageOverview } from './ReportUsageOverview'
 
@@ -16,9 +18,21 @@ type Tab = 'reports' | 'ingestion'
 export function UsageCosts({ isAdmin }: { isAdmin: boolean }) {
   const [tab, setTab] = useState<Tab>('reports')
   const [assessment, setAssessment] = useState<OverviewGroup | null>(null)
+  const [document, setDocument] = useState<DocumentUsage | null>(null)
+  // The chatbot's page is open.
+  const [chat, setChat] = useState(false)
   if (assessment)
     return <AssessmentUsageDetail assessment={assessment} onBack={() => setAssessment(null)} />
-  if (!isAdmin) return <ReportUsageOverview isAdmin={false} onOpen={setAssessment} />
+  if (chat) return <ChatUsageDetail onBack={() => setChat(false)} />
+  if (document) return <DocumentUsageDetail document={document} onBack={() => setDocument(null)} />
+  if (!isAdmin)
+    return (
+      <ReportUsageOverview
+        isAdmin={false}
+        onOpen={setAssessment}
+        onOpenChat={() => setChat(true)}
+      />
+    )
   return (
     <div className="uc-tabs">
       <Tabs
@@ -31,9 +45,9 @@ export function UsageCosts({ isAdmin }: { isAdmin: boolean }) {
         ]}
       />
       {tab === 'reports' ? (
-        <ReportUsageOverview isAdmin onOpen={setAssessment} />
+        <ReportUsageOverview isAdmin onOpen={setAssessment} onOpenChat={() => setChat(true)} />
       ) : (
-        <IngestionUsageTab />
+        <IngestionUsageTab onOpen={setDocument} />
       )}
     </div>
   )

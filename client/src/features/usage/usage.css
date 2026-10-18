@@ -104,11 +104,72 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.uc-bases {
-  margin: 8px 0 0;
-  padding-left: 20px;
-  /* Pricing bases carry long URLs; they wrap rather than widen the page. */
-  overflow-wrap: anywhere;
+/* Why a rate is $0, or why a row has no rates: under the figure, quieter. */
+.uc-note {
+  display: block;
+  font-family: var(--font-sans);
+  color: var(--text-muted);
+  white-space: normal;
+}
+/* A detail page's usage and rates (components/RateTables.tsx): each quantity
+   with the rate it was charged at beneath it, in figures, quieter. */
+.uc-rates td[data-numeric] {
+  font-family: var(--font-mono);
+  vertical-align: top;
+}
+.uc-rate {
+  display: block;
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+.uc-rates .uc-note {
+  font-size: var(--text-caption-size);
+}
+.uc-rates tfoot > tr > * {
+  border-top: 1px solid var(--border-default);
+  text-align: right;
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+/* A section heading with its own action (the rates export) on the right. */
+.uc-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+/* The chatbot's period: Month / Year, then ‹ October 2026 ›. */
+.uc-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+}
+.uc-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.uc-stepper-label {
+  min-width: 10rem;
+  text-align: center;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+/* A finished period beside the one before, under the totals. */
+.uc-totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.uc-compare {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.uc-section-note {
+  color: var(--text-secondary);
 }
 /* A wide table or chart scrolls in its own frame; no column grows past the page. */
 .uc > *,
@@ -297,6 +358,10 @@
   font-size: var(--text-h3-size);
   line-height: var(--text-h3-lh);
   color: var(--text-primary);
+}
+/* A document's title is prose, not an identifier like a report reference. */
+.uc-document-head h2 {
+  font-family: var(--font-sans);
 }
 .uc-detail-head p {
   margin: var(--space-2) 0 0;

@@ -28,6 +28,12 @@ const C = group('RPT-C', {
 })
 
 describe('toStackedSeries', () => {
+  it('keeps the order given when asked, as for days in date order', () => {
+    expect(toStackedSeries([A, B, C], { sort: 'given', limit: 15 }).bars.map((b) => b.key)).toEqual(
+      ['RPT-A', 'RPT-B', 'RPT-C'],
+    )
+  })
+
   it('puts the costliest first, or the most recently used when sorted by time', () => {
     expect(toStackedSeries([A, B, C], { sort: 'cost', limit: 15 }).bars.map((b) => b.key)).toEqual([
       'RPT-B',

@@ -369,6 +369,24 @@ def test_jev_adapter(monkeypatch):
     assert usage["cost_usd"] == pytest.approx(0.042)
 
 
+def test_usage_names_the_rates_it_priced_at(monkeypatch):
+    # The gateway stores them with the call (EV-04), so its cost can be explained later.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "ak")
+    monkeypatch.setenv("LABEL_LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("LABEL_LLM_MODEL", "claude-haiku-5-5")
+    data = {
+        "stop_reason": "end_turn",
+        "content": [{"text": '{"title": {"value": "T"}}'}],
+        "usage": {"input_tokens": 1_000_000, "output_tokens": 200_000},
+    }
+    capture(monkeypatch, data)
+    _, usage = models.anthropic_extract("t")
+    # Haiku 5.5: $0.10 in, $0.50 out per 1M tokens.
+    assert usage["input_usd_per_1m"] == pytest.approx(0.10)
+    assert usage["output_usd_per_1m"] == pytest.approx(0.50)
+    assert usage["cost_usd"] == pytest.approx(0.20)
+
+
 def test_openai_decisions_adapter_ignores_groq_base_url(monkeypatch):
     monkeypatch.setenv("OPENAI_LABEL_API_KEY", "ok")
     monkeypatch.setenv("OPENAI_API_KEY", "groq")

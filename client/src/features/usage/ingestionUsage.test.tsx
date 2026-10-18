@@ -67,8 +67,64 @@ const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }),
   )
 
-function mockGateway(ingestion: unknown = INGESTION) {
+// One document's detail page: Gemini OCR (four calls summed, 4 s in all) and
+// labelling, each quantity at the rate it was charged.
+const per1M = (quantity: number, usdPer: number, costUsd: number) => ({
+  quantity,
+  unit: 'tokens',
+  usdPer,
+  per: 1_000_000,
+  costUsd,
+  note: null,
+})
+const DETAIL = {
+  key: 'd1',
+  title: 'NFPA 13: Standard for the Installation of Sprinkler Systems',
+  fileName: 'nfpa13.pdf',
+  status: 'complete',
+  saved: true,
+  uploadedAt: '2026-10-01T00:00:00.000Z',
+  pages: 40,
+  totals: { calls: 5, estimatedCostUsd: 0.65, callsWithoutCost: 0, estimatedCalls: 0 },
+  byFeatureService: [
+    { feature: 'ocr', calls: 4, estimatedCostUsd: 0.45, segments: { 'gemini-ocr': 0.45 } },
+    {
+      feature: 'label-document',
+      calls: 1,
+      estimatedCostUsd: 0.2,
+      segments: { 'openai-label': 0.2 },
+    },
+  ],
+  rateRows: [
+    {
+      feature: 'ocr',
+      service: 'gemini-ocr',
+      model: 'gemini-3.8-flash',
+      calls: 4,
+      rates: 'charged',
+      note: null,
+      // 400,000 in × $0.75/1M = $0.30; 40,000 out × $3.75/1M = $0.15.
+      cells: { input: per1M(400_000, 0.75, 0.3), output: per1M(40_000, 3.75, 0.15) },
+      costUsd: 0.45,
+      avgMsPerCall: 1000,
+    },
+    {
+      feature: 'label-document',
+      service: 'openai-label',
+      model: 'gpt-6-luna',
+      calls: 1,
+      rates: 'charged',
+      note: null,
+      cells: { input: per1M(1_000_000, 0.1, 0.1), output: per1M(200_000, 0.5, 0.1) },
+      costUsd: 0.2,
+      avgMsPerCall: 2000,
+    },
+  ],
+}
+
+function mockGateway(ingestion: unknown = INGESTION, detail = () => json(200, DETAIL)) {
   const fetchMock = vi.fn((url: string) => {
+    if (/^\/api\/usage\/ingestion\/(?!export)/.test(url)) return detail()
     if (url.startsWith('/api/usage/ingestion')) return json(200, ingestion)
     if (url.startsWith('/api/usage/overview')) return json(200, OVERVIEW)
     return Promise.reject(new TypeError('Failed to fetch'))
@@ -191,5 +247,75 @@ describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Usage and costs' })[0])
     await screen.findByText('No AI calls in this period', {}, { timeout: 15000 })
     expect(screen.queryByRole('tab', { name: 'Ingestion' })).toBeNull()
+  })
+
+  it('opens a document from its title: its details, cost per stage, and usage at the rates charged', async () => {
+    const urls = mockGateway()
+    await openIngestion()
+    const table = await screen.findByRole('table', { name: 'Documents and their cost' })
+    fireEvent.click(within(table).getByRole('button', { name: /^NFPA 13/ }))
+
+    expect(await screen.findByRole('heading', { name: /^NFPA 13/ })).toBeInTheDocument()
+    expect(urls()).toContain('/api/usage/ingestion/d1')
+    const about = screen.getByText(/nfpa13\.pdf/)
+    for (const text of ['Complete', '40 pages', 'Uploaded 1 Oct 2026'])
+      expect(about).toHaveTextContent(text)
+    expect(screen.getByText('Total estimated cost').parentElement).toHaveTextContent('$0.6500')
+    expect(
+      screen.getByRole('table', { name: 'Cost by stage, split by service' }),
+    ).toBeInTheDocument()
+
+    const rates = screen.getByRole('table', {
+      name: 'Gemini, labelling and self-hosted models: usage and rates',
+    })
+    expect(
+      within(rates)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent),
+    ).toEqual([
+      'Feature',
+      'Model',
+      'Calls',
+      'Input tokens',
+      'Output tokens',
+      'Time per call',
+      'Cost',
+    ])
+    const ocr = within(rates).getByRole('row', { name: /Table and formula OCR/ })
+    for (const text of ['gemini-3.8-flash', '400,000', '@ $0.75 / 1M tokens', '1.0 s', '$0.4500'])
+      expect(ocr).toHaveTextContent(text)
+    expect(within(rates).getByRole('row', { name: /Subtotal/ })).toHaveTextContent('$0.6500')
+  })
+
+  it('exports the document’s usage and rates', async () => {
+    mockGateway()
+    await openIngestion()
+    const table = await screen.findByRole('table', { name: 'Documents and their cost' })
+    fireEvent.click(within(table).getByRole('button', { name: /^NFPA 13/ }))
+    expect(await screen.findByRole('link', { name: 'Export CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/ingestion/d1/export.csv',
+    )
+  })
+
+  it('goes back to every document', async () => {
+    mockGateway()
+    await openIngestion()
+    const table = await screen.findByRole('table', { name: 'Documents and their cost' })
+    fireEvent.click(within(table).getByRole('button', { name: /^NFPA 13/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'All documents' }))
+    expect(
+      await screen.findByRole('table', { name: 'Documents and their cost' }),
+    ).toBeInTheDocument()
+  })
+
+  it('says so when a document cannot be loaded', async () => {
+    mockGateway(INGESTION, () =>
+      json(404, { error: 'No AI calls are recorded for that document.' }),
+    )
+    await openIngestion()
+    const table = await screen.findByRole('table', { name: 'Documents and their cost' })
+    fireEvent.click(within(table).getByRole('button', { name: /^NFPA 13/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/)
   })
 })

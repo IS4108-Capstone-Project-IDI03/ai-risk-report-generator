@@ -16,7 +16,6 @@ import {
   type UsageView,
 } from '../api'
 import { CostSummary } from '../components/CostSummary'
-import { EstimateNotice } from '../components/EstimateNotice'
 import { OverviewTable } from '../components/OverviewTable'
 import { StackedCostChart } from '../components/StackedCostChart'
 import { DEFAULT_RANGE, RANGES, SPLITS } from '../options'
@@ -32,9 +31,12 @@ const matches = (g: OverviewGroup, search: string) =>
 export function ReportUsageOverview({
   isAdmin,
   onOpen,
+  onOpenChat,
 }: {
   isAdmin: boolean
   onOpen: (assessment: OverviewGroup) => void
+  // The chatbot's own page, which opens on this month.
+  onOpenChat: () => void
 }) {
   const [range, setRange] = useState<Range>(DEFAULT_RANGE)
   const [split, setSplit] = useState<UsageView>('service')
@@ -140,7 +142,6 @@ export function ReportUsageOverview({
       {shown && shown.totals.calls > 0 && (
         <>
           <CostSummary totals={shown.totals} />
-          <EstimateNotice summary={shown} />
           <section className="uc-section" aria-labelledby="uc-chart-heading">
             <h2 id="uc-chart-heading">
               {groupBy === 'engineer' ? 'Cost by engineer' : 'Cost by assessment'}
@@ -154,6 +155,7 @@ export function ReportUsageOverview({
                 if (!group) return
                 if (groupBy === 'engineer' && group.engineerId) chooseEngineer(group.engineerId)
                 if (groupBy === 'assessment' && group.reference) onOpen(group)
+                if (groupBy === 'assessment' && group.key === 'chat') onOpenChat()
               }}
             />
           </section>
@@ -186,6 +188,7 @@ export function ReportUsageOverview({
               groups={shown.groups.filter((g) => groupBy === 'engineer' || matches(g, search))}
               showEngineer={isAdmin}
               onOpen={onOpen}
+              onOpenChat={onOpenChat}
               onChooseEngineer={(g) => g.engineerId && chooseEngineer(g.engineerId)}
             />
           </section>

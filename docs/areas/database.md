@@ -911,11 +911,13 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 | `searchUnits`, `audioSeconds` | Cohere rerank and Whisper billing units |
 | `usageStatus` | `recorded`, or `unavailable` when the provider gave no usage data |
 | `estimatedCostUsd`, `pricingBasis` | the estimate and where its price came from; cost is `null` when there is no price or no usage |
+| `costParts` | what the cost is made of, at the rates charged when the call was saved (EV-04): one `{ part, unit, quantity, usdPer, per, costUsd, note }` per billed part (`input`, `output`, `cached input`, `searches`, `audio`), where `quantity × usdPer / per = costUsd` and the parts add up to `estimatedCostUsd`. `note` says why a rate is $0 (trial key, self-hosted). `null` when there is no cost; absent on rows saved before rates were kept and not matched by `npm --prefix server run migrate:cost-parts` |
 
 - One draft writes three rows: Claude, Cohere embed and Cohere rerank.
 - A draft that fails after its paid calls (refused, cut off) is not recorded: the service raises before it returns the list.
 - Prices are list prices in `ai-pricing.service.ts` (Claude and Whisper from the vendors' pages, read 2026-10-08; Gemini from ai.google.dev/gemini-api/docs/pricing, read 2026-10-13, with its announced 2027-01-01 rise applied by call date). Self-hosted OCR costs $0 per call, with that named as its basis. Cohere calls cost $0 while `COHERE_KEY_TIER` is `trial` (the default, even when unset), since a trial key is free (1,000 calls a month), with that named as the basis. With `COHERE_KEY_TIER=production` they are priced from estimates, since Cohere publishes no per-use price: `COHERE_EMBED_USD_PER_1M_TOKENS` and `COHERE_RERANK_USD_PER_1K_SEARCHES`. A row keeps the price in force when it was saved, so switching tiers changes only later rows.
 - A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
+- Rates are stored with each call (`costParts`) so the cost report can show how a cost was made up after prices change; a price-table edit never changes a saved row. `migrate:cost-parts` (one-off, safe to re-run) gives older priced rows today's rates only where those reproduce the stored cost exactly; it carries a frozen copy of labelling's prices for older labelling rows.
 - Ingestion rows arrive from the worker through `POST /api/internal/ai-usage` (service key), one per document, feature (`ocr`, `embed-document`), billed service and model, whatever the document's outcome. Their `durationMs` is the sum over `callCount` calls, so the report averages it per call and leaves those rows out of latency percentiles. Calls that reported no usage form their own `unavailable` row. Self-hosted OCR is always $0, even with no token counts.
 - Read by the EV-04 cost report (`usage-report.service.ts`).
 - Indexes: `feature`, `billedService`, `reportId`, `documentId`, `userId`, `createdAt`.
@@ -939,6 +941,7 @@ Each provider reports usage differently. The services rename it into one shape (
 | Time around the call (`perf_counter`) | `duration_ms` | `durationMs` |
 | Labelling `seconds` (gateway multiplies by 1000) | `duration_ms` | `durationMs` |
 | Labelling `cost_usd` (kept as the service's own cost) | `cost_usd` | `estimatedCostUsd` |
+| Labelling `input_usd_per_1m` / `output_usd_per_1m` (the rates behind `cost_usd`) | `input_usd_per_1m` / `output_usd_per_1m` | `costParts` |
 | Labelling `model`, mapped to its vendor | `billed_service` | `billedService` |
 | Which code path made the call | `feature` | `feature` |
 | Provider gave nothing | `usage_status: "unavailable"` | `usageStatus` |
@@ -946,6 +949,6 @@ Each provider reports usage differently. The services rename it into one shape (
 | Knowledge document id (ingestion sends it; the gateway adds it for labelling) | `document_id` | `documentId` |
 | Report section, added by the gateway | not sent | `section` |
 | Session user, added by the gateway for chat | not sent | `userId` |
-| Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis` |
+| Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis`, `costParts` |
 
 What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.

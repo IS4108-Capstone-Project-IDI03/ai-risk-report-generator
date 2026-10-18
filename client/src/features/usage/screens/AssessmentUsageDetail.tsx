@@ -1,19 +1,24 @@
 // One assessment's AI cost (EV-04 AC2): totals, each feature split by the
 // service that billed it, what drafting each report section cost, and the
-// cost, usage and speed per feature or billed service. Opened from the
+// cost per feature or billed service, usage at the rates charged, and speed. Opened from the
 // overview; shown by screens/UsageCosts.tsx. Calls GET /api/usage/summary.
 import { useState } from 'react'
 import { Button, Callout, EmptyState, Tabs } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
-import { exportUrl, getUsageSummary, type OverviewGroup, type UsageView } from '../api'
+import {
+  exportUrl,
+  getUsageSummary,
+  ratesExportUrl,
+  type OverviewGroup,
+  type UsageView,
+} from '../api'
 import type { CostGroup } from '../chart'
 import { BreakdownTable } from '../components/BreakdownTable'
 import { CostSummary } from '../components/CostSummary'
-import { EstimateNotice } from '../components/EstimateNotice'
 import { LatencyTable } from '../components/LatencyTable'
+import { RateTables } from '../components/RateTables'
 import { SectionTable } from '../components/SectionTable'
 import { StackedCostChart } from '../components/StackedCostChart'
-import { UsageTable } from '../components/UsageTable'
 import { FEATURE_LABELS } from '../format'
 import { useLoad } from '../useLoad'
 
@@ -93,7 +98,6 @@ export function AssessmentUsageDetail({
       {shown && shown.totals.calls > 0 && (
         <>
           <CostSummary totals={shown.totals} />
-          <EstimateNotice summary={shown} />
           <section className="uc-section" aria-labelledby="uc-features">
             <h2 id="uc-features">Cost by feature</h2>
             <StackedCostChart
@@ -125,8 +129,16 @@ export function AssessmentUsageDetail({
             />
           </section>
           <section className="uc-section" aria-labelledby="uc-usage">
-            <h2 id="uc-usage">Usage</h2>
-            <UsageTable rows={shown.byFeature} />
+            <div className="uc-section-head">
+              <h2 id="uc-usage">Usage and rates</h2>
+              <a className="uc-export" href={ratesExportUrl(reportId)} download>
+                Export rates CSV
+              </a>
+            </div>
+            <p className="uc-section-note">
+              Each quantity is shown at the rate it was charged when the call was made.
+            </p>
+            <RateTables rows={shown.rateRows} />
           </section>
           <section className="uc-section" aria-labelledby="uc-speed">
             <h2 id="uc-speed">Speed</h2>

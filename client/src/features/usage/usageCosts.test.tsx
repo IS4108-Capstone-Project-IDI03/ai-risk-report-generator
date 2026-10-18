@@ -88,6 +88,34 @@ const row = (key: string, over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
+// One quantity at the rate it was charged, per 1M tokens unless overridden.
+const cell = (
+  quantity: number,
+  usdPer: number | null,
+  costUsd: number | null,
+  note: string | null = null,
+) => ({
+  quantity,
+  unit: 'tokens',
+  usdPer,
+  per: 1_000_000,
+  costUsd,
+  note,
+})
+// One row of the drill-in's usage and rates: a feature's calls to one model.
+const rateRow = (over: Record<string, unknown> = {}) => ({
+  feature: 'draft-section',
+  service: 'anthropic',
+  model: 'claude-sonnet-5-5',
+  calls: 5,
+  rates: 'charged',
+  note: null,
+  cells: {},
+  costUsd: 0,
+  avgMsPerCall: 850,
+  ...over,
+})
+
 const SUMMARY = {
   scope: { reportId: 'RPT-1' },
   reports: ['RPT-1'],
@@ -126,6 +154,81 @@ const SUMMARY = {
     },
   ],
   pricingBases: OVERVIEW.pricingBases,
+  rateRows: [
+    // Sonnet: 1,000,000 in × $2/1M = $2.00; 100,000 out × $10/1M = $1.00.
+    rateRow({
+      cells: { input: cell(1_000_000, 2, 2), output: cell(100_000, 10, 1) },
+      costUsd: 3,
+    }),
+    rateRow({
+      feature: 'retrieval',
+      service: 'cohere-rerank',
+      model: 'rerank-v3.5',
+      calls: 4,
+      cells: {
+        searches: { ...cell(8, 0, 0, 'Trial key: free'), unit: 'searches', per: 1000 },
+      },
+      costUsd: 0,
+    }),
+    rateRow({
+      feature: 'transcribe',
+      service: 'openai-whisper',
+      model: 'whisper-1',
+      calls: 3,
+      cells: { audio: { ...cell(1.5, 0.006, 0.009), unit: 'minutes', per: 1 } },
+      costUsd: 0.009,
+    }),
+    rateRow({
+      model: 'claude-unknown-9',
+      rates: 'not priced',
+      note: 'no price for model',
+      cells: { input: cell(12_000, null, null) },
+      costUsd: null,
+    }),
+  ],
+}
+
+// The chatbot's page. Now is 13 Oct 2026. October so far: three answers
+// (gpt-6.1-sol, $0.007 each); September: one; August: half an answer's worth.
+const chatBucket = (key: string, calls: number) => ({
+  key,
+  calls,
+  estimatedCostUsd: calls * 0.007,
+  callsWithoutCost: 0,
+  lastActivityAt: calls ? `${key.slice(0, 7)}-11T04:00:00.000Z` : null,
+  segments: calls ? { openai: calls * 0.007 } : {},
+})
+const chatFor = (period: string, at: string) => {
+  const october = period === 'month' && at === '2026-10'
+  const calls = period === 'year' ? 4 : october ? 3 : 1
+  return {
+    scope: { period, at, complete: period === 'month' && !october },
+    totals: { calls, estimatedCostUsd: calls * 0.007, callsWithoutCost: 0, estimatedCalls: 0 },
+    splitKeys: ['openai'],
+    buckets:
+      period === 'year'
+        ? [chatBucket('2026-09', 1), chatBucket('2026-10', 3)]
+        : october
+          ? [chatBucket('2026-10-11', 1), chatBucket('2026-10-12', 0), chatBucket('2026-10-13', 2)]
+          : [chatBucket(`${at}-20`, 1)],
+    byUser: [{ ...chatBucket(ALEX, calls), name: 'Alex Tan' }],
+    rateRows: [
+      rateRow({
+        feature: 'chat',
+        service: 'openai',
+        model: 'gpt-6.1-sol',
+        calls,
+        cells: {
+          input: cell(calls * 1000, 2, calls * 0.002),
+          output: cell(calls * 500, 10, calls * 0.005),
+        },
+        costUsd: calls * 0.007,
+      }),
+    ],
+    previous: october
+      ? { at: '2026-09', calls: 1, estimatedCostUsd: 0.007 }
+      : { at: period === 'year' ? '2025' : '2026-08', calls: 1, estimatedCostUsd: 0.0035 },
+  }
 }
 
 const json = (status: number, body: unknown) =>
@@ -136,6 +239,10 @@ const json = (status: number, body: unknown) =>
 // Answers the overview by grouping and the summary for a report, like the gateway.
 function defaultAnswer(url: string) {
   if (url.startsWith('/api/usage/summary')) return json(200, SUMMARY)
+  if (url.startsWith('/api/usage/chat')) {
+    const q = new URL(url, 'http://x').searchParams
+    return json(200, chatFor(q.get('period')!, q.get('at')!))
+  }
   const query = new URL(url, 'http://x').searchParams
   return json(200, query.get('groupBy') === 'engineer' ? BY_ENGINEER : OVERVIEW)
 }
@@ -181,6 +288,7 @@ beforeEach(() =>
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 // The screen and its chart library load on first open, which is slow while
@@ -263,20 +371,119 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     )
   })
 
-  it('explains estimates, calls without cost and pricing bases', async () => {
+  it('shows calls without a cost and estimated prices in the totals, with no notice box', async () => {
     mockGateway()
     await openUsage()
-    expect(screen.getByText(/3 of 12 calls use an estimated price/)).toBeInTheDocument()
-    expect(screen.getByText(/2 calls have no cost and are not included/)).toBeInTheDocument()
-    const bases = screen.getByRole('list', { name: 'Pricing bases' })
-    expect(within(bases).getByText('estimate')).toBeInTheDocument()
+    const totals = screen.getByText('Total estimated cost').closest('section') as HTMLElement
+    expect(within(totals).getByText('Estimated')).toBeInTheDocument()
+    expect(within(totals).getByText('Calls without cost').parentElement).toHaveTextContent('2')
+    expect(screen.queryByText('How these costs are worked out')).toBeNull()
   })
 
-  it('shows chat as a row with nothing to open', async () => {
+  it('keeps the table to its totals: no tokens, nothing to expand', async () => {
     mockGateway()
     await openUsage()
+    const headers = within(assessmentTable())
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent)
+    expect(headers).not.toContain('Tokens')
+    expect(screen.queryByRole('button', { name: /^Show cost calculation/ })).toBeNull()
+  })
+
+  // Now is 13 Oct 2026, 18:00 in Singapore; only Date is faked.
+  async function openChatbot() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-13T10:00:00Z'))
+    const urls = mockGateway()
+    await openUsage()
     const chat = within(assessmentTable()).getByRole('row', { name: /Chatbot/ })
-    expect(within(chat).queryByRole('button')).toBeNull()
+    fireEvent.click(within(chat).getByRole('button', { name: 'Chatbot' }))
+    await screen.findByRole('heading', { name: 'Chatbot' })
+    return urls
+  }
+  const chatQuery = (urls: string[]) =>
+    new URL(urls.filter((u) => u.startsWith('/api/usage/chat?')).at(-1)!, 'http://x').search
+
+  it('opens the chatbot on this month: cost per day and per person, and usage at the rates charged', async () => {
+    const urls = await openChatbot()
+
+    expect(chatQuery(urls())).toBe('?period=month&at=2026-10')
+    expect(screen.getByRole('status', { name: 'Period shown' })).toHaveTextContent('October 2026')
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'This month' })).toBeNull()
+    // A month still under way is not compared with a whole one.
+    expect(screen.queryByText(/vs September 2026/)).toBeNull()
+    expect(screen.getByText('Total estimated cost').parentElement).toHaveTextContent('$0.0210')
+    expect(
+      screen.getByRole('table', { name: 'Cost per day, split by service' }),
+    ).toBeInTheDocument()
+
+    const days = screen.getByRole('table', { name: 'Chat cost per day' })
+    expect(
+      within(days)
+        .getAllByRole('row')
+        .slice(1)
+        .map((r) => r.textContent),
+    ).toEqual([
+      expect.stringMatching(/^11 Oct 2026.*\$0\.0070$/),
+      expect.stringMatching(/^12 Oct 2026/),
+      expect.stringMatching(/^13 Oct 2026.*\$0\.0140$/),
+    ])
+    const people = screen.getByRole('table', { name: 'Chat cost per person' })
+    expect(within(people).getByRole('row', { name: /Alex Tan/ })).toHaveTextContent('$0.0210')
+    const rates = screen.getByRole('table', { name: 'Claude and OpenAI: usage and rates' })
+    expect(within(rates).getByRole('row', { name: /gpt-6\.1-sol/ })).toHaveTextContent(
+      '@ $2.00 / 1M tokens',
+    )
+    expect(screen.getByRole('link', { name: 'Export rates CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/chat/export.csv?period=month&at=2026-10',
+    )
+  })
+
+  it('steps back a month, compares a finished month with the one before, and returns to this month', async () => {
+    const urls = await openChatbot()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=month&at=2026-09'))
+    expect(screen.getByRole('status', { name: 'Period shown' })).toHaveTextContent('September 2026')
+    expect(await screen.findByText(/100% vs August 2026/)).toHaveTextContent('Up')
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeEnabled()
+    expect(screen.getByRole('link', { name: 'Export rates CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/chat/export.csv?period=month&at=2026-09',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'This month' }))
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=month&at=2026-10'))
+  })
+
+  it('shows the year a bar per month, stepping by year', async () => {
+    const urls = await openChatbot()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Year' }))
+
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=year&at=2026'))
+    expect(screen.getByRole('status', { name: 'Period shown' })).toHaveTextContent('2026')
+    expect(screen.getByRole('button', { name: 'Next year' })).toBeDisabled()
+    const months = await screen.findByRole('table', { name: 'Chat cost per month' })
+    expect(
+      within(months)
+        .getAllByRole('row')
+        .slice(1)
+        .map((r) => r.textContent),
+    ).toEqual([expect.stringMatching(/^Sep 2026/), expect.stringMatching(/^Oct 2026/)])
+    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+    await waitFor(() => expect(chatQuery(urls())).toBe('?period=year&at=2025'))
+  })
+
+  it('goes back from the chatbot to every assessment', async () => {
+    await openChatbot()
+    fireEvent.click(screen.getByRole('button', { name: 'All assessments' }))
+    expect(
+      await screen.findByRole('table', { name: 'Assessments and their cost' }),
+    ).toBeInTheDocument()
   })
 
   it('shows a risk engineer their own assessments, with no engineer controls', async () => {
@@ -346,15 +553,61 @@ describe('Usage and costs: one assessment (EV-04 AC2)', LAZY_SCREEN, () => {
     ).toBeInTheDocument()
   })
 
-  it('shows cost, usage and speed per feature with friendly names', async () => {
+  it('shows cost and speed per feature with friendly names', async () => {
     await openRpt1()
     const cost = screen.getByRole('table', { name: 'Cost by feature' })
     for (const name of ['Drafting', 'Retrieval (search)', 'Voice transcription'])
       expect(within(cost).getByRole('rowheader', { name })).toBeInTheDocument()
-    const usage = screen.getByRole('table', { name: 'Usage by feature' })
-    expect(within(usage).getByRole('row', { name: /Drafting/ })).toHaveTextContent('12,000')
     const speed = screen.getByRole('table', { name: 'Speed by feature' })
     expect(within(speed).getByRole('row', { name: /Drafting/ })).toHaveTextContent('850 ms')
+  })
+
+  it('shows usage at the rates charged, one table per way of billing', async () => {
+    await openRpt1()
+    expect(screen.queryByRole('table', { name: 'Usage by feature' })).toBeNull()
+
+    const claude = screen.getByRole('table', { name: 'Claude and OpenAI: usage and rates' })
+    const headers = within(claude)
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent)
+    expect(headers).toEqual([
+      'Feature',
+      'Model',
+      'Calls',
+      'Input tokens',
+      'Output tokens',
+      'Cached input tokens',
+      'Cost',
+    ])
+    const sonnet = within(claude).getByRole('row', { name: /claude-sonnet-5-5/ })
+    for (const text of ['Drafting', '1,000,000', '@ $2.00 / 1M tokens', '100,000', '$3.00'])
+      expect(sonnet).toHaveTextContent(text)
+    const unpriced = within(claude).getByRole('row', { name: /claude-unknown-9/ })
+    expect(unpriced).toHaveTextContent('12,000')
+    expect(unpriced).toHaveTextContent('no price for model')
+    expect(unpriced).not.toHaveTextContent('@')
+    expect(within(claude).getByRole('row', { name: /Subtotal/ })).toHaveTextContent('$3.00')
+
+    const rerank = screen.getByRole('table', { name: 'Cohere rerank: usage and rates' })
+    expect(
+      within(rerank)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent),
+    ).toContain('Searches')
+    expect(rerank).toHaveTextContent('Trial key: free')
+    const whisper = screen.getByRole('table', { name: 'OpenAI Whisper: usage and rates' })
+    expect(within(whisper).getByRole('row', { name: /Voice transcription/ })).toHaveTextContent(
+      '1.5',
+    )
+    expect(whisper).toHaveTextContent('@ $0.006 / min')
+  })
+
+  it('exports the usage and rates', async () => {
+    await openRpt1()
+    expect(screen.getByRole('link', { name: 'Export rates CSV' })).toHaveAttribute(
+      'href',
+      '/api/usage/export.csv?groupBy=rates&reportId=RPT-1',
+    )
   })
 
   it('switches the breakdown to billed services, and exports the one shown', async () => {

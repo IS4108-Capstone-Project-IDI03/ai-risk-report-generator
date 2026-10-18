@@ -21,6 +21,7 @@ export const SERVICE_LABELS: Record<string, string> = {
   'cohere-rerank': 'Cohere rerank',
   'openai-whisper': 'OpenAI Whisper',
   'openai-label': 'OpenAI labelling',
+  openai: 'OpenAI chat',
   'typesafe-jev': 'Typesafe JEV',
   'gemini-vision': 'Gemini photo reading',
   'gemini-ocr': 'Gemini OCR',
@@ -67,8 +68,64 @@ export function formatCount(n: number): string {
   return n > 0 ? n.toLocaleString('en-US') : DASH
 }
 
+const RATE = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+})
+const PER_LABELS: Record<number, string> = { 1_000_000: '1M ', 1000: '1K ', 1: '' }
+
+// A rate as the vendor states it: "$2.00 / 1M tokens", "$2.00 / 1K searches", "$0.006 / min".
+export function formatRate(
+  usdPer: number,
+  per: number,
+  unit: 'tokens' | 'searches' | 'minutes',
+): string {
+  const perLabel = PER_LABELS[per] ?? `${per.toLocaleString('en-US')} `
+  return `${RATE.format(usdPer)} / ${perLabel}${unit === 'minutes' ? 'min' : unit}`
+}
+
 export function formatMinutes(seconds: number): string {
   return seconds > 0 ? (seconds / 60).toFixed(1) : DASH
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// A Singapore day key (2026-10-11) as "11 Oct 2026", or "11 Oct" for a chart
+// axis. Read from the key itself, so the viewer's time zone cannot move it.
+export function formatDayKey(key: string, withYear = true): string {
+  const [year, month, day] = key.split('-').map(Number)
+  const short = `${day} ${MONTHS[month - 1]}`
+  return withYear ? `${short} ${year}` : short
+}
+
+// A Singapore month key (2026-09) as "Sep 2026", or "Sep" for a chart axis.
+export function formatMonthKey(key: string, withYear = true): string {
+  const [year, month] = key.split('-').map(Number)
+  return withYear ? `${MONTHS[month - 1]} ${year}` : MONTHS[month - 1]
+}
+
+const LONG_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+// A calendar period in full: "October 2026", or "2026" for a year.
+export function formatPeriod(period: 'month' | 'year', at: string): string {
+  if (period === 'year') return at
+  const [year, month] = at.split('-').map(Number)
+  return `${LONG_MONTHS[month - 1]} ${year}`
 }
 
 // Milliseconds as "850 ms" or "1.2 s"; null (no data) is a dash.

@@ -15,6 +15,7 @@
     "migrate:cope": "ts-node --transpile-only src/scripts/migrate-cope-categories.ts",
     "migrate:clients": "ts-node --transpile-only src/scripts/migrate-clients.ts",
     "migrate:prices": "ts-node --transpile-only src/scripts/reprice-ai-calls.ts",
+    "migrate:cost-parts": "ts-node --transpile-only src/scripts/backfill-cost-parts.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

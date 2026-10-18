@@ -15,7 +15,6 @@ import {
 } from '../api'
 import { CostSummary } from '../components/CostSummary'
 import { DocumentTable } from '../components/DocumentTable'
-import { EstimateNotice } from '../components/EstimateNotice'
 import { StackedCostChart } from '../components/StackedCostChart'
 import { DEFAULT_RANGE, RANGES, SPLITS } from '../options'
 import { useLoad } from '../useLoad'
@@ -24,7 +23,7 @@ import { useLoad } from '../useLoad'
 const matches = (d: DocumentUsage, search: string) =>
   !search || [d.title, d.fileName].some((t) => t?.toLowerCase().includes(search.toLowerCase()))
 
-export function IngestionUsageTab() {
+export function IngestionUsageTab({ onOpen }: { onOpen: (document: DocumentUsage) => void }) {
   const [range, setRange] = useState<Range>(DEFAULT_RANGE)
   const [split, setSplit] = useState<UsageView>('service')
   const [search, setSearch] = useState('')
@@ -86,7 +85,6 @@ export function IngestionUsageTab() {
       {shown && shown.totals.calls > 0 && (
         <>
           <CostSummary totals={shown.totals} />
-          <EstimateNotice summary={shown} />
           <section className="uc-section" aria-labelledby="uc-doc-chart">
             <h2 id="uc-doc-chart">Cost by document</h2>
             <StackedCostChart title="Cost by document" noun="documents" groups={bars} />
@@ -102,7 +100,10 @@ export function IngestionUsageTab() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <DocumentTable documents={shown.documents.filter((d) => matches(d, search))} />
+            <DocumentTable
+              documents={shown.documents.filter((d) => matches(d, search))}
+              onOpen={onOpen}
+            />
           </section>
         </>
       )}

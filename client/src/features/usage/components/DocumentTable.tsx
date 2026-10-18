@@ -1,19 +1,34 @@
 // The Ingestion tab's table (EV-04): every knowledge document with what reading
 // it cost, including those past the chart's bar limit. A document refused
 // after labelling, or labelled before calls named it, shows as not saved.
+// Choosing a document opens its detail page.
 // Used by screens/IngestionUsageTab.tsx.
+import { Button } from '../../../design-system'
 import { formatDay } from '../../assessments/format'
 import type { DocumentUsage } from '../api'
 import { DASH, formatCount, formatDuration, formatMoney, statusLabel } from '../format'
 import { DataTable } from './DataTable'
 
-export function DocumentTable({ documents }: { documents: DocumentUsage[] }) {
+export function DocumentTable({
+  documents,
+  onOpen,
+}: {
+  documents: DocumentUsage[]
+  onOpen: (document: DocumentUsage) => void
+}) {
   return (
     <DataTable
       caption="Documents and their cost"
       rows={documents}
       columns={[
-        { header: 'Document', cell: (d) => d.title },
+        {
+          header: 'Document',
+          cell: (d) => (
+            <Button variant="link" size="sm" onClick={() => onOpen(d)}>
+              {d.title}
+            </Button>
+          ),
+        },
         { header: 'Status', cell: (d) => statusLabel(d.status) },
         {
           header: 'Uploaded',

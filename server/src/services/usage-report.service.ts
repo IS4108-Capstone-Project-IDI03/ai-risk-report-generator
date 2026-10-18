@@ -2,7 +2,7 @@
 // Called by routes/usage.routes.ts. Reads models/ai-call.model.ts, assessments
 // (for the assigned engineer, client and site) and users (for names).
 import { Types } from 'mongoose'
-import { AI_FEATURES, AiCallModel, type IAiCall } from '../models/ai-call.model'
+import { AI_FEATURES, AiCallModel, type CostPart, type IAiCall } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
@@ -67,6 +67,8 @@ export type UsageSummary = {
   byFeatureService: FeatureServiceRow[]
   // Only for one chosen report; empty otherwise.
   bySection: SectionRow[]
+  // Only for one chosen report; empty otherwise.
+  rateRows: RateRow[]
   pricingBases: { basis: string; calls: number; isEstimate: boolean }[]
 }
 
@@ -79,7 +81,6 @@ const sum = (rows: IAiCall[], pick: (r: IAiCall) => number | null) =>
 const callsIn = (rows: IAiCall[]) => rows.reduce((n, r) => n + (r.callCount ?? 1), 0)
 // Of those, the calls with no cost: counted, never added to a total as 0.
 const uncosted = (rows: IAiCall[]) => callsIn(rows.filter((r) => r.estimatedCostUsd === null))
-
 // Nearest-rank percentile of an ascending list: the smallest value that at
 // least p% of the values are at or below.
 function percentile(sorted: number[], p: number): number | null {
@@ -178,6 +179,7 @@ export async function summarizeUsage(user: SessionUser, reportId?: string): Prom
     byService,
     byFeatureService: byFeatureService(rows),
     bySection: reportId ? bySection(rows) : [],
+    rateRows: reportId ? rateRows(rows) : [],
     pricingBases: [...bases].map(([basis, calls]) => ({
       basis,
       calls,
@@ -270,6 +272,45 @@ export function usageCsv(summary: UsageSummary, groupBy: 'feature' | 'service'):
   return [head.join(','), ...lines].join('\n') + '\n'
 }
 
+const RATE_PARTS: CostPart['part'][] = ['input', 'output', 'cached input', 'searches', 'audio']
+const RATES_CSV_HEAD =
+  'feature,service,model,rates,part,quantity,unit,usd_per,per,cost_usd,calls,avg_ms_per_call,note'
+
+/**
+ * Returns a detail page's usage and rates as CSV text: one line per billed
+ * part, quantity × usd_per ÷ per = cost_usd. A row saved before rates were
+ * kept adds a "stored cost" line, so cost_usd adds up to the total; a call
+ * with no price has no cost.
+ */
+export function ratesCsv(rows: RateRow[]): string {
+  const lines: string[] = []
+  for (const r of rows) {
+    const row = [r.feature, r.service, r.model, r.rates]
+    const tail = (note: string | null) => [r.calls, r.avgMsPerCall, note]
+    for (const part of RATE_PARTS) {
+      const c = r.cells[part]
+      if (c)
+        lines.push(
+          csvLine([
+            ...row,
+            part,
+            c.quantity,
+            c.unit,
+            c.usdPer,
+            c.per,
+            c.costUsd,
+            ...tail(c.note ?? r.note),
+          ]),
+        )
+    }
+    if (r.rates === 'not recorded')
+      lines.push(
+        csvLine([...row, 'stored cost', null, null, null, null, r.costUsd, ...tail(r.note)]),
+      )
+  }
+  return [RATES_CSV_HEAD, ...lines].join('\n') + '\n'
+}
+
 // ── Shared by the overview and the ingestion view ─────────────────────────
 
 type SplitKey = (r: IAiCall) => string
@@ -287,6 +328,138 @@ function groupRows(rows: IAiCall[], keyOf: (r: IAiCall) => string): Map<string, 
     groups.get(key)!.push(r)
   }
   return groups
+}
+
+// One quantity on a detail page, with the rate its calls were charged at:
+// quantity × usdPer / per = costUsd. Rate and cost are null when not known.
+export type RateCell = Omit<CostPart, 'part' | 'usdPer' | 'costUsd'> & {
+  usdPer: number | null
+  costUsd: number | null
+}
+// One row of a detail page's usage and rates: a feature's calls to one model
+// at one set of rates (a rate change starts a new row).
+export type RateRow = {
+  feature: IAiCall['feature']
+  service: IAiCall['billedService']
+  model: string
+  calls: number
+  // 'charged': each cell carries the rate stored with its calls. 'not recorded':
+  // saved before rates were kept, at its stored cost. 'not priced': no cost.
+  rates: 'charged' | 'not recorded' | 'not priced'
+  // Why a row has no rates; null when charged.
+  note: string | null
+  cells: Partial<Record<CostPart['part'], RateCell>>
+  costUsd: number | null
+  avgMsPerCall: number | null
+}
+
+const UNITS: Record<CostPart['part'], Pick<RateCell, 'unit' | 'per'>> = {
+  input: { unit: 'tokens', per: 1e6 },
+  output: { unit: 'tokens', per: 1e6 },
+  'cached input': { unit: 'tokens', per: 1e6 },
+  searches: { unit: 'searches', per: 1000 },
+  audio: { unit: 'minutes', per: 1 },
+}
+
+// What a call used, as its parts, when no rates were stored with it.
+function amountsOf(r: IAiCall): [CostPart['part'], number][] {
+  const cached = r.cacheReadTokens ?? 0
+  // OpenAI's input already includes its cached tokens (Anthropic's does not).
+  const input = (r.inputTokens ?? 0) - (r.billedService === 'openai' ? cached : 0)
+  return [
+    ['input', input],
+    ['output', r.outputTokens ?? 0],
+    ['cached input', cached],
+    ['searches', r.searchUnits ?? 0],
+    ['audio', (r.audioSeconds ?? 0) / 60],
+  ]
+}
+
+function cellsOf(r: IAiCall): RateRow['cells'] {
+  const cells: RateRow['cells'] = {}
+  if (r.estimatedCostUsd !== null && r.costParts) {
+    for (const { part, ...cell } of r.costParts) cells[part] = cell
+  } else {
+    for (const [part, quantity] of amountsOf(r))
+      cells[part] = { ...UNITS[part], quantity, usdPer: null, costUsd: null, note: null }
+  }
+  return cells
+}
+
+function ratesOf(r: IAiCall): RateRow['rates'] {
+  if (r.estimatedCostUsd === null) return 'not priced'
+  return r.costParts ? 'charged' : 'not recorded'
+}
+
+/** Returns the rows' usage per feature, service, model and rate, at the rates they were charged. */
+function rateRows(rows: IAiCall[]): RateRow[] {
+  const groups = new Map<string, { row: RateRow; members: IAiCall[]; firstAt: number }>()
+  for (const r of rows) {
+    const rates = ratesOf(r)
+    const cells = cellsOf(r)
+    const signature = Object.entries(cells)
+      .map(([part, c]) => `${part}:${c.usdPer}`)
+      .sort()
+      .join(',')
+    const key = [r.feature, r.billedService, r.model, rates, signature].join('|')
+    const at = +new Date(r.createdAt)
+    const group = groups.get(key)
+    if (!group) {
+      groups.set(key, {
+        row: {
+          feature: r.feature,
+          service: r.billedService,
+          model: r.model,
+          calls: 0,
+          rates,
+          note:
+            rates === 'charged'
+              ? null
+              : rates === 'not priced'
+                ? r.pricingBasis
+                : 'Saved before rates were recorded',
+          cells,
+          costUsd: null,
+          avgMsPerCall: null,
+        },
+        members: [r],
+        firstAt: at,
+      })
+      continue
+    }
+    group.members.push(r)
+    group.firstAt = Math.min(group.firstAt, at)
+    for (const [part, c] of Object.entries(cells) as [CostPart['part'], RateCell][]) {
+      const into = group.row.cells[part]
+      if (!into) group.row.cells[part] = c
+      else {
+        into.quantity += c.quantity
+        if (into.costUsd !== null && c.costUsd !== null) into.costUsd += c.costUsd
+      }
+    }
+  }
+  return [...groups.values()]
+    .sort(
+      (a, b) =>
+        a.row.service.localeCompare(b.row.service) ||
+        a.row.feature.localeCompare(b.row.feature) ||
+        a.row.model.localeCompare(b.row.model) ||
+        a.firstAt - b.firstAt,
+    )
+    .map(({ row, members }) => {
+      const cells: RateRow['cells'] = {}
+      // A part nothing used (no cache reads, say) is a dash, not a $0 cell.
+      for (const [part, c] of Object.entries(row.cells) as [CostPart['part'], RateCell][])
+        if (c.quantity > 0 || (c.costUsd ?? 0) > 0)
+          cells[part] = { ...c, costUsd: c.costUsd === null ? null : round(c.costUsd) }
+      return {
+        ...row,
+        calls: callsIn(members),
+        cells,
+        costUsd: row.rates === 'not priced' ? null : round(sum(members, (m) => m.estimatedCostUsd)),
+        avgMsPerCall: avgMsPerCall(members),
+      }
+    })
 }
 
 // What every group shows: calls, cost, last use, and its bar's stacked parts.
@@ -585,6 +758,76 @@ type StoredDocument = {
   createdAt?: Date
 }
 
+// A document's ingestion rows are keyed by its id, or one unlinked group.
+const documentKeyOf = (r: IAiCall) => (r.documentId ? String(r.documentId) : UNLINKED_GROUP)
+
+// What a document's rows show about it: from the stored document and its
+// ingestion job, or a stand-in title when it is not stored.
+type DocumentHeader = Pick<
+  DocumentUsage,
+  'key' | 'title' | 'fileName' | 'status' | 'saved' | 'uploadedAt' | 'pages'
+>
+async function documentHeaders(ids: string[]): Promise<(key: string) => DocumentHeader> {
+  const stored = new Map(
+    (
+      await KnowledgeDocumentModel.find(
+        { _id: { $in: ids } },
+        'title fileName status createdAt',
+      ).lean<StoredDocument[]>()
+    ).map((d) => [String(d._id), d]),
+  )
+  const pages = new Map(
+    (await IngestionJobModel.find({ documentId: { $in: ids } }, 'documentId pageTotal').lean()).map(
+      (j) => [String(j.documentId), j.pageTotal ?? null],
+    ),
+  )
+  return (key) => {
+    const doc = stored.get(key)
+    return {
+      key,
+      title: doc
+        ? (doc.title ?? doc.fileName ?? 'Untitled')
+        : key === UNLINKED_GROUP
+          ? 'Not linked to a document'
+          : 'Upload not saved',
+      fileName: doc?.fileName ?? null,
+      status: doc?.status ?? null,
+      saved: !!doc,
+      uploadedAt: doc?.createdAt ? new Date(doc.createdAt).toISOString() : null,
+      pages: pages.get(key) ?? null,
+    }
+  }
+}
+
+export type DocumentUsageDetail = DocumentHeader & {
+  totals: UsageSummary['totals']
+  // Cost per stage (labelling, OCR, embedding), split by the service that billed it.
+  byFeatureService: FeatureServiceRow[]
+  rateRows: RateRow[]
+}
+
+/**
+ * Returns one document's ingestion cost, all time: its details, cost per stage
+ * and usage at the rates charged. Null when no calls name it. `key` is a
+ * document id, or `unlinked` for labelling from before calls named their document.
+ */
+export async function documentUsage(key: string): Promise<DocumentUsageDetail | null> {
+  const linked = key !== UNLINKED_GROUP
+  if (linked && !Types.ObjectId.isValid(key)) return null
+  const rows = await AiCallModel.find({
+    feature: { $in: [...INGESTION_FEATURES] },
+    documentId: linked ? new Types.ObjectId(key) : { $exists: false },
+  }).lean<IAiCall[]>()
+  if (!rows.length) return null
+  const headerOf = await documentHeaders(linked ? [key] : [])
+  return {
+    ...headerOf(key),
+    totals: totalsOf(rows),
+    byFeatureService: byFeatureService(rows),
+    rateRows: rateRows(rows),
+  }
+}
+
 /**
  * Returns what labelling, OCR and embedding cost per knowledge document, for
  * the period chosen. For knowledge admins: documents are shared, so the cost
@@ -599,39 +842,17 @@ export async function ingestionUsage(query: IngestionQuery): Promise<IngestionUs
   }).lean<IAiCall[]>()
 
   const ids = [...new Set(rows.flatMap((r) => (r.documentId ? [String(r.documentId)] : [])))]
-  const stored = new Map(
-    (
-      await KnowledgeDocumentModel.find(
-        { _id: { $in: ids } },
-        'title fileName status createdAt',
-      ).lean<StoredDocument[]>()
-    ).map((d) => [String(d._id), d]),
-  )
-  const pages = new Map(
-    (await IngestionJobModel.find({ documentId: { $in: ids } }, 'documentId pageTotal').lean()).map(
-      (j) => [String(j.documentId), j.pageTotal ?? null],
-    ),
-  )
+  const headerOf = await documentHeaders(ids)
 
   const splitKey = splitKeyFor(query.split)
-  const groups = groupRows(rows, (r) => (r.documentId ? String(r.documentId) : UNLINKED_GROUP))
+  const groups = groupRows(rows, documentKeyOf)
   const documents = [...groups].map(([key, members]): DocumentUsage => {
     const shared = groupTotals(key, members, splitKey)
-    const doc = stored.get(key)
-    const pageCount = pages.get(key) ?? null
+    const header = headerOf(key)
     return {
       ...shared,
-      title: doc
-        ? (doc.title ?? doc.fileName ?? 'Untitled')
-        : key === UNLINKED_GROUP
-          ? 'Not linked to a document'
-          : 'Upload not saved',
-      fileName: doc?.fileName ?? null,
-      status: doc?.status ?? null,
-      saved: !!doc,
-      uploadedAt: doc?.createdAt ? new Date(doc.createdAt).toISOString() : null,
-      pages: pageCount,
-      usdPerPage: pageCount ? round(shared.estimatedCostUsd / pageCount) : null,
+      ...header,
+      usdPerPage: header.pages ? round(shared.estimatedCostUsd / header.pages) : null,
       avgMsPerCall: avgMsPerCall(members),
     }
   })
@@ -668,4 +889,154 @@ export function ingestionCsv(usage: IngestionUsage): string {
     ]),
   )
   return [csvLine(head), ...lines].join('\n') + '\n'
+}
+
+// ── Chatbot: what the knowledge assistant's chat cost, by month or year ───
+
+// A chat day or month, or a person who asked: what their calls cost.
+export type ChatGroup = {
+  key: string
+  calls: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+  // The latest call; null for a day or month with none.
+  lastActivityAt: string | null
+  // Cost per billed service: the bar's stacked parts.
+  segments: Record<string, number>
+}
+
+// A calendar month (at: YYYY-MM) or year (at: YYYY) in Singapore time.
+export type ChatPeriod = { period: 'month' | 'year'; at: string }
+
+export type ChatUsage = {
+  // complete: the period has ended, so it can be compared with the one before.
+  scope: ChatPeriod & { from: string; to: string; complete: boolean }
+  totals: UsageSummary['totals']
+  splitKeys: string[]
+  // A month's days or a year's months, oldest first, up to today: none is 0.
+  buckets: ChatGroup[]
+  // Each person who asked, costliest first.
+  byUser: (ChatGroup & { name: string })[]
+  rateRows: RateRow[]
+  // The period before, to compare against.
+  previous: { at: string; calls: number; estimatedCostUsd: number }
+}
+
+/** Returns the chat period asked for, or null when it is not a real month or year. */
+export function chatPeriodOf(period: unknown, at: unknown): ChatPeriod | null {
+  if (typeof at !== 'string') return null
+  if (period === 'month' && /^\d{4}-(0[1-9]|1[0-2])$/.test(at)) return { period, at }
+  if (period === 'year' && /^\d{4}$/.test(at)) return { period, at }
+  return null
+}
+
+// The Singapore calendar day of a moment, as YYYY-MM-DD.
+const singaporeDay = (at: Date | number) =>
+  new Date(+at + SINGAPORE_OFFSET_MS).toISOString().slice(0, 10)
+
+function chatGroup(key: string, members: IAiCall[]): ChatGroup {
+  const segments: Record<string, number> = {}
+  for (const r of members)
+    if (r.estimatedCostUsd !== null)
+      segments[r.billedService] = round((segments[r.billedService] ?? 0) + r.estimatedCostUsd)
+  return {
+    key,
+    calls: callsIn(members),
+    estimatedCostUsd: round(sum(members, (r) => r.estimatedCostUsd)),
+    callsWithoutCost: uncosted(members),
+    lastActivityAt: members.length
+      ? new Date(Math.max(...members.map((r) => +new Date(r.createdAt)))).toISOString()
+      : null,
+    segments,
+  }
+}
+
+// Where a period starts and ends (Singapore midnight), and the one before it.
+function periodBounds({ period, at }: ChatPeriod) {
+  const year = Number(at.slice(0, 4))
+  const month = period === 'month' ? Number(at.slice(5, 7)) - 1 : 0
+  const start = (y: number, m: number) => new Date(Date.UTC(y, m, 1) - SINGAPORE_OFFSET_MS)
+  if (period === 'year')
+    return { from: start(year, 0), to: start(year + 1, 0), previous: String(year - 1) }
+  const before = new Date(Date.UTC(year, month - 1, 1)).toISOString().slice(0, 7)
+  return { from: start(year, month), to: start(year, month + 1), previous: before }
+}
+
+// The bucket keys of a period up to today: its days (YYYY-MM-DD) or months (YYYY-MM).
+function bucketKeys({ period, at }: ChatPeriod, now: Date): string[] {
+  const today = singaporeDay(now)
+  const keys: string[] = []
+  if (period === 'year') {
+    for (let m = 1; m <= 12; m++) keys.push(`${at}-${String(m).padStart(2, '0')}`)
+    return keys.filter((k) => k <= today.slice(0, 7))
+  }
+  for (let day = `${at}-01`; day.startsWith(at) && day <= today;) {
+    keys.push(day)
+    day = new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10)
+  }
+  return keys
+}
+
+/**
+ * Returns the chat's cost for a calendar month or year in Singapore time:
+ * totals, a bar per day or month up to today, each person who asked, the
+ * usage at the rates charged, and the period before to compare. A knowledge
+ * admin sees everyone's chat; a risk engineer only their own.
+ */
+export async function chatUsage(
+  user: SessionUser,
+  chosen: ChatPeriod,
+  now = new Date(),
+): Promise<ChatUsage> {
+  const { from, to, previous } = periodBounds(chosen)
+  const mine = user.role === 'knowledge_admin' ? {} : { userId: new Types.ObjectId(user.id) }
+  const chatBetween = (start: Date, end: Date) =>
+    AiCallModel.find({ feature: 'chat', ...mine, createdAt: { $gte: start, $lt: end } }).lean<
+      IAiCall[]
+    >()
+  const rows = await chatBetween(from, to)
+  const before = periodBounds({ period: chosen.period, at: previous })
+  const earlier = await chatBetween(before.from, before.to)
+
+  const bucketOf = (r: IAiCall) => {
+    const day = singaporeDay(new Date(r.createdAt))
+    return chosen.period === 'year' ? day.slice(0, 7) : day
+  }
+  const perBucket = groupRows(rows, bucketOf)
+  const buckets = bucketKeys(chosen, now).map((key) => chatGroup(key, perBucket.get(key) ?? []))
+
+  const perUser = groupRows(rows, (r) => (r.userId ? String(r.userId) : 'unknown'))
+  const names = new Map(
+    (
+      await UserModel.find(
+        { _id: { $in: [...perUser.keys()].filter((k) => Types.ObjectId.isValid(k)) } },
+        'name',
+      ).lean()
+    ).map((u) => [String(u._id), u.name]),
+  )
+  const byUser = [...perUser]
+    .map(([key, members]) => ({
+      ...chatGroup(key, members),
+      name: names.get(key) ?? 'Unknown user',
+    }))
+    .sort(byCostThenKey)
+
+  return {
+    scope: {
+      ...chosen,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      complete: to <= now,
+    },
+    totals: totalsOf(rows),
+    splitKeys: splitKeysOf(rows, splitKeyFor('service')),
+    buckets,
+    byUser,
+    rateRows: rateRows(rows),
+    previous: {
+      at: previous,
+      calls: callsIn(earlier),
+      estimatedCostUsd: round(sum(earlier, (r) => r.estimatedCostUsd)),
+    },
+  }
 }

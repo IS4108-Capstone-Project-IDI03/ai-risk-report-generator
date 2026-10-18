@@ -45,17 +45,26 @@ type Props = {
   onSelect?: (key: string) => void
   // False for a short fixed set (one assessment's features): every bar, costliest first.
   controls?: boolean
+  // Every bar in the order given (days, oldest first), with no sort or limit controls.
+  inOrder?: boolean
 }
 
-export function StackedCostChart({ title, noun, groups, onSelect, controls = true }: Props) {
+export function StackedCostChart({
+  title,
+  noun,
+  groups,
+  onSelect,
+  controls = true,
+  inOrder = false,
+}: Props) {
   const [sort, setSort] = useState<ChartSort>('cost')
   const [limit, setLimit] = useState<number | typeof ALL>(DEFAULT_BAR_LIMIT)
 
   if (!groups.length) return <p className="uc-chart-empty">No costs recorded in this period.</p>
 
   const { bars, series, shown, total } = toStackedSeries(groups, {
-    sort: controls ? sort : 'cost',
-    limit: !controls || limit === ALL ? groups.length : limit,
+    sort: inOrder ? 'given' : controls ? sort : 'cost',
+    limit: inOrder || !controls || limit === ALL ? groups.length : limit,
   })
   const topSeries = series[series.length - 1]?.key
   const turned = bars.length > TURN_LABELS_AFTER
@@ -64,7 +73,7 @@ export function StackedCostChart({ title, noun, groups, onSelect, controls = tru
 
   return (
     <figure className="uc-chart" aria-label={title}>
-      {controls && (
+      {controls && !inOrder && (
         <div className="uc-chart-controls">
           <Select
             label="Sort bars by"

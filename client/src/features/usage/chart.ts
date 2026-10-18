@@ -14,7 +14,8 @@ export type CostGroup = {
   segments: Record<string, number>
 }
 
-export type ChartSort = 'cost' | 'time'
+// 'given' keeps the groups' own order, as for days in date order.
+export type ChartSort = 'cost' | 'time' | 'given'
 
 // One bar: its key, label, total, and a value per part (split key).
 export type Bar = { key: string; label: string; total: number } & Record<string, number | string>
@@ -90,11 +91,14 @@ export function toStackedSeries(
   groups: CostGroup[],
   { sort, limit }: { sort: ChartSort; limit: number },
 ): { bars: Bar[]; series: Series[]; shown: number; total: number } {
-  const sorted = [...groups].sort((a, b) =>
-    sort === 'cost'
-      ? b.estimatedCostUsd - a.estimatedCostUsd || a.key.localeCompare(b.key)
-      : b.lastActivityAt.localeCompare(a.lastActivityAt) || a.key.localeCompare(b.key),
-  )
+  const sorted =
+    sort === 'given'
+      ? groups
+      : [...groups].sort((a, b) =>
+          sort === 'cost'
+            ? b.estimatedCostUsd - a.estimatedCostUsd || a.key.localeCompare(b.key)
+            : b.lastActivityAt.localeCompare(a.lastActivityAt) || a.key.localeCompare(b.key),
+        )
   const shown = sorted.slice(0, Math.max(0, limit))
   const bars = shown.map((g): Bar => ({
     key: g.key,

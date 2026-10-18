@@ -61,6 +61,34 @@ export type UsageSummary = {
   byFeatureService: FeatureServiceRow[]
   bySection: SectionRow[]
   pricingBases: PricingBasis[]
+  // Only for one chosen report; empty otherwise.
+  rateRows: RateRow[]
+}
+
+export type RatePart = 'input' | 'output' | 'cached input' | 'searches' | 'audio'
+// One quantity with the rate its calls were charged at when made:
+// quantity × usdPer / per = costUsd. Rate and cost are null when not known.
+export type RateCell = {
+  quantity: number
+  unit: 'tokens' | 'searches' | 'minutes'
+  usdPer: number | null
+  per: number
+  costUsd: number | null
+  // Why a rate is $0 (trial key, self-hosted).
+  note: string | null
+}
+// A feature's calls to one model at one set of rates. 'not recorded': saved
+// before rates were kept, at its stored cost; 'not priced': no cost. `note` says why.
+export type RateRow = {
+  feature: string
+  service: string
+  model: string
+  calls: number
+  rates: 'charged' | 'not recorded' | 'not priced'
+  note: string | null
+  cells: Partial<Record<RatePart, RateCell>>
+  costUsd: number | null
+  avgMsPerCall: number | null
 }
 
 export type UsageView = 'feature' | 'service'
@@ -120,6 +148,50 @@ export type IngestionUsage = {
   pricingBases: PricingBasis[]
 }
 
+// One document's ingestion cost, all time (its detail page).
+export type DocumentUsageDetail = {
+  key: string
+  title: string
+  fileName: string | null
+  status: string | null
+  saved: boolean
+  uploadedAt: string | null
+  pages: number | null
+  totals: Totals
+  // Cost per stage (labelling, OCR, embedding), split by the service that billed it.
+  byFeatureService: FeatureServiceRow[]
+  rateRows: RateRow[]
+}
+
+// A chat day (key YYYY-MM-DD) or month (YYYY-MM), Singapore time, or a person
+// who asked (key: user id).
+export type ChatGroup = {
+  key: string
+  calls: number
+  estimatedCostUsd: number
+  callsWithoutCost: number
+  // Null for a day or month with no chat.
+  lastActivityAt: string | null
+  segments: Record<string, number>
+}
+
+// A calendar month (at: YYYY-MM) or year (at: YYYY), Singapore time.
+export type ChatPeriod = { period: 'month' | 'year'; at: string }
+
+// The chatbot's cost for a month or year: a bucket per day or month up to
+// today, oldest first, and each person who asked, costliest first. A risk
+// engineer gets only their own chat. `complete`: the period has ended.
+export type ChatUsage = {
+  scope: ChatPeriod & { complete: boolean }
+  totals: Totals
+  splitKeys: string[]
+  buckets: ChatGroup[]
+  byUser: (ChatGroup & { name: string })[]
+  rateRows: RateRow[]
+  // The period before, to compare against.
+  previous: { at: string; calls: number; estimatedCostUsd: number }
+}
+
 // `request` also ends the session on a 401.
 export function getUsageSummary(reportId: string, signal?: AbortSignal): Promise<UsageSummary> {
   const query = reportId ? `?reportId=${encodeURIComponent(reportId)}` : ''
@@ -151,6 +223,31 @@ export function getIngestionUsage(
   signal?: AbortSignal,
 ): Promise<IngestionUsage> {
   return request<IngestionUsage>(`/api/usage/ingestion?${ingestionParams(q)}`, { signal })
+}
+
+export function getDocumentUsage(key: string, signal?: AbortSignal): Promise<DocumentUsageDetail> {
+  return request<DocumentUsageDetail>(`/api/usage/ingestion/${encodeURIComponent(key)}`, {
+    signal,
+  })
+}
+
+// One assessment's usage at the rates charged, one line per billed part.
+export function ratesExportUrl(reportId: string): string {
+  return `/api/usage/export.csv?${new URLSearchParams({ groupBy: 'rates', reportId })}`
+}
+
+// One document's usage at the rates charged, one line per billed part.
+export function documentExportUrl(key: string): string {
+  return `/api/usage/ingestion/${encodeURIComponent(key)}/export.csv`
+}
+
+export function getChatUsage(chosen: ChatPeriod, signal?: AbortSignal): Promise<ChatUsage> {
+  return request<ChatUsage>(`/api/usage/chat?${new URLSearchParams(chosen)}`, { signal })
+}
+
+// The chat's usage at the rates charged, for the period, one line per billed part.
+export function chatExportUrl(chosen: ChatPeriod): string {
+  return `/api/usage/chat/export.csv?${new URLSearchParams(chosen)}`
 }
 
 export function ingestionExportUrl(q: IngestionQuery): string {
