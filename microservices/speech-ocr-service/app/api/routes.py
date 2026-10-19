@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.processors.ocr import extract_text
+from app.processors.handwriting import HandwritingError, transcribe_page
 from app.processors.stt import TranscriptionError, transcribe
 from app.processors.vision import InterpretationError, interpret
 
@@ -42,6 +42,11 @@ def interpret_photos(request: InterpretRequest) -> dict:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
-@router.post("/ocr")
-def ocr_document(request: S3KeyRequest) -> dict:
-    return extract_text(request.s3_key)
+@router.post("/transcribe-handwriting")
+def transcribe_handwriting(request: S3KeyRequest) -> dict:
+    # One page of handwritten notes (CP-19). As for a recording, the gateway stores the result
+    # and shows `detail` to the engineer on failure.
+    try:
+        return transcribe_page(request.s3_key)
+    except HandwritingError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error

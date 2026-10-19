@@ -77,6 +77,70 @@ reference photos for judging the prompt are in
 `microservices/speech-ocr-service/eval/` (`uv run --extra dev python -m
 eval.interpret_photos`).
 
+## Handwritten pages (S5, CP-19)
+
+An engineer can photograph pages of their handwritten site notes in Scan mode
+on the capture screen. Each page is transcribed word for word, as a recording
+is (CP-03), and becomes drafting evidence.
+
+1. Saving an observation with `page` parts stores each page in S3 as
+   `transcribing`, with one attempt (see
+   [database](database.md#observations)), and the gateway starts
+   `runPageTranscription` for each without making the client wait.
+2. The gateway posts `{ "s3_key": ... }` to S5's `POST /transcribe-handwriting`.
+3. S5 (`app/processors/handwriting.py`) reads the page from S3 and prepares it
+   as a photo is (`images.upright_jpeg`: upright from EXIF, at most 1600 px,
+   JPEG). It sends it to the provider named by `HANDWRITING_PROVIDER` (only
+   Gemini is implemented; `HANDWRITING_MODEL`, both defaulting to photo
+   reading's `VISION_PROVIDER` and `VISION_MODEL`; paid-tier `GEMINI_API_KEY`,
+   `store: false`, temperature 0; one retry at most and 90 s per attempt, as
+   the SDK's own three untimed retries held a rate-limited page past the
+   gateway's five-minute wait), prompt `cp19-v1`:
+   - write the handwriting word for word, a line per line of writing, keeping
+     abbreviations, numbers and spelling as written; never expand, correct or
+     add a word;
+   - leave out crossed-out words, drawings and printed text, except a printed
+     label the handwriting fills in;
+   - give a best guess for a word it can't read for certain, marked
+     `uncertain`; never leave a word out because it is hard to read;
+   - return no lines for a page with no handwriting.
+   The answer is structured (lines of `{ text, uncertain }` words), so which
+   words are uncertain comes back as data. Code joins it into `transcript` and
+   the `[start, end)` positions of the uncertain words, counted in UTF-16 units
+   for the browser. S5 returns those with the provider, model, `prompt_version`
+   and `usage` (EV-03: `transcribe-handwriting`, billed to `gemini-vision`,
+   thinking added to output), or 502 with `detail` (the page could not be read
+   from storage, opened, or transcribed, including a blocked answer). It writes
+   nothing to MongoDB.
+4. The gateway records the usage, then stores the transcript, the uncertain
+   words and the provenance on the page, or the failure reason, mapped from
+   S5's message prefixes to a readable one: a used-up usage limit (429), a
+   busy service (503) and a slow answer each say so; Node's own five-minute
+   wait running out reads "took too long to answer", not "could not be
+   reached". A failure can be retried; a
+   restart marks a running attempt failed (`failInterruptedTranscriptions`
+   covers recordings and pages). The client re-reads the list every 3 seconds
+   while any page is transcribing.
+5. The Observations tab shows each page with its original (opened to zoom
+   into), its transcript behind the AI rule with each uncertain word underlined
+   and counted, "No handwriting was found on this page." for an empty one, or
+   the failure with Retry transcription. A finished page offers Transcribe
+   again (CP-20) to the assessment’s assigned engineer (`POST
+   /api/observations/:id/pages/:pageId/retranscribe`), which clears its text
+   and runs steps 2-4 once more. The Scans view, opened from the Observations
+   tab's Scans box beside Photos, lists every page of the assessment's
+   observations not deleted the same way, each with Go to observation.
+   Drafting uses the text as transcribed; the uncertain marks are for the
+   engineer and are not sent to S4.
+
+Measuring it: `microservices/speech-ocr-service/eval/transcribe_handwriting.py`
+reads each `<id>.jpg|png` and `<id>.txt` pair in `eval/cases/handwriting/` (see
+its README for how to write one) through the same code and scores word
+accuracy (case, edge punctuation and line breaks ignored; abbreviations must
+match) and how many wrong words were marked uncertain. Run by hand, as it calls
+the paid API: `uv run --extra dev python -m eval.transcribe_handwriting`. Each
+run writes a summary to `eval/handwriting/<date>-<model>.md`.
+
 ## Knowledge document ingestion (IN-01)
 
 1. The admin drops or picks PDFs on the Knowledge base screen; nothing else is
@@ -388,11 +452,15 @@ details and history back and answers 503, as it does for any failed relabel.
 3. The gateway gets the section's COPE categories and minimum count from S4's
    `GET /sections`. It loads the assessment's categorised observations
    (uncategorised ones stay out, CP-02 AC4, and so do deleted ones, CP-08) and
-   refuses (409) while any of their recordings is still transcribing.
+   refuses (409) while any of their recordings or handwritten pages is still
+   transcribing (CP-19).
 4. It sends the usable ones to S4's `POST /sections/draft`. An observation is
-   usable when it has a note or a finished transcript; a transcript the
-   engineer corrected is sent as corrected, and a removed recording is left
-   out, including from the wait in step 3 (CP-08). Only those filed under
+   usable when it has a note, a finished transcript or a transcribed page with
+   text (CP-19); a transcript the engineer corrected is sent as corrected, and
+   a removed recording is left out, including from the wait in step 3 (CP-08).
+   Pages go as `handwriting`, apart from `transcripts`: S4's prompt labels each
+   `Handwritten note:`, and its searches read an observation's note,
+   transcripts and pages alike (`Observation.recorded()`). Only those filed under
    any of the section's own categories count towards the minimum, so one
    filed under two categories counts in each of their sections; with too
    few, it refuses with 422 and gives the count. Each observation's
@@ -454,7 +522,7 @@ suggestions, each with Accept (or Accept all), and the OFIs in the report.
    Improvement", and not its introduction or Risk Assessment Matrix, are kept
    as past OFIs. One rerank orders both; the top 12 standards and 8 past OFIs
    go to the model. If rerank fails, vector order is used.
-4. `generator.draft_ofis` writes the OFIs (prompt `gn05-v4`, guide
+4. `generator.draft_ofis` writes the OFIs (prompt `gn05-v5`, guide
    `ofi-skill.md`) as structured output whose category, type, likelihood,
    consequence and effort must come from `ofi.json`, Marsh's value lists.
 5. Code finishes each OFI. An OFI none of whose observations resolve is

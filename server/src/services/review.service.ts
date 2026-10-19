@@ -80,6 +80,8 @@ export type FieldObservationDto = {
   copeDimensions: string[]
   note: string | null
   transcripts: string[]
+  // Its transcribed handwritten pages (CP-19 AC15).
+  handwriting: string[]
   severity: string
   location: string | null
   standard: string | null
@@ -335,6 +337,7 @@ function evidenceOf(
       copeDimensions: e.COPE_dimension,
       note: e.note ?? null,
       transcripts: e.transcripts ?? [],
+      handwriting: e.handwriting ?? [],
       severity: e.severity,
       location: e.location ?? null,
       standard: e.standard ?? null,

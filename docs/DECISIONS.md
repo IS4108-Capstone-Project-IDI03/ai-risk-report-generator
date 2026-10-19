@@ -1731,3 +1731,31 @@ Rejected:
 Known limits: text written into a section is not summarised by the Executive Summary until a finding in it changes (the summary's check counts decisions). Drafting a section again on Generation sets aside text written into it; it stays in its version, but nothing yet shows earlier versions (RV-06).
 
 Stories: RV-08, RV-01, RV-02.
+
+## 2026-10-19 — Handwritten note pages are a fourth capture mode, transcribed like a recording by Gemini in S5
+
+Chose:
+- Scan, a fourth mode beside Note, Voice and Photo (CP-19). The engineer takes or chooses a JPG or PNG per page; each is stored unaltered in S3 under the observation's `pages` and transcribed once saved, exactly as a recording is: one attempt per page, Transcribing / Transcribed / failed with a readable reason, retry only after a failure, a restart marks a running attempt failed, the list refreshes while one runs. The text stays with its page, like a transcript with its recording; the typed note is untouched.
+- S5 transcribes, replacing its `/ocr` stub and the unused `USE_CLOUD_OCR` setting with `POST /transcribe-handwriting`. The provider is `HANDWRITING_PROVIDER` (only Gemini implemented), with its own `HANDWRITING_MODEL`, both defaulting to photo reading's, so the eval can try another model without changing photo reading. Gemini, as for photos: its SDK and the photo preparation (upright, 1600 px) are already in S5. Temperature 0, `store: false`.
+- Word for word: abbreviations, numbers and spelling as written, nothing expanded or corrected. A word the model can't read for certain is its best guess marked uncertain, returned as data (lines of `{ text, uncertain }` words), not markup, and shown underlined and counted for the engineer to check against the page.
+- A transcribed page with text is drafting evidence: it counts towards a section's minimum and goes to S4 as `handwriting`, labelled `Handwritten note:` apart from the note and voice transcripts, and searched by as they are (one `Observation.recorded()` helper for every search and check). Drafting waits while a page transcribes. Prompts bumped to `gn01-v2.10` and `gn05-v5`.
+- The draft's evidence gains `handwriting` only when an observation has some, with no default: `changesSinceDraft` compares evidence as JSON, so evidence without pages must read exactly as before, or every earlier draft would show as out of date.
+- A page is not a site photo: the Photos tab, Appendix A (GN-07) and photo reading leave pages out. Pages have their own Scans view instead, opened from a Scans box beside the Observations tab's Photos box: every page of an observation not deleted, with its transcript, original and actions. The tab's four boxes now use the Overview's grid (two by two, four in a row from 760px), as four no longer fit one row on a phone.
+- Each Gemini call allows one retry and 90 s per attempt. The SDK's default (three retries, no time limit) held pages for minutes on a free-tier key that was rate-limited and overloaded, until the gateway's five-minute wait ran out and reported S5 as unreachable. The reason shown now names a used-up limit, a busy service or a slow answer.
+- (CP-20) A finished page can be transcribed again when its text looks misread. Unlike Retry after a failure, which any risk engineer can press (as for a recording), it replaces evidence, so only the assessment's assigned engineer can ask (CP-08's rule for changes). The old text is cleared as the attempt starts, as photo reading's Read again clears its proposal, rather than kept until the new one arrives: a page then has one state, and a failed re-read shows as failed with Retry instead of silently keeping text the engineer doubted.
+- `transcribe-handwriting` is its own usage feature, billed to `gemini-vision`. Its chart colour is aqua dark, Google's second step, re-stepped to `#008d65` (see the design system, "Charts").
+- Measured by `eval/transcribe_handwriting.py` on team-written pages with known text: word accuracy and how many wrong words were marked uncertain (AC16's 90% and 80% are placeholders until the first run).
+
+Reason: engineers write notes on paper on site; retyping them is the drafting time the tool is meant to save. Treating a page like a recording reuses a flow engineers and the code already know, keeps the transcript as evidence of what was written, and needs no new review step before saving.
+
+Rejected:
+- Reading the page into the note before saving: the engineer would check every page on site, with signal, before saving; and the note would mix typed and machine-read words with no record of which was which.
+- Saving pages as photos: they would reach the photo appendix and photo reading, and a photo's text is not drafting evidence.
+- Tesseract or Textract (the stub's plan): Tesseract reads handwriting poorly, and Textract would add a vendor for one task.
+- Anthropic: the team's Claude key works and reads printed tables well in ingestion, but Gemini is already S5's vision provider and its paid-tier key and preparation are there. The provider switch leaves Claude a setting away.
+- Marking uncertain words inline (`[[word]]`): unbalanced markers; structured words cannot be.
+- Passing the uncertain marks to drafting: it would change GN-01's prompt and evals; the marks are for the engineer, who corrects them (CP-20).
+
+Known limits: correcting a page's text, adding pages to a saved observation, and removing and restoring them are CP-20; `POST /api/observations/:id/media` refuses `page` parts until then. The uncertain marks are the model's own judgement, with no per-word confidence from Gemini; the eval measures whether they catch the misread words, and AC9 may change if they don't. Depends on a working paid-tier `GEMINI_API_KEY`, shared with photo reading. Pages are English only.
+
+Stories: CP-19, CP-20, CP-03, CP-08, GN-01, RV-01, EV-03.

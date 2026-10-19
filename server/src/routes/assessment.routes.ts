@@ -341,11 +341,12 @@ router.delete(
   },
 )
 
-// Saves one observation (CP-02, CP-03, CP-04) as a multipart form: a `details`
-// part holding the JSON fields (see newObservationSchema), a `recording` part
-// per audio file and a `photo` part per JPG or PNG, checked by mediaParts. It
-// needs at least one of a note, a recording or a photo. 400 lists the first
-// problem with each invalid field, as for assessments.
+// Saves one observation (CP-02, CP-03, CP-04, CP-19) as a multipart form: a
+// `details` part holding the JSON fields (see newObservationSchema), a
+// `recording` part per audio file, a `photo` part per JPG or PNG, and a `page`
+// part per photographed page of handwritten notes, checked by mediaParts. It
+// needs at least one of a note, a recording, a photo or a page. 400 lists the
+// first problem with each invalid field, as for assessments.
 router.post(
   '/:reference/observations',
   requirePermission('assessments:edit'),
@@ -375,8 +376,15 @@ router.post(
       res.status(media.status).json({ error: media.error })
       return
     }
-    if (!parsed.data.note && media.recordings.length === 0 && media.photos.length === 0) {
-      res.status(400).json({ error: 'Add a note, a recording or a photo to the observation.' })
+    if (
+      !parsed.data.note &&
+      media.recordings.length === 0 &&
+      media.photos.length === 0 &&
+      media.pages.length === 0
+    ) {
+      res
+        .status(400)
+        .json({ error: 'Add a note, a recording, a photo or a page to the observation.' })
       return
     }
     try {
@@ -389,6 +397,7 @@ router.post(
             media.recordings,
             res.locals.user!,
             media.photos,
+            media.pages,
           ),
         )
     } catch (error: unknown) {

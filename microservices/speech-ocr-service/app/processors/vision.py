@@ -6,15 +6,14 @@ the observation's note or category if they agree with it.
 """
 
 import base64
-import io
 from typing import Literal
 
 import boto3
 from google import genai
-from PIL import Image, ImageOps
 from pydantic import BaseModel, ValidationError
 
 from app.config import AWS_REGION, GEMINI_API_KEY, S3_BUCKET, VISION_MODEL, VISION_PROVIDER
+from app.processors.images import upright_jpeg
 
 # Bump whenever the prompt wording changes, so a saved proposal names the prompt it came from.
 PROMPT_VERSION = "cp05-v1"
@@ -38,8 +37,6 @@ HAZARD_TYPES = (
     "No hazard visible",
 )
 
-# A photo is shrunk to this long edge before it is sent. The original in S3 is never changed.
-LONG_EDGE = 1600
 # Gemini caps a request with inline images at 20 MB, base64 included; this leaves room for text.
 MAX_INLINE_CHARS = 18_000_000
 
@@ -92,20 +89,12 @@ def _read(s3, key: str) -> bytes:
 
 
 def _prepare(image: bytes) -> str:
-    """The photo upright, at most LONG_EDGE pixels, as a base64 JPEG.
-
-    Phones store a portrait photo's turn in its EXIF data, which the model never reads, so it
-    would otherwise see the photo on its side.
-    """
+    """The photo upright and shrunk (see `upright_jpeg`), as base64."""
     try:
-        with Image.open(io.BytesIO(image)) as photo:
-            upright = ImageOps.exif_transpose(photo)
-            upright.thumbnail((LONG_EDGE, LONG_EDGE))
-            out = io.BytesIO()
-            upright.convert("RGB").save(out, "JPEG", quality=85)
+        jpeg = upright_jpeg(image)
     except Exception as error:
         raise InterpretationError(f"The photo could not be opened: {error}") from error
-    return base64.b64encode(out.getvalue()).decode("ascii")
+    return base64.b64encode(jpeg).decode("ascii")
 
 
 def _prompt(count: int, location: str | None, note: str | None) -> str:

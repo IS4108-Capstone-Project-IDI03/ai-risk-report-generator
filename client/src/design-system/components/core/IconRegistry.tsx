@@ -111,6 +111,8 @@ const registry = {
     photo: 'image',
     note: 'sticky-note',
     recording: 'mic',
+    // A photographed page of handwritten notes, transcribed (CP-19).
+    handwriting: 'scan-text',
     insight: 'sparkles',
     uncertainty: 'triangle-alert',
     finding: 'shield-alert',

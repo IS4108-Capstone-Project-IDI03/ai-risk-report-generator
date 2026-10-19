@@ -57,8 +57,8 @@ export type Observation = {
   attached?: string
   // Shown while a recording is transcribing or after one failed.
   badge?: { tone: 'info' | 'high'; label: string } | null
-  // What it holds: any of 'Note', 'Voice' and 'Photo' (CP-08); worked out for
-  // sample ones.
+  // What it holds: any of 'Note', 'Voice', 'Photo' and 'Scan' (CP-08, CP-19);
+  // worked out for sample ones.
   types?: string[]
   // Transcribing, Interpreting, Transcription failed, Interpretation failed or
   // Complete (CP-08, CP-05).
@@ -94,6 +94,21 @@ export type Observation = {
     audioUrl: string
     // Who added it after the observation was saved (CP-08).
     added: Stamp | null
+  }[]
+  // Its photographed pages of handwritten notes (CP-19). A page kept in this
+  // browser by the demo has no status: it is never transcribed.
+  pages?: {
+    id: string
+    name: string
+    // The original photo of the page.
+    url: string
+    status: TranscriptionStatus | null
+    // The handwriting word for word, '' when the page has none, or null while
+    // there is no transcript.
+    transcript: string | null
+    // The words the model was unsure of, as [start, end) in transcript.
+    uncertain: [number, number][]
+    error: string | null
   }[]
 }
 export type GenerationSection = {
@@ -183,6 +198,10 @@ export type WorkflowState = {
   fPhotos: PhotoFile[]
   // Why a chosen file was not added as a photo (CP-04 AC4).
   fPhotoError: string | null
+  // Photographed pages of handwritten notes (CP-19), and why a chosen file was
+  // not added as one.
+  fPages: PhotoFile[]
+  fPageError: string | null
   // The location the engineer is capturing in, and the location picker. It
   // opens by itself until a location is chosen, unless closed this visit.
   fLocationId: string | null
@@ -311,7 +330,8 @@ export type VoiceClip = {
   url: string
 }
 
-// A photograph held in the browser until Save observation uploads it (CP-04).
+// A photograph held in the browser until Save observation uploads it (CP-04),
+// a site photo or a page of handwritten notes (CP-19).
 export type PhotoFile = {
   id: number
   name: string

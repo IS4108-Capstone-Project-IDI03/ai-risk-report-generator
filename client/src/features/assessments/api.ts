@@ -109,6 +109,27 @@ export type SavedPhoto = {
   url: string
   added: Stamp | null
 }
+// A photographed page of the engineer's handwritten notes (CP-19); url opens
+// the original. Like a recording, its transcription runs after the save
+// returns, so it starts as 'transcribing'.
+export type SavedPage = {
+  id: string
+  name: string
+  contentType: 'image/jpeg' | 'image/png'
+  size: number
+  url: string
+  transcription: {
+    status: TranscriptionStatus
+    // The handwriting word for word; '' when the page has none.
+    transcript: string | null
+    // The words the model was unsure of, as [start, end) positions in transcript.
+    uncertain: [number, number][]
+    error: string | null
+    attempts: number
+    // The model that wrote it.
+    model: string | null
+  }
+}
 // What the vision model proposes from an observation's photos (CP-05), for
 // the engineer to review. Nothing reads them until an engineer asks; the
 // reading then runs after that request returns, so it starts as
@@ -144,7 +165,7 @@ export type SiteLocation = {
 export type LocationDetails = { building?: string; floor?: string; name: string }
 
 // An observation saved on the server: any of a note (CP-02), recordings
-// (CP-03) and photos (CP-04).
+// (CP-03), photos (CP-04) and handwritten pages (CP-19).
 export type SavedObservation = {
   id: string
   engineer: string
@@ -159,6 +180,9 @@ export type SavedObservation = {
   // Those not removed: its evidence.
   recordings: SavedRecording[]
   photos: SavedPhoto[]
+  // Its handwritten pages (CP-19); the gateway always sends them, but older
+  // stand-ins for a saved observation have none.
+  pages?: SavedPage[]
   // Removed ones, kept to restore (CP-08).
   removedRecordings: (SavedRecording & { removed: Stamp })[]
   removedPhotos: (SavedPhoto & { removed: Stamp })[]
@@ -343,10 +367,10 @@ export async function startCaptureSession(
 const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
-// Saves one observation, with its note, recordings and photos, to the
-// assessment's active capture session. Null copeDimensions leave it
-// uncategorised. The server stores each file and starts each recording's
-// initial transcription.
+// Saves one observation, with its note, recordings, photos and handwritten
+// pages, to the assessment's active capture session. Null copeDimensions leave
+// it uncategorised. The server stores each file and starts each recording's
+// and page's initial transcription.
 export async function saveObservation(
   reference: string,
   details: {
@@ -358,11 +382,13 @@ export async function saveObservation(
   },
   recordings: { name: string; audio: Blob }[],
   photos: { name: string; image: Blob }[] = [],
+  pages: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   form.append('details', JSON.stringify(details))
   for (const r of recordings) form.append('recording', r.audio, r.name)
   for (const p of photos) form.append('photo', p.image, p.name)
+  for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
 
@@ -459,6 +485,28 @@ export async function retryTranscription(observationId: string, recordingId: str
     'POST',
     `/api/observations/${encodeURIComponent(observationId)}/recordings/${encodeURIComponent(recordingId)}/transcription/retry`,
   )
+}
+
+// Starts a new transcription attempt for a failed handwritten page (CP-19).
+export async function retryPageTranscription(observationId: string, pageId: string) {
+  await request<void>(
+    'POST',
+    `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/transcription/retry`,
+  )
+}
+
+// Transcribes a page again although its last transcription succeeded (CP-20);
+// the assessment's assigned engineer only, as it replaces the page's text.
+export async function retranscribePage(
+  observationId: string,
+  pageId: string,
+): Promise<SavedObservation> {
+  return (
+    await request<SavedObservation>(
+      'POST',
+      `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/retranscribe`,
+    )
+  ).data
 }
 
 // Asks for an observation's photos to be read (CP-05): the first reading, a
@@ -754,6 +802,8 @@ export type FieldObservation = {
   copeDimensions: string[]
   note: string | null
   transcripts: string[]
+  // Its transcribed handwritten pages (CP-19); absent from a gateway before them.
+  handwriting?: string[]
   severity: string
   location: string | null
   standard: string | null

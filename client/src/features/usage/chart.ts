@@ -38,6 +38,7 @@ const STACK_ORDER = [
   'retrieval',
   'transcribe',
   'interpret-photo',
+  'transcribe-handwriting',
   'chat',
   'label-document',
   'ocr',
@@ -47,7 +48,8 @@ const STACK_ORDER = [
 // Each billed service wears its vendor's hue; a vendor billing two services
 // gets a dark and a light step, split so the services that share a bar on each
 // tab differ in lightness. A feature wears the hue of the vendor that bills it
-// most. Report and ingestion features never share a chart, so they reuse hues.
+// most; two report features billed by Google take its two steps. Report and
+// ingestion features never share a chart, so they reuse hues.
 const SERIES_COLORS: Record<string, string> = {
   anthropic: 'blue',
   'gemini-vision': 'aqua-light',
@@ -62,6 +64,7 @@ const SERIES_COLORS: Record<string, string> = {
   retrieval: 'orange-light',
   transcribe: 'magenta-dark',
   'interpret-photo': 'aqua-light',
+  'transcribe-handwriting': 'aqua-dark',
   chat: 'orange-dark',
   'label-document': 'blue',
   ocr: 'aqua-dark',

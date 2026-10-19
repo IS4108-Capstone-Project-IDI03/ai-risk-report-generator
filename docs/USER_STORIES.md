@@ -571,6 +571,58 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: merging duplicate clients or sites; deleting a client or site; moving a site to another client.
   </details>
 
+- [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: photograph the pages of my handwritten site notes and have each transcribed, so notes written on paper become usable evidence for drafting without retyping them.
+
+  Capturing pages
+
+  1. Given an active session, when I take or choose photos of handwritten pages in Scan mode and save the observation, then each page is stored unaltered as retrievable raw evidence, tagged with my ID, linked to its observation, and named "Page 2" or by its file name.
+  2. Given a page that is not a JPG or PNG, is larger than 20 MB, or is empty, when I save, then it is refused with the reason and nothing of the observation is saved.
+  3. Given Scan mode holds pages, when I look at the mode switcher, then it shows how many ("Scan, 2 pages").
+  4. Given an observation has pages, when it is listed on the Observations tab, then its type includes Scan and its status reflects its pages' transcriptions.
+  5. Given saved pages, when I open the photo collection, choose Appendix A photos, or read the observation's photos, then the pages are not among them.
+
+  Transcribing pages
+
+  6. Given a saved page, when the save completes, then one transcription of that page starts and the page shows Transcribing; each page is transcribed on its own, so one failure leaves the others.
+  7. Given a transcription finishes while I'm on the Observations tab, then the page's status updates without reloading.
+  8. Given a successful transcription, when I open the observation, then the page's text appears beside its image, verbatim and in English, styled as machine-written text, with status Transcribed.
+  9. Given the reader is unsure of a word, when the page's text is shown, then the word is highlighted as uncertain and the number of uncertain words is shown.
+  10. Given a page with no readable handwriting, when it is transcribed, then it shows that no handwriting was found.
+  11. Given a transcription failed or was interrupted by a restart, when I open the observation, then a readable reason is shown and I can retry, which starts a new attempt on the same page.
+
+  Drafting and review
+
+  12. Given an observation's only text is a page's transcribed text, when I request a draft, then the observation counts toward the section's minimum evidence.
+  13. Given an observation has transcribed pages, when a section or its OFIs are drafted, then the draft is given each page's text labelled as a handwritten note, separate from the typed note and voice transcripts.
+  14. Given a page is still being transcribed, when I request a section or OFI draft, then drafting is refused until it finishes.
+  15. Given a section's evidence includes transcribed pages, when I open it in the review workspace, then each page's text is shown labelled as a handwritten note.
+
+  Evaluation
+
+  16. Given a test set of team-written site notes with known text (Marsh's added if supplied), when the reader is evaluated, then at least 90% of words are read correctly and at least 80% of misread words are highlighted as uncertain, with the scores, model and prompt version recorded.
+
+  Scans view (added 2026-10-19; like the photo collection, CP-04 AC3)
+
+  17. Given saved pages, when I open the Scans view from the Observations tab, then every page of the assessment's observations not deleted is listed with its transcript, its original and a link to its observation.
+
+  Not in this story (CP-20): changing a saved page — transcribing it again, correcting its text, adding pages to a saved observation, removing and restoring them.
+  </details>
+
+- [ ] **CP-20** — Manage scanned pages (risk engineer, deps: CP-19, CP-08)
+  <details><summary>Goal / AC</summary>
+
+  Goal: fix and change the handwritten pages of a saved observation, as CP-08 does for its recordings and photos, so drafting works from pages that are read correctly and up to date.
+
+  Transcribing again (built 2026-10-19)
+
+  1. Given a transcribed page, when the assessment's assigned engineer asks for it to be transcribed again, then a new attempt starts on the same page and its text is replaced once it finishes.
+
+  Still to write, from the CP-19 split: correcting a page's text (the transcription kept as evidence, drafting using the correction); adding pages to a saved observation; removing and restoring a page; who made each change and when; changes by the assigned engineer only, not once archived; a failed save keeping the engineer's correction.
+  </details>
+
 ## E6 — Report Generation & Guardrails
 
 - [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)

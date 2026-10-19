@@ -39,7 +39,8 @@ class Assessment(BaseModel):
     facility_type: str
 
 
-# One site observation as the gateway sends it, with only its finished voice transcripts.
+# One site observation as the gateway sends it, with only its finished voice transcripts and
+# transcribed handwritten pages.
 class Observation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
@@ -48,6 +49,8 @@ class Observation(BaseModel):
     COPE_dimension: Annotated[list[str], Field(min_length=1)]
     note: str | None = None
     transcripts: list[str] = []
+    # Pages of the engineer's handwritten notes, transcribed word for word (CP-19).
+    handwriting: list[str] = []
     severity: str | None = None
     location: str | None = None
     standard: str | None = None
@@ -56,6 +59,14 @@ class Observation(BaseModel):
     @classmethod
     def _one_category_as_list(cls, value):
         return [value] if isinstance(value, str) else value
+
+    def recorded(self) -> list[str]:
+        """Everything the engineer recorded, in order: note, voice transcripts, handwritten pages.
+
+        What searches and checks read of an observation, so a new kind of capture reaches them
+        all at once.
+        """
+        return [text for text in (self.note, *self.transcripts, *self.handwriting) if text]
 
 
 class DraftOfisRequest(BaseModel):

@@ -119,7 +119,10 @@
      docs/design-system.md, "Charts". */
   --chart-blue: #2a78d6;
   --chart-aqua-light: #3cc497;
-  --chart-aqua-dark: #0d8a6a;
+  /* Re-stepped from #0d8a6a for handwriting transcription (CP-19), which shares
+     report bars with voice transcription's magenta-dark: #0d8a6a fell to ΔE 5.8
+     (deutan) against it; this clears 6.5, and 9.7 on the ingestion charts. */
+  --chart-aqua-dark: #008d65;
   --chart-olive: #a4a528;
   --chart-magenta-dark: #a8285f;
   --chart-magenta-light: #ee86ad;

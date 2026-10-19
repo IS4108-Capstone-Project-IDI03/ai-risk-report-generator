@@ -25,19 +25,23 @@ const pickerStyle = (busy: boolean): CSSProperties => ({
 // Two pickers (CP-04 AC6): Chrome on Android 14+ offers no camera in its
 // photo picker, so taking one needs `capture`, which in turn leaves out the
 // library. Take photograph is hidden on a desktop, which ignores `capture`
-// (workflow.css).
+// (workflow.css). Scan mode names them for pages of notes (CP-19).
 export function PhotoPickers({
   onChange,
   busy,
+  takeLabel = 'Take photograph',
+  chooseLabel = 'Choose photographs',
 }: {
   onChange: (event: ChangeEvent<HTMLInputElement>) => void
   busy: boolean
+  takeLabel?: string
+  chooseLabel?: string
 }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
       <label className="ds-choice photo-take" style={pickerStyle(busy)}>
         <Icon name="camera" size={16} />
-        {'Take photograph'}
+        {takeLabel}
         <input
           type="file"
           accept="image/jpeg,image/png"
@@ -48,7 +52,7 @@ export function PhotoPickers({
       </label>
       <label className="ds-choice" style={pickerStyle(busy)}>
         <Icon name="image" size={16} />
-        {'Choose photographs'}
+        {chooseLabel}
         <input
           type="file"
           accept="image/jpeg,image/png"

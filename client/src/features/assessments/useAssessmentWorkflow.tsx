@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type * as React from 'react'
-import { Icon, Button } from '../../design-system'
+import { Icon, Button, IconRegistry } from '../../design-system'
 import {
   archiveAssessment as requestArchive,
   restoreAssessment as requestRestore,
@@ -15,6 +15,8 @@ import {
   type Client,
   type ClientSite,
   readPhotos,
+  retranscribePage,
+  retryPageTranscription,
   retryTranscription,
   saveObservation,
   updateObservation,
@@ -83,6 +85,7 @@ import {
   UNCATEGORISED,
   withCategory,
 } from './categories'
+import type { PageView } from './components/PageEntry'
 import type { BoxContent } from './components/StatBox'
 import { useCaptureSession } from './useCaptureSession'
 import { useLocations } from './useLocations'
@@ -229,6 +232,21 @@ const TRANSCRIPTION_TEXT = {
   transcribing: 'Transcribing the recording…',
   failed: 'The recording could not be transcribed.',
 }
+// Where a handwritten page stands when there is no text to show (CP-19).
+const PAGE_TEXT = {
+  transcribing: 'Transcribing the page…',
+  failed: 'The page could not be transcribed.',
+  blank: 'No handwriting was found on this page.',
+  demo: 'No capture session, so this page stays in this browser and is not transcribed.',
+}
+const pageNote = (p: NonNullable<Observation['pages']>[number]) =>
+  p.status === null
+    ? PAGE_TEXT.demo
+    : p.status === 'transcribing'
+      ? PAGE_TEXT.transcribing
+      : p.status === 'transcribed' && !p.transcript?.trim()
+        ? PAGE_TEXT.blank
+        : null
 // The categories the Observations tab filters by: the shared COPE vocabulary
 // (CP-08 AC7), shown as the values they are stored as, or Uncategorised.
 const CATEGORY_OPTIONS = [...Object.keys(CAT_ICON), UNCATEGORISED]
@@ -237,12 +255,14 @@ const SEVERITY_OPTIONS = ['critical', 'high', 'moderate', 'low'].map((value) => 
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }))
 const NO_LOCATIONS: SiteLocation[] = []
-// An empty capture form: no note, recordings or photos, and no tags chosen.
-// The location stays, as the engineer is still standing in it.
+// An empty capture form: no note, recordings, photos or pages, and no tags
+// chosen. The location stays, as the engineer is still standing in it.
 const BLANK_DRAFT = {
   fNote: '',
   fClips: [],
   fPhotos: [],
+  fPages: [],
+  fPageError: null,
   fCats: [],
   fSev: '',
   fRec: false,
@@ -311,10 +331,20 @@ function toEntry(o: SavedObservation): Observation {
       added: r.added,
     }
   })
-  const statuses = recordings.map((r) => r.status)
+  // Each handwritten page (CP-19), with its transcript and uncertain words.
+  const pages = (o.pages ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    url: p.url,
+    status: p.transcription.status,
+    transcript: p.transcription.transcript,
+    uncertain: p.transcription.uncertain,
+    error: p.transcription.error,
+  }))
+  const statuses = [...recordings, ...pages].map((r) => r.status)
   const reading = o.interpretation?.status
-  // Where its recordings and photos stand (CP-08 AC2, CP-05 AC2): anything
-  // still running first, then anything that failed.
+  // Where its recordings, pages and photos stand (CP-08 AC2, CP-05 AC2,
+  // CP-19 AC4): anything still running first, then anything that failed.
   const status = statuses.includes('transcribing')
     ? 'Transcribing'
     : reading === 'interpreting'
@@ -325,13 +355,30 @@ function toEntry(o: SavedObservation): Observation {
           ? 'Interpretation failed'
           : 'Complete'
   const photos = o.photos
-  // The row reads as the note, the first recording when there is no note, or
-  // how many photos it holds when it is only photos.
-  const text = o.note ?? recordings[0]?.text ?? plural(photos.length, 'photograph')
+  // The row reads as the note, the first recording when there is no note, the
+  // first page's handwriting (or how many pages, until there is some), or how
+  // many photos it holds when it is only photos.
+  const pageText =
+    pages.length > 0
+      ? pages[0].transcript?.trim() || plural(pages.length, 'handwritten page')
+      : undefined
+  const text = o.note ?? recordings[0]?.text ?? pageText ?? plural(photos.length, 'photograph')
   return {
     id: o.id,
-    icon: o.note ? 'sticky-note' : recordings.length ? 'mic' : 'camera',
-    color: o.note ? '#f9ac10' : recordings.length ? '#8f7dff' : '#4f9aee',
+    icon: o.note
+      ? 'sticky-note'
+      : recordings.length
+        ? 'mic'
+        : pages.length
+          ? IconRegistry.evidence.handwriting
+          : 'camera',
+    color: o.note
+      ? '#f9ac10'
+      : recordings.length
+        ? '#8f7dff'
+        : pages.length
+          ? 'var(--text-secondary)'
+          : '#4f9aee',
     cats: o.copeDimensions ?? [],
     time: formatDayYearTime(new Date(o.recordedAt)),
     text,
@@ -364,6 +411,7 @@ function toEntry(o: SavedObservation): Observation {
       o.note ? 'Note' : '',
       recordings.length ? plural(recordings.length, 'recording') : '',
       photos.length ? plural(photos.length, 'photo') : '',
+      pages.length ? plural(pages.length, 'page') : '',
     ]
       .filter(Boolean)
       .join(' · '),
@@ -376,6 +424,7 @@ function toEntry(o: SavedObservation): Observation {
       ...(o.note ? ['Note'] : []),
       ...(recordings.length ? ['Voice'] : []),
       ...(photos.length ? ['Photo'] : []),
+      ...(pages.length ? ['Scan'] : []),
     ],
     status,
     interpretation: o.interpretation && {
@@ -394,6 +443,7 @@ function toEntry(o: SavedObservation): Observation {
     edited: o.edited,
     deleted: o.deleted,
     recordings,
+    pages,
   }
 }
 
@@ -470,7 +520,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     state.captureTarget.reference === CAPTURE_ASSESSMENT.reference ? DEMO_LOCATIONS : NO_LOCATIONS,
   )
   // The recorder in progress, and a counter naming the clips it makes.
-  const [media] = useState(() => ({ recorder: null as MediaRecorder | null, clips: 0, photos: 0 }))
+  const [media] = useState(() => ({
+    recorder: null as MediaRecorder | null,
+    clips: 0,
+    photos: 0,
+    pages: 0,
+  }))
   useEffect(() => () => media.recorder?.stream.getTracks().forEach((t) => t.stop()), [media])
   // Leaving capture, by Done, the navigation or Back, stops a recording in
   // progress; its clip stays in the draft for when the engineer returns.
@@ -693,7 +748,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       discarded.add(media.recorder)
       media.recorder.stop()
     }
-    for (const file of [...state.fClips, ...state.fPhotos]) URL.revokeObjectURL(file.url)
+    for (const file of [...state.fClips, ...state.fPhotos, ...state.fPages])
+      URL.revokeObjectURL(file.url)
   }
   // Before another assessment opens: its draft is about to be cleared.
   function releaseDraft(reference: string) {
@@ -945,14 +1001,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }
     // Everything in the form becomes one observation, filed under the tags
     // it shows: the note exactly as typed (CP-02), each recording with its one
-    // transcription (CP-03 AC3) and each photo (CP-04). If it fails,
-    // everything stays for another try. The standard is left to drafting;
-    // the engineer can name one later through Edit.
+    // transcription (CP-03 AC3), each photo (CP-04) and each handwritten page
+    // with its one transcription (CP-19 AC6). If it fails, everything stays
+    // for another try. The standard is left to drafting; the engineer can
+    // name one later through Edit.
     async function saveToGateway(
       location: SiteLocation,
       note: string | undefined,
       clips: VoiceClip[],
       photos: PhotoFile[],
+      pages: PhotoFile[],
     ) {
       const reference = s.captureTarget.reference
       const { fCats: cats, fSev: severity } = s
@@ -969,6 +1027,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
           photos.map((p) => ({ name: p.name, image: p.image })),
+          pages.map((p) => ({ name: p.name, image: p.image })),
         )
       } catch (error: unknown) {
         const problems = error instanceof GatewayError ? Object.values(error.fields) : []
@@ -988,9 +1047,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       }
       captured.add(observation)
       // Re-reading the list keeps it refreshing until the transcriptions finish.
-      if (clips.length) captured.reload()
+      if (clips.length || pages.length) captured.reload()
       // The gateway now serves them; the previews in this browser are done.
-      for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
+      for (const file of [...clips, ...photos, ...pages]) URL.revokeObjectURL(file.url)
       // Keep anything added or changed while the observation was saving. The
       // tags start again empty, so the next observation's are chosen for it.
       // The Observations tab is to open here, with this one marked New.
@@ -1006,6 +1065,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fNote: previous.fNote === note ? '' : previous.fNote,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
+        fPages: previous.fPages.filter((p) => !pages.includes(p)),
         fCats: sameCategories(previous.fCats, cats) ? [] : previous.fCats,
         fSev: previous.fSev === severity ? '' : previous.fSev,
         fToast: {
@@ -1013,7 +1073,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             'Observation saved to ' +
             reference +
             '.' +
-            (clips.length ? ' Transcribing ' + plural(clips.length, 'recording') + ' now.' : ''),
+            (clips.length || pages.length
+              ? ' Transcribing ' +
+                [
+                  clips.length ? plural(clips.length, 'recording') : '',
+                  pages.length ? plural(pages.length, 'page') : '',
+                ]
+                  .filter(Boolean)
+                  .join(' and ') +
+                ' now.'
+              : ''),
         },
       }))
       later(() => setState({ fToast: null }), 3200)
@@ -1056,10 +1125,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const noteChanged = edit.note !== (o.detail ?? '')
       const retry = ' Your changes are still here; press Save changes to try again.'
       if (!o.id) {
-        if (noteChanged && !edit.note.trim() && !o.audio && !o.media.length)
+        if (noteChanged && !edit.note.trim() && !o.audio && !o.media.length && !o.pages?.length)
           return setState({
             tagError:
-              'An observation needs a note, a recording or a photo, so this note can’t be removed.' +
+              'An observation needs a note, a recording, a photo or a page, so this note can’t be removed.' +
               retry,
           })
         setState({
@@ -1448,6 +1517,25 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         toast(cause + ' Try again.', 'warning')
       }
     }
+    // The same for a handwritten page whose transcription failed (CP-19 AC11).
+    async function retryPage(id: string, pageId: string) {
+      try {
+        await retryPageTranscription(id, pageId)
+        captured.reload()
+      } catch (error: unknown) {
+        const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
+        toast(cause + ' Try again.', 'warning')
+      }
+    }
+    // Transcribes a finished page again, when its text looks misread (CP-20).
+    async function transcribeAgain(id: string, pageId: string) {
+      try {
+        await retranscribePage(id, pageId)
+        captured.reload()
+      } catch (error: unknown) {
+        toast(refusal(error) + ' Try again.', 'warning')
+      }
+    }
     // Reads a saved observation's photos when the engineer asks (CP-05): the
     // first reading, or a new one after a failure.
     async function readSaved(id: string) {
@@ -1547,6 +1635,36 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // hides the actions once the work list shows they'd be refused, for the
     // sample observations too, which change in this browser only.
     const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
+    // An observation's handwritten pages as shown (CP-19): where each stands
+    // when there is no text, Retry after a failure (open to any risk engineer,
+    // as a recording's), and Transcribe again once one is finished (only for
+    // whoever may change the observation, as it replaces evidence; CP-20).
+    const pageViews = (o: Observation): PageView[] =>
+      (o.pages ?? []).map((p) => ({
+        ...p,
+        note: pageNote(p),
+        retry: canEdit && !o.deleted && o.id ? () => void retryPage(o.id!, p.id) : null,
+        again:
+          canChangeObs && !o.deleted && o.id && p.status === 'transcribed'
+            ? () => void transcribeAgain(o.id!, p.id)
+            : null,
+      }))
+    // The assessment's handwritten pages (CP-19), gathered as the photo
+    // collection gathers its photos: every page of an observation not deleted,
+    // newest first, each with the observation it belongs to.
+    const scanCollection = allRows
+      .filter(({ o }) => !o.deleted)
+      .flatMap(({ o, key }) =>
+        pageViews(o).map((page) => ({
+          key: key + '/' + page.id,
+          page,
+          where: placeOf(o),
+          cat: categoryLabel(o.cats),
+          time: o.time,
+          openObservation: () =>
+            setState({ tab: 'observations', obsOpen: key, obsShowDeleted: false, of: NO_FILTERS }),
+        })),
+      )
     // New assessment and capture are actions on the Dashboard and workspace
     // headers, so the navigation lists only places: the work list, and the
     // assessments last opened. Only those still on the work list show, as the
@@ -1992,12 +2110,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const noteWritten = !!s.fNote.trim()
     const voiceCount = s.fClips.length + (s.fTrans ? 1 : 0)
     // What Done would discard, a recording still running included: "a note,
-    // 2 recordings and 1 photo".
+    // 2 recordings, 1 photo and 1 page".
     const recordings = voiceCount + (s.fRec || s.fTransBusy ? 1 : 0)
     const unsaved = [
       noteWritten ? 'a note' : '',
       recordings ? plural(recordings, 'recording') : '',
       s.fPhotos.length ? plural(s.fPhotos.length, 'photo') : '',
+      s.fPages.length ? plural(s.fPages.length, 'page') : '',
     ].filter(Boolean)
     const unsavedLabel =
       unsaved.length > 1
@@ -2052,7 +2171,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         (o.detail?.trim() ? 1 : 0) +
         (o.audio ? 1 : 0) +
         (o.recordings?.length ?? 0) +
-        o.media.length
+        o.media.length +
+        (o.pages?.length ?? 0)
       const removing = (kind: MediaKind, id: string, name: string) =>
         changing && held > 1
           ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
@@ -2150,6 +2270,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           addedLabel: r.added ? 'Added by ' + stampLabel(r.added) : null,
           remove: removing('recordings', r.id, r.name),
         })),
+        // Each handwritten page with its original, and its transcript or where
+        // its transcription stands (CP-19 AC8-AC11).
+        pages: pageViews(o),
         // A saved observation's recordings carry their own text below its note.
         detail: o.recordings ? o.detail : o.detail || o.text,
         hasAudio: !!o.audio,
@@ -2487,12 +2610,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
-      // The photo collection is a view of the Observations tab, opened from
-      // its Photos box, so that tab stays selected while it shows.
+      // The photo collection and the handwritten pages (CP-19) are views of
+      // the Observations tab, opened from its Photos and Scans boxes, so that
+      // tab stays selected while they show.
       isPhotos: isAssessment && s.tab === 'photos',
+      isScans: isAssessment && s.tab === 'scans',
       // Capture is part of the Observations tab, which stays highlighted.
-      tabValue: sc === 'field' || s.tab === 'photos' ? 'observations' : s.tab,
+      tabValue: sc === 'field' || s.tab === 'photos' || s.tab === 'scans' ? 'observations' : s.tab,
       goPhotos: () => setState({ tab: 'photos' }),
+      goScans: () => setState({ tab: 'scans' }),
       goObservations: () => setState({ tab: 'observations' }),
       // The Observations tab's boxes: what the observations not deleted hold.
       obsCounts: (() => {
@@ -2504,9 +2630,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             0,
           ),
           photos: photoCollection.length,
+          scans: scanCollection.length,
         }
       })(),
       photoCollection,
+      scanCollection,
       goGenerate: () =>
         setState({
           tab: 'generate',
@@ -3258,12 +3386,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       noteWritten,
       voiceCount,
       photoCount: s.fPhotos.length,
+      pageCount: s.fPages.length,
       isNoteMode: s.fMode === 'note',
       isVoiceMode: s.fMode === 'voice',
       isPhotoMode: s.fMode === 'photo',
+      isScanMode: s.fMode === 'scan',
       tabNoteStyle: modeStyle(s.fMode === 'note'),
       tabVoiceStyle: modeStyle(s.fMode === 'voice'),
       tabPhotoStyle: modeStyle(s.fMode === 'photo'),
+      tabScanStyle: modeStyle(s.fMode === 'scan'),
       modeNote: () =>
         setState({
           fMode: 'note',
@@ -3275,6 +3406,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       modePhoto: () =>
         setState({
           fMode: 'photo',
+        }),
+      modeScan: () =>
+        setState({
+          fMode: 'scan',
         }),
       // One note per observation, saved exactly as typed in the box.
       fNote: s.fNote,
@@ -3399,6 +3534,38 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         updateState((previous) => ({
           ...previous,
           fPhotos: previous.fPhotos.filter((p) => p.id !== photo.id),
+        }))
+      },
+      // Pages of handwritten notes (CP-19), taken or chosen like photos and
+      // checked the same way (AC2); each is transcribed once saved (AC6).
+      fPages: s.fPages,
+      fPageError: s.fPageError,
+      pageHint: liveCapture
+        ? 'JPG or PNG, one photo per page. Each page is transcribed once you save.'
+        : 'No capture session, so pages stay in this browser and are not transcribed.',
+      addPages: (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { photos, refused } = choosePhotos([...(e.target.files ?? [])])
+        e.target.value = ''
+        const added = photos.map((file) => {
+          const id = ++media.pages
+          return {
+            id,
+            name: file.name || 'Page ' + id,
+            image: file,
+            url: URL.createObjectURL(file),
+          }
+        })
+        updateState((previous) => ({
+          ...previous,
+          fPages: [...previous.fPages, ...added],
+          fPageError: refused.length ? unsupportedPhotos(refused) : null,
+        }))
+      },
+      removePage: (page: PhotoFile) => {
+        URL.revokeObjectURL(page.url)
+        updateState((previous) => ({
+          ...previous,
+          fPages: previous.fPages.filter((p) => p.id !== page.id),
         }))
       },
       /* location */
@@ -3556,19 +3723,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           setState({ fToast: { text: 'Choose a location first.', warn: true }, locOpen: true })
           return
         }
-        // With a capture session live, the note, recordings and photos are
-        // saved on the server as one observation; otherwise in this demo.
+        // With a capture session live, the note, recordings, photos and pages
+        // are saved on the server as one observation; otherwise in this demo.
         const note = s.fNote.trim() ? s.fNote : undefined
-        const live = !!liveCapture && !!(note || s.fClips.length || s.fPhotos.length)
+        const live =
+          !!liveCapture && !!(note || s.fClips.length || s.fPhotos.length || s.fPages.length)
         const text =
           s.fNote.trim() ||
           (s.fTrans ? SAMPLE_TRANSCRIPT : '') ||
           (s.fPhotos.length
             ? plural(s.fPhotos.length, 'photograph') + ' captured at ' + currentLocation.name + '.'
+            : '') ||
+          (s.fPages.length
+            ? plural(s.fPages.length, 'handwritten page') +
+              ' captured at ' +
+              currentLocation.name +
+              '.'
             : '')
         if (!live && !text) {
           setState({
-            fToast: { text: 'Add a note, recording or photograph first.', warn: true },
+            fToast: { text: 'Add a note, recording, photograph or page first.', warn: true },
           })
           return
         }
@@ -3579,12 +3753,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           return
         }
         if (live) {
-          void saveToGateway(currentLocation, note, s.fClips, s.fPhotos)
+          void saveToGateway(currentLocation, note, s.fClips, s.fPhotos, s.fPages)
           return
         }
         const entry: Observation = {
-          icon: s.fMode === 'photo' ? 'camera' : s.fMode === 'voice' ? 'mic' : 'sticky-note',
-          color: s.fMode === 'photo' ? '#4f9aee' : s.fMode === 'voice' ? '#8f7dff' : '#f9ac10',
+          icon:
+            s.fMode === 'photo'
+              ? 'camera'
+              : s.fMode === 'voice'
+                ? 'mic'
+                : s.fMode === 'scan'
+                  ? IconRegistry.evidence.handwriting
+                  : 'sticky-note',
+          color:
+            s.fMode === 'photo'
+              ? '#4f9aee'
+              : s.fMode === 'voice'
+                ? '#8f7dff'
+                : s.fMode === 'scan'
+                  ? 'var(--text-secondary)'
+                  : '#f9ac10',
           cats: s.fCats,
           time: formatDayYearTime(new Date()),
           text,
@@ -3597,6 +3785,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           // Kept in this browser: the preview stays, as the demo never uploads it.
           // Its photos are read only when the engineer asks (CP-05).
           media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
+          // Kept in this browser too, and never transcribed without a session.
+          pages: s.fPages.map((p) => ({
+            id: 'local-page-' + p.id,
+            name: p.name,
+            url: p.url,
+            status: null,
+            transcript: null,
+            uncertain: [],
+            error: null,
+          })),
           detail: text,
         }
         const reference = s.captureTarget.reference
@@ -3613,6 +3811,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           obsFolded: { ...s.obsFolded, [groupKey(currentLocation)]: false },
           fNote: '',
           fPhotos: [],
+          fPages: [],
           fTrans: false,
           fCats: [],
           fSev: '',

@@ -196,6 +196,8 @@ const CONSTRUCTION: ReviewSection = {
       copeDimensions: ['Protection'],
       note: null,
       transcripts: ['Valve tags show weekly checks.'],
+      // A page of the engineer's handwritten notes, transcribed (CP-19).
+      handwriting: ['B1 valve tags initialled'],
       severity: 'low',
       location: 'Pump room, Basement 1',
       standard: 'NFPA 25',
@@ -336,6 +338,10 @@ it('shows the draft editor with its sources, observations and claims beside it (
   const observations = within(panel()).getByRole('region', { name: 'Original observations' })
   expect(within(observations).getByText('Riser shaft not fire-stopped at L3.')).toBeInTheDocument()
   expect(within(observations).getByText('Valve tags show weekly checks.')).toBeInTheDocument()
+  // Labelled apart from the note and the voice transcript (CP-19 AC15).
+  expect(within(observations).getByText('B1 valve tags initialled')).toHaveTextContent(
+    'Handwritten note · B1 valve tags initialled',
+  )
   expect(within(observations).getByText('Riser B, Level 3')).toBeInTheDocument()
 
   // Every claim, with its citations (AC4).

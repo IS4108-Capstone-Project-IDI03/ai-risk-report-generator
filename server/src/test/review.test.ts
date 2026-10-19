@@ -285,6 +285,8 @@ describe('the review workspace (RV-01)', () => {
         copeDimensions: ['Construction'],
         note: 'Riser on L3 not fire-stopped.',
         transcripts: [],
+        // No handwritten pages: the draft's evidence has none (CP-19).
+        handwriting: [],
         severity: 'high',
         location: 'Bay 3, Ground',
         standard: null,

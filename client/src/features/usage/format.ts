@@ -8,6 +8,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   'draft-section': 'Drafting',
   retrieval: 'Retrieval (search)',
   transcribe: 'Voice transcription',
+  'transcribe-handwriting': 'Handwriting transcription',
   'label-document': 'Document labelling',
   'interpret-photo': 'Photo interpretation',
   ocr: 'Table and formula OCR',

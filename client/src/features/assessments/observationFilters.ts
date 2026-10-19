@@ -77,8 +77,8 @@ export function placeFilter(list: Observation[]) {
   }
 }
 
-// The observation types (CP-08, CP-04). One with a note and a recording is both.
-export const OBSERVATION_TYPES = ['Note', 'Voice', 'Photo']
+// The observation types (CP-08, CP-04, CP-19). One with a note and a recording is both.
+export const OBSERVATION_TYPES = ['Note', 'Voice', 'Photo', 'Scan']
 // Where an observation's recordings and photos stand (CP-08, CP-05).
 export const OBSERVATION_STATUSES = [
   'Transcribing',
@@ -89,13 +89,14 @@ export const OBSERVATION_STATUSES = [
 ]
 
 // What an observation holds. A sample one, kept in the browser, has a note and
-// may carry a sample voice clip, sample photos, and recordings added in the
-// demo (CP-08).
+// may carry a sample voice clip, sample photos, recordings added in the demo
+// (CP-08), and pages kept in the demo (CP-19).
 export const typesOf = (o: Observation) =>
   o.types ?? [
     'Note',
     ...(o.audio || o.recordings?.length ? ['Voice'] : []),
     ...(o.media.length ? ['Photo'] : []),
+    ...(o.pages?.length ? ['Scan'] : []),
   ]
 // "Note", "Voice and photo" or "Note, voice and photo".
 export const typeLabel = (o: Observation) => {

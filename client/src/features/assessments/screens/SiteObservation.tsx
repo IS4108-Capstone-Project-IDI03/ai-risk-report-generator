@@ -1,6 +1,14 @@
 import { Fragment, useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Badge, Button, Callout, Dialog, Icon, Textarea } from '../../../design-system'
+import {
+  Badge,
+  Button,
+  Callout,
+  Dialog,
+  Icon,
+  IconRegistry,
+  Textarea,
+} from '../../../design-system'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
 import { CategoryPicker } from '../components/CategoryPicker'
@@ -18,8 +26,8 @@ const card: CSSProperties = {
   boxShadow: 'var(--shadow-sm)',
 }
 
-// One observation at a time: where, what was seen (as a note, recordings or
-// photos), its tags, then Save. It is a page of the Observations tab, under
+// One observation at a time: where, what was seen (as a note, recordings,
+// photos or pages of handwritten notes), its tags, then Save. It is a page of the Observations tab, under
 // the workspace's header and tabs, with Back to observations above it; on a
 // phone the top bar's ← is the way back instead (AssessmentApp). On a wide
 // screen the tags and Save sit in a panel beside the form; otherwise all in
@@ -37,7 +45,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         aria-label="Capture as"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
+          gridTemplateColumns: 'repeat(4, minmax(0,1fr))',
           background: 'var(--surface-card)',
           borderBottom: '1px solid var(--border-default)',
         }}
@@ -71,6 +79,16 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         >
           {'Photo'}
           {v.photoCount > 0 && <span style={countStyle}>{v.photoCount}</span>}
+        </button>
+        <button
+          type="button"
+          onClick={v.modeScan}
+          style={v.tabScanStyle}
+          aria-pressed={v.isScanMode}
+          aria-label={v.pageCount ? 'Scan, ' + plural(v.pageCount, 'page') : 'Scan'}
+        >
+          {'Scan'}
+          {v.pageCount > 0 && <span style={countStyle}>{v.pageCount}</span>}
         </button>
       </div>
       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -278,6 +296,51 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                       aria-label={'Remove ' + photo.name}
                       disabled={v.fSaving}
                       onClick={() => v.removePhoto(photo)}
+                    />
+                  </ReadyItem>
+                ))}
+              </DraftList>
+            )}
+          </>
+        )}
+        {/* Pages of handwritten notes (CP-19): photographed one page per photo,
+            and transcribed word for word once saved, as a recording is. */}
+        {!!v.isScanMode && (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <PhotoPickers
+                onChange={v.addPages}
+                busy={v.fSaving}
+                takeLabel="Photograph a page"
+                chooseLabel="Choose pages"
+              />
+              <span style={{ fontSize: '14px', lineHeight: '20px', color: 'var(--text-muted)' }}>
+                {v.pageHint}
+              </span>
+              {!!v.fPageError && (
+                <div role="alert">
+                  <Callout tone="warning" title="Not a JPG or PNG">
+                    {v.fPageError}
+                  </Callout>
+                </div>
+              )}
+            </div>
+            {v.fPages.length > 0 && (
+              <DraftList label="Pages" count={v.fPages.length}>
+                {v.fPages.map((page) => (
+                  <ReadyItem
+                    key={page.id}
+                    icon={IconRegistry.evidence.handwriting}
+                    title={page.name}
+                  >
+                    <PhotoThumb url={page.url} />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      iconLeft="trash-2"
+                      aria-label={'Remove ' + page.name}
+                      disabled={v.fSaving}
+                      onClick={() => v.removePage(page)}
                     />
                   </ReadyItem>
                 ))}
