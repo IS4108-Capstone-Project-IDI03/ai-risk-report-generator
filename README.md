@@ -16,7 +16,7 @@ over HTTP, using MongoDB, AWS S3, and Chroma in the data tier:
 | `server` (S2) | API gateway | Node/Express (TypeScript) | 4000 |
 | `ingestion-service` (S3) | Parse, PII-guard, chunk, embed documents | Python/FastAPI | 8001 |
 | `rag-service` (S4) | Retrieve, assemble context, generate, guardrail-check | Python/FastAPI | 8002 |
-| `speech-ocr-service` (S5) | Stateless STT and OCR, returns results only | Python/FastAPI | 8003 |
+| `speech-ocr-service` (S5) | Stateless STT, handwriting transcription and photo reading, returns results only | Python/FastAPI | 8003 |
 | `mongo` | Local dev database (Atlas is used for staging/prod) | — | 27017 |
 | `chroma` | Persistent vector database shared by ingestion and RAG | — | 8000 |
 
@@ -30,19 +30,21 @@ with Cohere. MongoDB connectivity and the site schema are also implemented. The
 gateway creates assessments at `POST /api/assessments` and starts or resumes an
 assessment's capture session at `POST /api/assessments/:reference/capture-session`.
 It lists assessments with their status at `GET /api/assessments`, and records
-observations (any of a note, recordings and JPG or PNG photos, each file kept in
-S3 as raw evidence) against the capture session in progress. S5 transcribes each
-recording with Whisper and, when an engineer asks, reads an observation's photos
-with Gemini, proposing a description, category and hazard type for the engineer
-to review (CP-05); saving never sends a photo, and the proposal is never
-drafting evidence.
+observations (any of a note, recordings, JPG or PNG photos, and JPG or PNG
+photos of handwritten note pages, each file kept in S3 as raw evidence)
+against the capture session in progress. S5 transcribes each recording with
+Whisper and each handwritten page with Gemini, word for word, marking the
+words it was unsure of (CP-19); and, when an engineer asks, reads an
+observation's photos with Gemini, proposing a description, category and hazard
+type for the engineer to review (CP-05); saving never sends a photo, and the
+proposal is never drafting evidence.
 An observation's tags (category, severity, location, standard) and note change at
 `PATCH /api/observations/:id`; a finished transcript can be corrected, keeping
 what Whisper wrote; recordings and photos can be added to a saved observation,
 and removed and restored, a soft removal that keeps the file in S3; and an
 observation can be deleted and restored, a soft delete that drafting leaves
-out. Only the assessment's assigned engineer can make these changes (CP-08). S5's OCR endpoint and the free-text `/api/rag/generate`
-route remain placeholders.
+out. Only the assessment's assigned engineer can make these changes (CP-08). The free-text `/api/rag/generate`
+route remains a placeholder.
 
 ### Frontend demo
 
@@ -75,7 +77,12 @@ and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`), and the
 photos stored in S3. Read photos on the Observations tab has S5 read them
 together with Gemini (set a paid-tier `GEMINI_API_KEY`); saving never reads
 them. The proposal shows on the observation for the engineer to use as its
-note or category through Edit (CP-05). An
+note or category through Edit (CP-05). Scan mode photographs pages of
+handwritten notes: each is transcribed by S5 once saved, like a recording, and
+the Observations tab shows its text with the uncertain words underlined, beside
+the original page, with Transcribe again (CP-20) for its assigned engineer when the
+text looks misread; the Scans box beside Photos opens every page of the
+assessment (CP-19). An
 observation may be left uncategorised. On the
 Observations tab (CP-08), each row shows the observation's type, category,
 location, severity, status and capture time, and the list filters by any of
