@@ -93,7 +93,14 @@ observations and every claim. There the assigned engineer accepts, edits or
 rejects each finding, bulk accepts a section's pending findings, and
 regenerates a section with an instruction as a replacement to accept or
 discard (RV-02); every decision is kept in an append-only audit log, shown as
-each section's review history, and the rail totals the decisions.
+each section's review history, and the rail totals the decisions. Edit
+document opens the whole report as one document (RV-08, TipTap): any section,
+drafted or not, can be written and revised there with formatting, undo and
+redo, and find and replace, while headings, tables and other parts filled in
+elsewhere stay fixed. It saves itself when typing pauses: each save adds a
+version of the section through `PUT …/sections/:sectionId/document`, and a
+change to a drafted finding is also recorded in the audit log, so Return to
+review shows it, its section Edited by you.
 
 In Section 5's Review editor, each loss level has its own property damage items,
 values and damage percentages. Site-wide insured values remain in

@@ -39,6 +39,8 @@
 - `review_audit_log` (RV-02) is append-only: never update or delete an entry.
   A finding's review state is read from it, and drafts in `report_sections`
   are never changed. See docs/areas/database.md.
+- `report_section_versions` (RV-08) is append-only too: each save from the
+  document editor adds a version; never update or delete one.
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

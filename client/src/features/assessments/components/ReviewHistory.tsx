@@ -3,10 +3,16 @@ import type { ReviewHistoryEntry } from '../api'
 import { formatDayYearTime } from '../format'
 import { historyLabel } from '../reviewDisplay'
 
+// How many of the finding's citations an edit in the document editor deleted.
+const removedCitations = (e: ReviewHistoryEntry) =>
+  e.citationsAfter ? e.citations.filter((c) => !e.citationsAfter!.includes(c)).length : 0
+
 // The section's review history (RV-02): its entries in the immutable audit
 // log, newest first. An edit keeps the text before and after it (AC3), every
 // entry who made the decision and when (AC4), and a rejection the finding's
-// content (AC6), with Restore while it is still rejected.
+// content (AC6), with Restore while it is still rejected. An edit made in the
+// document editor (RV-08) also names the citations it deleted, and a finding
+// deleted there reads Removed in the document.
 export function ReviewHistory({
   entries,
   savedDraftId,
@@ -50,7 +56,7 @@ export function ReviewHistory({
             return (
               <li key={e.id} className="rv-history-item">
                 <div className="rv-history-head">
-                  <strong>{historyLabel(e.action, e.bulk)}</strong>
+                  <strong>{historyLabel(e.action, e.bulk, e.inDocument)}</strong>
                   {earlier && <Badge tone="neutral">Earlier draft</Badge>}
                 </div>
                 {e.heading && <p className="rv-history-where">{e.heading}</p>}
@@ -63,11 +69,20 @@ export function ReviewHistory({
                     <blockquote className="rv-passage">{e.before}</blockquote>
                     <span className="rv-passage-label">After</span>
                     <blockquote className="rv-passage">{e.after}</blockquote>
+                    {removedCitations(e) > 0 && (
+                      <p className="rv-muted">
+                        {removedCitations(e) === 1
+                          ? 'A citation was deleted, so the finding is unsupported.'
+                          : `${removedCitations(e)} citations were deleted, so the finding is unsupported.`}
+                      </p>
+                    )}
                   </>
                 )}
                 {e.action === 'reject' && (
                   <>
-                    <span className="rv-passage-label">Rejected text</span>
+                    <span className="rv-passage-label">
+                      {e.inDocument ? 'Removed text' : 'Rejected text'}
+                    </span>
                     <blockquote className="rv-passage">{e.before}</blockquote>
                   </>
                 )}

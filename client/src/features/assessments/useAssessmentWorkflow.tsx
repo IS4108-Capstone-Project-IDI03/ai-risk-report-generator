@@ -32,6 +32,7 @@ import {
   type Stamp,
 } from './api'
 import { formatDayYearTime } from './format'
+import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
   filtersActive,
@@ -816,7 +817,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           size="sm"
           title="Sign out"
           aria-label="Sign out"
-          onClick={onSignOut}
+          // Unsaved document edits ask first (RV-08 AC14).
+          onClick={() => guardLeave(onSignOut)}
         >
           <Icon name="log-out" />
         </Button>

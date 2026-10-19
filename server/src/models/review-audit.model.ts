@@ -4,7 +4,9 @@ import { COPE_DIMENSIONS, type CopeDimension, type IStamp } from './observation.
 // The immutable audit log of review decisions (RV-02): one entry per decision
 // an engineer makes on a report section's draft. A finding (one statement of
 // a draft) is accepted, edited, rejected or restored; a whole draft is a
-// replacement asked for by Regenerate, then accepted or discarded.
+// replacement asked for by Regenerate, then accepted or discarded. What the
+// engineer changes or deletes in a finding in the document editor (RV-08) is
+// an edit or reject entry too, marked `inDocument`.
 //
 // Drafts in `report_sections` are never changed. A finding's review state and
 // current text are read from this log (see review-decision.service), so the
@@ -51,6 +53,13 @@ export interface IReviewAuditEntry {
   after: string | null
   // The finding's citations when it was decided, kept with its content (AC6).
   citations: string[]
+  // Its citations after an edit made in the document editor (RV-08), where a
+  // citation marker can be deleted; null when the edit left them as they
+  // were. A drafted citation missing from them leaves the finding unsupported.
+  citationsAfter?: string[] | null
+  // Made in the document editor (RV-08) rather than on the finding itself: an
+  // edit of its text, or a reject for a finding deleted from the document.
+  inDocument?: boolean
   // What the engineer asked a regenerated draft to change, if anything.
   instruction: string | null
   // Accepted by Bulk accept (AC7) rather than one at a time.
@@ -93,6 +102,8 @@ const reviewAuditSchema = new Schema<IReviewAuditEntry>(
     before: { type: String, default: null },
     after: { type: String, default: null },
     citations: { type: [String], default: [] },
+    citationsAfter: { type: [String], default: null },
+    inDocument: { type: Boolean, default: false },
     instruction: { type: String, default: null },
     bulk: { type: Boolean, default: false },
     carriedFrom: { type: Schema.Types.ObjectId, ref: 'ReportSection', default: null },

@@ -14,6 +14,7 @@ import {
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { ReviewAuditModel } from '../models/review-audit.model'
+import { ReportSectionVersionModel } from '../models/report-section-version.model'
 import { SiteModel } from '../models/site.model'
 import { findOrCreateClient } from '../services/client.service'
 import { UserModel } from '../models/user.model'
@@ -139,6 +140,8 @@ async function seed(name: string) {
   // The review log is append-only through its model (RV-02); a reset sample's
   // drafts are gone, so their decisions go too, through the driver.
   await ReviewAuditModel.collection.deleteMany({ assessment: assessment._id })
+  // So does what was written in the document editor (RV-08), also append-only.
+  await ReportSectionVersionModel.collection.deleteMany({ assessment: assessment._id })
   await ReportOfiModel.deleteMany({ assessment: assessment._id })
 
   const session = await CaptureSessionModel.create({ assessment: assessment._id })

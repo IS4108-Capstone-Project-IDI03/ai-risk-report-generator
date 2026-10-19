@@ -21,6 +21,18 @@
 }
 
 /* Section rail */
+/* Edit document (RV-08), above the review summary. */
+.rv-rail-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rv-rail-edit .rv-muted {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
 .rv-rail-head {
   padding: 16px 18px 10px;
 }
@@ -531,6 +543,61 @@
 }
 .rv-finding-gap {
   flex: 1;
+}
+/* Text the engineer wrote in the document editor (RV-08): theirs, so neutral. */
+.rv-written-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-serif);
+}
+.rv-written {
+  max-width: var(--measure-prose);
+}
+.rv-finding + .rv-written,
+.rv-written + .rv-finding,
+.rv-written-list + .rv-finding,
+.rv-finding + .rv-written-list,
+.rv-written-heading + .rv-finding {
+  margin-top: 16px;
+}
+.rv-written-heading {
+  margin: 16px 0 4px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.rv-written-heading:first-child {
+  margin-top: 0;
+}
+.rv-written-list {
+  margin: 10px 0;
+  padding-left: 24px;
+}
+.rv-written-list li + li {
+  margin-top: 6px;
+}
+/* A finding the engineer set as a sub-heading in the document editor. */
+.rv-statement.rv-statement-heading {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.rv-finding-note {
+  margin: 6px 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--status-moderate-fg);
 }
 .rv-finding-original {
   margin-top: 6px;

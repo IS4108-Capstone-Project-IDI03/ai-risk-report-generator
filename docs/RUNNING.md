@@ -141,6 +141,20 @@ docker info > /dev/null 2>&1 && echo "daemon up" || echo "daemon NOT running"
 docker-compose up --build
 ```
 
+**After a pull that adds packages** (a change to `client/package.json` or
+`server/package.json`, such as RV-08's TipTap packages), `--build` alone is
+not enough. Each Node container keeps its `node_modules` in an anonymous
+volume (`/app/node_modules` in `docker-compose.yml`), and Compose carries
+that volume over to the rebuilt container, so the page shows `Failed to
+resolve import`. Rebuild with fresh `node_modules` volumes:
+
+```
+docker compose up --build -d -V client server
+```
+
+`-V` (`--renew-anon-volumes`) replaces only those anonymous volumes; Mongo,
+Redis and Chroma keep their data in named volumes.
+
 ### 3. Verify each service booted, not just its container
 
 **What/why:** a container can show `Up` while the process inside crashed —

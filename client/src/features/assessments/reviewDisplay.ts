@@ -101,6 +101,13 @@ export const REVIEW_BADGE: Record<ReviewState, BadgeLook> = {
   ai_draft: { tone: 'ai', icon: IconRegistry.status.draft.icon, label: 'AI draft' },
   in_review: { tone: 'info', icon: IconRegistry.status.underReview.icon, label: 'In review' },
   reviewed: { tone: 'low', icon: IconRegistry.status.finalised.icon, label: 'Reviewed' },
+  // Changed or written in the document editor (RV-08): the words are the
+  // engineer's. As AIDraftBlock's Edited by you.
+  edited: {
+    tone: 'info',
+    icon: IconRegistry.status.edited.icon,
+    label: IconRegistry.status.edited.label,
+  },
   needs_review: {
     tone: 'moderate',
     icon: IconRegistry.status.flagged.icon,
@@ -123,12 +130,13 @@ export function findingCountsLabel(counts: FindingCounts) {
     .join(' · ')
 }
 
-// What a review history entry records, in words.
-export function historyLabel(action: ReviewAction, bulk = false) {
+// What a review history entry records, in words. `inDocument`: made in the
+// document editor (RV-08).
+export function historyLabel(action: ReviewAction, bulk = false, inDocument = false) {
   return {
     accept: bulk ? 'Accepted by Bulk accept' : 'Accepted',
-    edit: 'Edited',
-    reject: 'Rejected',
+    edit: inDocument ? 'Edited in the document' : 'Edited',
+    reject: inDocument ? 'Removed in the document' : 'Rejected',
     restore: 'Restored',
     regenerate: 'Regenerated',
     accept_replacement: 'Replacement accepted',

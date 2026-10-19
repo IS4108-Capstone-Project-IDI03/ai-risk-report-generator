@@ -12,10 +12,12 @@ export type SiteDetails = {
 // (CP-17). On a listed site, copyLocations copies its latest visit's
 // locations; the server copies them unless it is false.
 export type NewAssessment = (
-  { clientId: string; client?: never } | { client: string; clientId?: never }
+  | { clientId: string; client?: never }
+  | { client: string; clientId?: never }
 ) &
   (
-    { siteId: string; copyLocations: boolean; site?: never } | { site: SiteDetails; siteId?: never }
+    | { siteId: string; copyLocations: boolean; site?: never }
+    | { site: SiteDetails; siteId?: never }
   ) & {
     surveyType: string
     // YYYY-MM-DD, or '' when not scheduled.
@@ -662,10 +664,17 @@ export async function draftSection(reference: string, sectionId: string): Promis
 
 export type CompletionState = 'not_started' | 'partial' | 'complete'
 // `needs_review` comes from the draft's own checks and wins over the rest;
-// otherwise the engineer's decisions (RV-02) decide: `ai_draft` while every
-// finding is pending, `in_review` once some are decided, `reviewed` once none
-// is pending.
-export type ReviewState = 'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'needs_review'
+// then `edited` (RV-08): the engineer changed or wrote the section in the
+// document editor; otherwise the engineer's decisions (RV-02) decide:
+// `ai_draft` while every finding is pending, `in_review` once some are
+// decided, `reviewed` once none is pending.
+export type ReviewState =
+  | 'not_drafted'
+  | 'ai_draft'
+  | 'in_review'
+  | 'reviewed'
+  | 'edited'
+  | 'needs_review'
 
 // A generated finding's review decision (RV-02). Rejected findings are out of
 // the draft, kept in the review history.
@@ -680,6 +689,9 @@ export type ReviewStatement = {
   generatedText: string
   citations: string[]
   supported: boolean
+  // Drafted citations deleted in the document editor (RV-08): the finding is
+  // unsupported while any is missing.
+  citationsRemoved?: string[]
   // at and by are null while no decision has been made.
   review: { state: FindingState; at: string | null; by: { id: string; name: string } | null }
 }
@@ -712,9 +724,14 @@ export type ReviewHistoryEntry = {
   before: string | null
   after: string | null
   citations: string[]
+  // Its citations after an edit in the document editor (RV-08), else null.
+  citationsAfter?: string[] | null
   instruction: string | null
   // Accepted by Bulk accept.
   bulk: boolean
+  // Made in the document editor (RV-08): an edit, or a reject for a finding
+  // deleted there.
+  inDocument?: boolean
   by: { id: string; name: string }
   at: string
 }
@@ -770,6 +787,9 @@ export type ReviewSection = {
     withdrawnSources: number
     changesSinceDraft: number
     changeCounts: ChangeCounts
+    // Changed or written in the document editor (RV-08), shown as Edited by
+    // you beside Needs review.
+    editedInDocument?: boolean
   }
   // The saved draft's findings by state (RV-02).
   findings: FindingCounts
@@ -780,10 +800,15 @@ export type ReviewSection = {
   replacement: ReviewReplacement | null
   // The section's review audit log, newest first.
   history: ReviewHistoryEntry[]
+  // Its newest version from the document editor (RV-08), or null.
+  document?: SectionVersion | null
 }
 
 export type ReviewWorkspace = {
   sections: ReviewSection[]
+  // What the engineer wrote into Sections 1, 2 and 3 and Appendix A in the
+  // document editor (RV-08): each one's newest version, or null.
+  parts?: Record<ReportPartId, SectionVersion | null>
   // Every saved draft's findings by state: the review summary (RV-02).
   summary: FindingCounts
   // When the gateway read it, to keep the newest of overlapping responses.
@@ -879,6 +904,64 @@ export async function decideReplacement(
       'POST',
       `${sectionPath(reference, sectionId)}/replacement/${action}`,
       { draftId },
+    )
+  ).data
+}
+
+// The report as one document (RV-08). A section's text as the document editor
+// saves it: what comes before its first subsection (all of it when it has
+// none), then each of its draft's subsections by heading. A paragraph taken
+// from the draft names its finding (`<subsection>.<statement>`); a citation
+// marker names its source as a statement's citations do.
+export type DocumentMark = 'bold' | 'italic' | 'underline'
+export type DocumentInline =
+  | { type: 'text'; text: string; marks?: DocumentMark[] }
+  | { type: 'cite'; id: string }
+export type DocumentParagraph = {
+  type: 'paragraph'
+  finding?: string | null
+  content: DocumentInline[]
+}
+// A sub-heading: one the engineer added, or a finding they set as one.
+export type DocumentHeading = {
+  type: 'heading'
+  finding?: string | null
+  content: DocumentInline[]
+}
+export type DocumentBlock =
+  | DocumentParagraph
+  | DocumentHeading
+  | { type: 'bulletList' | 'orderedList'; items: DocumentParagraph[] }
+export type SectionDocument = {
+  intro: DocumentBlock[]
+  subsections: { heading: string; blocks: DocumentBlock[] }[]
+}
+// The parts of the report outside sections 4-12.
+export type ReportPartId = '1' | '2' | '3' | 'A'
+// A saved version of a section. `current` is false once the section has been
+// drafted again since, so its finding keys name an earlier draft.
+export type SectionVersion = {
+  version: number
+  draftId: string | null
+  document: SectionDocument
+  savedAt: string
+  savedBy: { id: string; name: string }
+  current: boolean
+}
+
+// Saves one section as the engineer wrote it, as a new version built on its
+// newest version (`baseVersion`, 0 for none) and its saved draft (`draftId`).
+// Only the assigned engineer may; a newer save or draft is refused (409).
+export async function saveSectionDocument(
+  reference: string,
+  sectionId: string,
+  body: { baseVersion: number; draftId: string | null; document: SectionDocument },
+): Promise<Omit<SectionVersion, 'current'>> {
+  return (
+    await request<Omit<SectionVersion, 'current'>>(
+      'PUT',
+      `${sectionPath(reference, sectionId)}/document`,
+      body,
     )
   ).data
 }
