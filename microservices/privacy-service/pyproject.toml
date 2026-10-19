@@ -11,6 +11,8 @@ dependencies = [
     # spaCy's English model, for names nobody listed. Installed from its release wheel,
     # since spaCy models are not on PyPI.
     "en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
+    "ruff>=0.17.1",
+    "black>=26.10.1",
 ]
 
 [project.optional-dependencies]

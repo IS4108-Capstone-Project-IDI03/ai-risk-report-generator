@@ -597,10 +597,12 @@ name = "privacy-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "black" },
     { name = "en-core-web-lg" },
     { name = "fastapi" },
     { name = "presidio-analyzer" },
     { name = "pydantic" },
+    { name = "ruff" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -614,6 +616,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "black", specifier = ">=26.10.1" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.10" },
     { name = "en-core-web-lg", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" },
     { name = "fastapi", specifier = ">=0.115" },
@@ -621,6 +624,7 @@ requires-dist = [
     { name = "presidio-analyzer", specifier = ">=2.2.355" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
+    { name = "ruff", specifier = ">=0.17.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
