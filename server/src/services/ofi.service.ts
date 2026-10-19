@@ -11,6 +11,7 @@ import { AssessmentNotFoundError } from './capture-session.service'
 import { findKnowledgeDocuments } from './knowledge-document.service'
 import { requestOfiDraft } from './rag.service'
 import { assessmentToDraft, draftingEvidence } from './section.service'
+import { privacyFor } from './privacy.service'
 
 export class OfiNotFoundError extends Error {
   constructor(id: string) {
@@ -130,6 +131,7 @@ export async function draftOfis(reference: string, user: SessionUser) {
     },
     observations: evidence,
     accepted: accepted.map((o) => o.title),
+    privacy: await privacyFor(reference),
   })
   // Its paid calls, for the cost report (EV-03), as section drafting records them.
   // OFIs are Section 3 of the report.

@@ -1,3 +1,4 @@
+import { config } from '../config'
 import { AssessmentModel } from '../models/assessment.model'
 import type { IClient } from '../models/client.model'
 import type { ISite } from '../models/site.model'
@@ -32,4 +33,14 @@ export async function knownEntities(reference: string): Promise<KnownEntity[]> {
   if (site?.address) entities.push({ type: 'ADDRESS', names: [site.address] })
   for (const { name } of users) entities.push({ type: 'PERSON', names: [name] })
   return entities
+}
+
+// The `privacy` field the gateway sends with each drafting request (PV-02, the
+// epic's Rule 1): rag masks client details only when it is enabled. The Python
+// services never read PII_PROTECTION themselves.
+export type Privacy = { enabled: boolean; known_entities: KnownEntity[] }
+
+export async function privacyFor(reference: string): Promise<Privacy> {
+  if (config.piiProtection === 'off') return { enabled: false, known_entities: [] }
+  return { enabled: true, known_entities: await knownEntities(reference) }
 }

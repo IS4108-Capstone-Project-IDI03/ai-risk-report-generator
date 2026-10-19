@@ -1,6 +1,7 @@
 // Sections 1 and 2 (GN-07 AC1-AC4). S4 is a stubbed fetch, so no paid call is made.
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { config } from '../config'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
@@ -421,5 +422,35 @@ describe('Section 2 Executive Summary (GN-07 AC2-AC4)', () => {
 
     expect((await other.post(`${url}/draft`)).status).toBe(403)
     expect(summaries).not.toHaveBeenCalled()
+  })
+})
+
+describe('PII protection for the Executive Summary (PV-02)', () => {
+  afterEach(() => {
+    config.piiProtection = 'off'
+  })
+
+  it('sends the known details when protection is required, and saves that it was', async () => {
+    config.piiProtection = 'required'
+    summaries.mockImplementation(() =>
+      json({
+        ...REPLY,
+        provenance: { ...REPLY.provenance, privacy: { enabled: true, masked_count: 1 } },
+      }),
+    )
+    const a = await assessment()
+    await completeReport(a._id)
+
+    await api.post(`${url}/draft`)
+
+    expect(summaries.mock.calls[0][0].privacy).toEqual({
+      enabled: true,
+      known_entities: expect.arrayContaining([
+        { type: 'CLIENT', names: ['Acme Holdings'] },
+        { type: 'ADDRESS', names: ['10 Marina Boulevard, Singapore 018983'] },
+      ]),
+    })
+    const saved = await ReportSectionModel.findOne({ assessment: a._id, sectionId: '2' }).lean()
+    expect(saved?.provenance.privacy).toEqual({ enabled: true, masked_count: 1 })
   })
 })

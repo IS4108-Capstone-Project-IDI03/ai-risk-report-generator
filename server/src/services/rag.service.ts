@@ -149,6 +149,10 @@ export async function listTemplateSections(): Promise<TemplateSection[]> {
   return (await callRag<{ sections: TemplateSection[] }>('/sections')).sections
 }
 
+// Whether client details were masked before the draft's external AI calls, and
+// how many distinct ones (PV-02). Never the details themselves.
+export type DraftPrivacy = { enabled: boolean; masked_count: number }
+
 // What S4 sends back for one drafted section (see rag-service POST /sections/draft).
 export type SectionDraftResult = {
   section_id: string
@@ -172,6 +176,7 @@ export type SectionDraftResult = {
     generated_at: string
     // What the engineer asked a regenerated draft to change (RV-02), or null.
     instruction?: string | null
+    privacy?: DraftPrivacy
   }
 }
 
@@ -207,6 +212,7 @@ export type OfiDraftResult = {
     prompt_version: string
     config_version: string
     generated_at: string
+    privacy?: DraftPrivacy
   }
   // Paid calls for the cost report (EV-03), as for a section draft.
   usage?: unknown

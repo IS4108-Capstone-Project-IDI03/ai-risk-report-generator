@@ -541,7 +541,10 @@ accepted, and from when it was accepted. Each document has:
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
   `template_version`, `generated_at` (AC7), and `instruction`: what the
   engineer asked a regenerated draft to change, or `null` (RV-02). A
-  regenerated draft's `prompt_version` is `gn01-v2.4+rv02-v1`.
+  regenerated draft's `prompt_version` is `gn01-v2.4+rv02-v1`. `privacy`
+  (PV-02): `{ enabled, masked_count }`, whether client details were masked
+  before the draft's external AI calls and how many distinct ones. It never
+  holds the details or the mapping. Absent on drafts from before PV-02.
 - `replacementFor`: set only on a replacement draft made by Regenerate in the
   review workspace (RV-02), the `_id` of the saved draft it was made to
   replace. It waits until accepted or discarded, decisions held in the log.
@@ -722,7 +725,8 @@ document has:
   from, or `null`) and `sources` (those passages, with `doc_id` and
   `headings`).
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
-  `config_version` (of `ofi.json`), `generated_at`.
+  `config_version` (of `ofi.json`), `generated_at`, and `privacy`
+  (`{ enabled, masked_count }`, as for report sections; PV-02).
 - `lossExpectancy` (optional): engineer-entered `current` and `after` pairs of
   `pd` and `bi` amounts in US dollars (null when unknown), with `lossValuesUpdatedBy`
   and `lossValuesUpdatedAt`. Each total is computed on read; it is null until both

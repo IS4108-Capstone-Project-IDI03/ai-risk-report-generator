@@ -10,6 +10,7 @@ import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-sess
 import { locationText } from './location.service'
 import { listObservations, type ObservationDto } from './observation.service'
 import { recordAiCalls } from './ai-usage.service'
+import { privacyFor } from './privacy.service'
 import { listTemplateSections, requestSectionDraft, type TemplateSection } from './rag.service'
 import { lossEstimateFacts } from './loss-estimate.service'
 import { riskQualityFacts } from './risk-quality.service'
@@ -422,6 +423,7 @@ export async function writeDraft(
     observations: evidence,
     ...(redraft && { redraft: { instruction: redraft.instruction, current: redraft.current } }),
     ...(facts && { facts }),
+    privacy: await privacyFor(assessment.reference),
   })
 
   // The calls are billed even if saving the draft below fails, so record first.

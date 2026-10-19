@@ -1,5 +1,6 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { config } from '../config'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
@@ -391,4 +392,43 @@ it('validates OFI amounts and protects the assigned assessment', async () => {
   )
   await AssessmentModel.updateOne({ _id: a._id }, { $set: { archivedAt: new Date() } })
   expect((await api.put(path).send(values)).status).toBe(409)
+})
+
+describe('PII protection for OFI drafting (PV-02)', () => {
+  afterEach(() => {
+    config.piiProtection = 'off'
+  })
+
+  it("sends the assessment's known details when protection is required", async () => {
+    config.piiProtection = 'required'
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'B1 CV shut')
+
+    await api.post(`${url}/draft`)
+
+    expect(drafts.mock.calls[0][0].privacy).toEqual({
+      enabled: true,
+      known_entities: expect.arrayContaining([
+        { type: 'CLIENT', names: ['Client'] },
+        { type: 'SITE', names: ['Marina Bay Office Tower', 'SITE-0901'] },
+      ]),
+    })
+  })
+
+  it('saves on each OFI whether it was protected, and how many details were masked', async () => {
+    const { assessment: a, session } = await assessment()
+    const valve = await observation({ assessment: a._id, session: session._id }, 'B1 CV shut')
+    const drafted = reply([{ ...OFI, observations: [String(valve._id)] }])
+    drafts.mockImplementation(() =>
+      json({
+        ...drafted,
+        provenance: { ...drafted.provenance, privacy: { enabled: true, masked_count: 2 } },
+      }),
+    )
+
+    await api.post(`${url}/draft`)
+
+    const saved = await ReportOfiModel.findOne().lean()
+    expect(saved?.provenance.privacy).toEqual({ enabled: true, masked_count: 2 })
+  })
 })

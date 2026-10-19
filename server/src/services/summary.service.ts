@@ -12,6 +12,7 @@ import type { ISite } from '../models/site.model'
 import { recordAiCalls } from './ai-usage.service'
 import { AssessmentNotFoundError } from './capture-session.service'
 import { clientNameOf } from './client.service'
+import { privacyFor } from './privacy.service'
 import { requestSummaryDraft } from './rag.service'
 import { entriesFor, foldFindings } from './review-decision.service'
 import {
@@ -226,6 +227,7 @@ export async function draftSummary(reference: string, user: SessionUser): Promis
   const draft = await requestSummaryDraft({
     assessment: { reference, jurisdiction: site.jurisdiction, facility_type: site.facilityType },
     sections: sections.map(({ id, title, text }) => ({ id, title, text })),
+    privacy: await privacyFor(reference),
   })
   // The call is billed even if saving below fails, so record first.
   await recordAiCalls(draft.usage, { reportId: reference, section: '2' })
