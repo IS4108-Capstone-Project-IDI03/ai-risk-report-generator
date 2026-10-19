@@ -192,7 +192,7 @@ def _mask_evidence(protection: pii.Session, observations, extras: list[str | Non
     texts = [
         value or ""
         for o in observations
-        for value in (o.note, *o.transcripts, o.location, o.standard)
+        for value in (o.note, *o.transcripts, *o.handwriting, o.location, o.standard)
     ] + [value or "" for value in extras]
     masked = iter(protection.mask(texts))
 
@@ -205,6 +205,7 @@ def _mask_evidence(protection: pii.Session, observations, extras: list[str | Non
             update={
                 "note": take(o.note),
                 "transcripts": [take(t) for t in o.transcripts],
+                "handwriting": [take(t) for t in o.handwriting],
                 "location": take(o.location),
                 "standard": take(o.standard),
             }
@@ -255,6 +256,17 @@ def _unmask_statements(protection: pii.Session, statements: list[dict]) -> list[
         if unknown:
             garbled.append(statement)
     return garbled
+
+
+def _unmask_fields(protection: pii.Session, item, fields: tuple[str, ...]) -> dict:
+    """The item's text fields with real values back. One holding a placeholder the mapping
+    lacks is kept as written and logged, without its text (Rule 5)."""
+    restored = {}
+    for field in fields:
+        restored[field], unknown = protection.unmask(getattr(item, field))
+        if unknown:
+            log.warning("OFI %s holds %d unresolved placeholder(s)", field, len(unknown))
+    return restored
 
 
 def check_placeholders_resolved(garbled: list[dict], guardrail: dict) -> dict:
@@ -430,7 +442,7 @@ def _is_past_ofi(chunk: dict) -> bool:
     )
 
 
-def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
+def draft_ofis_for(assessment, observations, accepted: list[str], privacy=None) -> dict:
     """Draft Section 3 Opportunities for Improvement (GN-05): pick candidate observations,
     retrieve standards and past OFIs, generate, then finish each OFI in code.
 
@@ -438,6 +450,7 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
     """
     # Filled by the paid calls below (embed, rerank, draft) and returned as `usage` (EV-03).
     paid_calls = usage.start()
+    protection = pii.session(privacy)
     provenance = {
         "provider": config.LLM_PROVIDER,
         "model": None,
@@ -450,12 +463,21 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
     # Cohere embeds at most 96 texts a call, two per candidate.
     candidates = [o for o in observations if o.severity in OFI_SEVERITIES][:48]
     if not candidates:
-        return {"ofis": [], "sources": {}, "provenance": provenance, "usage": paid_calls}
+        return {
+            "ofis": [],
+            "sources": {},
+            "provenance": {**provenance, "privacy": protection.provenance()},
+            "usage": paid_calls,
+        }
+
+    # With protection on, Cohere and the model see the candidates and the accepted titles
+    # (saved text) masked, in one /mask call (PV-02).
+    masked, masked_accepted = _mask_evidence(protection, candidates, accepted)
 
     # 2. One batched search, by each candidate's own words: standards filtered to the
     # site, and past reports by country (their OFIs carry across facility types).
     site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
-    queries = [spell_out(" ".join(o.recorded()))[:500] for o in candidates]
+    queries = [spell_out(" ".join(o.recorded()))[:500] for o in masked]
     results = search(
         [(q, {**site, "source_type": STANDARD_SOURCES}, STANDARDS_PER_OBSERVATION) for q in queries]
         + [
@@ -466,10 +488,11 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
     standards = _nearest_first(results[: len(candidates)])
     past = {c["id"]: c for hits in results[len(candidates) :] for c in hits if _is_past_ofi(c)}
 
-    # One rerank for both kinds against all candidates, as for sections (GN-01 AC14).
-    passages = [*standards.values(), *past.values()]
+    # One rerank for both kinds against all candidates, as for sections (GN-01 AC14). Past
+    # OFIs are masked first, since Cohere reads them too; `sources` show the stored passage.
+    passages = [*standards.values(), *_mask_passages(protection, list(past.values()))]
     try:
-        passages = rerank(spell_out(_evidence_summary(candidates)), passages)
+        passages = rerank(spell_out(_evidence_summary(masked)), passages)
     except Exception:
         log.warning("Rerank failed for OFIs; using vector order", exc_info=True)
     standards = {c["id"]: c for c in passages if c["id"] in standards}
@@ -478,7 +501,12 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
 
     # 3. Generate.
     result, model = draft_ofis(
-        assessment, candidates, list(standards.values()), precedents, accepted, config.LLM_EFFORT
+        assessment,
+        masked,
+        list(standards.values()),
+        precedents,
+        masked_accepted,
+        config.LLM_EFFORT,
     )
 
     # 4. Finish in code: an OFI must rest on a current observation (AC1); a citation or
@@ -498,11 +526,14 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
                 "observations": rests_on,
                 "standards": [c for c in o.standards if c in citable],
                 "precedent": o.precedent if o.precedent in precedent_ids else None,
+                # Real values back (PV-02). OFIs have no `supported` flag: a placeholder that
+                # can't be restored stays visible for the engineer to edit.
+                **_unmask_fields(protection, o, ("title", "description", "observation")),
             }
         )
     # The cited passages, so the engineer can see the standard and the precedent (AC2).
     chunks = {f"C:{cid}": c for cid, c in standards.items()} | {
-        f"P:{c['id']}": c for c in precedents
+        f"P:{c['id']}": past[c["id"]] for c in precedents
     }
     cited = {c for o in ofis for c in [*o["standards"], o["precedent"]] if c}
     sources = {
@@ -513,18 +544,27 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
     return {
         "ofis": ofis,
         "sources": sources,
-        "provenance": {**provenance, "model": model},
+        "provenance": {**provenance, "model": model, "privacy": protection.provenance()},
         "usage": paid_calls,
     }
 
 
-def draft_summary_for(assessment, sections) -> dict:
+def draft_summary_for(assessment, sections, privacy=None) -> dict:
     """Draft Section 2's Executive Summary (GN-07 AC2) from the report's other sections:
     generate, then check that each statement cites a section it was given."""
     paid_calls = usage.start()
-    result, model = draft_summary(assessment, sections, config.LLM_EFFORT)
+    # Saved sections hold real names: the model sees them masked, in one /mask call (PV-02).
+    protection = pii.session(privacy)
+    masked = [
+        section.model_copy(update={"text": text})
+        for section, text in zip(sections, protection.mask([s.text for s in sections]), strict=True)
+    ]
+    result, model = draft_summary(assessment, masked, config.LLM_EFFORT)
     statements = [s.model_dump() for s in result.statements]
+    # Real values back before the check (Rule 4); an unresolved placeholder is unsupported.
+    garbled = _unmask_statements(protection, statements)
     guardrail = check_citations([{"statements": statements}], {f"S:{s.id}" for s in sections})
+    guardrail = check_placeholders_resolved(garbled, guardrail)
     return {
         "statements": statements,
         "guardrail": guardrail,
@@ -536,5 +576,6 @@ def draft_summary_for(assessment, sections) -> dict:
             "prompt_version": SUMMARY_PROMPT_VERSION,
             "template_version": TEMPLATE["version"],
             "generated_at": datetime.now(UTC).isoformat(),
+            "privacy": protection.provenance(),
         },
     }

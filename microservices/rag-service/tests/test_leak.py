@@ -9,7 +9,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.generation import llm
-from app.generation.generator import SectionDraft, Statement, Subsection
+from app.generation.generator import (
+    Ofi,
+    OfiDraft,
+    SectionDraft,
+    Statement,
+    Subsection,
+    SummaryDraft,
+)
 from app.main import app
 from app.retrieval import retriever
 
@@ -45,6 +52,14 @@ PASSAGES = [
         {
             "source_type": "marsh_report",
             "headings": ["Property Risk Evaluation Report", "Construction"],
+        },
+    ),
+    (
+        "rep:40",
+        "Formalize impairment handling, as John Tan of Acme Holdings agreed.",
+        {
+            "source_type": "marsh_report",
+            "headings": ["Report", "Opportunities for Improvement", "Management Programs"],
         },
     ),
 ]
@@ -145,3 +160,62 @@ def test_section_drafting_sends_no_seeded_detail(external):
     assert leaked(recorder.payloads) == [], [p for p in recorder.payloads if leaked([p])]
     statement = response.json()["subsections"][0]["statements"][0]
     assert statement["text"] == "John Tan reported it."
+
+
+def test_ofi_drafting_sends_no_seeded_detail(external):
+    recorder = external(
+        OfiDraft(
+            ofis=[
+                Ofi(
+                    title="Brief [PERSON_1] on valve supervision",
+                    category="Physical Protection",
+                    type="Fire Protection System",
+                    description="[CLIENT_1] supervises control valves open.",
+                    observation="As observed, the riser was not fire-stopped.",
+                    likelihood="Likely",
+                    consequence="Major",
+                    effort="Minor Capital",
+                    observations=["O1"],
+                    standards=["C1"],
+                    precedent="P1",
+                )
+            ]
+        )
+    )
+
+    response = client.post(
+        "/ofis/draft",
+        json={
+            "assessment": ASSESSMENT,
+            "observations": [OBSERVATION],
+            "accepted": ["Brief Acme Holdings on impairments"],
+            "privacy": PRIVACY,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert recorder.payloads
+    assert leaked(recorder.payloads) == [], [p for p in recorder.payloads if leaked([p])]
+    assert response.json()["ofis"][0]["title"] == "Brief John Tan on valve supervision"
+
+
+def test_summary_drafting_sends_no_seeded_detail(external):
+    recorder = external(
+        SummaryDraft(statements=[Statement(text="[PERSON_1] confirmed it.", citations=["S7"])])
+    )
+
+    response = client.post(
+        "/summary/draft",
+        json={
+            "assessment": ASSESSMENT,
+            "sections": [
+                {"id": "7", "title": "Construction", "text": " ".join(SEEDED) + " confirmed."}
+            ],
+            "privacy": PRIVACY,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert recorder.payloads
+    assert leaked(recorder.payloads) == [], [p for p in recorder.payloads if leaked([p])]
+    assert response.json()["statements"][0]["text"] == "John Tan confirmed it."
