@@ -813,15 +813,28 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a report was partly reviewed, when I reopen section navigation, then each section displays its saved review state.
   </details>
 
-- [ ] **RV-08** — Amend a section manually (risk engineer, Must, 3 pts, deps: RV-01, Sprint 3)
+- [ ] **RV-08** — Edit the full report in a document editor (risk engineer, Must, 8 pts, deps: RV-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
-  Goal: write a section the system could not draft, so missing AI content doesn't block report completion.
+  Goal: switch the report into a full-document edit view to write and revise any section, drafted or not, so missing or imperfect AI content does not prevent the report being completed.
 
-  1. Given a section is undrafted, when I enter content, then that section accepts manually authored text.
-  2. Given a section is drafted, when I enter content, then that section accepts manually authored text.
-  3. Given I have written part of a section, when I save it, then the content becomes part of the report.
-  4. Given a manually written section has been saved, when I reopen the report, then its content is retained.
+  1. Given an assessment has a report draft, when I select Edit document in the review workspace, then the whole report opens as one continuous editable document, with each section under its fixed heading in report order.
+  2. Given edit view is open, when I select Return to review, then the review workspace opens on the section I was editing and shows my saved changes.
+  3. Given a section is undrafted, when I open edit view, then that section states why it was not drafted and accepts manually authored text.
+  4. Given a section is drafted, when I edit its text, then that section accepts my changes in place.
+  5. Given edit view is open, when I select a section in the document outline, then the document scrolls to that section.
+  6. Given I select text, when I use the formatting toolbar or its keyboard shortcuts, then I can apply bold, italic, underline, sub-headings, and bulleted and numbered lists.
+  7. Given I have made changes, when I use undo or redo, then my changes are reversed or reapplied in order.
+  8. Given edit view is open, when I use find and replace, then matches across all sections are highlighted and can be replaced one at a time or all at once.
+  9. Given a passage contains a citation marker, when I edit the text around it, then the marker stays linked to its source.
+  10. Given I delete a citation marker, when the change is saved, then the claim it supported is flagged as unsupported in the review workspace.
+  11. Given a passage has an open uncertainty, when I edit that passage, then its flag remains until it is resolved in the review workspace.
+  12. Given I edit an AI-drafted passage, when the change is saved, then that passage no longer shows AI styling and its section's review state becomes Edited by you.
+  13. Given I have unsaved changes, when I pause typing or select Save, then the changes are saved to the report and the save status shows the time of the last save.
+  14. Given I have unsaved changes, when I leave edit view or the page, then I am warned before they are discarded.
+  15. Given a section has been edited and saved, when I reopen the report, then its content is retained.
+
+  Rewritten 19 Oct 2026 from "Amend a section manually" (3 pts, four ACs, all kept in AC3, AC4, AC13 and AC15). An open uncertainty (AC11) is a passage marked Unsupported or citing a withdrawn source. Parts filled in elsewhere (Section 1's assessment details, the OFIs, Sections 4 and 5's figures, tables, Appendix A's photos) show read-only in place; every section still takes text.
   </details>
 
 - [ ] **RV-09** — Reorder report sections (risk engineer, Should, 3 pts, deps: RV-01, Sprint 3)

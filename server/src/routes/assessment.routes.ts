@@ -86,6 +86,12 @@ import {
   StaleDraftError,
 } from '../services/review-decision.service'
 import { getReviewWorkspace } from '../services/review.service'
+import {
+  DocumentShapeError,
+  saveDocumentSchema,
+  saveSectionDocument,
+  StaleDocumentError,
+} from '../services/report-document.service'
 import { draftSummary, getSummary, IncompleteSectionsError } from '../services/summary.service'
 import {
   InsufficientEvidenceError,
@@ -670,6 +676,41 @@ for (const [action, accept] of [
     },
   )
 }
+
+// Saves one section of the report as the engineer wrote it in the document
+// editor (RV-08): its text, formatting and citation markers, built on the
+// section's saved draft (`draftId`, null for none) and newest version
+// (`baseVersion`, 0 for none). 200 with the new version. 400 for a body that
+// is not a section document or does not fit the section; 409 as for review
+// decisions, or when the section was saved elsewhere since (reload first).
+// Sections 1, 2, 3 and A are accepted alongside 4-12.
+router.put(
+  '/:reference/sections/:sectionId/document',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    const parsed = saveDocumentSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'The document could not be read.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    const { reference, sectionId } = req.params
+    try {
+      res.json(await saveSectionDocument(reference, sectionId, parsed.data, res.locals.user!))
+    } catch (error: unknown) {
+      if (error instanceof DocumentShapeError) {
+        res.status(400).json({ error: error.message })
+        return
+      }
+      if (error instanceof StaleDocumentError) {
+        res.status(409).json({ error: error.message })
+        return
+      }
+      reviewFailure(error, res)
+    }
+  },
+)
 
 router.use(tooLarge)
 

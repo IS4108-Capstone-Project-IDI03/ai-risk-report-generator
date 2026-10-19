@@ -1,4 +1,4 @@
-import { Badge, IconRegistry, ProgressBar } from '../../../design-system'
+import { Badge, Button, IconRegistry, ProgressBar } from '../../../design-system'
 import type { FindingCounts, ReviewSection, Summary } from '../api'
 import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
@@ -37,7 +37,9 @@ function ReviewSummary({ summary }: { summary: FindingCounts }) {
 // (AC6), and the review summary above them (RV-02). Selecting one changes the
 // draft and the source panel together. Section 3's OFIs (GN-05) come first,
 // with how many are in the report.
-// Sections 1 and 2 lead the rail and Appendix A ends it (GN-07).
+// Sections 1 and 2 lead the rail and Appendix A ends it (GN-07). Edit
+// document, for the assigned engineer, opens the whole report as one
+// document (RV-08).
 export function ReviewSectionRail({
   sections,
   summary,
@@ -46,6 +48,8 @@ export function ReviewSectionRail({
   onSelect,
   inReport,
   executiveSummary,
+  onEditDocument,
+  editPending = false,
   style,
 }: {
   sections: ReviewSection[]
@@ -58,6 +62,11 @@ export function ReviewSectionRail({
   inReport: number
   // Section 2's state, for its row; null until loaded (GN-07).
   executiveSummary: Summary['executiveSummary'] | null
+  // Left out where the viewer may not edit.
+  onEditDocument?: () => void
+  // The document's last changes are still being read back: opening it again
+  // waits, so it opens on them.
+  editPending?: boolean
   style: React.CSSProperties
 }) {
   // One rail row: its number, title and state badges.
@@ -88,6 +97,21 @@ export function ReviewSectionRail({
   const reviewed = sections.filter((s) => s.review.state === 'reviewed').length
   return (
     <nav aria-label="Report sections" className="om-scroll" style={style}>
+      {onEditDocument && (
+        <div className="rv-rail-edit">
+          <Button
+            variant="tonal"
+            size="sm"
+            iconLeft={IconRegistry.object.report}
+            fullWidth
+            disabled={editPending}
+            onClick={onEditDocument}
+          >
+            Edit document
+          </Button>
+          <p className="rv-muted">Write and revise any section, drafted or not, in one document.</p>
+        </div>
+      )}
       {summary && <ReviewSummary summary={summary} />}
       <p className="rv-label rv-rail-head">Sections</p>
       <div className="rv-rail-progress">
@@ -178,6 +202,12 @@ export function ReviewSectionRail({
                     <Badge tone={badge.tone} icon={badge.icon}>
                       {badge.label}
                     </Badge>
+                    {/* Changed in the document while still flagged (RV-08 AC12). */}
+                    {s.review.editedInDocument && s.review.state !== 'edited' && (
+                      <Badge tone={REVIEW_BADGE.edited.tone} icon={REVIEW_BADGE.edited.icon}>
+                        {REVIEW_BADGE.edited.label}
+                      </Badge>
+                    )}
                     {regenerating.has(s.id) ? (
                       <Badge tone="ai" icon={IconRegistry.action.regenerate}>
                         Regenerating
@@ -200,7 +230,8 @@ export function ReviewSectionRail({
       <p className="rv-rail-legend">
         A section needs review when a statement is unsupported, a source it cites has been
         withdrawn, or observations changed after it was drafted. It is reviewed once every finding
-        is accepted, edited or rejected.
+        is accepted, edited or rejected, and edited by you once you change or write it in the
+        document.
       </p>
     </nav>
   )

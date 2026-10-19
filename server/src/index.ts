@@ -27,6 +27,12 @@ import { requireServiceKey } from './middleware/service-auth.middleware'
 const app = express()
 
 app.use(cors({ origin: true, credentials: true }))
+// A section saved from the document editor (RV-08) may pass the default
+// 100 KB, so it is read with a larger limit first; express.json() below then
+// leaves the already-read body alone.
+const documentSave = /^\/api\/assessments\/[^/]+\/sections\/[^/]+\/document$/
+const documentBody = express.json({ limit: '1mb' })
+app.use((req, res, next) => (documentSave.test(req.path) ? documentBody(req, res, next) : next()))
 app.use(express.json())
 app.use(cookieParser())
 

@@ -3,7 +3,9 @@
 // cites, with their documents' current details, and the observations it was
 // drafted from. With RV-02, each finding's review decision, the section's
 // counts and review history, any replacement draft waiting for a decision,
-// and the report's review summary. Called by routes/assessment.routes.ts.
+// and the report's review summary. With RV-08, each section's newest version
+// from the document editor, which adds the `edited` review state (Edited by
+// you). Called by routes/assessment.routes.ts.
 import type { ReviewAction } from '../models/review-audit.model'
 import { findKnowledgeDocuments, type KnowledgeDocumentDto } from './knowledge-document.service'
 import {
@@ -25,6 +27,13 @@ import {
   type SectionDraftDto,
 } from './section.service'
 import type { TemplateSection } from './rag.service'
+import {
+  assessmentIdOf,
+  latestVersions,
+  summaryDraft,
+  type SectionVersionDto,
+} from './report-document.service'
+import { hasWrittenText, writtenSubsections } from './section-document'
 
 // How much of the section the draft writes. Tables are not counted: measured
 // values fill them (GN-03), so a draft never writes them.
@@ -32,8 +41,11 @@ export type CompletionState = 'not_started' | 'partial' | 'complete'
 // Where the section stands in review. `needs_review` comes from the draft's
 // own checks and wins over the rest; otherwise it follows the engineer's
 // decisions (RV-02): `ai_draft` while every finding is pending, `in_review`
-// once some are decided, `reviewed` once none is pending.
-export type ReviewState = 'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'needs_review'
+// once some are decided, `reviewed` once none is pending. `edited` (RV-08)
+// comes next after `needs_review`: the engineer has changed the section in the
+// document editor, or written it there.
+export type ReviewState =
+  'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'edited' | 'needs_review'
 
 // One passage a draft cites, as the draft was given it (AC7), with where it
 // sits in its document (AC8) and the document's details (AC9-AC12).
@@ -81,6 +93,9 @@ export type ReviewStatementDto = {
   generatedText: string
   citations: string[]
   supported: boolean
+  // Drafted citations deleted in the document editor (RV-08), which leave the
+  // finding unsupported.
+  citationsRemoved: string[]
   // The decision and who made it when; at and by are null while none was made.
   review: {
     state: FindingState
@@ -124,11 +139,20 @@ export type ReviewHistoryEntryDto = {
   before: string | null
   after: string | null
   citations: string[]
+  // Its citations after an edit in the document editor, or null (RV-08).
+  citationsAfter: string[] | null
   instruction: string | null
   bulk: boolean
+  // Made in the document editor (RV-08).
+  inDocument: boolean
   by: { id: string; name: string }
   at: Date
 }
+
+// A section's newest version from the document editor (RV-08). `current` is
+// false once the section has been drafted again since: its finding keys name
+// an earlier draft, so the review workspace and the editor leave it aside.
+export type SectionDocumentDto = SectionVersionDto & { current: boolean }
 
 export type ReviewSectionDto = {
   id: string
@@ -147,6 +171,9 @@ export type ReviewSectionDto = {
     changesSinceDraft: number
     // The same changes by kind: added, changed and removed (CP-08).
     changeCounts: ChangeCounts
+    // Changed or written in the document editor (RV-08 AC12), shown as Edited
+    // by you even while the state is needs_review.
+    editedInDocument: boolean
   }
   // How many of the saved draft's findings stand in each state (RV-02 AC9).
   findings: FindingCounts
@@ -158,10 +185,15 @@ export type ReviewSectionDto = {
   replacement: ReplacementDto | null
   // The section's review audit log, newest first: every draft's entries.
   history: ReviewHistoryEntryDto[]
+  // Its newest version from the document editor (RV-08), or null.
+  document: SectionDocumentDto | null
 }
 
 export type ReviewWorkspaceDto = {
   sections: ReviewSectionDto[]
+  // The newest version of Sections 1, 2 and 3 and Appendix A from the
+  // document editor (RV-08), or null: what the engineer wrote into them.
+  parts: Record<'1' | '2' | '3' | 'A', SectionDocumentDto | null>
   // The saved drafts' findings across the report, by state (RV-02 AC9).
   summary: FindingCounts
   // When the gateway read it, so the browser can keep the newest of several.
@@ -219,14 +251,23 @@ function toPassage(
 // A finding still in the draft: not rejected.
 const kept = (f: Finding) => f.state !== 'rejected'
 
+// A subsection is written when a finding in it is still in the draft, or when
+// the engineer wrote text into it in the document editor (RV-08). A section
+// with no draft is complete once the engineer has written it.
 function completionOf(
   draft: Draft | null,
   findings: readonly Finding[],
+  document: SectionDocumentDto | null,
 ): ReviewSectionDto['completion'] {
-  if (!draft) return { state: 'not_started', written: 0, total: 0, tables: 0 }
-  const writable = draft.subsections.filter((s) => s.kind !== 'table')
+  const own = document?.current ? document.document : null
+  if (!draft)
+    return own && hasWrittenText(own)
+      ? { state: 'complete', written: 0, total: 0, tables: 0 }
+      : { state: 'not_started', written: 0, total: 0, tables: 0 }
   const headings = new Set(findings.filter(kept).map((f) => f.heading))
-  const written = writable.filter((s) => headings.has(s.heading)).length
+  const typed = own ? writtenSubsections(own) : new Set<number>()
+  const writable = draft.subsections.flatMap((s, i) => (s.kind === 'table' ? [] : [{ ...s, i }]))
+  const written = writable.filter((s) => headings.has(s.heading) || typed.has(s.i)).length
   return {
     state: written === 0 ? 'not_started' : written < writable.length ? 'partial' : 'complete',
     written,
@@ -259,6 +300,7 @@ function reviewDraft(draft: Draft, findings: readonly Finding[]): ReviewDraftDto
           generatedText: f.generatedText,
           citations: f.citations,
           supported: f.supported,
+          citationsRemoved: f.citationsRemoved,
           review: {
             state: f.state,
             at: f.decided?.at ?? null,
@@ -310,8 +352,10 @@ function historyEntry(e: ReviewEntry): ReviewHistoryEntryDto {
     before: e.before,
     after: e.after,
     citations: e.citations ?? [],
+    citationsAfter: e.citationsAfter ?? null,
     instruction: e.instruction,
     bulk: e.bulk,
+    inDocument: e.inDocument ?? false,
     by: { id: e.by.id, name: e.by.name },
     at: e.at,
   }
@@ -332,9 +376,20 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
   const drafts = loaded.flatMap(({ latest, replacement }) =>
     [latest, replacement].filter((d): d is Draft => d !== null),
   )
-  // One query for the review log, and one lookup for every document any
-  // draft cites.
-  const entries = drafts.length ? await assessmentHistory(drafts[0].assessment) : []
+  const assessment = await assessmentIdOf(reference)
+  // One query for the review log, one for the document editor's versions,
+  // and one lookup for every document any draft cites.
+  const [entries, versions, summary] = await Promise.all([
+    drafts.length ? assessmentHistory(assessment) : [],
+    latestVersions(assessment),
+    summaryDraft(assessment),
+  ])
+  // A version is current while it was made on the section's saved draft.
+  const documentOf = (sectionId: string, draft: { _id: unknown } | null) => {
+    const version = versions.get(sectionId)
+    if (!version) return null
+    return { ...version, current: version.draftId === (draft ? String(draft._id) : null) }
+  }
   const documentIds = drafts.flatMap((draft) =>
     Object.entries(draft.sources ?? {}).flatMap(([citation, saved]) => {
       const id = documentIdOf(citation, (saved ?? {}) as SavedPassage)
@@ -356,17 +411,21 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
           .filter((e) => e.sectionId === section.id && !e.carriedFrom)
           .map(historyEntry),
         replacement: replacement && toReplacement(replacement, section, documents, entries),
+        document: documentOf(section.id, latest),
       }
       if (!latest) {
+        const completion = completionOf(null, [], base.document)
         return {
           ...base,
-          completion: completionOf(null, []),
+          completion,
           review: {
-            state: 'not_drafted',
+            // Written in the document editor (RV-08 AC3).
+            state: completion.state === 'complete' ? 'edited' : 'not_drafted',
             unsupportedStatements: 0,
             withdrawnSources: 0,
             changesSinceDraft: 0,
             changeCounts,
+            editedInDocument: completion.state === 'complete',
           },
           findings: NO_FINDINGS,
           draft: null,
@@ -383,22 +442,30 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
       const withdrawnSources = Object.values(sources).filter(
         (p) => citedNow.has(p.id) && p.document?.withdrawnAt,
       ).length
+      // Changed in the document editor (RV-08 AC12): a finding edited or deleted
+      // there, or text the engineer wrote into the section.
+      const editedInDocument =
+        entries.some((e) => e.inDocument && String(e.draft) === String(latest._id)) ||
+        (!!base.document?.current && hasWrittenText(base.document.document))
       return {
         ...base,
-        completion: completionOf(latest, findings),
+        completion: completionOf(latest, findings, base.document),
         review: {
           state:
             unsupportedStatements || withdrawnSources || changesSinceDraft
               ? 'needs_review'
-              : counts.pending === counts.total
-                ? 'ai_draft'
-                : counts.pending
-                  ? 'in_review'
-                  : 'reviewed',
+              : editedInDocument
+                ? 'edited'
+                : counts.pending === counts.total
+                  ? 'ai_draft'
+                  : counts.pending
+                    ? 'in_review'
+                    : 'reviewed',
           unsupportedStatements,
           withdrawnSources,
           changesSinceDraft,
           changeCounts,
+          editedInDocument,
         },
         findings: counts,
         draft: reviewDraft(latest, findings),
@@ -409,6 +476,12 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
   )
   return {
     sections,
+    parts: {
+      '1': documentOf('1', null),
+      '2': documentOf('2', summary),
+      '3': documentOf('3', null),
+      A: documentOf('A', null),
+    },
     summary: sections.reduce((sum, s) => addCounts(sum, s.findings), NO_FINDINGS),
     asOf,
   }

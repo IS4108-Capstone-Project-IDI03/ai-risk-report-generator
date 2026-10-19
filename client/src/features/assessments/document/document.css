@@ -1,0 +1,354 @@
+/* The document edit view (RV-08): the outline beside one continuous page of
+   the report, with its save bar, formatting toolbar and find bar above it.
+   The rail's row styles (rv-rail-*) and labels come from review.css. */
+.dm-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-page);
+}
+.dm-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border-default);
+}
+.dm-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px clamp(16px, 2vw, 28px);
+}
+.dm-save-status {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+.dm-save-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  color: var(--text-muted);
+}
+.dm-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px clamp(16px, 2vw, 28px);
+  border-top: 1px solid var(--border-subtle);
+}
+.dm-tool-group {
+  display: flex;
+  gap: 2px;
+  padding-right: 4px;
+  margin-right: 4px;
+  border-right: 1px solid var(--border-subtle);
+}
+.dm-tool-group:last-child {
+  border-right: none;
+}
+.dm-find {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+  padding: 10px clamp(16px, 2vw, 28px) 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+}
+.dm-find-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 240px));
+  gap: 8px;
+}
+.dm-find-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.dm-find-status {
+  min-width: 120px;
+  margin: 0 4px 0 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-secondary);
+}
+.dm-problem {
+  padding: 12px clamp(16px, 2vw, 28px) 0;
+}
+.dm-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.dm-paper {
+  max-width: calc(var(--measure-prose) + 96px);
+  margin: 20px auto 48px;
+  padding: 0 clamp(16px, 2vw, 28px);
+}
+
+/* The page itself */
+.dm-prose {
+  outline: none;
+  font-family: var(--font-serif);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-body);
+}
+.dm-prose:focus-visible {
+  outline: none;
+}
+.dm-section {
+  padding: 24px clamp(16px, 3vw, 40px) 28px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  scroll-margin-top: 16px;
+}
+.dm-section + .dm-section {
+  margin-top: 16px;
+}
+.dm-fixed-heading {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  user-select: none;
+}
+.dm-h2 {
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--oxblood-600);
+}
+.dm-h3 {
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-lh);
+  margin: 20px 0 6px;
+}
+.dm-prose h4 {
+  margin: 16px 0 4px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.dm-prose p {
+  margin: 0;
+  max-width: var(--measure-prose);
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid transparent;
+}
+.dm-prose p + p {
+  margin-top: 10px;
+}
+.dm-prose ul,
+.dm-prose ol {
+  margin: 10px 0;
+  padding-left: 28px;
+}
+.dm-prose li + li {
+  margin-top: 4px;
+}
+.dm-prose li p {
+  padding-left: 4px;
+}
+/* Still as the draft wrote it: provisional, so violet until a person changes it. */
+.dm-prose p.dm-ai {
+  border-left-color: var(--ai-border);
+  background: var(--ai-bg);
+}
+.dm-prose .dm-flagged {
+  text-decoration: underline;
+  text-decoration-color: var(--status-moderate-fg);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.dm-flag {
+  display: inline-flex;
+  margin-left: 8px;
+  vertical-align: middle;
+  text-decoration: none;
+  user-select: none;
+}
+.dm-flag-badge {
+  display: inline-flex;
+  align-items: center;
+  height: var(--chip-height-sm);
+  padding: 0 9px;
+  border-radius: var(--radius-sm);
+  background: var(--status-moderate-bg);
+  color: var(--status-moderate-fg);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.dm-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* A citation marker: its number is drawn from the decoration's data-n. */
+.dm-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0 3px;
+  vertical-align: text-top;
+  border-radius: var(--radius-xs);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  user-select: none;
+}
+.dm-cite::after {
+  content: attr(data-n);
+}
+.dm-cite.ProseMirror-selectednode {
+  outline: 2px solid var(--ai-fg);
+}
+.dm-prose p.is-empty::before,
+.dm-prose h4.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+/* Find matches take the selection's ink, not a status colour. */
+.dm-match {
+  background: var(--ink-100);
+  border-radius: 2px;
+}
+.dm-match.is-current {
+  background: var(--ink-200);
+  box-shadow: 0 0 0 1px var(--ink-500);
+}
+.dm-notice {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--surface-sunken);
+  font-family: var(--font-sans);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-body);
+  user-select: none;
+}
+.dm-notice.is-warning {
+  border-color: var(--status-moderate-fg);
+  background: var(--status-moderate-bg);
+}
+.dm-locked {
+  margin: 4px 0 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+  font-family: var(--font-sans);
+  user-select: none;
+}
+.dm-locked-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.dm-locked-bar .rv-label {
+  flex: 0 1 auto;
+}
+.dm-locked-note {
+  flex: 1;
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+.dm-locked-body {
+  padding: 12px 14px 14px;
+  overflow-x: auto;
+}
+.dm-ofi-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: var(--text-small-size);
+}
+.dm-ofi-list li + li {
+  margin-top: 6px;
+}
+.dm-ofi-number {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.dm-outline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Below the stacked breakpoint the outline is a strip of sections above the
+   page, which then scrolls with the workspace. */
+@media (max-width: 1080px) {
+  .dm-outline .rv-rail-head,
+  .dm-outline .rv-rail-legend {
+    display: none;
+  }
+  .dm-outline-list {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    padding: 4px 8px;
+  }
+  .dm-outline-list li {
+    flex: 0 0 auto;
+    max-width: 240px;
+  }
+  .dm-outline-list .rv-rail-row {
+    padding: 8px 12px;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+  }
+  .dm-outline-list .rv-rail-row[aria-current='true'] {
+    border-bottom-color: var(--action-primary);
+  }
+  .dm-scroll {
+    overflow: visible;
+  }
+  /* The page scrolls with the workspace, under the sticky save bar and toolbar. */
+  .dm-section {
+    scroll-margin-top: 128px;
+  }
+  .dm-find-fields {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+}
+@media (max-width: 759px) {
+  .dm-section {
+    padding: 18px 16px 20px;
+  }
+  .dm-paper {
+    padding: 0 12px;
+  }
+}

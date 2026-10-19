@@ -1707,3 +1707,27 @@ Rejected:
 Supersedes the period-follows-the-overview part of the entry above.
 
 Stories: EV-04, CB-01.
+
+## 2026-10-19 — The report is edited as one TipTap document; each save is a section version, and a change to a finding is a review decision
+
+Chose: Edit document, in the review workspace's rail, opens the whole report as one continuous document (RV-08): Sections 1 to 12 and Appendix A in report order, each under its fixed heading, a drafted section's template subsections under theirs. It is one TipTap (ProseMirror) editor, so undo, redo and find and replace run across every section.
+- What the engineer cannot change here is held in place as atoms by a structure guard (`document/plugins.ts`): the headings, why a section was not drafted (from Generation's evidence counts), and the parts filled in elsewhere, shown read-only where they sit: Section 1's assessment details, the OFIs, Sections 4 and 5's figures, a table subsection and the Appendix A photos. Every section, those included, takes text.
+- Text is paragraphs, the engineer's sub-headings and flat lists, with bold, italic and underline. A citation marker is an inline atom naming its source, so it moves with the words around it and goes only when deleted. A paragraph taken from the draft carries its finding key, kept when it is set as a sub-heading or a list item (a change of setting is an edit, so AC6's formatting applies to findings too); a split, pasted or moved copy loses it and becomes the engineer's text.
+- Each save adds a version of each changed section to `report_section_versions`, append-only like the review log, built on the newest version (`baseVersion`) and the saved draft (`draftId`): if either has moved on, nothing is saved (409) and the editor offers Reload. It saves 1.5 s after typing pauses, or on Save, showing when it last saved; leaving with unsaved changes asks first (Return to review, another tab, the side navigation, Add observation, Sign out; the browser's own prompt for the page), and choosing the view already open does not.
+- In sections 4-12, a finding changed in its words, citations or formatting is also an `edit` entry in `review_audit_log`, with `citationsAfter`, and one deleted (or emptied) a `reject` entry, both marked `inDocument`: the finding's state, the review summary, the summary's out-of-date check and EV-02's counts read the same log, and Restore in the review history brings a deleted one back. Drafts are still never changed.
+- A finding missing a citation it was drafted with is unsupported (`foldFindings`), so it is flagged in review until rejected, like any unsupported finding, and editing an unsupported or withdrawn-source finding keeps its flag (the "open uncertainty" of AC11). The editor flags both, and a deleted citation the moment it goes.
+- A section changed or written in the document reads Edited by you (`edited`), after Needs review and before the RV-02 states; under Needs review the rail shows Edited by you beside it (`editedInDocument`), so AC12 holds either way. A section with no draft is complete once written.
+- The review workspace shows a section's newest version while it was made on the saved draft: a finding in its saved formatting while its words are still the finding's, else in the words of a later RV-02 edit; a rejected finding left out; a restored one at the end of its subsection. Once the section is drafted again, the version is set aside with a note: its edited findings were carried into the new draft by RV-02, but text the engineer wrote stays in that version.
+- Section 2's statements have no review decisions (GN-07), so its changes are kept in the version only.
+
+Rejected:
+- One editor per section: undo, redo and find and replace would stop at each section's edge, and AC1 asks for one continuous document.
+- A content-editable page without a library: lists, undo across formatting and atomic citation markers are where hand-rolled editors fail.
+- Overwriting one copy of each section: earlier text would be lost, and RV-06 needs the versions.
+- Storing only the versions, with no log entries: a finding edited in the document would still read Pending, and the review summary and EV-02 would miss it.
+- Making a deleted citation a separate flag: the review workspace already explains Unsupported and keeps it until rejected; one more state would need its own resolution.
+- Letting the template's subsection headings be edited: completion, Section 5's level tables and Section 6's programs table find their findings by heading.
+
+Known limits: text written into a section is not summarised by the Executive Summary until a finding in it changes (the summary's check counts decisions). Drafting a section again on Generation sets aside text written into it; it stays in its version, but nothing yet shows earlier versions (RV-06).
+
+Stories: RV-08, RV-01, RV-02.

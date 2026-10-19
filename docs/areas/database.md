@@ -540,6 +540,11 @@ on the draft. Each entry has:
   edit), `citations` (its citations then), `instruction` (for a regenerated
   draft), `bulk` (accepted by Bulk accept), `carriedFrom` (see below; null
   otherwise).
+- `inDocument` (RV-08): made in the document editor, an `edit` of the
+  finding there or a `reject` for one deleted there; false otherwise.
+  `citationsAfter`: a document edit's citations after it, as citation
+  markers can be moved or deleted there; null otherwise. A finding missing a
+  citation it was drafted with is unsupported.
 - `by` `{ id, name }`, the signed-in user as they were then, and `at`.
 - `metadata` with the five required fields: `source_type: 'review_decision'`,
   `jurisdiction`, `facility_type` and `COPE_dimension` from the draft, and
@@ -583,6 +588,55 @@ a transcription in progress), 422 (too little evidence to regenerate), 503
 | `POST /api/assessments/:reference/sections/:sectionId/regenerate` | `{ instruction? }` (up to 1,000 characters): drafts the section again through S4 as a replacement for its saved draft (AC10). 201. Only one replacement waits at a time. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11): kept findings keep their decisions, the rest are pending. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/discard` | Leaves the saved draft and its decisions as they were (AC12). |
+
+## Report section versions (RV-08)
+
+`report_section_versions` holds one document per save of a report section
+from the document editor: the section's text as the engineer wrote it. It is
+append-only, like `review_audit_log`: the model refuses every update,
+replace and delete, and each save adds a version. Each version has:
+
+- `assessment`; `sectionId`: `1` to `12`, or `A` for Appendix A.
+- `version`: 1, 2, 3… per assessment and section. `{ assessment, sectionId,
+  version }` is unique, so of two saves made on the same version only one is
+  kept.
+- `draft`: the section's saved draft in `report_sections` it was edited
+  from, whose finding keys it uses; null for a section with no draft
+  (Sections 1, 3 and A always).
+- `document`: `{ intro, subsections }`. `intro` is the text before the first
+  subsection (all of it in a section without subsections); `subsections` are
+  the draft's, in order, each `{ heading, blocks }`, a table's always empty.
+  A block is a `paragraph` (`content`, and `finding` as
+  `<subsection>.<statement>` when it came from the draft), a `heading` (the
+  engineer's sub-heading, with `finding` too when it is a finding set as a
+  sub-heading) or a `bulletList` / `orderedList` of paragraphs.
+  Content is `{ type: 'text', text, marks? }` (marks: `bold`, `italic`,
+  `underline`) or `{ type: 'cite', id }`, the id as a statement's citations
+  name it. Empty paragraphs are not saved.
+- `by` `{ id, name }` and `at`: who saved it and when.
+- `metadata` with the five required fields: `source_type:
+  'report_section_version'`, `jurisdiction` and `facility_type` from the
+  site, `COPE_dimension` (the section's one category, else `all`) and
+  `effective_date` (when saved).
+
+A section's text in the review workspace is its newest version while
+`draft` is still its saved draft; once it is drafted again, the version is
+set aside (`current: false` in `GET …/review`). In sections 4-12 a save also
+adds review log entries (`inDocument`): an `edit` for each finding whose
+words, citations or formatting changed, and a `reject` for each deleted.
+
+Index: the unique `{ assessment, sectionId, version: -1 }`, which also reads
+each section's newest version.
+
+| Route | Does |
+| --- | --- |
+| `PUT /api/assessments/:reference/sections/:sectionId/document` | `{ baseVersion, draftId, document }`: saves the section as version `baseVersion + 1`, built on the saved draft `draftId` (null for none). 200 with `{ version, draftId, document, savedAt, savedBy }`. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 for a body that is not a section document or does not fit the section (subsections not the draft's, text in a table, a finding twice or not in the draft, over 2,000 characters in a finding or 60,000 in the section); 403; 404 (unknown assessment or section); 409 when `baseVersion` is not the newest, the saved draft is not `draftId`, a finding in it was rejected since, or another decision was saved at the same moment; 503 when S4 cannot list the sections. Bodies up to 1 MB. |
+
+`GET …/review` returns each section's newest version as `document` (or
+null) and Sections 1, 2, 3 and A's as `parts`, each with `current`. Each
+section's `review` also has `editedInDocument`: true when it was changed or
+written in the document, so Edited by you shows even while another state
+(Needs review) comes first.
 
 ## Opportunities for Improvement (GN-05)
 
