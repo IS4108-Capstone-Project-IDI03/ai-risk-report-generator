@@ -132,6 +132,14 @@ def test_draft_follows_the_template_order_and_records_provenance(monkeypatch):
     assert provenance["generated_at"]
 
 
+def test_the_model_is_told_to_copy_placeholders_exactly(monkeypatch):
+    # Client details reach the model as placeholders (PV-02); a changed one can't be restored.
+    _, _, prompts = draft(monkeypatch, [])
+
+    system, _, _ = prompts[0]
+    assert "Copy bracketed placeholders such as [PERSON_1] or [CLIENT_1] exactly" in system
+
+
 def test_unresolvable_and_past_report_citations_are_unsupported(monkeypatch):
     response, _, _ = draft(
         monkeypatch,

@@ -17,13 +17,21 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
-PROMPT_VERSION = "gn01-v2.10"  # v2.10: handwritten pages shown as handwritten notes (CP-19)
+PROMPT_VERSION = "gn01-v2.10"  # v2.10: handwritten pages shown as handwritten notes (CP-19); copy placeholders exactly (PV-02)
 # The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
 # and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
 # redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
 REDRAFT_PROMPT_VERSION = "rv02-v2"  # v2: accepted and edited statements are kept by the platform
 HERE = Path(__file__).parent
 TEMPLATE = json.loads((HERE / "sections.json").read_text())
+
+# With PII protection on, client details reach the model as placeholders (PV-02 Rule 7). The
+# platform restores each one after drafting, so a changed placeholder can't be restored.
+PLACEHOLDER_RULE = (
+    "Copy bracketed placeholders such as [PERSON_1] or [CLIENT_1] exactly as written, "
+    "brackets included. They stand for names and contact details; never invent, alter, "
+    "explain or merge them."
+)
 
 
 def filed_under(o, section: dict) -> bool:
@@ -40,7 +48,7 @@ DRAFTING_GUIDE = re.sub(
 
 # Section 3 Opportunities for Improvement (GN-05): Marsh's value lists and matrix, and
 # the OFI drafting guide. Bump OFI_PROMPT_VERSION whenever the prompt or guide changes.
-OFI_PROMPT_VERSION = "gn05-v5"  # v5: handwritten pages shown as handwritten notes (CP-19)
+OFI_PROMPT_VERSION = "gn05-v5"  # v5: handwritten pages shown as handwritten notes (CP-19); copy placeholders exactly (PV-02)
 OFI_CONFIG = json.loads((HERE / "ofi.json").read_text())
 OFI_GUIDE = re.sub(r"\A---\n.*?\n---\n", "", (HERE / "ofi-skill.md").read_text(), flags=re.S)
 
@@ -114,7 +122,8 @@ labels out of the text.
 - Where a standards passage explains or supports a statement, cite it alongside the \
 observation. Never cite a passage that does not bear on the statement.
 - A subsection the evidence does not cover gets no statements.
-- `questions` holds up to three questions for the engineer, or none."""
+- `questions` holds up to three questions for the engineer, or none.
+- {PLACEHOLDER_RULE}"""
         + (
             # A section's own rules, e.g. Section 6's maturity scale (GN-11), after the guide's.
             f"\n\nThis section's rules:\n{section['instructions']}"
@@ -289,7 +298,7 @@ Pick each of these fields from its list, exactly as written:
 {lists}
 
 Output: `observations`, `standards` and `precedent` hold labels such as "O2", "C1" or "P3". \
-Keep labels out of the text. Return no OFIs if no observation needs one."""
+Keep labels out of the text. Return no OFIs if no observation needs one. {PLACEHOLDER_RULE}"""
 
 
 def draft_ofis(
@@ -337,7 +346,7 @@ def draft_ofis(
 
 # Section 2 Executive Summary (GN-07): summarises the report's own sections, so nothing is
 # retrieved. Bump SUMMARY_PROMPT_VERSION whenever the prompt changes.
-SUMMARY_PROMPT_VERSION = "gn07-v2"  # v2: keep the sections' exact scope
+SUMMARY_PROMPT_VERSION = "gn07-v3"  # v3: copy placeholders exactly (PV-02)
 
 
 class SummaryDraft(BaseModel):
@@ -362,7 +371,8 @@ Follow this drafting guide:
 {DRAFTING_GUIDE}
 
 Output: `citations` lists the labels of the sections a statement rests on, for example \
-"S3" or "S9". Keep the labels out of the text. Every statement cites at least one section."""
+"S3" or "S9". Keep the labels out of the text. Every statement cites at least one section. \
+{PLACEHOLDER_RULE}"""
 
 
 def draft_summary(assessment, sections, effort: str) -> tuple[SummaryDraft, str]:
