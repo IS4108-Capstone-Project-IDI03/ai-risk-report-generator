@@ -1,0 +1,40 @@
+[project]
+name = "privacy-service"
+version = "0.1.0"
+description = "S6: swaps client details for placeholders before text leaves for an external API (PV-01)"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "presidio-analyzer>=2.2.355",
+    # spaCy's English model, for names nobody listed. Installed from its release wheel,
+    # since spaCy models are not on PyPI.
+    "en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.7",
+    "black>=24.10",
+    "pytest>=8.3",
+    "httpx>=0.28",   # required by fastapi.testclient.TestClient
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
