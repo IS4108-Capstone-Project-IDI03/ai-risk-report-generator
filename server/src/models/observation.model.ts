@@ -58,6 +58,33 @@ export interface IRecording {
   removed?: IStamp
 }
 
+// A photographed page of the engineer's handwritten notes (CP-19), JPG or PNG.
+// Like a recording, saving it starts exactly one transcription attempt, and a
+// retry after a failure adds another for the same page. It is not a site photo:
+// the photo collection, the photo appendix and photo reading leave it out.
+export interface IPage {
+  _id: Types.ObjectId
+  // "Page 2", or the uploaded file's own name.
+  name: string
+  // The original photo in S3, kept as raw evidence and never altered.
+  key: string
+  contentType: 'image/jpeg' | 'image/png'
+  size: number
+  transcription: {
+    status: TranscriptionStatus
+    // The handwriting word for word; '' when the page has none.
+    transcript?: string
+    // The words the model was unsure of, as [start, end) positions in
+    // `transcript`, counted in UTF-16 units as the browser counts them.
+    uncertain?: [number, number][]
+    // Why the latest attempt failed, shown to the engineer.
+    error?: string
+    attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
+    // What wrote the transcript, set when it is saved.
+    provenance?: { provider: string; model: string; promptVersion: string }
+  }
+}
+
 // A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
 // annotation (CP-10) can attach to one photo.
 export interface IPhoto {
@@ -108,7 +135,8 @@ export interface IInterpretation {
 }
 
 // One thing the engineer saw on site, with everything captured about it: a
-// note (CP-02), any number of recordings (CP-03) and photographs (CP-04).
+// note (CP-02), any number of recordings (CP-03), photographs (CP-04) and
+// handwritten pages (CP-19).
 export interface IObservation {
   assessment: Types.ObjectId
   session: Types.ObjectId
@@ -120,6 +148,8 @@ export interface IObservation {
   recordings: IRecording[]
   // Absent on observations saved before CP-04.
   photos?: IPhoto[]
+  // Absent on observations saved before CP-19.
+  pages?: IPage[]
   // Present once an engineer has asked for its photos to be read (CP-05).
   interpretation?: IInterpretation
   // The standard the engineer tied the finding to, if any. The draft finds the
@@ -179,6 +209,33 @@ const recordingSchema = new Schema<IRecording>({
   removed: { type: stampSchema },
 })
 
+const pageSchema = new Schema<IPage>({
+  name: { type: String, required: true },
+  key: { type: String, required: true },
+  contentType: { type: String, enum: ['image/jpeg', 'image/png'], required: true },
+  size: { type: Number, required: true },
+  transcription: {
+    status: { type: String, enum: TRANSCRIPTION_STATUSES, required: true },
+    transcript: String,
+    // Left out until there is a transcript, rather than defaulting to [].
+    uncertain: { type: [[Number]], default: undefined },
+    error: String,
+    attempts: [
+      { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
+    ],
+    provenance: {
+      type: new Schema(
+        {
+          provider: { type: String, required: true },
+          model: { type: String, required: true },
+          promptVersion: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+    },
+  },
+})
+
 const photoSchema = new Schema<IPhoto>({
   name: { type: String, required: true },
   key: { type: String, required: true },
@@ -231,6 +288,7 @@ const observationSchema = new Schema<IObservation>(
     note: { type: String, maxlength: 5000 },
     recordings: [recordingSchema],
     photos: [photoSchema],
+    pages: [pageSchema],
     interpretation: { type: interpretationSchema },
     standard: { type: String, trim: true, maxlength: 100 },
     severity: { type: String, enum: SEVERITIES, required: true },

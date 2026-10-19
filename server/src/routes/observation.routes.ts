@@ -6,6 +6,7 @@ import {
   correctTranscript,
   deleteObservation,
   EmptyObservationError,
+  getPageImage,
   getPhotoImage,
   getRecordingAudio,
   NotRetryableError,
@@ -16,6 +17,8 @@ import {
   removeMedia,
   restoreMedia,
   restoreObservation,
+  retranscribePage,
+  retryPageTranscription,
   retryTranscription,
   transcriptCorrectionSchema,
   UnknownLocationError,
@@ -125,6 +128,12 @@ router.post(
       res.status(media.status).json({ error: media.error })
       return
     }
+    // ponytail: handwritten pages are captured with the observation for now;
+    // adding them to a saved one comes with managing them (CP-20).
+    if (media.pages.length) {
+      res.status(400).json({ error: 'Pages can only be added when the observation is captured.' })
+      return
+    }
     if (!media.recordings.length && !media.photos.length) {
       res.status(400).json({ error: 'Add a recording or a photo to the observation.' })
       return
@@ -193,6 +202,36 @@ router.post(
   },
 )
 
+// Starts a new transcription attempt for a failed handwritten page (CP-19 AC11),
+// open to any risk engineer, as a recording's retry is.
+router.post(
+  '/:id/pages/:pageId/transcription/retry',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      await retryPageTranscription(req.params.id, req.params.pageId)
+      res.status(202).end()
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
+// Transcribes a page again although its last transcription succeeded (CP-20):
+// the assessment's assigned engineer only, as it replaces evidence. 200 with
+// the observation, the page Transcribing.
+router.post(
+  '/:id/pages/:pageId/retranscribe',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      res.json(await retranscribePage(req.params.id, req.params.pageId, res.locals.user!))
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
 // Reads the observation's photos (CP-05): the first reading, a new one after
 // a failure, or after photos were added or removed (CP-08). Saving never reads
 // them, so this is the only way a photo reaches the vision model. Open to any risk engineer, as a transcription
@@ -240,6 +279,22 @@ router.get(
     }
   },
 )
+
+// Streams the original photo of a handwritten page from S3, the raw evidence
+// (CP-19 AC1). Like a photo, it never changes, so the browser may keep it.
+router.get('/:id/pages/:pageId/image', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    const page = await getPageImage(req.params.id, req.params.pageId)
+    res.set({
+      'Content-Type': page.contentType,
+      'Content-Length': String(page.size),
+      'Cache-Control': 'private, max-age=31536000, immutable',
+    })
+    page.stream.pipe(res)
+  } catch (error: unknown) {
+    refuse(error, res)
+  }
+})
 
 router.use(tooLarge)
 
