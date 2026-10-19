@@ -106,6 +106,8 @@ class Session:
 
     def unmask(self, text: str) -> tuple[str, list[str]]:
         """`text` with real values back, and any placeholder the mapping doesn't hold."""
+        if not self.enabled:
+            return text, []
         text, unknown = _unmask(text, self.mapping)
 
         def restore(match: re.Match) -> str:

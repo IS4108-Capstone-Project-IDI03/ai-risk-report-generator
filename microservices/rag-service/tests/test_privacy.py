@@ -85,3 +85,11 @@ def test_provenance_records_protection_and_how_many_details_were_masked(fake_pri
 
     assert s.provenance() == {"enabled": True, "masked_count": 2}
     assert privacy.session(None).provenance() == {"enabled": False, "masked_count": 0}
+
+
+def test_without_protection_output_is_left_as_written(fake_privacy):
+    # Off means drafting behaves as before PV-02: nothing is restored or flagged.
+    assert privacy.session(None).unmask("See [PERSON_1] and LITERAL_2") == (
+        "See [PERSON_1] and LITERAL_2",
+        [],
+    )
