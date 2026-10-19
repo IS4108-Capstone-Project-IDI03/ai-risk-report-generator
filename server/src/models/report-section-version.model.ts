@@ -22,8 +22,7 @@ export type DocumentMark = (typeof DOCUMENT_MARKS)[number]
 // `O:<observation id>`, `C:<chunk id>` (a standard), `P:<chunk id>` (a past
 // report) or `S:<section>` (Section 2's).
 export type DocumentInline =
-  | { type: 'text'; text: string; marks?: DocumentMark[] }
-  | { type: 'cite'; id: string }
+  { type: 'text'; text: string; marks?: DocumentMark[] } | { type: 'cite'; id: string }
 // A paragraph, on its own or as a list item. `finding` is the drafted
 // finding it came from, as `<subsection>.<statement>` of the version's draft;
 // absent on text the engineer wrote.

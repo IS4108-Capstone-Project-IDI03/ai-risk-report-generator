@@ -12,12 +12,10 @@ export type SiteDetails = {
 // (CP-17). On a listed site, copyLocations copies its latest visit's
 // locations; the server copies them unless it is false.
 export type NewAssessment = (
-  | { clientId: string; client?: never }
-  | { client: string; clientId?: never }
+  { clientId: string; client?: never } | { client: string; clientId?: never }
 ) &
   (
-    | { siteId: string; copyLocations: boolean; site?: never }
-    | { site: SiteDetails; siteId?: never }
+    { siteId: string; copyLocations: boolean; site?: never } | { site: SiteDetails; siteId?: never }
   ) & {
     surveyType: string
     // YYYY-MM-DD, or '' when not scheduled.
@@ -669,12 +667,7 @@ export type CompletionState = 'not_started' | 'partial' | 'complete'
 // `ai_draft` while every finding is pending, `in_review` once some are
 // decided, `reviewed` once none is pending.
 export type ReviewState =
-  | 'not_drafted'
-  | 'ai_draft'
-  | 'in_review'
-  | 'reviewed'
-  | 'edited'
-  | 'needs_review'
+  'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'edited' | 'needs_review'
 
 // A generated finding's review decision (RV-02). Rejected findings are out of
 // the draft, kept in the review history.
@@ -915,8 +908,7 @@ export async function decideReplacement(
 // marker names its source as a statement's citations do.
 export type DocumentMark = 'bold' | 'italic' | 'underline'
 export type DocumentInline =
-  | { type: 'text'; text: string; marks?: DocumentMark[] }
-  | { type: 'cite'; id: string }
+  { type: 'text'; text: string; marks?: DocumentMark[] } | { type: 'cite'; id: string }
 export type DocumentParagraph = {
   type: 'paragraph'
   finding?: string | null

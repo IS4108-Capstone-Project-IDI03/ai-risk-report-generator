@@ -45,12 +45,7 @@ export type CompletionState = 'not_started' | 'partial' | 'complete'
 // comes next after `needs_review`: the engineer has changed the section in the
 // document editor, or written it there.
 export type ReviewState =
-  | 'not_drafted'
-  | 'ai_draft'
-  | 'in_review'
-  | 'reviewed'
-  | 'edited'
-  | 'needs_review'
+  'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'edited' | 'needs_review'
 
 // One passage a draft cites, as the draft was given it (AC7), with where it
 // sits in its document (AC8) and the document's details (AC9-AC12).
