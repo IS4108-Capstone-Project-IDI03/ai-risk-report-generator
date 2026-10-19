@@ -1,7 +1,6 @@
-"""Contract tests for S5's HTTP surface.
+"""Contract tests for S5's HTTP surface: health and STT, against fake S3 and OpenAI clients.
 
-OCR is still a stub, so its test asserts the response *shape* the gateway
-depends on. STT runs against fake S3 and OpenAI clients.
+Photos (test_vision.py) and handwritten pages (test_handwriting.py) have their own.
 """
 
 import io
@@ -114,12 +113,6 @@ def test_transcribe_reports_a_missing_recording(monkeypatch):
 
     assert response.status_code == 502
     assert "could not be read from storage" in response.json()["detail"]
-
-
-def test_ocr_returns_text():
-    response = client.post("/ocr", json={"s3_key": "scans/policy.png"})
-    assert response.status_code == 200
-    assert isinstance(response.json()["text"], str)
 
 
 def test_transcribe_requires_s3_key():

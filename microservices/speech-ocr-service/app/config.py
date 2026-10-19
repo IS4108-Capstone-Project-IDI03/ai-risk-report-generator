@@ -15,3 +15,9 @@ VISION_PROVIDER = os.getenv("VISION_PROVIDER", "gemini")
 VISION_MODEL = os.getenv("VISION_MODEL", "gemini-3.8-flash")
 # Must be a paid-tier key: Google may use free-tier content and have people read it.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Handwritten note pages (CP-19), swappable like photo interpretation. They start as photo
+# interpretation's provider and model, and have their own settings so the handwriting eval can
+# try another model without changing how photos are read.
+HANDWRITING_PROVIDER = os.getenv("HANDWRITING_PROVIDER", "").strip() or VISION_PROVIDER
+HANDWRITING_MODEL = os.getenv("HANDWRITING_MODEL", "").strip() or VISION_MODEL
