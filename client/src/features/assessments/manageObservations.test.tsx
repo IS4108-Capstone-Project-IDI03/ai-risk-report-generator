@@ -387,7 +387,7 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     listed = [NOTE_ONLY, VOICE_ONLY, TRANSCRIBING, FAILED_VOICE]
     await openObservations()
     const ALL = [NOTE, VOICE, RISER, FAILED, RACKING, PUMP_TEST, SORTATION]
-    expect(optionLabels(select('Type'))).toEqual(['All types', 'Note', 'Voice', 'Photo'])
+    expect(optionLabels(select('Type'))).toEqual(['All types', 'Note', 'Voice', 'Photo', 'Scan'])
     expect(optionLabels(select('Status'))).toEqual([
       'All statuses',
       'Transcribing',
@@ -861,7 +861,7 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
       method === 'DELETE'
         ? json(409, {
             error:
-              'An observation needs a note, a recording or a photo, so this photo can’t be removed. Add what replaces it first.',
+              'An observation needs a note, a recording, a photo or a page, so this photo can’t be removed. Add what replaces it first.',
           })
         : null
     await openObservations()

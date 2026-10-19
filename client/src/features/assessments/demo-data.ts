@@ -128,6 +128,8 @@ export const initialState: WorkflowState = {
   fClips: [],
   fPhotos: [],
   fPhotoError: null,
+  fPages: [],
+  fPageError: null,
   fLocationId: null,
   locOpen: false,
   locDismissed: false,

@@ -17,6 +17,7 @@ import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
+import { Scans } from './screens/Scans'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
@@ -381,6 +382,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     {v.isObservations && <Observations v={v} />}
 
                     {v.isPhotos && <Photos v={v} />}
+
+                    {v.isScans && <Scans v={v} />}
 
                     {v.isGenerate &&
                       (v.liveReference ? (
