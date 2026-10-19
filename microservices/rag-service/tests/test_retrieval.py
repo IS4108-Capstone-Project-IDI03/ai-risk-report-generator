@@ -67,3 +67,40 @@ def test_a_wider_search_takes_more_candidates_and_keeps_every_reranked_one(monke
     assert cohere.rerank.call_args.kwargs["top_n"] == 2  # all candidates, not 5
     retriever.retrieve("pump testing")
     assert collection.query.call_args.kwargs["n_results"] == 20
+
+
+def test_a_search_of_many_queries_stays_within_chromas_per_query_limit(monkeypatch):
+    # Chroma Cloud rejects a query with more than 20 query embeddings; a section with 25
+    # observations searches 25 standards queries at once.
+    class Collection:
+        def __init__(self):
+            self.sizes = []
+
+        def count(self):
+            return 10
+
+        def query(self, query_embeddings, **_):
+            if len(query_embeddings) > 20:
+                raise RuntimeError("Quota exceeded: 'Number of query embeddings'")
+            self.sizes.append(len(query_embeddings))
+            # Each row's hit names the query it answers, from its embedding.
+            return {
+                "ids": [[f"hit-{int(v[0])}"] for v in query_embeddings],
+                "documents": [["text"] for _ in query_embeddings],
+                "metadatas": [[{}] for _ in query_embeddings],
+                "distances": [[0.1] for _ in query_embeddings],
+            }
+
+    collection, cohere = Collection(), Mock()
+    chroma = SimpleNamespace(get_collection=lambda **_: collection)
+    cohere.embed.return_value = SimpleNamespace(
+        embeddings=SimpleNamespace(float_=[[float(i)] for i in range(25)])
+    )
+    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
+
+    results = retriever.search([(f"q{i}", {"source_type": "fm_standard"}, 1) for i in range(25)])
+
+    assert [r[0]["id"] for r in results] == [f"hit-{i}" for i in range(25)]
+    assert collection.sizes == [20, 5]
+    assert cohere.embed.call_count == 1

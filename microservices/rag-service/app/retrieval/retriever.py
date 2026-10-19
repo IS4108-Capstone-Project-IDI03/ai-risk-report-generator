@@ -10,6 +10,7 @@ from chromadb.errors import NotFoundError
 from app import usage
 from app.retrieval.glossary import expand_query
 from app.retrieval_config import (
+    CHROMA_MAX_QUERY_EMBEDDINGS,
     COLLECTION,
     EMBEDDING_DIMENSION,
     EMBEDDING_MODEL,
@@ -279,21 +280,25 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
     for i, (_, filters, k) in enumerate(requests):
         groups.setdefault((json.dumps(filters, sort_keys=True), k), []).append(i)
     results = empty
-    for (filters, k), indexes in groups.items():
-        found = collection.query(
-            query_embeddings=[vectors[i] for i in indexes],
-            n_results=min(k, count),
-            where=label_filter(json.loads(filters)),
-            include=["documents", "metadatas", "distances"],
-        )
-        for row, i in enumerate(indexes):
-            results[i] = [
-                {
-                    "id": found["ids"][row][n],
-                    "text": found["documents"][row][n],
-                    "metadata": found["metadatas"][row][n],
-                    "distance": found["distances"][row][n],
-                }
-                for n in range(len(found["ids"][row]))
-            ]
+    for (filters, k), group in groups.items():
+        # Chroma Cloud allows CHROMA_MAX_QUERY_EMBEDDINGS per query, so a large group is
+        # queried in batches (a section can search one query per observation).
+        for start in range(0, len(group), CHROMA_MAX_QUERY_EMBEDDINGS):
+            indexes = group[start : start + CHROMA_MAX_QUERY_EMBEDDINGS]
+            found = collection.query(
+                query_embeddings=[vectors[i] for i in indexes],
+                n_results=min(k, count),
+                where=label_filter(json.loads(filters)),
+                include=["documents", "metadatas", "distances"],
+            )
+            for row, i in enumerate(indexes):
+                results[i] = [
+                    {
+                        "id": found["ids"][row][n],
+                        "text": found["documents"][row][n],
+                        "metadata": found["metadatas"][row][n],
+                        "distance": found["distances"][row][n],
+                    }
+                    for n in range(len(found["ids"][row]))
+                ]
     return results
