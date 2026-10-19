@@ -46,7 +46,9 @@ def test_a_run_judges_the_draft_and_marshs_summary(monkeypatch, tmp_path):
         "provenance": {"model": "m", "effort": "medium"},
     }
     seen = []
-    monkeypatch.setattr(judge_summary.orchestrator, "draft_summary_for", lambda a, s: draft)
+    monkeypatch.setattr(
+        judge_summary.orchestrator, "draft_summary_for", lambda a, s, privacy=None: draft
+    )
     monkeypatch.setattr(
         judge_summary,
         "ask_judge",
@@ -108,3 +110,36 @@ def test_rejudge_scores_the_newest_saved_draft_without_drafting(monkeypatch, tmp
     assert [r["subject"] for r in rows] == ["draft", "marsh"]
     assert "- Newest. [cites S4]" in seen[0]
     assert all(r["rejudged"] and r["prompt_version"] == "v2" for r in rows)
+
+
+def test_a_privacy_run_drafts_with_protection_on_and_records_it(monkeypatch, tmp_path):
+    from eval import judge_summary
+
+    seen = {}
+
+    def draft(assessment, sections, privacy=None):
+        seen["privacy"] = privacy
+        return {
+            "statements": [],
+            "guardrail": {"passed": True, "unsupported_count": 0},
+            "provenance": {
+                "model": "m",
+                "effort": "e",
+                "privacy": {"enabled": True, "masked_count": 2},
+            },
+        }
+
+    monkeypatch.setattr(judge_summary.orchestrator, "draft_summary_for", draft)
+    monkeypatch.setattr(judge_summary, "judge", lambda case, text, finished: [])
+    case = {
+        "assessment": {"reference": "R", "jurisdiction": "SG", "facility_type": "Office"},
+        "sections": [{"id": "4", "title": "Risk Quality", "text": "Rating B."}],
+        "reference": "Marsh's summary.",
+    }
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps(case))
+
+    rows = judge_summary.run_case(path, privacy=True)
+
+    assert seen["privacy"] == {"enabled": True, "known_entities": []}
+    assert rows[0]["privacy"] == {"enabled": True, "masked_count": 2}

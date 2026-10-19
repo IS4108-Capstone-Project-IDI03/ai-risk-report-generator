@@ -160,6 +160,9 @@ services:
       chroma:
         condition: service_started
         required: false
+      # Drafting masks client details through it and fails closed without it (PV-02).
+      privacy-service:
+        condition: service_started
     volumes:
       - ./microservices/rag-service:/app
 

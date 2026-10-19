@@ -40,6 +40,11 @@
 - `review_audit_log` (RV-02) is append-only: never update or delete an entry.
   A finding's review state is read from it, and drafts in `report_sections`
   are never changed. See docs/areas/database.md.
+- Client text goes to an external AI API only through privacy-service's
+  `/mask` when protection is on (`privacy.enabled` from the gateway). Mask
+  before the call, unmask before any check or save, and fail closed: never
+  send raw text as a fallback. See docs/areas/privacy.md for which flows are
+  protected so far.
 - `report_section_versions` (RV-08) is append-only too: each save from the
   document editor adds a version; never update or delete one.
 
@@ -64,4 +69,5 @@
 - UI conventions → docs/areas/ui.md
 - AWS / deployment → docs/areas/cloud.md
 - Service internals (ingestion, RAG, speech) → docs/areas/services.md
+- PII protection (masking before external AI calls) → docs/areas/privacy.md
 - Architecture decisions → docs/DECISIONS.md
