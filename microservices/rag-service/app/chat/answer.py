@@ -240,16 +240,26 @@ def search_filters(filters: Filters, names: dict[str, str]) -> dict:
     return found
 
 
-def _search(query: str, filters: dict, include_withdrawn: bool) -> list[dict]:
+def _search(query: str, filters: dict, include_withdrawn: bool, rank_texts=None) -> list[dict]:
     """Return the passages for one search: its top 5, or for past reports one per report.
 
     A report search keeps the best passage of every report that clears the cut-off, so an
     answer about "past reports" can name all of them instead of the one that ranked first.
+    `rank_texts` changes only what the reranker reads (see `retrieve`).
     """
+    # Only when given, so searches without protection call retrieve exactly as before.
+    masking = {"rank_texts": rank_texts} if rank_texts else {}
     # A search limited to one named document wants its top passages, not one per report.
     if filters.get("source_type") != "marsh_report" or "doc_id" in filters:
-        return retrieve(query, filters, include_withdrawn, expand=True)
-    ranked = retrieve(query, filters, include_withdrawn, candidates=REPORT_CANDIDATES, top_n=None)
+        return retrieve(query, filters, include_withdrawn, expand=True, **masking)
+    ranked = retrieve(
+        query,
+        filters,
+        include_withdrawn,
+        candidates=REPORT_CANDIDATES,
+        top_n=None,
+        **masking,
+    )
     best: dict = {}
     for p in ranked:  # most relevant first, so the first passage of a report is its best
         doc = p["metadata"].get("doc_id")
@@ -279,18 +289,21 @@ def _real_documents(plan: Plan, protection: pii.Session) -> Plan:
     )
 
 
-def search_passages(plan: Plan, names: dict[str, str] | None = None) -> list[dict]:
-    """Return a plan's passages: one search's, or the best 3 of each when it has extras."""
+def search_passages(plan: Plan, names: dict[str, str] | None = None, rank_texts=None) -> list[dict]:
+    """Return a plan's passages: one search's, or the best 3 of each when it has extras.
+
+    `rank_texts` changes only what the reranker reads (see `retrieve`).
+    """
     names = names or {}
     filters = search_filters(plan.filters, names)
     if not plan.extra_searches:
-        return _search(plan.query, filters, plan.include_withdrawn)
+        return _search(plan.query, filters, plan.include_withdrawn, rank_texts)
     searches = [(plan.query, filters)] + [
         (x.query, search_filters(x.filters, names)) for x in plan.extra_searches
     ]
     merged, seen = [], set()
     for query, each in searches:
-        for p in _search(query, each, plan.include_withdrawn)[:3]:
+        for p in _search(query, each, plan.include_withdrawn, rank_texts)[:3]:
             # Without this, a passage found by two searches would reach the model twice.
             if p["id"] not in seen:
                 seen.add(p["id"])
@@ -555,7 +568,11 @@ def _events(
             )
             yield _sse({"type": "TOOL_CALL_ARGS", "toolCallId": call_id, "delta": args})
             yield _sse({"type": "TOOL_CALL_END", "toolCallId": call_id})
-            passages = search_passages(search_plan, names)
+            # Stored past reports may name people, so Cohere's reranker reads them masked.
+            # Passed only when protection is on: the chat eval stands in for search_passages
+            # with (plan, names), until it runs with --privacy.
+            masking = {"rank_texts": protection.mask} if protection.enabled else {}
+            passages = search_passages(search_plan, names, **masking)
             # Names are added here, after search, so cached eval searches stay valid.
             for p in passages:
                 name = names.get(p["metadata"].get("doc_id"))
