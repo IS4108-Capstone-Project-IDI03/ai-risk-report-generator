@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, useState } from 'react'
 import { Button, Callout, EmptyState, IconRegistry } from '../../../design-system'
 import {
   bulkAccept,
@@ -10,6 +10,7 @@ import {
   type ReviewWorkspace as Workspace,
 } from '../api'
 import { AppendixPhotos } from '../components/AppendixPhotos'
+import { ChartBoundary } from '../components/ChartBoundary'
 import { DraftEditor, type FindingActions } from '../components/DraftEditor'
 import { ExecutiveSummary } from '../components/ExecutiveSummary'
 import { LossEstimateFigures } from '../components/LossEstimateFigures'
@@ -34,6 +35,11 @@ import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
 import { useSummary } from '../useSummary'
 import '../review.css'
+
+// Section 3's charts (GN-12) load on first view: they bring the chart library.
+const OfiCharts = lazy(() =>
+  import('../components/OfiCharts').then((m) => ({ default: m.OfiCharts })),
+)
 
 const NOTHING: ReviewFocus = { citation: null, statement: null }
 // The rail's rows that are not one of sections 4-12.
@@ -287,6 +293,10 @@ export function ReviewWorkspace({
                   canAccept={canReview}
                   onAccepted={() => void reloadSummary()}
                 />
+                {/* Drawn from the accepted OFIs above, so accepting one redraws them. */}
+                <ChartBoundary>
+                  <OfiCharts accepted={accepted} />
+                </ChartBoundary>
               </>
             )}
           </div>

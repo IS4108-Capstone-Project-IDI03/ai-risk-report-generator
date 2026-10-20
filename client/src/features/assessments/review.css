@@ -868,3 +868,79 @@
   width: 100%;
   min-width: 80px;
 }
+
+/* The report's charts (GN-12): Marsh's graphical summaries under Sections 3 and 4.
+   Two across from 760px, one column below. Chart rules: docs/design-system.md "Charts". */
+.rv-charts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+.rv-charts > p {
+  margin: 0;
+}
+.rv-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+}
+@media (min-width: 760px) {
+  .rv-charts-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.rv-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+}
+.rv-chart-title {
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rv-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+}
+.rv-chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.rv-chart-value {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+.rv-chart-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.rv-chart-empty {
+  margin: var(--space-6) 0 0;
+  padding: var(--space-6);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+}
+/* The chart's values for screen readers (AC5). */
+.rv-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
