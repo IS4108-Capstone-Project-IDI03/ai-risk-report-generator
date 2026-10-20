@@ -7,7 +7,8 @@ import {
   EmptyState,
   IconRegistry,
 } from '../../../design-system'
-import type { ReviewDraft, ReviewSection } from '../api'
+import type { DocumentBlock, DocumentInline, ReviewDraft, ReviewSection } from '../api'
+import { hasWritten, sectionContent, textBlocksIn } from '../documentContent'
 import { formatDayTime, formatDayYearTime } from '../format'
 import {
   claimsOf,
@@ -20,6 +21,7 @@ import {
   type ReviewFocus,
 } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
+import { RichWords, WrittenBlocks } from './WrittenBlocks'
 import { MaturityTable } from './MaturityTable'
 
 type Citing = {
@@ -41,6 +43,19 @@ export type FindingActions = {
   onReject: (claim: Claim) => void
 }
 
+// A citation marker in text from the document editor (RV-08), opening its
+// source like any other.
+const citeMark =
+  ({ numbers, focus, describe, onCite }: Omit<Citing, 'sectionId'>, claimKey: string | null) =>
+  (id: string) => (
+    <CitationMark
+      number={numbers.get(id) ?? 0}
+      label={describe(id)}
+      current={focus.citation === id}
+      onSelect={() => onCite(id, claimKey)}
+    />
+  )
+
 // One finding: its text and citations, its review decision and who made it,
 // and the actions on it.
 function Finding({
@@ -52,13 +67,21 @@ function Finding({
   describe,
   onCite,
   shown,
+  content,
+  heading = false,
 }: Citing & {
   claim: Claim
   actions?: FindingActions
   // The text to show, when not the claim's whole text: a Section 6 row's comment.
   shown?: string
+  // Its words as formatted in the document editor (RV-08), citations in place.
+  content?: DocumentInline[]
+  // Set as a sub-heading in the document editor (RV-08).
+  heading?: boolean
 }) {
   const { review } = claim
+  // Citations deleted in the document editor (RV-08).
+  const removed = claim.citationsRemoved ?? []
   // In the engineer's words rather than the draft's: edited, and perhaps
   // accepted since.
   const reworded = claim.generatedText !== claim.text
@@ -77,20 +100,30 @@ function Finding({
         id={statementId(sectionId, claim.key)}
         className={
           'rv-statement' +
+          (heading ? ' rv-statement-heading' : '') +
           (focus.statement === claim.key ? ' is-active' : '') +
           (claim.supported ? '' : ' is-unsupported')
         }
       >
-        <span className="rv-statement-text">{shown ?? claim.text}</span>
-        {claim.citations.map((c, n) => (
-          <CitationMark
-            key={n}
-            number={numbers.get(c)!}
-            label={describe(c)}
-            current={focus.citation === c}
-            onSelect={() => onCite(c, claim.key)}
+        {content && shown === undefined ? (
+          <RichWords
+            content={content}
+            cite={citeMark({ numbers, focus, describe, onCite }, claim.key)}
           />
-        ))}
+        ) : (
+          <>
+            <span className="rv-statement-text">{shown ?? claim.text}</span>
+            {claim.citations.map((c, n) => (
+              <CitationMark
+                key={n}
+                number={numbers.get(c)!}
+                label={describe(c)}
+                current={focus.citation === c}
+                onSelect={() => onCite(c, claim.key)}
+              />
+            ))}
+          </>
+        )}
         {!claim.supported && (
           <span className="rv-flag">
             <Badge tone="moderate" icon="triangle-alert">
@@ -150,6 +183,14 @@ function Finding({
           </>
         )}
       </div>
+      {removed.length > 0 && (
+        <p className="rv-finding-note">
+          {removed.length === 1
+            ? `Its citation to ${describe(removed[0])} was deleted in the document,`
+            : `${removed.length} of its citations were deleted in the document,`}{' '}
+          so it is unsupported until resolved here.
+        </p>
+      )}
       {reworded && (
         <details className="rv-finding-original">
           <summary>Drafted text</summary>
@@ -162,15 +203,28 @@ function Finding({
 
 function DraftSubsection({
   sub,
-  claims,
+  blocks,
+  claims: all,
   actions,
   ...citing
 }: Citing & {
   sub: ReviewDraft['subsections'][number]
+  // The subsection's text: its findings and anything the engineer wrote (RV-08).
+  blocks: DocumentBlock[]
+  // Every finding in the draft, by which those in `blocks` are shown.
   claims: Claim[]
   actions?: FindingActions
 }) {
-  if (sub.kind === 'table' || !sub.statements.length) {
+  const byKey = new Map(all.map((c) => [c.key, c]))
+  const claims = textBlocksIn(blocks).flatMap((b) => (b.finding && byKey.get(b.finding)) || [])
+  const written = hasWritten(blocks)
+  const finding = (key: string, content: DocumentInline[], heading: boolean) => {
+    const claim = byKey.get(key)
+    return claim ? (
+      <Finding claim={claim} actions={actions} content={content} heading={heading} {...citing} />
+    ) : null
+  }
+  if (sub.kind === 'table' || (!sub.statements.length && !written && !claims.length)) {
     return (
       <div className="rv-subsection-note">
         <strong>{sub.heading}</strong>
@@ -182,7 +236,7 @@ function DraftSubsection({
       </div>
     )
   }
-  if (!claims.length) {
+  if (!claims.length && !written) {
     return (
       <div className="rv-subsection-note">
         <strong>{sub.heading}</strong>
@@ -200,7 +254,20 @@ function DraftSubsection({
       (claim) => claim.text,
       (claim, comment) => <Finding claim={claim} actions={actions} shown={comment} {...citing} />,
     )
-    return <MaturityTable entries={entries} unplaced={unplaced} />
+    // Text the engineer wrote around the rows follows the table.
+    const others = blocks.flatMap((b): DocumentBlock[] => {
+      if (b.type === 'paragraph' || b.type === 'heading') return b.finding ? [] : [b]
+      const items = b.items.filter((item) => !item.finding)
+      return items.length ? [{ ...b, items }] : []
+    })
+    return (
+      <>
+        <MaturityTable entries={entries} unplaced={unplaced} />
+        {others.length > 0 && (
+          <WrittenBlocks blocks={others} cite={citeMark(citing, null)} finding={finding} />
+        )}
+      </>
+    )
   }
   const cited = [...new Set(claims.flatMap((c) => c.citations))]
   const pending = claims.filter((c) => c.review.state === 'pending')
@@ -215,7 +282,7 @@ function DraftSubsection({
           ? unsupported
             ? 'flagged'
             : 'draft'
-          : claims.some((c) => c.review.state === 'edited')
+          : written || claims.some((c) => c.review.state === 'edited')
             ? 'edited'
             : 'accepted'
       }
@@ -230,9 +297,7 @@ function DraftSubsection({
       {citing.sectionId === '4' && sub.heading === 'Positive Points' && (
         <p className="rv-muted">The positive points from the visit are the following:</p>
       )}
-      {claims.map((claim) => (
-        <Finding key={claim.key} claim={claim} actions={actions} {...citing} />
-      ))}
+      <WrittenBlocks blocks={blocks} cite={citeMark(citing, null)} finding={finding} />
     </AIDraftBlock>
   )
 }
@@ -279,29 +344,52 @@ export function DraftEditor({
   }, [section.id, citing.focus.statement])
 
   const claims = draft ? claimsOf(draft) : []
+  // The section's text: its draft's findings, in the engineer's layout and
+  // words once changed in the document editor, with what they wrote (RV-08).
+  const content = sectionContent(section)
+  const saved = section.document
+  const byKey = new Map(claims.map((c) => [c.key, c]))
+  const blocksOf = (blocks: DocumentBlock[]) => (
+    <WrittenBlocks
+      blocks={blocks}
+      cite={citeMark(citing, null)}
+      finding={(key, words, heading) => {
+        const claim = byKey.get(key)
+        return claim ? (
+          <Finding
+            claim={claim}
+            actions={actions}
+            content={words}
+            heading={heading}
+            sectionId={section.id}
+            {...citing}
+          />
+        ) : null
+      }}
+    />
+  )
   const placesFindings = typeof figures === 'function'
-  // Each subsection's findings, with their decisions, for figures that place them;
-  // a subsection with none is left out, so it reads as not drafted.
+  // Each subsection's findings and text, for figures that place them; a
+  // subsection with neither is left out, so it reads as not drafted.
   const drafted = new Map<string, React.ReactNode>(
     (draft?.subsections ?? []).flatMap((sub, i) => {
-      const own = claims.filter((c) => c.key.startsWith(`${i}.`))
-      return own.length
-        ? [
-            [
-              sub.heading,
-              own.map((claim) => (
-                <Finding
-                  key={claim.key}
-                  claim={claim}
-                  actions={actions}
-                  sectionId={section.id}
-                  {...citing}
-                />
-              )),
-            ] as const,
-          ]
-        : []
+      const blocks = content.subsections[i]?.blocks ?? []
+      return blocks.length ? [[sub.heading, blocksOf(blocks)] as const] : []
     }),
+  )
+  // Saved from the document editor, and when; or set aside as the section was
+  // drafted again since.
+  const documentLine = saved?.current && (
+    <p className="rv-provenance">
+      Last saved in the document {formatDayTime(new Date(saved.savedAt))} by {saved.savedBy.name}
+    </p>
+  )
+  const setAside = saved && !saved.current && (
+    <Callout tone="info" title="Drafted again since your document edits">
+      Your text saved in the document {formatDayTime(new Date(saved.savedAt))} was written on an
+      earlier draft. Findings you edited were carried into this draft; text you wrote yourself is
+      kept in that saved version, not shown here.
+    </Callout>
   )
   return (
     <section aria-label="Draft editor" className="om-scroll rv-editor">
@@ -331,7 +419,17 @@ export function DraftEditor({
           {section.id}. {section.title}
         </h2>
         {placesFindings ? figures(drafted) : figures}
-        {!draft ? (
+        {!draft && hasWritten(content.intro) ? (
+          // Not drafted, but written in the document editor (RV-08 AC3).
+          <>
+            {documentLine}
+            <Callout tone="info" title="Written by you">
+              This section was not drafted: its text is yours, from the document editor. Draft it on
+              the Generation tab only to replace it with an AI draft to review.
+            </Callout>
+            <div className="rv-written-section">{blocksOf(content.intro)}</div>
+          </>
+        ) : !draft ? (
           <EmptyState
             icon="file-text"
             title="Not drafted yet"
@@ -349,7 +447,9 @@ export function DraftEditor({
               {draft.provenance.model} ({draft.provenance.effort} effort) · prompt{' '}
               {draft.provenance.prompt_version} · template {draft.provenance.template_version}
             </p>
+            {documentLine}
             {header}
+            {setAside}
             {review.changesSinceDraft > 0 && (
               <Callout tone="warning" title="This draft is out of date">
                 {describeChanges(review.changeCounts)} since it was drafted. Redraft it on the
@@ -373,9 +473,10 @@ export function DraftEditor({
               <Callout tone="warning" title="Some statements need review">
                 {plural(review.unsupportedStatements, 'statement')}{' '}
                 {review.unsupportedStatements === 1 ? 'rests' : 'rest'} on no evidence from this
-                assessment or its standards: no citation, a source that could not be found, or only
-                a past report. {review.unsupportedStatements === 1 ? 'It is' : 'They are'} marked
-                Unsupported, even once accepted, until rejected.
+                assessment or its standards: no citation, a source that could not be found, only a
+                past report, or a citation deleted in the document.{' '}
+                {review.unsupportedStatements === 1 ? 'It is' : 'They are'} marked Unsupported, even
+                once accepted, until rejected.
               </Callout>
             )}
             {draft.questions.length > 0 && (
@@ -387,12 +488,16 @@ export function DraftEditor({
                 </ul>
               </Callout>
             )}
+            {hasWritten(content.intro) && (
+              <div className="rv-written-section">{blocksOf(content.intro)}</div>
+            )}
             {!placesFindings &&
               draft.subsections.map((sub, i) => (
                 <DraftSubsection
                   key={sub.heading}
                   sub={sub}
-                  claims={claims.filter((c) => c.key.startsWith(`${i}.`))}
+                  blocks={content.subsections[i]?.blocks ?? []}
+                  claims={claims}
                   actions={actions}
                   sectionId={section.id}
                   {...citing}

@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
-PROMPT_VERSION = "gn01-v2.9"  # v2.9: Sections 4-5 end with a convention check (GN-03)
+PROMPT_VERSION = "gn01-v2.10"  # v2.10: handwritten pages shown as handwritten notes (CP-19)
 # The part a regenerated draft adds (RV-02): the saved draft with the engineer's decisions,
 # and their instruction. Bump whenever REDRAFT_RULES or the redraft blocks change. A
 # redraft records "<PROMPT_VERSION>+<REDRAFT_PROMPT_VERSION>".
@@ -40,7 +40,7 @@ DRAFTING_GUIDE = re.sub(
 
 # Section 3 Opportunities for Improvement (GN-05): Marsh's value lists and matrix, and
 # the OFI drafting guide. Bump OFI_PROMPT_VERSION whenever the prompt or guide changes.
-OFI_PROMPT_VERSION = "gn05-v4"
+OFI_PROMPT_VERSION = "gn05-v5"  # v5: handwritten pages shown as handwritten notes (CP-19)
 OFI_CONFIG = json.loads((HERE / "ofi.json").read_text())
 OFI_GUIDE = re.sub(r"\A---\n.*?\n---\n", "", (HERE / "ofi-skill.md").read_text(), flags=re.S)
 
@@ -147,6 +147,8 @@ def _observation_block(label: str, o) -> str:
     )
     body = [f"Note: {o.note}"] if o.note else []
     body += [f"Voice transcript: {t}" for t in o.transcripts]
+    # A photographed page of the engineer's handwritten notes, transcribed (CP-19).
+    body += [f"Handwritten note: {t}" for t in o.handwriting]
     return f"[{label}] ({details})\n" + "\n".join(body)
 
 

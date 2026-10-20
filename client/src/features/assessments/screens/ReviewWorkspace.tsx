@@ -1,4 +1,4 @@
-import { lazy, useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Button, Callout, EmptyState, IconRegistry } from '../../../design-system'
 import {
   bulkAccept,
@@ -28,13 +28,18 @@ import { ReviewHistory } from '../components/ReviewHistory'
 import { ReviewSectionRail } from '../components/ReviewSectionRail'
 import { SectionReviewBar, type DraftView } from '../components/SectionReviewBar'
 import { SourcePanel } from '../components/SourcePanel'
-import { citationNumbers, describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
+import { WrittenBlocks } from '../components/WrittenBlocks'
+import { contentCitationNumbers, hasWritten, partContent, sectionContent } from '../documentContent'
+import { describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
 import { useSummary } from '../useSummary'
 import '../review.css'
+// Loaded on first open: the document editor brings TipTap, which the rest of
+// the workspace can skip.
+const DocumentEdit = lazy(() => import('./DocumentEdit').then((m) => ({ default: m.DocumentEdit })))
 
 // Section 3's charts (GN-12) load on first view: they bring the chart library.
 const OfiCharts = lazy(() =>
@@ -57,6 +62,8 @@ function replacementView(section: ReviewSection): ReviewSection {
   return {
     ...section,
     draft: replacement.draft,
+    // The saved draft's document edits name its findings, not these.
+    document: null,
     sources: replacement.sources,
     observations: replacement.observations,
     review: {
@@ -79,6 +86,8 @@ function replacementView(section: ReviewSection): ReviewSection {
 // replacement to accept or discard (RV-02); the review summary in the rail
 // counts the saved decisions, and each section's review history beside it.
 // Sections 1 and 2 lead the rail and Appendix A ends it (GN-07).
+// Edit document opens the whole report as one document to write in (RV-08);
+// Return to review comes back on the section being edited, with its changes.
 export function ReviewWorkspace({
   reference,
   canReview = false,
@@ -115,6 +124,14 @@ export function ReviewWorkspace({
   // Sections being regenerated, and why a regeneration failed, by section.
   const [regenerating, setRegenerating] = useState<Set<string>>(new Set())
   const [regenerateProblems, setRegenerateProblems] = useState<Record<string, string>>({})
+  // The document edit view (RV-08), open on a section; and, once reopened
+  // after a refused save, the workspace read it waits to replace.
+  const [documentAt, setDocumentAt] = useState<string | null>(null)
+  const [reopening, setReopening] = useState<string | null>(null)
+  const [documentKey, setDocumentKey] = useState(0)
+  // Back from the document: the workspace read before it, until the reload
+  // lands with the saved changes (AC2).
+  const [returnedFrom, setReturnedFrom] = useState<string | null>(null)
 
   const sections = workspace?.sections
   if (loadError && !sections)
@@ -128,6 +145,54 @@ export function ReviewWorkspace({
   if (!sections)
     return <p style={{ padding: '24px 28px', margin: 0 }}>Loading the report sections…</p>
 
+  if (documentAt) {
+    // Reopened after a refused save: the document waits for the new read.
+    if (reopening !== null && workspace.asOf !== reopening) {
+      setReopening(null)
+      setDocumentKey((k) => k + 1)
+    }
+    if (reopening !== null)
+      return loadError ? (
+        <div style={{ padding: '24px 28px' }}>
+          <Callout tone="danger" title="The document could not be reloaded">
+            {loadError}
+          </Callout>
+        </div>
+      ) : (
+        <p style={{ padding: '24px 28px', margin: 0 }}>Reloading the document…</p>
+      )
+    return (
+      <Suspense fallback={<p style={{ padding: '24px 28px', margin: 0 }}>Opening the document…</p>}>
+        <DocumentEdit
+          key={documentKey}
+          reference={reference}
+          workspace={workspace}
+          summary={summary}
+          summaryLoaded={!!summary || !!summaryError}
+          ofis={accepted}
+          startAt={documentAt}
+          onReturn={(id) => {
+            setReturnedFrom(workspace.asOf)
+            setDocumentAt(null)
+            setSelected(id)
+            setFocus(NOTHING)
+            setView('saved')
+            setProblem(null)
+            reload()
+            void reloadSummary()
+          }}
+          onReload={() => {
+            setReopening(workspace.asOf)
+            reload()
+            void reloadSummary()
+          }}
+          wrapStyle={wrapStyle}
+          railStyle={railStyle}
+        />
+      </Suspense>
+    )
+  }
+
   const drafted = sections.filter((s) => s.draft)
   // The first drafted section opens until another is chosen.
   const index = Math.max(
@@ -138,7 +203,10 @@ export function ReviewWorkspace({
   const saved = sections[index] as (typeof sections)[number] | undefined
   const showing = view === 'replacement' && saved?.replacement ? 'replacement' : 'saved'
   const section = saved && (showing === 'replacement' ? replacementView(saved) : saved)
-  const numbers = section?.draft ? citationNumbers(section.draft) : new Map<string, number>()
+  // Numbered in the order the section's text cites them, as edited (RV-08).
+  const numbers = section?.draft
+    ? contentCitationNumbers(sectionContent(section))
+    : new Map<string, number>()
   const describe = (citation: string) => describeCitation(section!, citation)
   const select = (id: string) => {
     setSelected(id)
@@ -159,6 +227,8 @@ export function ReviewWorkspace({
       onSelect={select}
       inReport={accepted.length}
       executiveSummary={summary?.executiveSummary ?? null}
+      onEditDocument={canReview ? () => setDocumentAt(selected ?? saved?.id ?? '1') : undefined}
+      editPending={returnedFrom !== null && workspace.asOf === returnedFrom && !loadError}
       style={railStyle}
     />
   )
@@ -167,6 +237,26 @@ export function ReviewWorkspace({
   // the drafted sections (4-12), then Appendix A.
   const parts = ['1', '2', '3', ...sections.map((s) => s.id), 'A']
   const positionOf = (id: string) => `${parts.indexOf(id) + 1} of ${parts.length}`
+
+  // What the engineer wrote into Section 1 or 3 or Appendix A in the
+  // document editor (RV-08), after the part's own content.
+  const writtenIn = (id: '1' | '3' | 'A') => {
+    const version = workspace.parts?.[id] ?? null
+    const blocks = partContent(version).intro
+    return (
+      version &&
+      hasWritten(blocks) && (
+        <div className="rv-written-section" aria-label="Written by you" role="group">
+          <p className="rv-label">Written by you</p>
+          <WrittenBlocks blocks={blocks} />
+          <p className="rv-provenance" style={{ margin: 0 }}>
+            Last saved in the document {formatDayTime(new Date(version.savedAt))} by{' '}
+            {version.savedBy.name}
+          </p>
+        </div>
+      )
+    )
+  }
 
   // Sections 1 and 2, and Appendix A: one view each, with a side panel that
   // says where its content comes from.
@@ -181,6 +271,7 @@ export function ReviewWorkspace({
       {rail}
       <ReportPart title={title} position={positionOf(id)} {...nav}>
         {body}
+        {(id === '1' || id === 'A') && writtenIn(id)}
       </ReportPart>
       <aside aria-label={`${title} notes`} className="om-scroll" style={panelStyle}>
         <div className="rv-panel-section">
@@ -207,6 +298,7 @@ export function ReviewWorkspace({
         summary={summary?.executiveSummary ?? null}
         error={summaryError}
         onGenerate={onGenerate}
+        document={workspace.parts?.['2'] ?? null}
       />,
       'The Executive Summary is drafted only from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
       { onPrevious: () => select('1'), onNext: () => select('3') },
@@ -299,6 +391,7 @@ export function ReviewWorkspace({
                 </ChartBoundary>
               </>
             )}
+            {writtenIn('3')}
           </div>
         </section>
         <aside aria-label="Section 3 suggestions" className="om-scroll" style={panelStyle}>

@@ -574,3 +574,96 @@ describe('drafting a report section (GN-01)', () => {
     expect(await ReportSectionModel.countDocuments()).toBe(0)
   })
 })
+
+describe('handwritten pages as drafting evidence (CP-19)', () => {
+  // An observation that is only a photographed page of handwritten notes.
+  async function page(
+    ids: { assessment: Types.ObjectId; session: Types.ObjectId },
+    status: Transcription,
+    transcript?: string,
+  ) {
+    const saved = await observation(ids, 'Construction')
+    await ObservationModel.updateOne(
+      { _id: saved._id },
+      {
+        pages: [
+          {
+            name: 'Page 1',
+            key: 'pages/x.jpg',
+            contentType: 'image/jpeg',
+            size: 3,
+            transcription: { status, transcript, attempts: [{ startedAt: new Date() }] },
+          },
+        ],
+      },
+    )
+    return saved
+  }
+  const sections = async () => (await api.get(`/api/assessments/${REFERENCE}/sections`)).body[0]
+
+  it('drafts from a transcribed page, which alone makes an observation usable (AC12, AC13)', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const written = await page(ids, 'transcribed', 'L3 riser\nfire stopping missing')
+    // A page with no handwriting, or one that failed, gives the draft nothing.
+    await page(ids, 'transcribed', '')
+    await page(ids, 'failed')
+
+    expect((await sections()).usableObservations).toBe(1)
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(201)
+
+    const expected = {
+      id: String(written._id),
+      COPE_dimension: ['Construction'],
+      note: null,
+      transcripts: [],
+      handwriting: ['L3 riser\nfire stopping missing'],
+      severity: 'high',
+      location: 'Bay 3, Ground',
+      standard: null,
+    }
+    expect(drafts.mock.calls[0][0].observations).toEqual([expected])
+    // The draft keeps the page's text as it was given it.
+    expect((await ReportSectionModel.findOne().lean())?.evidence).toEqual([expected])
+    expect((await sections()).changesSinceDraft).toBe(0)
+  })
+
+  it('waits for a page still being transcribed (AC14)', async () => {
+    const { assessment: a, session } = await assessment('active')
+    const ids = { assessment: a._id, session: session._id }
+    await observation(ids, 'Construction', { note: 'Noted.' })
+    await page(ids, 'transcribing')
+
+    const response = await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      'A recording or handwritten page is still being transcribed. Try again shortly.',
+    )
+    expect(drafts).not.toHaveBeenCalled()
+  })
+
+  it('leaves drafts without pages as they were, and counts a page transcribed later', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    await observation(ids, 'Construction', { note: 'Riser not fire-stopped.' })
+    const retried = await page(ids, 'failed')
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    // Evidence without pages is saved as it was before pages existed, so
+    // drafts saved then still compare unchanged.
+    const raw = await ReportSectionModel.collection.findOne({})
+    expect(raw?.evidence[0]).not.toHaveProperty('handwriting')
+    expect((await sections()).changesSinceDraft).toBe(0)
+
+    // The failed page is retried after the draft and transcribed.
+    await ObservationModel.updateOne(
+      { _id: retried._id },
+      {
+        'pages.0.transcription.status': 'transcribed',
+        'pages.0.transcription.transcript': 'Curtain wall sealed.',
+      },
+    )
+    expect((await sections()).changeCounts).toEqual({ added: 1, changed: 0, removed: 0 })
+  })
+})

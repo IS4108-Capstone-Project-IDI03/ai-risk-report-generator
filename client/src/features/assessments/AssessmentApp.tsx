@@ -3,6 +3,7 @@ import { Button, Dialog, Icon, SideNav, Tabs, Toast } from '../../design-system'
 import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
+import { guardLeave } from './leaveGuard'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
 import { CreateAssessment } from './screens/CreateAssessment'
@@ -16,6 +17,7 @@ import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
+import { Scans } from './screens/Scans'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
@@ -30,6 +32,9 @@ import { AccessDenied } from '../auth/AccessDenied'
 
 export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
   const captureOnPhone = v.isField && v.phone && !v.routeBlocked
+  // Going somewhere else asks first while the document editor has unsaved
+  // changes (RV-08 AC14); choosing where you already are does not.
+  const leave = (staying: boolean, go: () => void) => (staying ? go() : guardLeave(go))
   return (
     <>
       {/* data-sidenav lets fixed overlays (the toast) centre on the content, not the window. */}
@@ -42,7 +47,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                   product="Risk Report Generator"
                   sections={v.navSections}
                   value={v.navValue}
-                  onChange={v.go}
+                  onChange={(to: string) => leave(to === v.navValue, () => v.go(to))}
                   footer={v.navFooter}
                 ></SideNav>
               </>
@@ -58,7 +63,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 product="Risk Report Generator"
                 sections={v.navSections}
                 value={v.navValue}
-                onChange={v.goFromDrawer}
+                onChange={(to: string) => leave(to === v.navValue, () => v.goFromDrawer(to))}
                 footer={v.navFooter}
               />
             </Dialog>
@@ -268,7 +273,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       {!!v.isAssessment && !v.routeBlocked && (
                         <>
                           {v.canEdit && v.canCapture && (
-                            <Button variant="primary" iconLeft="plus" onClick={v.goField}>
+                            <Button
+                              variant="primary"
+                              iconLeft="plus"
+                              onClick={() => guardLeave(v.goField)}
+                            >
                               {'Add observation'}
                             </Button>
                           )}
@@ -320,7 +329,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         <Tabs
                           items={v.tabItems}
                           value={v.tabValue}
-                          onChange={v.isField ? v.leaveCaptureTo : v.setTab}
+                          onChange={
+                            v.isField
+                              ? v.leaveCaptureTo
+                              : (tab: string) => leave(tab === v.tabValue, () => v.setTab(tab))
+                          }
                           compact
                         ></Tabs>
                       </div>
@@ -369,6 +382,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     {v.isObservations && <Observations v={v} />}
 
                     {v.isPhotos && <Photos v={v} />}
+
+                    {v.isScans && <Scans v={v} />}
 
                     {v.isGenerate &&
                       (v.liveReference ? (

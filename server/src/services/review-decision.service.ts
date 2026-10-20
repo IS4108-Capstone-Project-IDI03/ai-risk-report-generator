@@ -15,6 +15,17 @@ import { z } from 'zod'
 import type { SessionUser } from './auth.service'
 import { ReviewAuditModel, type IReviewAuditEntry } from '../models/review-audit.model'
 import { isDuplicateKeyError } from './mongo-errors'
+import type { SectionDocument } from '../models/report-section-version.model'
+import {
+  asDrafted,
+  citesOf,
+  findingBlocks,
+  plainText,
+  sameSet,
+  signature,
+  tidy,
+  type TextBlock,
+} from './section-document'
 import {
   assessmentToDraft,
   sectionDrafts,
@@ -126,7 +137,11 @@ export type Finding = {
   generatedText: string
   text: string
   citations: string[]
+  // False when the draft could not support it (GN-01), or once a citation it
+  // was drafted with has been deleted in the document editor (RV-08).
   supported: boolean
+  // The drafted citations deleted in the document editor, if any.
+  citationsRemoved: string[]
   state: FindingState
   // The latest decision on it; null while none has been made.
   decided: Stamp | null
@@ -150,6 +165,7 @@ export function foldFindings(draft: Draft, entries: readonly ReviewEntry[]): Fin
         text: statement.text,
         citations: statement.citations,
         supported: statement.supported,
+        citationsRemoved: [],
         state: 'pending',
         decided: null,
         restoresTo: 'pending',
@@ -169,6 +185,15 @@ export function foldFindings(draft: Draft, entries: readonly ReviewEntry[]): Fin
     else if (e.action === 'edit') {
       finding.text = e.after ?? finding.text
       finding.state = 'edited'
+      // An edit in the document editor may move or delete citation markers.
+      if (e.citationsAfter) {
+        const [i, j] = e.finding!.split('.').map(Number)
+        const drafted = draft.subsections[i].statements[j]
+        const after = e.citationsAfter
+        finding.citations = after
+        finding.citationsRemoved = drafted.citations.filter((c) => !after.includes(c))
+        finding.supported = drafted.supported && !finding.citationsRemoved.length
+      }
     } else if (e.action === 'reject') {
       if (finding.state !== 'rejected') finding.restoresTo = finding.state
       finding.state = 'rejected'
@@ -514,4 +539,72 @@ export async function decideReplacement(
       instruction: replacement.provenance.instruction ?? null,
     }),
   )
+}
+
+// What a document saved in the document editor (RV-08) changed in the
+// section's saved draft, recorded as decisions: for each finding still in the
+// draft, an `edit` when its words, citations or formatting differ from what
+// it was, including being set as a sub-heading or a list item (AC12), with
+// its citations after the edit (AC9, AC10), or a
+// `reject` when it is no longer in the document or left empty. Both are marked
+// `inDocument`, and a rejected one can be restored from the review history.
+// `previous` is the version the document was edited from, if it was made on
+// this draft: the formatting a finding had there is what it is compared with.
+// A finding rejected in the review workspace since the document was opened
+// cannot be saved back into it.
+export async function recordDocumentEdits(
+  draft: Draft,
+  document: SectionDocument,
+  previous: SectionDocument | null,
+  user: Pick<SessionUser, 'id' | 'name'>,
+  at = new Date(),
+): Promise<void> {
+  const findings = foldFindings(draft, await entriesFor([draft._id]))
+  const now = findingBlocks(document)
+  const before = previous ? findingBlocks(previous) : new Map<string, TextBlock>()
+  const records: IReviewAuditEntry[] = []
+  for (const f of findings) {
+    const block = now.get(f.key)
+    if (f.state === 'rejected') {
+      if (block)
+        throw new FindingStateError(
+          `Finding ${f.key} was rejected in the review workspace after you opened the document. Reload the document to carry on.`,
+        )
+      continue
+    }
+    const text = block ? plainText(block.content) : ''
+    const fields = {
+      finding: f.key,
+      sequence: f.next,
+      heading: f.heading,
+      before: f.text,
+      citations: f.citations,
+      inDocument: true,
+    }
+    if (!text) {
+      records.push(entry(draft, user, { ...fields, action: 'reject' }, at))
+      continue
+    }
+    const cites = citesOf(block!.content)
+    // What it looked like before: as last saved if that is still its text,
+    // else a paragraph of its text and citations, as the editor first shows it.
+    const was = before.get(f.key)
+    const kept = was && plainText(was.content) === tidy(f.text) ? was : null
+    const changed =
+      text !== tidy(f.text) ||
+      !sameSet(cites, f.citations) ||
+      signature(block!.content) !== signature(kept ? kept.content : asDrafted(f)) ||
+      block!.shape !== (kept ? kept.shape : 'paragraph')
+    if (!changed) continue
+    records.push(
+      entry(draft, user, { ...fields, action: 'edit', after: text, citationsAfter: cites }, at),
+    )
+  }
+  if (!records.length) return
+  try {
+    await ReviewAuditModel.insertMany(records)
+  } catch (error) {
+    if (isDuplicateKeyError(error)) throw new ConcurrentDecisionError()
+    throw error
+  }
 }

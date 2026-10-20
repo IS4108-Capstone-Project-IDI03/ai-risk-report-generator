@@ -4,7 +4,7 @@
 [project]
 name = "speech-ocr-service"
 version = "0.1.0"
-description = "S5 — stateless STT, OCR and photo interpretation, returns results only"
+description = "S5 — stateless STT, handwriting transcription and photo interpretation, returns results only"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
@@ -47,3 +47,8 @@ select = ["E", "F", "I", "UP"]
 [tool.black]
 line-length = 100
 target-version = ["py311"]
+
+[tool.pytest.ini_options]
+# Tests import `app` and the eval's scoring (CP-19) from this folder, however the project itself
+# is installed.
+pythonpath = ["."]

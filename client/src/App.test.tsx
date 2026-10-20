@@ -142,7 +142,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Elsewhere on site, / }))
     fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site · Pump house/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(screen.getByText('Add a note, recording or photograph first.')).toBeInTheDocument()
+    expect(screen.getByText('Add a note, recording, photograph or page first.')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Demo sprinkler observation' },
     })

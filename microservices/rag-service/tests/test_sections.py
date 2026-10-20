@@ -126,7 +126,7 @@ def test_draft_follows_the_template_order_and_records_provenance(monkeypatch):
     assert body["guardrail"] == {"passed": True, "unsupported_count": 0}
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"] == "gn01-v2.9"
+    assert provenance["prompt_version"] == "gn01-v2.10"
     assert provenance["template_version"] == "global-pre-v2.0-2026-02"
     assert provenance["effort"] == "high"
     assert provenance["generated_at"]
@@ -375,6 +375,41 @@ def test_standard_queries_use_each_own_observations_words():
     # A long note is trimmed, so one observation cannot crowd the embedding.
     assert queries[1] == "Fire Protection: " + "x" * 500
     assert standard_queries(section, [observations[2]] * 3) == []
+
+
+def test_handwritten_pages_are_shown_as_handwritten_notes_and_searched(monkeypatch):
+    # An observation can be only a photographed page of handwritten notes (CP-19 AC13).
+    page = {
+        "id": "obs2",
+        "COPE_dimension": ["Construction"],
+        "handwriting": ["L3 riser shaft\nfire stopping missing"],
+    }
+    request = {**REQUEST, "observations": [*REQUEST["observations"], page]}
+
+    response, calls, prompts = draft(monkeypatch, [], request=request)
+
+    assert response.status_code == 200
+    user = prompts[0][1]
+    assert "Handwritten note: L3 riser shaft\nfire stopping missing" in user
+    # Labelled apart from the typed note and the voice transcript.
+    assert "Note: Riser shafts on L3 are not fire-stopped." in user
+    assert "Voice transcript: Curtain wall gaps filled with rock wool." in user
+    queries = [query for query, filters, _ in calls if filters["source_type"] != "marsh_report"]
+    assert any("fire stopping missing" in query for query in queries)
+
+
+def test_an_observation_reads_as_its_note_transcripts_and_pages_in_order():
+    from app.api.routes import Observation
+
+    o = Observation(
+        id="a",
+        COPE_dimension="Protection",
+        note="Valve shut.",
+        transcripts=["", "Chained open."],
+        handwriting=["spk CV ok"],
+    )
+    assert o.recorded() == ["Valve shut.", "Chained open.", "spk CV ok"]
+    assert Observation(id="b", COPE_dimension="Protection").recorded() == []
 
 
 def test_search_embeds_once_and_groups_queries_by_filter(monkeypatch):
@@ -646,7 +681,7 @@ def test_a_redraft_is_given_the_decisions_and_instruction_and_records_them(monke
     assert [s["supported"] for s in statements] == [True, False]
     assert statements[0]["citations"] == ["O:obs1"]
     # The prompt it came from, and what the engineer asked for (GN-01 AC10).
-    assert body["provenance"]["prompt_version"] == "gn01-v2.9+rv02-v2"
+    assert body["provenance"]["prompt_version"] == "gn01-v2.10+rv02-v2"
     assert body["provenance"]["instruction"] == "Say more about the curtain wall."
 
 

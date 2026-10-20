@@ -3,7 +3,8 @@ import { listObservations, type SavedObservation } from './api'
 
 // The assessment's observations saved on the server. Transcription and photo
 // interpretation finish after a save returns, so the list is re-read every few
-// seconds while any recording is transcribing or any photos are interpreting. Deleted ones (CP-08) are read too while
+// seconds while any recording or handwritten page (CP-19 AC7) is transcribing
+// or any photos are interpreting. Deleted ones (CP-08) are read too while
 // includeDeleted asks for them, for the Observations tab's Deleted button.
 // An unreachable gateway leaves the list as it was.
 export function useObservations(reference: string, open: boolean, includeDeleted = false) {
@@ -27,8 +28,9 @@ export function useObservations(reference: string, open: boolean, includeDeleted
           if (
             list.some(
               (o) =>
-                o.recordings.some((r) => r.transcription.status === 'transcribing') ||
-                o.interpretation?.status === 'interpreting',
+                [...o.recordings, ...(o.pages ?? [])].some(
+                  (m) => m.transcription.status === 'transcribing',
+                ) || o.interpretation?.status === 'interpreting',
             )
           )
             timer = setTimeout(load, 3000)

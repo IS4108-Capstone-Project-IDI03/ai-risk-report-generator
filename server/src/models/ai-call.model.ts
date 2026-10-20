@@ -8,6 +8,8 @@ export const AI_FEATURES = [
   'draft-section',
   'retrieval',
   'transcribe',
+  // A handwritten note page (CP-19), read by S5's handwriting provider.
+  'transcribe-handwriting',
   'label-document',
   'interpret-photo',
   'ocr',

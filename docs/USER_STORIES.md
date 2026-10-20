@@ -571,6 +571,58 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: merging duplicate clients or sites; deleting a client or site; moving a site to another client.
   </details>
 
+- [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: photograph the pages of my handwritten site notes and have each transcribed, so notes written on paper become usable evidence for drafting without retyping them.
+
+  Capturing pages
+
+  1. Given an active session, when I take or choose photos of handwritten pages in Scan mode and save the observation, then each page is stored unaltered as retrievable raw evidence, tagged with my ID, linked to its observation, and named "Page 2" or by its file name.
+  2. Given a page that is not a JPG or PNG, is larger than 20 MB, or is empty, when I save, then it is refused with the reason and nothing of the observation is saved.
+  3. Given Scan mode holds pages, when I look at the mode switcher, then it shows how many ("Scan, 2 pages").
+  4. Given an observation has pages, when it is listed on the Observations tab, then its type includes Scan and its status reflects its pages' transcriptions.
+  5. Given saved pages, when I open the photo collection, choose Appendix A photos, or read the observation's photos, then the pages are not among them.
+
+  Transcribing pages
+
+  6. Given a saved page, when the save completes, then one transcription of that page starts and the page shows Transcribing; each page is transcribed on its own, so one failure leaves the others.
+  7. Given a transcription finishes while I'm on the Observations tab, then the page's status updates without reloading.
+  8. Given a successful transcription, when I open the observation, then the page's text appears beside its image, verbatim and in English, styled as machine-written text, with status Transcribed.
+  9. Given the reader is unsure of a word, when the page's text is shown, then the word is highlighted as uncertain and the number of uncertain words is shown.
+  10. Given a page with no readable handwriting, when it is transcribed, then it shows that no handwriting was found.
+  11. Given a transcription failed or was interrupted by a restart, when I open the observation, then a readable reason is shown and I can retry, which starts a new attempt on the same page.
+
+  Drafting and review
+
+  12. Given an observation's only text is a page's transcribed text, when I request a draft, then the observation counts toward the section's minimum evidence.
+  13. Given an observation has transcribed pages, when a section or its OFIs are drafted, then the draft is given each page's text labelled as a handwritten note, separate from the typed note and voice transcripts.
+  14. Given a page is still being transcribed, when I request a section or OFI draft, then drafting is refused until it finishes.
+  15. Given a section's evidence includes transcribed pages, when I open it in the review workspace, then each page's text is shown labelled as a handwritten note.
+
+  Evaluation
+
+  16. Given a test set of team-written site notes with known text (Marsh's added if supplied), when the reader is evaluated, then at least 90% of words are read correctly and at least 80% of misread words are highlighted as uncertain, with the scores, model and prompt version recorded.
+
+  Scans view (added 2026-10-19; like the photo collection, CP-04 AC3)
+
+  17. Given saved pages, when I open the Scans view from the Observations tab, then every page of the assessment's observations not deleted is listed with its transcript, its original and a link to its observation.
+
+  Not in this story (CP-20): changing a saved page — transcribing it again, correcting its text, adding pages to a saved observation, removing and restoring them.
+  </details>
+
+- [ ] **CP-20** — Manage scanned pages (risk engineer, deps: CP-19, CP-08)
+  <details><summary>Goal / AC</summary>
+
+  Goal: fix and change the handwritten pages of a saved observation, as CP-08 does for its recordings and photos, so drafting works from pages that are read correctly and up to date.
+
+  Transcribing again (built 2026-10-19)
+
+  1. Given a transcribed page, when the assessment's assigned engineer asks for it to be transcribed again, then a new attempt starts on the same page and its text is replaced once it finishes.
+
+  Still to write, from the CP-19 split: correcting a page's text (the transcription kept as evidence, drafting using the correction); adding pages to a saved observation; removing and restoring a page; who made each change and when; changes by the assigned engineer only, not once archived; a failed save keeping the engineer's correction.
+  </details>
+
 ## E6 — Report Generation & Guardrails
 
 - [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)
@@ -813,15 +865,28 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a report was partly reviewed, when I reopen section navigation, then each section displays its saved review state.
   </details>
 
-- [ ] **RV-08** — Amend a section manually (risk engineer, Must, 3 pts, deps: RV-01, Sprint 3)
+- [ ] **RV-08** — Edit the full report in a document editor (risk engineer, Must, 8 pts, deps: RV-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
-  Goal: write a section the system could not draft, so missing AI content doesn't block report completion.
+  Goal: switch the report into a full-document edit view to write and revise any section, drafted or not, so missing or imperfect AI content does not prevent the report being completed.
 
-  1. Given a section is undrafted, when I enter content, then that section accepts manually authored text.
-  2. Given a section is drafted, when I enter content, then that section accepts manually authored text.
-  3. Given I have written part of a section, when I save it, then the content becomes part of the report.
-  4. Given a manually written section has been saved, when I reopen the report, then its content is retained.
+  1. Given an assessment has a report draft, when I select Edit document in the review workspace, then the whole report opens as one continuous editable document, with each section under its fixed heading in report order.
+  2. Given edit view is open, when I select Return to review, then the review workspace opens on the section I was editing and shows my saved changes.
+  3. Given a section is undrafted, when I open edit view, then that section states why it was not drafted and accepts manually authored text.
+  4. Given a section is drafted, when I edit its text, then that section accepts my changes in place.
+  5. Given edit view is open, when I select a section in the document outline, then the document scrolls to that section.
+  6. Given I select text, when I use the formatting toolbar or its keyboard shortcuts, then I can apply bold, italic, underline, sub-headings, and bulleted and numbered lists.
+  7. Given I have made changes, when I use undo or redo, then my changes are reversed or reapplied in order.
+  8. Given edit view is open, when I use find and replace, then matches across all sections are highlighted and can be replaced one at a time or all at once.
+  9. Given a passage contains a citation marker, when I edit the text around it, then the marker stays linked to its source.
+  10. Given I delete a citation marker, when the change is saved, then the claim it supported is flagged as unsupported in the review workspace.
+  11. Given a passage has an open uncertainty, when I edit that passage, then its flag remains until it is resolved in the review workspace.
+  12. Given I edit an AI-drafted passage, when the change is saved, then that passage no longer shows AI styling and its section's review state becomes Edited by you.
+  13. Given I have unsaved changes, when I pause typing or select Save, then the changes are saved to the report and the save status shows the time of the last save.
+  14. Given I have unsaved changes, when I leave edit view or the page, then I am warned before they are discarded.
+  15. Given a section has been edited and saved, when I reopen the report, then its content is retained.
+
+  Rewritten 19 Oct 2026 from "Amend a section manually" (3 pts, four ACs, all kept in AC3, AC4, AC13 and AC15). An open uncertainty (AC11) is a passage marked Unsupported or citing a withdrawn source. Parts filled in elsewhere (Section 1's assessment details, the OFIs, Sections 4 and 5's figures, tables, Appendix A's photos) show read-only in place; every section still takes text.
   </details>
 
 - [ ] **RV-09** — Reorder report sections (risk engineer, Should, 3 pts, deps: RV-01, Sprint 3)

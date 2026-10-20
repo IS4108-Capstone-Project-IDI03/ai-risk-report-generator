@@ -22,7 +22,7 @@ export class UnknownSectionError extends Error {
 }
 export class TranscriptionInProgressError extends Error {
   constructor() {
-    super('A recording is still being transcribed. Try again shortly.')
+    super('A recording or handwritten page is still being transcribed. Try again shortly.')
     this.name = 'TranscriptionInProgressError'
   }
 }
@@ -124,18 +124,32 @@ function transcriptsOf(o: ObservationDto): string[] {
     return r.transcription.status === 'transcribed' && text ? [text] : []
   })
 }
+// The same for handwritten pages (CP-19): a finished transcript with text in
+// it. A page with no handwriting gives the draft nothing.
+function handwritingOf(o: ObservationDto): string[] {
+  return o.pages.flatMap((p) =>
+    p.transcription.status === 'transcribed' && p.transcription.transcript?.trim()
+      ? [p.transcription.transcript]
+      : [],
+  )
+}
 function isUsable(o: ObservationDto): boolean {
-  return Boolean(o.note?.trim()) || transcriptsOf(o).length > 0
+  return Boolean(o.note?.trim()) || transcriptsOf(o).length > 0 || handwritingOf(o).length > 0
 }
 
 // An observation as the draft is given it, and as the draft saves it.
 export type Evidence = IReportSection['evidence'][number]
 function toEvidence(o: ObservationDto): Evidence {
+  const handwriting = handwritingOf(o)
   return {
     id: o.id,
     COPE_dimension: o.copeDimensions!,
     note: o.note,
     transcripts: transcriptsOf(o),
+    // Only when there is some (CP-19): changesSince compares evidence as JSON,
+    // so an observation without pages must read exactly as it did before pages
+    // existed, or every earlier draft would show as out of date.
+    ...(handwriting.length ? { handwriting } : {}),
     severity: o.severity,
     location: o.location && locationText(o.location),
     standard: o.standard,
@@ -311,13 +325,14 @@ export async function assessmentToDraft(reference: string, user: SessionUser) {
 
 // The usable, categorised observations a draft is given, loaded by the
 // assessment (AC2), oldest first so the draft reads them in the order they
-// were captured. Throws while a transcription is unfinished, since a draft
-// would miss it. Shared with OFI drafting (GN-05).
+// were captured. Throws while a transcription is unfinished, a recording's or a
+// handwritten page's (CP-19 AC14), since a draft would miss it. Shared with OFI
+// drafting (GN-05).
 export async function draftingEvidence(reference: string): Promise<Evidence[]> {
   const inputs = categorised((await listObservations(reference)).reverse())
-  if (inputs.some((o) => o.recordings.some((r) => r.transcription.status === 'transcribing'))) {
-    throw new TranscriptionInProgressError()
-  }
+  const transcribing = (o: ObservationDto) =>
+    [...o.recordings, ...o.pages].some((m) => m.transcription.status === 'transcribing')
+  if (inputs.some(transcribing)) throw new TranscriptionInProgressError()
   return inputs.filter(isUsable).map(toEvidence)
 }
 

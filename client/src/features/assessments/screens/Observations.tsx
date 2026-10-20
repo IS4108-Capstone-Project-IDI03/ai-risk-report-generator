@@ -17,16 +17,11 @@ import { FoldHeading } from '../components/FoldHeading'
 import { LocationForm, RemoveLocationDialog } from '../components/LocationSheet'
 import { StatBox } from '../components/StatBox'
 import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
+import { PageEntry } from '../components/PageEntry'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import { TagDialog } from '../components/TagDialog'
+import { TRANSCRIPTION_BADGE as STATUS_BADGE } from '../transcription'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
-import type { TranscriptionStatus } from '../api'
-
-const STATUS_BADGE = {
-  transcribing: { tone: 'info', label: 'Transcribing' },
-  transcribed: { tone: 'low', label: 'Transcribed' },
-  failed: { tone: 'high', label: 'Failed' },
-} as const satisfies Record<TranscriptionStatus, { tone: string; label: string }>
 
 type Row = AssessmentWorkflow['obsList'][number]
 
@@ -609,6 +604,19 @@ function ObservationRow({
                   )}
                 </div>
               )}
+              {o.pages.length > 0 && (
+                <div style={{ minWidth: '0' }}>
+                  <ColumnHead>{'Handwritten pages (' + o.pages.length + ')'}</ColumnHead>
+                  {o.pages.map((p, index) => (
+                    <PageEntry
+                      key={p.id}
+                      page={p}
+                      first={index === 0}
+                      onView={() => onView({ name: p.name, url: p.url, context: o.where })}
+                    />
+                  ))}
+                </div>
+              )}
               {(o.media.length > 0 || !!o.proposal) && (
                 <div style={{ minWidth: '0' }}>
                   <ColumnHead>{'Photos (' + o.media.length + ')'}</ColumnHead>
@@ -1002,9 +1010,9 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
         }}
       >
         {/* What the observations hold, by kind; Photos opens the photo
-            collection. */}
+            collection and Scans the handwritten pages (CP-19). */}
         <div className="om-overview-wrap" style={{ marginBottom: '16px' }}>
-          <div className="om-stat-boxes-3">
+          <div className="om-overview-boxes">
             <StatBox
               icon="sticky-note"
               label="Notes"
@@ -1030,6 +1038,16 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               }}
               onOpen={v.goPhotos}
               opens="the photo collection"
+            />
+            <StatBox
+              icon={IconRegistry.evidence.handwriting}
+              label="Scans"
+              content={{
+                value: String(v.obsCounts.scans),
+                unit: v.obsCounts.scans === 1 ? 'page' : 'pages',
+              }}
+              onOpen={v.goScans}
+              opens="the handwritten pages"
             />
           </div>
         </div>

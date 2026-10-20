@@ -26,6 +26,8 @@ const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 // S5's photo interpretation (CP-05), stubbed apart from transcription.
 type InterpretBody = { s3_keys: string[]; location: string | null; note: string | null }
 const vision = vi.fn<(body: InterpretBody) => Promise<Response>>()
+// S5's handwritten pages (CP-19), stubbed apart from voice transcription.
+const handwriting = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 
 useMemoryMongo()
 
@@ -48,13 +50,16 @@ beforeEach(() => {
   vision.mockReturnValue(new Promise<Response>(() => {}))
   vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body))
-    return url.endsWith('/interpret') ? vision(body) : speech(body)
+    if (url.endsWith('/interpret')) return vision(body)
+    if (url.endsWith('/transcribe-handwriting')) return handwriting(body)
+    return speech(body)
   })
 })
 afterEach(() => {
   s3.clear()
   speech.mockReset()
   vision.mockReset()
+  handwriting.mockReset()
   vi.unstubAllGlobals()
 })
 
@@ -1371,7 +1376,7 @@ describe('adding and removing recordings and photos (CP-08)', () => {
 
     expect(replies.map((r) => r.status).sort()).toEqual([200, 409])
     expect(replies.find((r) => r.status === 409)!.body.error).toBe(
-      'An observation needs a note, a recording or a photo, so this photo can’t be removed. Add what replaces it first.',
+      'An observation needs a note, a recording, a photo or a page, so this photo can’t be removed. Add what replaces it first.',
     )
     const [o] = await listed()
     expect(o.photos).toHaveLength(1)
@@ -1478,4 +1483,445 @@ it('uses each authenticated capturer ID and ignores forged attribution, while de
       recordings: [],
     })
   }
+})
+
+describe('handwritten pages (CP-19)', () => {
+  type Page = { image: Buffer; name?: string; type?: string }
+  // Saves an observation with a `page` part per photographed page, as Scan mode does.
+  function savePages(pages: Page[], fields: object = {}) {
+    const req = api.post('/api/assessments/RPT-2026-0411/observations').field(
+      'details',
+      JSON.stringify({
+        copeDimensions: ['Protection'],
+        severity: 'moderate',
+        locationId: String(BAY_3),
+        ...fields,
+      }),
+    )
+    pages.forEach((p, i) =>
+      req.attach('page', p.image, {
+        filename: p.name ?? `IMG_07${10 + i}.jpg`,
+        contentType: p.type ?? 'image/jpeg',
+      }),
+    )
+    return req
+  }
+  // What S5 answers for a page it transcribed.
+  const read = (transcript: string, uncertain: number[][] = []) => ({
+    transcript,
+    uncertain,
+    provider: 'gemini',
+    model: 'gemini-3.8-flash',
+    prompt_version: 'cp19-v1',
+    usage: [
+      {
+        feature: 'transcribe-handwriting',
+        billed_service: 'gemini-vision',
+        model: 'gemini-3.8-flash',
+        duration_ms: 2100,
+        input_tokens: 1290,
+        output_tokens: 275,
+        cache_read_tokens: null,
+        search_units: null,
+        audio_seconds: null,
+        usage_status: 'recorded',
+      },
+    ],
+  })
+  // Transcription runs after the response, so wait for every page to settle.
+  async function pagesSettled(id: string) {
+    await vi.waitFor(async () => {
+      const o = await ObservationModel.findById(id).lean()
+      expect(o?.pages?.map((p) => p.transcription.status)).not.toContain('transcribing')
+    })
+    return (await ObservationModel.findById(id).lean())!
+  }
+  const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+
+  it('stores each page unaltered as raw evidence and transcribes it on its own (AC1, AC6, AC8)', async () => {
+    handwriting.mockImplementation(({ s3_key }) =>
+      s5(200, read(`Text of ${s3_key.split('/').pop()}`, [[0, 4]])),
+    )
+    await assessmentWithSession()
+
+    const response = await savePages([{ image: JPG }, { image: PNG, name: 'page-2.png' }])
+
+    expect(response.status).toBe(201)
+    const id = response.body.id
+    const stored = await pagesSettled(id)
+    const [first, second] = stored.pages!
+    expect(first.key).toBe(`pages/RPT-2026-0411/${id}/${first._id}.jpg`)
+    expect(second.key).toMatch(/\.png$/)
+    expect(s3.get(first.key)).toEqual(JPG)
+    expect(s3.get(second.key)).toEqual(PNG)
+    // One transcription per page, each of its own page.
+    expect(handwriting).toHaveBeenCalledTimes(2)
+    expect(handwriting.mock.calls.map(([body]) => body.s3_key).sort()).toEqual(
+      [first.key, second.key].sort(),
+    )
+    expect(String(stored.engineerId)).toBe(String(actor._id))
+    const [o] = await listed()
+    expect(o).toMatchObject({
+      note: null,
+      recordings: [],
+      // Not a site photo (AC5).
+      photos: [],
+      pages: [
+        {
+          type: 'Scan',
+          id: String(first._id),
+          name: 'IMG_0710.jpg',
+          contentType: 'image/jpeg',
+          size: JPG.length,
+          url: `/api/observations/${id}/pages/${first._id}/image`,
+          transcription: {
+            status: 'transcribed',
+            transcript: `Text of ${first._id}.jpg`,
+            uncertain: [[0, 4]],
+            error: null,
+            attempts: 1,
+            model: 'gemini-3.8-flash',
+          },
+        },
+        { name: 'page-2.png', contentType: 'image/png' },
+      ],
+    })
+    expect(stored.pages![0].transcription.provenance).toEqual({
+      provider: 'gemini',
+      model: 'gemini-3.8-flash',
+      promptVersion: 'cp19-v1',
+    })
+    expect(speech).not.toHaveBeenCalled()
+  })
+
+  it('records each transcription against the assessment (EV-03)', async () => {
+    handwriting.mockReturnValue(s5(200, read('spk CV shut')))
+    await assessmentWithSession()
+
+    await pagesSettled((await savePages([{ image: JPG }])).body.id)
+
+    expect(await AiCallModel.find().lean()).toMatchObject([
+      {
+        feature: 'transcribe-handwriting',
+        billedService: 'gemini-vision',
+        model: 'gemini-3.8-flash',
+        reportId: 'RPT-2026-0411',
+        inputTokens: 1290,
+        outputTokens: 275,
+        usageStatus: 'recorded',
+      },
+    ])
+  })
+
+  it('keeps a page with no handwriting, with an empty transcript (AC10)', async () => {
+    handwriting.mockReturnValue(s5(200, read('')))
+    await assessmentWithSession()
+
+    await pagesSettled((await savePages([{ image: JPG }])).body.id)
+
+    const [o] = await listed()
+    expect(o.pages[0].transcription).toMatchObject({ status: 'transcribed', transcript: '' })
+  })
+
+  it('keeps only uncertain words that lie within the transcript', async () => {
+    handwriting.mockReturnValue(
+      s5(
+        200,
+        read('valve shut', [
+          [0, 5],
+          [6, 99],
+          [8, 7],
+          [1.5, 3],
+        ]),
+      ),
+    )
+    await assessmentWithSession()
+
+    await pagesSettled((await savePages([{ image: JPG }])).body.id)
+
+    expect((await listed())[0].pages[0].transcription.uncertain).toEqual([[0, 5]])
+  })
+
+  it('refuses anything but a JPG or PNG, an empty page or one over 20 MB, saving nothing (AC2)', async () => {
+    await assessmentWithSession()
+
+    const heic = await savePages([{ image: JPG }, { image: HEIC, name: 'notes.heic' }], {
+      note: 'Riser room.',
+    })
+    expect(heic.status).toBe(415)
+    expect(heic.body.error).toBe(
+      'notes.heic is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
+    )
+    expect((await savePages([{ image: Buffer.from('') }])).status).toBe(400)
+    const huge = Buffer.concat([JPG, Buffer.alloc(20 * 1024 * 1024)])
+    const tooBig = await savePages([{ image: huge }])
+    expect(tooBig.status).toBe(413)
+    expect(tooBig.body.error).toBe('A page is larger than 20 MB. Upload a smaller one.')
+    expect(s3.size).toBe(0)
+    expect(await ObservationModel.countDocuments()).toBe(0)
+    expect(handwriting).not.toHaveBeenCalled()
+  })
+
+  it('shows why a page failed, leaving the others, and retries it on its own (AC6, AC11)', async () => {
+    handwriting.mockImplementation(({ s3_key }) =>
+      s3_key.endsWith('.png')
+        ? s5(502, {
+            detail: 'The page could not be transcribed: the answer was not in the expected form.',
+          })
+        : s5(200, read('FHR 7 bar')),
+    )
+    await assessmentWithSession()
+    const { id } = (await savePages([{ image: JPG }, { image: PNG }])).body
+    const stored = await pagesSettled(id)
+    const failed = stored.pages![1]
+    expect(failed.transcription.attempts[0].error).toContain(
+      'the answer was not in the expected form',
+    )
+
+    let [o] = await listed()
+    const statuses = o.pages.map(
+      (p: { transcription: { status: string } }) => p.transcription.status,
+    )
+    expect(statuses).toEqual(['transcribed', 'failed'])
+    expect(o.pages[1].transcription.error).toBe(
+      'The handwriting service could not transcribe the page.',
+    )
+
+    const retry = (pageId: unknown) =>
+      api.post(`/api/observations/${id}/pages/${pageId}/transcription/retry`)
+    // Only a failed page can be retried.
+    expect((await retry(stored.pages![0]._id)).status).toBe(409)
+    handwriting.mockReturnValue(s5(200, read('Second time lucky.')))
+    expect((await retry(failed._id)).status).toBe(202)
+    await pagesSettled(id)
+    ;[o] = await listed()
+    expect(o.pages[1].transcription).toMatchObject({
+      status: 'transcribed',
+      transcript: 'Second time lucky.',
+      error: null,
+      attempts: 2,
+    })
+    expect(handwriting).toHaveBeenLastCalledWith({ s3_key: failed.key })
+    expect((await retry(new Types.ObjectId())).status).toBe(404)
+    expect((await retry('nope')).status).toBe(404)
+  })
+
+  it('transcribes a transcribed page again for its assigned engineer, replacing the text (CP-20)', async () => {
+    handwriting.mockReturnValue(s5(200, read('FHR 7 bor', [[4, 9]])))
+    await assessmentWithSession()
+    const { id } = (await savePages([{ image: JPG }])).body
+    const [page] = (await pagesSettled(id)).pages!
+    const again = () => api.post(`/api/observations/${id}/pages/${page._id}/retranscribe`)
+
+    handwriting.mockReturnValue(s5(200, read('FHR 7 bar')))
+    const response = await again()
+
+    // The old text goes as the new attempt starts, so it reads as a new transcription.
+    expect(response.status).toBe(200)
+    expect(response.body.pages[0].transcription).toMatchObject({
+      status: 'transcribing',
+      transcript: null,
+      uncertain: [],
+      attempts: 2,
+    })
+    expect(response.body.edited).toMatchObject({ by: { name: 'Alex Rowe' } })
+    await pagesSettled(id)
+    const [o] = await listed()
+    expect(o.pages[0].transcription).toMatchObject({
+      status: 'transcribed',
+      transcript: 'FHR 7 bar',
+      uncertain: [],
+      attempts: 2,
+    })
+    expect(handwriting).toHaveBeenCalledTimes(2)
+    expect(handwriting).toHaveBeenLastCalledWith({ s3_key: page.key })
+  })
+
+  it('transcribes again only a transcribed page, and only for the assigned engineer (CP-20)', async () => {
+    handwriting.mockImplementation(({ s3_key }) =>
+      s3_key.endsWith('.png')
+        ? s5(502, { detail: 'The page could not be transcribed: timeout.' })
+        : s5(200, read('x')),
+    )
+    await assessmentWithSession()
+    const { id } = (await savePages([{ image: JPG }, { image: PNG }])).body
+    const [done, failed] = (await pagesSettled(id)).pages!
+    const again = (pageId: unknown, as = api) =>
+      as.post(`/api/observations/${id}/pages/${pageId}/retranscribe`)
+
+    const refused = await again(failed._id)
+    expect(refused.status).toBe(409)
+    expect(refused.body.error).toBe('This page’s transcription failed. Retry it instead.')
+    expect((await again(new Types.ObjectId())).status).toBe(404)
+    const otherEngineer = signedInAsRole(app, 'risk_engineer', 'Jide Okafor')
+    expect((await again(done._id, otherEngineer)).status).toBe(403)
+    expect(handwriting).toHaveBeenCalledTimes(2)
+
+    // Asked twice at once, one attempt starts.
+    handwriting.mockReturnValue(new Promise<Response>(() => {}))
+    const replies = await Promise.all([again(done._id), again(done._id)])
+    expect(replies.map((r) => r.status).sort()).toEqual([200, 409])
+    // The attempt reaches S5 after the reply.
+    await vi.waitFor(() => expect(handwriting).toHaveBeenCalledTimes(3))
+  })
+
+  it('says why the provider refused: a used-up limit, a busy service or a slow answer', async () => {
+    const reasons = {
+      'limit.jpg':
+        "The page could not be transcribed: Error code: 429 - {'error': {'message': 'Rate limit exceeded for model gemini-3.8-flash (limit: 20 requests per day on Free Tier).'}}",
+      'busy.jpg':
+        "The page could not be transcribed: Error code: 503 - {'error': {'message': 'gemini-3.8-flash is currently experiencing high demand.'}}",
+      'slow.jpg': 'The page could not be transcribed: The read operation timed out',
+    }
+    handwriting.mockImplementation(async ({ s3_key }) => {
+      const page = (await ObservationModel.findOne({ 'pages.key': s3_key }).lean())!.pages!.find(
+        (p) => p.key === s3_key,
+      )!
+      return s5(502, { detail: reasons[page.name as keyof typeof reasons] })
+    })
+    await assessmentWithSession()
+
+    await pagesSettled(
+      (
+        await savePages([
+          { image: JPG, name: 'limit.jpg' },
+          { image: JPG, name: 'busy.jpg' },
+          { image: JPG, name: 'slow.jpg' },
+        ])
+      ).body.id,
+    )
+
+    const [o] = await listed()
+    expect(o.pages.map((p: { transcription: { error: string } }) => p.transcription.error)).toEqual(
+      [
+        'The handwriting service has reached its usage limit. Try again later.',
+        'The handwriting service is busy. Try again in a minute.',
+        'The handwriting service took too long to answer.',
+      ],
+    )
+  })
+
+  it('says the service took too long when the gateway gives up waiting', async () => {
+    handwriting.mockRejectedValue(
+      Object.assign(new TypeError('fetch failed'), {
+        cause: { code: 'UND_ERR_HEADERS_TIMEOUT' },
+      }),
+    )
+    await assessmentWithSession()
+
+    await pagesSettled((await savePages([{ image: JPG }])).body.id)
+
+    expect((await listed())[0].pages[0].transcription.error).toBe(
+      'The handwriting service took too long to answer.',
+    )
+  })
+
+  it('says so when the handwriting service cannot be reached', async () => {
+    handwriting.mockRejectedValue(new TypeError('fetch failed'))
+    await assessmentWithSession()
+
+    await pagesSettled((await savePages([{ image: JPG }])).body.id)
+
+    expect((await listed())[0].pages[0].transcription.error).toBe(
+      'The handwriting service could not be reached.',
+    )
+  })
+
+  it('marks pages interrupted by a restart as failed so they can be retried (AC11)', async () => {
+    handwriting.mockReturnValue(new Promise<Response>(() => {}))
+    await assessmentWithSession()
+    const { id } = (await savePages([{ image: JPG }, { image: PNG }])).body
+
+    await failInterruptedTranscriptions()
+
+    const stored = await ObservationModel.findById(id).lean()
+    for (const p of stored!.pages!) {
+      expect(p.transcription.status).toBe('failed')
+      expect(p.transcription.error).toMatch(/interrupted by a gateway restart/)
+    }
+  })
+
+  it('streams the original page back', async () => {
+    handwriting.mockReturnValue(s5(200, read('x')))
+    await assessmentWithSession()
+    const { id, pages } = (await savePages([{ image: PNG }])).body
+    await pagesSettled(id)
+
+    const response = await api.get(pages[0].url).buffer(true)
+
+    expect(response.status).toBe(200)
+    expect(response.headers['content-type']).toBe('image/png')
+    expect(response.headers['cache-control']).toContain('immutable')
+    expect(Buffer.from(response.body)).toEqual(PNG)
+    expect((await api.get(`/api/observations/${id}/pages/nope/image`)).status).toBe(404)
+    const unknown = `/api/observations/${id}/pages/${new Types.ObjectId()}/image`
+    expect((await api.get(unknown)).status).toBe(404)
+  })
+
+  it('is not a site photo: not read as one, nor offered for the appendix (AC5)', async () => {
+    handwriting.mockReturnValue(s5(200, read('x')))
+    await assessmentWithSession()
+    const { id } = (await savePages([{ image: JPG }])).body
+    await pagesSettled(id)
+
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(409)
+    expect(vision).not.toHaveBeenCalled()
+    const appendix = await api.get('/api/assessments/RPT-2026-0411/appendix')
+    expect(appendix.body.available).toEqual([])
+  })
+
+  it('counts as something captured, so the note or a photo can go while a page stays', async () => {
+    handwriting.mockReturnValue(s5(200, read('x')))
+    await assessmentWithSession()
+    const req = savePages([{ image: JPG }], { note: 'Riser room.' })
+    req.attach('photo', PNG, { filename: 'riser.png', contentType: 'image/png' })
+    const { id, photos } = (await req).body
+    await pagesSettled(id)
+
+    expect((await api.patch(`/api/observations/${id}`).send({ note: null })).status).toBe(200)
+    expect((await api.delete(`/api/observations/${id}/photos/${photos[0].id}`)).status).toBe(200)
+    const [o] = await listed()
+    expect(o).toMatchObject({ note: null, photos: [], pages: [{ type: 'Scan' }] })
+  })
+
+  it('refuses pages added to a saved observation, which comes with managing them (CP-20)', async () => {
+    await assessmentWithSession()
+    const { id } = (await note()).body
+
+    const response = await api
+      .post(`/api/observations/${id}/media`)
+      .attach('page', JPG, { filename: 'p.jpg', contentType: 'image/jpeg' })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error).toBe('Pages can only be added when the observation is captured.')
+    expect(s3.size).toBe(0)
+  })
+
+  it('lists an observation saved before pages existed with none', async () => {
+    const assessment = await assessmentWithSession()
+    const session = await CaptureSessionModel.findOne({ assessment: assessment._id }).lean()
+    // Written without Mongoose, which would add an empty list.
+    await ObservationModel.collection.insertOne({
+      assessment: assessment._id,
+      session: session!._id,
+      engineer: 'Alex Rowe',
+      note: 'Before pages.',
+      recordings: [],
+      severity: 'low',
+      location: BAY_3,
+      metadata: {
+        source_type: 'observation',
+        jurisdiction: 'SG',
+        facility_type: 'Warehouse',
+        COPE_dimension: ['Protection'],
+        effective_date: new Date(),
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const [o] = await listed()
+
+    expect(o.pages).toEqual([])
+  })
 })

@@ -84,6 +84,7 @@ describe('GET /api/usage/summary (EV-04)', () => {
       'draft-section',
       'retrieval',
       'transcribe',
+      'transcribe-handwriting',
       'label-document',
       'interpret-photo',
       'ocr',
@@ -222,7 +223,8 @@ describe('GET /api/usage/export.csv (AC4)', () => {
     expect(lines[0]).toBe(
       'feature,calls,estimated_cost_usd,calls_without_cost,estimated_calls,input_tokens,output_tokens,cache_read_tokens,search_units,audio_seconds,avg_ms,p50_ms,p95_ms,max_ms',
     )
-    expect(lines).toHaveLength(9)
+    // A header, then every feature (handwriting among them, CP-19).
+    expect(lines).toHaveLength(10)
     expect(lines[1]).toMatch(/^draft-section,1,0\.5,/)
   })
 

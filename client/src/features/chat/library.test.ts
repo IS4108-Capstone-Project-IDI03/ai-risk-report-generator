@@ -12,5 +12,7 @@ const copy = resolve(process.cwd(), '../microservices/rag-service/app/chat/answe
 it("matches the rag-service's copy of the component prompt", () => {
   const prompt = chatLibrary.prompt()
   if (process.env.UPDATE_PROMPT) writeFileSync(copy, prompt)
-  expect(readFileSync(copy, 'utf8')).toBe(prompt)
+  // A Windows checkout gives the copy CRLF endings; the rag-service reads it with
+  // universal newlines, so compare line by line, not ending by ending.
+  expect(readFileSync(copy, 'utf8').replace(/\r\n/g, '\n')).toBe(prompt)
 })

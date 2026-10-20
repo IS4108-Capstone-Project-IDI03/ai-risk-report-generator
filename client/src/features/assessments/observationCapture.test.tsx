@@ -504,7 +504,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     save()
 
-    expect(screen.getByText('Add a note, recording or photograph first.')).toBeInTheDocument()
+    expect(screen.getByText('Add a note, recording, photograph or page first.')).toBeInTheDocument()
     expect(saves).toHaveLength(0)
   })
 

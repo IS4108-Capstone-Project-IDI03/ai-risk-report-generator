@@ -21,8 +21,9 @@
   directly — always go through `services/`.
 - S5 (speech-ocr-service) writes nothing to MongoDB — it returns results only.
 - LLM provider is set by `LLM_PROVIDER` env var in microservices/rag-service,
-  the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05), and the
-  table/formula OCR provider by `OCR_PROVIDER` in ingestion (IN-12) — never
+  the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05), the
+  handwriting-transcription provider by `HANDWRITING_PROVIDER` in S5 (CP-19),
+  and the table/formula OCR provider by `OCR_PROVIDER` in ingestion (IN-12) — never
   hardcode "anthropic" or "gemini" in application code.
 - All metadata fields on a MongoDB document must include: source_type,
   jurisdiction, facility_type, COPE_dimension, effective_date. See
@@ -39,6 +40,8 @@
 - `review_audit_log` (RV-02) is append-only: never update or delete an entry.
   A finding's review state is read from it, and drafts in `report_sections`
   are never changed. See docs/areas/database.md.
+- `report_section_versions` (RV-08) is append-only too: each save from the
+  document editor adds a version; never update or delete one.
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

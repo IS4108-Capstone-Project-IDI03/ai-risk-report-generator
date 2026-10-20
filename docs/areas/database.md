@@ -259,8 +259,8 @@ with the same list.
 
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
-| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio and photos | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, and adding, removing and restoring recordings and photos (the assessment's assigned engineer only, CP-08) | yes | no |
+| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
@@ -281,7 +281,8 @@ edits are visible to the whole team.
 
 `observations` holds one document per observation: one thing the engineer saw
 on site, with everything captured about it. It has an optional `note` (CP-02),
-a `recordings` list (CP-03) and a `photos` list (CP-04), and needs at least one
+a `recordings` list (CP-03), a `photos` list (CP-04) and a `pages` list of
+photographed pages of handwritten notes (CP-19), and needs at least one
 of them.
 
 Each document links to its `assessment` and the capture `session` it was
@@ -430,9 +431,36 @@ the assessment's observations not deleted (CP-04 AC3), the collection the
 report's photo appendix (EX-01) is to draw on; like the Observations tab's
 filters, it is built in the browser from the observation list.
 
+Each page (CP-19) is a photo of a page of the engineer's handwritten notes,
+transcribed like a recording: its own `_id`, a `name` (the uploaded file's, or
+"Page 2"), and its original photo in S3 at
+`pages/<reference>/<observation id>/<page id>.<jpg|png>`, stored unaltered and
+checked as a photo is (JPG or PNG from its first bytes, up to 20 MB). Its
+`transcription` has the recording's `status`, `error` and `attempts`, with
+`transcript` (the handwriting word for word, `''` when the page has none),
+`uncertain` (the words the model was unsure of, as `[start, end)` positions in
+`transcript` counted in UTF-16 units, as the browser counts them; absent until
+there is a transcript) and `provenance` (`provider`, `model`, `promptVersion`).
+Saving starts one attempt per page; a retry adds one only while the page has
+`failed`, matched atomically, and a gateway restart marks a running attempt
+failed. A `transcribed` page can be transcribed again (CP-20) when its text looks
+misread: as that replaces evidence, only the assessment's assigned engineer can
+ask, not once the assessment is archived or the observation deleted. It clears
+`transcript`, `uncertain` and `provenance` as the new attempt starts, so the
+page reads as a new transcription, and sets `edited`; a draft that used the
+old text keeps its own copy and shows as out of date. A page is not a site photo: the Photos tab, the photo appendix and
+photo reading read `photos` only. A transcribed page with text is drafting
+evidence (see report sections' `evidence`), and drafting waits while any page
+is transcribing. A page counts as something captured, so the note, a
+recording or a photo can be removed while one stays. Pages are captured with
+the observation only: adding, correcting, removing and restoring them is
+CP-20, so `POST /api/observations/:id/media` refuses `page` parts (400).
+Observations saved before CP-19 have no `pages` field, which reads treat as
+none.
+
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each) and a `photo` part per JPG or PNG (up to 20 MB each), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording or photo, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo that isn't JPG or PNG, named in `error`). One refused file saves nothing |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
 | `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until its photos are read, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
@@ -445,6 +473,9 @@ filters, it is built in the browser from the observation list.
 | `POST /api/observations/:id/interpretation` | Reads the observation's kept photos (CP-05): the first reading, a new one after a failure, or after photos were added or removed (CP-08). Saving never reads them. 202, or 404 (unknown observation) / 409 (no photos, deleted, already being read, or read and up to date) |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 | `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
+| `POST /api/observations/:id/pages/:pageId/transcription/retry` | New attempt for a failed handwritten page (CP-19 AC11): 202, or 404 / 409 (not failed) |
+| `POST /api/observations/:id/pages/:pageId/retranscribe` | Transcribes a `transcribed` page again (CP-20), clearing its text as the attempt starts; the assigned engineer only. 200 with the observation, or 403 / 404 / 409 (failed: retry it instead; already transcribing; deleted; archived) |
+| `GET /api/observations/:id/pages/:pageId/image` | Streams the original photo of a handwritten page from S3, cacheable as a photo is; 404 for an unknown observation or page |
 
 ## Report sections (GN-01)
 
@@ -470,7 +501,9 @@ accepted, and from when it was accepted. Each document has:
 - `evidence`: the observations the draft was given, as they were then (`id`,
   `COPE_dimension` (the list of categories; one string in drafts saved
   before an observation could have several, read as a list of one), `note`,
-  `transcripts`, `severity`, `location`, `standard`). A later edit to an observation does not change it, so a
+  `transcripts`, `handwriting` (its transcribed pages, CP-19; written only when
+  there is one, so evidence saved before pages compares unchanged in
+  `changesSinceDraft`), `severity`, `location`, `standard`). A later edit to an observation does not change it, so a
   citation can always be checked against what was drafted from. This stands in
   for CP-14's snapshot, which the team dropped.
 - `guardrail`: `{ passed, unsupported_count }`.
@@ -540,6 +573,11 @@ on the draft. Each entry has:
   edit), `citations` (its citations then), `instruction` (for a regenerated
   draft), `bulk` (accepted by Bulk accept), `carriedFrom` (see below; null
   otherwise).
+- `inDocument` (RV-08): made in the document editor, an `edit` of the
+  finding there or a `reject` for one deleted there; false otherwise.
+  `citationsAfter`: a document edit's citations after it, as citation
+  markers can be moved or deleted there; null otherwise. A finding missing a
+  citation it was drafted with is unsupported.
 - `by` `{ id, name }`, the signed-in user as they were then, and `at`.
 - `metadata` with the five required fields: `source_type: 'review_decision'`,
   `jurisdiction`, `facility_type` and `COPE_dimension` from the draft, and
@@ -583,6 +621,55 @@ a transcription in progress), 422 (too little evidence to regenerate), 503
 | `POST /api/assessments/:reference/sections/:sectionId/regenerate` | `{ instruction? }` (up to 1,000 characters): drafts the section again through S4 as a replacement for its saved draft (AC10). 201. Only one replacement waits at a time. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11): kept findings keep their decisions, the rest are pending. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/discard` | Leaves the saved draft and its decisions as they were (AC12). |
+
+## Report section versions (RV-08)
+
+`report_section_versions` holds one document per save of a report section
+from the document editor: the section's text as the engineer wrote it. It is
+append-only, like `review_audit_log`: the model refuses every update,
+replace and delete, and each save adds a version. Each version has:
+
+- `assessment`; `sectionId`: `1` to `12`, or `A` for Appendix A.
+- `version`: 1, 2, 3… per assessment and section. `{ assessment, sectionId,
+  version }` is unique, so of two saves made on the same version only one is
+  kept.
+- `draft`: the section's saved draft in `report_sections` it was edited
+  from, whose finding keys it uses; null for a section with no draft
+  (Sections 1, 3 and A always).
+- `document`: `{ intro, subsections }`. `intro` is the text before the first
+  subsection (all of it in a section without subsections); `subsections` are
+  the draft's, in order, each `{ heading, blocks }`, a table's always empty.
+  A block is a `paragraph` (`content`, and `finding` as
+  `<subsection>.<statement>` when it came from the draft), a `heading` (the
+  engineer's sub-heading, with `finding` too when it is a finding set as a
+  sub-heading) or a `bulletList` / `orderedList` of paragraphs.
+  Content is `{ type: 'text', text, marks? }` (marks: `bold`, `italic`,
+  `underline`) or `{ type: 'cite', id }`, the id as a statement's citations
+  name it. Empty paragraphs are not saved.
+- `by` `{ id, name }` and `at`: who saved it and when.
+- `metadata` with the five required fields: `source_type:
+  'report_section_version'`, `jurisdiction` and `facility_type` from the
+  site, `COPE_dimension` (the section's one category, else `all`) and
+  `effective_date` (when saved).
+
+A section's text in the review workspace is its newest version while
+`draft` is still its saved draft; once it is drafted again, the version is
+set aside (`current: false` in `GET …/review`). In sections 4-12 a save also
+adds review log entries (`inDocument`): an `edit` for each finding whose
+words, citations or formatting changed, and a `reject` for each deleted.
+
+Index: the unique `{ assessment, sectionId, version: -1 }`, which also reads
+each section's newest version.
+
+| Route | Does |
+| --- | --- |
+| `PUT /api/assessments/:reference/sections/:sectionId/document` | `{ baseVersion, draftId, document }`: saves the section as version `baseVersion + 1`, built on the saved draft `draftId` (null for none). 200 with `{ version, draftId, document, savedAt, savedBy }`. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 for a body that is not a section document or does not fit the section (subsections not the draft's, text in a table, a finding twice or not in the draft, over 2,000 characters in a finding or 60,000 in the section); 403; 404 (unknown assessment or section); 409 when `baseVersion` is not the newest, the saved draft is not `draftId`, a finding in it was rejected since, or another decision was saved at the same moment; 503 when S4 cannot list the sections. Bodies up to 1 MB. |
+
+`GET …/review` returns each section's newest version as `document` (or
+null) and Sections 1, 2, 3 and A's as `parts`, each with `current`. Each
+section's `review` also has `editedInDocument`: true when it was changed or
+written in the document, so Edited by you shows even while another state
+(Needs review) comes first.
 
 ## Opportunities for Improvement (GN-05)
 
@@ -898,7 +985,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 | Field | Meaning |
 |---|---|
-| `feature` | `draft-section`, `retrieval`, `transcribe`, `label-document`, `interpret-photo`, `ocr`, `embed-document` or `chat` |
+| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document` or `chat` |
 | `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev`, `gemini-vision`, `gemini-ocr`, `self-hosted-ocr` |
 | `model` | the exact model the provider reported |
 | `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |

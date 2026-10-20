@@ -21,6 +21,23 @@ const registry = {
     withdraw: 'archive',
     reinstate: 'archive-restore',
   },
+  // The document editor's toolbar (RV-08).
+  editor: {
+    bold: 'bold',
+    italic: 'italic',
+    underline: 'underline',
+    subheading: 'heading',
+    bulletList: 'list',
+    orderedList: 'list-ordered',
+    undo: 'undo-2',
+    redo: 'redo-2',
+    replace: 'replace',
+    replaceAll: 'replace-all',
+    previous: 'chevron-up',
+    next: 'chevron-down',
+    save: 'save',
+    outline: 'list-tree',
+  },
   status: {
     notStarted: {
       icon: 'circle-dashed',
@@ -94,6 +111,8 @@ const registry = {
     photo: 'image',
     note: 'sticky-note',
     recording: 'mic',
+    // A photographed page of handwritten notes, transcribed (CP-19).
+    handwriting: 'scan-text',
     insight: 'sparkles',
     uncertainty: 'triangle-alert',
     finding: 'shield-alert',

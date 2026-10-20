@@ -12,8 +12,9 @@ const label = {
   color: 'var(--text-muted)',
 } as const
 
-// The note and each voice transcript as separate labelled parts, since the
-// draft may take a fact from any of them; the label says which one it was.
+// The note, each voice transcript and each handwritten page (CP-19) as
+// separate labelled parts, since the draft may take a fact from any of them;
+// the label says which one it was.
 export function ObservationExcerpt({ observation: o }: { observation: SavedObservation }) {
   const [original, setOriginal] = useState<string | null>(null)
   const parts = [
@@ -41,6 +42,19 @@ export function ObservationExcerpt({ observation: o }: { observation: SavedObser
           ]
         : [],
     ),
+    ...(o.pages ?? []).flatMap((p) =>
+      p.transcription.status === 'transcribed' && p.transcription.transcript?.trim()
+        ? [
+            {
+              icon: IconRegistry.evidence.handwriting,
+              title: `Handwritten note · ${p.name}`,
+              text: p.transcription.transcript,
+              recordingId: null,
+              originalText: null,
+            },
+          ]
+        : [],
+    ),
   ]
   return (
     <>
@@ -51,7 +65,7 @@ export function ObservationExcerpt({ observation: o }: { observation: SavedObser
             <Icon name={p.icon} size={12} />
             <span>{p.title}</span>
           </span>
-          <span style={{ display: 'block' }}>{p.text}</span>
+          <span style={{ display: 'block', whiteSpace: 'pre-line' }}>{p.text}</span>
           {p.originalText && (
             <>
               <Button

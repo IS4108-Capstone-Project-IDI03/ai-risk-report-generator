@@ -109,6 +109,27 @@ export type SavedPhoto = {
   url: string
   added: Stamp | null
 }
+// A photographed page of the engineer's handwritten notes (CP-19); url opens
+// the original. Like a recording, its transcription runs after the save
+// returns, so it starts as 'transcribing'.
+export type SavedPage = {
+  id: string
+  name: string
+  contentType: 'image/jpeg' | 'image/png'
+  size: number
+  url: string
+  transcription: {
+    status: TranscriptionStatus
+    // The handwriting word for word; '' when the page has none.
+    transcript: string | null
+    // The words the model was unsure of, as [start, end) positions in transcript.
+    uncertain: [number, number][]
+    error: string | null
+    attempts: number
+    // The model that wrote it.
+    model: string | null
+  }
+}
 // What the vision model proposes from an observation's photos (CP-05), for
 // the engineer to review. Nothing reads them until an engineer asks; the
 // reading then runs after that request returns, so it starts as
@@ -144,7 +165,7 @@ export type SiteLocation = {
 export type LocationDetails = { building?: string; floor?: string; name: string }
 
 // An observation saved on the server: any of a note (CP-02), recordings
-// (CP-03) and photos (CP-04).
+// (CP-03), photos (CP-04) and handwritten pages (CP-19).
 export type SavedObservation = {
   id: string
   engineer: string
@@ -159,6 +180,9 @@ export type SavedObservation = {
   // Those not removed: its evidence.
   recordings: SavedRecording[]
   photos: SavedPhoto[]
+  // Its handwritten pages (CP-19); the gateway always sends them, but older
+  // stand-ins for a saved observation have none.
+  pages?: SavedPage[]
   // Removed ones, kept to restore (CP-08).
   removedRecordings: (SavedRecording & { removed: Stamp })[]
   removedPhotos: (SavedPhoto & { removed: Stamp })[]
@@ -343,10 +367,10 @@ export async function startCaptureSession(
 const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
-// Saves one observation, with its note, recordings and photos, to the
-// assessment's active capture session. Null copeDimensions leave it
-// uncategorised. The server stores each file and starts each recording's
-// initial transcription.
+// Saves one observation, with its note, recordings, photos and handwritten
+// pages, to the assessment's active capture session. Null copeDimensions leave
+// it uncategorised. The server stores each file and starts each recording's
+// and page's initial transcription.
 export async function saveObservation(
   reference: string,
   details: {
@@ -358,11 +382,13 @@ export async function saveObservation(
   },
   recordings: { name: string; audio: Blob }[],
   photos: { name: string; image: Blob }[] = [],
+  pages: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   form.append('details', JSON.stringify(details))
   for (const r of recordings) form.append('recording', r.audio, r.name)
   for (const p of photos) form.append('photo', p.image, p.name)
+  for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
 
@@ -459,6 +485,28 @@ export async function retryTranscription(observationId: string, recordingId: str
     'POST',
     `/api/observations/${encodeURIComponent(observationId)}/recordings/${encodeURIComponent(recordingId)}/transcription/retry`,
   )
+}
+
+// Starts a new transcription attempt for a failed handwritten page (CP-19).
+export async function retryPageTranscription(observationId: string, pageId: string) {
+  await request<void>(
+    'POST',
+    `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/transcription/retry`,
+  )
+}
+
+// Transcribes a page again although its last transcription succeeded (CP-20);
+// the assessment's assigned engineer only, as it replaces the page's text.
+export async function retranscribePage(
+  observationId: string,
+  pageId: string,
+): Promise<SavedObservation> {
+  return (
+    await request<SavedObservation>(
+      'POST',
+      `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/retranscribe`,
+    )
+  ).data
 }
 
 // Asks for an observation's photos to be read (CP-05): the first reading, a
@@ -662,10 +710,12 @@ export async function draftSection(reference: string, sectionId: string): Promis
 
 export type CompletionState = 'not_started' | 'partial' | 'complete'
 // `needs_review` comes from the draft's own checks and wins over the rest;
-// otherwise the engineer's decisions (RV-02) decide: `ai_draft` while every
-// finding is pending, `in_review` once some are decided, `reviewed` once none
-// is pending.
-export type ReviewState = 'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'needs_review'
+// then `edited` (RV-08): the engineer changed or wrote the section in the
+// document editor; otherwise the engineer's decisions (RV-02) decide:
+// `ai_draft` while every finding is pending, `in_review` once some are
+// decided, `reviewed` once none is pending.
+export type ReviewState =
+  'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'edited' | 'needs_review'
 
 // A generated finding's review decision (RV-02). Rejected findings are out of
 // the draft, kept in the review history.
@@ -680,6 +730,9 @@ export type ReviewStatement = {
   generatedText: string
   citations: string[]
   supported: boolean
+  // Drafted citations deleted in the document editor (RV-08): the finding is
+  // unsupported while any is missing.
+  citationsRemoved?: string[]
   // at and by are null while no decision has been made.
   review: { state: FindingState; at: string | null; by: { id: string; name: string } | null }
 }
@@ -712,9 +765,14 @@ export type ReviewHistoryEntry = {
   before: string | null
   after: string | null
   citations: string[]
+  // Its citations after an edit in the document editor (RV-08), else null.
+  citationsAfter?: string[] | null
   instruction: string | null
   // Accepted by Bulk accept.
   bulk: boolean
+  // Made in the document editor (RV-08): an edit, or a reject for a finding
+  // deleted there.
+  inDocument?: boolean
   by: { id: string; name: string }
   at: string
 }
@@ -744,6 +802,8 @@ export type FieldObservation = {
   copeDimensions: string[]
   note: string | null
   transcripts: string[]
+  // Its transcribed handwritten pages (CP-19); absent from a gateway before them.
+  handwriting?: string[]
   severity: string
   location: string | null
   standard: string | null
@@ -770,6 +830,9 @@ export type ReviewSection = {
     withdrawnSources: number
     changesSinceDraft: number
     changeCounts: ChangeCounts
+    // Changed or written in the document editor (RV-08), shown as Edited by
+    // you beside Needs review.
+    editedInDocument?: boolean
   }
   // The saved draft's findings by state (RV-02).
   findings: FindingCounts
@@ -780,10 +843,15 @@ export type ReviewSection = {
   replacement: ReviewReplacement | null
   // The section's review audit log, newest first.
   history: ReviewHistoryEntry[]
+  // Its newest version from the document editor (RV-08), or null.
+  document?: SectionVersion | null
 }
 
 export type ReviewWorkspace = {
   sections: ReviewSection[]
+  // What the engineer wrote into Sections 1, 2 and 3 and Appendix A in the
+  // document editor (RV-08): each one's newest version, or null.
+  parts?: Record<ReportPartId, SectionVersion | null>
   // Every saved draft's findings by state: the review summary (RV-02).
   summary: FindingCounts
   // When the gateway read it, to keep the newest of overlapping responses.
@@ -879,6 +947,63 @@ export async function decideReplacement(
       'POST',
       `${sectionPath(reference, sectionId)}/replacement/${action}`,
       { draftId },
+    )
+  ).data
+}
+
+// The report as one document (RV-08). A section's text as the document editor
+// saves it: what comes before its first subsection (all of it when it has
+// none), then each of its draft's subsections by heading. A paragraph taken
+// from the draft names its finding (`<subsection>.<statement>`); a citation
+// marker names its source as a statement's citations do.
+export type DocumentMark = 'bold' | 'italic' | 'underline'
+export type DocumentInline =
+  { type: 'text'; text: string; marks?: DocumentMark[] } | { type: 'cite'; id: string }
+export type DocumentParagraph = {
+  type: 'paragraph'
+  finding?: string | null
+  content: DocumentInline[]
+}
+// A sub-heading: one the engineer added, or a finding they set as one.
+export type DocumentHeading = {
+  type: 'heading'
+  finding?: string | null
+  content: DocumentInline[]
+}
+export type DocumentBlock =
+  | DocumentParagraph
+  | DocumentHeading
+  | { type: 'bulletList' | 'orderedList'; items: DocumentParagraph[] }
+export type SectionDocument = {
+  intro: DocumentBlock[]
+  subsections: { heading: string; blocks: DocumentBlock[] }[]
+}
+// The parts of the report outside sections 4-12.
+export type ReportPartId = '1' | '2' | '3' | 'A'
+// A saved version of a section. `current` is false once the section has been
+// drafted again since, so its finding keys name an earlier draft.
+export type SectionVersion = {
+  version: number
+  draftId: string | null
+  document: SectionDocument
+  savedAt: string
+  savedBy: { id: string; name: string }
+  current: boolean
+}
+
+// Saves one section as the engineer wrote it, as a new version built on its
+// newest version (`baseVersion`, 0 for none) and its saved draft (`draftId`).
+// Only the assigned engineer may; a newer save or draft is refused (409).
+export async function saveSectionDocument(
+  reference: string,
+  sectionId: string,
+  body: { baseVersion: number; draftId: string | null; document: SectionDocument },
+): Promise<Omit<SectionVersion, 'current'>> {
+  return (
+    await request<Omit<SectionVersion, 'current'>>(
+      'PUT',
+      `${sectionPath(reference, sectionId)}/document`,
+      body,
     )
   ).data
 }

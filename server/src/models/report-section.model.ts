@@ -33,6 +33,9 @@ export interface IReportSection {
     COPE_dimension: CopeDimension[]
     note: string | null
     transcripts: string[]
+    // The observation's transcribed handwritten pages (CP-19); absent when it
+    // has none, so evidence saved before pages existed compares unchanged.
+    handwriting?: string[]
     severity: string
     location: string | null
     standard: string | null
@@ -109,6 +112,8 @@ const reportSectionSchema = new Schema<IReportSection>(
         },
         note: { type: String, default: null },
         transcripts: { type: [String], default: [] },
+        // Never defaulted to []: see the interface above.
+        handwriting: { type: [String], default: undefined },
         severity: { type: String, required: true },
         location: { type: String, default: null },
         standard: { type: String, default: null },

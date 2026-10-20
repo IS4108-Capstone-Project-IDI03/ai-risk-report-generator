@@ -128,7 +128,7 @@ def run(query: str) -> dict:
 
 
 def _evidence_summary(observations) -> str:
-    text = " ".join(" ".join([o.note or "", *o.transcripts]) for o in observations)
+    text = " ".join(" ".join(o.recorded()) for o in observations)
     return " ".join(text.split())[:1000]
 
 
@@ -163,8 +163,7 @@ def standard_queries(section: dict, observations) -> list[str]:
     """
     own = [o for o in observations if filed_under(o, section)]
     return [
-        f"{section['title']}: "
-        + spell_out(" ".join(" ".join([o.note or "", *o.transcripts]).split()))[:500]
+        f"{section['title']}: " + spell_out(" ".join(" ".join(o.recorded()).split()))[:500]
         for o in own[:95]
     ]
 
@@ -270,7 +269,7 @@ def draft(section_id: str, assessment, observations, redraft=None, facts=None) -
     if section_id in ("4", "5"):
         # Everything the prompt shows of each observation, its location and standard included.
         texts = {
-            f"O:{o.id}": " ".join(filter(None, [o.note, *o.transcripts, o.location, o.standard]))
+            f"O:{o.id}": " ".join(filter(None, [*o.recorded(), o.location, o.standard]))
             for o in observations
         }
         texts |= {f"C:{cid}": chunk["text"] for cid, chunk in standards.items()}
@@ -353,9 +352,7 @@ def draft_ofis_for(assessment, observations, accepted: list[str]) -> dict:
     # 2. One batched search, by each candidate's own words: standards filtered to the
     # site, and past reports by country (their OFIs carry across facility types).
     site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
-    queries = [
-        spell_out(" ".join(filter(None, [o.note, *o.transcripts])))[:500] for o in candidates
-    ]
+    queries = [spell_out(" ".join(o.recorded()))[:500] for o in candidates]
     results = search(
         [(q, {**site, "source_type": STANDARD_SOURCES}, STANDARDS_PER_OBSERVATION) for q in queries]
         + [

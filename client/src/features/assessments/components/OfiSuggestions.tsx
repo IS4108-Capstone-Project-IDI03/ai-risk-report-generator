@@ -50,12 +50,15 @@ const PRIORITY_TONE: Record<string, string> = {
 const OFI_SEVERITIES = ['critical', 'high', 'moderate']
 
 // Can this observation lead to an OFI: categorised, rated moderate or worse, and with
-// a note or finished transcript to draft from (as the gateway's drafting evidence).
+// a note, finished transcript or transcribed handwritten page (CP-19) to draft from
+// (as the gateway's drafting evidence).
 function isCandidate(o: SavedObservation) {
   return (
     Boolean(o.copeDimensions?.length) &&
     OFI_SEVERITIES.includes(o.severity) &&
-    (Boolean(o.note?.trim()) || o.recordings.some((r) => r.transcription.transcript))
+    (Boolean(o.note?.trim()) ||
+      o.recordings.some((r) => r.transcription.transcript) ||
+      (o.pages ?? []).some((p) => p.transcription.transcript?.trim()))
   )
 }
 

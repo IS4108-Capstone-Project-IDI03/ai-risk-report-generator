@@ -187,6 +187,15 @@ function ObservationView({
           <blockquote className="rv-passage">{t}</blockquote>
         </div>
       ))}
+      {/* Each page of the engineer's handwritten notes, as transcribed (CP-19 AC15). */}
+      {(o.handwriting ?? []).map((t, i) => (
+        <div key={'page-' + i}>
+          <span className="rv-passage-label">Handwritten note</span>
+          <blockquote className="rv-passage" style={{ whiteSpace: 'pre-line' }}>
+            {t}
+          </blockquote>
+        </div>
+      ))}
       <p className="rv-viewer-note">As captured when this section was drafted.</p>
     </>
   )
@@ -209,6 +218,12 @@ function ObservationText({
       {o.transcripts.map((t, i) => (
         <span key={i} className="rv-block">
           <span className="rv-block-label">Voice transcript · </span>
+          {t}
+        </span>
+      ))}
+      {(o.handwriting ?? []).map((t, i) => (
+        <span key={'page-' + i} className="rv-block">
+          <span className="rv-block-label">Handwritten note · </span>
           {t}
         </span>
       ))}
