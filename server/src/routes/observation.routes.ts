@@ -13,7 +13,7 @@ import {
   observationChangesSchema,
   ObservationNotFoundError,
   ObservationStateError,
-  readPhotos,
+  readObservation,
   removeMedia,
   restoreMedia,
   restoreObservation,
@@ -232,13 +232,13 @@ router.post(
   },
 )
 
-// Reads the observation's photos (CP-05): the first reading, a new one after
-// a failure, or after photos were added or removed (CP-08). Saving never reads
-// them, so this is the only way a photo reaches the vision model. Open to any risk engineer, as a transcription
-// retry is.
+// Reads the observation (CP-05, CP-21): the first reading, a new one after a
+// failure, or after what it holds changed (CP-08). Saving never reads it, so
+// this is the only way its notes and photos reach the model. Open to any risk
+// engineer, as a transcription retry is.
 router.post('/:id/interpretation', requirePermission('assessments:edit'), async (req, res) => {
   try {
-    await readPhotos(req.params.id)
+    await readObservation(req.params.id)
     res.status(202).end()
   } catch (error: unknown) {
     refuse(error, res)

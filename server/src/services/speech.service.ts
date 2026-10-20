@@ -105,11 +105,16 @@ export async function transcribeHandwriting(
   }
 }
 
-// What S5 proposes from an observation's photos (CP-05).
+// What S5 proposes from an observation (CP-05, CP-21): categories from
+// everything given, and from photos, if any, a description and hazard type.
 export type InterpretationResult = {
-  description: string
-  cope_dimension: string
-  hazard_type: string
+  categories: {
+    category: string
+    reason: string
+    evidence: { item: string; quote: string | null }[]
+  }[]
+  description: string | null
+  hazard_type: string | null
   provider: string
   model: string
   prompt_version: string
@@ -120,13 +125,14 @@ export type InterpretationResult = {
   } | null
 }
 
-// Asks S5 to interpret photos already stored in S3, with where they were taken
-// and the engineer's note. Like transcribe, S5 stores nothing and the caller
+// Asks S5 to read an observation: its photos already stored in S3 and its
+// texts (note and transcripts), each under the label the proposal cites it by,
+// with where it was found. Like transcribe, S5 stores nothing and the caller
 // saves the result. Throws an Error whose message is the reason to show.
 export async function interpret(request: {
-  s3Keys: string[]
+  photos: { label: string; s3Key: string }[]
+  texts: { label: string; kind: 'note' | 'recording' | 'page'; text: string }[]
   location: string | null
-  note: string | null
 }): Promise<InterpretationResult> {
   let response: Response
   try {
@@ -134,22 +140,22 @@ export async function interpret(request: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        s3_keys: request.s3Keys,
+        photos: request.photos.map((p) => ({ label: p.label, s3_key: p.s3Key })),
+        texts: request.texts,
         location: request.location,
-        note: request.note,
       }),
     })
   } catch {
-    throw new Error('The photo service could not be reached.')
+    throw new Error('The AI service could not be reached.')
   }
   const body = (await response.json().catch(() => ({}))) as Partial<InterpretationResult> & {
     detail?: unknown
   }
-  if (!response.ok || typeof body.description !== 'string') {
+  if (!response.ok || !Array.isArray(body.categories)) {
     throw new Error(
       typeof body.detail === 'string'
         ? body.detail
-        : `The photo service failed with status ${response.status}.`,
+        : `The AI service failed with status ${response.status}.`,
     )
   }
   return body as InterpretationResult
