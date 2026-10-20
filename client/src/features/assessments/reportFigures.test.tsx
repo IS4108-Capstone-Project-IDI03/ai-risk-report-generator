@@ -100,6 +100,8 @@ describe('Section 4 scores', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
     expect(puts[0]).toEqual({
       categories: CATEGORIES.map((category) => ({ category, current: 8, potential: 10 })),
+      // GN-12 AC8: the benchmarking scores are saved with the category scores.
+      benchmarks: { client: null, peerGroup: null },
     })
     const rating = screen.getByRole('rowheader', { name: 'Location Risk Quality Rating' })
     expect(rating.closest('tr')).toHaveTextContent('BA')

@@ -72,6 +72,14 @@ const score = z
 // All seven categories at once, each once; a score may be left empty (null)
 // while the engineer is still deciding. A potential below the current score is a
 // slip: the potential is what the site could reach.
+// Out of 100 like the Location Score, to one decimal as it is shown.
+const benchmark = z
+  .number()
+  .min(0)
+  .max(100)
+  .transform((n) => Math.round(n * 10) / 10)
+  .nullable()
+
 export const riskQualitySchema = z.object({
   categories: z
     .array(
@@ -85,6 +93,15 @@ export const riskQualitySchema = z.object({
     .refine((cs) => new Set(cs.map((c) => c.category)).size === cs.length, {
       message: 'Each category appears once.',
     }),
+  // RQR Score Benchmarking's other bars (GN-12): Marsh's Client Score and Occupancy Peer
+  // Group Score, out of 100 like the Location Score. From Marsh's records, so typed by the
+  // engineer; left out of a save, those already entered are kept.
+  benchmarks: z
+    .object({
+      client: benchmark,
+      peerGroup: benchmark,
+    })
+    .optional(),
 })
 
 // The scores as saved, in template order, with the rating computed from them now.
@@ -95,7 +112,15 @@ function riskQualityOf(saved: IAssessment['riskQuality']) {
     current: byName.get(category)?.current ?? null,
     potential: byName.get(category)?.potential ?? null,
   }))
-  return { categories, result: rate(categories), updatedAt: saved?.updatedAt ?? null }
+  return {
+    categories,
+    result: rate(categories),
+    benchmarks: {
+      client: saved?.benchmarks?.client ?? null,
+      peerGroup: saved?.benchmarks?.peerGroup ?? null,
+    },
+    updatedAt: saved?.updatedAt ?? null,
+  }
 }
 
 export async function getRiskQuality(reference: string) {
@@ -113,6 +138,7 @@ export async function saveRiskQuality(
   const assessment = await assessmentToDraft(reference, user)
   const riskQuality = {
     categories: input.categories,
+    benchmarks: input.benchmarks ?? assessment.riskQuality?.benchmarks,
     updatedAt: new Date(),
     updatedBy: new Types.ObjectId(user.id),
   }

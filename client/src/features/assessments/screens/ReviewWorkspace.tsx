@@ -17,6 +17,7 @@ import { LossEstimateFigures } from '../components/LossEstimateFigures'
 import { RiskQualityFigures } from '../components/RiskQualityFigures'
 import { PurposeScope } from '../components/PurposeScope'
 import { ReportPart } from '../components/ReportPart'
+import { RiskMatrix } from '../components/RiskMatrix'
 import { OfiReviewPanel } from '../components/OfiReviewPanel'
 import {
   AcceptReplacementDialog,
@@ -359,6 +360,8 @@ export function ReviewWorkspace({
               </Button>
             </div>
             <h2>3. Opportunities for Improvement</h2>
+            {/* Marsh's matrix opens the section, drafted or not (GN-12 AC6). */}
+            <RiskMatrix />
             {!drafted ? (
               <EmptyState
                 icon="file-text"

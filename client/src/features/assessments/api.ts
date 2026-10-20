@@ -1087,7 +1087,10 @@ export async function saveAppendix(
 // null until all seven of its scores are entered.
 export type CategoryScore = { category: string; current: number | null; potential: number | null }
 export type Rated = { score: number; rating: string; band: string }
+// RQR Score Benchmarking's other bars (GN-12), typed by the engineer: 0-100 or null.
+export type Benchmarks = { client: number | null; peerGroup: number | null }
 export type RiskQuality = {
+  benchmarks?: Benchmarks
   categories: CategoryScore[]
   result: {
     current: Rated | null
@@ -1108,8 +1111,11 @@ export async function getRiskQuality(reference: string, signal?: AbortSignal) {
   return (await request<RiskQuality>('GET', riskQualityPath(reference), undefined, signal)).data
 }
 
-export async function saveRiskQuality(reference: string, categories: CategoryScore[]) {
-  return (await request<RiskQuality>('PUT', riskQualityPath(reference), { categories })).data
+export async function saveRiskQuality(
+  reference: string,
+  input: { categories: CategoryScore[]; benchmarks: Benchmarks },
+) {
+  return (await request<RiskQuality>('PUT', riskQualityPath(reference), input)).data
 }
 
 // Section 5 Loss Estimates (GN-03): the site values, each level's % damage and

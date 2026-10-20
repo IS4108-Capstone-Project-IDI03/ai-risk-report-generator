@@ -174,7 +174,10 @@ by the engineer in Review; every score, rating and loss is computed from them
 on read, never stored, and never written by the LLM.
 - `riskQuality`: `categories`, the seven main categories in template order,
   each `{ category, current, potential }` (0-10, one decimal, or `null` while
-  not entered; potential >= current), and `updatedAt`. Rules in
+  not entered; potential >= current), `benchmarks` (GN-12: `{ client, peerGroup }`,
+  Marsh's Client Score and Occupancy Peer Group Score for RQR Score Benchmarking,
+  0-100, one decimal, or `null`; typed by the engineer, kept when a save omits
+  them), and `updatedAt`. Rules in
   `risk-quality.service.ts` (equal weights, provisional until Marsh's Global
   Risk Quality Rating spreadsheet arrives; version `rqr-provisional-equal-v1`).
 - `lossEstimates`: `inputs` (Mixed, checked by `lossEstimatesSchema` before

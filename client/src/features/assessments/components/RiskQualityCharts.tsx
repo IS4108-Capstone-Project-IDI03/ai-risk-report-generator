@@ -1,13 +1,22 @@
 // Section 4's charts (GN-12): Marsh's score benchmarking, the current score as a share of
 // the potential, and the category summary. Drawn from the figures RiskQualityFigures.tsx
 // holds, so saving a score redraws them at once (AC2). Loaded lazily (chart library).
-// Data: ../reportCharts.ts. Marsh's "Client Score" bar is left out until its source is known.
+// Data: ../reportCharts.ts. Client and Occupancy Peer Group bars appear once the engineer
+// enters them (GN-12 AC8).
 import type { RiskQuality } from '../api'
-import { riskQualitySeries, SERIES } from '../reportCharts'
+import { NAVY, riskQualitySeries, SKY, TEAL } from '../reportCharts'
 import { DonutChart, GroupedBarChart, ValueBarChart } from './ReportChart'
 
-const CURRENT = { label: 'Current Score', color: SERIES[0] }
-const POTENTIAL = { label: 'Potential Score', color: SERIES[5] }
+// Marsh's: current navy, potential sky (template p. 10).
+const CURRENT = { label: 'Current Score', color: NAVY }
+const POTENTIAL = { label: 'Potential Score', color: SKY }
+// One colour per bar, as Marsh's chart has, kept by name so a bar keeps its colour
+// whichever others are entered.
+const BENCHMARK_COLOURS: Record<string, string> = {
+  'Location Score': NAVY,
+  'Client Score': SKY,
+  'Occupancy Peer Group Score': TEAL,
+}
 
 export function RiskQualityCharts({ figures }: { figures: RiskQuality }) {
   const series = riskQualitySeries(figures)
@@ -23,7 +32,7 @@ export function RiskQualityCharts({ figures }: { figures: RiskQuality }) {
       <div className="rv-charts-grid">
         <ValueBarChart
           title="RQR Score Benchmarking"
-          bars={[{ label: 'Location Score', value: share.current }]}
+          bars={series.benchmarks.map((b) => ({ ...b, color: BENCHMARK_COLOURS[b.label] }))}
           head={['', 'Score']}
           max={100}
         />

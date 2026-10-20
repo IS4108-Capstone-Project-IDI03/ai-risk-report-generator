@@ -130,6 +130,27 @@
   --chart-orange-light: #f39a62;
   /* Free services: never drawn as a part with any height, named in the legend only. */
   --chart-neutral: var(--graphite-500);
+  /* Report charts and tables (GN-12): Marsh's own palette, sampled from the sample
+     reports' charts (Shopping Mall Sample 2, pp. 4, 5, 9, 10), so Review's Sections 3
+     and 4 look like the report. Used by the report's charts, the Risk Assessment
+     Matrix and the Rating Legend only; the usage charts keep --chart-* above.
+     Every report chart also gives its values as a table. */
+  --report-navy: #002c77;
+  --report-sky: #76d3ff;
+  --report-teal: #00968f;
+  --report-ocean: #0077a0;
+  --report-blue: #009de0;
+  --report-green: #00ac41;
+  --report-amber: #ffbe00;
+  --report-orange: #ff8c00;
+  --report-red: #ef4e45;
+  --report-slate: #8096b2;
+  --report-midnight: #001a47;
+  --report-priority-1: #ff8c00;
+  --report-priority-2: #ffca94;
+  --report-priority-3: #ffe580;
+  --report-priority-4: #addfb3;
+  --report-header-grey: #dddddd;
   /* Recessive chart chrome: hairline grid and the baseline. */
   --chart-grid: var(--graphite-100);
   --chart-axis: var(--graphite-200);

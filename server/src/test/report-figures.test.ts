@@ -92,6 +92,29 @@ describe('Section 4 risk quality scores (GN-03)', () => {
     expect((await bad(0, { category: 'Weather' })).status).toBe(400)
   })
 
+  it('saves the Client and Occupancy Peer Group scores with the scores, each optional (GN-12)', async () => {
+    await assessment()
+    expect((await api.get(rqr)).body.benchmarks).toEqual({ client: null, peerGroup: null })
+
+    const res = await api
+      .put(rqr)
+      .send({ categories: SCORES, benchmarks: { client: 80, peerGroup: null } })
+    expect(res.status).toBe(200)
+    expect((await api.get(rqr)).body.benchmarks).toEqual({ client: 80, peerGroup: null })
+    // A score is out of 100, as the Location Score is.
+    const over = await api
+      .put(rqr)
+      .send({ categories: SCORES, benchmarks: { client: 101, peerGroup: 70 } })
+    expect(over.status).toBe(400)
+    // Rounded to one decimal, as the Location Score is shown.
+    await api.put(rqr).send({ categories: SCORES, benchmarks: { client: 80.04, peerGroup: null } })
+    expect((await api.get(rqr)).body.benchmarks.client).toBe(80)
+    await api.put(rqr).send({ categories: SCORES, benchmarks: { client: 80, peerGroup: null } })
+    // Saving the scores without them keeps those already entered.
+    await api.put(rqr).send({ categories: SCORES })
+    expect((await api.get(rqr)).body.benchmarks).toEqual({ client: 80, peerGroup: null })
+  })
+
   it('can be changed only by the assigned engineer, and not once archived', async () => {
     const a = await assessment()
     const other = signedInAs(app, { ...engineer, _id: new Types.ObjectId(), staffId: 'TEST-2' })

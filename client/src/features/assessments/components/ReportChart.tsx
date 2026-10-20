@@ -16,7 +16,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useId } from 'react'
-import { SERIES } from '../reportCharts'
+import { NAVY } from '../reportCharts'
 
 const HEIGHT = 240
 // The grouped bar's turned labels sit inside its height, so it is taller.
@@ -24,6 +24,33 @@ const GROUPED_HEIGHT = 320
 const MAX_BAR_PX = 24
 const AXIS_TICK = { fill: 'var(--text-muted)', fontSize: 12 }
 const VALUE_LABEL = { fill: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)' }
+
+// A vertical bar's label, broken onto lines of about 9 characters (a bar's slot in a
+// half-width chart is about 70px), so long names
+// ("Occupancy Peer Group Score") sit under their own bar instead of running together.
+function WrappedTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
+  const lines: string[] = []
+  for (const word of String(payload?.value ?? '').split(' ')) {
+    const last = lines.length - 1
+    if (last >= 0 && (lines[last] + ' ' + word).length <= 9) lines[last] += ' ' + word
+    else lines.push(word)
+  }
+  return (
+    <text
+      x={x}
+      y={(y ?? 0) + 12}
+      textAnchor="middle"
+      fill={AXIS_TICK.fill}
+      fontSize={AXIS_TICK.fontSize}
+    >
+      {lines.map((line, i) => (
+        <tspan key={i} x={x} dy={i ? 14 : 0}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  )
+}
 
 export type Slice = { label: string; value: number; color: string; note?: string }
 
@@ -144,7 +171,8 @@ export function ValueBarChart({
   max,
 }: {
   title: string
-  bars: { label: string; value: number }[]
+  // A bar's own colour, where bars compare different things (RQR Score Benchmarking).
+  bars: { label: string; value: number; color?: string }[]
   head: string[]
   horizontal?: boolean
   // A fixed axis top (100 for a score); counts let the axis fit them.
@@ -184,7 +212,8 @@ export function ValueBarChart({
                 interval={0}
                 tickLine={false}
                 axisLine={{ stroke: 'var(--chart-axis)' }}
-                tick={AXIS_TICK}
+                tick={<WrappedTick />}
+                height={64}
               />
               <YAxis
                 domain={domain}
@@ -198,10 +227,13 @@ export function ValueBarChart({
           )}
           <Bar
             dataKey="value"
-            fill={SERIES[0]}
+            fill={NAVY}
             radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
             isAnimationActive={false}
           >
+            {bars.map((b) => (
+              <Cell key={b.label} fill={b.color ?? NAVY} />
+            ))}
             <LabelList
               dataKey="value"
               position={horizontal ? 'right' : 'top'}
