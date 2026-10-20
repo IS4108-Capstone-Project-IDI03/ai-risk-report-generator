@@ -2,7 +2,7 @@ import type { SiteLocation } from './api'
 import { NO_FILTERS } from './observationFilters'
 import type { AssessmentRow, Observation, WorkflowState } from './types'
 
-// The demo's stand-ins for a photo proposal (CP-05), by COPE category.
+// The demo's stand-ins for a proposal (CP-05, CP-21), by COPE category.
 const SAMPLE_PROPOSALS: Record<string, { finding: string; hazardType: string }> = {
   Construction: {
     finding: 'a cable penetration through the fire-rated wall was not sealed with fire stopping.',
@@ -21,21 +21,29 @@ const SAMPLE_PROPOSALS: Record<string, { finding: string; hazardType: string }> 
     hazardType: 'Other',
   },
 }
-// A sample proposal for an observation saved in the demo with photos, when no
-// capture session is live, by the category the engineer chose. It is labelled
-// a sample: nothing reads the photo. An uncategorised observation gets the
-// Protection one, so the demo can show Change category.
+// A sample proposal for an observation saved in the demo, when no capture
+// session is live, by the categories the engineer chose. It is labelled a
+// sample: nothing reads the observation. An uncategorised observation gets
+// Protection, so the demo can show Add. Only one with photos is described.
 export function sampleInterpretation(
-  category: string,
+  categories: string[],
   where: string,
+  withPhotos: boolean,
 ): NonNullable<Observation['interpretation']> {
-  const known = category in SAMPLE_PROPOSALS
-  const sample = SAMPLE_PROPOSALS[known ? category : 'Protection']
+  const known = categories.filter((c) => c in SAMPLE_PROPOSALS)
+  const chosen = known.length ? known : ['Protection']
+  const first = SAMPLE_PROPOSALS[chosen[0]]
   return {
     status: 'interpreting',
-    description: `During the site visit to ${where}, it was observed that ${sample.finding}`,
-    category: known ? category : 'Protection',
-    hazardType: sample.hazardType,
+    description: withPhotos
+      ? `During the site visit to ${where}, it was observed that ${first.finding}`
+      : null,
+    hazardType: withPhotos ? first.hazardType : null,
+    categories: chosen.map((category) => ({
+      category,
+      reason: `A sample reason: ${SAMPLE_PROPOSALS[category].finding}`,
+      evidence: [],
+    })),
     error: null,
     model: null,
     sample: true,
@@ -169,8 +177,14 @@ export const initialState: WorkflowState = {
         status: 'interpreted',
         description:
           'During the site visit to Bay 3 — north aisle, it was observed that pallet racking stood directly beneath two sprinkler heads.',
-        category: 'Protection',
         hazardType: 'Sprinkler Installation',
+        categories: [
+          {
+            category: 'Protection',
+            reason: 'IMG_0442.jpg shows pallet racking directly beneath two sprinkler heads.',
+            evidence: [{ item: 'IMG_0442.jpg', quote: null, verified: null }],
+          },
+        ],
         error: null,
         model: null,
         sample: true,

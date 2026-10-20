@@ -48,6 +48,30 @@ const proposalSection = {
   paddingTop: '12px',
   borderTop: '1px solid var(--border-subtle)',
 } as const
+// Side by side when there is room for two columns of at least 280px; one
+// column on a phone, or when only one is shown.
+const proposalColumns = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+  gap: '14px 28px',
+  marginTop: '10px',
+} as const
+const proposalSubhead = {
+  fontSize: '13px',
+  fontWeight: '500',
+  color: 'var(--text-secondary)',
+} as const
+// Machine-written text, set off by an AI-violet rule.
+const aiText = {
+  margin: '6px 0 0',
+  paddingLeft: '12px',
+  borderLeft: '2px solid var(--ai-border)',
+  fontSize: '15px',
+  lineHeight: '24px',
+  color: 'var(--text-body)',
+  maxWidth: '68ch',
+  textWrap: 'pretty',
+} as const
 const proposalHeading = {
   display: 'flex',
   alignItems: 'center',
@@ -58,10 +82,6 @@ const proposalHeading = {
   color: 'var(--text-primary)',
 } as const
 
-// What the vision model proposes from the observation's photos (CP-05): a
-// machine reading, so it sits in AI violet with the photos it was read from,
-// and becomes the engineer's own only through Edit. Nothing reads the photos
-// until an engineer asks, so until then it offers Read photos.
 // The heading over one column of an open observation.
 function ColumnHead({ children }: { children: React.ReactNode }) {
   return (
@@ -93,7 +113,11 @@ function PhotoLink({ name, onClick }: { name: string; onClick: () => void }) {
   )
 }
 
-function PhotoProposal({
+// What the model proposes from the observation (CP-05, CP-21): a machine
+// reading, so it sits in AI violet, naming what it read, and becomes the
+// engineer's own only through Edit. Nothing is read until an engineer asks,
+// so until then it is one line offering Get AI proposal.
+function ObservationProposal({
   o,
   proposal,
   onView,
@@ -104,45 +128,59 @@ function PhotoProposal({
 }) {
   if (proposal.status === 'unread')
     return (
-      <section aria-label="Proposal from the photos" style={proposalSection}>
-        <div style={proposalHeading}>
-          <Icon name="camera" size={14} color="#4f9aee"></Icon>
-          <span>{'Proposal from the photos'}</span>
-        </div>
-        <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+      <section
+        aria-label="Proposal from this observation"
+        style={{
+          ...proposalSection,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <Icon name="sparkles" size={14} color="var(--ai-fg)"></Icon>
+        <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
           {
-            'Not read yet. Reading sends the photos to the photo service, which proposes a description, category and hazard type for you to review.'
+            'Not read yet. Proposes COPE categories from its note, recordings, pages and photos, and a description from any photos.'
           }
-        </p>
-        {!!proposal.read && (
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft={IconRegistry.action.generate}
-            onClick={proposal.read}
-            style={{ marginTop: '8px' }}
-          >
-            {'Read photos'}
-          </Button>
-        )}
+        </span>
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={IconRegistry.action.generate}
+          onClick={proposal.read}
+        >
+          {'Get AI proposal'}
+        </Button>
       </section>
     )
+  // Opens what a proposal cites: a photo or page in a popup, a recording where
+  // it sits in this observation.
+  const open = (item: NonNullable<typeof proposal.readFrom>[number]) =>
+    item.url
+      ? () => onView({ name: item.label, url: item.url!, context: o.where })
+      : item.kind === 'recording' && item.id && !item.removed
+        ? () =>
+            document
+              .getElementById('evidence-' + item.id)
+              ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+        : null
   return (
-    <section aria-label="Proposal from the photos" style={proposalSection}>
+    <section aria-label="Proposal from this observation" style={proposalSection}>
       <div style={proposalHeading}>
-        <Icon name="camera" size={14} color="#4f9aee"></Icon>
-        <span>{'Proposal from the photos'}</span>
+        <Icon name="sparkles" size={14} color="var(--ai-fg)"></Icon>
+        <span>{'Proposal from this observation'}</span>
         <Badge tone="ai" icon="sparkles">
           {proposal.sample ? 'Sample proposal' : 'AI proposal'}
         </Badge>
-        {proposal.status === 'interpreting' && <Badge tone="info">Interpreting</Badge>}
+        {proposal.status === 'interpreting' && <Badge tone="info">Reading</Badge>}
         {proposal.status === 'failed' && <Badge tone="high">Failed</Badge>}
       </div>
       {proposal.status === 'failed' ? (
         <div role="status" style={{ marginTop: '8px' }}>
           <Callout
             tone="warning"
-            title="Interpretation failed"
+            title="Reading failed"
             actions={
               proposal.retry && (
                 <Button
@@ -151,7 +189,7 @@ function PhotoProposal({
                   iconLeft="refresh-cw"
                   onClick={proposal.retry}
                 >
-                  {'Retry interpretation'}
+                  {'Retry'}
                 </Button>
               )
             }
@@ -161,16 +199,16 @@ function PhotoProposal({
         </div>
       ) : proposal.status === 'interpreting' ? (
         <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-          {'Interpreting the photos…'}
+          {'Reading this observation…'}
         </p>
       ) : (
         <>
-          {/* Photos were added or removed since it was read (CP-08). */}
+          {/* Something it read changed since (CP-08, CP-21). */}
           {!!proposal.outOfDate && (
             <div role="status" style={{ marginTop: '8px' }}>
               <Callout
                 tone="warning"
-                title="Read from an earlier set of photos"
+                title="Read from earlier evidence"
                 actions={
                   proposal.retry && (
                     <Button
@@ -179,78 +217,131 @@ function PhotoProposal({
                       iconLeft="refresh-cw"
                       onClick={proposal.retry}
                     >
-                      {'Read again'}
+                      {'Get new proposal'}
                     </Button>
                   )
                 }
               >
                 {
-                  'Photos were added or removed since this was read. Read them again to include the change.'
+                  'Its note, recordings, pages or photos changed since this was read. Get a new proposal to include the change.'
                 }
               </Callout>
             </div>
           )}
-          <p
-            style={{
-              margin: '6px 0 0',
-              paddingLeft: '12px',
-              borderLeft: '2px solid var(--ai-border)',
-              fontSize: '15px',
-              lineHeight: '24px',
-              color: 'var(--text-body)',
-              maxWidth: '68ch',
-              textWrap: 'pretty',
-            }}
-          >
-            {proposal.description}
-          </p>
-          <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-            {proposal.summary}
-          </p>
-          {/* The photos it was read from, each opening the original (AC6),
-              marking any since removed (CP-08). */}
-          <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-            {'Read from '}
-            {(proposal.readFrom ?? o.media.map((m) => ({ ...m, removed: false }))).map(
-              (m, index) => (
-                <Fragment key={index}>
-                  {index > 0 && ', '}
-                  {m.url ? (
-                    <PhotoLink
-                      name={m.name}
-                      onClick={() => onView({ name: m.name, url: m.url!, context: o.where })}
-                    />
-                  ) : (
-                    m.name
-                  )}
-                  {m.removed && ' (removed)'}
-                </Fragment>
-              ),
-            )}
-          </p>
-          <p style={stampStyle}>
-            {proposal.sample
-              ? 'No capture session, so this is a sample proposal, not a reading of the photos.'
-              : 'Proposed by ' + (proposal.model ?? 'the photo service')}
-          </p>
-          {(!!proposal.useAsNote || !!proposal.addCategory) && (
-            <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {!!proposal.useAsNote && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft="sticky-note"
-                  onClick={proposal.useAsNote}
+          {/* Categories on the left and, with photos, their description on
+              the right; one column when narrow or when there is no description. */}
+          <div style={proposalColumns}>
+            <div style={{ minWidth: 0 }}>
+              <div style={proposalSubhead}>{'Suggested categories'}</div>
+              {proposal.categories.length ? (
+                <ul
+                  aria-label="Suggested categories"
+                  style={{ listStyle: 'none', margin: 0, padding: 0 }}
                 >
-                  {'Use as note'}
-                </Button>
-              )}
-              {!!proposal.addCategory && (
-                <Button variant="secondary" size="sm" iconLeft="tag" onClick={proposal.addCategory}>
-                  {'Add category ' + proposal.category}
-                </Button>
+                  {proposal.categories.map((c) => (
+                    <li key={c.category} style={{ marginTop: '8px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <Tag>{c.category}</Tag>
+                        {c.added && <Badge tone="neutral">Added</Badge>}
+                        {c.unverified && <Badge tone="moderate">Unverified</Badge>}
+                        {!!c.add && (
+                          <Button variant="secondary" size="sm" iconLeft="tag" onClick={c.add}>
+                            {'Add ' + c.category}
+                          </Button>
+                        )}
+                      </div>
+                      {!!c.reason && <p style={aiText}>{c.reason}</p>}
+                      {/* The words it quoted from each item; a quote the gateway
+                      could not find there, or none given, is marked, not hidden. */}
+                      {c.evidence
+                        .filter((e) => e.quote || e.verified === false)
+                        .map((e, index) => (
+                          <p key={index} style={{ ...stampStyle, margin: '4px 0 0 14px' }}>
+                            {e.quote
+                              ? '“' + e.quote + '” · ' + e.item
+                              : 'No words quoted from ' + e.item}
+                            {e.quote && e.verified === false && ' · not found in ' + e.item}
+                          </p>
+                        ))}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+                  {'None suggested: nothing in this observation points to a category.'}
+                </p>
               )}
             </div>
+            {/* Only photos are described (CP-05). */}
+            {!!proposal.description && (
+              <div style={{ minWidth: 0 }}>
+                <div style={proposalSubhead}>{'From the photos'}</div>
+                <p style={aiText}>{proposal.description}</p>
+                {!!proposal.hazardType && (
+                  <p
+                    style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}
+                  >
+                    {'Hazard type: ' + proposal.hazardType}
+                  </p>
+                )}
+                {!!proposal.useAsNote && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    iconLeft="sticky-note"
+                    onClick={proposal.useAsNote}
+                    style={{ marginTop: '8px' }}
+                  >
+                    {'Use as note'}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          {/* What it read, each opening the item, marking any left out for
+              having no transcript or since removed (CP-08, CP-21). */}
+          {!!proposal.readFrom?.length && (
+            <p style={{ margin: '10px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              {'Read from '}
+              {proposal.readFrom.map((item, index) => {
+                const onClick = open(item)
+                return (
+                  <Fragment key={index}>
+                    {index > 0 && ', '}
+                    {onClick ? <PhotoLink name={item.label} onClick={onClick} /> : item.label}
+                    {item.leftOut && ' (left out: no transcript)'}
+                    {item.removed && ' (removed)'}
+                    {/* Read, but no suggestion rests on it (CP-21). */}
+                    {item.notCited && ' (not cited)'}
+                  </Fragment>
+                )
+              })}
+            </p>
+          )}
+          <p style={stampStyle}>
+            {proposal.sample
+              ? 'No capture session, so this is a sample proposal, not a reading of this observation.'
+              : 'Proposed by ' + (proposal.model ?? 'the AI service')}
+          </p>
+          {/* Another proposal whenever the engineer wants one (CP-21); once
+              out of date, the warning above offers it instead. */}
+          {!proposal.outOfDate && !!proposal.retry && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="refresh-cw"
+              onClick={proposal.retry}
+              style={{ marginTop: '8px' }}
+            >
+              {'Get new proposal'}
+            </Button>
           )}
         </>
       )}
@@ -467,6 +558,8 @@ function ObservationRow({
                   {o.recordings.map((r, index) => (
                     <section
                       key={r.id}
+                      // A proposal's Read from line scrolls here (CP-21).
+                      id={'evidence-' + r.id}
                       aria-label={r.name}
                       style={
                         index
@@ -617,7 +710,7 @@ function ObservationRow({
                   ))}
                 </div>
               )}
-              {(o.media.length > 0 || !!o.proposal) && (
+              {o.media.length > 0 && (
                 <div style={{ minWidth: '0' }}>
                   <ColumnHead>{'Photos (' + o.media.length + ')'}</ColumnHead>
                   <div
@@ -727,11 +820,11 @@ function ObservationRow({
                         {m.addedLabel}
                       </p>
                     ))}
-                  {/* What the photo service reads in them, beside the photos. */}
-                  {!!o.proposal && <PhotoProposal o={o} proposal={o.proposal} onView={onView} />}
                 </div>
               )}
             </div>
+            {/* What the model reads in all of it, under every column (CP-21). */}
+            {!!o.proposal && <ObservationProposal o={o} proposal={o.proposal} onView={onView} />}
             {o.removedMedia.length > 0 && (
               <details style={{ marginTop: '14px', fontSize: '14px' }}>
                 <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>

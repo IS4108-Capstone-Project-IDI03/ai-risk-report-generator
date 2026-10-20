@@ -130,17 +130,32 @@ export type SavedPage = {
     model: string | null
   }
 }
-// What the vision model proposes from an observation's photos (CP-05), for
-// the engineer to review. Nothing reads them until an engineer asks; the
-// reading then runs after that request returns, so it starts as
-// 'interpreting'.
+// What the model proposes from an observation (CP-05, CP-21), for the
+// engineer to review. Nothing reads it until an engineer asks; the reading
+// then runs after that request returns, so it starts as 'interpreting'.
 export type InterpretationStatus = 'interpreting' | 'interpreted' | 'failed'
+// One thing a reading read, by the label its evidence cites (CP-21).
+export type ReadItemKind = 'note' | 'recording' | 'page' | 'photo'
+export type ProposedCategory = {
+  category: string
+  // One sentence naming the items it rests on; null on a reading from before
+  // CP-21, which gave none.
+  reason: string | null
+  evidence: {
+    item: string
+    // Words quoted from that item; null for a photo.
+    quote: string | null
+    // Whether the gateway found the quote in that item; null for a photo.
+    verified: boolean | null
+  }[]
+}
 export type SavedInterpretation = {
   status: InterpretationStatus
+  // From its photos; null for a reading without them.
   description: string | null
-  // A proposed category, which may differ from the observation's own.
-  copeDimension: string | null
   hazardType: string | null
+  // The proposed categories, which may differ from the observation's own.
+  categories: ProposedCategory[]
   // Why it failed, to show the engineer.
   error: string | null
   attempts: number
@@ -148,8 +163,9 @@ export type SavedInterpretation = {
   model: string | null
   // The photos it reads, removed ones included (CP-08).
   photoIds: string[]
-  // Finished, but of photos other than those it has now: photos were added
-  // or removed since (CP-08).
+  // Everything it reads; a recording or page with no transcript is left out.
+  items: { label: string; kind: ReadItemKind; id: string | null; leftOut: boolean }[]
+  // Finished, but of something other than what it holds now (CP-08, CP-21).
   outOfDate: boolean
 }
 // A place on site the engineer records observations in (CP-16): in a
@@ -509,10 +525,10 @@ export async function retranscribePage(
   ).data
 }
 
-// Asks for an observation's photos to be read (CP-05): the first reading, a
-// new one after a failure, or after photos were added or removed (CP-08).
-// Saving never reads them.
-export async function readPhotos(observationId: string) {
+// Asks for an observation to be read (CP-05, CP-21): the first reading, a new
+// one after a failure, or after what it holds changed (CP-08). Saving never
+// reads it.
+export async function readObservation(observationId: string) {
   await request<void>('POST', `${observationPath(observationId)}/interpretation`)
 }
 
