@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.chat import answer
+from app.generation.generator import PLACEHOLDER_RULE
 from app.main import app
 from app.retrieval import retriever
 from tests import test_chat, test_leak
@@ -255,3 +256,13 @@ def test_past_reports_reach_the_reranker_masked(fake, fake_privacy, monkeypatch)
 
     assert any("[PERSON_1]" in p for p in recorder.payloads), recorder.payloads
     assert leaked(recorder.payloads) == [], recorder.payloads
+
+
+def test_both_chat_models_are_told_to_copy_placeholders_exactly(fake):
+    # In the prompt with protection off too, so the off and on evals differ only in masking.
+    events = ask("Did John Tan agree?", privacy=None)
+
+    system, _ = fake["calls"]["answer"][0]
+    assert PLACEHOLDER_RULE in system
+    assert PLACEHOLDER_RULE in answer.PLAN_SYSTEM
+    assert _result(events)["prompt_version"] == "cb01-v22"
