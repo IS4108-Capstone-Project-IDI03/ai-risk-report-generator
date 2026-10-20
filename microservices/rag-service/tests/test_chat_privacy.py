@@ -126,6 +126,8 @@ def test_nothing_is_sent_when_privacy_service_fails(fake, fake_privacy, failure)
     error = _result(events)["error"]
     assert "privacy service" in error.lower()
     assert "privacy service" in _program(events).lower()
+    # Shared with drafting, so it names neither: the reader learns nothing was sent.
+    assert "nothing was sent to the AI model" in error and "drafting" not in error
     assert leaked([error]) == []
 
 

@@ -86,8 +86,9 @@ class Session:
         if not self.enabled:
             return list(texts)
         texts = [self._escape(t) for t in texts]
-        # Fail closed (Rule 3): on any failure the draft fails; raw text is never the fallback.
-        # The message names no value from the request (Rule 5).
+        # Fail closed (Rule 3): on any failure the request fails; raw text is never the fallback.
+        # The message names no value from the request (Rule 5). It is shown in drafting and
+        # chat alike, so it names neither.
         try:
             with _client() as client:
                 # The mapping so far goes back, so one mapping covers the request (Rule 2).
@@ -102,13 +103,14 @@ class Session:
             response.raise_for_status()
         except httpx.TimeoutException as error:
             raise PrivacyUnavailable(
-                "The privacy service timed out, so nothing was sent to the drafting model. "
-                "Try again in a moment."
+                "Client details couldn't be protected because the privacy service didn't "
+                "respond in time, so nothing was sent to the AI model. Try again in a moment."
             ) from error
         except httpx.HTTPError as error:
             raise PrivacyUnavailable(
-                "The privacy service could not mask client details, so nothing was sent to "
-                "the drafting model. Check that privacy-service is running."
+                "Client details couldn't be protected because the privacy service isn't "
+                "available, so nothing was sent to the AI model. If this keeps happening, "
+                "tell your administrator."
             ) from error
         body = response.json()
         self.mapping = body["mapping"]
