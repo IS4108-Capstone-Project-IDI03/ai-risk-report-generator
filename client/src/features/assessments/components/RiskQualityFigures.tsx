@@ -2,7 +2,7 @@
 // Main Category · Current Score · Potential Score, the Rating Legend beside them, and
 // the Location Risk Quality Score and Rating the gateway computes. The assigned
 // engineer types the scores here. Used by ReviewWorkspace above Section 4's comments.
-import { useState } from 'react'
+import { lazy, useState } from 'react'
 import { Badge, Button, Callout, Input } from '../../../design-system'
 import {
   getRiskQuality,
@@ -13,8 +13,14 @@ import {
 } from '../api'
 import { NOT_ENTERED, toFigure, toText } from '../reportFigures'
 import { useFigures } from '../useFigures'
+import { ChartBoundary } from './ChartBoundary'
 
 type Typed = { current: string; potential: string }
+
+// Marsh's Section 4 charts (GN-12) load on first view: they bring the chart library.
+const RiskQualityCharts = lazy(() =>
+  import('./RiskQualityCharts').then((m) => ({ default: m.RiskQualityCharts })),
+)
 
 // A computed side's cell: the figure, or "Not entered" (AC1).
 const shown = (rated: Rated | null, pick: (r: Rated) => string) =>
@@ -158,6 +164,10 @@ export function RiskQualityFigures({
           equal weights are provisional until it is received.
         </p>
       </details>
+      {/* Drawn from the saved figures, so saving a score redraws them (GN-12 AC2). */}
+      <ChartBoundary>
+        <RiskQualityCharts figures={figures} />
+      </ChartBoundary>
     </div>
   )
 }
