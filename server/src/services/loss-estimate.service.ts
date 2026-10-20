@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AssessmentModel, type IAssessment } from '../models/assessment.model'
 import type { SessionUser } from './auth.service'
 import { AssessmentNotFoundError } from './capture-session.service'
+import { pendingProposal } from './risk-quality.service'
 import { assessmentToDraft } from './section.service'
 
 // Levels I-III, as in every sample report (Level IV is left out; Miya, 14 Oct).
@@ -159,10 +160,26 @@ const BLANK: LossInputs = {
   levels: [],
 }
 
-function lossEstimatesOf(saved: IAssessment['lossEstimates']) {
+// Whether any level has a % or months entered: then no proposal is made (AC14). Site
+// values alone don't count: they are never proposed.
+export const levelFiguresEntered = (inputs: LossInputs) =>
+  inputs.levels.some(
+    (l) =>
+      l.pd.some((r) => r.percent !== null) ||
+      (l.damageRows ?? []).some((r) => r.percent !== null) ||
+      l.te.some((r) => r.months !== null || r.percent !== null),
+  )
+
+export function lossEstimatesOf(saved: IAssessment['lossEstimates']) {
   // Saved only after lossEstimatesSchema passed, so the shape holds.
   const inputs = (saved?.inputs as LossInputs | undefined) ?? BLANK
-  return { inputs, result: estimate(inputs), updatedAt: saved?.updatedAt ?? null }
+  return {
+    inputs,
+    // Computed from the entered figures only, never from the proposal (AC10, AC13).
+    result: estimate(inputs),
+    proposal: pendingProposal(saved),
+    updatedAt: saved?.updatedAt ?? null,
+  }
 }
 
 export async function getLossEstimates(reference: string) {
@@ -179,8 +196,18 @@ export async function saveLossEstimates(reference: string, input: LossInputs, us
     updatedAt: new Date(),
     updatedBy: new Types.ObjectId(user.id),
   }
-  await AssessmentModel.updateOne({ _id: assessment._id }, { $set: { lossEstimates } })
-  return lossEstimatesOf(lossEstimates)
+  // Field by field, so a proposal stays on record beside the confirmed figures.
+  await AssessmentModel.updateOne(
+    { _id: assessment._id },
+    {
+      $set: {
+        'lossEstimates.inputs': lossEstimates.inputs,
+        'lossEstimates.updatedAt': lossEstimates.updatedAt,
+        'lossEstimates.updatedBy': lossEstimates.updatedBy,
+      },
+    },
+  )
+  return lossEstimatesOf({ ...lossEstimates, proposal: assessment.lossEstimates?.proposal })
 }
 
 // What drafting Section 5's scenarios is given (AC9): the values and each

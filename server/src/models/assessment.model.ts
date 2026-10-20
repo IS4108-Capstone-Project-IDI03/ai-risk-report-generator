@@ -51,11 +51,20 @@ export interface IAssessment {
     updatedAt: Date
     // Who saved them: the engineer's user _id.
     updatedBy: Types.ObjectId
+    // The model's latest proposed scores (GN-03 addendum), shown until the engineer
+    // enters scores; never used to compute the rating. See figure-proposal.service.ts.
+    proposal?: unknown
   }
   // Section 5's values, % damage and outage months (GN-03), validated by
   // lossEstimatesSchema before saving; losses are computed on read. See
   // loss-estimate.service.ts.
-  lossEstimates?: { inputs: unknown; updatedAt: Date; updatedBy: Types.ObjectId }
+  lossEstimates?: {
+    inputs: unknown
+    updatedAt: Date
+    updatedBy: Types.ObjectId
+    // As riskQuality.proposal: the model's per-level figures, never used to compute.
+    proposal?: unknown
+  }
   createdAt: Date
   updatedAt: Date
 }
@@ -111,12 +120,14 @@ const assessmentSchema = new Schema<IAssessment>(
       categories: [{ _id: false, category: String, current: Number, potential: Number }],
       updatedAt: Date,
       updatedBy: Schema.Types.ObjectId,
+      proposal: Schema.Types.Mixed,
     },
     // Mixed: nested rows whose shape lossEstimatesSchema already checks.
     lossEstimates: {
       inputs: Schema.Types.Mixed,
       updatedAt: Date,
       updatedBy: Schema.Types.ObjectId,
+      proposal: Schema.Types.Mixed,
     },
   },
   {
