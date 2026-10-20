@@ -48,7 +48,10 @@ def main(only: list[str]) -> None:
     matched = 0
     for case in cases:
         try:
-            proposal = interpret_images([photo_of(case["source"])], case["location"], case["note"])
+            note = [{"label": "Note", "kind": "note", "text": case["note"]}] if case["note"] else []
+            proposal = interpret_images(
+                [("Photo 1", photo_of(case["source"]))], note, case["location"]
+            )
         except InterpretationError as error:
             proposal = {"error": str(error)}
         same_type = proposal.get("hazard_type") == case["marsh"]["type"]
@@ -63,7 +66,8 @@ def main(only: list[str]) -> None:
             f"   Type:     Marsh {case['marsh']['type']!r}, proposed "
             f"{proposal.get('hazard_type')!r} ({'same' if same_type else 'different'})"
         )
-        print(f"   Category: {proposal.get('cope_dimension')}")
+        categories = [c["category"] for c in proposal.get("categories", [])]
+        print(f"   Category: {', '.join(categories) or 'none'}")
     print(f"\nHazard type matches Marsh's in {matched} of {len(cases)}. Results in {out}.")
 
 
