@@ -174,9 +174,16 @@ by the engineer in Review; every score, rating and loss is computed from them
 on read, never stored, and never written by the LLM.
 - `riskQuality`: `categories`, the seven main categories in template order,
   each `{ category, current, potential }` (0-10, one decimal, or `null` while
-  not entered; potential >= current), and `updatedAt`. Rules in
+  not entered; potential >= current), `proposal` (GN-03 addendum, see below), and
+  `updatedAt`. Rules in
   `risk-quality.service.ts` (equal weights, provisional until Marsh's Global
   Risk Quality Rating spreadsheet arrives; version `rqr-provisional-equal-v1`).
+- `riskQuality.proposal` and `lossEstimates.proposal` (GN-03 addendum, Mixed): the
+  model's latest proposed figures, `{ categories }` or `{ levels }`, each figure with
+  its `reason` and `citations`, plus `provenance`, `proposedAt` and `proposedBy`.
+  Written only by `figure-proposal.service.ts`; never read by `rate()` or
+  `estimate()`, so no rating or loss is computed from it. Shown while `proposedAt` is
+  after the figures' `updatedAt`: any save confirms it, and it stays on record.
 - `lossEstimates`: `inputs` (Mixed, checked by `lossEstimatesSchema` before
   saving: `currency`, `dateOfValues`, `indemnityMonths`, the `pd` and `te`
   value rows `{ key, item, value }`, and `levels` I-III each with `pd: [{ key,
