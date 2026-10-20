@@ -1,8 +1,10 @@
 import { Types } from 'mongoose'
 import request from 'supertest'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { config } from '../config'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
+import { ClientModel } from '../models/client.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import type { IUser } from '../models/user.model'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
@@ -49,6 +51,7 @@ describe('POST /api/chat', () => {
     expect(sent).toHaveBeenCalledWith(expect.stringMatching(/\/chat$/), {
       ...BODY,
       documents: [],
+      privacy: { enabled: false, known_entities: [] },
     })
   })
 
@@ -217,6 +220,59 @@ describe('POST /api/chat', () => {
 })
 
 // GET /api/chat/passages/:id (CB-02): S4's passage, passed through to the citation panel.
+describe('PII protection for chat (PV-03)', () => {
+  // The known names are kept for a minute; each test starts just past the last one's.
+  // Not further: the signed-in user's token would expire.
+  let now = Date.now()
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime((now += 61_000))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    config.piiProtection = 'off'
+  })
+
+  const sentBody = async (body: object) => {
+    const sent = vi.fn()
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      sent(JSON.parse(String(init!.body)))
+      return new Response(EVENTS, { headers: { 'Content-Type': 'text/event-stream' } })
+    })
+    await engineer.post('/api/chat').send(body)
+    return sent.mock.calls[0][0]
+  }
+
+  it('sends every known client when protection is required', async () => {
+    config.piiProtection = 'required'
+    await ClientModel.create({ name: 'Northgate Logistics', key: 'northgate logistics' })
+
+    const { privacy } = await sentBody(BODY)
+
+    expect(privacy).toEqual({
+      enabled: true,
+      known_entities: expect.arrayContaining([{ type: 'CLIENT', names: ['Northgate Logistics'] }]),
+    })
+  })
+
+  it('sends protection off, with no names, when it is not required', async () => {
+    const { privacy } = await sentBody(BODY)
+
+    expect(privacy).toEqual({ enabled: false, known_entities: [] })
+  })
+
+  it("ignores a privacy field from the browser, so it can't turn protection off", async () => {
+    config.piiProtection = 'required'
+
+    const { privacy } = await sentBody({
+      ...BODY,
+      privacy: { enabled: false, known_entities: [] },
+    })
+
+    expect(privacy.enabled).toBe(true)
+  })
+})
+
 describe('GET /api/chat/passages/:id', () => {
   const PASSAGE = {
     id: 'p1',

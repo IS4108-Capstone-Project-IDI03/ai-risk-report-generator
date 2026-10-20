@@ -10,6 +10,7 @@ import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
 import { checkChatLimits } from '../services/chat-limits.service'
 import { chatUsageTap } from '../services/chat-usage.service'
+import { chatPrivacy } from '../services/privacy.service'
 import {
   getPassage,
   openChatStream,
@@ -64,7 +65,9 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   res.on('close', () => upstream.abort())
   let stream: ReadableStream<Uint8Array>
   try {
-    stream = await openChatStream(await withChatDocuments(req.body), upstream.signal, userId)
+    // The gateway decides protection (PV-03), replacing any privacy the browser sent.
+    const body = { ...(await withChatDocuments(req.body)), privacy: await chatPrivacy() }
+    stream = await openChatStream(body, upstream.signal, userId)
   } catch (error: unknown) {
     if (error instanceof RagServiceError) {
       res.status(503).json({ error: error.message })
