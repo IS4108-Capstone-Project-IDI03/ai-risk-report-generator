@@ -193,6 +193,27 @@ def _search(query: str, filters: dict, include_withdrawn: bool) -> list[dict]:
     return list(best.values())
 
 
+def _real_documents(plan: Plan, protection: pii.Session) -> Plan:
+    """The plan with any document it names restored, so it matches the listed names.
+
+    The planner read masked names (PV-03). Its queries stay masked: they go to Cohere.
+    """
+
+    def real(filters: Filters) -> Filters:
+        if not filters.document:
+            return filters
+        return filters.model_copy(update={"document": protection.unmask(filters.document)[0]})
+
+    return plan.model_copy(
+        update={
+            "filters": real(plan.filters),
+            "extra_searches": [
+                x.model_copy(update={"filters": real(x.filters)}) for x in plan.extra_searches
+            ],
+        }
+    )
+
+
 def search_passages(plan: Plan, names: dict[str, str] | None = None) -> list[dict]:
     """Return a plan's passages: one search's, or the best 3 of each when it has extras."""
     names = names or {}
@@ -398,7 +419,6 @@ def _events(
     last_user = max((i for i, t in enumerate(history) if t["role"] == "user"), default=-1)
     history = history[: last_user + 1]
     names = {d["id"]: document_name(d) for d in documents or []}
-    listed = "".join(f"- {n}\n" for n in sorted(set(names.values())))
     message_id = str(uuid.uuid4())
     citations, filters, declined, model, error, program = [], {}, False, None, None, ""
     passages: list[dict] = []
@@ -420,13 +440,16 @@ def _events(
     try:
         if not history:
             raise GenerationFailed("there was no question to answer.")
-        # One /mask call for everything the engineer sent, so a name is the same
-        # placeholder to the planner and the answer model (PV-03).
-        masked = protection.mask([m["content"] for m in history] + list(context))
+        # One /mask call for everything the engineer sent and the document names (a past
+        # report's title can name its client), so a name is the same placeholder to the
+        # planner and the answer model (PV-03).
+        titles = sorted(set(names.values()))
+        masked = protection.mask([m["content"] for m in history] + list(context) + titles)
         history = [
             {**m, "content": text} for m, text in zip(history, masked[: len(history)], strict=True)
         ]
-        context = masked[len(history) :]
+        context = masked[len(history) : len(masked) - len(titles)]
+        listed = "".join(f"- {title}\n" for title in masked[len(masked) - len(titles) :])
         transcript = "\n".join(f"{m['role']}: {m['content']}" for m in history)
         # a. Plan: turn the last message into a search, a clarifying question, a reply or a decline.
         plan = complete_json(
@@ -448,22 +471,26 @@ def _events(
             for word in _paced(program):
                 yield text(word)
         elif plan.kind != "search":
-            for word in _paced(_one_statement(plan.reply)):
+            # The planner wrote from masked text, so its reply holds placeholders.
+            reply = protection.unmask(plan.reply)[0]
+            for word in _paced(_one_statement(reply)):
                 yield text(word)
         else:
             # b. Search, shown as a step on screen (AC8) with the filters it used (AC6).
-            filters = plan.filters.model_dump(exclude_none=True)
+            # The engineer sees real names; search gets the masked queries (PV-03).
+            search_plan = _real_documents(plan, protection)
+            filters = search_plan.filters.model_dump(exclude_none=True)
             call_id = str(uuid.uuid4())
-            shown = {"query": plan.query, "filters": filters}
+            shown = {"query": protection.unmask(plan.query)[0], "filters": filters}
             if plan.extra_searches:
-                shown["also"] = [x.query for x in plan.extra_searches]
+                shown["also"] = [protection.unmask(x.query)[0] for x in plan.extra_searches]
             args = json.dumps(shown)
             yield _sse(
                 {"type": "TOOL_CALL_START", "toolCallId": call_id, "toolCallName": SEARCH_TOOL}
             )
             yield _sse({"type": "TOOL_CALL_ARGS", "toolCallId": call_id, "delta": args})
             yield _sse({"type": "TOOL_CALL_END", "toolCallId": call_id})
-            passages = search_passages(plan, names)
+            passages = search_passages(search_plan, names)
             # Names are added here, after search, so cached eval searches stay valid.
             for p in passages:
                 name = names.get(p["metadata"].get("doc_id"))
