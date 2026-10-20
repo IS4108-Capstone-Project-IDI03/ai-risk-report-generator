@@ -641,7 +641,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a reading succeeds, when I open the observation, then each proposed category is shown as AI-generated text with a reason naming the items it rests on, or none is proposed when nothing points to one.
   5. Given a reason quotes a note or transcript, when the proposal is shown, then a quote not found in that item is marked Unverified.
   6. Given the observation has photos, when the reading succeeds, then a description and hazard type are proposed from the photos alone, as in CP-05.
-  7. Given a reading fails, when I open the observation, then the reason is shown and I can retry; given a finished proposal, when I ask again, then a new reading replaces it.
+  7. Given a reading fails, when I open the observation, then the reason is shown and I can retry; given a finished proposal, when I regenerate its categories or its photo description, then a new reading replaces that part alone, and only that part goes out of date when what it reads changes.
 
   Accepting it
 
