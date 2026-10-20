@@ -1,0 +1,185 @@
+{
+  "_about": "Facts: Shopping Mall Sample 2's real category scores, in risk-quality.service.ts riskQualityFacts wording. The gateway's rule gives 84.3 / 85.7 where Marsh shows 83.0 / 86.8; Marsh's comments quote neither. Observations: mall2-1 to mall2-7 and the OFI case's from Mall 2; mall2-s4-* written from its Sections 6-11.",
+  "name": "Shopping Mall Sample 2, section 4 Risk Quality Ratings and Comments",
+  "source": "Shopping Mall Sample 2 - PRE 2025 - REDACTED.pdf, Section 4 (pp. 13-14)",
+  "exclude_doc_id": "6ac0b458a99acf65e6f594e8",
+  "assessment": {
+    "reference": "EVAL-MALL-2",
+    "jurisdiction": "SG",
+    "facility_type": "Shopping mall"
+  },
+  "observations": [
+    {
+      "id": "mall2-1",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole site",
+      "note": "mall opened 2009. bsmt link to MRT + links to nbr malls. site 21,731m2, GFA 125,621m2, NLA 58,340m2. residences ~35,000m2 GFA"
+    },
+    {
+      "id": "mall2-2",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Whole site",
+      "note": "mostly RC cols/beams/slabs, some steel w sprayed fireproofing. RC flat roof. partitions drywall or lightweight conc panels"
+    },
+    {
+      "id": "mall2-3",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Facade",
+      "note": "mall ext RC or glass on steel frame, freeform curved glass + metal facade. residences RC / curtain glass on steel. nothing combustible seen"
+    },
+    {
+      "id": "mall2-4",
+      "COPE_dimension": "Construction",
+      "severity": "moderate",
+      "location": "Retail L1-L5",
+      "note": "retail L1-L5 all open to each other thru the voids - basically 1 compartment"
+    },
+    {
+      "id": "mall2-5",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Retail basements",
+      "note": "ok so in the basements the atriums and the escalator voids have the two hour fabric shutters, they drop on fire alarm, so each basement level is its own compartment except the utility rooms"
+    },
+    {
+      "id": "mall2-6",
+      "COPE_dimension": "Construction",
+      "severity": "moderate",
+      "location": "Connections",
+      "note": "4hr roller shutters at all MRT entrances + links to nbr malls. residences access separated from retail by brick wall - site team not sure if fire rated"
+    },
+    {
+      "id": "mall2-7",
+      "COPE_dimension": "Construction",
+      "severity": "low",
+      "location": "Electrical rooms",
+      "note": "HT/LT sw rms + tx rms - 2hr rated doors"
+    },
+    {
+      "id": "mall2-ofi-1",
+      "COPE_dimension": "Occupancy",
+      "severity": "moderate",
+      "location": "Management office",
+      "note": "hot work permit form reviewed - no fire watch requirement during or after hot work"
+    },
+    {
+      "id": "mall2-ofi-2",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Fire command centre",
+      "note": "no formal FP system impairment programme. isolations approved by tech service team only, no impairment permit"
+    },
+    {
+      "id": "mall2-ofi-3",
+      "COPE_dimension": "Protection",
+      "severity": "high",
+      "location": "Retail area L2",
+      "note": "concealed spk cover plates painted over in retail corridor"
+    },
+    {
+      "id": "mall2-ok-1",
+      "COPE_dimension": "Protection",
+      "severity": "moderate",
+      "location": "Fire command centre",
+      "note": "FA panel showed 2 faults on arrival, both cleared during visit, fault log updated"
+    },
+    {
+      "id": "mall2-ok-2",
+      "COPE_dimension": "Occupancy",
+      "severity": "moderate",
+      "location": "Basement 2 loading bay",
+      "note": "loading bay cardboard waste removed daily, area clear at time of visit"
+    },
+    {
+      "id": "mall2-s4-1",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Retail B4-L8, L55-56",
+      "note": "wet spk B4-L8 OH3 + L55-56 OH1 to CP52. not in elec rms / risers - smoke det there instead. tenant areas spk in room + ceiling void"
+    },
+    {
+      "id": "mall2-s4-2",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "L6 + L55 pump rooms",
+      "note": "2 spk pump sets, duty/standby/jockey all elec, on genset backup. PSB listed. tanks L6 126 m3 SS, L55 77 m3 RC. pump flow test not seen - water proving test yearly for fire cert, no issues per FM"
+    },
+    {
+      "id": "mall2-s4-3",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Fire command centre L1",
+      "note": "addressable FA panel in FCC, manned 24/7, DECAM by Chubb. smoke dets in all elec rms, risers, LMRs. beam dets L4 atrium voids. MCPs + bells throughout"
+    },
+    {
+      "id": "mall2-s4-4",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "F&B tenants",
+      "note": "kitchen hoods wet chemical, tenant maintained, not linked to main FA. tenants clean filters quarterly; common exhaust ducts cleaned yearly by FM contractor"
+    },
+    {
+      "id": "mall2-s4-5",
+      "COPE_dimension": "Protection",
+      "severity": "low",
+      "location": "Whole site",
+      "note": "Chubb service contract for FP. monthly pump run, monthly smoke det test (100%), monthly roller shutter test, annual flow switch test"
+    },
+    {
+      "id": "mall2-s4-6",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "HT/LT switchrooms",
+      "note": "2 incoming 22kV feeders. 10 silicon oil tx, ~25-30% load, L2 units back each other up, L8 units back each other up. IR thermography + PD test + DGA yearly by LEW contractor"
+    },
+    {
+      "id": "mall2-s4-7",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "L8 plant",
+      "note": "2 diesel gensets L8, 1000 L day tank each, no bulk tank. monthly no-load test in-house, annual load test"
+    },
+    {
+      "id": "mall2-s4-8",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Chiller plant L6-L8",
+      "note": "chillers 5 x 1000RT + 2 x 500RT, 3 x 1000RT run day, peak 2400-2600RT. spare capacity"
+    },
+    {
+      "id": "mall2-s4-9",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Retail + back of house",
+      "note": "housekeeping generally good most areas seen"
+    },
+    {
+      "id": "mall2-s4-10",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Whole site",
+      "note": "boundary exposures light - nbr malls + MRT 10m, via underground links. lightning moderate, LPS installed. flood low - sump pumps, flood barriers + sensors at link, tested yearly w PUB"
+    },
+    {
+      "id": "mall2-s4-11",
+      "COPE_dimension": "Exposure",
+      "severity": "low",
+      "location": "Whole site",
+      "note": "~500 CCTV incl 10 PTZ, 45 days recording, video analytics. guards 3 shifts in-house + Prosegur. pump + tx rooms lock and key + RFID"
+    },
+    {
+      "id": "mall2-s4-12",
+      "COPE_dimension": "Occupancy",
+      "severity": "low",
+      "location": "Management office",
+      "note": "ERP for fire, bomb, pandemic. 6-man ERT. MOC involves stakeholders + risk assessment"
+    }
+  ],
+  "notes_style": "As written on site: terse and abbreviated.",
+  "section_id": "4",
+  "facts": "Current Location Risk Quality Score: 84.3\nCurrent Location Risk Quality Rating: B\nPotential Location Risk Quality Score: 85.7\nPotential Location Risk Quality Rating: A\nExternal Exposure: current 9, potential 9\nFire Protection: current 8, potential 8\nOccupancy Hazards: current 9, potential 9\nConstruction: current 8, potential 8\nWater Supply: current 10, potential 10\nSurveillance: current 8, potential 8\nManagement Programs: current 7, potential 8",
+  "reference": "Risk Quality Rating Comments\n\nPositive Points\nThe positive points which comes out from the visit are following:\n- Buildings were constructed of fire resistive construction materials\n- The retail mall is provided with automatic sprinkler system and the entire building is\nprovided with a fire alarm system.\n- Preventive maintenance programmes are in place for fire protection and detection\nequipment.\n- Good redundancy is available for critical utilities.\n- Good housekeeping observed for most areas visited."
+}
