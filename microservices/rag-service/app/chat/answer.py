@@ -492,16 +492,17 @@ def _events(
                 # too, with the same mapping (Rule 2). The check below reads the originals.
                 block = protection.mask([_passage_block(passages)])[0]
                 question = f"{extra}{block}\n\nQuestion: {history[-1]['content']}"
-                for chunk in _program_lines(
-                    stream_text(
-                        COMPONENTS + ANSWER_RULES,
-                        history[:-1] + [{"role": "user", "content": question}],
-                        provider=config.CHAT_PROVIDER,
-                        model=config.CHAT_MODEL,
-                        effort=config.CHAT_EFFORT,
-                        feature="chat",
-                    )
-                ):
+                written = stream_text(
+                    COMPONENTS + ANSWER_RULES,
+                    history[:-1] + [{"role": "user", "content": question}],
+                    provider=config.CHAT_PROVIDER,
+                    model=config.CHAT_MODEL,
+                    effort=config.CHAT_EFFORT,
+                    feature="chat",
+                )
+                # Real names go back in as the answer arrives, so the screen, the quote
+                # check and the saved answer all read real text (PV-03).
+                for chunk in _program_lines(protection.unmask_stream(written)):
                     program += chunk
                     for word in _paced(chunk):
                         yield text(word)

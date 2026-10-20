@@ -122,3 +122,47 @@ def test_nothing_is_sent_when_privacy_service_fails(fake, fake_privacy, failure)
     assert "privacy service" in error.lower()
     assert "privacy service" in _program(events).lower()
     assert leaked([error]) == []
+
+
+def test_the_answer_reaches_the_screen_with_real_names(fake, fake_privacy):
+    fake["passages"] = [REPORT]
+    fake["chunks"] = [
+        "root = Answer([s1])\n",
+        's1 = Statement("[PER',
+        'SON_1] of [CLIENT_1] agreed to weekly tests.", [])\n',
+    ]
+
+    events = ask("Did John Tan of Acme Holdings agree to test the pump?")
+
+    program = _program(events)
+    assert 's1 = Statement("John Tan of Acme Holdings agreed to weekly tests.", [])' in program
+    deltas = [e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT"]
+    assert not any("PER" in d or "CLIENT_" in d for d in deltas), deltas
+
+
+def test_a_quote_with_placeholders_is_checked_on_real_text(fake, fake_privacy):
+    fake["passages"] = [REPORT]
+    fake["chunks"] = [
+        "root = Answer([s1])\n",
+        's1 = Statement("[PERSON_1] agreed to weekly tests.", [c1])\n',
+        'c1 = Cite("P1", "[PERSON_1] of [CLIENT_1] agreed")\n',
+    ]
+
+    events = ask("Did John Tan agree to test the pump?")
+
+    [citation] = _result(events)["citations"]
+    assert citation["quote"] == "John Tan of Acme Holdings agreed"
+    assert citation["verified"] is True
+
+
+def test_a_placeholder_the_engineer_types_comes_back_as_typed(fake, fake_privacy):
+    fake["chunks"] = [
+        "root = Answer([s1])\n",
+        's1 = Statement("[LITERAL_1] is a template field; [PERSON_1] is the contact.", [])\n',
+    ]
+
+    events = ask("In the template, is [PERSON_1] the same as John Tan?")
+
+    planned = fake["calls"]["plan"][0]
+    assert "[LITERAL_1]" in planned and "[PERSON_1]" in planned  # typed one escaped
+    assert "[PERSON_1] is a template field; John Tan is the contact." in _program(events)
