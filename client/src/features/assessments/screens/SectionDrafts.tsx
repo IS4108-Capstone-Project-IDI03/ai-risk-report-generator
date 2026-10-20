@@ -1,6 +1,13 @@
 import { Fragment, useRef, useState } from 'react'
 import { AIDraftBlock, Badge, Button, Callout, ProgressBar } from '../../../design-system'
-import { draftSection, GatewayError, type ReportSection, type SectionDraft } from '../api'
+import {
+  draftSection,
+  GatewayError,
+  proposeLossEstimates,
+  proposeRiskQuality,
+  type ReportSection,
+  type SectionDraft,
+} from '../api'
 import { describeChanges, maturityEntries, reportProgress } from '../reviewDisplay'
 import { MaturityTable } from '../components/MaturityTable'
 import { OfiRow } from '../components/OfiSuggestions'
@@ -174,6 +181,26 @@ export function SectionDrafts({
   const [drafting, setDrafting] = useState<string | null>(null)
   const [stopping, setStopping] = useState(false)
   const [failures, setFailures] = useState<Record<string, string>>({})
+  // Sections 4 and 5 (GN-03 addendum): the one whose figures are being proposed, and
+  // why a proposal failed. A failed proposal is not a failed draft, so kept apart.
+  const [proposing, setProposing] = useState<string | null>(null)
+  const [proposeFailed, setProposeFailed] = useState<Record<string, string>>({})
+  const proposeFigures = async (id: string) => {
+    setProposing(id)
+    setProposeFailed((f) => ({ ...f, [id]: '' }))
+    try {
+      await (id === '4' ? proposeRiskQuality : proposeLossEstimates)(reference)
+      // The proposal is checked and confirmed in Review.
+      onReview()
+    } catch (error: unknown) {
+      setProposeFailed((f) => ({
+        ...f,
+        [id]: error instanceof GatewayError ? error.message : 'The figures were not proposed.',
+      }))
+    } finally {
+      setProposing(null)
+    }
+  }
   const [selected, setSelected] = useState<string | null>(null)
   // Sections redrafted while this tab is open, so their row says so (CP-08).
   const [redrafted, setRedrafted] = useState<Record<string, boolean>>({})
@@ -426,8 +453,13 @@ export function SectionDrafts({
                               color: 'var(--text-secondary)',
                             }}
                           >
-                            {s.inputsMissing} Enter them in Review; the model writes only the
-                            wording around them.
+                            {s.inputsMissing} Enter them in Review, or have the model propose them
+                            for you to check and confirm; the model writes the wording around them.
+                          </span>
+                        )}
+                        {proposeFailed[s.id] && (
+                          <span role="alert" className="generation-propose-error">
+                            {proposeFailed[s.id]}
                           </span>
                         )}
                       </span>
@@ -461,6 +493,18 @@ export function SectionDrafts({
                         {state === STATE.insufficient && onCapture && (
                           <Button variant="ghost" size="sm" iconLeft="camera" onClick={onCapture}>
                             Capture evidence
+                          </Button>
+                        )}
+                        {state === STATE.figures && canDraft && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            iconLeft="sparkles"
+                            loading={proposing === s.id}
+                            disabled={proposing !== null || running}
+                            onClick={() => void proposeFigures(s.id)}
+                          >
+                            Propose figures
                           </Button>
                         )}
                         {state === STATE.figures && (
