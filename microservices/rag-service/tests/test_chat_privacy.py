@@ -60,6 +60,38 @@ def test_the_planner_sees_placeholders_not_names(fake, fake_privacy):
     assert "[CLIENT_1]" in planned and "[PERSON_1]" in planned
 
 
+# A past report's passage, stored unredacted, that names the client's people.
+REPORT = {
+    "id": "rep:9",
+    "text": "As John Tan of Acme Holdings agreed, the fire pump is tested weekly.",
+    "metadata": {
+        "doc_id": "rep",
+        "page_start": 4,
+        "page_end": 4,
+        "headings": ["Acme Holdings Tower", "Fire Protection"],
+    },
+    "relevance_score": 0.9,
+}
+
+
+def test_the_answer_model_sees_placeholders_not_names(fake, fake_privacy):
+    fake["passages"] = [REPORT]
+
+    ask(
+        "Who maintains the sprinklers at Acme Holdings?",
+        EARLIER_ANSWER,
+        "Did John Tan (NRIC S1234567D) agree to test them?",
+        context=["Site contact: +65 9123 4567"],
+    )
+
+    system, messages = fake["calls"]["answer"][0]
+    sent = [system, *(m["content"] for m in messages)]
+    assert leaked(sent) == [], sent
+    # One mapping for the whole request: John Tan is [PERSON_1] to both models.
+    assert "[PERSON_1]" in fake["calls"]["plan"][0]
+    assert "[PERSON_1] of [CLIENT_1] agreed" in messages[-1]["content"]
+
+
 def test_the_result_records_protection_but_never_the_names(fake, fake_privacy):
     events = ask("Did John Tan agree to test the sprinklers at Acme Holdings?")
 
