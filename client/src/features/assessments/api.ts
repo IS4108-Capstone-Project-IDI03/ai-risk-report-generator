@@ -149,11 +149,27 @@ export type ProposedCategory = {
     verified: boolean | null
   }[]
 }
-export type SavedInterpretation = {
+// The parts of a proposal that can be read again one at a time (CP-21).
+export type ReadingPart = 'categories' | 'description'
+// The photos' part of a proposal: their description and hazard type, with
+// where they stand, read again apart from the categories (CP-21).
+export type SavedPhotoReading = {
   status: InterpretationStatus
-  // From its photos; null for a reading without them.
   description: string | null
   hazardType: string | null
+  error: string | null
+  attempts: number
+  model: string | null
+  // The photos it describes, removed ones included.
+  photoIds: string[]
+  // Finished, but of photos other than those it has now.
+  outOfDate: boolean
+}
+export type SavedInterpretation = {
+  // Where the categories stand.
+  status: InterpretationStatus
+  // Null until its photos are first described.
+  photos: SavedPhotoReading | null
   // The proposed categories, which may differ from the observation's own.
   categories: ProposedCategory[]
   // Why it failed, to show the engineer.
@@ -525,11 +541,15 @@ export async function retranscribePage(
   ).data
 }
 
-// Asks for an observation to be read (CP-05, CP-21): the first reading, a new
-// one after a failure, or after what it holds changed (CP-08). Saving never
+// Asks for an observation to be read (CP-05, CP-21): both parts the first
+// time, or one part again (`part`), whenever the engineer asks. Saving never
 // reads it.
-export async function readObservation(observationId: string) {
-  await request<void>('POST', `${observationPath(observationId)}/interpretation`)
+export async function readObservation(observationId: string, part?: ReadingPart) {
+  await request<void>(
+    'POST',
+    `${observationPath(observationId)}/interpretation`,
+    part ? { part } : undefined,
+  )
 }
 
 const locationsPath = (reference: string) =>
