@@ -48,6 +48,38 @@ def test_rerank_preserves_sources_and_skips_empty_database(monkeypatch):
         retriever.retrieve("flood risk")
 
 
+def test_a_rank_texts_hook_changes_only_what_the_reranker_reads(monkeypatch):
+    chroma, cohere = Mock(), Mock()
+    collection = chroma.get_collection.return_value
+    collection.count.return_value = 2
+    collection.query.return_value = {
+        "ids": [["a", "b"]],
+        "documents": [["John Tan agreed", "flood"]],
+        "metadatas": [[{"headings": ["Acme Holdings"]}, {}]],
+        "distances": [[0.1, 0.2]],
+    }
+    cohere.embed.return_value = SimpleNamespace(embeddings=SimpleNamespace(float_=[[0.3]]))
+    cohere.rerank.return_value = SimpleNamespace(
+        results=[SimpleNamespace(index=0, relevance_score=0.9)]
+    )
+    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
+    seen = []
+
+    def masked(texts):
+        seen.append(texts)
+        return [
+            t.replace("John Tan", "[PERSON_1]").replace("Acme Holdings", "[CLIENT_1]")
+            for t in texts
+        ]
+
+    hits = retriever.retrieve("who agreed", rank_texts=masked)
+
+    assert seen == [["Acme Holdings\nJohn Tan agreed", "flood"]]
+    assert cohere.rerank.call_args.kwargs["documents"] == ["[CLIENT_1]\n[PERSON_1] agreed", "flood"]
+    assert hits[0]["text"] == "John Tan agreed"  # the stored passage, for the model and the check
+
+
 def test_a_wider_search_takes_more_candidates_and_keeps_every_reranked_one(monkeypatch):
     chroma, cohere = Mock(), Mock()
     collection = chroma.get_collection.return_value

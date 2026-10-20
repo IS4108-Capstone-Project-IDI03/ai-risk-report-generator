@@ -3,6 +3,7 @@ search are faked (`fake` from test_chat); privacy-service's /mask is faked in-pr
 `fake_privacy`)."""
 
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -10,7 +11,8 @@ from fastapi.testclient import TestClient
 
 from app.chat import answer
 from app.main import app
-from tests import test_chat
+from app.retrieval import retriever
+from tests import test_chat, test_leak
 from tests.test_chat import _program, _result
 
 client = TestClient(app)
@@ -233,3 +235,24 @@ def test_the_search_shows_real_names_but_searches_with_placeholders(fake, fake_p
     assert _result(events)["filters"] == {"document": "Acme Holdings Tower survey 2024"}
     queries = [query for query, _, _ in fake["calls"]["search"]]
     assert queries == ["fire pump tests agreed by [PERSON_1]", "[CLIENT_1] pump impairments"]
+
+
+def test_past_reports_reach_the_reranker_masked(fake, fake_privacy, monkeypatch):
+    # The real search, against test_leak's recording Cohere and in-memory Chroma, whose
+    # past reports name John Tan of Acme Holdings.
+    recorder = test_leak.Recorder(parsed=None)
+    chroma = SimpleNamespace(get_collection=lambda **_: test_leak.Collection())
+    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "cohere_client", lambda: recorder)
+    monkeypatch.setattr(answer, "retrieve", retriever.retrieve)
+    fake["plan"] = answer.Plan(
+        kind="search",
+        query="impairment handling",
+        filters=answer.Filters(source_type="marsh_report"),
+        reply="",
+    )
+
+    ask("How did past reports handle impairments?")
+
+    assert any("[PERSON_1]" in p for p in recorder.payloads), recorder.payloads
+    assert leaked(recorder.payloads) == [], recorder.payloads
