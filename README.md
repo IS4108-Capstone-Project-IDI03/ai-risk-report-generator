@@ -35,9 +35,11 @@ photos of handwritten note pages, each file kept in S3 as raw evidence)
 against the capture session in progress. S5 transcribes each recording with
 Whisper and each handwritten page with Gemini, word for word, marking the
 words it was unsure of (CP-19); and, when an engineer asks, reads an
-observation's photos with Gemini, proposing a description, category and hazard
-type for the engineer to review (CP-05); saving never sends a photo, and the
-proposal is never drafting evidence.
+observation with Gemini (its note, transcripts and photos), proposing the COPE
+categories it concerns, each with its reason and quoted evidence, and from any
+photos a description and hazard type, for the engineer to review (CP-05,
+CP-21); saving never sends anything, and the proposal is never drafting
+evidence.
 An observation's tags (category, severity, location, standard) and note change at
 `PATCH /api/observations/:id`; a finished transcript can be corrected, keeping
 what Whisper wrote; recordings and photos can be added to a saved observation,
