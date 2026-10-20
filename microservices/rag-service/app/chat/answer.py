@@ -420,8 +420,14 @@ def _events(
     try:
         if not history:
             raise GenerationFailed("there was no question to answer.")
-        masked = protection.mask([m["content"] for m in history])
-        transcript = "\n".join(f"{m['role']}: {text}" for m, text in zip(history, masked))
+        # One /mask call for everything the engineer sent, so a name is the same
+        # placeholder to the planner and the answer model (PV-03).
+        masked = protection.mask([m["content"] for m in history] + list(context))
+        history = [
+            {**m, "content": text} for m, text in zip(history, masked[: len(history)], strict=True)
+        ]
+        context = masked[len(history) :]
+        transcript = "\n".join(f"{m['role']}: {m['content']}" for m in history)
         # a. Plan: turn the last message into a search, a clarifying question, a reply or a decline.
         plan = complete_json(
             PLAN_SYSTEM,
@@ -482,9 +488,10 @@ def _events(
             else:
                 # d. Answer, streamed as written, from the passages only.
                 extra = "".join(f"Engineer context: {c}\n" for c in context)
-                question = (
-                    f"{extra}{_passage_block(passages)}\n\nQuestion: {history[-1]['content']}"
-                )
+                # Stored passages may name people (past reports), so the block is masked
+                # too, with the same mapping (Rule 2). The check below reads the originals.
+                block = protection.mask([_passage_block(passages)])[0]
+                question = f"{extra}{block}\n\nQuestion: {history[-1]['content']}"
                 for chunk in _program_lines(
                     stream_text(
                         COMPONENTS + ANSWER_RULES,
