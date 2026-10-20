@@ -136,20 +136,50 @@ export interface IReadItem {
   text?: string | null
 }
 
+// What wrote a reading and the tokens it took (EV-03); usage is null when the
+// provider reports none.
+export interface IReadingProvenance {
+  provider: string
+  model: string
+  promptVersion: string
+  usage: { inputTokens: number; outputTokens: number | null; thoughtTokens: number | null } | null
+  interpretedAt: Date
+}
+
+// The photos' part of a reading (CP-21): their description and hazard type,
+// read again apart from the categories, with its own status and attempts.
+export interface IPhotoReading {
+  status: InterpretationStatus
+  description?: string
+  // One of S5's hazard types, e.g. "Housekeeping" or "No hazard visible".
+  hazardType?: string
+  error?: string
+  attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
+  // The photos the latest attempt describes; once photos are added or removed,
+  // a finished description of a different set is out of date.
+  photoIds: Types.ObjectId[]
+  provenance?: IReadingProvenance
+}
+
 // What the model proposes from an observation (CP-05, CP-21), for the
-// engineer to review: from everything captured, the COPE categories it
-// concerns, and from its photos, if any, a description and hazard type. It is
-// never drafting evidence: the engineer takes it into the note or the
+// engineer to review, in two parts read together or one at a time: from
+// everything captured, the COPE categories it concerns (on this record), and
+// from its photos, if any, a description and hazard type (`photoReading`). It
+// is never drafting evidence: the engineer takes it into the note or the
 // categories through Edit if they agree.
 export interface IInterpretation {
+  // Where the categories stand.
   status: InterpretationStatus
-  // From the photos only; absent for a reading without them.
+  // The photos' part (CP-21); absent until photos are first described.
+  photoReading?: IPhotoReading
+  // A reading from before the parts were split kept the photos' description
+  // and hazard type here, with the categories' status; read as its photos'
+  // part until either part is read again.
   description?: string
   // The proposed categories, which may differ from the engineer's own (CP-21).
   categories?: IProposedCategory[]
   // The one category a reading proposed before CP-21; read as a list of one.
   copeDimension?: CopeDimension
-  // One of S5's hazard types, e.g. "Housekeeping" or "No hazard visible".
   hazardType?: string
   // Why the latest attempt failed, as S5 put it; the DTO makes it readable.
   error?: string
@@ -162,15 +192,7 @@ export interface IInterpretation {
   // Everything the latest attempt reads, set when it starts (CP-21). Absent on
   // readings from before CP-21, which read only photos and the note.
   items?: IReadItem[]
-  // What wrote it and the tokens it took (EV-03); usage is null when the
-  // provider reports none.
-  provenance?: {
-    provider: string
-    model: string
-    promptVersion: string
-    usage: { inputTokens: number; outputTokens: number | null; thoughtTokens: number | null } | null
-    interpretedAt: Date
-  }
+  provenance?: IReadingProvenance
 }
 
 // One thing the engineer saw on site, with everything captured about it: a
@@ -284,9 +306,44 @@ const photoSchema = new Schema<IPhoto>({
   removed: { type: stampSchema },
 })
 
+const provenanceSchema = new Schema<IReadingProvenance>(
+  {
+    provider: { type: String, required: true },
+    model: { type: String, required: true },
+    promptVersion: { type: String, required: true },
+    usage: {
+      type: new Schema(
+        { inputTokens: Number, outputTokens: Number, thoughtTokens: Number },
+        { _id: false },
+      ),
+      default: null,
+    },
+    interpretedAt: { type: Date, required: true },
+  },
+  { _id: false },
+)
+// Each schema gets its own definition, as Mongoose may change the one it is given.
+const readingAttempts = () => [
+  { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
+]
+
+const photoReadingSchema = new Schema<IPhotoReading>(
+  {
+    status: { type: String, enum: INTERPRETATION_STATUSES, required: true },
+    description: String,
+    hazardType: String,
+    error: String,
+    attempts: readingAttempts(),
+    photoIds: { type: [Schema.Types.ObjectId], required: true },
+    provenance: { type: provenanceSchema },
+  },
+  { _id: false },
+)
+
 const interpretationSchema = new Schema<IInterpretation>(
   {
     status: { type: String, enum: INTERPRETATION_STATUSES, required: true },
+    photoReading: { type: photoReadingSchema },
     description: String,
     categories: {
       type: [
@@ -313,9 +370,7 @@ const interpretationSchema = new Schema<IInterpretation>(
     copeDimension: { type: String, enum: COPE_DIMENSIONS },
     hazardType: String,
     error: String,
-    attempts: [
-      { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
-    ],
+    attempts: readingAttempts(),
     // Left out rather than defaulting to [], which would read as "no photos".
     photoIds: { type: [Schema.Types.ObjectId], default: undefined },
     items: {
@@ -332,24 +387,7 @@ const interpretationSchema = new Schema<IInterpretation>(
       ],
       default: undefined,
     },
-    provenance: {
-      type: new Schema(
-        {
-          provider: { type: String, required: true },
-          model: { type: String, required: true },
-          promptVersion: { type: String, required: true },
-          usage: {
-            type: new Schema(
-              { inputTokens: Number, outputTokens: Number, thoughtTokens: Number },
-              { _id: false },
-            ),
-            default: null,
-          },
-          interpretedAt: { type: Date, required: true },
-        },
-        { _id: false },
-      ),
-    },
+    provenance: { type: provenanceSchema },
   },
   { _id: false },
 )

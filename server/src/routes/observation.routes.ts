@@ -14,6 +14,8 @@ import {
   ObservationNotFoundError,
   ObservationStateError,
   readObservation,
+  READING_PARTS,
+  type ReadingPart,
   removeMedia,
   restoreMedia,
   restoreObservation,
@@ -232,13 +234,18 @@ router.post(
   },
 )
 
-// Reads the observation (CP-05, CP-21): the first reading, a new one after a
-// failure, or after what it holds changed (CP-08). Saving never reads it, so
-// this is the only way its notes and photos reach the model. Open to any risk
-// engineer, as a transcription retry is.
+// Reads the observation (CP-05, CP-21): both parts the first time, or with
+// `{ "part": "categories" | "description" }` that part again, whenever asked.
+// Saving never reads it, so this is the only way its notes and photos reach
+// the model. Open to any risk engineer, as a transcription retry is.
 router.post('/:id/interpretation', requirePermission('assessments:edit'), async (req, res) => {
+  const part: unknown = req.body?.part
+  if (part !== undefined && !READING_PARTS.includes(part as ReadingPart)) {
+    res.status(400).json({ error: 'part must be categories or description.' })
+    return
+  }
   try {
-    await readObservation(req.params.id)
+    await readObservation(req.params.id, part as ReadingPart | undefined)
     res.status(202).end()
   } catch (error: unknown) {
     refuse(error, res)

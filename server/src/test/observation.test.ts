@@ -1031,13 +1031,23 @@ describe('reading an observation (CP-05, CP-21)', () => {
       photos: stored!.photos!.map((p) => ({ label: p.name, s3_key: p.key })),
       texts: [{ label: 'Note', kind: 'note', text: 'Racking under the heads.' }],
       location: 'Bay 3 — north aisle, Ground',
+      // Both parts in one call the first time (CP-21).
+      parts: ['categories', 'description'],
     })
     expect(speech).not.toHaveBeenCalled()
     // Listed as interpreting while it runs (AC2), naming what it reads.
     expect((await listed())[0].interpretation).toEqual({
       status: 'interpreting',
-      description: null,
-      hazardType: null,
+      photos: {
+        status: 'interpreting',
+        description: null,
+        hazardType: null,
+        error: null,
+        attempts: 1,
+        model: null,
+        photoIds: stored!.photos!.map((p) => String(p._id)),
+        outOfDate: false,
+      },
       categories: [],
       error: null,
       attempts: 1,
@@ -1070,8 +1080,12 @@ describe('reading an observation (CP-05, CP-21)', () => {
 
     expect(done.interpretation).toMatchObject({
       status: 'interpreted',
-      description: PROPOSAL.description,
-      hazardType: 'Sprinkler Installation',
+      photoReading: {
+        status: 'interpreted',
+        description: PROPOSAL.description,
+        hazardType: 'Sprinkler Installation',
+        provenance: { promptVersion: 'cp21-v1' },
+      },
       provenance: {
         provider: 'gemini',
         model: 'gemini-3.8-flash',
@@ -1083,8 +1097,13 @@ describe('reading an observation (CP-05, CP-21)', () => {
     const [observation] = await listed()
     expect(observation.interpretation).toMatchObject({
       status: 'interpreted',
-      description: PROPOSAL.description,
-      hazardType: 'Sprinkler Installation',
+      photos: {
+        status: 'interpreted',
+        description: PROPOSAL.description,
+        hazardType: 'Sprinkler Installation',
+        model: 'gemini-3.8-flash',
+        outOfDate: false,
+      },
       // The note's words are in the note; a photo has none to check.
       categories: [
         {
@@ -1123,13 +1142,13 @@ describe('reading an observation (CP-05, CP-21)', () => {
         { label: 'Recording 1', kind: 'recording', text: 'Racking under the heads, bay 3.' },
       ],
       location: 'Bay 3 — north aisle, Ground',
+      parts: ['categories'],
     })
-    expect(done.interpretation?.description).toBeUndefined()
+    expect(done.interpretation?.photoReading).toBeUndefined()
     const [observation] = await listed()
     expect(observation.interpretation).toMatchObject({
       status: 'interpreted',
-      description: null,
-      hazardType: null,
+      photos: null,
       categories: [{ category: 'Protection' }],
     })
   })
@@ -1229,7 +1248,12 @@ describe('reading an observation (CP-05, CP-21)', () => {
     vision.mockImplementation(() => s5(200, PROPOSAL))
     speech.mockImplementation(() => s5(200, { transcript: 'Racking under the heads.' }))
     await assessmentWithSession()
-    const { id } = (await save({ note: 'Bay 3 racking' }, [{}])).body
+    const { id } = (
+      await save({ note: 'Bay 3 racking' }, [{}]).attach('photo', JPG, {
+        filename: 'IMG_0460.jpg',
+        contentType: 'image/jpeg',
+      })
+    ).body
     const [recording] = (await settled(id)).recordings
     const reading = async () => (await listed())[0].interpretation
     await read(id)
@@ -1242,6 +1266,8 @@ describe('reading an observation (CP-05, CP-21)', () => {
     // Any other note edit is a change.
     await edit(id, { note: 'Bay 3 racking, roof leaking too.' })
     expect((await reading()).outOfDate).toBe(true)
+    // The photos' description reads only the photos, so it stays current.
+    expect((await reading()).photos.outOfDate).toBe(false)
     await edit(id, { note: 'Bay 3 racking' })
     expect((await reading()).outOfDate).toBe(false)
     // So is a corrected transcript.
@@ -1304,6 +1330,143 @@ describe('reading an observation (CP-05, CP-21)', () => {
 
     expect((await listed())[0].interpretation.outOfDate).toBe(true)
     expect((await read(id)).status).toBe(202)
+  })
+
+  it('reads the categories again alone, keeping the description (CP-21)', async () => {
+    vision.mockImplementation(() => s5(200, PROPOSAL))
+    await assessmentWithSession()
+    const id = await readSaved([{ image: JPG }], { note: 'Racking under the heads.' })
+    await interpreted(id)
+
+    vision.mockImplementation(() => s5(200, { ...TEXT_ONLY, description: null }))
+    expect(
+      (await api.post(`/api/observations/${id}/interpretation`).send({ part: 'categories' }))
+        .status,
+    ).toBe(202)
+    const done = await interpreted(id)
+
+    // Every item is still evidence for the categories, photos included.
+    expect(vision).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        photos: [expect.objectContaining({ label: 'IMG_0460.jpg' })],
+        parts: ['categories'],
+      }),
+    )
+    expect(done.interpretation?.attempts).toHaveLength(2)
+    expect(done.interpretation?.photoReading).toMatchObject({
+      status: 'interpreted',
+      description: PROPOSAL.description,
+      attempts: [expect.anything()],
+    })
+  })
+
+  it('reads the description again alone, from the photos and the note (CP-21)', async () => {
+    vision.mockImplementation(() => s5(200, PROPOSAL))
+    speech.mockImplementation(() => s5(200, { transcript: 'Racking under the heads.' }))
+    await assessmentWithSession()
+    const { id } = (
+      await save({ note: 'Bay 3 racking' }, [{}]).attach('photo', JPG, {
+        filename: 'IMG_0460.jpg',
+        contentType: 'image/jpeg',
+      })
+    ).body
+    await settled(id)
+    await read(id)
+    await interpreted(id)
+
+    const DESCRIBED = 'During the site visit to Bay 3, it was observed that racking blocked a head.'
+    vision.mockImplementation(() =>
+      s5(200, { ...PROPOSAL, categories: null, description: DESCRIBED, hazard_type: 'Other' }),
+    )
+    expect(
+      (await api.post(`/api/observations/${id}/interpretation`).send({ part: 'description' }))
+        .status,
+    ).toBe(202)
+    await vi.waitFor(async () => {
+      const o = await ObservationModel.findById(id).lean()
+      expect(o?.interpretation?.photoReading?.status).toBe('interpreted')
+      expect(o?.interpretation?.photoReading?.description).toBe(DESCRIBED)
+    })
+
+    expect(vision).toHaveBeenLastCalledWith({
+      photos: [expect.objectContaining({ label: 'IMG_0460.jpg' })],
+      // The note guides where to look; transcripts aren't read for a description.
+      texts: [{ label: 'Note', kind: 'note', text: 'Bay 3 racking' }],
+      location: 'Bay 3 — north aisle, Ground',
+      parts: ['description'],
+    })
+    const [observation] = await listed()
+    expect(observation.interpretation).toMatchObject({
+      attempts: 1,
+      categories: [{ category: 'Protection' }],
+      photos: { description: DESCRIBED, hazardType: 'Other', attempts: 2, outOfDate: false },
+    })
+  })
+
+  it('describes photos added after a reading without them, and refuses a part it cannot read (CP-21)', async () => {
+    vision.mockImplementation(() => s5(200, TEXT_ONLY))
+    await assessmentWithSession()
+    const { id } = (await note()).body
+    await read(id)
+    await interpreted(id)
+    const part = (value: unknown) =>
+      api.post(`/api/observations/${id}/interpretation`).send({ part: value })
+
+    const none = await part('description')
+    expect(none.status).toBe(409)
+    expect(none.body.error).toBe('This observation has no photos to describe.')
+    expect((await part('summary')).status).toBe(400)
+
+    await ObservationModel.updateOne(
+      { _id: id },
+      { $push: { photos: { name: 'IMG_0461.jpg', key: 'k', contentType: 'image/jpeg', size: 9 } } },
+    )
+    vision.mockImplementation(() => s5(200, { ...PROPOSAL, categories: null }))
+    expect((await part('description')).status).toBe(202)
+    await vi.waitFor(async () =>
+      expect((await listed())[0].interpretation.photos).toMatchObject({
+        status: 'interpreted',
+        description: PROPOSAL.description,
+      }),
+    )
+  })
+
+  it('keeps a description read before the parts were split when the categories are read again', async () => {
+    vision.mockImplementation(() => s5(200, { ...TEXT_ONLY }))
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }], { note: 'Riser room.' })).body
+    await ObservationModel.collection.updateOne(
+      { _id: new Types.ObjectId(id) },
+      {
+        $set: {
+          interpretation: {
+            status: 'interpreted',
+            description: 'An earlier reading.',
+            hazardType: 'Other',
+            categories: [],
+            items: [],
+            photoIds: [new Types.ObjectId(photos[0].id)],
+            attempts: [{ startedAt: new Date() }],
+          },
+        },
+      },
+    )
+    // Shown as its photos' part.
+    expect((await listed())[0].interpretation.photos).toMatchObject({
+      status: 'interpreted',
+      description: 'An earlier reading.',
+      outOfDate: false,
+    })
+
+    await api.post(`/api/observations/${id}/interpretation`).send({ part: 'categories' })
+    await interpreted(id)
+
+    const stored = (await ObservationModel.findById(id).lean())!.interpretation!
+    expect(stored.description).toBeUndefined()
+    expect(stored.photoReading).toMatchObject({
+      status: 'interpreted',
+      description: 'An earlier reading.',
+    })
   })
 
   it('records usage as unavailable when the provider reports none', async () => {
@@ -1450,9 +1613,14 @@ describe('reading an observation (CP-05, CP-21)', () => {
 
     await failInterruptedInterpretations()
 
+    // Each part still running is failed, ready to retry (CP-21).
     expect((await ObservationModel.findById(id).lean())?.interpretation).toMatchObject({
       status: 'failed',
       error: expect.stringMatching(/interrupted by a gateway restart/),
+      photoReading: {
+        status: 'failed',
+        error: expect.stringMatching(/interrupted by a gateway restart/),
+      },
     })
   })
 })
