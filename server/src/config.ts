@@ -15,6 +15,15 @@ function requireEnv(name: string): string {
   return value
 }
 
+// Whether client details are masked before text goes to an external AI API
+// (PV-01). Anything but the two known values throws, so a typo can't leave
+// protection silently off. `optional` (a switch per assessment) comes in PV-07.
+export function piiProtectionFrom(value: string | undefined): 'off' | 'required' {
+  if (value === undefined || value === '' || value === 'off') return 'off'
+  if (value === 'required') return 'required'
+  throw new Error(`PII_PROTECTION must be off or required, not "${value}"`)
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
   mongodbUri: requireEnv('MONGODB_URI'),
@@ -35,6 +44,7 @@ export const config = {
     cohereRerankUsdPer1K: Number(process.env.COHERE_RERANK_USD_PER_1K_SEARCHES ?? 2),
   },
   serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
+  piiProtection: piiProtectionFrom(process.env.PII_PROTECTION),
   // Where the browser app is served; the emailed reset link points here (F-06).
   appUrl: process.env.APP_URL ?? 'http://localhost:3000',
   // Optional on purpose: CI and fresh checkouts have no mail server, so with

@@ -139,7 +139,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [ingestion-service, rag-service, speech-ocr-service]
+        service: [ingestion-service, rag-service, speech-ocr-service, privacy-service]
 
     steps:
       - name: Checkout
@@ -183,6 +183,12 @@ jobs:
         run: uv run --frozen --extra dev pytest -q --tb=short
         working-directory: microservices/${{ matrix.service }}
 
+      - name: Pytest (privacy-service)
+        # Runs the real spaCy model (installed with the dependencies); no API keys.
+        if: matrix.service == 'privacy-service'
+        run: uv run --frozen --extra dev pytest -q --tb=short
+        working-directory: microservices/${{ matrix.service }}
+
   # ── Docker images build ────────────────────────────────────────────────
   docker:
     runs-on: ubuntu-latest
@@ -196,6 +202,7 @@ jobs:
           - { name: ingestion-service, context: ./microservices/ingestion-service }
           - { name: rag-service, context: ./microservices/rag-service }
           - { name: speech-ocr-service, context: ./microservices/speech-ocr-service }
+          - { name: privacy-service, context: ./microservices/privacy-service }
 
     steps:
       - name: Checkout
@@ -212,7 +219,7 @@ jobs:
           fi
 
   # ── Full stack smoke test ──────────────────────────────────────────────
-  # Builds and boots all seven containers, then checks every health endpoint.
+  # Builds and boots every container, then checks every health endpoint.
   # This is the only job that proves the services can actually reach each
   # other by Docker service name (see CLAUDE.md "Known pitfalls").
   compose:
@@ -259,6 +266,7 @@ jobs:
           check "ingestion"   http://localhost:8001/health     || failed=1
           check "rag"         http://localhost:8002/health     || failed=1
           check "speech-ocr"  http://localhost:8003/health     || failed=1
+          check "privacy"     http://localhost:8004/health     || failed=1
           check "client"      http://localhost:3000/           || failed=1
           exit $failed
 

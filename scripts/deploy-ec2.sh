@@ -19,7 +19,7 @@ set -euo pipefail
 BRANCH="${DEPLOY_BRANCH:-main}"
 WEB_ROOT="${WEB_ROOT:-/var/www/a2603}"
 # The client isn't here: on the instance it is a static build served by nginx.
-SERVICES=(redis server rag-service speech-ocr-service ingestion-service ingestion-worker)
+SERVICES=(redis server rag-service speech-ocr-service privacy-service ingestion-service ingestion-worker)
 STATE_FILE="$HOME/.a2603-deployed-rev"
 KEEP_RELEASES=3
 ASSET_DAYS=7
