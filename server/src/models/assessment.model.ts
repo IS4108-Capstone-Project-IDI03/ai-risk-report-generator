@@ -51,6 +51,9 @@ export interface IAssessment {
     updatedAt: Date
     // Who saved them: the engineer's user _id.
     updatedBy: Types.ObjectId
+    // RQR Score Benchmarking's other bars (GN-12), typed by the engineer from Marsh's
+    // records: Client Score and Occupancy Peer Group Score, each 0-100 or null.
+    benchmarks?: { client: number | null; peerGroup: number | null }
     // The model's latest proposed scores (GN-03 addendum), shown until the engineer
     // enters scores; never used to compute the rating. See figure-proposal.service.ts.
     proposal?: unknown
@@ -118,6 +121,7 @@ const assessmentSchema = new Schema<IAssessment>(
     ],
     riskQuality: {
       categories: [{ _id: false, category: String, current: Number, potential: Number }],
+      benchmarks: { client: Number, peerGroup: Number },
       updatedAt: Date,
       updatedBy: Schema.Types.ObjectId,
       proposal: Schema.Types.Mixed,

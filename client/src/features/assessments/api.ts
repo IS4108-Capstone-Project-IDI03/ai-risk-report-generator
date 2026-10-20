@@ -1087,6 +1087,8 @@ export async function saveAppendix(
 // null until all seven of its scores are entered.
 export type CategoryScore = { category: string; current: number | null; potential: number | null }
 export type Rated = { score: number; rating: string; band: string }
+// RQR Score Benchmarking's other bars (GN-12), typed by the engineer: 0-100 or null.
+export type Benchmarks = { client: number | null; peerGroup: number | null }
 // A figure the model proposed (GN-03 addendum): why, and the observations (`O:<id>`)
 // or sections (`S:<id>`) it rests on. Null figures were out of range: left to the engineer.
 export type ProposedWhy = { reason: string; citations: string[] }
@@ -1097,6 +1099,7 @@ export type FigureProposal<T> = T & {
 export type RiskQuality = {
   // Shown until the engineer enters a score; the result never uses it (AC10, AC13).
   proposal?: FigureProposal<{ categories: (CategoryScore & ProposedWhy)[] }> | null
+  benchmarks?: Benchmarks
   categories: CategoryScore[]
   result: {
     current: Rated | null
@@ -1117,8 +1120,11 @@ export async function getRiskQuality(reference: string, signal?: AbortSignal) {
   return (await request<RiskQuality>('GET', riskQualityPath(reference), undefined, signal)).data
 }
 
-export async function saveRiskQuality(reference: string, categories: CategoryScore[]) {
-  return (await request<RiskQuality>('PUT', riskQualityPath(reference), { categories })).data
+export async function saveRiskQuality(
+  reference: string,
+  input: { categories: CategoryScore[]; benchmarks: Benchmarks },
+) {
+  return (await request<RiskQuality>('PUT', riskQualityPath(reference), input)).data
 }
 
 // Asks the model to propose the scores (GN-03 addendum). A paid call.

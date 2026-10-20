@@ -77,3 +77,21 @@ export const formatAmount = (n: number | null) =>
 // An input's text as a figure: empty is "not entered" (null), never 0.
 export const toFigure = (text: string) => (text.trim() === '' ? null : Number(text))
 export const toText = (n: number | null) => (n === null ? '' : String(n))
+
+// Section 3's Risk Assessment Matrix (GN-12 AC6), as Marsh's template shows it (Shopping
+// Mall Sample 2, p. 4): its two lead-in paragraphs, verbatim, and each cell's priority.
+// Must match `ram`, `likelihood` and `consequence` in rag-service
+// app/generation/ofi.json, which set each drafted OFI's priority.
+export const RAM_LEAD_IN = [
+  'Opportunities for Improvement (OFI) are suggested to mitigate risks. They are intended to create value and manage risk exposures while maintaining relevance to your business objectives. The Opportunities for Improvement addresses either specifically identified Risks to Manage℠ or they are suggested as general sound risk management to implement at the location.',
+  'Prioritization of OFI’s are classified in line with the following indicative Risk Assessment Matrix (RAM). The relative risk associated with each OFI is measures the estimated consequences of the damage versus the likelihood of occurrence.',
+]
+export const RAM_CONSEQUENCES = ['Insignificant', 'Minor', 'Moderate', 'Major', 'Catastrophic']
+// Each likelihood's priorities, Insignificant to Catastrophic (1 is the most urgent).
+export const RAM: { likelihood: string; priorities: number[] }[] = [
+  { likelihood: 'Almost Certain', priorities: [2, 2, 1, 1, 1] },
+  { likelihood: 'Likely', priorities: [3, 2, 2, 1, 1] },
+  { likelihood: 'Possible', priorities: [4, 3, 2, 1, 1] },
+  { likelihood: 'Unlikely', priorities: [4, 4, 3, 2, 1] },
+  { likelihood: 'Very Rare', priorities: [4, 4, 3, 2, 2] },
+]

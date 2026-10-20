@@ -5,19 +5,30 @@ import type { AcceptedOfi, RiskQuality } from './api'
 
 export type Count = { label: string; value: number }
 
-// The charts' categorical colours (--chart-* tokens, design-system/tokens/colors.css), in a
-// fixed order, so a value keeps its colour between reports. Never red, amber, green or
-// violet: those mean severity, review state and AI.
-export const SERIES = [
-  'var(--chart-blue)',
-  'var(--chart-aqua-dark)',
-  'var(--chart-orange-dark)',
-  'var(--chart-magenta-dark)',
-  'var(--chart-olive)',
-  'var(--chart-aqua-light)',
-  'var(--chart-orange-light)',
-  'var(--chart-magenta-light)',
-]
+// The charts' colours: Marsh's own, as its reports draw them (--report-* tokens in
+// design-system/tokens/colors.css; Miya, 20 Oct). Each value keeps its colour between
+// reports. Bars and current scores are navy, potential and client scores sky.
+export const NAVY = 'var(--report-navy)'
+export const SKY = 'var(--report-sky)'
+export const TEAL = 'var(--report-teal)'
+// The OFI Count by Status donut's colour per status (template p. 5).
+export const STATUS_COLOURS: Record<string, string> = {
+  Completed: 'var(--report-green)',
+  Open: 'var(--report-sky)',
+  'In Progress': 'var(--report-blue)',
+  New: 'var(--report-ocean)',
+  'No Plans to Complete': 'var(--report-red)',
+  Deferred: 'var(--report-slate)',
+  'On Hold': 'var(--report-midnight)',
+  'Under Review': 'var(--report-teal)',
+}
+// Priorities in the Risk Assessment Matrix's colours (p. 4), also the priority donut's.
+export const PRIORITY_COLOURS: Record<string, string> = {
+  'Priority 1': 'var(--report-priority-1)',
+  'Priority 2': 'var(--report-priority-2)',
+  'Priority 3': 'var(--report-priority-3)',
+  'Priority 4': 'var(--report-priority-4)',
+}
 
 // Marsh's value lists, in the order the template's charts show them (Shopping Mall
 // Sample 2, p. 5). Category and effort must match rag-service generation/ofi.json.
@@ -65,7 +76,14 @@ export function riskQualitySeries(figures: RiskQuality) {
   // Shares are of the potential score, as Marsh's donut shows them ("83.0, 96%"). A
   // potential of 0 (every score 0) is all current, never a division by zero.
   const currentPct = potential.score ? Math.round((current.score / potential.score) * 100) : 100
+  // RQR Score Benchmarking: the Location Score, then each score the engineer entered
+  // (GN-12 AC8); one not entered has no bar.
+  const others = [
+    { label: 'Client Score', value: figures.benchmarks?.client ?? null },
+    { label: 'Occupancy Peer Group Score', value: figures.benchmarks?.peerGroup ?? null },
+  ].filter((b): b is { label: string; value: number } => b.value !== null)
   return {
+    benchmarks: [{ label: 'Location Score', value: current.score }, ...others],
     share: {
       current: current.score,
       currentPct,

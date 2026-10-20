@@ -1012,6 +1012,126 @@
   white-space: nowrap;
 }
 
+/* Section 3's Risk Assessment Matrix (GN-12 AC6), in Marsh's priority colours (template p. 4). */
+.rv-ram {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-bottom: var(--space-8);
+}
+.rv-ram p,
+.rv-ram h3 {
+  margin: 0;
+}
+.rv-ram-table {
+  width: 100%;
+  border-collapse: collapse;
+  /* Six columns in Review's middle column: compact, and "Priority 2" on one line. */
+  font-size: 13px;
+}
+.rv-ram-table th,
+.rv-ram-table td {
+  padding: 8px 6px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-default);
+  text-align: center;
+}
+.rv-ram-table tbody th {
+  text-align: left;
+}
+/* Marsh's grey header cells: the Consequences band, the corner and Likelihood. */
+.rv-ram-table .rv-ram-band {
+  background: var(--report-header-grey);
+}
+.rv-ram-table td[class^='rv-ram-p'] {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.rv-ram-p1 {
+  background: var(--report-priority-1);
+}
+.rv-ram-p2 {
+  background: var(--report-priority-2);
+}
+.rv-ram-p3 {
+  background: var(--report-priority-3);
+}
+.rv-ram-p4 {
+  background: var(--report-priority-4);
+}
+
+/* Section 4's Rating Legend beside the scores, and the rating cells, in Marsh's band
+   colours (GN-12 AC7; --report-* tokens, sampled from the template p. 9). */
+.rv-maturity-scroll:has(.rv-legend) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+/* The table takes the room the legend leaves, so both fit Review's middle column; on a
+   phone the legend wraps under it. */
+.rv-maturity-scroll:has(.rv-legend) > .rv-maturity-table {
+  flex: 1 1 300px;
+  width: auto;
+}
+.rv-legend {
+  border: 1px solid var(--border-default);
+}
+.rv-legend h4 {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--surface-nav);
+  color: var(--text-inverse);
+  font-size: 14px;
+  text-align: center;
+}
+.rv-legend ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-legend li {
+  padding: 4px 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.rv-band-a {
+  background: var(--report-blue);
+  color: #fff;
+}
+.rv-band-b {
+  background: var(--report-green);
+  color: #fff;
+}
+.rv-band-c {
+  background: var(--report-amber);
+}
+.rv-band-d {
+  background: var(--report-orange);
+}
+.rv-band-e {
+  background: var(--report-red);
+  color: #fff;
+}
+
+/* Beside the scores table: the legend, and under it the Benchmarking box with the
+   Client and Occupancy Peer Group scores (GN-12 AC8), styled as the legend. */
+.rv-figures-side {
+  display: flex;
+  flex: 0 0 160px;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.rv-benchmarks > div,
+.rv-benchmarks > p {
+  margin: 0;
+  padding: var(--space-4) var(--space-5) 0;
+  font-size: 13px;
+}
+.rv-benchmarks > :last-child {
+  padding-bottom: var(--space-5);
+}
+
 /* Proposed figures (GN-03 addendum): a figure the model proposed carries the AI rule
    until the engineer edits or confirms it. */
 .rv-proposed {

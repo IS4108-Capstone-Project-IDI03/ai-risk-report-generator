@@ -2,7 +2,9 @@
 // Main Category · Current Score · Potential Score, the Rating Legend beside them, and
 // the Location Risk Quality Score and Rating the gateway computes. The assigned
 // engineer types the scores here, or asks the model to propose them and confirms
-// (GN-03 addendum). Used by ReviewWorkspace above Section 4's comments.
+// (GN-03 addendum), and the Client and Occupancy Peer Group scores that RQR Score
+// Benchmarking compares with (GN-12). Marsh's Rating Legend sits beside the table,
+// and each rating takes its band's colour. Used by ReviewWorkspace above Section 4's comments.
 import { lazy, useState } from 'react'
 import { Badge, Button, Callout, Input } from '../../../design-system'
 import {
@@ -19,6 +21,9 @@ import { ChartBoundary } from './ChartBoundary'
 import { ProposalNote } from './ProposalNote'
 
 type Typed = { current: string; potential: string }
+// A rating's colour class, as the legend's (review.css, Marsh's band colours).
+const bandClass = (rated: Rated | null) =>
+  rated ? `rv-band-${rated.rating.toLowerCase()}` : undefined
 // A proposed input's key, e.g. "Fire Protection:current".
 const keyOf = (category: string, side: keyof Typed) => `${category}:${side}`
 
@@ -51,10 +56,15 @@ export function RiskQualityFigures({
   // ones arrive (load or save), during render as React advises rather than in an effect.
   const [typed, setTyped] = useState<Record<string, Typed>>({})
   const [loaded, setLoaded] = useState<RiskQuality | null>(null)
+  const [benchmarks, setBenchmarks] = useState({ client: '', peerGroup: '' })
   // The inputs still holding the model's proposal; editing one drops its marking (AC13).
   const [proposed, setProposed] = useState<Set<string>>(new Set())
   if (figures && figures !== loaded) {
     setLoaded(figures)
+    setBenchmarks({
+      client: toText(figures.benchmarks?.client ?? null),
+      peerGroup: toText(figures.benchmarks?.peerGroup ?? null),
+    })
     // A proposal is only sent while no score is entered, so it fills every box it can.
     const offered = new Map(figures.proposal?.categories.map((p) => [p.category, p]))
     const fill = (category: string, side: keyof Typed, saved: number | null) =>
@@ -141,33 +151,72 @@ export function RiskQualityFigures({
               <th scope="col">Main Category</th>
               <th scope="col">Current Score</th>
               <th scope="col">Potential Score</th>
-              <th scope="col">Rating Legend</th>
             </tr>
           </thead>
           <tbody>
-            {names.map((category, i) => (
+            {names.map((category) => (
               <tr key={category}>
                 <th scope="row">{category}</th>
                 <td>{cell(category, 'current')}</td>
                 <td>{cell(category, 'potential')}</td>
-                {/* Marsh's legend sits beside the first five rows. */}
-                <td>{basis.legend[i] ?? ''}</td>
               </tr>
             ))}
             <tr>
               <th scope="row">Location Risk Quality Score</th>
               <td>{shown(current, (r) => r.score.toFixed(1))}</td>
               <td>{shown(potential, (r) => r.score.toFixed(1))}</td>
-              <td />
             </tr>
             <tr>
               <th scope="row">Location Risk Quality Rating</th>
-              <td>{shown(current, (r) => r.rating)}</td>
-              <td>{shown(potential, (r) => r.rating)}</td>
-              <td />
+              <td className={bandClass(current)}>{shown(current, (r) => r.rating)}</td>
+              <td className={bandClass(potential)}>{shown(potential, (r) => r.rating)}</td>
             </tr>
           </tbody>
         </table>
+        {/* Beside the table: Marsh's Rating Legend (template p. 10), and under it the
+            scores RQR Score Benchmarking compares the location with (AC8), from Marsh's
+            records. Each optional: a score not entered has no bar. */}
+        <div className="rv-figures-side">
+          <div className="rv-legend">
+            <h4 id="rv-legend-title">Rating Legend</h4>
+            <ul aria-labelledby="rv-legend-title">
+              {basis.legend.map((band) => (
+                <li key={band} className={`rv-band-${band[0].toLowerCase()}`}>
+                  {band}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rv-legend rv-benchmarks">
+            <h4>Benchmarking</h4>
+            {(
+              [
+                ['client', 'Client Score'],
+                ['peerGroup', 'Occupancy Peer Group Score'],
+              ] as const
+            ).map(([key, label]) =>
+              canEdit ? (
+                // Input labels itself: no wrapping label (a label inside a label is invalid).
+                <div key={key}>
+                  <Input
+                    label={label}
+                    size="sm"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    value={benchmarks[key]}
+                    onChange={(e) => setBenchmarks((b) => ({ ...b, [key]: e.target.value }))}
+                  />
+                </div>
+              ) : (
+                <p key={key}>
+                  {label}: {benchmarks[key] || NOT_ENTERED}
+                </p>
+              ),
+            )}
+          </div>
+        </div>
       </div>
       {error && (
         <div role="alert">
@@ -190,7 +239,20 @@ export function RiskQualityFigures({
           </Button>
         )}
         {canEdit && (
-          <Button variant="primary" size="sm" disabled={saving} onClick={() => save(scores)}>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={saving}
+            onClick={() =>
+              save({
+                categories: scores,
+                benchmarks: {
+                  client: toFigure(benchmarks.client),
+                  peerGroup: toFigure(benchmarks.peerGroup),
+                },
+              })
+            }
+          >
             {/* Saving proposed figures is the engineer confirming them (AC14). */}
             {proposed.size ? 'Confirm figures' : 'Save scores'}
           </Button>
