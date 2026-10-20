@@ -47,7 +47,7 @@ In rag-service (`app/chat/answer.py`):
 5. **The answer streams back with real names** (`Session.unmask_stream`). A placeholder split across chunks is held back until it is complete, at most 24 characters, and restored JSON-escaped, since it lands inside `Statement("...")`. The quote check, the screen and the saved answer all read real text, checked against the original passages.
 6. `chat_result.privacy` records `{enabled, masked_count}`. Both chat prompts say to copy placeholders exactly (`cb01-v17`).
 
-If privacy-service fails, chat answers "Sorry, the chat couldn't answer: The privacy service..." and calls no model or search.
+If privacy-service fails, chat answers "Sorry, the chat couldn't answer: Client details couldn't be protected because the privacy service…" and calls no model or search.
 
 **Placeholder-shaped input.** Text that already contains something like `[PERSON_1]` (typed by an engineer, or from a past report) is swapped for `[LITERAL_n]` before masking, and restored after unmasking. Without that swap, unmasking would put a real name where the input never had one. A bracketed escape such as `[ PERSON_1 ]` does not work, because the unmask pattern accepts placeholders without brackets.
 
@@ -69,7 +69,6 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 - **Other clients in past reports.** Known entities cover only the current assessment's client. A different client's company name or address in a stored past report is not detected, because organisation and location recognition is off. PV-05 redacts past reports at ingestion.
 - **Figure proposals, observation reading, handwriting and ingestion** are not protected yet (see the table above).
 - **Chat's known names are read once a minute.** A client or user added in the last minute is not masked by name in chat (spaCy may still catch a person's name).
-- **The privacy-service error says "the drafting model"** in chat too.
 - **Windows, outside Docker:** `localhost` costs about 2 s per `/mask` call (IPv6 is tried first). Set `PRIVACY_SERVICE_URL=http://127.0.0.1:8004`. Docker uses the service name and is unaffected.
 - From PV-01: a surname written before the full name gets two placeholders, and `[PERSON 1]` (with a space) is not restored.
 
