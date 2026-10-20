@@ -116,7 +116,7 @@ export function purposeAndScope(
 // edit is summarised as edited and a rejected finding not at all; its version is
 // the draft's id and how many decisions it has. Section 3: the accepted OFIs' ids.
 // A null version means the section is not complete.
-async function currentSections(
+export async function currentSections(
   assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'> & { _id: Types.ObjectId },
 ) {
   const [drafts, accepted] = await Promise.all([

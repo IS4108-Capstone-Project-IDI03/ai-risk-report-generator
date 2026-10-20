@@ -1,6 +1,6 @@
 import { ObservationExcerpt } from './components/ObservationExcerpt'
 import { DraftView } from './screens/SectionDrafts'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -281,6 +281,31 @@ it('asks for Section 4 or 5’s figures before drafting it, and leaves it out of
   fireEvent.click(screen.getByRole('button', { name: 'Draft all sections' }))
   await screen.findByText(/2 of 12 sections drafted · 1 needs attention/)
   expect(drafted).toEqual(['7'])
+}, 15_000)
+
+it('proposes Section 4’s figures from Generation, then opens Review to confirm them (GN-03 addendum)', async () => {
+  const ratings = section({
+    id: '4',
+    title: 'Risk Quality Ratings and Comments',
+    inputsMissing: 'Enter all seven current and potential scores first.',
+  })
+  mockGateway(() => json(201, DRAFT), [ratings, section({})])
+  // Record the proposal request on top of the mocked gateway.
+  const gateway = globalThis.fetch
+  const urls: string[] = []
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') urls.push(url)
+    return gateway(url, init)
+  })
+  await openGenerateTab()
+
+  const row = screen.getByText('Risk Quality Ratings and Comments').closest('.generation-row')!
+  fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Propose figures' }))
+
+  await waitFor(() =>
+    expect(screen.getByRole('tab', { name: /Review/ })).toHaveAttribute('aria-selected', 'true'),
+  )
+  expect(urls).toEqual([`/api/assessments/${REF}/risk-quality/propose`])
 }, 15_000)
 
 it('says when a draft is missing newer evidence, by kind, leaving out kinds with none', async () => {

@@ -300,3 +300,11 @@
     color: var(--text-muted);
   }
 }
+
+/* A failed figure proposal (GN-03 addendum), under the section's figures-needed note. */
+.generation-propose-error {
+  display: block;
+  margin-top: 4px;
+  color: var(--status-critical-fg);
+  font-size: 14px;
+}

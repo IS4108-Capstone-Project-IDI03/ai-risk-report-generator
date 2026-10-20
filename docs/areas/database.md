@@ -177,9 +177,15 @@ on read, never stored, and never written by the LLM.
   not entered; potential >= current), `benchmarks` (GN-12: `{ client, peerGroup }`,
   Marsh's Client Score and Occupancy Peer Group Score for RQR Score Benchmarking,
   0-100, one decimal, or `null`; typed by the engineer, kept when a save omits
-  them), and `updatedAt`. Rules in
+  them), `proposal` (GN-03 addendum, see below), and `updatedAt`. Rules in
   `risk-quality.service.ts` (equal weights, provisional until Marsh's Global
   Risk Quality Rating spreadsheet arrives; version `rqr-provisional-equal-v1`).
+- `riskQuality.proposal` and `lossEstimates.proposal` (GN-03 addendum, Mixed): the
+  model's latest proposed figures, `{ categories }` or `{ levels }`, each figure with
+  its `reason` and `citations`, plus `provenance`, `proposedAt` and `proposedBy`.
+  Written only by `figure-proposal.service.ts`; never read by `rate()` or
+  `estimate()`, so no rating or loss is computed from it. Shown while `proposedAt` is
+  after the figures' `updatedAt`: any save confirms it, and it stays on record.
 - `lossEstimates`: `inputs` (Mixed, checked by `lossEstimatesSchema` before
   saving: `currency`, `dateOfValues`, `indemnityMonths`, the `pd` and `te`
   value rows `{ key, item, value }`, and `levels` I-III each with `pd: [{ key,

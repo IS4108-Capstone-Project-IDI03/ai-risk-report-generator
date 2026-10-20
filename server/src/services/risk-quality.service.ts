@@ -105,6 +105,20 @@ export const riskQualitySchema = z.object({
 })
 
 // The scores as saved, in template order, with the rating computed from them now.
+// Whether the engineer has entered any score: then no proposal is made (AC14).
+export const scoresEntered = (saved: IAssessment['riskQuality']) =>
+  (saved?.categories ?? []).some((c) => c.current != null || c.potential != null)
+
+// A proposal waiting for the engineer: made since the figures were last saved. Any save
+// confirms it, so a saved form is never refilled from it (GN-03 addendum AC14).
+export function pendingProposal(saved?: { proposal?: unknown; updatedAt?: Date }) {
+  const proposal = saved?.proposal as { proposedAt?: Date } | undefined
+  if (!proposal?.proposedAt) return null
+  return !saved?.updatedAt || new Date(proposal.proposedAt) > new Date(saved.updatedAt)
+    ? proposal
+    : null
+}
+
 function riskQualityOf(saved: IAssessment['riskQuality']) {
   const byName = new Map((saved?.categories ?? []).map((c) => [c.category, c]))
   const categories = RQR_CATEGORIES.map((category) => ({
@@ -114,7 +128,9 @@ function riskQualityOf(saved: IAssessment['riskQuality']) {
   }))
   return {
     categories,
+    // Computed from the entered scores only, never from the proposal (AC10, AC13).
     result: rate(categories),
+    proposal: pendingProposal(saved),
     benchmarks: {
       client: saved?.benchmarks?.client ?? null,
       peerGroup: saved?.benchmarks?.peerGroup ?? null,
@@ -142,8 +158,20 @@ export async function saveRiskQuality(
     updatedAt: new Date(),
     updatedBy: new Types.ObjectId(user.id),
   }
-  await AssessmentModel.updateOne({ _id: assessment._id }, { $set: { riskQuality } })
-  return riskQualityOf(riskQuality)
+  // Field by field, so a proposal stays on record beside the confirmed scores.
+  await AssessmentModel.updateOne(
+    { _id: assessment._id },
+    {
+      $set: {
+        'riskQuality.categories': riskQuality.categories,
+        // GN-12's benchmarking scores: kept as saved when a save leaves them out.
+        'riskQuality.benchmarks': riskQuality.benchmarks,
+        'riskQuality.updatedAt': riskQuality.updatedAt,
+        'riskQuality.updatedBy': riskQuality.updatedBy,
+      },
+    },
+  )
+  return riskQualityOf({ ...riskQuality, proposal: assessment.riskQuality?.proposal })
 }
 
 // What drafting Section 4's comments is given (AC4): the computed scores and

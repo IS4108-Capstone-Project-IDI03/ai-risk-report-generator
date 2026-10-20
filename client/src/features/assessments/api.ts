@@ -1089,7 +1089,16 @@ export type CategoryScore = { category: string; current: number | null; potentia
 export type Rated = { score: number; rating: string; band: string }
 // RQR Score Benchmarking's other bars (GN-12), typed by the engineer: 0-100 or null.
 export type Benchmarks = { client: number | null; peerGroup: number | null }
+// A figure the model proposed (GN-03 addendum): why, and the observations (`O:<id>`)
+// or sections (`S:<id>`) it rests on. Null figures were out of range: left to the engineer.
+export type ProposedWhy = { reason: string; citations: string[] }
+export type FigureProposal<T> = T & {
+  provenance: { model: string; prompt_version: string; generated_at: string }
+  proposedAt: string
+}
 export type RiskQuality = {
+  // Shown until the engineer enters a score; the result never uses it (AC10, AC13).
+  proposal?: FigureProposal<{ categories: (CategoryScore & ProposedWhy)[] }> | null
   benchmarks?: Benchmarks
   categories: CategoryScore[]
   result: {
@@ -1118,6 +1127,11 @@ export async function saveRiskQuality(
   return (await request<RiskQuality>('PUT', riskQualityPath(reference), input)).data
 }
 
+// Asks the model to propose the scores (GN-03 addendum). A paid call.
+export async function proposeRiskQuality(reference: string) {
+  return (await request<RiskQuality>('POST', `${riskQualityPath(reference)}/propose`)).data
+}
+
 // Section 5 Loss Estimates (GN-03): the site values, each level's % damage and
 // outage months, and the losses the gateway computes from them. A loss is null
 // while any input it needs is not entered.
@@ -1143,7 +1157,14 @@ type LossRow = {
   percent: number | null
   loss: number | null
 }
+export type ProposedLevel = {
+  level: LossLevel
+  damage: ({ item: string; percent: number | null } & ProposedWhy)[]
+  te: ({ item: string; months: number | null; percent: number | null } & ProposedWhy)[]
+}
 export type LossEstimates = {
+  // As RiskQuality's: per-level figures only, shown until a level figure is entered.
+  proposal?: FigureProposal<{ levels: ProposedLevel[] }> | null
   inputs: LossInputs
   result: {
     values: { pd: number | null; te: number | null; tiv: number | null }
@@ -1169,4 +1190,9 @@ export async function getLossEstimates(reference: string, signal?: AbortSignal) 
 
 export async function saveLossEstimates(reference: string, inputs: LossInputs) {
   return (await request<LossEstimates>('PUT', lossEstimatesPath(reference), inputs)).data
+}
+
+// Asks the model to propose each level's % and months (GN-03 addendum). A paid call.
+export async function proposeLossEstimates(reference: string) {
+  return (await request<LossEstimates>('POST', `${lossEstimatesPath(reference)}/propose`)).data
 }

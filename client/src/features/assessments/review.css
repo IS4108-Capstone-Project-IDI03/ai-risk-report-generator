@@ -1131,3 +1131,23 @@
 .rv-benchmarks > :last-child {
   padding-bottom: var(--space-5);
 }
+
+/* Proposed figures (GN-03 addendum): a figure the model proposed carries the AI rule
+   until the engineer edits or confirms it. */
+.rv-proposed {
+  display: block;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--ai-border);
+}
+.rv-proposal-note {
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--ai-border);
+  border-radius: var(--radius-lg);
+  background: var(--ai-bg);
+}
+.rv-proposal-note p {
+  margin: 0;
+}
+.rv-proposal-note details {
+  margin-top: var(--space-3);
+}

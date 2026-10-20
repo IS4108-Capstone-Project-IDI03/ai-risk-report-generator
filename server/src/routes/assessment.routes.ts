@@ -68,6 +68,7 @@ import {
   saveRiskQuality,
 } from '../services/risk-quality.service'
 import { RagServiceError } from '../services/rag.service'
+import { FiguresEnteredError, proposeFigures } from '../services/figure-proposal.service'
 import {
   bulkAccept,
   ConcurrentDecisionError,
@@ -847,6 +848,27 @@ function figureRoutes<T>(
 }
 figureRoutes('risk-quality', 'scores', riskQualitySchema, getRiskQuality, saveRiskQuality)
 figureRoutes('loss-estimates', 'values', lossEstimatesSchema, getLossEstimates, saveLossEstimates)
+
+// Proposed figures (GN-03 addendum): the model proposes Section 4's scores or Section
+// 5's per-level figures for the engineer to confirm. 200 with the figures and the
+// proposal; 409 once figures are entered; otherwise as a review decision fails.
+for (const [path, section] of [
+  ['risk-quality', '4'],
+  ['loss-estimates', '5'],
+] as const) {
+  router.post(
+    `/:reference/${path}/propose`,
+    requirePermission('reports:generate'),
+    async (req, res) => {
+      try {
+        res.json(await proposeFigures(req.params.reference, section, res.locals.user!))
+      } catch (error: unknown) {
+        if (error instanceof FiguresEnteredError) res.status(409).json({ error: error.message })
+        else reviewFailure(error, res)
+      }
+    },
+  )
+}
 
 // Section 3 Opportunities for Improvement (GN-05): suggestions and the
 // accepted OFIs in report order. Read-only, so a knowledge admin can open it.

@@ -8,6 +8,7 @@ from app.chat.answer import answer_events
 from app.chat.passages import get_passage
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
+from app.generation.proposals import propose_figures
 from app.orchestrator.orchestrator import draft, draft_ofis_for, draft_summary_for, run
 from app.retrieval.retriever import retrieve
 
@@ -184,6 +185,32 @@ def draft_summary(request: DraftSummaryRequest) -> dict:
     """Draft Section 2's Executive Summary (GN-07) from the sections the gateway sends."""
     try:
         return draft_summary_for(request.assessment, request.sections)
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+# Proposed figures for Section 4 or 5 (GN-03 addendum): the observations, the drafted
+# sections' text, and for Section 5 the business interruption items to estimate.
+class ProposeFiguresRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    section_id: Literal["4", "5"]
+    assessment: Assessment
+    observations: list[Observation] = Field(min_length=1)
+    sections: list[ReportSectionText] = []
+    te_items: list[str] = []
+
+
+@router.post("/figures/propose")
+def propose(request: ProposeFiguresRequest) -> dict:
+    """Propose Section 4's scores or Section 5's per-level inputs for the engineer to confirm."""
+    try:
+        return propose_figures(
+            request.section_id,
+            request.assessment,
+            request.observations,
+            request.sections,
+            request.te_items,
+        )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 

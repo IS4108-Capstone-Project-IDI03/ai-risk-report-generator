@@ -11,10 +11,14 @@ export function useFigures<T, Input>(
   get: (reference: string, signal: AbortSignal) => Promise<T>,
   put: (reference: string, input: Input) => Promise<T>,
   onSaved?: () => void,
+  // Asks the model to propose the figures (GN-03 addendum); the answer is the figures
+  // with their proposal, which the form shows until the engineer confirms.
+  ask?: (reference: string) => Promise<T>,
 ) {
   const [figures, setFigures] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [proposing, setProposing] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -43,5 +47,18 @@ export function useFigures<T, Input>(
     }
   }
 
-  return { figures, error, saving, save }
+  const propose = async () => {
+    if (!ask) return
+    setProposing(true)
+    setError(null)
+    try {
+      setFigures(await ask(reference))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'The figures could not be proposed.')
+    } finally {
+      setProposing(false)
+    }
+  }
+
+  return { figures, error, saving, save, proposing, propose }
 }
