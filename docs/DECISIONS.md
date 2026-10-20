@@ -1776,3 +1776,29 @@ Measured (`eval/score_figures.py`, prompt `gn03-prop-v3`, 20 Oct), against Marsh
 Reason: engineers start Sections 4 and 5 from blank tables. A proposal with its reasons and sources is a starting point to check, and the confirm step keeps the figures the engineer's.
 
 Known limits: the proposals are no more accurate than a quick guess and lean low, the unsafe direction for an insurer, so the AI note says so ("Proposals tend to score low: compare each with your own judgement"). Nothing is retrieved from past reports: Marsh precedents are the likely next improvement. Two cases are a small sample. To raise with Marsh: whether AI-proposed risk scores are acceptable at all.
+
+## 2026-10-20 — Report drafting is masked before Cohere and the model, and fails closed without privacy-service
+
+Chose:
+- (PV-02) With `PII_PROTECTION=required`, section drafting (including redraft and Regenerate), OFIs and the Executive Summary send Cohere and the model only masked text: client details become typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) from privacy-service's `/mask` (PV-01). Chat, photo reading, ingestion and speech-to-text are not protected yet; `docs/areas/privacy.md` lists what is.
+- The gateway owns the switch. `privacyFor(reference)` sends `privacy: {enabled, known_entities}` with each drafting request: the assessment's client, site (name and code), address and every active user. The Python services never read `PII_PROTECTION`; a request without `privacy` drafts as before.
+- Masking happens on the orchestrator's inputs, not in `llm.complete`. One `/mask` call covers the request's own text (notes, transcripts, handwritten pages, locations, standards, facts, redraft text and instruction, accepted OFI titles, or the summary's sections), so one mapping serves both the Cohere queries and the prompt, and the prompt is built from masked text.
+- Past-report passages (text and headings) are masked in a second call that passes the first call's mapping back, **before rerank**: the leak test found them reaching Cohere rerank raw. Standards are public and are not masked. The reviewer's `sources` show the stored passage.
+- Unmask before any check that compares text: the citation, maturity and number checks run on the restored statements, against the original observations and facts. A section or summary statement holding a placeholder that can't be restored is unsupported; an OFI has no such flag, so the placeholder stays visible for the engineer and a warning is logged without the text.
+- Fail closed. If privacy-service is down, times out (`PRIVACY_TIMEOUT`, 10 s) or errors, the draft fails with a readable reason (rag 502, gateway 503) and nothing is sent. Raw text is never a fallback.
+- Text already shaped like a placeholder (typed by an engineer, or in a past report) becomes `[LITERAL_n]` before masking and is restored after unmasking, so unmasking never puts a real name where the input had none.
+- All three drafting prompts tell the model to copy placeholders exactly (`gn01-v2.11`, `gn05-v6`, `gn07-v3`). The rule is there with protection off too, so off and on runs differ only in masking.
+- Provenance records `privacy: {enabled, masked_count}` on `report_sections` and `report_ofis`, never the values or the mapping.
+- Quality margin (G1): each judge's mean may drop at most 0.2 with protection on. Measured 20 Oct (drafter `claude-sonnet-5-5`, judge `gpt-6-luna` at medium reasoning, two judge runs averaged): sections 4.55 → 4.50, OFIs 4.65 → 4.55, summary 4.56 → 4.88. All within the margin; per-case results are in `docs/areas/privacy.md`.
+
+Reason: drafting sends the most client text to external APIs (observations, saved sections, past reports), so it is protected first. Masking the inputs keeps one mapping per draft and keeps the guardrails working on real text, and failing closed means a privacy-service outage can't quietly send client details.
+
+Rejected:
+- Masking the finished prompt in `llm.complete` (the epic's first plan): it would mask the already-masked text a second time and miss the Cohere queries, which are built earlier.
+- Escaping placeholder-shaped input as `[ PERSON_1 ]`: the lenient unmask pattern still matches `PERSON_1` inside it.
+- Masking standards: they are public, and masking would change what search and the model read without protecting anyone.
+- Sending raw text when privacy-service is unreachable: one outage would undo the protection without anyone noticing.
+
+Known limits: another client's name or address inside a stored past report is not detected, because organisation and location recognition are off and known entities hold only this assessment's client; PV-05 redacts past reports at ingestion. spaCy reads some site fragments as names (for example "L33-47 - site"), which the model then sees as `[PERSON_1]`; they are allow-list candidates. The eval cases come from redacted reports, so the eval measures the cost of masking, not how real names are handled.
+
+Stories: PV-02, PV-01, GN-01, GN-05, GN-07, RV-02.
