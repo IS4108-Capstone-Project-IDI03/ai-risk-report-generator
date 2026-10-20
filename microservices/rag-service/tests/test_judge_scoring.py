@@ -113,7 +113,7 @@ def test_a_case_is_drafted_with_its_facts(monkeypatch, tmp_path):
 
     seen = {}
 
-    def draft(section_id, assessment, observations, facts=None):
+    def draft(section_id, assessment, observations, facts=None, privacy=None):
         seen["facts"] = facts
         return {"subsections": [], "sources": {}}
 
@@ -152,3 +152,33 @@ def test_only_sections_4_and_5_accept_professional_judgement(monkeypatch):
     assert judge_sections.rubric_version("5") == "rubric-v2.6"
     assert judge_sections.rubric_version("4") == "rubric-v2.5"
     assert judge_sections.rubric_version("7") == "rubric-v2.4"
+
+
+def test_a_privacy_run_drafts_with_protection_on_and_records_it(monkeypatch, tmp_path):
+    import json
+
+    from eval import judge_sections
+
+    seen = {}
+
+    def draft(section_id, assessment, observations, facts=None, privacy=None):
+        seen["privacy"] = privacy
+        return {"subsections": [], "sources": {}}
+
+    monkeypatch.setattr(judge_sections.orchestrator, "draft", draft)
+    monkeypatch.setattr(judge_sections, "judge_rows", lambda name, case, d: [])
+    case = {
+        "section_id": "7",
+        "assessment": {"reference": "R", "jurisdiction": "SG", "facility_type": "Office"},
+        "observations": [],
+        "known_entities": [{"type": "CLIENT", "names": ["Acme"]}],
+    }
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps(case))
+
+    judge_sections.run_case(path, privacy=True)
+
+    assert seen["privacy"] == {
+        "enabled": True,
+        "known_entities": [{"type": "CLIENT", "names": ["Acme"]}],
+    }

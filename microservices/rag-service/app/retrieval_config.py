@@ -13,6 +13,8 @@ load_dotenv(Path(__file__).resolve().parent / "../../../.env")
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "embed-v4.0")
 EMBEDDING_DIMENSION = 1024
+# Chroma Cloud's quota on query embeddings in one query call ("Number of query embeddings").
+CHROMA_MAX_QUERY_EMBEDDINGS = 20
 # A new model gets a new collection: vectors from different models cannot be mixed.
 COLLECTION = f"{os.getenv('CHROMA_COLLECTION', 'risk_chunks')}_{EMBEDDING_MODEL}_1024"
 

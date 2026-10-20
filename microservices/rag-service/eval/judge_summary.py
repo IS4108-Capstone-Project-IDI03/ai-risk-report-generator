@@ -24,7 +24,14 @@ from app import config
 from app.api.routes import Assessment, ReportSectionText
 from app.generation.generator import DRAFTING_GUIDE, SUMMARY_PROMPT_VERSION
 from app.orchestrator import orchestrator
-from eval.judge_sections import DEDUCTION, JUDGE_MODEL, JUDGE_REASONING, JUDGE_RUNS, ask_judge
+from eval.judge_sections import (
+    DEDUCTION,
+    JUDGE_MODEL,
+    JUDGE_REASONING,
+    JUDGE_RUNS,
+    ask_judge,
+    case_privacy,
+)
 
 HERE = Path(__file__).parent
 # v2: coverage asks only for the headline findings, and Marsh's site background is not
@@ -124,10 +131,12 @@ def judge(case: dict, text: str, finished: bool) -> list[Issue]:
     return ask_judge(system, user, Findings).issues
 
 
-def run_case(path: Path) -> list[dict]:
+def run_case(path: Path, privacy: bool = False) -> list[dict]:
     case = json.loads(path.read_text())
     draft = orchestrator.draft_summary_for(
-        Assessment(**case["assessment"]), [ReportSectionText(**s) for s in case["sections"]]
+        Assessment(**case["assessment"]),
+        [ReportSectionText(**s) for s in case["sections"]],
+        privacy=case_privacy(case, privacy),
     )
     return judge_rows(path.stem, case, draft)
 
@@ -157,6 +166,7 @@ def judge_rows(name: str, case: dict, draft: dict) -> list[dict]:
                 "issues": [[i.model_dump() for i in issues] for issues in runs],
                 "draft_model": draft["provenance"]["model"],
                 "draft_effort": draft["provenance"]["effort"],
+                "privacy": draft["provenance"].get("privacy"),
                 "prompt_version": SUMMARY_PROMPT_VERSION,
                 "judge_model": JUDGE_MODEL,
                 "judge_reasoning": JUDGE_REASONING,
@@ -196,7 +206,7 @@ def main(args: list[str]) -> None:
         paths = sorted((HERE / "summary_cases").glob("*.json"))
         if names:
             paths = [p for p in paths if p.stem in names]
-        rows = [row for path in paths for row in run_case(path)]
+        rows = [row for path in paths for row in run_case(path, "--privacy" in args)]
 
     out = HERE / "results" / f"summary-{datetime.now(UTC):%Y-%m-%d}.jsonl"
     out.parent.mkdir(exist_ok=True)

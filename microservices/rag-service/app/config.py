@@ -28,3 +28,9 @@ CHAT_PLAN_MODEL = os.getenv("CHAT_PLAN_MODEL", "claude-haiku-5-5")
 CHAT_MIN_RELEVANCE = float(os.getenv("CHAT_MIN_RELEVANCE", "0.2"))
 # A real OpenAI key for chat. Not OPENAI_API_KEY: that one is a Groq key for Whisper.
 OPENAI_CHAT_API_KEY = os.getenv("OPENAI_CHAT_API_KEY")
+
+# privacy-service masks client details before drafting calls (PV-02). The gateway decides
+# per request whether protection is on; this service never reads PII_PROTECTION.
+PRIVACY_SERVICE_URL = os.getenv("PRIVACY_SERVICE_URL", "http://localhost:8004")
+# Seconds. A batch of 66 texts took 0.65 s locally; a timeout fails the draft (fail closed).
+PRIVACY_TIMEOUT = float(os.getenv("PRIVACY_TIMEOUT", "10"))

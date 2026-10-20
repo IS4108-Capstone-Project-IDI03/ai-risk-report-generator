@@ -548,7 +548,7 @@ suggestions, each with Accept (or Accept all), and the OFIs in the report.
    Improvement", and not its introduction or Risk Assessment Matrix, are kept
    as past OFIs. One rerank orders both; the top 12 standards and 8 past OFIs
    go to the model. If rerank fails, vector order is used.
-4. `generator.draft_ofis` writes the OFIs (prompt `gn05-v5`, guide
+4. `generator.draft_ofis` writes the OFIs (prompt `gn05-v6`, guide
    `ofi-skill.md`) as structured output whose category, type, likelihood,
    consequence and effort must come from `ofi.json`, Marsh's value lists.
 5. Code finishes each OFI. An OFI none of whose observations resolve is

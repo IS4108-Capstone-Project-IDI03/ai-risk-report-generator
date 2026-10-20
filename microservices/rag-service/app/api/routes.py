@@ -70,12 +70,31 @@ class Observation(BaseModel):
         return [text for text in (self.note, *self.transcripts, *self.handwriting) if text]
 
 
+# PII protection (PV-02 Rule 1): the gateway decides whether it is on, and lists the
+# assessment's client, site, address and staff names. Without it, nothing is masked.
+class KnownEntity(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: str
+    names: Annotated[list[str], Field(min_length=1)]
+
+
+class Privacy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool
+    known_entities: list[KnownEntity] = []
+
+
+def _privacy(request) -> dict | None:
+    return request.privacy.model_dump() if request.privacy else None
+
+
 class DraftOfisRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     assessment: Assessment
     observations: list[Observation] = []
     # Titles of OFIs the engineer already accepted, so they aren't proposed again.
     accepted: list[str] = []
+    privacy: Privacy | None = None
 
 
 # One finding of the saved draft, with the engineer's decision on it (RV-02).
@@ -107,6 +126,7 @@ class DraftSectionRequest(BaseModel):
     # lines of text, for the model to use unchanged.
     # Bounded by the gateway's schema: 60 value rows, each listed once per level.
     facts: Annotated[str, Field(max_length=40000)] | None = None
+    privacy: Privacy | None = None
 
 
 # One report section as the gateway sends it for the Executive Summary: its text, flattened.
@@ -121,6 +141,7 @@ class DraftSummaryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     assessment: Assessment
     sections: list[ReportSectionText] = Field(min_length=1)
+    privacy: Privacy | None = None
 
 
 @router.get("/health")
@@ -166,6 +187,7 @@ def draft_section(request: DraftSectionRequest) -> dict:
             request.observations,
             request.redraft,
             request.facts,
+            privacy=_privacy(request),
         )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
@@ -175,7 +197,12 @@ def draft_section(request: DraftSectionRequest) -> dict:
 def draft_ofis(request: DraftOfisRequest) -> dict:
     """Draft Section 3 Opportunities for Improvement (GN-05) for the gateway to save."""
     try:
-        return draft_ofis_for(request.assessment, request.observations, request.accepted)
+        return draft_ofis_for(
+            request.assessment,
+            request.observations,
+            request.accepted,
+            privacy=_privacy(request),
+        )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 
@@ -184,7 +211,7 @@ def draft_ofis(request: DraftOfisRequest) -> dict:
 def draft_summary(request: DraftSummaryRequest) -> dict:
     """Draft Section 2's Executive Summary (GN-07) from the sections the gateway sends."""
     try:
-        return draft_summary_for(request.assessment, request.sections)
+        return draft_summary_for(request.assessment, request.sections, privacy=_privacy(request))
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 

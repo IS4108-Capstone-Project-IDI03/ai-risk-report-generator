@@ -1,5 +1,6 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { config } from '../config'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
@@ -665,5 +666,60 @@ describe('handwritten pages as drafting evidence (CP-19)', () => {
       },
     )
     expect((await sections()).changeCounts).toEqual({ added: 1, changed: 0, removed: 0 })
+  })
+})
+
+describe('PII protection for drafting (PV-02)', () => {
+  afterEach(() => {
+    config.piiProtection = 'off'
+  })
+
+  it("sends the assessment's known details when protection is required", async () => {
+    config.piiProtection = 'required'
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Risers on L3 not fire-stopped.',
+    })
+
+    const response = await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    expect(response.status).toBe(201)
+    const sent = drafts.mock.calls[0][0]
+    expect(sent.privacy).toEqual({
+      enabled: true,
+      known_entities: expect.arrayContaining([
+        { type: 'CLIENT', names: ['Northgate Logistics'] },
+        { type: 'SITE', names: ['Tilbury Distribution Centre', 'SITE-0001'] },
+      ]),
+    })
+  })
+
+  it('sends protection off, with no details, when it is not required', async () => {
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Risers on L3 not fire-stopped.',
+    })
+
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    expect(drafts.mock.calls[0][0].privacy).toEqual({ enabled: false, known_entities: [] })
+  })
+
+  it('saves whether the draft was protected, and how many details were masked', async () => {
+    drafts.mockImplementation(() =>
+      json({
+        ...DRAFT,
+        provenance: { ...DRAFT.provenance, privacy: { enabled: true, masked_count: 3 } },
+      }),
+    )
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Risers on L3 not fire-stopped.',
+    })
+
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+
+    const saved = await ReportSectionModel.findOne().lean()
+    expect(saved?.provenance.privacy).toEqual({ enabled: true, masked_count: 3 })
   })
 })

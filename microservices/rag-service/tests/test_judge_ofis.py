@@ -27,3 +27,29 @@ def test_priority_agreement_counts_exact_and_one_step_matches():
         {"observations": ["other"], "priority": "Priority 1"},  # no Marsh OFI: not counted
     ]
     assert priority_agreement(ofis, marsh) == {"compared": 3, "exact": 1, "within_one": 2}
+
+
+def test_a_privacy_run_drafts_with_protection_on(monkeypatch, tmp_path):
+    import json
+
+    from eval import judge_ofis
+
+    seen = {}
+
+    def draft(assessment, observations, accepted, privacy=None):
+        seen["privacy"] = privacy
+        return {"ofis": [], "provenance": {"model": "m", "effort": "e"}}
+
+    monkeypatch.setattr(judge_ofis.orchestrator, "draft_ofis_for", draft)
+    monkeypatch.setattr(judge_ofis, "judge", lambda case, text, finished: [])
+    case = {
+        "assessment": {"reference": "R", "jurisdiction": "SG", "facility_type": "Office"},
+        "observations": [],
+        "reference": "Marsh's OFIs.",
+    }
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps(case))
+
+    judge_ofis.run_case(path, privacy=True)
+
+    assert seen["privacy"] == {"enabled": True, "known_entities": []}

@@ -31,6 +31,7 @@ from eval.judge_sections import (
     JUDGE_RUNS,
     _without_own_report,
     ask_judge,
+    case_privacy,
 )
 
 HERE = Path(__file__).parent
@@ -138,7 +139,7 @@ def judge(case: dict, text: str, finished: bool) -> list[Issue]:
     return ask_judge(system, user, Findings).issues
 
 
-def run_case(path: Path) -> list[dict]:
+def run_case(path: Path, privacy: bool = False) -> list[dict]:
     case = json.loads(path.read_text())
     search = orchestrator.search
     orchestrator.search = _without_own_report(search, case.get("exclude_doc_id"))
@@ -147,6 +148,7 @@ def run_case(path: Path) -> list[dict]:
             Assessment(**case["assessment"]),
             [Observation(**o) for o in case["observations"]],
             [],
+            privacy=case_privacy(case, privacy),
         )
     finally:
         orchestrator.search = search
@@ -169,6 +171,7 @@ def run_case(path: Path) -> list[dict]:
                 "issues": [[i.model_dump() for i in issues] for issues in runs],
                 "draft_model": draft["provenance"]["model"],
                 "draft_effort": draft["provenance"]["effort"],
+                "privacy": draft["provenance"].get("privacy"),
                 "prompt_version": OFI_PROMPT_VERSION,
                 "config_version": OFI_CONFIG["version"],
                 "judge_model": JUDGE_MODEL,
@@ -182,11 +185,13 @@ def run_case(path: Path) -> list[dict]:
     return rows
 
 
-def main(names: list[str]) -> None:
+def main(args: list[str]) -> None:
+    # --privacy drafts with PII protection on (PV-02), as in judge_sections.
+    names = [a for a in args if not a.startswith("--")]
     paths = sorted((HERE / "ofi_cases").glob("*.json"))
     if names:
         paths = [p for p in paths if p.stem in names]
-    rows = [row for path in paths for row in run_case(path)]
+    rows = [row for path in paths for row in run_case(path, "--privacy" in args)]
 
     out = HERE / "results" / f"ofis-{datetime.now(UTC):%Y-%m-%d}.jsonl"
     out.parent.mkdir(exist_ok=True)

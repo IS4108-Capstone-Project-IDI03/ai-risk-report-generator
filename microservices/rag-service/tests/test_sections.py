@@ -126,10 +126,18 @@ def test_draft_follows_the_template_order_and_records_provenance(monkeypatch):
     assert body["guardrail"] == {"passed": True, "unsupported_count": 0}
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"] == "gn01-v2.10"
+    assert provenance["prompt_version"] == "gn01-v2.11"
     assert provenance["template_version"] == "global-pre-v2.0-2026-02"
     assert provenance["effort"] == "high"
     assert provenance["generated_at"]
+
+
+def test_the_model_is_told_to_copy_placeholders_exactly(monkeypatch):
+    # Client details reach the model as placeholders (PV-02); a changed one can't be restored.
+    _, _, prompts = draft(monkeypatch, [])
+
+    system, _, _ = prompts[0]
+    assert "Copy bracketed placeholders such as [PERSON_1] or [CLIENT_1] exactly" in system
 
 
 def test_unresolvable_and_past_report_citations_are_unsupported(monkeypatch):
@@ -681,7 +689,7 @@ def test_a_redraft_is_given_the_decisions_and_instruction_and_records_them(monke
     assert [s["supported"] for s in statements] == [True, False]
     assert statements[0]["citations"] == ["O:obs1"]
     # The prompt it came from, and what the engineer asked for (GN-01 AC10).
-    assert body["provenance"]["prompt_version"] == "gn01-v2.10+rv02-v2"
+    assert body["provenance"]["prompt_version"] == "gn01-v2.11+rv02-v2"
     assert body["provenance"]["instruction"] == "Say more about the curtain wall."
 
 

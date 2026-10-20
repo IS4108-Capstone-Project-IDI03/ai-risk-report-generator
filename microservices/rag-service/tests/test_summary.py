@@ -66,6 +66,15 @@ def test_the_summary_is_drafted_only_from_the_sections_sent(monkeypatch):
     assert body["provenance"]["model"] == "claude-test"
 
 
+def test_the_summary_model_is_told_to_copy_placeholders_exactly(monkeypatch):
+    # Saved sections hold real names, masked as placeholders (PV-02); keep them intact.
+    response, prompts = draft(monkeypatch, [])
+
+    system, _ = prompts[0]
+    assert "Copy bracketed placeholders such as [PERSON_1] or [CLIENT_1] exactly" in system
+    assert response.json()["provenance"]["prompt_version"] == "gn07-v3"
+
+
 def test_a_statement_resting_on_no_section_sent_is_unsupported(monkeypatch):
     response, _ = draft(
         monkeypatch,

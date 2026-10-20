@@ -58,6 +58,9 @@ export interface IReportSection {
     template_version: string
     generated_at: Date
     instruction?: string | null
+    // Whether client details were masked before the external AI calls (PV-02),
+    // and how many distinct ones. Absent on drafts from before PV-02.
+    privacy?: { enabled: boolean; masked_count: number }
   }
   // Set on a replacement draft, made by Regenerate in the review workspace
   // (RV-02): the saved draft it was made to replace. It is not the section's
@@ -135,6 +138,10 @@ const reportSectionSchema = new Schema<IReportSection>(
       template_version: { type: String, required: true },
       generated_at: { type: Date, required: true },
       instruction: { type: String, default: null },
+      privacy: {
+        type: { _id: false, enabled: Boolean, masked_count: Number },
+        default: undefined,
+      },
     },
     replacementFor: { type: Schema.Types.ObjectId, ref: 'ReportSection' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

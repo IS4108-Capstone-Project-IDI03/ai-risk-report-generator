@@ -40,6 +40,9 @@ export interface IReportOfi {
     prompt_version: string
     config_version: string
     generated_at: Date
+    // Whether client details were masked before the external AI calls (PV-02),
+    // and how many distinct ones. Absent on OFIs from before PV-02.
+    privacy?: { enabled: boolean; masked_count: number }
   }
   createdBy: Types.ObjectId
   // Required on every document (see CLAUDE.md). An OFI can address any
@@ -95,6 +98,10 @@ const reportOfiSchema = new Schema<IReportOfi>(
       prompt_version: required,
       config_version: required,
       generated_at: { type: Date, required: true },
+      privacy: {
+        type: { _id: false, enabled: Boolean, masked_count: Number },
+        default: undefined,
+      },
     },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     metadata: {

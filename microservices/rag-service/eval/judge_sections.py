@@ -15,6 +15,9 @@ api.openai.com, whatever OPENAI_BASE_URL says). JUDGE_MODEL picks another OpenAI
 
 Each run drafts every case once (one LLM call each) and judges twice per case.
 --rejudge judges the newest saved drafts again, without drafting (no Claude calls).
+--privacy drafts with PII protection on (PV-02), as the gateway sends it under
+PII_PROTECTION=required: privacy-service must be running (PRIVACY_SERVICE_URL).
+Compare a run with it against one without (the epic's G1 margin).
 Results are appended to eval/results/<date>.jsonl.
 """
 
@@ -261,7 +264,13 @@ def ask_judge(system: str, user: str, schema: type[T]) -> T:
     return parsed
 
 
-def run_case(path: Path) -> list[dict]:
+def case_privacy(case: dict, on: bool) -> dict | None:
+    """The `privacy` field the gateway would send (PV-02): protection on, with the case's
+    `known_entities` if it lists any. None drafts without protection, as before."""
+    return {"enabled": True, "known_entities": case.get("known_entities", [])} if on else None
+
+
+def run_case(path: Path, privacy: bool = False) -> list[dict]:
     case = json.loads(path.read_text())
     assessment = Assessment(**case["assessment"])
     observations = [Observation(**o) for o in case["observations"]]
@@ -270,7 +279,11 @@ def run_case(path: Path) -> list[dict]:
     try:
         # Sections 4 and 5 are drafted from the engineer's figures, as the gateway sends them.
         draft = orchestrator.draft(
-            case["section_id"], assessment, observations, facts=case.get("facts")
+            case["section_id"],
+            assessment,
+            observations,
+            facts=case.get("facts"),
+            privacy=case_privacy(case, privacy),
         )
     finally:
         orchestrator.search = search
@@ -304,6 +317,7 @@ def judge_rows(name: str, case: dict, draft: dict) -> list[dict]:
                 else None,
                 "draft_model": draft["provenance"]["model"],
                 "draft_effort": draft["provenance"]["effort"],
+                "privacy": draft["provenance"].get("privacy"),
                 "prompt_version": PROMPT_VERSION,
                 "template_version": TEMPLATE["version"],
                 "judge_model": JUDGE_MODEL,
@@ -343,7 +357,7 @@ def main(args: list[str]) -> None:
         paths = sorted((HERE / "cases").glob("*.json"))
         if names:
             paths = [p for p in paths if p.stem in names]
-        rows = [row for path in paths for row in run_case(path)]
+        rows = [row for path in paths for row in run_case(path, "--privacy" in args)]
 
     out = HERE / "results" / f"{datetime.now(UTC):%Y-%m-%d}.jsonl"
     out.parent.mkdir(exist_ok=True)
