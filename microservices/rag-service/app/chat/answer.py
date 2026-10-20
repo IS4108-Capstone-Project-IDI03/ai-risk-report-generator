@@ -507,8 +507,7 @@ def _events(
             yield _sse({"type": "TOOL_CALL_ARGS", "toolCallId": call_id, "delta": args})
             yield _sse({"type": "TOOL_CALL_END", "toolCallId": call_id})
             # Stored past reports may name people, so Cohere's reranker reads them masked.
-            # Passed only when protection is on: the chat eval stands in for search_passages
-            # with (plan, names), until it runs with --privacy.
+            # Passed only when protection is on, so search without it runs as before.
             masking = {"rank_texts": protection.mask} if protection.enabled else {}
             passages = search_passages(search_plan, names, **masking)
             # Names are added here, after search, so cached eval searches stay valid.
