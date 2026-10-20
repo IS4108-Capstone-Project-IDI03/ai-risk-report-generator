@@ -8,6 +8,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.chat import answer
 from app.main import app
 from tests import test_chat
 from tests.test_chat import _program, _result
@@ -32,12 +33,13 @@ def leaked(texts) -> list[str]:
     return [s for s in SEEDED if any(s in t for t in texts)]
 
 
-def ask(*turns: str, privacy=PRIVACY, context=()) -> list[dict]:
+def ask(*turns: str, privacy=PRIVACY, context=(), documents=()) -> list[dict]:
     """POST /chat with the turns (user, assistant, user, …) and `privacy`; returns the events."""
     roles = ["user", "assistant"] * len(turns)
     body = {
         "messages": [{"role": r, "content": t} for r, t in zip(roles, turns)],
         "context": [{"description": "note", "value": c} for c in context],
+        "documents": list(documents),
     }
     if privacy is not None:
         body["privacy"] = privacy
@@ -165,3 +167,68 @@ def test_a_placeholder_the_engineer_types_comes_back_as_typed(fake, fake_privacy
     planned = fake["calls"]["plan"][0]
     assert "[LITERAL_1]" in planned and "[PERSON_1]" in planned  # typed one escaped
     assert "[PERSON_1] is a template field; John Tan is the contact." in _program(events)
+
+
+def test_the_planners_own_reply_is_shown_with_real_names(fake, fake_privacy):
+    fake["plan"] = answer.Plan(
+        kind="clarify", query="", reply="Do you mean [CLIENT_1]'s sprinklers or the fire pump?"
+    )
+
+    events = ask("Acme Holdings asked about the system. Is it tested?")
+
+    assert "Do you mean Acme Holdings's sprinklers or the fire pump?" in _program(events)
+
+
+# A past report's title can name the client.
+DOCUMENTS = [
+    {"id": "rep", "title": "Acme Holdings Tower survey 2024"},
+    {"id": "fm", "title": "FM 2-81", "issuingBody": "FM Global", "standardNumber": "2-81"},
+]
+
+
+def test_a_document_the_planner_names_by_placeholder_still_limits_the_search(fake, fake_privacy):
+    fake["plan"] = answer.Plan(
+        kind="search",
+        query="fire pump tests",
+        filters=answer.Filters(document="[CLIENT_1] Tower survey 2024"),
+        extra_searches=[
+            answer.ExtraSearch(
+                query="pump tests", filters=answer.Filters(document="[CLIENT_1] Tower survey 2024")
+            )
+        ],
+        reply="",
+    )
+
+    ask("What did the Acme Holdings Tower survey say about fire pump tests?", documents=DOCUMENTS)
+
+    planned = fake["calls"]["plan"][0]
+    assert leaked([planned]) == [], planned
+    assert "- [CLIENT_1] Tower survey 2024" in planned
+    assert [filters.get("doc_id") for _, filters, _ in fake["calls"]["search"]] == [
+        ["rep"],
+        ["rep"],
+    ]
+
+
+def test_the_search_shows_real_names_but_searches_with_placeholders(fake, fake_privacy):
+    fake["plan"] = answer.Plan(
+        kind="search",
+        query="fire pump tests agreed by [PERSON_1]",
+        filters=answer.Filters(document="[CLIENT_1] Tower survey 2024"),
+        extra_searches=[answer.ExtraSearch(query="[CLIENT_1] pump impairments")],
+        reply="",
+    )
+
+    events = ask("What did John Tan agree in the Acme Holdings Tower survey?", documents=DOCUMENTS)
+
+    shown = json.loads(next(e for e in events if e["type"] == "TOOL_CALL_ARGS")["delta"])
+    assert shown == {
+        "query": "fire pump tests agreed by John Tan",
+        "filters": {"document": "Acme Holdings Tower survey 2024"},
+        "also": ["Acme Holdings pump impairments"],
+    }
+    searched = json.loads(next(e for e in events if e["type"] == "TOOL_CALL_RESULT")["content"])
+    assert searched["filters"] == {"document": "Acme Holdings Tower survey 2024"}
+    assert _result(events)["filters"] == {"document": "Acme Holdings Tower survey 2024"}
+    queries = [query for query, _, _ in fake["calls"]["search"]]
+    assert queries == ["fire pump tests agreed by [PERSON_1]", "[CLIENT_1] pump impairments"]
