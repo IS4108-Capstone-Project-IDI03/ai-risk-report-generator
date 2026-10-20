@@ -229,6 +229,34 @@ export type SummaryDraftResult = {
   provenance: SectionDraftResult['provenance']
 }
 
+// What S4 proposes for Section 4 or 5's figures (rag-service POST /figures/propose,
+// GN-03 addendum): Section 4's `categories` or Section 5's `levels`, each figure with a
+// reason and its citations (`O:<id>`, `S:<id>`), or null where out of range.
+export type FigureProposalResult = {
+  proposal: { categories?: unknown[]; levels?: ProposedLevel[] }
+  usage?: unknown
+  provenance: Omit<SectionDraftResult['provenance'], 'template_version'>
+}
+export type ProposedLevel = {
+  level: string
+  damage: { item: string; percent: number | null; reason: string; citations: string[] }[]
+  te: {
+    item: string
+    months: number | null
+    percent: number | null
+    reason: string
+    citations: string[]
+  }[]
+}
+
+export async function requestFigureProposal(body: unknown): Promise<FigureProposalResult> {
+  return callRag<FigureProposalResult>('/figures/propose', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 export async function requestSummaryDraft(body: unknown): Promise<SummaryDraftResult> {
   return callRag<SummaryDraftResult>('/summary/draft', {
     method: 'POST',

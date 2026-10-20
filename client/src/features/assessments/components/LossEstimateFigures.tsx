@@ -1,15 +1,24 @@
 // Section 5 Loss Estimates in Review (GN-03), laid out as Marsh's template (pp. 12-17):
 // the fixed opening, the Values table with currency, date and indemnity period,
 // the Loss Estimate Definitions, then each level's tables. The assigned engineer
-// types every figure here; the gateway computes the losses on save. Used by
-// ReviewWorkspace above Section 5's drafted scenarios.
+// types every figure here, or asks the model to propose each level's areas, % and
+// months and confirms them (GN-03 addendum); the gateway computes the losses on save.
+// Used by ReviewWorkspace above Section 5's drafted scenarios.
 import { useState } from 'react'
 import { Button, Callout } from '../../../design-system'
-import { getLossEstimates, saveLossEstimates, type LossEstimates, type LossInputs } from '../api'
+import {
+  getLossEstimates,
+  proposeLossEstimates,
+  saveLossEstimates,
+  type LossEstimates,
+  type LossInputs,
+  type ProposedWhy,
+} from '../api'
 import { LOSS_LEVELS, LOSS_OPENING, toFigure, toText, VALUES_NOTE } from '../reportFigures'
 import { useFigures } from '../useFigures'
 import { LossLevelBlock, type TypedLevel } from './LossLevelBlock'
 import { LossValuesTable, type TypedValue, type TypedValues } from './LossValuesTable'
+import { ProposalNote } from './ProposalNote'
 
 // Every input as typed, so an empty box stays empty rather than becoming 0.
 type Typed = TypedValues & { levels: Record<string, TypedLevel> }
@@ -46,6 +55,39 @@ function typedOf({ inputs }: LossEstimates): Typed {
       }),
     ),
   }
+}
+
+// One proposed input's mark: what to call it in "Why these figures", and why.
+type Marked = { label: string; why: ProposedWhy }
+
+// What a proposal fills in (GN-03 addendum): each proposed level's damage areas and %
+// (never a value: blank for the engineer) and each BI item's months and %, matched to
+// the site's BI rows by name. Returns the filled form, and per level the inputs it
+// filled, by row key and field (as LossLevelBlock marks them), so they can be marked
+// and explained (AC13).
+function withProposal(t: Typed, figures: LossEstimates) {
+  const why: Record<string, Map<string, Marked>> = {}
+  for (const p of figures.proposal?.levels ?? []) {
+    const level = t.levels[p.level]
+    const marks = (why[p.level] = new Map<string, Marked>())
+    if (p.damage.length)
+      level.damageRows = p.damage.map((d, i) => {
+        const key = `pd-${p.level}-${i}`
+        marks.set(`${key}:item`, { label: `${d.item} (area)`, why: d })
+        if (d.percent !== null) marks.set(`${key}:percent`, { label: `${d.item} % damage`, why: d })
+        return { key, item: d.item, value: '', percent: toText(d.percent) }
+      })
+    for (const e of p.te) {
+      const row = t.te.find((r) => r.item === e.item)
+      if (!row) continue
+      level.te[row.key] = { months: toText(e.months), percent: toText(e.percent) }
+      if (e.months !== null)
+        marks.set(`${row.key}:months`, { label: `${e.item} outage months`, why: e })
+      if (e.percent !== null)
+        marks.set(`${row.key}:percent`, { label: `${e.item} % impacted`, why: e })
+    }
+  }
+  return { typed: t, why }
 }
 
 // Damage rows belong to each level; time-element rows still follow the site values.
@@ -89,19 +131,24 @@ export function LossEstimateFigures({
   // DraftEditor, placed in each level's definition table.
   drafted?: Map<string, React.ReactNode>
 }) {
-  const { figures, error, saving, save } = useFigures(
+  const { figures, error, saving, save, proposing, propose } = useFigures(
     reference,
     getLossEstimates,
     saveLossEstimates,
     onSaved,
+    proposeLossEstimates,
   )
   // What the engineer has typed; reset to the saved figures whenever new ones arrive
   // (load or save), during render as React advises rather than in an effect.
   const [typed, setTyped] = useState<Typed | null>(null)
   const [loaded, setLoaded] = useState<LossEstimates | null>(null)
+  // Per level, the inputs still holding the model's proposal, with why (AC13).
+  const [why, setWhy] = useState<Record<string, Map<string, Marked>>>({})
   if (figures && figures !== loaded) {
     setLoaded(figures)
-    setTyped(typedOf(figures))
+    const filled = withProposal(typedOf(figures), figures)
+    setTyped(filled.typed)
+    setWhy(filled.why)
   }
 
   if (!figures || !typed)
@@ -112,9 +159,28 @@ export function LossEstimateFigures({
     ) : null
   const { values, levels } = figures.result
   const set = (change: Partial<Typed>) => setTyped({ ...typed, ...change })
+  const stillProposed = Object.values(why).some((m) => m.size > 0)
+  // Mirrors the gateway's levelFiguresEntered: proposing is offered only before then.
+  const entered = figures.inputs.levels.some(
+    (l) =>
+      l.pd.some((r) => r.percent !== null) ||
+      (l.damageRows ?? []).some((r) => r.percent !== null) ||
+      l.te.some((r) => r.months !== null || r.percent !== null),
+  )
 
   return (
     <div className="rv-maturity">
+      {figures.proposal && stillProposed && (
+        <ProposalNote
+          proposal={figures.proposal}
+          reasons={Object.entries(why).flatMap(([level, marks]) =>
+            [...marks.values()].map(({ label, why: w }): [string, ProposedWhy] => [
+              `Level ${level}, ${label}`,
+              w,
+            ]),
+          )}
+        />
+      )}
       {LOSS_OPENING.map((p) => (
         <p key={p.slice(0, 20)} className="rv-muted">
           {p}
@@ -167,6 +233,12 @@ export function LossEstimateFigures({
           onChange={(level) => set({ levels: { ...typed.levels, [meta.level]: level } })}
           scenario={drafted?.get(`Level ${meta.level} Scenario`)}
           assumptions={drafted?.get(`Level ${meta.level} Assumptions`)}
+          proposed={new Set(why[meta.level]?.keys())}
+          onTouched={(key) => {
+            const left = new Map(why[meta.level])
+            left.delete(key)
+            setWhy({ ...why, [meta.level]: left })
+          }}
         />
       ))}
 
@@ -180,13 +252,25 @@ export function LossEstimateFigures({
       {canEdit && (
         <div className="rv-figures-actions">
           <span className="rv-muted">Losses update when the figures are saved.</span>
+          {!entered && !figures.proposal && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="sparkles"
+              loading={proposing}
+              onClick={() => void propose()}
+            >
+              Propose figures
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"
             disabled={saving}
             onClick={() => save(inputsOf(typed))}
           >
-            Save figures
+            {/* Saving proposed figures is the engineer confirming them (AC14). */}
+            {stillProposed ? 'Confirm figures' : 'Save figures'}
           </Button>
         </div>
       )}

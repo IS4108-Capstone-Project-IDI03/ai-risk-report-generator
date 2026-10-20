@@ -26,6 +26,8 @@ export function LossLevelBlock({
   onChange,
   scenario,
   assumptions,
+  proposed,
+  onTouched,
 }: {
   meta: (typeof LOSS_LEVELS)[number]
   te: TypedValue[]
@@ -36,25 +38,43 @@ export function LossLevelBlock({
   // The drafted Scenario and Assumptions findings (Review), if drafted.
   scenario?: React.ReactNode
   assumptions?: React.ReactNode
+  // The inputs still holding the model's proposal (GN-03 addendum), by row key and
+  // field ("pd-II-0:percent", "te-bi:months"), so renaming or removing a row can't
+  // strand a mark; and the call that drops one's marking once the engineer edits it.
+  proposed?: Set<string>
+  onTouched?: (mark: string) => void
 }) {
+  // A proposed input carries the AI rule until edited (AC13).
+  const mark = (key: string, input: React.ReactNode) =>
+    proposed?.has(key) ? <span className="rv-proposed">{input}</span> : input
   const title = `Property – Level ${meta.level} Loss Estimate`
   // A row's loss as last saved, or "Not entered" (AC1).
   const lossOf = (rows: { key: string; loss: number | null }[] | undefined, key: string) =>
     formatAmount(rows?.find((r) => r.key === key)?.loss ?? null)
-  const field = (label: string, value: string, set: (v: string) => void, max?: number) =>
-    canEdit ? (
-      <Input
-        size="sm"
-        type="number"
-        min={0}
-        max={max}
-        aria-label={label}
-        value={value}
-        onChange={(e) => set(e.target.value)}
-      />
-    ) : (
-      value || '–'
-    )
+  const field = (
+    label: string,
+    value: string,
+    set: (v: string) => void,
+    max?: number,
+    markKey = '',
+  ) =>
+    canEdit
+      ? mark(
+          markKey,
+          <Input
+            size="sm"
+            type="number"
+            min={0}
+            max={max}
+            aria-label={label}
+            value={value}
+            onChange={(e) => {
+              set(e.target.value)
+              if (markKey) onTouched?.(markKey)
+            }}
+          />,
+        )
+      : value || '–'
 
   const setDamageRow = (key: string, change: Partial<TypedLevel['damageRows'][number]>) =>
     onChange({
@@ -115,13 +135,19 @@ export function LossLevelBlock({
                 <td>
                   {canEdit ? (
                     <div className="rv-figures-item">
-                      <Input
-                        size="sm"
-                        maxLength={100}
-                        aria-label={`Level ${meta.level} damage item ${i + 1}`}
-                        value={row.item}
-                        onChange={(e) => setDamageRow(row.key, { item: e.target.value })}
-                      />
+                      {mark(
+                        `${row.key}:item`,
+                        <Input
+                          size="sm"
+                          maxLength={100}
+                          aria-label={`Level ${meta.level} damage item ${i + 1}`}
+                          value={row.item}
+                          onChange={(e) => {
+                            setDamageRow(row.key, { item: e.target.value })
+                            onTouched?.(`${row.key}:item`)
+                          }}
+                        />,
+                      )}
                       <IconButton
                         icon="trash-2"
                         size="sm"
@@ -149,6 +175,7 @@ export function LossLevelBlock({
                     row.percent,
                     (percent) => setDamageRow(row.key, { percent }),
                     100,
+                    `${row.key}:percent`,
                   )}
                 </td>
                 <td>{lossOf(result?.pd, row.key)}</td>
@@ -215,7 +242,13 @@ export function LossLevelBlock({
                   <td>{row.item}</td>
                   <td>{amount(row.value)}</td>
                   <td>
-                    {field(`${row.item} outage months`, entry.months, (months) => set({ months }))}
+                    {field(
+                      `${row.item} outage months`,
+                      entry.months,
+                      (months) => set({ months }),
+                      undefined,
+                      `${row.key}:months`,
+                    )}
                   </td>
                   <td>
                     {field(
@@ -223,6 +256,7 @@ export function LossLevelBlock({
                       entry.percent,
                       (percent) => set({ percent }),
                       100,
+                      `${row.key}:percent`,
                     )}
                   </td>
                   <td>{lossOf(result?.te, row.key)}</td>
