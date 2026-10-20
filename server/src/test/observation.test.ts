@@ -961,17 +961,27 @@ describe('site photographs (CP-04)', () => {
   })
 })
 
-describe('photo interpretation (CP-05)', () => {
+describe('reading an observation (CP-05, CP-21)', () => {
+  const PROTECTION = {
+    category: 'Protection',
+    reason: 'The note says racking sits under the heads; IMG_0460.jpg shows it.',
+    evidence: [
+      { item: 'Note', quote: 'racking under the heads' },
+      { item: 'IMG_0460.jpg', quote: null },
+    ],
+  }
   const PROPOSAL = {
+    categories: [PROTECTION],
     description:
       'During the site visit to Bay 3, it was observed that the new racking sits under two sprinkler heads.',
-    cope_dimension: 'Protection',
     hazard_type: 'Sprinkler Installation',
     provider: 'gemini',
     model: 'gemini-3.8-flash',
-    prompt_version: 'cp05-v1',
+    prompt_version: 'cp21-v1',
     usage: { input_tokens: 2064, output_tokens: 48, thought_tokens: 180 },
   }
+  // What S5 answers for a reading without photos: categories only.
+  const TEXT_ONLY = { ...PROPOSAL, description: null, hazard_type: null }
   const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
   const read = (id: string) => api.post(`/api/observations/${id}/interpretation`)
 
@@ -983,26 +993,29 @@ describe('photo interpretation (CP-05)', () => {
     })
     return (await ObservationModel.findById(id).lean())!
   }
-  // Saves photos, then asks for them to be read, as the Observations tab does.
+  // Saves photos, then asks for the observation to be read, as the Observations tab does.
   async function readSaved(photos: Photo[] = [{ image: JPG }], fields: object = {}) {
     const { id } = (await savePhotos(photos, fields)).body
     expect((await read(id)).status).toBe(202)
     return id as string
   }
 
-  it('sends no photo to the vision model when it is saved', async () => {
+  it('sends nothing to the model when an observation is saved', async () => {
     await assessmentWithSession()
 
-    const response = await savePhotos([{ image: JPG }, { image: PNG }])
+    const photos = await savePhotos([{ image: JPG }, { image: PNG }])
+    const noted = await note()
 
-    expect(response.status).toBe(201)
-    expect(response.body.interpretation).toBeNull()
-    const stored = await ObservationModel.findById(response.body.id).lean()
-    expect(stored?.interpretation).toBeUndefined()
+    for (const response of [photos, noted]) {
+      expect(response.status).toBe(201)
+      expect(response.body.interpretation).toBeNull()
+      const stored = await ObservationModel.findById(response.body.id).lean()
+      expect(stored?.interpretation).toBeUndefined()
+    }
     expect(vision).not.toHaveBeenCalled()
   })
 
-  it('reads all the photos, with the location and note, when asked (AC1, AC2)', async () => {
+  it('reads the photos and the note, each by its name, with the location (AC1, AC2)', async () => {
     let finish!: (reply: Response) => void
     vision.mockReturnValue(new Promise<Response>((resolve) => (finish = resolve)))
     await assessmentWithSession()
@@ -1015,21 +1028,30 @@ describe('photo interpretation (CP-05)', () => {
     const stored = await ObservationModel.findById(id).lean()
     await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
     expect(vision).toHaveBeenCalledWith({
-      s3_keys: stored!.photos!.map((p) => p.key),
+      photos: stored!.photos!.map((p) => ({ label: p.name, s3_key: p.key })),
+      texts: [{ label: 'Note', kind: 'note', text: 'Racking under the heads.' }],
       location: 'Bay 3 — north aisle, Ground',
-      note: 'Racking under the heads.',
     })
     expect(speech).not.toHaveBeenCalled()
-    // Listed as interpreting while it runs (AC2), naming the photos it reads.
+    // Listed as interpreting while it runs (AC2), naming what it reads.
     expect((await listed())[0].interpretation).toEqual({
       status: 'interpreting',
       description: null,
-      copeDimension: null,
       hazardType: null,
+      categories: [],
       error: null,
       attempts: 1,
       model: null,
       photoIds: stored!.photos!.map((p) => String(p._id)),
+      items: [
+        { label: 'Note', kind: 'note', id: null, leftOut: false },
+        ...stored!.photos!.map((p) => ({
+          label: p.name,
+          kind: 'photo',
+          id: String(p._id),
+          leftOut: false,
+        })),
+      ],
       outOfDate: false,
     })
     finish(await s5(200, PROPOSAL))
@@ -1039,37 +1061,249 @@ describe('photo interpretation (CP-05)', () => {
   it('stores the proposal and what wrote it, leaving the engineer’s own record alone (AC3-AC5)', async () => {
     vision.mockReturnValue(s5(200, PROPOSAL))
     await assessmentWithSession()
-    const id = await readSaved([{ image: JPG }], { copeDimensions: null })
+    const id = await readSaved([{ image: JPG }], {
+      copeDimensions: null,
+      note: 'Racking under the heads.',
+    })
 
     const done = await interpreted(id)
 
     expect(done.interpretation).toMatchObject({
       status: 'interpreted',
       description: PROPOSAL.description,
-      copeDimension: 'Protection',
       hazardType: 'Sprinkler Installation',
       provenance: {
         provider: 'gemini',
         model: 'gemini-3.8-flash',
-        promptVersion: 'cp05-v1',
+        promptVersion: 'cp21-v1',
         usage: { inputTokens: 2064, outputTokens: 48, thoughtTokens: 180 },
       },
     })
     expect(done.interpretation!.attempts[0].finishedAt).toBeInstanceOf(Date)
     const [observation] = await listed()
-    expect(observation.interpretation).toEqual({
+    expect(observation.interpretation).toMatchObject({
       status: 'interpreted',
       description: PROPOSAL.description,
-      copeDimension: 'Protection',
       hazardType: 'Sprinkler Installation',
+      // The note's words are in the note; a photo has none to check.
+      categories: [
+        {
+          category: 'Protection',
+          reason: PROTECTION.reason,
+          evidence: [
+            { item: 'Note', quote: 'racking under the heads', verified: true },
+            { item: 'IMG_0460.jpg', quote: null, verified: null },
+          ],
+        },
+      ],
       error: null,
       attempts: 1,
       model: 'gemini-3.8-flash',
       photoIds: [observation.photos[0].id],
       outOfDate: false,
     })
-    // A proposal only: the observation stays uncategorised, with no note.
-    expect(observation).toMatchObject({ copeDimensions: null, note: null })
+    // A proposal only: the observation stays uncategorised, its note as typed.
+    expect(observation).toMatchObject({ copeDimensions: null, note: 'Racking under the heads.' })
+  })
+
+  it('reads an observation without photos for categories only (CP-21)', async () => {
+    vision.mockReturnValue(s5(200, TEXT_ONLY))
+    speech.mockImplementation(() => s5(200, { transcript: 'Racking under the heads, bay 3.' }))
+    await assessmentWithSession()
+    const { id } = (await save({ note: 'Bay 3 racking' }, [{}])).body
+    await settled(id)
+
+    expect((await read(id)).status).toBe(202)
+    const done = await interpreted(id)
+
+    expect(vision).toHaveBeenCalledWith({
+      photos: [],
+      texts: [
+        { label: 'Note', kind: 'note', text: 'Bay 3 racking' },
+        { label: 'Recording 1', kind: 'recording', text: 'Racking under the heads, bay 3.' },
+      ],
+      location: 'Bay 3 — north aisle, Ground',
+    })
+    expect(done.interpretation?.description).toBeUndefined()
+    const [observation] = await listed()
+    expect(observation.interpretation).toMatchObject({
+      status: 'interpreted',
+      description: null,
+      hazardType: null,
+      categories: [{ category: 'Protection' }],
+    })
+  })
+
+  it('reads a corrected transcript, and leaves out a recording with none (CP-21)', async () => {
+    vision.mockReturnValue(s5(200, TEXT_ONLY))
+    speech
+      .mockImplementationOnce(() => s5(200, { transcript: 'Valve chaned open.' }))
+      .mockImplementationOnce(() => s5(502, { detail: 'Whisper could not transcribe it.' }))
+    await assessmentWithSession()
+    const { id } = (await save({}, [{}, {}])).body
+    // The two are transcribed at once, so either may be the one that failed.
+    const { recordings } = await settled(id)
+    const heard = recordings.find((r) => r.transcription.status === 'transcribed')!
+    await correct(id, String(heard._id), 'Valve chained open.')
+
+    expect((await read(id)).status).toBe(202)
+    await interpreted(id)
+
+    expect(vision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        texts: [{ label: heard.name, kind: 'recording', text: 'Valve chained open.' }],
+      }),
+    )
+    expect((await listed())[0].interpretation.items).toEqual(
+      recordings.map((r) => ({
+        label: r.name,
+        kind: 'recording',
+        id: String(r._id),
+        leftOut: r !== heard,
+      })),
+    )
+  })
+
+  it('waits for transcriptions still running, and needs something to read (CP-21)', async () => {
+    speech.mockReturnValue(new Promise<Response>(() => {}))
+    await assessmentWithSession()
+    const { id: running } = (await save({ note: 'Riser room.' }, [{}])).body
+
+    const waiting = await read(running)
+    expect(waiting.status).toBe(409)
+    expect(waiting.body.error).toBe(
+      'Its recordings and pages are still being transcribed. Try again once they finish.',
+    )
+
+    speech.mockReturnValue(s5(502, { detail: 'Whisper could not transcribe it.' }))
+    const { id: unheard } = (await save({}, [{}])).body
+    await settled(unheard)
+    const nothing = await read(unheard)
+    expect(nothing.status).toBe(409)
+    expect(nothing.body.error).toBe('This observation has nothing to read yet.')
+    expect(vision).not.toHaveBeenCalled()
+  })
+
+  it('checks each quote against the item it cites (CP-21)', async () => {
+    vision.mockReturnValue(
+      s5(200, {
+        ...PROPOSAL,
+        categories: [
+          {
+            category: 'Construction',
+            reason: 'The note says the wall is unsealed.',
+            evidence: [
+              // Found whatever its case, spacing and curly quotes.
+              { item: 'Note', quote: '“RACKING  under”' },
+              // Words the note doesn't have, and an item the observation doesn't have.
+              { item: 'Note', quote: 'wall is unsealed' },
+              { item: 'Recording 9', quote: 'racking' },
+              // A photo has no words: a quote given for one is dropped.
+              { item: 'IMG_0460.jpg', quote: 'racking' },
+            ],
+          },
+          // Not a COPE category, so not kept.
+          { category: 'Roofing', reason: 'x', evidence: [] },
+        ],
+      }),
+    )
+    await assessmentWithSession()
+    const id = await readSaved([{ image: JPG }], { note: 'Racking under the heads.' })
+    await interpreted(id)
+
+    expect((await listed())[0].interpretation.categories).toEqual([
+      {
+        category: 'Construction',
+        reason: 'The note says the wall is unsealed.',
+        evidence: [
+          { item: 'Note', quote: '“RACKING  under”', verified: true },
+          { item: 'Note', quote: 'wall is unsealed', verified: false },
+          { item: 'Recording 9', quote: 'racking', verified: false },
+          { item: 'IMG_0460.jpg', quote: null, verified: null },
+        ],
+      },
+    ])
+  })
+
+  it('marks a reading out of date when its note or a transcript changes, not for Use as note (CP-21)', async () => {
+    vision.mockImplementation(() => s5(200, PROPOSAL))
+    speech.mockImplementation(() => s5(200, { transcript: 'Racking under the heads.' }))
+    await assessmentWithSession()
+    const { id } = (await save({ note: 'Bay 3 racking' }, [{}])).body
+    const [recording] = (await settled(id)).recordings
+    const reading = async () => (await listed())[0].interpretation
+    await read(id)
+    await vi.waitFor(async () => expect((await reading()).status).toBe('interpreted'))
+    expect((await reading()).outOfDate).toBe(false)
+
+    // Taking the description into the note, as Use as note writes it, came from the reading.
+    await edit(id, { note: `Bay 3 racking\n\n${PROPOSAL.description}` })
+    expect((await reading()).outOfDate).toBe(false)
+    // Any other note edit is a change.
+    await edit(id, { note: 'Bay 3 racking, roof leaking too.' })
+    expect((await reading()).outOfDate).toBe(true)
+    await edit(id, { note: 'Bay 3 racking' })
+    expect((await reading()).outOfDate).toBe(false)
+    // So is a corrected transcript.
+    await correct(id, String(recording._id), 'Racking under three heads.')
+    expect((await reading()).outOfDate).toBe(true)
+
+    // Read again: what it holds now.
+    expect((await read(id)).status).toBe(202)
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(2))
+    expect(vision).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        texts: [
+          { label: 'Note', kind: 'note', text: 'Bay 3 racking' },
+          { label: 'Recording 1', kind: 'recording', text: 'Racking under three heads.' },
+        ],
+      }),
+    )
+  })
+
+  it('reads a category proposed before CP-21 as a list of one, with no reason', async () => {
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }])).body
+    await ObservationModel.collection.updateOne(
+      { _id: new Types.ObjectId(id) },
+      {
+        $set: {
+          interpretation: {
+            status: 'interpreted',
+            description: 'An earlier reading.',
+            copeDimension: 'Protection',
+            attempts: [{ startedAt: new Date() }],
+          },
+        },
+      },
+    )
+
+    expect((await listed())[0].interpretation).toMatchObject({
+      categories: [{ category: 'Protection', reason: null, evidence: [] }],
+      outOfDate: false,
+    })
+  })
+
+  it('marks a reading from before CP-21 out of date when there is a transcript it never read', async () => {
+    speech.mockImplementation(() => s5(200, { transcript: 'Valve chained open.' }))
+    await assessmentWithSession()
+    const { id } = (await save({ note: 'Pump house valve.' }, [{}])).body
+    await settled(id)
+    await ObservationModel.collection.updateOne(
+      { _id: new Types.ObjectId(id) },
+      {
+        $set: {
+          interpretation: {
+            status: 'interpreted',
+            copeDimension: 'Protection',
+            attempts: [{ startedAt: new Date() }],
+          },
+        },
+      },
+    )
+
+    expect((await listed())[0].interpretation.outOfDate).toBe(true)
+    expect((await read(id)).status).toBe(202)
   })
 
   it('records usage as unavailable when the provider reports none', async () => {
@@ -1113,8 +1347,8 @@ describe('photo interpretation (CP-05)', () => {
     expect(rows[0].pricingBasis).toContain('ai.google.dev')
   })
 
-  it('records nothing when the photo service fails, as it returns no usage', async () => {
-    vision.mockReturnValue(s5(502, { detail: 'The photos could not be interpreted: timeout.' }))
+  it('records nothing when the AI service fails, as it returns no usage', async () => {
+    vision.mockReturnValue(s5(502, { detail: 'The observation could not be read: timeout.' }))
     await assessmentWithSession()
 
     await interpreted(await readSaved())
@@ -1122,9 +1356,9 @@ describe('photo interpretation (CP-05)', () => {
     expect(await AiCallModel.countDocuments()).toBe(0)
   })
 
-  it('shows why it failed, and reads again only after a failure', async () => {
+  it('shows why it failed, and reads again after a failure or whenever asked', async () => {
     vision.mockReturnValue(
-      s5(502, { detail: 'The photos could not be interpreted: 403 API key not valid.' }),
+      s5(502, { detail: 'The observation could not be read: 403 API key not valid.' }),
     )
     await assessmentWithSession()
     const id = await readSaved()
@@ -1134,10 +1368,10 @@ describe('photo interpretation (CP-05)', () => {
     // The detail is kept with the attempt; the engineer sees a readable reason.
     expect(failed.interpretation).toMatchObject({
       status: 'failed',
-      error: 'The photos could not be interpreted: 403 API key not valid.',
+      error: 'The observation could not be read: 403 API key not valid.',
     })
     expect((await listed())[0].interpretation.error).toBe(
-      'The photo service could not interpret the photos.',
+      'The AI service could not read this observation.',
     )
 
     vision.mockReturnValue(s5(200, PROPOSAL))
@@ -1147,9 +1381,35 @@ describe('photo interpretation (CP-05)', () => {
     expect(done.interpretation?.attempts).toHaveLength(2)
     expect(done.interpretation?.error).toBeUndefined()
 
-    const again = await read(id)
-    expect(again.status).toBe(409)
-    expect(again.body.error).toBe('Its photos have already been read.')
+    // Asked again while up to date, a new reading replaces it (CP-21).
+    vision.mockImplementation(() => s5(200, PROPOSAL))
+    expect((await read(id)).status).toBe(202)
+    const anew = await interpreted(id)
+    expect(anew.interpretation?.status).toBe('interpreted')
+    expect(anew.interpretation?.attempts).toHaveLength(3)
+    expect(vision).toHaveBeenCalledTimes(3)
+  })
+
+  it('says when the AI service is out of quota or busy, as for a reading saved before CP-21', async () => {
+    await assessmentWithSession()
+    const { id } = (await savePhotos([{ image: JPG }])).body
+    const reason = async (error: string) => {
+      await ObservationModel.updateOne(
+        { _id: id },
+        { interpretation: { status: 'failed', error, attempts: [{ startedAt: new Date() }] } },
+      )
+      return (await listed())[0].interpretation.error
+    }
+
+    expect(await reason('The observation could not be read: Error code: 429')).toBe(
+      'The AI service has reached its usage limit. Try again later.',
+    )
+    expect(await reason('The observation could not be read: Error code: 503')).toBe(
+      'The AI service is busy. Try again in a minute.',
+    )
+    expect(await reason('The photos could not be interpreted: bad key')).toBe(
+      'The AI service could not read this observation.',
+    )
   })
 
   it('starts one reading when asked twice at once', async () => {
@@ -1164,13 +1424,8 @@ describe('photo interpretation (CP-05)', () => {
     await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
   })
 
-  it('refuses to read an observation with no photos, a deleted one or an unknown one', async () => {
+  it('refuses to read a deleted observation or an unknown one', async () => {
     await assessmentWithSession()
-    const { id: noted } = (await note()).body
-    const noPhotos = await read(noted)
-    expect(noPhotos.status).toBe(409)
-    expect(noPhotos.body.error).toBe('This observation has no photos to read.')
-
     const { id } = (await savePhotos([{ image: JPG }])).body
     await api.delete(`/api/observations/${id}`)
     expect((await read(id)).status).toBe(409)
@@ -1180,13 +1435,13 @@ describe('photo interpretation (CP-05)', () => {
     expect(vision).not.toHaveBeenCalled()
   })
 
-  it('says so when the photo service cannot be reached', async () => {
+  it('says so when the AI service cannot be reached', async () => {
     vision.mockRejectedValue(new TypeError('fetch failed'))
     await assessmentWithSession()
 
     const done = await interpreted(await readSaved())
 
-    expect(done.interpretation?.error).toBe('The photo service could not be reached.')
+    expect(done.interpretation?.error).toBe('The AI service could not be reached.')
   })
 
   it('marks interpretations interrupted by a restart as failed so they can be read again', async () => {
@@ -1199,17 +1454,6 @@ describe('photo interpretation (CP-05)', () => {
       status: 'failed',
       error: expect.stringMatching(/interrupted by a gateway restart/),
     })
-  })
-
-  it('leaves an observation without photos uninterpreted', async () => {
-    await assessmentWithSession()
-
-    const response = await note()
-
-    expect(response.body.interpretation).toBeNull()
-    expect(vision).not.toHaveBeenCalled()
-    const stored = await ObservationModel.findById(response.body.id).lean()
-    expect(stored?.interpretation).toBeUndefined()
   })
 })
 
@@ -1239,12 +1483,12 @@ describe('adding and removing recordings and photos (CP-08)', () => {
     api.post(`/api/observations/${id}/${kind}/${itemId}/restore`)
   const by = { id: String(actor._id), name: 'Alex Rowe' }
   const READING = {
+    categories: [{ category: 'Protection', reason: 'A photo shows racking.', evidence: [] }],
     description: 'During the site visit to Bay 3, it was observed that racking stood under a head.',
-    cope_dimension: 'Protection',
     hazard_type: 'Sprinkler Installation',
     provider: 'gemini',
     model: 'gemini-3.8-flash',
-    prompt_version: 'cp05-v1',
+    prompt_version: 'cp21-v1',
     usage: null,
   }
 
@@ -1414,7 +1658,9 @@ describe('adding and removing recordings and photos (CP-08)', () => {
     await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(2))
     const stored = await ObservationModel.findById(id).lean()
     expect(vision).toHaveBeenLastCalledWith(
-      expect.objectContaining({ s3_keys: [stored!.photos![1].key] }),
+      expect.objectContaining({
+        photos: [{ label: stored!.photos![1].name, s3_key: stored!.photos![1].key }],
+      }),
     )
     await vi.waitFor(async () =>
       expect(await reading()).toMatchObject({
@@ -1424,7 +1670,6 @@ describe('adding and removing recordings and photos (CP-08)', () => {
         attempts: 2,
       }),
     )
-    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(409)
   })
 
   it('treats a reading from before photos could change as reading every photo saved', async () => {
@@ -1450,12 +1695,19 @@ describe('adding and removing recordings and photos (CP-08)', () => {
     const added = (await addMedia(id, [], [{ image: PNG, type: 'image/png' }])).body
     expect(added.interpretation.outOfDate).toBe(true)
 
-    // With every photo removed there is no reading to show, or to ask for.
+    // With every photo removed the reading stays out of date, and the note can still be read.
     await remove(id, 'photos', added.photos[1].id)
     const none = (await remove(id, 'photos', photos[0].id)).body
-    expect(none.interpretation).toBeNull()
+    expect(none.interpretation).toMatchObject({ photoIds: [photos[0].id], outOfDate: true })
     expect(none.removedPhotos).toHaveLength(2)
-    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(409)
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+    expect(vision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        photos: [],
+        texts: [{ label: 'Note', kind: 'note', text: 'Riser room.' }],
+      }),
+    )
   })
 })
 
@@ -1858,14 +2110,20 @@ describe('handwritten pages (CP-19)', () => {
     expect((await api.get(unknown)).status).toBe(404)
   })
 
-  it('is not a site photo: not read as one, nor offered for the appendix (AC5)', async () => {
-    handwriting.mockReturnValue(s5(200, read('x')))
+  it('is not a site photo: read as its text, and not offered for the appendix (AC5, CP-21)', async () => {
+    handwriting.mockReturnValue(s5(200, read('Riser door wedged open')))
     await assessmentWithSession()
-    const { id } = (await savePages([{ image: JPG }])).body
+    const { id, pages } = (await savePages([{ image: JPG }])).body
     await pagesSettled(id)
 
-    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(409)
-    expect(vision).not.toHaveBeenCalled()
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+    expect(vision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        photos: [],
+        texts: [{ label: pages[0].name, kind: 'page', text: 'Riser door wedged open' }],
+      }),
+    )
     const appendix = await api.get('/api/assessments/RPT-2026-0411/appendix')
     expect(appendix.body.available).toEqual([])
   })

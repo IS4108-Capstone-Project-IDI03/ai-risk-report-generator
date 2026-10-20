@@ -623,6 +623,42 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Still to write, from the CP-19 split: correcting a page's text (the transcription kept as evidence, drafting using the correction); adding pages to a saved observation; removing and restoring a page; who made each change and when; changes by the assigned engineer only, not once archived; a failed save keeping the engineer's correction.
   </details>
 
+- [ ] **CP-21** — Suggest COPE categories from all of an observation's evidence (risk engineer, Should, 5 pts, deps: CP-05, CP-08, CP-19, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: have the COPE categories of any observation suggested from everything captured in it (its note, voice transcripts, handwritten pages and photos), each with the evidence behind it, so fewer observations are left uncategorised and out of drafting, and a finding that concerns several categories counts toward each.
+
+  Extends CP-05's photo reading rather than adding a second reading: one proposal per observation, read only when the engineer asks, and never drafting evidence. Not yet in the vetted sheet.
+
+  Asking for a suggestion
+
+  1. Given an observation with any note, transcript, page text or photo, when I ask for categories, then one reading covers all of them and the observation shows Interpreting.
+  2. Given a recording or page is still being transcribed, when I ask, then I am told to wait until it finishes.
+  3. Given a recording or page has no transcript, or a transcript was corrected, when the reading runs, then it leaves out the one with none, says so, and uses the correction.
+
+  The proposal
+
+  4. Given a reading succeeds, when I open the observation, then each proposed category is shown as AI-generated text with a reason naming the items it rests on, or none is proposed when nothing points to one.
+  5. Given a reason quotes a note or transcript, when the proposal is shown, then a quote not found in that item is marked Unverified.
+  6. Given the observation has photos, when the reading succeeds, then a description and hazard type are proposed from the photos alone, as in CP-05.
+  7. Given a reading fails, when I open the observation, then the reason is shown and I can retry; given a finished proposal, when I ask again, then a new reading replaces it.
+
+  Accepting it
+
+  8. Given a proposed category the observation does not have, when I add it and save, then it joins the observation's categories without replacing them.
+  9. Given a proposal, when a section is drafted, then the proposal itself is not used, only the categories I saved.
+
+  Keeping it current
+
+  10. Given its note, a transcript, a page or a photo changes after a reading, when I view the proposal, then it is marked out of date and I can ask again; taking the proposal's description into the note does not count as a change.
+
+  Evaluation
+
+  11. Given a test set of observations with known categories, when the reader is evaluated, then the share of cases proposed correctly and the share of quotes found in their items meet the agreed thresholds, with the model and prompt version recorded. (Placeholders 80% and 90% until the first run; cases drafted from the team's labelled field notes, to be checked by an engineer.)
+
+  Not in this story: suggesting severity, location or the standard (CP-07's area); describing an observation without photos; applying categories without the engineer saving them.
+  </details>
+
 ## E6 — Report Generation & Guardrails
 
 - [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)

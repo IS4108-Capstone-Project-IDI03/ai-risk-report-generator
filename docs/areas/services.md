@@ -26,56 +26,82 @@ recording fails with "The speech service could not be reached", S5 is not runnin
 the gateway was started with the Docker hostname. S5 also needs the AWS
 credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 
-## Photo interpretation (S5, CP-05)
+## Reading an observation (S5, CP-05, CP-21)
 
-1. Saving an observation with photos stores them in S3 (CP-04) and reads
-   nothing: no photo goes to the vision model until an engineer asks. Read
-   photos on the Observations tab sends `POST
+An engineer can ask for any observation to be read. The model proposes the
+COPE categories it concerns from everything captured in it (its note,
+recording and page transcripts, and photos), and from its photos, if any, a
+description and hazard type.
+
+1. Saving an observation reads nothing: nothing goes to the model until an
+   engineer asks. Get AI proposal on the Observations tab sends `POST
    /api/observations/:id/interpretation`, which saves the observation with
-   `interpretation.status: 'interpreting'`: one interpretation covering all
-   its kept photos, whose ids it records in `photoIds` (see
-   [database](database.md#observations)). Photos added or removed later
-   (CP-08) leave a finished reading out of date; Read again on the tab sends
-   the same request, reading the photos kept then.
-2. The gateway posts `{ "s3_keys": [...], "location": ..., "note": ... }` to
-   S5's `POST /interpret` without making the client wait. The location is where
-   the observation was made, most specific first ("Pump room, Level 43,
-   Tower 1"; see `locationText`); the note is
-   as the engineer wrote it. The engineer's category and severity are not
-   sent, so the proposed category is the model's own.
+   `interpretation.status: 'interpreting'`: one reading covering everything it
+   holds, recorded in `items` (see [database](database.md#observations)): the
+   note, each recording and page with the transcript it reads (the engineer's
+   correction where there is one, CP-08), and each kept photo. A recording or
+   page with no transcript (failed, or a page with no handwriting) is left
+   out, and the request is refused while one is still transcribing. Anything
+   added, removed or changed later leaves a finished reading out of date,
+   except the proposal's own description taken into the note by Use as note;
+   Get new proposal on the tab sends the same request, reading what it holds then;
+   it is offered on every finished proposal, so the engineer can ask for another
+   one whenever they like, each a paid call.
+2. The gateway posts `{ "photos": [{ label, s3_key }], "texts": [{ label,
+   kind, text }], "location": ... }` to S5's `POST /interpret` without making
+   the client wait. Each item's label is its own name (`Note`, a recording's,
+   page's or photo's name, a repeated one numbered), so the proposal can cite
+   it. The location is where the observation was made, most specific first
+   ("Pump room, Level 43, Tower 1"; see `locationText`). The engineer's
+   categories and severity are not sent, so the proposed categories are the
+   model's own.
 3. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
-   changed. It sends them to the provider named by `VISION_PROVIDER` (only
-   Gemini is implemented: `VISION_MODEL`, default `gemini-3.8-flash`, needs a
-   paid-tier `GEMINI_API_KEY`, with `store: false`) and asks for a fixed
-   answer:
-   - `description`, in the form Marsh's reports use ("During the site visit
-     to …, it was observed that …");
-   - `cope_dimension`, one of the four categories;
-   - `hazard_type`, one of the OFI Types in Marsh's sample reports, `Other`,
-     or `No hazard visible`, so the model never has to invent a hazard.
+   changed. It sends each photo after its label, then the texts, to the
+   provider named by `VISION_PROVIDER` (only Gemini is implemented:
+   `VISION_MODEL`, default `gemini-3.8-flash`, needs a paid-tier
+   `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer:
+   - `categories`, each of the four at most once, most relevant first, or none
+     when nothing supports one: the `category`, a one-sentence `reason` naming
+     the items, and `evidence`: every item that supports it, not only the
+     clearest, each with a `quote` copied from a note or transcript (none for
+     a photo);
+   - with photos only, `description`, in the form Marsh's reports use ("During
+     the site visit to …, it was observed that …"), stating only what the
+     photos show, whatever the texts claim; and `hazard_type`, one of the OFI
+     Types in Marsh's sample reports, `Other`, or `No hazard visible`, so the
+     model never has to invent a hazard.
    It returns those with the provider, model, `prompt_version` and token
    `usage` (null when the provider reports none), or 502 with `detail`. Like
    transcription, it writes nothing to MongoDB.
-4. The gateway stores the proposal, or the failure reason, on the
-   observation. It also saves the call to `ai_calls` (EV-03) as
-   `interpret-photo`, billed to `gemini-vision`, tagged with the assessment:
-   thinking tokens are added to output tokens, since Google bills them as
-   output, and the duration is the gateway's own timing of the request
-   (S5 sends none). A failed request returns no usage, so nothing is saved. A failure can be retried through the same route; a restart
-   marks an attempt still running as failed. The client re-reads the list every 3 seconds while any
-   observation is interpreting.
+4. The gateway checks each quote against the item it cites (case, spacing,
+   curly quotes and edge punctuation aside, as `quoteFound` does) and stores
+   the proposal with each check's result, `verified`, or the failure reason,
+   on the observation. It also saves the call to `ai_calls` (EV-03) as
+   `interpret-photo` (labelled "Observation reading"; the id is kept so
+   earlier readings stay on one line), billed to `gemini-vision`, tagged with
+   the assessment: thinking tokens are added to output tokens, since Google
+   bills them as output, and the duration is the gateway's own timing of the
+   request (S5 sends none). A failed request returns no usage, so nothing is
+   saved. A failure can be retried through the same route; a restart marks an
+   attempt still running as failed. The client re-reads the list every 3
+   seconds while any observation is interpreting.
 5. The proposal is for the engineer to review and is never drafting evidence:
    drafting does not wait for it, never reads it, and a draft does not go out
-   of date when it arrives. On the Observations tab, Use as note and Change
-   category open the Edit dialog with the proposal filled in; only saving it
-   makes it the engineer's own.
+   of date when it arrives. On the Observations tab, Use as note and each Add
+   (one per proposed category not yet the observation's own) open the Edit
+   dialog with it filled in; only saving it makes it the engineer's own. A
+   quote not found in its item is shown as Unverified, and an item it read
+   but no category cites is marked "not cited" in its Read from line, so the
+   engineer can check what it passed over.
 
 Running S5 outside Docker: as for transcription, plus `GEMINI_API_KEY`. The
-reference photos for judging the prompt are in
-`microservices/speech-ocr-service/eval/` (`uv run --extra dev python -m
-eval.interpret_photos`).
+evaluations are in `microservices/speech-ocr-service/eval/`:
+`eval.interpret_photos` sets photo descriptions beside Marsh's, and
+`eval.suggest_categories` scores proposed categories and quotes against
+`eval/cases/categories.json` (`uv run --extra dev python -m
+eval.suggest_categories`; drafted cases, to be checked by an engineer).
 
 ## Handwritten pages (S5, CP-19)
 

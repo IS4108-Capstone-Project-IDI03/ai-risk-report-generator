@@ -104,12 +104,16 @@ function photographed(id: string, note: string, interpretation: Partial<SavedInt
     interpretation: {
       status: 'interpreted',
       description: null,
-      copeDimension: null,
       hazardType: null,
+      categories: [],
       error: null,
       attempts: 1,
       model: null,
       photoIds: ['p1'],
+      items: [
+        { label: 'Note', kind: 'note', id: null, leftOut: false },
+        { label: 'IMG_0460.jpg', kind: 'photo', id: 'p1', leftOut: false },
+      ],
       outOfDate: false,
       ...interpretation,
     },
@@ -119,10 +123,23 @@ const READING = 'Racking photographed in the north aisle.'
 const PROPOSAL = 'Bay 3 racking, two photos.'
 const UNREAD = 'Riser room photographed.'
 const INTERPRETING = photographed('o5', READING, { status: 'interpreting' })
+const SHOWN = 'IMG_0460.jpg shows racking under two sprinkler heads.'
 const INTERPRETED = photographed('o6', PROPOSAL, {
   description: PROPOSED,
-  copeDimension: 'Protection',
   hazardType: 'Sprinkler Installation',
+  // One category to add, and one the observation already has (CP-21).
+  categories: [
+    {
+      category: 'Protection',
+      reason: SHOWN,
+      evidence: [{ item: 'IMG_0460.jpg', quote: null, verified: null }],
+    },
+    {
+      category: 'Occupancy',
+      reason: 'The note says racking was put up in Bay 3.',
+      evidence: [{ item: 'Note', quote: 'Bay 3 racking', verified: true }],
+    },
+  ],
   model: 'gemini-3.8-flash',
 })
 const UNREAD_PHOTOS = photographed('o7', UNREAD, {
@@ -217,14 +234,25 @@ function mockGateway() {
         change((o) => ({
           interpretation: {
             description: null,
-            copeDimension: null,
             hazardType: null,
+            categories: [],
             attempts: 0,
             model: null,
             ...o.interpretation,
             status: 'interpreting',
             error: null,
             photoIds: o.photos.map((p) => p.id),
+            items: [
+              ...(o.note
+                ? [{ label: 'Note', kind: 'note' as const, id: null, leftOut: false }]
+                : []),
+              ...o.photos.map((p) => ({
+                label: p.name,
+                kind: 'photo' as const,
+                id: p.id,
+                leftOut: false,
+              })),
+            ],
             outOfDate: false,
           },
         }))
@@ -413,7 +441,7 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
   })
 }, 15000)
 
-describe('Proposals from photos (CP-05)', () => {
+describe('Proposals from an observation (CP-05, CP-21)', () => {
   it('shows where interpretation stands, and filters on it (AC2)', async () => {
     listed = [INTERPRETING, INTERPRETED, UNREAD_PHOTOS]
     await openObservations()
@@ -428,16 +456,29 @@ describe('Proposals from photos (CP-05)', () => {
     expect(shown(...ALL)).toEqual([UNREAD])
   })
 
-  it('shows the proposal as AI text, with the photos it was read from (AC3-AC6)', async () => {
+  it('shows each proposed category with its reason, the photo description and what it read', async () => {
     listed = [INTERPRETED]
     await openObservations()
     fireEvent.click(row(PROPOSAL))
 
-    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
-    expect(within(proposal).getByText(PROPOSED)).toBeInTheDocument()
+    const proposal = screen.getByRole('region', { name: 'Proposal from this observation' })
     expect(within(proposal).getByText('AI proposal')).toBeInTheDocument()
-    expect(within(proposal).getByText('Protection · Sprinkler Installation')).toBeInTheDocument()
+    const categories = within(proposal).getByRole('list', { name: 'Suggested categories' })
+    const [protection, occupancy] = within(categories).getAllByRole('listitem')
+    expect(within(protection).getByText(SHOWN)).toBeInTheDocument()
+    expect(within(protection).getByRole('button', { name: 'Add Protection' })).toBeInTheDocument()
+    // Already one of its own: marked, not offered.
+    expect(within(occupancy).getByText('Added')).toBeInTheDocument()
+    expect(within(occupancy).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(occupancy).getByText('“Bay 3 racking” · Note')).toBeInTheDocument()
+    expect(within(proposal).getByText(PROPOSED)).toBeInTheDocument()
+    expect(within(proposal).getByText('Hazard type: Sprinkler Installation')).toBeInTheDocument()
     expect(within(proposal).getByText('Proposed by gemini-3.8-flash')).toBeInTheDocument()
+    // Both items are cited, so neither is marked.
+    expect(proposal).not.toHaveTextContent('not cited')
+    // Up to date, so no warning, but another proposal can still be asked for.
+    expect(within(proposal).queryByText('Read from earlier evidence')).not.toBeInTheDocument()
+    expect(within(proposal).getAllByRole('button', { name: 'Get new proposal' })).toHaveLength(1)
     fireEvent.click(within(proposal).getByRole('button', { name: 'IMG_0460.jpg' }))
     const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
     expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
@@ -463,12 +504,12 @@ describe('Proposals from photos (CP-05)', () => {
     expect(calls).toEqual([{ method: 'PATCH', url: '/api/observations/o6', body: { note } }])
   })
 
-  it('offers the proposed category only when it is not one of its own (Add category)', async () => {
+  it('adds a proposed category only when the engineer saves it, to those it has', async () => {
     listed = [INTERPRETED]
     await openObservations()
     fireEvent.click(row(PROPOSAL))
 
-    click('Add category Protection')
+    click('Add Protection')
     const dialog = await screen.findByRole('dialog', { name: 'Edit observation' })
     // Added to the category it has, not in place of it.
     expect(within(dialog).getByRole('checkbox', { name: 'Occupancy' })).toBeChecked()
@@ -483,13 +524,103 @@ describe('Proposals from photos (CP-05)', () => {
         body: { copeDimensions: ['Occupancy', 'Protection'] },
       },
     ])
-    // Now it is filed under the proposal, so it is no longer offered.
-    expect(
-      screen.queryByRole('button', { name: 'Add category Protection' }),
-    ).not.toBeInTheDocument()
+    // Now it is filed under it, so it is no longer offered.
+    expect(screen.queryByRole('button', { name: 'Add Protection' })).not.toBeInTheDocument()
   })
 
-  it('shows why interpretation failed and retries it', async () => {
+  it('asks for another proposal of an up-to-date one (Get new proposal)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    click('Get new proposal')
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        { method: 'POST', url: '/api/observations/o6/interpretation', body: undefined },
+      ]),
+    )
+    expect(await screen.findByText('Reading this observation…')).toBeInTheDocument()
+  })
+
+  it('marks a quote not found in the item it cites as unverified', async () => {
+    listed = [
+      photographed('o6', PROPOSAL, {
+        categories: [
+          {
+            category: 'Construction',
+            reason: 'The note says the wall is unsealed.',
+            evidence: [{ item: 'Note', quote: 'wall is unsealed', verified: false }],
+          },
+        ],
+      }),
+    ]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    const [construction] = within(
+      screen.getByRole('list', { name: 'Suggested categories' }),
+    ).getAllByRole('listitem')
+    expect(within(construction).getByText('Unverified')).toBeInTheDocument()
+    expect(
+      within(construction).getByText('“wall is unsealed” · Note · not found in Note'),
+    ).toBeInTheDocument()
+  })
+
+  it('reads an observation without photos for categories only, naming what it left out', async () => {
+    const SPOKEN = 'Sprinkler valve found shut.'
+    listed = [
+      observation({
+        id: 'o9',
+        note: SPOKEN,
+        copeDimensions: null,
+        recordings: [
+          recording('r1', { transcript: VOICE }),
+          recording('r2', { status: 'failed', error: FAILED }),
+        ],
+        interpretation: {
+          status: 'interpreted',
+          description: null,
+          hazardType: null,
+          categories: [
+            {
+              category: 'Protection',
+              reason: 'The note says the sprinkler valve was found shut.',
+              evidence: [{ item: 'Note', quote: 'valve found shut', verified: true }],
+            },
+          ],
+          error: null,
+          attempts: 1,
+          model: 'gemini-3.8-flash',
+          photoIds: [],
+          items: [
+            { label: 'Note', kind: 'note', id: null, leftOut: false },
+            { label: 'Recording r1', kind: 'recording', id: 'r1', leftOut: false },
+            { label: 'Recording r2', kind: 'recording', id: 'r2', leftOut: true },
+          ],
+          outOfDate: false,
+        },
+      }),
+    ]
+    await openObservations()
+    fireEvent.click(row(SPOKEN))
+
+    const proposal = screen.getByRole('region', { name: 'Proposal from this observation' })
+    expect(within(proposal).getByRole('button', { name: 'Add Protection' })).toBeInTheDocument()
+    // Only photos are described.
+    expect(within(proposal).queryByText('From the photos')).not.toBeInTheDocument()
+    expect(within(proposal).queryByRole('button', { name: 'Use as note' })).not.toBeInTheDocument()
+    // A recording opens where it sits in the observation. One read but cited
+    // by no category is marked, apart from one left out unread.
+    const recordingLink = within(proposal).getByRole('button', { name: 'Recording r1' })
+    expect(recordingLink.parentElement).toHaveTextContent(
+      'Read from Note, Recording r1 (not cited), Recording r2 (left out: no transcript)',
+    )
+    fireEvent.click(recordingLink)
+    expect(document.getElementById('evidence-r1')).toBeInTheDocument()
+  })
+
+  it('shows why reading failed and retries it', async () => {
     listed = [UNREAD_PHOTOS]
     await openObservations()
     fireEvent.click(row(UNREAD))
@@ -497,42 +628,35 @@ describe('Proposals from photos (CP-05)', () => {
     expect(
       screen.getByText('The photo service could not interpret the photos.'),
     ).toBeInTheDocument()
-    click('Retry interpretation')
+    click('Retry')
 
     await vi.waitFor(() =>
       expect(calls).toEqual([
         { method: 'POST', url: '/api/observations/o7/interpretation', body: undefined },
       ]),
     )
-    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+    expect(await screen.findByText('Reading this observation…')).toBeInTheDocument()
   })
 
-  it('reads the photos only when the engineer asks (AC7)', async () => {
-    const UNSENT = 'Riser room door wedged open.'
-    listed = [
-      observation({
-        id: 'o8',
-        note: UNSENT,
-        photos: [{ ...PHOTO, url: '/api/observations/o8/photos/p1/image' }],
-      }),
-    ]
+  it('reads any observation, photos or not, only when the engineer asks (AC7)', async () => {
+    listed = [NOTE_ONLY]
     await openObservations()
     // Nothing is running, so nothing is badged.
-    expect(within(row(UNSENT)).getByText('Complete')).toBeInTheDocument()
-    fireEvent.click(row(UNSENT))
+    expect(within(row(NOTE)).getByText('Complete')).toBeInTheDocument()
+    fireEvent.click(row(NOTE))
 
-    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    const proposal = screen.getByRole('region', { name: 'Proposal from this observation' })
     expect(within(proposal).getByText(/^Not read yet\./)).toBeInTheDocument()
     expect(within(proposal).queryByText('AI proposal')).not.toBeInTheDocument()
     expect(calls).toEqual([])
-    click('Read photos')
+    click('Get AI proposal')
 
     await vi.waitFor(() =>
       expect(calls).toEqual([
-        { method: 'POST', url: '/api/observations/o8/interpretation', body: undefined },
+        { method: 'POST', url: '/api/observations/o1/interpretation', body: undefined },
       ]),
     )
-    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+    expect(await screen.findByText('Reading this observation…')).toBeInTheDocument()
   })
 
   it('labels the sample assessment’s proposal as a sample, not a reading', async () => {
@@ -540,11 +664,11 @@ describe('Proposals from photos (CP-05)', () => {
     await openObservations()
     fireEvent.click(row(RACKING))
 
-    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    const proposal = screen.getByRole('region', { name: 'Proposal from this observation' })
     expect(within(proposal).getByText('Sample proposal')).toBeInTheDocument()
     expect(
       within(proposal).getByText(
-        'No capture session, so this is a sample proposal, not a reading of the photos.',
+        'No capture session, so this is a sample proposal, not a reading of this observation.',
       ),
     ).toBeInTheDocument()
   })
@@ -901,15 +1025,15 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(screen.queryByRole('button', { name: 'Remove IMG_0460.jpg' })).not.toBeInTheDocument()
   })
 
-  it('marks a reading of photos since changed as out of date, and reads them again', async () => {
+  it('marks a reading of photos since changed as out of date, and reads it again', async () => {
     listed = [
       {
         ...photographed('o6', PROPOSAL, {
           description: PROPOSED,
-          copeDimension: 'Protection',
           hazardType: 'Sprinkler Installation',
           model: 'gemini-3.8-flash',
           photoIds: ['p0'],
+          items: [{ label: 'IMG_0400.jpg', kind: 'photo', id: 'p0', leftOut: false }],
           outOfDate: true,
         }),
         removedPhotos: [
@@ -926,20 +1050,20 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     await openObservations()
     fireEvent.click(row(PROPOSAL))
 
-    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
-    expect(within(proposal).getByText('Read from an earlier set of photos')).toBeInTheDocument()
+    const proposal = screen.getByRole('region', { name: 'Proposal from this observation' })
+    expect(within(proposal).getByText('Read from earlier evidence')).toBeInTheDocument()
     // It names the photo it read, now removed.
     expect(
       within(proposal).getByRole('button', { name: 'IMG_0400.jpg' }).parentElement,
     ).toHaveTextContent('Read from IMG_0400.jpg (removed)')
-    click('Read again')
+    click('Get new proposal')
 
     await vi.waitFor(() =>
       expect(calls).toEqual([
         { method: 'POST', url: '/api/observations/o6/interpretation', body: undefined },
       ]),
     )
-    expect(await screen.findByText('Interpreting the photos…')).toBeInTheDocument()
+    expect(await screen.findByText('Reading this observation…')).toBeInTheDocument()
   })
 
   it('adds, removes and restores media of a sample observation in this demo only', async () => {

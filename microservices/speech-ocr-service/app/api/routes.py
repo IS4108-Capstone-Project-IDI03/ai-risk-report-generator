@@ -1,5 +1,7 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.processors.handwriting import HandwritingError, transcribe_page
 from app.processors.stt import TranscriptionError, transcribe
@@ -12,11 +14,32 @@ class S3KeyRequest(BaseModel):
     s3_key: str
 
 
-# One observation's photos, with what the engineer recorded about where and what (CP-05).
+class PhotoItem(BaseModel):
+    label: str = Field(min_length=1)
+    s3_key: str
+
+
+class TextItem(BaseModel):
+    label: str = Field(min_length=1)
+    kind: Literal["note", "recording", "page"]
+    text: str = Field(min_length=1)
+
+
+# Everything the engineer captured about one finding, each item by the name the proposal cites
+# it by (CP-05, CP-21), with where it was found.
 class InterpretRequest(BaseModel):
-    s3_keys: list[str] = Field(min_length=1)
+    photos: list[PhotoItem] = []
+    texts: list[TextItem] = []
     location: str | None = None
-    note: str | None = None
+
+    @model_validator(mode="after")
+    def has_evidence(self):
+        if not self.photos and not self.texts:
+            raise ValueError("There is nothing to read: no photo, note or transcript.")
+        labels = [item.label for item in (*self.photos, *self.texts)]
+        if len(set(labels)) != len(labels):
+            raise ValueError("Each item needs its own label.")
+        return self
 
 
 @router.get("/health")
@@ -34,10 +57,14 @@ def transcribe_audio(request: S3KeyRequest) -> dict:
 
 
 @router.post("/interpret")
-def interpret_photos(request: InterpretRequest) -> dict:
+def interpret_observation(request: InterpretRequest) -> dict:
     # The gateway stores the proposal and shows `detail` to the engineer on failure.
     try:
-        return interpret(request.s3_keys, request.location, request.note)
+        return interpret(
+            [p.model_dump() for p in request.photos],
+            [t.model_dump() for t in request.texts],
+            request.location,
+        )
     except InterpretationError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 

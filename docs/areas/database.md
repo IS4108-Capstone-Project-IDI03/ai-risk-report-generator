@@ -403,30 +403,49 @@ have no `photos` field, which reads treat as none. Drafting does not read
 photos yet, so an observation that is only photos is not usable evidence and
 doesn't count toward a section's minimum.
 
-An observation with photos gains an `interpretation` (CP-05) once an engineer
-asks for its photos to be read: what the vision model proposes from all its
-photos together, for the engineer to review. Saving never reads them, so a
-client's site photos reach the vision model only by an engineer's choice. Its
-`status` is `interpreting`, `interpreted` (with `description`, a
-proposed `copeDimension` and a `hazardType`) or `failed` (with `error`, S5's
-reason, which the API turns into a readable one). `attempts` records each run
-as for a recording, and `provenance` records the `provider`, `model`,
-`promptVersion`, token `usage` (`inputTokens`, `outputTokens`,
-`thoughtTokens`, or null when not reported, EV-03) and `interpretedAt`.
-Asking creates it with one attempt, or adds one while it is `failed`, matched
-atomically so two clicks start one reading. Until then it has no
-`interpretation`, and the API returns `null`, as it does while no photo is
-kept. Each attempt records the photos it reads in `photoIds` (CP-08). A
-finished reading whose `photoIds` differ from the photos kept now, because
-photos were added or removed since, is out of date: the API returns
-`outOfDate: true`, nothing reads the photos again by itself, and asking again
-reads the kept ones, clearing the old proposal while it runs. A reading from
-before photos could change has no `photoIds` and counts as reading every photo
-the observation was saved with (those without `added`). The proposal is not drafting
-evidence: `toEvidence` never reads it, drafting does not wait for it, and it
-does not count towards `changesSinceDraft`. It becomes the engineer's only
-when they save it into the note or the categories through `PATCH`; the
-Observations tab's Add category adds the proposed one to those it has. The Photos tab lists every photo of
+An observation gains an `interpretation` (CP-05, CP-21) once an engineer asks
+for it to be read: what the model proposes from everything captured in it, for
+the engineer to review. Saving never reads it, so a client's notes and site
+photos reach the model only by an engineer's choice. Its `status` is
+`interpreting`, `interpreted` or `failed` (with `error`, S5's reason, which the
+API turns into a readable one). An interpreted one has `categories`, the
+proposed COPE categories, each with a `reason` and `evidence`: the `item` it
+rests on, by label, any `quote` from it, and `verified`, whether the gateway
+found the quote in that item (null for a photo, which has no words). With
+photos it also has a `description` and `hazardType`; a reading without photos
+has neither. A reading from before CP-21 has one `copeDimension` instead of
+`categories`, which the API returns as a list of one with no reason.
+`attempts` records each run as for a recording, and `provenance` records the
+`provider`, `model`, `promptVersion`, token `usage` (`inputTokens`,
+`outputTokens`, `thoughtTokens`, or null when not reported, EV-03) and
+`interpretedAt`. Asking creates it with one attempt, or adds one while it is
+`failed`, out of date, or whenever the engineer asks for another proposal, matched
+atomically so two clicks start one reading;
+it is refused while a recording or page is still transcribing, or when there
+is nothing to read. Until then it has no `interpretation`, and the API returns
+`null`.
+
+Each attempt records what it reads in `items` (CP-21): each a `label` (the
+note's is `Note`; a recording, page or photo has its own name, a repeated one
+numbered), `kind` (`note`, `recording`, `page` or `photo`), `id` (absent for
+the note) and `text`: the note, or the transcript read (the engineer's
+correction where there is one), null for a recording or page left out for
+having no transcript, absent for a photo. It also records the photos in
+`photoIds` (CP-08). A finished reading whose items differ from what the
+observation holds now is out of date: the API returns `outOfDate: true`. A
+recording, page or photo added or removed, or a transcript changed, makes it
+out of date; so does a note edit, unless the only change is the proposal's
+`description` added as Use as note writes it (the note, a blank line, then the
+description). Nothing reads it again by itself; asking again reads what it
+holds then, clearing the old proposal while it runs. A reading from before
+CP-21 has no `items` and is judged by its photos, and is out of date once the
+observation has a recording or page transcript it never read; one from before photos
+could change has no `photoIds` either and counts as reading every photo the
+observation was saved with (those without `added`). The proposal is not
+drafting evidence: `toEvidence` never reads it, drafting does not wait for it,
+and it does not count towards `changesSinceDraft`. It becomes the engineer's
+only when they save it into the note or the categories through `PATCH`; on the
+Observations tab each Add adds one proposed category to those it has. The Photos tab lists every photo of
 the assessment's observations not deleted (CP-04 AC3), the collection the
 report's photo appendix (EX-01) is to draw on; like the Observations tab's
 filters, it is built in the browser from the observation list.
@@ -461,7 +480,7 @@ none.
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, copeDimension, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until its photos are read, CP-05), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, hazardType, categories, error, attempts, model, photoIds, items, outOfDate }`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
@@ -470,7 +489,7 @@ none.
 | `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId` | Removes one, a soft removal (CP-08). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
 | `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |
-| `POST /api/observations/:id/interpretation` | Reads the observation's kept photos (CP-05): the first reading, a new one after a failure, or after photos were added or removed (CP-08). Saving never reads them. 202, or 404 (unknown observation) / 409 (no photos, deleted, already being read, or read and up to date) |
+| `POST /api/observations/:id/interpretation` | Reads the observation (CP-05, CP-21): its note, transcripts and kept photos, for proposed categories and, with photos, a description and hazard type. The first reading, or a new one replacing it at any time: after a failure, after what it holds changed (CP-08), or for another proposal. Saving never reads it. 202, or 404 (unknown observation) / 409 (a recording or page still transcribing, nothing to read, deleted, or already being read) |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 | `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
 | `POST /api/observations/:id/pages/:pageId/transcription/retry` | New attempt for a failed handwritten page (CP-19 AC11): 202, or 404 / 409 (not failed) |

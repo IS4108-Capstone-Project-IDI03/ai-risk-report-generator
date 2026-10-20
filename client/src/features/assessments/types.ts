@@ -1,4 +1,12 @@
-import type { Assessment, InterpretationStatus, MediaKind, Stamp, TranscriptionStatus } from './api'
+import type {
+  Assessment,
+  InterpretationStatus,
+  MediaKind,
+  ProposedCategory,
+  ReadItemKind,
+  Stamp,
+  TranscriptionStatus,
+} from './api'
 
 export type AssessmentRow = {
   engineerId?: string | null
@@ -63,20 +71,31 @@ export type Observation = {
   // Transcribing, Interpreting, Transcription failed, Interpretation failed or
   // Complete (CP-08, CP-05).
   status?: string
-  // What the vision model proposes from its photos (CP-05). A sample one is
-  // the demo's stand-in when no capture session is live, not a real reading.
+  // What the model proposes from it (CP-05, CP-21). A sample one is the
+  // demo's stand-in when no capture session is live, not a real reading.
   interpretation?: {
     status: InterpretationStatus
+    // From its photos; null for a reading without them.
     description: string | null
-    category: string | null
     hazardType: string | null
+    categories: ProposedCategory[]
     error: string | null
     model: string | null
     sample?: boolean
-    // Photos were added or removed since it was read (CP-08).
+    // What it holds changed since it was read (CP-08, CP-21).
     outOfDate?: boolean
-    // The photos it read, when known, marking any since removed.
-    readFrom?: { name: string; url: string | null; removed: boolean }[]
+    // What it read, when known: each item by the label its evidence cites,
+    // with where to open it, whether it was left out or since removed, and
+    // whether no proposed category cites it.
+    readFrom?: {
+      label: string
+      kind: ReadItemKind
+      id: string | null
+      url: string | null
+      leftOut: boolean
+      removed: boolean
+      notCited: boolean
+    }[]
   } | null
   // The latest change to it, and its deletion (CP-08).
   edited?: Stamp | null

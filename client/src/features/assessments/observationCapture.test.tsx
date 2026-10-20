@@ -280,7 +280,7 @@ describe('Capturing site photographs (CP-04)', () => {
   })
 })
 
-describe('Reading photos only when asked (CP-05)', () => {
+describe('Reading an observation only when asked (CP-05, CP-21)', () => {
   it('keeps demo photos unread until asked, then shows a labelled sample', async () => {
     // No gateway: capture and the Observations tab stay in the demo.
     const sent: string[] = []
@@ -306,14 +306,15 @@ describe('Reading photos only when asked (CP-05)', () => {
 
     leave()
     fireEvent.click(screen.getByRole('button', { name: /1 photograph captured at Bay 3/ }))
-    const proposal = screen.getByRole('region', { name: 'Proposal from the photos' })
+    const proposal = screen.getByRole('region', { name: 'Proposal from this observation' })
     expect(within(proposal).getByText(/^Not read yet\./)).toBeInTheDocument()
-    click('Read photos')
+    click('Get AI proposal')
 
-    expect(within(proposal).getByText('Sample proposal')).toBeInTheDocument()
-    expect(within(proposal).getByText('Interpreting the photos…')).toBeInTheDocument()
+    const reading = screen.getByRole('region', { name: 'Proposal from this observation' })
+    expect(within(reading).getByText('Sample proposal')).toBeInTheDocument()
+    expect(within(reading).getByText('Reading this observation…')).toBeInTheDocument()
     expect(
-      await within(proposal).findByText(/it was observed that/, {}, { timeout: 4000 }),
+      await screen.findByText(/it was observed that/, {}, { timeout: 4000 }),
     ).toBeInTheDocument()
     // Only the attempt to start a capture session; the photos went nowhere.
     expect(sent).toEqual([CAPTURE_URL])

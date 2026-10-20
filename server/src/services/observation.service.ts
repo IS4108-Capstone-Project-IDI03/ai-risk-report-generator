@@ -13,8 +13,10 @@ import {
   type IObservation,
   type IPage,
   type IPhoto,
+  type IReadItem,
   type IRecording,
   type IStamp,
+  type ReadItemKind,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
 import { recordAiCalls, visionUsageToWire } from './ai-usage.service'
@@ -251,21 +253,37 @@ export type ObservationDto = {
   // Removed ones, with who removed them and when, to restore (CP-08).
   removedRecordings: (RecordingDto & { removed: StampDto })[]
   removedPhotos: (PhotoDto & { removed: StampDto })[]
-  // What the vision model proposes from its photos (CP-05), for the engineer
-  // to review; null until an engineer asks for its photos to be read, and
-  // while none is left.
+  // What the model proposes from it (CP-05, CP-21), for the engineer to
+  // review; null until an engineer asks for it to be read.
   interpretation: {
     status: IInterpretation['status']
+    // From its photos; null for a reading without them.
     description: string | null
-    copeDimension: CopeDimension | null
     hazardType: string | null
+    // The proposed categories, each with what it rests on. A reading from
+    // before CP-21 proposed one, with no reason.
+    categories: {
+      category: CopeDimension
+      reason: string | null
+      evidence: {
+        item: string
+        quote: string | null
+        // null for a photo, which has no words to check.
+        verified: boolean | null
+      }[]
+    }[]
     error: string | null
     attempts: number
     // The model that wrote it.
     model: string | null
     // The photos it reads (CP-08), removed ones included.
     photoIds: string[]
-    // A finished reading of photos other than those it has now (CP-08).
+    // Everything it reads, by the labels its evidence cites (CP-21); a
+    // recording or page with no transcript is listed as left out.
+    items: { label: string; kind: ReadItemKind; id: string | null; leftOut: boolean }[]
+    // A finished reading of something other than what it has now: photos,
+    // recordings or pages added or removed, a transcript changed, or the note
+    // edited other than by taking in the proposal's description (CP-08, CP-21).
     outOfDate: boolean
   } | null
   // When it was captured (CP-02 AC2).
@@ -313,15 +331,25 @@ function pageFailureReason(error?: string): string | null {
   return error.length > 200 ? 'Transcription failed. Please retry or contact support.' : error
 }
 
-// The same for interpreting photos (CP-05), from S5's message prefixes
-// (microservices/speech-ocr-service/app/processors/vision.py).
+// The same for reading an observation (CP-05, CP-21), from S5's message
+// prefixes (microservices/speech-ocr-service/app/processors/vision.py).
 function interpretationFailureReason(error?: string): string | null {
   if (!error) return null
   if (error.startsWith('The photo could not be read from storage:'))
     return 'A photo could not be read from storage.'
   if (error.startsWith('The photo could not be opened:')) return 'A photo could not be opened.'
-  if (error.startsWith('The photos could not be interpreted:'))
-    return 'The photo service could not interpret the photos.'
+  if (
+    error.startsWith('The observation could not be read:') ||
+    // Stored by readings from before CP-21.
+    error.startsWith('The photos could not be interpreted:')
+  ) {
+    // The provider's own status, when it says why, as for a handwritten page.
+    if (/Error code: 429|rate limit|quota/i.test(error))
+      return 'The AI service has reached its usage limit. Try again later.'
+    if (/Error code: 503|high demand|overloaded/i.test(error))
+      return 'The AI service is busy. Try again in a minute.'
+    return 'The AI service could not read this observation.'
+  }
   return error.length > 200 ? 'Interpretation failed. Please retry or contact support.' : error
 }
 
@@ -335,13 +363,141 @@ function readPhotoIds(o: StoredObservation): string[] {
     o.interpretation?.photoIds ?? (o.photos ?? []).filter((p) => !p.added).map((p) => p._id)
   return ids.map(String)
 }
-// A finished reading of a set of photos other than the ones kept now (CP-08):
-// photos were added or removed since it was read.
+
+// A transcript a reading can use: the engineer's correction of a recording's
+// where there is one (CP-08 AC5), and none while it is still transcribing,
+// failed, or empty (a page with no handwriting).
+function readableText(t: IRecording['transcription'] | IPage['transcription']): string | null {
+  if (t.status !== 'transcribed') return null
+  const text = ('correction' in t && t.correction?.text) || t.transcript
+  return text?.trim() ? text : null
+}
+
+// Everything an observation holds for a reading to read (CP-21), each under
+// the label its proposal will cite it by: the note, then its recordings, pages
+// and photos not removed, by their own names, a repeated name numbered.
+function readingItems(o: StoredObservation): IReadItem[] {
+  const items: IReadItem[] = [
+    ...(o.note?.trim() ? [{ label: 'Note', kind: 'note' as const, text: o.note }] : []),
+    ...kept(o.recordings).map((r) => ({
+      label: r.name,
+      kind: 'recording' as const,
+      id: r._id,
+      text: readableText(r.transcription),
+    })),
+    ...(o.pages ?? []).map((p) => ({
+      label: p.name,
+      kind: 'page' as const,
+      id: p._id,
+      text: readableText(p.transcription),
+    })),
+    ...kept(o.photos ?? []).map((p) => ({ label: p.name, kind: 'photo' as const, id: p._id })),
+  ]
+  const seen = new Map<string, number>()
+  return items.map((item) => {
+    const count = (seen.get(item.label) ?? 0) + 1
+    seen.set(item.label, count)
+    return count === 1 ? item : { ...item, label: `${item.label} (${count})` }
+  })
+}
+
+// Whether what an observation holds now differs from what a reading read
+// (CP-21): any recording, page or photo added or removed, a transcript
+// changed, or the note changed. Taking the proposal's description into the
+// note, as Use as note writes it, is not a change: it came from the reading.
+function itemsChanged(read: IReadItem[], now: IReadItem[], description?: string): boolean {
+  const key = (item: IReadItem) => `${item.kind}:${item.id ?? ''}`
+  const evidence = (items: IReadItem[]) => items.filter((item) => item.kind !== 'note')
+  const before = new Map(evidence(read).map((item) => [key(item), item.text ?? null]))
+  const after = evidence(now)
+  if (
+    after.length !== before.size ||
+    after.some((item) => !before.has(key(item)) || before.get(key(item)) !== (item.text ?? null))
+  )
+    return true
+  const noteOf = (items: IReadItem[]) => items.find((item) => item.kind === 'note')?.text ?? ''
+  const noteBefore = noteOf(read)
+  const noteNow = noteOf(now)
+  if (noteNow === noteBefore) return false
+  return !description || noteNow !== (noteBefore ? `${noteBefore}\n\n${description}` : description)
+}
+
+// A finished reading of something other than what the observation holds now.
+// A reading from before CP-21 read only its photos and note: it is judged by
+// its photos (CP-08), and is out of date once there is a transcript it never
+// read, so the engineer can ask for one that reads it.
 function readingOutOfDate(o: StoredObservation): boolean {
   if (o.interpretation?.status !== 'interpreted') return false
+  const now = readingItems(o)
+  if (o.interpretation.items)
+    return itemsChanged(o.interpretation.items, now, o.interpretation.description)
   const read = readPhotoIds(o)
-  const now = kept(o.photos ?? []).map((p) => String(p._id))
-  return read.length !== now.length || now.some((id) => !read.includes(id))
+  const photos = now.filter((item) => item.kind === 'photo').map((item) => String(item.id))
+  return (
+    read.length !== photos.length ||
+    photos.some((id) => !read.includes(id)) ||
+    now.some((item) => (item.kind === 'recording' || item.kind === 'page') && item.text)
+  )
+}
+
+// Curly quotes and long dashes as typed on a phone, read as their plain forms.
+const PLAIN: Record<string, string> = { '‘': "'", '’': "'", '“': '"', '”': '"', '–': '-', '—': '-' }
+const plain = (text: string) =>
+  text
+    .replace(/[‘’“”–—]/g, (c) => PLAIN[c])
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+// Spaces and ASCII punctuation at a quote's edges, as Python's string.punctuation.
+const EDGES = /^[\s!-/:-@[-`{-~]+|[\s!-/:-@[-`{-~]+$/g
+
+// Whether a quote appears in an item's text (CP-21): case, spacing, curly
+// quotes and punctuation at its edges aside. The category eval checks quotes
+// the same way (speech-ocr-service/eval/suggest_categories.py).
+export function quoteFound(quote: string | null | undefined, text: string): boolean {
+  const words = plain(quote ?? '').replace(EDGES, '')
+  return !!words && plain(text).includes(words)
+}
+
+function interpretationDto(
+  o: StoredObservation,
+  reading: IInterpretation,
+): NonNullable<ObservationDto['interpretation']> {
+  // A reading from before CP-21 read the note and photos, and proposed one
+  // category with no reason.
+  const items =
+    reading.items ??
+    (o.photos ?? [])
+      .filter((p) => readPhotoIds(o).includes(String(p._id)))
+      .map((p) => ({ label: p.name, kind: 'photo' as const, id: p._id }))
+  const categories =
+    reading.categories?.map((c) => ({
+      category: c.category,
+      reason: c.reason,
+      evidence: c.evidence.map((e) => ({
+        item: e.item,
+        quote: e.quote ?? null,
+        verified: e.verified ?? null,
+      })),
+    })) ??
+    (reading.copeDimension ? [{ category: reading.copeDimension, reason: null, evidence: [] }] : [])
+  return {
+    status: reading.status,
+    description: reading.description ?? null,
+    hazardType: reading.hazardType ?? null,
+    categories,
+    error: interpretationFailureReason(reading.error),
+    attempts: reading.attempts.length,
+    model: reading.provenance?.model ?? null,
+    photoIds: readPhotoIds(o),
+    items: items.map((item) => ({
+      label: item.label,
+      kind: item.kind,
+      id: item.id ? String(item.id) : null,
+      leftOut: item.kind !== 'note' && item.kind !== 'photo' && !item.text,
+    })),
+    outOfDate: readingOutOfDate(o),
+  }
 }
 
 function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
@@ -409,20 +565,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     removedPhotos: photos
       .filter((p) => p.removed)
       .map((p) => ({ ...photo(p), removed: stampDto(p.removed)! })),
-    interpretation:
-      o.interpretation && keptPhotos.length
-        ? {
-            status: o.interpretation.status,
-            description: o.interpretation.description ?? null,
-            copeDimension: o.interpretation.copeDimension ?? null,
-            hazardType: o.interpretation.hazardType ?? null,
-            error: interpretationFailureReason(o.interpretation.error),
-            attempts: o.interpretation.attempts.length,
-            model: o.interpretation.provenance?.model ?? null,
-            photoIds: readPhotoIds(o),
-            outOfDate: readingOutOfDate(o),
-          }
-        : null,
+    interpretation: o.interpretation ? interpretationDto(o, o.interpretation) : null,
     recordedAt: o.createdAt,
     edited: stampDto(o.edited),
     deleted: stampDto(o.deleted),
@@ -448,8 +591,8 @@ async function activeCapture(reference: string) {
 // against the assessment's active capture session. Each recording, photo and
 // page goes to S3 as raw evidence (CP-03 AC1, CP-04 AC1, CP-19 AC1), and each
 // recording and page starts its initial transcription (CP-03 AC3, CP-19 AC6).
-// The photos are not read: no photo goes to the vision model until an engineer
-// asks (readPhotos). The session stays active, so the engineer can keep adding
+// Nothing is read: nothing goes to the model until an engineer asks
+// (readObservation). The session stays active, so the engineer can keep adding
 // observations.
 export async function saveObservation(
   reference: string,
@@ -1107,26 +1250,35 @@ export async function failInterruptedTranscriptions() {
   }
 }
 
-// Reads an observation's photos when an engineer asks (CP-05): saving never
-// sends a photo to the vision model, so a client's site photos leave the
-// system only by choice. Starts the first reading, a new one after a failure,
-// or one of the photos it has now once photos were added or removed since the
-// last (CP-08). Each reading records which photos it reads. Matching on the
-// state it found makes it atomic, so a double click cannot start two.
-export async function readPhotos(id: string): Promise<void> {
+// Reads an observation when an engineer asks (CP-05, CP-21): saving never
+// sends anything to the model, so a client's notes and site photos leave the
+// system only by choice. Starts the first reading, or a new one of what it
+// holds now, replacing the last: after a failure, once what it holds changed
+// (CP-08), or whenever the engineer wants another proposal (CP-21). Each
+// reading records everything it reads. It waits for transcriptions still
+// running, and leaves out a recording or page with no transcript. Matching on
+// the state it found makes it atomic, so a double click cannot start two.
+export async function readObservation(id: string): Promise<void> {
   if (!isValidObjectId(id)) throw new ObservationNotFoundError()
   const o = await ObservationModel.findById(
     id,
-    'photos interpretation deleted',
+    'note recordings pages photos interpretation deleted',
   ).lean<StoredObservation>()
   if (!o) throw new ObservationNotFoundError()
   if (o.deleted) throw new ObservationStateError(DELETED)
-  const photoIds = kept(o.photos ?? []).map((p) => p._id)
-  if (!photoIds.length) throw new ObservationStateError('This observation has no photos to read.')
+  const transcribing = [...kept(o.recordings), ...(o.pages ?? [])].some(
+    (item) => item.transcription.status === 'transcribing',
+  )
+  if (transcribing)
+    throw new ObservationStateError(
+      'Its recordings and pages are still being transcribed. Try again once they finish.',
+    )
+  const items = readingItems(o)
+  if (!items.some((item) => item.kind === 'photo' || item.text))
+    throw new ObservationStateError('This observation has nothing to read yet.')
+  const photoIds = items.filter((item) => item.kind === 'photo').map((item) => item.id!)
   const status = o.interpretation?.status
-  if (status === 'interpreted' && !readingOutOfDate(o))
-    throw new ObservationStateError('Its photos have already been read.')
-  const reading = 'Its photos are already being read.'
+  const reading = 'It is already being read.'
   if (status === 'interpreting') throw new ObservationStateError(reading)
 
   const attempt = { startedAt: new Date() }
@@ -1138,32 +1290,42 @@ export async function readPhotos(id: string): Promise<void> {
     },
     status
       ? {
-          $set: { 'interpretation.status': 'interpreting', 'interpretation.photoIds': photoIds },
-          // A proposal always matches the photos its reading names.
+          $set: {
+            'interpretation.status': 'interpreting',
+            'interpretation.photoIds': photoIds,
+            'interpretation.items': items,
+          },
+          // A proposal always matches what its reading names.
           $unset: {
             'interpretation.error': 1,
             'interpretation.description': 1,
+            'interpretation.categories': 1,
             'interpretation.copeDimension': 1,
             'interpretation.hazardType': 1,
             'interpretation.provenance': 1,
           },
           $push: { 'interpretation.attempts': attempt },
         }
-      : { $set: { interpretation: { status: 'interpreting', attempts: [attempt], photoIds } } },
+      : {
+          $set: {
+            interpretation: { status: 'interpreting', attempts: [attempt], photoIds, items },
+          },
+        },
   )
   // Someone else started one between the read and the write.
   if (!matchedCount) throw new ObservationStateError(reading)
   void runInterpretation(id)
 }
 
-// Runs the latest attempt at reading the observation's photos and records the
-// proposal (CP-05 AC3-AC5), once an engineer has asked (readPhotos). It reads
-// the photos the attempt names (CP-08), so photos added or removed while it
-// runs leave it reading the set it started with. Never throws: a failure is
-// stored as the reason the engineer sees. The vision model is told where the
-// photos were taken and what the note says, but not the engineer's category or
-// severity, so its proposed category is its own. The proposal is not drafting
-// evidence, so a draft never reads it and never goes out of date because of it.
+// Runs the latest attempt at reading an observation and records the proposal
+// (CP-05 AC3-AC5, CP-21), once an engineer has asked (readObservation). It
+// reads what the attempt names, so a change made while it runs leaves it
+// reading what it started with. Never throws: a failure is stored as the
+// reason the engineer sees. The model is told where the finding was made and
+// everything captured about it, but not the engineer's categories or severity,
+// so its proposed categories are its own. Each quote it gives is checked
+// against the item it names. The proposal is not drafting evidence, so a draft
+// never reads it and never goes out of date because of it.
 // ponytail: runs in the gateway process, like runTranscription.
 export async function runInterpretation(id: string): Promise<void> {
   const observation = await ObservationModel.findById(
@@ -1172,9 +1334,17 @@ export async function runInterpretation(id: string): Promise<void> {
   )
     .lean<StoredObservation>()
     .catch(() => null)
-  const read = observation && readPhotoIds(observation)
-  const photos = (observation?.photos ?? []).filter((p) => read?.includes(String(p._id)))
-  if (!observation?.interpretation || !photos.length) return
+  const items = observation?.interpretation?.items ?? []
+  const photos = items.flatMap((item) => {
+    const photo = item.kind === 'photo' && observation!.photos?.find((p) => p._id.equals(item.id!))
+    return photo ? [{ label: item.label, s3Key: photo.key }] : []
+  })
+  const texts = items.flatMap((item) =>
+    item.kind !== 'photo' && item.text
+      ? [{ label: item.label, kind: item.kind, text: item.text }]
+      : [],
+  )
+  if (!observation?.interpretation || (!photos.length && !texts.length)) return
   const assessment = await AssessmentModel.findById(observation.assessment, 'locations reference')
     .lean()
     .catch(() => null)
@@ -1184,19 +1354,38 @@ export async function runInterpretation(id: string): Promise<void> {
   try {
     const started = performance.now()
     const result = await interpret({
-      s3Keys: photos.map((p) => p.key),
+      photos,
+      texts,
       location: place ? locationText(place) : null,
-      note: observation.note ?? null,
     })
     // EV-03: the paid call, tagged with the assessment. Never throws.
     await recordAiCalls(visionUsageToWire(result, performance.now() - started), {
       reportId: assessment?.reference,
     })
+    const textOf = new Map(texts.map((t) => [t.label, t.text]))
+    const photoLabels = new Set(photos.map((p) => p.label))
     outcome = {
       'interpretation.status': 'interpreted',
-      'interpretation.description': result.description,
-      'interpretation.copeDimension': result.cope_dimension,
-      'interpretation.hazardType': result.hazard_type,
+      ...(result.description && { 'interpretation.description': result.description }),
+      ...(result.hazard_type && { 'interpretation.hazardType': result.hazard_type }),
+      'interpretation.categories': result.categories
+        .filter((c): c is typeof c & { category: CopeDimension } =>
+          (COPE_DIMENSIONS as readonly string[]).includes(c.category),
+        )
+        .map((c) => ({
+          category: c.category,
+          reason: c.reason,
+          evidence: c.evidence.map((e) =>
+            // A photo has no words: any quote given for one is dropped.
+            photoLabels.has(e.item)
+              ? { item: e.item, verified: null }
+              : {
+                  item: e.item,
+                  ...(e.quote && { quote: e.quote }),
+                  verified: textOf.has(e.item) && quoteFound(e.quote, textOf.get(e.item)!),
+                },
+          ),
+        })),
       'interpretation.provenance': {
         provider: result.provider,
         model: result.model,

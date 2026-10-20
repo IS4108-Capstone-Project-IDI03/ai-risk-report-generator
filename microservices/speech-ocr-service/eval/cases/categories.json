@@ -1,0 +1,208 @@
+{
+  "_about": "Observations with the COPE categories they concern, to score category suggestions (CP-21 AC10) against. Drafted 2026-10-20 from the team's labelled field notes in microservices/rag-service/eval (each case's `from` names the one it came from), retold as a typed note, a voice transcript or a handwritten page, plus combined cases the notes don't have. `expected` is what the case must be filed under; `also_fine` is what a reasonable engineer could add, so proposing it isn't wrong. DRAFT: to be checked by an engineer before the first scored run, and real captures added as they come.",
+  "cases": [
+    {
+      "id": "hosereel-valves-note",
+      "from": "rag-service eval/ofi_cases/mixed-1-ofis.json mix1-ofi-4",
+      "location": "L43 hosereel pump room",
+      "texts": [
+        { "label": "Note", "kind": "note", "text": "hosereel firewater supply valves not locked open" }
+      ],
+      "expected": ["Protection"]
+    },
+    {
+      "id": "switch-room-storage-voice",
+      "from": "rag-service eval/ofi_cases/mixed-1-ofis.json mix1-ofi-5",
+      "location": "L22M LV switch room",
+      "texts": [
+        {
+          "label": "Recording 1",
+          "kind": "recording",
+          "text": "Okay so in the L22M LV switch room and the MDF room next door there are tables, tools and quite a lot of cardboard boxes being stored inside."
+        }
+      ],
+      "expected": ["Occupancy"]
+    },
+    {
+      "id": "genset-day-tank-page",
+      "from": "rag-service eval/ofi_cases/mixed-1-ofis.json mix1-ofi-3",
+      "location": "Generator set P04",
+      "texts": [
+        {
+          "label": "Page 1",
+          "kind": "page",
+          "text": "P04 genset\nday tank < 25%\ntopped up manually\nno level check procedure"
+        }
+      ],
+      "expected": ["Occupancy"]
+    },
+    {
+      "id": "construction-site-across-road",
+      "from": "rag-service eval/cases/office-5-s4-risk-quality.json off5-22",
+      "location": "Site boundary",
+      "texts": [
+        {
+          "label": "Note",
+          "kind": "note",
+          "text": "construction site to the S across the road - 2 tower cranes, hot works on going. approx 40 m from our facade"
+        }
+      ],
+      "expected": ["Exposure"]
+    },
+    {
+      "id": "plant-room-below-flood-level",
+      "from": "rag-service eval/cases/office-5-s4-risk-quality.json off5-25",
+      "location": "Basement 3 plant room",
+      "texts": [
+        {
+          "label": "Note",
+          "kind": "note",
+          "text": "B3 plant room + transformers in B1 below flood level. sump pumps x2 in B3, on genset supply, but no high water alarm to FCC"
+        }
+      ],
+      "expected": ["Exposure"],
+      "also_fine": ["Occupancy", "Protection"]
+    },
+    {
+      "id": "riser-fire-stopping-voice",
+      "from": "rag-service eval/cases/office-5-s4-risk-quality.json off5-6",
+      "location": "Risers",
+      "texts": [
+        {
+          "label": "Recording 1",
+          "kind": "recording",
+          "text": "The telecom risers are triple volume and they're fire stopped every three floors, the ones we saw were okay. Riser doors are one hour rated."
+        }
+      ],
+      "expected": ["Construction"],
+      "also_fine": ["Protection"]
+    },
+    {
+      "id": "shut-valve-and-unsealed-penetration",
+      "from": "drafted: one finding that concerns two categories",
+      "location": "L43 valve room",
+      "texts": [
+        { "label": "Note", "kind": "note", "text": "Valve room L43" },
+        {
+          "label": "Recording 1",
+          "kind": "recording",
+          "text": "Main sprinkler control valve found shut, no lock or tag on it. Also the wall penetration behind it, where the pipe goes through, isn't sealed."
+        }
+      ],
+      "expected": ["Protection", "Construction"]
+    },
+    {
+      "id": "no-bcp-for-building",
+      "from": "rag-service eval/cases/office-5-s4-risk-quality.json off5-20",
+      "location": "Whole building",
+      "texts": [
+        {
+          "label": "Note",
+          "kind": "note",
+          "text": "multi-tenant office, ~4000 occupants. building ERP exists, reviewed 2025, fire drill twice a yr. no BCP for the building itself - left to tenants."
+        }
+      ],
+      "expected": ["Occupancy", "Exposure"],
+      "also_fine": ["Protection"]
+    },
+    {
+      "id": "recessed-sprinklers-photo",
+      "from": "rag-service eval/ofi_cases/office-5-ofis.json off5-ofi-2, with its photo from Office Sample 5 p.10",
+      "location": "B3 service corridor",
+      "texts": [
+        {
+          "label": "Note",
+          "kind": "note",
+          "text": "few spk heads recessed more than 50% into ceiling at B3 service corridor"
+        }
+      ],
+      "photos": [
+        {
+          "label": "Photo 1",
+          "source": {
+            "pdf": "microservices/ingestion-service/tests/test_files/Office Sample 5 - PRE 2026 - REDACTED.pdf",
+            "page": 10
+          }
+        }
+      ],
+      "expected": ["Protection"]
+    },
+    {
+      "id": "door-sequencer-photo-and-voice",
+      "from": "rag-service eval/ofi_cases/office-5-ofis.json off5-ofi-1, with its photo from Office Sample 5 p.9",
+      "location": "B2 service lift corridor",
+      "texts": [
+        {
+          "label": "Recording 1",
+          "kind": "recording",
+          "text": "The fire door sequencer here isn't working, and the FM says fire door inspection isn't in their maintenance schedule at all."
+        }
+      ],
+      "photos": [
+        {
+          "label": "Photo 1",
+          "source": {
+            "pdf": "microservices/ingestion-service/tests/test_files/Office Sample 5 - PRE 2026 - REDACTED.pdf",
+            "page": 9
+          }
+        }
+      ],
+      "expected": ["Protection"]
+    },
+    {
+      "id": "pump-tests-up-to-date",
+      "from": "rag-service eval/ofi_cases/mixed-1-ofis.json mix1-ok-1",
+      "location": "Basement 1 fire pump room",
+      "texts": [
+        {
+          "label": "Note",
+          "kind": "note",
+          "text": "weekly churn test records up to date, last annual flow test Mar 25 satisfactory"
+        }
+      ],
+      "expected": ["Protection"]
+    },
+    {
+      "id": "loading-bay-clear-page",
+      "from": "rag-service eval/ofi_cases/mall-2-ofis.json mall2-ok-2",
+      "location": "Basement 2 loading bay",
+      "texts": [
+        { "label": "Note", "kind": "note", "text": "Loading bay B2" },
+        {
+          "label": "Page 1",
+          "kind": "page",
+          "text": "cardboard waste removed daily\narea clear at time of visit"
+        }
+      ],
+      "expected": ["Occupancy"]
+    },
+    {
+      "id": "hot-work-no-fire-watch",
+      "from": "rag-service eval/ofi_cases/mixed-1-ofis.json mix1-ofi-1 (Marsh files hot work under Occupancy here, Protection in office-a332-s6 a332-8)",
+      "location": "Permit-to-work system",
+      "texts": [
+        {
+          "label": "Note",
+          "kind": "note",
+          "text": "hot work checklist - combustibles clearance only 3m. no fire watch during or after hot work"
+        }
+      ],
+      "expected": ["Occupancy"],
+      "also_fine": ["Protection"]
+    },
+    {
+      "id": "basement-atrium-shutters-voice",
+      "from": "rag-service eval/cases/mall-2-s7-construction.json mall2-5",
+      "location": "Retail basements",
+      "texts": [
+        {
+          "label": "Recording 1",
+          "kind": "recording",
+          "text": "Okay so in the basements the atriums and the escalator voids have the two hour fabric shutters, they drop on fire alarm, so each basement level is its own compartment."
+        }
+      ],
+      "expected": ["Construction"],
+      "also_fine": ["Protection"]
+    }
+  ]
+}

@@ -14,7 +14,7 @@ import {
   type AssignableEngineer,
   type Client,
   type ClientSite,
-  readPhotos,
+  readObservation,
   retranscribePage,
   retryPageTranscription,
   retryTranscription,
@@ -355,6 +355,14 @@ function toEntry(o: SavedObservation): Observation {
           ? 'Interpretation failed'
           : 'Complete'
   const photos = o.photos
+  // The items a finished reading cites (CP-21). One from before CP-21 gave no
+  // reasons and cites nothing, so it can't say what it passed over.
+  const cited = new Set(
+    o.interpretation?.categories.flatMap((c) => c.evidence.map((e) => e.item)) ?? [],
+  )
+  const judged =
+    o.interpretation?.status === 'interpreted' &&
+    o.interpretation.categories.every((c) => c.reason !== null)
   // The row reads as the note, the first recording when there is no note, the
   // first page's handwriting (or how many pages, until there is some), or how
   // many photos it holds when it is only photos.
@@ -430,15 +438,31 @@ function toEntry(o: SavedObservation): Observation {
     interpretation: o.interpretation && {
       status: o.interpretation.status,
       description: o.interpretation.description,
-      category: o.interpretation.copeDimension,
       hazardType: o.interpretation.hazardType,
+      categories: o.interpretation.categories,
       error: o.interpretation.error,
       model: o.interpretation.model,
       outOfDate: o.interpretation.outOfDate,
-      // The photos it read, kept or since removed (CP-08).
-      readFrom: [...photos, ...o.removedPhotos]
-        .filter((p) => o.interpretation!.photoIds.includes(p.id))
-        .map((p) => ({ name: p.name, url: p.url, removed: !photos.includes(p) })),
+      // What it read (CP-21), each with where to open it: a photo or page by
+      // its image, kept or since removed (CP-08), and whether any category
+      // cites it.
+      readFrom: o.interpretation.items.map((item) => {
+        const removed =
+          o.removedPhotos.some((p) => p.id === item.id) ||
+          o.removedRecordings.some((r) => r.id === item.id)
+        const image =
+          item.kind === 'photo'
+            ? [...photos, ...o.removedPhotos].find((p) => p.id === item.id)?.url
+            : item.kind === 'page'
+              ? o.pages?.find((p) => p.id === item.id)?.url
+              : null
+        return {
+          ...item,
+          url: image ?? null,
+          removed,
+          notCited: judged && !item.leftOut && !removed && !cited.has(item.label),
+        }
+      }),
     },
     edited: o.edited,
     deleted: o.deleted,
@@ -1258,10 +1282,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ...(x.recordings ?? []),
               ...clips.map((c) => demoRecording('local-' + c.id, c.name, c.url, added)),
             ],
-            interpretation:
-              photos.length && x.interpretation
-                ? { ...x.interpretation, outOfDate: true }
-                : x.interpretation,
+            // What it holds changed since it was read (CP-21).
+            interpretation: x.interpretation
+              ? { ...x.interpretation, outOfDate: true }
+              : x.interpretation,
             edited: added,
           })),
           obsDialog: null,
@@ -1324,7 +1348,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
         ],
         interpretation:
-          photo && x.interpretation ? { ...x.interpretation, outOfDate: true } : x.interpretation,
+          (photo || recording) && x.interpretation
+            ? { ...x.interpretation, outOfDate: true }
+            : x.interpretation,
         edited: stampNow(),
       }
     }
@@ -1536,11 +1562,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         toast(refusal(error) + ' Try again.', 'warning')
       }
     }
-    // Reads a saved observation's photos when the engineer asks (CP-05): the
-    // first reading, or a new one after a failure.
+    // Reads a saved observation when the engineer asks (CP-05, CP-21): the
+    // first reading, or a new one after a failure or a change.
     async function readSaved(id: string) {
       try {
-        await readPhotos(id)
+        await readObservation(id)
         captured.reload()
       } catch (error: unknown) {
         const cause = error instanceof Error ? error.message : 'The request was not accepted.'
@@ -1565,13 +1591,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       }))
     }
-    // Reads a sample observation's photos in this demo: nothing reads a photo
-    // here, so a labelled sample proposal stands in (CP-05).
+    // Reads a sample observation in this demo: nothing is read here, so a
+    // labelled sample proposal stands in (CP-05, CP-21).
     function readSample(key: string) {
       setState(
         changeLocal(key, (x) => ({
           ...x,
-          interpretation: sampleInterpretation(x.cats[0] ?? UNCATEGORISED, x.locationName),
+          interpretation: sampleInterpretation(x.cats, x.locationName, x.media.length > 0),
         })),
       )
       later(settleSamples, 2000)
@@ -2160,8 +2186,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })
       const reading = o.interpretation
       const proposed = reading?.status === 'interpreted' ? reading : null
-      // Its photos are read only when a risk engineer asks (CP-05), through
-      // the gateway, or in this demo for a sample observation.
+      // It is read only when a risk engineer asks (CP-05, CP-21), through the
+      // gateway, or in this demo for a sample observation.
       const read =
         canEdit && !o.deleted ? (o.id ? () => void readSaved(o.id!) : () => readSample(key)) : null
       // Recordings and photos can be added by whoever may change it, and
@@ -2217,39 +2243,40 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           removedLabel: 'Removed by ' + stampLabel(m.removed),
           restore: changing ? () => void restoreItem(key, o, m) : null,
         })),
-        // What the vision model proposes from its photos (CP-05), and what
-        // the engineer can do with it. Neither action saves anything by
-        // itself: each opens Edit, filled in, for the engineer to save.
-        // Photos not read yet offer only Read photos; a reading of photos
-        // since added or removed offers Read again (CP-08).
-        proposal: !o.media.length
-          ? null
-          : !reading
+        // What the model proposes from it (CP-05, CP-21), and what the
+        // engineer can do with it. No action saves anything by itself: each
+        // opens Edit, filled in, for the engineer to save. Not read yet, it
+        // offers only Get AI proposal, to whoever may ask; afterwards, Get new
+        // proposal (CP-08, CP-21).
+        proposal: !reading
+          ? read
             ? { status: 'unread' as const, read }
-            : {
-                ...reading,
-                // "Protection · Sprinkler Installation"
-                summary: [reading.category, reading.hazardType].filter(Boolean).join(' · '),
-                retry: read,
-                useAsNote:
-                  canChange && !o.deleted && proposed?.description
-                    ? () =>
-                        openEdit({
-                          note: o.detail
-                            ? o.detail + '\n\n' + proposed.description
-                            : proposed.description!,
-                        })
+            : null
+          : {
+              ...reading,
+              retry: read,
+              useAsNote:
+                canChange && !o.deleted && proposed?.description
+                  ? () =>
+                      openEdit({
+                        note: o.detail
+                          ? o.detail + '\n\n' + proposed.description
+                          : proposed.description!,
+                      })
+                  : null,
+              // Each proposed category, with Add while it is not one of the
+              // observation's own: added to those it has.
+              categories: reading.categories.map((c) => ({
+                ...c,
+                added: o.cats.includes(c.category),
+                add:
+                  canChange && !o.deleted && proposed && !o.cats.includes(c.category)
+                    ? () => openEdit({ cats: withCategory(o.cats, c.category) })
                     : null,
-                // Offered only when the proposal is not one of its categories,
-                // added to those it has.
-                addCategory:
-                  canChange &&
-                  !o.deleted &&
-                  proposed?.category &&
-                  !o.cats.includes(proposed.category)
-                    ? () => openEdit({ cats: withCategory(o.cats, proposed.category!) })
-                    : null,
-              },
+                // A quote the gateway did not find in the item it cites.
+                unverified: c.evidence.some((e) => e.verified === false),
+              })),
+            },
         icon: categoryIcon(o.cats),
         catLabel: categoryLabel(o.cats),
         color: 'var(--text-secondary)',

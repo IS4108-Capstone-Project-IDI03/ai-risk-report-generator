@@ -10,7 +10,9 @@ export const FEATURE_LABELS: Record<string, string> = {
   transcribe: 'Voice transcription',
   'transcribe-handwriting': 'Handwriting transcription',
   'label-document': 'Document labelling',
-  'interpret-photo': 'Photo interpretation',
+  // Kept as `interpret-photo` so earlier readings stay on one line (CP-21):
+  // it now reads an observation's note, transcripts and pages too.
+  'interpret-photo': 'Observation reading',
   ocr: 'Table and formula OCR',
   'embed-document': 'Document embedding',
   chat: 'Chatbot',
