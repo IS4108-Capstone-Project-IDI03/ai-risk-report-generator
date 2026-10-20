@@ -19,6 +19,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app import config, usage
+from app import privacy as pii
 from app.chat.quotes import find_cites, quote_found
 from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
@@ -360,13 +361,21 @@ def _check(program: str, passages: list[dict]) -> tuple[list[dict], str]:
 
 
 def answer_events(
-    messages: list[dict], context: list[str], documents: list[dict] | None = None
+    messages: list[dict],
+    context: list[str],
+    documents: list[dict] | None = None,
+    privacy: dict | None = None,
 ) -> Iterator[str]:
-    """SSE lines for one answer: the search step, the streamed answer, then its result."""
+    """SSE lines for one answer: the search step, the streamed answer, then its result.
+
+    `privacy` is the gateway's `{enabled, known_entities}` (PV-03); when enabled, client
+    details reach the models and search as placeholders.
+    """
     # The server runs each step of a stream on a fresh thread with a fresh context, so
     # usage recorded after the first step would be lost from the cost log. Running every
     # step in one context keeps the request's usage list (app/usage.py) alive throughout.
-    steps, context_ = _events(messages, context, documents), contextvars.copy_context()
+    steps = _events(messages, context, documents, privacy)
+    context_ = contextvars.copy_context()
     while True:
         try:
             yield context_.run(next, steps)
@@ -375,16 +384,19 @@ def answer_events(
 
 
 def _events(
-    messages: list[dict], context: list[str], documents: list[dict] | None = None
+    messages: list[dict],
+    context: list[str],
+    documents: list[dict] | None = None,
+    privacy: dict | None = None,
 ) -> Iterator[str]:
     """The answer's SSE lines, step by step (see answer_events)."""
     items = usage.start()
+    protection = pii.session(privacy)
     history = _history(messages)
     # The question is the engineer's last message; anything after it (e.g. a retried
     # answer) is left out, so the model never answers its own earlier text.
     last_user = max((i for i, t in enumerate(history) if t["role"] == "user"), default=-1)
     history = history[: last_user + 1]
-    transcript = "\n".join(f"{m['role']}: {m['content']}" for m in history)
     names = {d["id"]: document_name(d) for d in documents or []}
     listed = "".join(f"- {n}\n" for n in sorted(set(names.values())))
     message_id = str(uuid.uuid4())
@@ -408,6 +420,8 @@ def _events(
     try:
         if not history:
             raise GenerationFailed("there was no question to answer.")
+        masked = protection.mask([m["content"] for m in history])
+        transcript = "\n".join(f"{m['role']}: {text}" for m, text in zip(history, masked))
         # a. Plan: turn the last message into a search, a clarifying question, a reply or a decline.
         plan = complete_json(
             PLAN_SYSTEM,
@@ -512,5 +526,7 @@ def _events(
         "model": model,
         "usage": items,
         "error": error,
+        # Whether client details were masked, and how many; never the values (PV-03).
+        "privacy": protection.provenance(),
     }
     yield _sse({"type": "CUSTOM", "name": "chat_result", "value": result})
