@@ -26,7 +26,7 @@ In rag-service (`app/privacy.py`, `orchestrator.py`), drafting does the followin
 1. **One `/mask` call** covers the request's own text: the observations' notes, transcripts, locations and standards, plus the facts, a redraft's saved text and instruction, accepted OFI titles, or the summary's sections.
 2. **Search and rerank** run on the masked text.
 3. **Past-report passages** (text and headings) are masked in a second call that passes the first call's mapping back. This happens **before rerank**, because Cohere reads them too. Standards are public and are not masked. The reviewer's `sources` show the stored passage.
-4. The model drafts from masked text only. Its prompts say to copy placeholders exactly (prompt versions gn01-v2.10, gn05-v5, gn07-v3).
+4. The model drafts from masked text only. Its prompts say to copy placeholders exactly (prompt versions gn01-v2.11, gn05-v6, gn07-v3).
 5. **Unmask** happens before any check that compares text: the citation, maturity and number checks run on the restored statements, against the original observations and facts.
 6. A section or summary statement holding a placeholder that can't be restored is marked **unsupported**. An OFI has no such flag, so the placeholder stays visible for the engineer to edit, and a warning is logged without the text.
 7. Provenance records `privacy: {enabled, masked_count}`, never the values or the mapping (`report_sections`, `report_ofis`).
@@ -62,7 +62,7 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 
 ## Eval results
 
-Recorded on 2026-10-20 for PV-02. The drafter was `claude-sonnet-5-5` at medium effort, with prompts gn01-v2.10, gn05-v5 and gn07-v3. The judge was `gpt-6-luna` at **medium** reasoning (`JUDGE_REASONING=medium`; at high, each judge call took 4–5 minutes). Both runs used the same settings, so they differ only in masking. Each score averages two judge runs.
+Recorded on 2026-10-20 for PV-02. The drafter was `claude-sonnet-5-5` at medium effort, with prompts gn01-v2.11, gn05-v6 and gn07-v3. The judge was `gpt-6-luna` at **medium** reasoning (`JUDGE_REASONING=medium`; at high, each judge call took 4–5 minutes). Both runs used the same settings, so they differ only in masking. Each score averages two judge runs.
 
 | Judge | Cases | Mean, off | Mean, on | Change | Passing, off → on |
 |---|---|---|---|---|---|
