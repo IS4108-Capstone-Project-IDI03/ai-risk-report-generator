@@ -118,8 +118,9 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
 // Saved chats (CB-03). OpenUI's thread storage calls these (client/src/features/chat/api.ts).
 const mine = (res: Response) => res.locals.user!.id as string
 const chats = Router()
-chats.get('/', async (_req, res) => {
-  res.json({ threads: await listConversations(mine(res)) })
+chats.get('/', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q : undefined
+  res.json({ threads: await listConversations(mine(res), q) })
 })
 chats.post('/', async (req, res) => {
   const content = req.body?.message?.content

@@ -27,12 +27,8 @@ const stubS4 = (body: string | ReadableStream) =>
     'fetch',
     async () => new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }),
   )
-const newChat = async (who = alex) =>
-  (
-    await who
-      .post('/api/chat/conversations')
-      .send({ message: { content: 'Where are sprinklers needed?' } })
-  ).body.id as string
+const newChat = async (who = alex, content = 'Where are sprinklers needed?') =>
+  (await who.post('/api/chat/conversations').send({ message: { content } })).body.id as string
 const ask = (who: typeof alex, threadId: string, content = 'Where are sprinklers needed?') =>
   who.post('/api/chat').send({ threadId, messages: [{ id: 'q1', role: 'user', content }] })
 
@@ -97,5 +93,32 @@ describe('saving a chat (CB-03)', () => {
       .send({ messages: [{ id: 'q', role: 'user', content: 'Hi' }] })
     expect(res.status).toBe(200)
     expect(res.text).toBe(ANSWER)
+  })
+
+  describe('searching my chats (AC3)', () => {
+    const found = async (q: string) =>
+      (await alex.get('/api/chat/conversations').query({ q })).body.threads.map(
+        (t: { id: string }) => t.id,
+      )
+
+    it('finds chats whose name, questions or answers contain my words, in any case and part-word', async () => {
+      stubS4(ANSWER) // every answer says "Fit sprinklers."
+      const byName = await newChat(alex, 'Chiller room notes')
+      const byQuestion = await newChat(alex, 'Hangar notes')
+      await ask(alex, byQuestion, 'Is a deluge system needed?')
+      const byAnswer = await newChat(alex, 'Warehouse notes')
+      await ask(alex, byAnswer, 'Where?')
+      expect(await found('CHILLER')).toEqual([byName])
+      expect(await found('delug')).toEqual([byQuestion])
+      expect(await found('sprinkl')).toEqual([byAnswer, byQuestion]) // newest first
+      expect(await found('nothing like this')).toEqual([])
+    })
+
+    it("never returns another user's chats, and treats symbols as plain text", async () => {
+      stubS4(ANSWER)
+      await ask(jide, await newChat(jide, 'Secret'), 'secret deluge question')
+      expect(await found('deluge')).toEqual([])
+      expect((await alex.get('/api/chat/conversations').query({ q: '(.*' })).status).toBe(200)
+    })
   })
 })

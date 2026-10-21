@@ -35,9 +35,23 @@ export async function createConversation(userId: string, firstQuestion: string) 
   return toThread(await ChatConversationModel.create({ userId, title }))
 }
 
-/** Returns the user's chats, newest first. */
-export async function listConversations(userId: string) {
-  const chats = await ChatConversationModel.find({ userId }).sort({ updatedAt: -1 })
+/**
+ * Returns the user's chats, newest first. With `q`, only chats whose name or any message contains
+ * it: case-insensitive, whole or part of a word. The words are escaped, so symbols in them are
+ * plain text and cannot act as a pattern (without this, a search for "(" would throw).
+ */
+export async function listConversations(userId: string, q?: string) {
+  const words = q?.trim()
+  const filter: Record<string, unknown> = { userId }
+  if (words) {
+    const pattern = new RegExp(words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    const inMessages = await ChatMessageModel.distinct('conversationId', {
+      userId,
+      content: pattern,
+    })
+    filter.$or = [{ title: pattern }, { _id: { $in: inMessages } }]
+  }
+  const chats = await ChatConversationModel.find(filter).sort({ updatedAt: -1 })
   return chats.map(toThread)
 }
 
