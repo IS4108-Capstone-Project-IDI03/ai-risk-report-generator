@@ -321,6 +321,7 @@ export const initialState: WorkflowState = {
   archiveOpen: false,
   archiveBusy: false,
   tagError: null,
+  reviewHistory: 0,
 }
 
 export const ROWS: AssessmentRow[] = [

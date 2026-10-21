@@ -1,6 +1,7 @@
 // The review workspace's dialogs (RV-02): editing a finding, confirming its
 // rejection, asking for a section to be regenerated, and confirming that a
-// replacement draft takes the saved one's place. A failed save keeps the
+// replacement draft takes the saved one's place; and confirming a version
+// restore from the version history (RV-06). A failed save keeps the
 // dialog open with the gateway's reason, as the observation dialogs do.
 // Opened by screens/ReviewWorkspace.tsx, which makes the saves.
 import { useState } from 'react'
@@ -230,6 +231,72 @@ export function AcceptReplacementDialog({
           starts pending review. The saved draft and your decisions on it stay in the review
           history. Other sections are not changed.
         </p>
+      </div>
+    </Dialog>
+  )
+}
+
+// Confirms restoring an earlier version of a section as its text (RV-06 AC6).
+// It is saved as a new version, so the text it replaces stays in the version
+// history; no other section changes (AC7).
+export function RestoreVersionDialog({
+  name,
+  earlierDraft,
+  findings,
+  onRestore,
+  onClose,
+}: {
+  // What is restored, in a sentence: "version 3", "the AI draft of 19 Oct 10:42".
+  name: string
+  // Written on a draft the section has been drafted again since.
+  earlierDraft: boolean
+  // The section has findings to review (4-12), which follow the restored text.
+  findings: boolean
+  onRestore: () => Promise<void>
+  onClose: () => void
+}) {
+  const { busy, problem, run } = useSave()
+  return (
+    <Dialog
+      title={`Restore ${name}?`}
+      width={520}
+      onClose={busy ? undefined : onClose}
+      footer={
+        <>
+          <Button variant="secondary" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            iconLeft={IconRegistry.action.reinstate}
+            loading={busy}
+            onClick={() => run(onRestore)}
+          >
+            Restore version
+          </Button>
+        </>
+      }
+    >
+      <div style={column}>
+        <Problem title="Version not restored" problem={problem} />
+        <p style={{ margin: 0 }}>
+          Its text becomes the section's current draft, saved as a new version with your name and
+          the time. The text it replaces stays in the version history, so you can restore that
+          again. Other sections are not changed.
+        </p>
+        {findings && (
+          <p style={{ margin: 0 }}>
+            Findings follow the restored text: one it leaves out is removed from the draft, one it
+            holds that you rejected comes back, and one worded differently takes its words. Each
+            change is recorded in the review history, where a removed finding can be restored.
+          </p>
+        )}
+        {earlierDraft && (
+          <p style={{ margin: 0 }}>
+            It was written on an earlier draft of the section. Its findings that are in the current
+            draft stay findings; the rest of its text is restored as your own.
+          </p>
+        )}
       </div>
     </Dialog>
   )

@@ -1,13 +1,15 @@
-import { Button } from '../../../design-system'
+import { Button, IconRegistry } from '../../../design-system'
 
 // The draft editor's frame for a part of the report that is not one of
 // sections 3-12 (GN-07): Sections 1 and 2, and Appendix A. Same bar and
-// heading as DraftEditor, so moving between parts feels the same.
+// heading as DraftEditor, so moving between parts feels the same, with
+// Version history (RV-06) at its end.
 export function ReportPart({
   title,
   position,
   onPrevious,
   onNext,
+  onHistory,
   children,
 }: {
   title: string
@@ -15,6 +17,7 @@ export function ReportPart({
   position: string
   onPrevious?: () => void
   onNext?: () => void
+  onHistory?: () => void
   children: React.ReactNode
 }) {
   return (
@@ -40,6 +43,16 @@ export function ReportPart({
           >
             Next
           </Button>
+          {onHistory && (
+            <Button
+              variant="ghost"
+              size="sm"
+              iconLeft={IconRegistry.object.history}
+              onClick={onHistory}
+            >
+              Version history
+            </Button>
+          )}
         </div>
         <h2>{title}</h2>
         {children}

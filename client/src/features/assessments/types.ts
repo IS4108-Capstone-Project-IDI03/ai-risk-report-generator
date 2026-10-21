@@ -312,6 +312,9 @@ export type WorkflowState = {
   archiveOpen: boolean
   archiveBusy: boolean
   tagError: string | null
+  // Counts each choice of Version history in the ⋯ menu (RV-06), which opens
+  // it in the Review tab; 0 again once the engineer leaves that tab.
+  reviewHistory: number
 }
 
 export type ObservationFilters = {

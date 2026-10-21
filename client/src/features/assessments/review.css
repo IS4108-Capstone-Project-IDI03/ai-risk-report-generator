@@ -1151,3 +1151,230 @@
 .rv-proposal-note details {
   margin-top: var(--space-3);
 }
+
+/* The version history (RV-06): a section's versions down the side panel,
+   the chosen one compared with the current text beside them. */
+.rv-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.rv-version-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 16px;
+}
+.rv-version-title {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.rv-version-title h3 {
+  margin: 0;
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.rv-version-origin {
+  margin: 2px 0 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-secondary);
+}
+.rv-version-list {
+  gap: 4px;
+}
+.rv-version-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--duration-instant) var(--ease-standard);
+}
+.rv-version-row:hover {
+  background: var(--surface-hover);
+}
+.rv-version-row[aria-current='true'] {
+  border-left-color: var(--action-primary);
+  background: var(--surface-selected);
+}
+.rv-version-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-primary);
+}
+.rv-version-row .rv-history-by,
+.rv-version-row .rv-version-origin {
+  margin: 0;
+}
+
+/* The comparison: report prose, with what changed marked in it. */
+.rv-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px 18px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.rv-diff-summary {
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+.rv-diff-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0 0 10px;
+  list-style: none;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+.rv-diff-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rv-diff-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-xs);
+}
+.rv-diff-swatch.is-added {
+  background: var(--diff-added-bg);
+  box-shadow: inset 0 -2px 0 var(--diff-added-fg);
+}
+.rv-diff-swatch.is-deleted {
+  background: var(--diff-deleted-bg);
+  box-shadow: inset 0 -2px 0 var(--diff-deleted-fg);
+}
+.rv-diff-swatch.is-changed {
+  box-shadow: inset 0 0 0 1px var(--diff-changed-border);
+}
+.rv-diff-part {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rv-diff-heading {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.rv-diff-block {
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid transparent;
+  counter-reset: rv-diff-item;
+}
+.rv-diff-block.is-added {
+  border-left-color: var(--diff-added-fg);
+}
+.rv-diff-block.is-deleted {
+  border-left-color: var(--diff-deleted-fg);
+}
+.rv-diff-block.is-changed {
+  border-left-color: var(--diff-changed-border);
+}
+/* Numbered list items count on from the block before; others start again. */
+.rv-diff-block.is-ordered {
+  counter-reset: none;
+  counter-increment: rv-diff-item;
+}
+.rv-diff-tag {
+  display: block;
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  line-height: 16px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rv-diff-text {
+  margin: 0;
+  max-width: var(--measure-prose);
+  font-family: var(--font-serif);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+.rv-diff-text.is-heading {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.rv-diff-block.is-bullet .rv-diff-text::before {
+  content: '•';
+  margin-right: 8px;
+  color: var(--text-muted);
+}
+.rv-diff-block.is-ordered .rv-diff-text::before {
+  content: counter(rv-diff-item) '.';
+  margin-right: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.rv-diff ins {
+  padding: 0 2px;
+  border-radius: var(--radius-xs);
+  background: var(--diff-added-bg);
+  color: var(--diff-added-fg);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.rv-diff del {
+  padding: 0 2px;
+  border-radius: var(--radius-xs);
+  background: var(--diff-deleted-bg);
+  color: var(--diff-deleted-fg);
+  text-decoration: line-through;
+}
+/* A change: the deleted words beside those added in their place, as one mark. */
+.rv-diff-change {
+  padding: 1px 2px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--diff-changed-border);
+}
+.rv-diff-cite {
+  margin-left: 2px;
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  vertical-align: text-top;
+  line-height: 1;
+}

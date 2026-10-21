@@ -58,6 +58,10 @@ export interface IReportSectionVersion {
   // name that draft's statements. null when the section had no draft.
   draft: Types.ObjectId | null
   document: SectionDocument
+  // Set on a version made by restoring an earlier one (RV-06): what it
+  // restored, as `version:<n>` (a saved version) or `draft:<_id>` (an AI
+  // draft's text). null on a save from the document editor.
+  restoredFrom?: string | null
   // Who saved it and when.
   by: IStamp['by']
   at: Date
@@ -72,6 +76,11 @@ export interface IReportSectionVersion {
     effective_date: Date
   }
 }
+
+// What a restored version names as its source (RV-06): a saved version of the
+// section by number, or one of its AI drafts by `_id`. The review log's
+// entries made by a restore name it the same way.
+export const RESTORED_FROM = /^(version:[1-9]\d{0,5}|draft:[0-9a-f]{24})$/
 
 export class ImmutableVersionError extends Error {
   constructor() {
@@ -88,6 +97,7 @@ const reportSectionVersionSchema = new Schema<IReportSectionVersion>(
     draft: { type: Schema.Types.ObjectId, ref: 'ReportSection', default: null },
     // Validated by report-document.service before it is saved.
     document: { type: Schema.Types.Mixed, required: true },
+    restoredFrom: { type: String, default: null, match: RESTORED_FROM },
     by: {
       id: { type: String, required: true },
       name: { type: String, required: true },

@@ -605,7 +605,13 @@ on the draft. Each entry has:
   draft), `bulk` (accepted by Bulk accept), `carriedFrom` (see below; null
   otherwise).
 - `inDocument` (RV-08): made in the document editor, an `edit` of the
-  finding there or a `reject` for one deleted there; false otherwise.
+  finding there or a `reject` for one deleted there; false otherwise. Also
+  true on the entries a version restore makes (RV-06).
+- `restoredFrom` (RV-06): made by restoring an earlier version of the
+  section, which it names as the new version does (`version:<n>` or
+  `draft:<_id>`): an `edit` back to the restored words, a `reject` for a
+  finding the restored text lacks, or a `restore` for a rejected one it holds
+  (then an `edit` if its words differ). null otherwise.
   `citationsAfter`: a document edit's citations after it, as citation
   markers can be moved or deleted there; null otherwise. A finding missing a
   citation it was drafted with is unsupported.
@@ -653,12 +659,13 @@ a transcription in progress), 422 (too little evidence to regenerate), 503
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11): kept findings keep their decisions, the rest are pending. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/discard` | Leaves the saved draft and its decisions as they were (AC12). |
 
-## Report section versions (RV-08)
+## Report section versions (RV-08, RV-06)
 
 `report_section_versions` holds one document per save of a report section
-from the document editor: the section's text as the engineer wrote it. It is
-append-only, like `review_audit_log`: the model refuses every update,
-replace and delete, and each save adds a version. Each version has:
+from the document editor: the section's text as the engineer wrote it, and
+one per restore from the version history (RV-06). It is append-only, like
+`review_audit_log`: the model refuses every update, replace and delete, and
+each save or restore adds a version. Each version has:
 
 - `assessment`; `sectionId`: `1` to `12`, or `A` for Appendix A.
 - `version`: 1, 2, 3… per assessment and section. `{ assessment, sectionId,
@@ -677,7 +684,10 @@ replace and delete, and each save adds a version. Each version has:
   Content is `{ type: 'text', text, marks? }` (marks: `bold`, `italic`,
   `underline`) or `{ type: 'cite', id }`, the id as a statement's citations
   name it. Empty paragraphs are not saved.
-- `by` `{ id, name }` and `at`: who saved it and when.
+- `restoredFrom` (RV-06): on a version made by a restore, what it restored:
+  `version:<n>`, an earlier version of the section, or `draft:<_id>`, one of
+  its AI drafts. null for a save from the document editor.
+- `by` `{ id, name }` and `at`: who saved (or restored) it and when.
 - `metadata` with the five required fields: `source_type:
   'report_section_version'`, `jurisdiction` and `facility_type` from the
   site, `COPE_dimension` (the section's one category, else `all`) and
@@ -694,10 +704,30 @@ each section's newest version.
 
 | Route | Does |
 | --- | --- |
-| `PUT /api/assessments/:reference/sections/:sectionId/document` | `{ baseVersion, draftId, document }`: saves the section as version `baseVersion + 1`, built on the saved draft `draftId` (null for none). 200 with `{ version, draftId, document, savedAt, savedBy }`. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 for a body that is not a section document or does not fit the section (subsections not the draft's, text in a table, a finding twice or not in the draft, over 2,000 characters in a finding or 60,000 in the section); 403; 404 (unknown assessment or section); 409 when `baseVersion` is not the newest, the saved draft is not `draftId`, a finding in it was rejected since, or another decision was saved at the same moment; 503 when S4 cannot list the sections. Bodies up to 1 MB. |
+| `PUT /api/assessments/:reference/sections/:sectionId/document` | `{ baseVersion, draftId, document }`: saves the section as version `baseVersion + 1`, built on the saved draft `draftId` (null for none). 200 with `{ version, draftId, document, restoredFrom, savedAt, savedBy }`. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 for a body that is not a section document or does not fit the section (subsections not the draft's, text in a table, a finding twice or not in the draft, over 2,000 characters in a finding or 60,000 in the section); 403; 404 (unknown assessment or section); 409 when `baseVersion` is not the newest, the saved draft is not `draftId`, a finding in it was rejected since, or another decision was saved at the same moment; 503 when S4 cannot list the sections. Bodies up to 1 MB. |
 
 `GET …/review` returns each section's newest version as `document` (or
-null) and Sections 1, 2, 3 and A's as `parts`, each with `current`. Each
+null) and Sections 1, 2, 3 and A's as `parts`, each with `current`.
+
+**Version history (RV-06).** A section's history is read, not stored: its
+AI drafts from `report_sections` that have been its saved content (each
+draft from Generation when drafted, a replacement from when it was accepted;
+none waiting or discarded), and its versions, merged oldest first. A draft's
+text is its statements as the document editor first shows them, in the words
+they had when it became the section's content: a finding kept word for word
+into a redraft carries the engineer's edit with it (the copied, `carriedFrom`
+entries). Restoring an entry saves its text as the section's next version
+through the same checks as a save (the newest version and saved draft the
+engineer saw, else 409), with `restoredFrom` set, and logs what it changes
+in the saved draft's findings as above. Text written on an earlier draft is
+carried onto the saved draft first: a passage that was a finding becomes the
+saved draft's finding with the same words in the same subsection, if there
+is one; any other is the engineer's own text.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/sections/:sectionId/versions` | `{ sectionId, entries, latestVersion, savedDraftId }` for sections 1 to 12 and A: `entries` oldest first, each `{ id, kind, version, draftId, onSavedDraft, origin, restoredFrom, document, at, by, model }`. `id` is `version:<n>` or `draft:<_id>`; `kind` `version` or `draft`; `origin` `drafted`, `redrafted` or `replacement` for a draft, `saved` or `restored` for a version; `onSavedDraft` false once the section has been drafted again since; `by` who saved a version, drafted a draft or accepted a replacement (null for a drafting engineer with no account); `model` a draft's. `latestVersion` (0 for none) and `savedDraftId` are what a restore is built on. Anyone who can view the assessment. 404 for an unknown assessment or section. |
+| `POST /api/assessments/:reference/sections/:sectionId/versions/restore` | `{ baseVersion, draftId, from }`, `from` an entry's `id`: saves its text as version `baseVersion + 1`. 200 with `{ version, workspace }`: the new version, and the review workspace as `GET …/review` returns it. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 (invalid body, or a text that no longer fits the section); 403; 404 (unknown assessment or section, or `from` not in the history); 409 as for a save; 503 when S4 cannot list the sections. | Each
 section's `review` also has `editedInDocument`: true when it was changed or
 written in the document, so Edited by you shows even while another state
 (Needs review) comes first.

@@ -307,13 +307,16 @@ function DraftSubsection({
 // button that opens its source in the panel beside the draft (AC7). Each
 // finding shows its review decision and, for the assigned engineer, Accept,
 // Edit and Reject (RV-02); rejected findings are left out. `header` holds the
-// section's review controls; a replacement draft is shown read-only.
+// section's review controls; a replacement draft is shown read-only. Version
+// history (RV-06) opens the section's versions in its place.
 export function DraftEditor({
   section,
   position,
   onPrevious,
   onNext,
   onGenerate,
+  onHistory,
+  notice,
   actions,
   header,
   figures,
@@ -325,6 +328,10 @@ export function DraftEditor({
   onPrevious?: () => void
   onNext?: () => void
   onGenerate: () => void
+  // Opens the section's version history (RV-06).
+  onHistory?: () => void
+  // Shown under the heading whatever the section holds, e.g. a restore just made.
+  notice?: React.ReactNode
   actions?: FindingActions
   header?: React.ReactNode
   // Sections 4 and 5 (GN-03): the engineer's figures, shown above the draft and
@@ -385,10 +392,25 @@ export function DraftEditor({
     </p>
   )
   const setAside = saved && !saved.current && (
-    <Callout tone="info" title="Drafted again since your document edits">
+    <Callout
+      tone="info"
+      title="Drafted again since your document edits"
+      actions={
+        onHistory && (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={IconRegistry.object.history}
+            onClick={onHistory}
+          >
+            Open version history
+          </Button>
+        )
+      }
+    >
       Your text saved in the document {formatDayTime(new Date(saved.savedAt))} was written on an
       earlier draft. Findings you edited were carried into this draft; text you wrote yourself is
-      kept in that saved version, not shown here.
+      kept in that saved version, not shown here. The version history shows it and can restore it.
     </Callout>
   )
   return (
@@ -414,10 +436,21 @@ export function DraftEditor({
           >
             Next
           </Button>
+          {onHistory && (
+            <Button
+              variant="ghost"
+              size="sm"
+              iconLeft={IconRegistry.object.history}
+              onClick={onHistory}
+            >
+              Version history
+            </Button>
+          )}
         </div>
         <h2>
           {section.id}. {section.title}
         </h2>
+        {notice}
         {placesFindings ? figures(drafted) : figures}
         {!draft && hasWritten(content.intro) ? (
           // Not drafted, but written in the document editor (RV-08 AC3).

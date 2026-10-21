@@ -1,10 +1,14 @@
 // Reading a section's document (RV-08): its text blocks, their words and
-// citations, and whether the engineer wrote any text of their own. Pure
-// functions, shared by report-document.service (saving), review-decision
-// .service (logging what changed) and review.service (the section's states).
+// citations, and whether the engineer wrote any text of their own; and, for
+// the version history (RV-06), a draft's text as a document and an earlier
+// version's text carried onto the saved draft. Pure functions, shared by
+// report-document.service (saving), review-decision.service (logging what
+// changed), review.service (the section's states) and
+// version-history.service (listing and restoring versions).
 import type {
   DocumentBlock,
   DocumentInline,
+  DocumentParagraph,
   SectionDocument,
 } from '../models/report-section-version.model'
 
@@ -115,4 +119,93 @@ export function writtenSubsections(document: SectionDocument): Set<number> {
 // How many characters of text the document holds, citations left out.
 export function textLength(document: SectionDocument): number {
   return textBlocksOf(document).reduce((n, b) => n + plainText(b.content).length, 0)
+}
+
+// A draft's text as it read when it became the section's saved content, for
+// the version history (RV-06): each statement a paragraph of its words, then
+// its citation markers, as the document editor first shows it, in the
+// draft's subsections. `findings` give the words: a finding kept from an
+// earlier draft carries the engineer's edit with it. A table takes no text.
+export function draftDocument(
+  draft: { subsections: { heading: string; kind: string; statements: unknown[] }[] },
+  findings: readonly { key: string; text: string; citations: string[] }[],
+): SectionDocument {
+  const byKey = new Map(findings.map((f) => [f.key, f]))
+  return {
+    intro: [],
+    subsections: draft.subsections.map((sub, i) => ({
+      heading: sub.heading,
+      blocks:
+        sub.kind === 'table'
+          ? []
+          : sub.statements.flatMap((_, j): DocumentBlock[] => {
+              const key = `${i}.${j}`
+              const finding = byKey.get(key)
+              const content = finding ? asDrafted(finding) : []
+              return content.length ? [{ type: 'paragraph', finding: key, content }] : []
+            }),
+    })),
+  }
+}
+
+// A section's text, written on one draft (or on none), as it reads on the
+// section's saved draft now, to restore it (RV-06). Written on the saved
+// draft, it is as it was. Otherwise its finding keys name another draft's
+// statements, so each passage that was a finding becomes the saved draft's
+// finding with the same words in the same subsection, if one is left (the
+// findings kept word for word into a redraft are found this way), and any
+// other is the engineer's own text. Text in a subsection the saved draft
+// lacks, or has as a table, moves before the first subsection, so none is
+// lost.
+export function ontoDraft(
+  document: SectionDocument,
+  sameDraft: boolean,
+  draft: { subsections: { heading: string; kind: string }[] } | null,
+  findings: readonly { key: string; text: string; generatedText: string }[],
+): SectionDocument {
+  if (sameDraft) return document
+  const subsections = draft?.subsections ?? []
+  const intro: DocumentBlock[] = []
+  const placed: DocumentBlock[][] = subsections.map(() => [])
+  const used = new Set<string>()
+  // The saved draft's finding in subsection `i` with these words, not yet placed.
+  const match = (i: number, content: DocumentInline[]): string | null => {
+    const words = plainText(content)
+    const found = findings.find(
+      (f) =>
+        !used.has(f.key) &&
+        Number(f.key.split('.')[0]) === i &&
+        (tidy(f.text) === words || tidy(f.generatedText) === words),
+    )
+    if (!found) return null
+    used.add(found.key)
+    return found.key
+  }
+  const carried = (i: number, finding: string | null | undefined, content: DocumentInline[]) =>
+    finding && i >= 0 ? match(i, content) : null
+  const paragraph = (p: DocumentParagraph, i: number): DocumentParagraph => {
+    const key = carried(i, p.finding, p.content)
+    return key
+      ? { type: 'paragraph', finding: key, content: p.content }
+      : { type: 'paragraph', content: p.content }
+  }
+  const block = (b: DocumentBlock, i: number): DocumentBlock => {
+    if (b.type === 'paragraph') return paragraph(b, i)
+    if (b.type === 'heading') {
+      const key = carried(i, b.finding, b.content)
+      return key
+        ? { type: 'heading', finding: key, content: b.content }
+        : { type: 'heading', content: b.content }
+    }
+    return { type: b.type, items: b.items.map((item) => paragraph(item, i)) }
+  }
+  for (const b of document.intro) intro.push(block(b, -1))
+  for (const sub of document.subsections) {
+    const i = subsections.findIndex((s) => s.heading === sub.heading && s.kind !== 'table')
+    for (const b of sub.blocks) (i < 0 ? intro : placed[i]).push(block(b, i))
+  }
+  return {
+    intro,
+    subsections: subsections.map((s, i) => ({ heading: s.heading, blocks: placed[i] })),
+  }
 }

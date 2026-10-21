@@ -93,6 +93,12 @@ import {
   saveSectionDocument,
   StaleDocumentError,
 } from '../services/report-document.service'
+import {
+  restoreSectionVersion,
+  restoreVersionSchema,
+  sectionHistory,
+  VersionNotFoundError,
+} from '../services/version-history.service'
 import { draftSummary, getSummary, IncompleteSectionsError } from '../services/summary.service'
 import {
   InsufficientEvidenceError,
@@ -709,6 +715,71 @@ router.put(
     try {
       res.json(await saveSectionDocument(reference, sectionId, parsed.data, res.locals.user!))
     } catch (error: unknown) {
+      if (error instanceof DocumentShapeError) {
+        res.status(400).json({ error: error.message })
+        return
+      }
+      if (error instanceof StaleDocumentError) {
+        res.status(409).json({ error: error.message })
+        return
+      }
+      reviewFailure(error, res)
+    }
+  },
+)
+
+// A section's version history (RV-06): its AI drafts and the versions saved
+// from the document editor, oldest first, each with its text and who made it
+// when (AC1, AC2). Sections 1 to 12 and A. Anyone who can view the
+// assessment. 404 for an unknown assessment or section.
+router.get(
+  '/:reference/sections/:sectionId/versions',
+  requirePermission('assessments:view'),
+  async (req, res) => {
+    try {
+      res.json(await sectionHistory(req.params.reference, req.params.sectionId))
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError || error instanceof UnknownSectionError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      throw error
+    }
+  },
+)
+
+// Restores one entry of a section's version history as its text (RV-06 AC6):
+// `{ baseVersion, draftId, from }`, `from` naming it (`version:<n>` or
+// `draft:<_id>`), built on the newest version and saved draft the engineer
+// saw. 200 with `{ version, workspace }`: the new version and the review
+// workspace as it now stands, every other section unchanged (AC7). 400 for an
+// invalid body; 403; 404 (unknown assessment, section, or entry not in the
+// history); 409 as for a save, when the section was saved or drafted since.
+router.post(
+  '/:reference/sections/:sectionId/versions/restore',
+  requirePermission('reports:generate'),
+  async (req, res) => {
+    const parsed = restoreVersionSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'Say which version to restore.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    const { reference, sectionId } = req.params
+    try {
+      const version = await restoreSectionVersion(
+        reference,
+        sectionId,
+        parsed.data,
+        res.locals.user!,
+      )
+      res.json({ version, workspace: await getReviewWorkspace(reference) })
+    } catch (error: unknown) {
+      if (error instanceof VersionNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
       if (error instanceof DocumentShapeError) {
         res.status(400).json({ error: error.message })
         return
