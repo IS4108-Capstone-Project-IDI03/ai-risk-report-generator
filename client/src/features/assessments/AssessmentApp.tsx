@@ -373,7 +373,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isChat && (
                       <Suspense fallback={null}>
-                        <KnowledgeAssistant />
+                        <KnowledgeAssistant isAdmin={v.isAdmin} notify={v.notify} />
                       </Suspense>
                     )}
 

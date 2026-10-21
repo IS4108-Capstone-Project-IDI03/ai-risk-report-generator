@@ -6,7 +6,7 @@ import { createLibrary, defineComponent } from '@openuidev/react-lang'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@openuidev/react-ui'
 import { z } from 'zod'
 import { createContext, useContext } from 'react'
-import { Callout } from '../../design-system'
+import { DeclinedReply } from './components/DeclinedReply'
 import { CitationMarker } from './components/CitationMarker'
 import { withBold } from './components/bold'
 import { CitedText } from './components/CitedText'
@@ -58,14 +58,9 @@ const Statement = defineComponent({
       </>
     )
     if (inParagraph) return <span className="chat-sentence">{body} </span>
-    // A declined answer is a callout with a next step, not an answer-shaped paragraph (AC3).
+    // A declined answer is a plain reply with a next step, not an answer-shaped paragraph.
     return props.text === DECLINE && !props.cites.length ? (
-      <div data-decline>
-        <Callout tone="info" title="No answer in the knowledge base">
-          {DECLINE} Try naming the standard, edition or report, or ask your knowledge admin to add
-          the document.
-        </Callout>
-      </div>
+      <DeclinedReply />
     ) : (
       <p className="chat-statement">{body}</p>
     )

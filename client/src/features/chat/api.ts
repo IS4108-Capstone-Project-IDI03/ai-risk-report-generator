@@ -24,3 +24,8 @@ export async function fetchPassage(id: string, signal?: AbortSignal): Promise<Pa
   const path = `/api/chat/passages/${encodeURIComponent(id)}`
   return (await request<Passage>('GET', path, undefined, signal)).data
 }
+
+/** Sends a risk engineer's request to add the document behind `question` (CB-07). */
+export function askAdminToAdd(question: string, message: string): Promise<unknown> {
+  return request('POST', '/api/knowledge-gaps', message ? { question, message } : { question })
+}

@@ -6,6 +6,7 @@ import { Renderer } from '@openuidev/react-lang'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CitationSelectionContext } from './components/citationSelection'
 import { DocumentsContext, type DocSummary } from './components/documents'
+import { DeclineContext } from './components/declineContext'
 import { chatLibrary } from './library'
 
 afterEach(cleanup)
@@ -222,13 +223,21 @@ describe('Cited answer', () => {
     expect(select).toHaveBeenCalledWith(expect.objectContaining({ number: 1 }), marker)
   })
 
-  it('shows a declined answer as a callout with what to try next (AC3)', () => {
-    renderAnswer(
-      'root = Answer([s1], meta)\ns1 = Statement("The knowledge base cannot answer this question.", [])',
+  it('shows a declined answer as a plain reply, with Add documents for an admin (CB-07)', () => {
+    render(
+      <DeclineContext.Provider value={{ isAdmin: true, notify: vi.fn() }}>
+        <Renderer
+          response={
+            'root = Answer([s1], meta)\ns1 = Statement("The knowledge base cannot answer this question.", [])'
+          }
+          library={chatLibrary}
+          isStreaming={false}
+        />
+      </DeclineContext.Provider>,
     )
-    const callout = screen
-      .getByText(/The knowledge base cannot answer this question\./)
-      .closest('[data-decline]')
-    expect(callout).toHaveTextContent(/Try naming the standard, edition or report/)
+    expect(screen.getByText("I couldn't find that in the knowledge base.")).toBeInTheDocument()
+    expect(screen.getByText('Would you like to add the document yourself?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add documents' })).toBeInTheDocument()
+    expect(screen.queryByText('No answer in the knowledge base')).toBeNull()
   })
 })
