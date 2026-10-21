@@ -6,29 +6,17 @@
 // with no label props, so this composes the same parts with our words.
 import { useThreadList } from '@openuidev/react-headless'
 import { AgentInterface } from '@openuidev/react-ui'
-import { useEffect, useState } from 'react'
-import { Icon, Input } from '../../../design-system'
-import { setChatSearch } from '../api'
+import { useState } from 'react'
+import { Icon } from '../../../design-system'
 import marshbot from '../marshbot.svg'
+import { ChatSearch } from './ChatSearch'
 import { ChatThreadList } from './ChatThreadList'
 
 /** The sidebar's contents: header, a New chat row, then the Chats heading and list. */
 export function ChatSidebar() {
   const startNewChat = useThreadList((s) => s.switchToNewThread)
   const hasChats = useThreadList((s) => s.threads.length > 0)
-  const loadChats = useThreadList((s) => s.loadThreads)
   const [words, setWords] = useState('')
-  // Reloads the list 250 ms after typing stops, so each keystroke is not a request. The first
-  // run (empty box) is skipped: the list loads itself on mount. Leaving clears the search, so
-  // the next visit lists every chat.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setChatSearch(words)
-      if (words) loadChats()
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [words, loadChats])
-  useEffect(() => () => setChatSearch(''), [])
   return (
     <>
       <div className="openui-agent-sidebar-actions">
@@ -60,14 +48,7 @@ export function ChatSidebar() {
         </div>
       </div>
       <AgentInterface.SidebarContent>
-        <Input
-          size="sm"
-          iconLeft="search"
-          aria-label="Search chats"
-          placeholder="Search chats"
-          value={words}
-          onChange={(e) => setWords(e.target.value)}
-        />
+        <ChatSearch words={words} onChange={setWords} />
         {(hasChats || words) && <h3 className="chat-sidebar-heading">Chats</h3>}
         <ChatThreadList searching={!!words} />
       </AgentInterface.SidebarContent>

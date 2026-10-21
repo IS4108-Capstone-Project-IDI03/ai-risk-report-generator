@@ -1,10 +1,12 @@
 // Tests for the saved-chat list (CB-03): the storage that talks to the gateway, and the
 // sidebar list's rename and delete-with-confirm. fetch is stubbed; no gateway runs.
 import { ChatProvider, type ChatStorage, type Thread } from '@openuidev/react-headless'
+import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { chatLLM, chatStorage, setChatSearch } from './api'
+import { ChatSearch } from './components/ChatSearch'
 import { ChatThreadList } from './components/ChatThreadList'
 
 // jsdom does not implement <dialog>; the shared Dialog opens it with showModal.
@@ -116,5 +118,45 @@ describe('chat list (CB-03)', () => {
     )
     await waitFor(() => expect(thread.deleteThread).toHaveBeenCalledWith('c2'))
     await waitFor(() => expect(screen.queryByText('FM-200 notes')).not.toBeInTheDocument())
+  })
+})
+
+describe('chat search (CB-03 AC3)', () => {
+  it('lists the matches while typing, and every chat again once the box is cleared', async () => {
+    const all: Thread[] = [
+      { id: 'c1', title: 'Sprinkler spacing', createdAt: 1 },
+      { id: 'c2', title: 'FM-200 notes', createdAt: 2 },
+    ]
+    // The real storage, with the gateway's search stubbed.
+    const asked: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      const q = new URL(url, 'http://x').searchParams.get('q')
+      asked.push(q ?? '')
+      return Response.json({
+        threads: all.filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase())),
+      })
+    })
+    function Box() {
+      const [words, setWords] = useState('')
+      return (
+        <>
+          <ChatSearch words={words} onChange={setWords} />
+          <ChatThreadList searching={!!words} />
+        </>
+      )
+    }
+    render(
+      <ChatProvider llm={chatLLM} storage={chatStorage}>
+        <Box />
+      </ChatProvider>,
+    )
+    await screen.findByText('FM-200 notes')
+    const box = screen.getByRole('textbox', { name: 'Search chats' })
+    fireEvent.change(box, { target: { value: 'sprink' } })
+    await waitFor(() => expect(screen.queryByText('FM-200 notes')).not.toBeInTheDocument())
+    expect(screen.getByText('Sprinkler spacing')).toBeInTheDocument()
+    fireEvent.change(box, { target: { value: '' } })
+    expect(await screen.findByText('FM-200 notes')).toBeInTheDocument()
+    expect(asked).toEqual(['', 'sprink', ''])
   })
 })
