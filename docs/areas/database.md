@@ -1071,3 +1071,16 @@ Each provider reports usage differently. The services rename it into one shape (
 | Price table lookup, added by the gateway | not sent | `estimatedCostUsd`, `pricingBasis`, `costParts` |
 
 What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become `null`; items with an unknown feature or service are dropped; the status becomes `unavailable` when every amount is empty; cost is never computed from partial usage; names change from snake_case to camelCase.
+
+## Saved chats (CB-03)
+
+Two collections hold each engineer's chats with the knowledge assistant. They are the third exception to the CLAUDE.md metadata rule (after Unconfirmed details and knowledge documents' missing `COPE_dimension`): they have **no `metadata` block**, because a chat is the user's own history, not a knowledge or review record. They carry `userId` instead, and every read and write is scoped to it.
+
+`chat_conversations` (`server/src/models/chat-conversation.model.ts`): `userId`, `title` (the first question trimmed to 60 characters; renamed by the user), `createdAt`, `updatedAt`. Index `{ userId, updatedAt: -1 }` for the newest-first list.
+
+`chat_messages` (`server/src/models/chat-message.model.ts`): `conversationId`, `userId`, `parentId` (the message before it, so CB-04 can add a retry as a sibling without a migration), `clientId` (the id the browser gave it), `role` (`user` or `assistant`), `content` (for an answer, the answer program text S4 streamed), `status` (`complete`, or `stopped` when the answer was cut off), `createdAt`.
+
+- Only the owner can read a chat. An admin cannot, and another user's chat answers 404, the same as a chat that does not exist.
+- Deleting a chat is permanent and deletes its messages.
+- Search matches the chat's name or any message, case-insensitive and part-word.
+- The gateway saves the question before calling S4 and the answer when the stream ends. A question refused by the daily limits is not saved.
