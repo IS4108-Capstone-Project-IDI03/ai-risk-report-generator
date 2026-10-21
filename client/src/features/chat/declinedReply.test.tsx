@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { phrase } from './textMatcher'
 
 const sse = (...events: object[]) =>
   new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join(''), {
@@ -27,7 +28,10 @@ afterEach(() => {
 })
 
 describe('Declined question (CB-07)', () => {
-  // Streams the fixed declined sentence, as the rag-service writes it.
+  // Whether the streamed answer's Meta says the knowledge base lacked it. A variable because
+  // OpenUI's chat client keeps the first test's stubbed fetch, which reads it each time.
+  let gapFlag = true
+  // Streams a declined sentence in the model's words, as the rag-service writes it.
   const declined = () =>
     sse(
       { type: 'TEXT_MESSAGE_START', messageId: 'a1', role: 'assistant' },
@@ -35,9 +39,13 @@ describe('Declined question (CB-07)', () => {
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'a1',
-        delta: 's1 = Statement("The knowledge base cannot answer this question.", [])\n',
+        delta: 's1 = Statement("The knowledge base doesn\'t cover Mars sprinklers.", [])\n',
       },
-      { type: 'TEXT_MESSAGE_CONTENT', messageId: 'a1', delta: 'meta = Meta([], [])\n' },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'a1',
+        delta: `meta = Meta([], []${gapFlag ? ', true' : ''})\n`,
+      },
       { type: 'TEXT_MESSAGE_END', messageId: 'a1' },
     )
 
@@ -78,13 +86,13 @@ describe('Declined question (CB-07)', () => {
 
       expect(
         await screen.findByText(
-          "I couldn't find that in the knowledge base.",
+          phrase("The knowledge base doesn't cover Mars sprinklers."),
           {},
           { timeout: 10000 },
         ),
       ).toBeVisible()
       expect(screen.queryByText('No answer in the knowledge base')).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: 'Ask an admin to add it' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Ask an admin to add it' }))
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText('What is the Mars sprinkler rule?')).toBeInTheDocument()
       fireEvent.change(within(dialog).getByLabelText(/Message to your admins/), {
@@ -106,11 +114,7 @@ describe('Declined question (CB-07)', () => {
     await askDeclined('knowledge_admin', gap)
 
     expect(
-      await screen.findByText(
-        'Would you like to add the document yourself?',
-        {},
-        { timeout: 10000 },
-      ),
+      await screen.findByRole('button', { name: 'Add documents' }, { timeout: 10000 }),
     ).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Ask an admin to add it' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add documents' }))
@@ -120,5 +124,19 @@ describe('Declined question (CB-07)', () => {
       'true',
     )
     expect(gap).not.toHaveBeenCalled()
+  })
+
+  it('offers no button when Meta has no gap flag', { timeout: 30000 }, async () => {
+    gapFlag = false
+    await askDeclined('risk_engineer')
+
+    expect(
+      await screen.findByText(
+        phrase("The knowledge base doesn't cover Mars sprinklers."),
+        {},
+        { timeout: 10000 },
+      ),
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Ask an admin to add it' })).toBeNull()
   })
 })

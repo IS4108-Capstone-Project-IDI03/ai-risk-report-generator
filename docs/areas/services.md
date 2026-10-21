@@ -710,7 +710,10 @@ per engineer per day adds about $6 a month.
 **Limits per user** (`server/src/services/chat-limits.service.ts`): a message of at most
 4,000 characters, 10 questions a minute, 200 a day, and $2 of chat a day. Over a limit,
 the gateway refuses before any model is called. So one user can cost at most about $2
-a day, or $44 a month.
+a day, or $44 a month. The refusal is a normal chat reply, picked at random from a few
+hand-written phrasings per limit (never the same one twice in a row) so it reads as the
+chatbot talking. If S4 can't be reached, the gateway answers the same way (a 200 stream
+with a friendly "try again shortly" reply), not a 503.
 
 **Testing doesn't spend money.** Unit tests mock every paid call. Two guards make a
 missed mock fail instead of spending:
@@ -744,6 +747,14 @@ saves those calls to `ai_calls` as feature `chat` with the signed-in user's
 sees it. Every other byte passes through unchanged. S4 starts collecting in
 the same generator step as the search, because Starlette runs each step of a
 streaming generator in a fresh copy of the context.
+
+S4 sends text as the model writes it; the chat screen paces it
+(`client/src/features/chat/smoothAdapter.ts` splits deltas into words and reveals them
+at an even rate, keeping the `meta` line whole). When the knowledge base lacks the
+answer, the reply is in the model's own words and the `meta` line carries a third
+argument, `Meta([...], [...], true)`, which shows the "Ask an admin" or "Add documents"
+button (CB-07). Errors and an empty question get a random friendly phrasing instead of
+a fixed sentence; the technical reason stays in `chat_result.error`.
 
 ## Usage and costs report (EV-04)
 

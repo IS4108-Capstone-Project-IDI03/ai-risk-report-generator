@@ -1,6 +1,6 @@
-// What the chat shows when the knowledge base cannot answer (CB-07): a plain reply and one
-// button. An engineer can ask the knowledge admins to add the document; an admin is sent to
-// Add documents. Rendered by the Statement in ../library.tsx for the declined sentence.
+// The next step the chat offers when the knowledge base lacks an answer (CB-07): one button.
+// An engineer can ask the knowledge admins to add the document; an admin is sent to Add
+// documents. Rendered by the Answer in ../library.tsx under the reply when Meta says gap.
 import { useContext, useState } from 'react'
 import { useMessage, useThread } from '@openuidev/react-headless'
 import { Icon } from '../../../design-system'
@@ -62,17 +62,11 @@ function AskAdmin() {
   )
 }
 
-/** Returns the declined reply: two short sentences and the button for the signed-in role. */
+/** Returns the declined reply's button for the signed-in role (the sentence is the model's). */
 export function DeclinedReply() {
   const { isAdmin } = useContext(DeclineContext)
   return (
     <div className="chat-decline">
-      <p className="chat-statement">I couldn&apos;t find that in the knowledge base.</p>
-      <p className="chat-statement">
-        {isAdmin
-          ? 'Would you like to add the document yourself?'
-          : 'Would you like me to ask your knowledge admins to add the document you need?'}
-      </p>
       {isAdmin ? (
         <button
           type="button"

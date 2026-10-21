@@ -272,6 +272,8 @@ class ChatRequest(BaseModel):
     messages: Annotated[list[ChatMessage], Field(min_length=1)]
     context: list[ChatContext] = []
     documents: list[ChatDocument] = []
+    # The signed-in user's role, set by the gateway; shapes the "not covered" offer.
+    role: str = "risk_engineer"
 
 
 @router.post("/chat")
@@ -279,7 +281,7 @@ def chat(request: ChatRequest) -> StreamingResponse:
     """Stream one cited answer to the conversation's last message (CB-01)."""
     messages = [m.model_dump() for m in request.messages]
     documents = [d.model_dump() for d in request.documents]
-    events = answer_events(messages, [c.value for c in request.context], documents)
+    events = answer_events(messages, [c.value for c in request.context], documents, request.role)
     return StreamingResponse(events, media_type="text/event-stream")
 
 
