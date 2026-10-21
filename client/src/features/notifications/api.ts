@@ -33,6 +33,7 @@ export type NotificationPurpose =
   | 'knowledge_document_status'
   | 'account_status'
   | 'assessment_status'
+  | 'knowledge_gap_request'
 
 // One notification as the gateway sends it; matches NotificationDto in
 // server/src/services/notification.service.ts. `read` is this user's own state.

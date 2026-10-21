@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotificationBell } from './NotificationBell'
 import type { Notification, NotificationPage } from './api'
+import { knowledgeTab } from '../knowledge-base/openTab'
 
 afterEach(cleanup)
 
@@ -282,5 +283,94 @@ describe('NotificationBell — needs review', () => {
     expect(followed).toHaveBeenCalled()
     window.removeEventListener('popstate', followed)
     window.history.replaceState(null, '', '/')
+  })
+})
+
+// CB-07: a knowledge request's notification opens Requests for an admin, the chat for the asker.
+describe('NotificationBell — knowledge requests', () => {
+  it.each([
+    ['New knowledge request', { requestId: 'r1' }, '/admin/knowledge-base', 'requests'],
+    [
+      'Your knowledge request was filled',
+      { requestId: 'r1', status: 'filled' },
+      '/ask',
+      'documents',
+    ],
+  ])('opens the right screen for "%s"', async (message, context, path, tab) => {
+    stubGateway([{ ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, context }])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: message }))
+
+    expect(window.location.pathname).toBe(path)
+    expect(knowledgeTab.current).toBe(tab)
+    window.history.replaceState(null, '', '/')
+    knowledgeTab.current = 'documents'
+  })
+})
+
+// CB-07: a knowledge request opens the Requests tab for an admin, and the chat for an engineer.
+describe('NotificationBell — knowledge requests', () => {
+  const click = async (context: Record<string, string>, message: string) => {
+    stubGateway([{ ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, context }])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: message }))
+  }
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
+  it('opens Requests for a new request', async () => {
+    await click({ requestId: 'r1' }, 'New knowledge request')
+    expect(window.location.pathname).toBe('/admin/knowledge-base')
+  })
+
+  it('opens the chat for the engineer when a request is closed', async () => {
+    await click({ requestId: 'r1', status: 'filled' }, 'Your knowledge request was filled')
+    expect(window.location.pathname).toBe('/ask')
+  })
+})
+
+// CB-07: an expanded knowledge request shows its parts under labels, not one block of text.
+describe('NotificationBell — knowledge request details', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
+  it('shows the question, the documents added and Ask again for a filled request', async () => {
+    const context = {
+      requestId: 'r1',
+      status: 'filled',
+      question: 'Lithium-ion storage?',
+      documents: JSON.stringify([{ title: 'FM 8-1', uploadedAt: '2026-10-20T08:00:00.000Z' }]),
+    }
+    const message = 'Your knowledge request was filled'
+    stubGateway([
+      { ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, details: 'x', context },
+    ])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show more' }))
+
+    expect(screen.getByRole('heading', { name: 'Added' })).toBeInTheDocument()
+    expect(screen.getByText('Lithium-ion storage?')).toBeInTheDocument()
+    expect(screen.getByText('FM 8-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ask again' }))
+    expect(window.location.pathname).toBe('/ask')
+  })
+
+  it('opens the request itself from Go to request', async () => {
+    const context = { requestId: 'r7', question: 'Q?', askedBy: 'Alex Rowe', message: 'FM 8-1' }
+    const message = 'New knowledge request'
+    stubGateway([
+      { ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, details: 'x', context },
+    ])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show more' }))
+
+    expect(screen.getByRole('heading', { name: 'Message from Alex Rowe' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to request' }))
+    expect(knowledgeTab.request).toBe('r7')
+    knowledgeTab.current = 'documents'
+    knowledgeTab.request = null
   })
 })

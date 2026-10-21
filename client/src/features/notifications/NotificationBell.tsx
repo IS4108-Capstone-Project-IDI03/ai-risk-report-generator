@@ -3,7 +3,8 @@ import { IconButton, Popover } from '../../design-system'
 import { useNotifications, type NotificationCounts } from './useNotifications'
 import { NotificationList } from './NotificationList'
 import type { Notification } from './api'
-import { KNOWLEDGE_REVIEW_PATH } from '../auth/access'
+import { KNOWLEDGE_REVIEW_PATH, SCREEN_PATHS } from '../auth/access'
+import { openKnowledgeTab } from '../knowledge-base/openTab'
 
 export type NotificationBellProps = {
   // Counts from the session, so the badge is right before the dropdown opens.
@@ -110,11 +111,22 @@ export function NotificationBell({
 // needs review (IN-07) opens its Review page: the URL changes and popstate
 // tells the app and the knowledge base to follow it, as the browser's Back does.
 function openSubject(notification: Notification) {
+  if (notification.purpose === 'knowledge_gap_request') return openKnowledgeRequest(notification)
   const { documentId, status } = notification.context ?? {}
   if (status !== 'needs_review' || !documentId) return
   const path = KNOWLEDGE_REVIEW_PATH + encodeURIComponent(documentId)
   // Already there: a second entry would make Back land on the same page.
   if (window.location.pathname === path) return
   window.history.pushState(null, '', path)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+// A knowledge request (CB-07). The admin's "New knowledge request" has no status in its context,
+// so it opens Requests; the engineer's outcome (filled or dismissed) carries one and opens the chat.
+function openKnowledgeRequest(notification: Notification) {
+  if (!notification.context?.status)
+    return openKnowledgeTab('requests', notification.context?.requestId)
+  if (window.location.pathname === SCREEN_PATHS.chat) return
+  window.history.pushState(null, '', SCREEN_PATHS.chat)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }

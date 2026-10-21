@@ -1,17 +1,8 @@
 import { useState } from 'react'
 import { Icon, IconButton } from '../../design-system'
 import type { Notification } from './api'
-
-// A literal, mono timestamp like "11 Apr 09:22" (docs/design-system.md: dates
-// are literal and in mono, never relative). Falls back to the raw value if the
-// date cannot be parsed, rather than showing "Invalid Date".
-function formatWhen(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  const day = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-  const time = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  return `${day} ${time}`
-}
+import { formatWhen } from './formatWhen'
+import { KnowledgeRequestDetails } from './KnowledgeRequestDetails'
 
 export function NotificationRow({
   notification,
@@ -26,6 +17,12 @@ export function NotificationRow({
 }) {
   const [expanded, setExpanded] = useState(false)
   const hasDetails = Boolean(notification.details)
+  // A knowledge request stored with its parts (CB-07) is laid out with labels; older ones
+  // fall back to the plain details text.
+  const request =
+    notification.purpose === 'knowledge_gap_request' && notification.context?.question
+      ? notification.context
+      : null
 
   const activate = () => {
     if (!notification.read) onMarkRead(notification.id)
@@ -75,7 +72,10 @@ export function NotificationRow({
         >
           <span style={{ fontSize: '14px', lineHeight: '20px' }}>{notification.message}</span>
         </button>
-        {hasDetails && expanded && (
+        {hasDetails && expanded && request && (
+          <KnowledgeRequestDetails context={request} onOpen={activate} />
+        )}
+        {hasDetails && expanded && !request && (
           <p
             style={{
               margin: 'var(--space-2) 0 0',
