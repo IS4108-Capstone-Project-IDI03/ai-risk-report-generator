@@ -5,6 +5,7 @@ import { config } from './config'
 import { connectDb } from './models/db'
 import healthRoutes from './routes/health.routes'
 import knowledgeDocumentRoutes from './routes/knowledge-document.routes'
+import knowledgeGapRoutes from './routes/knowledge-gap.routes'
 import assessmentRoutes from './routes/assessment.routes'
 import clientRoutes from './routes/client.routes'
 import authRoutes from './routes/auth.routes'
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/knowledge-documents', requireAuth, knowledgeDocumentRoutes)
+app.use('/api/knowledge-gaps', requireAuth, knowledgeGapRoutes)
 app.use('/api/rag', requireAuth, ragRoutes)
 app.use('/api/chat', requireAuth, chatRoutes)
 app.use('/api/observations', requireAuth, observationRoutes)
