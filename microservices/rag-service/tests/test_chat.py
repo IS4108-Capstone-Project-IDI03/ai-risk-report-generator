@@ -64,7 +64,6 @@ def fake(monkeypatch):
     monkeypatch.setattr(answer, "complete_json", complete_json)
     monkeypatch.setattr(answer, "retrieve", retrieve)
     monkeypatch.setattr(answer, "stream_text", stream_text)
-    monkeypatch.setattr(answer, "WORD_DELAY_SECONDS", 0)
     return state
 
 
@@ -144,13 +143,65 @@ def test_declines_without_citations_when_nothing_is_relevant(fake):
     events = _ask("What does the knowledge base say about earthquakes?")
     result = _result(events)
     assert result["declined"] is True and result["citations"] == []  # AC3
-    assert answer.DECLINE in _program(events)
+    program = _program(events)
+    assert "Statement(" in program and program.endswith("meta = Meta([], [], true)\n")
     assert fake["calls"]["answer"] == []  # no model call to say no
 
 
-def test_declines_when_the_model_says_the_passages_dont_answer(fake):
-    fake["chunks"] = [f'root = Answer([s1])\ns1 = Statement("{answer.DECLINE}", [])\n']
-    assert _result(_ask("Something oddly specific?"))["declined"] is True
+def test_not_found_says_the_planners_words(fake):
+    reply = "The knowledge base doesn't cover earthquake design."
+    fake["plan"] = answer.Plan(kind="search", query="earthquakes", reply=reply)
+    fake["passages"] = [P1 | {"relevance_score": 0.01}]
+    program = _program(_ask("Earthquakes?"))
+    assert json.dumps(reply) in program and program.endswith("Meta([], [], true)\n")
+
+
+def _ask_as(role):
+    body = {"messages": [{"role": "user", "content": "Earthquakes?"}], "role": role}
+    text = client.post("/chat", json=body).text
+    events = [json.loads(x[6:]) for x in text.splitlines() if x.startswith("data: ")]
+    return _program(events)
+
+
+@pytest.mark.parametrize(
+    ("role", "stock", "label"),
+    [
+        ("risk_engineer", "NOT_FOUND_ENGINEER", "risk engineer"),
+        ("knowledge_admin", "NOT_FOUND_ADMIN", "knowledge admin"),
+    ],
+)
+def test_not_found_without_a_planner_reply_uses_the_roles_stock_offer(fake, role, stock, label):
+    fake["passages"] = [P1 | {"relevance_score": 0.01}]
+    program = _ask_as(role)
+    lists = getattr(answer, stock)
+    said = next(p for p in lists if json.dumps(p) in program)
+    assert said.endswith("?") and "!" not in said
+    assert f"<role>{label}</role>" in fake["calls"]["plan"][0]
+
+
+def test_the_role_defaults_to_risk_engineer_and_reaches_the_answer_model(fake):
+    _ask("What clearance is needed above storage?")
+    assert fake["calls"]["plan"][0].startswith("<role>risk engineer</role>")
+    assert fake["calls"]["answer"][0][1][-1]["content"].startswith("<role>risk engineer</role>")
+    fake["calls"]["answer"].clear()
+    body = {"messages": [{"role": "user", "content": "q"}], "role": "knowledge_admin"}
+    client.post("/chat", json=body)
+    assert fake["calls"]["answer"][0][1][-1]["content"].startswith("<role>knowledge admin</role>")
+
+
+def test_an_answer_without_citations_is_declined_and_flags_the_gap(fake):
+    fake["chunks"] = [
+        "root = Answer([s1])\n",
+        's1 = Statement("The knowledge base has nothing on oddly specific things.", [])\n',
+    ]
+    events = _ask("Something oddly specific?")
+    assert _result(events)["declined"] is True
+    assert _program(events).rstrip().splitlines()[-1].endswith("[], true)")
+
+
+def test_a_cited_answer_is_not_a_gap(fake):
+    program = _program(_ask("Clearance?"))
+    assert not program.rstrip().endswith("true)")
 
 
 def test_named_filters_reach_search_and_are_shown(fake):
@@ -194,13 +245,22 @@ def test_an_ambiguous_follow_up_gets_a_question_back_without_searching(fake):
     assert _result(events)["citations"] == []
 
 
-def test_a_request_outside_property_risk_is_declined_without_searching(fake):
-    fake["plan"] = answer.Plan(kind="decline", query="", reply="")
+def test_a_request_outside_property_risk_is_declined_in_the_planners_words(fake):
+    reply = "That's outside what I can help with, but ask me about the standards."
+    fake["plan"] = answer.Plan(kind="decline", query="", reply=reply)
     events = _ask("Something with nothing to do with property risk?")
     result = _result(events)
     assert result["declined"] is True and result["citations"] == []  # AC3, AC10
-    assert answer.DECLINE in _program(events)
+    # Not the not-found sentence, so the chat offers no knowledge request (CB-07).
+    assert reply in _program(events) and "true)" not in _program(events)
     assert fake["calls"]["search"] == [] and fake["calls"]["answer"] == []
+
+
+def test_an_off_topic_decline_without_a_reply_never_offers_to_add_a_document(fake):
+    fake["plan"] = answer.Plan(kind="decline", query="", reply="")
+    program = _program(_ask("What's a good pasta recipe?"))
+    assert any(json.dumps(line) in program for line in answer.OFF_TOPIC)
+    assert "admin" not in program
 
 
 def test_follow_ups_send_the_conversation_as_plain_text(fake):
@@ -220,7 +280,7 @@ def test_a_model_failure_ends_the_answer_with_a_plain_message(fake, monkeypatch)
 
     monkeypatch.setattr(answer, "stream_text", broken)
     events = _ask("What clearance is needed above storage?")
-    assert "could not be reached" in _program(events)
+    assert any(json.dumps(p) in _program(events) for p in answer.TROUBLE)
     assert events[-1]["type"] == "CUSTOM"
 
 
@@ -261,7 +321,7 @@ def test_a_search_failure_ends_the_answer_with_a_plain_message(fake, monkeypatch
     monkeypatch.setattr(answer, "retrieve", retrieve)
     events = _ask("What clearance is needed above storage?")
     assert events[-2]["type"] == "TEXT_MESSAGE_END" and events[-1]["type"] == "CUSTOM"
-    assert "couldn't answer" in _program(events)
+    assert any(json.dumps(p) in _program(events) for p in answer.TROUBLE)
     assert _result(events)["error"]
 
 
@@ -291,7 +351,8 @@ def test_the_question_is_the_engineers_last_message(fake):
 def test_a_conversation_without_a_question_gets_a_plain_message(fake):
     response = client.post("/chat", json={"messages": [{"role": "system", "content": "x"}]})
     events = [json.loads(x[6:]) for x in response.text.splitlines() if x.startswith("data: ")]
-    assert "couldn't answer" in _program(events) and fake["calls"]["answer"] == []
+    assert any(json.dumps(p) in _program(events) for p in answer.NO_QUESTION)
+    assert _result(events)["error"] and fake["calls"]["answer"] == []
 
 
 def test_empty_turns_and_table_programs_reach_the_model_as_text(fake):
@@ -336,7 +397,6 @@ def test_a_passage_without_a_document_id_still_gives_a_readable_check(fake):
 
 
 def test_the_check_line_arrives_whole_not_word_by_word(fake, monkeypatch):
-    monkeypatch.setattr(answer, "WORD_DELAY_SECONDS", 0.0001)
     events = _ask("Clearance?")
     deltas = [e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT"]
     assert any(d.lstrip().startswith("meta = Meta(") and d.rstrip().endswith(")") for d in deltas)

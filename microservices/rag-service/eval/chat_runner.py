@@ -101,8 +101,6 @@ def pipeline_hooks():
         (answer, "complete_json"): plan,
         (answer, "search_passages"): search,
         (answer, "stream_text"): stream,
-        # Production paces words for the screen; the eval would only time the pause.
-        (answer, "WORD_DELAY_SECONDS"): 0,
         (llm, "_anthropic_usage"): keeper("anthropic"),
         (llm, "_openai_usage"): keeper("openai"),
     }

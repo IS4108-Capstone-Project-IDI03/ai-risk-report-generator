@@ -999,7 +999,7 @@ it as lists of user ids.
 
 Fields: `purpose` (one of `ingestion_status`, `transcription_status`,
 `drafting_status`, `knowledge_document_status`, `account_status`,
-`assessment_status`), `message` (the line shown in the dropdown), `details` (the
+`assessment_status`, `knowledge_gap_request`), `message` (the line shown in the dropdown), `details` (the
 longer text behind the row's expand control, e.g. a failure reason),
 `targetRole` (a `USER_ROLES` value), `targetUserIds`, `readBy`, `dismissedBy`,
 `createdBy` and `createdByService`, and `context`.
@@ -1016,7 +1016,8 @@ notifications on their next request, with no migration of existing documents.
 
 `readBy` and `dismissedBy` exist because the document is shared. Marking as read
 adds the caller to `readBy`; "mark all as read" adds them to `readBy` across
-everything they can see; "dismiss all" adds them to `dismissedBy`. None delete,
+everything they can see; "dismiss" (one row, `POST /api/notifications/:id/dismiss`)
+and "dismiss all" add them to `dismissedBy`. None delete,
 since deleting a shared document would clear it for everyone else too — so one
 user reading or dismissing never changes what another user in the role sees.
 
@@ -1037,6 +1038,31 @@ Purposes are a closed set so every notification has a known audience and a known
 screen to open. Only `ingestion_status` has a producer today. Deadline and
 reminder purposes are absent on purpose: nothing in the repo schedules work, so
 nothing could fire them.
+
+## Knowledge gap requests (CB-07)
+
+`knowledge_gap_requests` holds one document per request from a risk engineer that
+a knowledge admin add a document the chatbot lacked
+(`server/src/models/knowledge-gap-request.model.ts`).
+
+Fields: `question` (≤ 4,000 chars, the chat's limit), `message` (optional, ≤ 1,000,
+absent when blank), `askedBy` (user id), `status` (`open`, `filled` or `dismissed`),
+`documentIds` (knowledge document ids, set when filled), `reason` (≤ 500, set when
+dismissed), `closedBy`, `closedAt`, and timestamps.
+
+Closing is atomic: fill and dismiss update only where `status` is `open`, so two
+admins acting at once cannot both close it (the second gets 409). Filling and
+dismissing also write a `knowledge_gap_request` notification for the asker; a failed
+notification is logged and never fails the action, because the request is the record.
+Each `knowledge_gap_request` notification's `context` carries the request's parts as
+strings, so the bell can lay them out with labels: `requestId` and `question` always;
+`askedBy` and `message` (if given) on a new request; `status` plus `documents` (a JSON
+array of `{ title, uploadedAt }`) or `reason` on a closed one.
+
+Index: `{ status: 1, createdAt: -1 }` for the admin's open list.
+
+It carries none of the five mandatory metadata fields: like `notifications`, it is not
+retrieval evidence.
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

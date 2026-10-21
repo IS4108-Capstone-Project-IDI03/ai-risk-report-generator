@@ -202,3 +202,33 @@ describe('POST /api/notifications/dismiss-all', () => {
     expect(res.body.items).toHaveLength(3)
   })
 })
+
+describe('POST /api/notifications/:id/dismiss', () => {
+  it('needs a session', async () => {
+    await request(app).post('/api/notifications/abc/dismiss').expect(401)
+  })
+
+  it('hides one notification from the list and the counts, for the caller only', async () => {
+    const otherAdmin = signedInAsRole(app, 'knowledge_admin', 'Mei Tan')
+    await seedAdminSeries(3)
+    const before = await admin.get('/api/notifications').expect(200)
+    const id = before.body.items[0].id
+
+    await admin.post(`/api/notifications/${id}/dismiss`).expect(204)
+
+    const after = await admin.get('/api/notifications').expect(200)
+    expect(after.body.items.map((i: { id: string }) => i.id)).not.toContain(id)
+    expect(after.body.total).toBe(2)
+    expect(after.body.unread).toBe(2)
+    const other = await otherAdmin.get('/api/notifications').expect(200)
+    expect(other.body.total).toBe(3)
+  })
+
+  it('is a 404 for an unknown id, a malformed id, or another role\u2019s notification', async () => {
+    await createNotification({ ...forAllAdmins('x'), targetRole: 'risk_engineer' })
+    const other = await engineer.get('/api/notifications').expect(200)
+    await admin.post(`/api/notifications/${other.body.items[0].id}/dismiss`).expect(404)
+    await admin.post('/api/notifications/000000000000000000000000/dismiss').expect(404)
+    await admin.post('/api/notifications/not-an-id/dismiss').expect(404)
+  })
+})

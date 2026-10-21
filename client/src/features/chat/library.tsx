@@ -6,7 +6,7 @@ import { createLibrary, defineComponent } from '@openuidev/react-lang'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@openuidev/react-ui'
 import { z } from 'zod'
 import { createContext, useContext } from 'react'
-import { Callout } from '../../design-system'
+import { DeclinedReply } from './components/DeclinedReply'
 import { CitationMarker } from './components/CitationMarker'
 import { withBold } from './components/bold'
 import { CitedText } from './components/CitedText'
@@ -16,9 +16,6 @@ import {
   checkKey,
   type CitedSource,
 } from './components/citationCheck'
-
-// must match DECLINE in microservices/rag-service/app/chat/answer.py
-const DECLINE = 'The knowledge base cannot answer this question.'
 
 // Each citation's number (passage label + quoted words), in the order the answer first
 // cites it (1, 2, 3…), found by walking the parsed answer. Per quote, not per passage:
@@ -49,26 +46,19 @@ const Cite = defineComponent({
 const Statement = defineComponent({
   name: 'Statement',
   description: 'One statement of the answer and the citations that support it.',
-  props: z.object({ text: z.string(), cites: z.array(Cite.ref) }),
+  // Optional on screen only, so a half-written statement shows while it streams: with it
+  // required, OpenUI dropped each sentence until its cites began. The model still sees it as
+  // required (chatPrompt below).
+  props: z.object({ text: z.string(), cites: z.array(Cite.ref).optional() }),
   component: function StatementView({ props, renderNode }) {
     const inParagraph = useContext(InParagraph)
     const body = (
       <>
-        <CitedText text={props.text} cites={renderNode(props.cites)} />
+        <CitedText text={props.text} cites={renderNode(props.cites ?? [])} />
       </>
     )
     if (inParagraph) return <span className="chat-sentence">{body} </span>
-    // A declined answer is a callout with a next step, not an answer-shaped paragraph (AC3).
-    return props.text === DECLINE && !props.cites.length ? (
-      <div data-decline>
-        <Callout tone="info" title="No answer in the knowledge base">
-          {DECLINE} Try naming the standard, edition or report, or ask your knowledge admin to add
-          the document.
-        </Callout>
-      </div>
-    ) : (
-      <p className="chat-statement">{body}</p>
-    )
+    return <p className="chat-statement">{body}</p>
   },
 })
 
@@ -140,6 +130,9 @@ const Meta = defineComponent({
   props: z.object({
     sources: z.array(MetaSource),
     unverified: z.array(z.object({ label: z.string(), quote: z.string() })),
+    // True when the knowledge base lacks what was asked (rag-service answer.py), so the
+    // answer offers the role's next step (CB-07).
+    gap: z.boolean().optional(),
   }),
   component: () => null,
 })
@@ -164,7 +157,13 @@ const Answer = defineComponent({
     // The Meta line arrives last; until then markers show as "checking".
     const meta = (
       props.meta as
-        | { props?: { sources?: CitedSource[]; unverified?: { label: string; quote: string }[] } }
+        | {
+            props?: {
+              sources?: CitedSource[]
+              unverified?: { label: string; quote: string }[]
+              gap?: boolean
+            }
+          }
         | undefined
     )?.props
     const check = meta?.sources
@@ -176,7 +175,10 @@ const Answer = defineComponent({
     return (
       <CitationCheckContext.Provider value={check}>
         <CitationNumbersContext.Provider value={citationNumbers(props.blocks)}>
-          <div className="chat-answer">{renderNode(props.blocks)}</div>
+          <div className="chat-answer">
+            {renderNode(props.blocks)}
+            {meta?.gap && <DeclinedReply />}
+          </div>
         </CitationNumbersContext.Provider>
       </CitationCheckContext.Provider>
     )
@@ -188,3 +190,10 @@ export const chatLibrary = createLibrary({
   components: [Answer, Paragraph, Statement, CitedTable, Cell, Cite, FollowUp, Meta],
   root: 'Answer',
 })
+
+/** Returns the components prompt the model sees: a Statement's cites stay required there. */
+export function chatPrompt() {
+  return chatLibrary
+    .prompt()
+    .replace('Statement(text: string, cites?: Cite[])', 'Statement(text: string, cites: Cite[])')
+}

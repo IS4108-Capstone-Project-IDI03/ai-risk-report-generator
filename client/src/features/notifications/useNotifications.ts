@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   dismissAllNotifications,
+  dismissNotification,
   getNotificationCount,
   listNotifications,
   markAllNotificationsRead,
@@ -36,6 +37,7 @@ export type UseNotifications = {
   loadMore: () => void
   markRead: (id: string) => void
   markAllRead: () => void
+  dismiss: (id: string) => void
   dismissAll: () => void
 }
 
@@ -53,7 +55,13 @@ export function useNotifications(pageSize: number, initial: NotificationCounts):
   const inFlight = useRef<AbortController | null>(null)
 
   const apply = useCallback((page: NotificationPage, append: boolean) => {
-    setItems((current) => (append ? [...current, ...page.items] : page.items))
+    // Skips rows already shown: a Load more sent before a dismiss reached the
+    // server would otherwise repeat the last row.
+    setItems((current) =>
+      append
+        ? [...current, ...page.items.filter((n) => !current.some((c) => c.id === n.id))]
+        : page.items,
+    )
     setTotal(page.total)
     setUnread(page.unread)
     setLoaded(true)
@@ -101,6 +109,20 @@ export function useNotifications(pageSize: number, initial: NotificationCounts):
     setUnread(0)
     markAllNotificationsRead().catch(() => {})
   }, [])
+
+  // Dismiss one: drop the row now and adjust the counts, then tell the gateway.
+  // A failed call is ignored; the next open or poll puts the row back.
+  const dismiss = useCallback(
+    (id: string) => {
+      const row = items.find((n) => n.id === id)
+      if (!row) return
+      setItems((current) => current.filter((n) => n.id !== id))
+      setTotal((current) => Math.max(0, current - 1))
+      if (!row.read) setUnread((current) => Math.max(0, current - 1))
+      dismissNotification(id).catch(() => {})
+    },
+    [items],
+  )
 
   // Dismiss all: empty the list and zero the counts, then tell the gateway.
   const dismissAll = useCallback(() => {
@@ -174,6 +196,7 @@ export function useNotifications(pageSize: number, initial: NotificationCounts):
     loadMore,
     markRead,
     markAllRead,
+    dismiss,
     dismissAll,
   }
 }

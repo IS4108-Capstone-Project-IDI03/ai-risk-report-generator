@@ -332,7 +332,7 @@ def test_batch_answers_replay_through_the_real_pipeline(env, monkeypatch):
 
 
 def test_a_model_decline_sentence_counts_as_declined_in_batch(env, monkeypatch):
-    decline = f'root = Answer([s1])\ns1 = Statement("{answer.DECLINE}", [])\n'
+    decline = 'root = Answer([s1])\ns1 = Statement("The knowledge base has nothing on that.", [])\n'
     fake_anthropic_batches(monkeypatch, text_for=lambda params: decline)
     prepare(env)
     run(env, "--transport", "batch", "--cases", "a1")

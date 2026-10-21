@@ -10,6 +10,7 @@ import { USER_ROLES, type UserRole } from './user.model'
 //   knowledge_document_status   correct / withdraw / reinstate (KB-01)
 //   account_status              createUser, and updateUser changing role or active
 //   assessment_status           createAssessment, archive, restore
+//   knowledge_gap_request       a knowledge request sent, filled or dismissed (CB-07)
 // Deadline and reminder purposes are deliberately absent: nothing schedules
 // work in this repo, so nothing could fire them.
 export const NOTIFICATION_PURPOSES = [
@@ -19,6 +20,7 @@ export const NOTIFICATION_PURPOSES = [
   'knowledge_document_status',
   'account_status',
   'assessment_status',
+  'knowledge_gap_request',
 ] as const
 export type NotificationPurpose = (typeof NOTIFICATION_PURPOSES)[number]
 
