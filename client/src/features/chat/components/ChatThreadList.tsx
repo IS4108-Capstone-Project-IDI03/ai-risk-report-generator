@@ -10,7 +10,9 @@ export function ChatThreadList({ searching = false }: { searching?: boolean }) {
   const loading = useThreadList((s) => s.isLoadingThreads)
   const failed = useThreadList((s) => s.threadListError)
   const load = useThreadList((s) => s.loadThreads)
-  useEffect(load, [load])
+  useEffect(() => {
+    load()
+  }, [load])
   if (failed) return <p className="chat-thread-note">Chats could not be loaded. Try again later.</p>
   if (loading && !threads.length) return <p className="chat-thread-note">Loading chats…</p>
   if (!threads.length)

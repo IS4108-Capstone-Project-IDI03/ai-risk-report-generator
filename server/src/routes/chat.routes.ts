@@ -89,7 +89,11 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   }
   // b. Save the question before asking S4, so it is kept even if the answer fails.
   const question = lastQuestion(req.body)
-  if (typeof threadId === 'string' && question) await saveQuestion(threadId, userId, question)
+  // A failed save is logged, not fatal: the engineer still gets their answer.
+  if (typeof threadId === 'string' && question)
+    await saveQuestion(threadId, userId, question).catch((error) =>
+      console.error('Could not save the chat question:', error),
+    )
   // Without this, S4 keeps writing an answer after the engineer presses stop.
   const upstream = new AbortController()
   res.on('close', () => upstream.abort())

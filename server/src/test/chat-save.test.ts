@@ -86,6 +86,41 @@ describe('saving a chat (CB-03)', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('saves a finished answer as complete even when the last event has no closing blank line', async () => {
+    stubS4(ANSWER.slice(0, -2)) // drops the final "\n\n"
+    const id = await newChat()
+    await ask(alex, id)
+    const { body } = await alex.get(`/api/chat/conversations/${id}`)
+    expect(body.messages[1].content).toBe(
+      'root = Answer([s1])\ns1 = Statement("Fit sprinklers.", [])',
+    )
+    const { ChatMessageModel } = await import('../models/chat-message.model')
+    expect((await ChatMessageModel.findOne({ role: 'assistant' }))?.status).toBe('complete')
+  })
+
+  it('saves a resent question once, not twice', async () => {
+    stubS4(ANSWER)
+    const id = await newChat()
+    await ask(alex, id)
+    await ask(alex, id) // same message id: a retry of the same question
+    const { body } = await alex.get(`/api/chat/conversations/${id}`)
+    expect(body.messages.filter((m: { role: string }) => m.role === 'user')).toHaveLength(1)
+  })
+
+  it('still streams the answer if the question could not be saved', async () => {
+    stubS4(ANSWER)
+    const id = await newChat()
+    const { ChatMessageModel } = await import('../models/chat-message.model')
+    const create = vi
+      .spyOn(ChatMessageModel, 'create')
+      .mockRejectedValueOnce(new Error('db down') as never)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await ask(alex, id)
+    expect(res.status).toBe(200)
+    expect(res.text).toBe(ANSWER)
+    create.mockRestore()
+  })
+
   it('still answers a question that names no chat', async () => {
     stubS4(ANSWER)
     const res = await alex

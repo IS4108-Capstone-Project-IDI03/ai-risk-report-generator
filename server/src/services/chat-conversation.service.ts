@@ -41,7 +41,7 @@ export async function createConversation(userId: string, firstQuestion: string) 
  * plain text and cannot act as a pattern (without this, a search for "(" would throw).
  */
 export async function listConversations(userId: string, q?: string) {
-  const words = q?.trim()
+  const words = q?.trim().slice(0, 100)
   const filter: Record<string, unknown> = { userId }
   if (words) {
     const pattern = new RegExp(words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')

@@ -44,12 +44,23 @@ async function append(
 }
 
 /** Saves the engineer's question into the chat. */
-export const saveQuestion = (
+export async function saveQuestion(
   conversationId: string,
   userId: string,
   question: { id?: string; content: string },
-) =>
-  append(conversationId, userId, { role: 'user', content: question.content, clientId: question.id })
+) {
+  // A retry re-sends the same message id; saving it again would show the question twice.
+  if (
+    question.id &&
+    (await ChatMessageModel.exists({ conversationId, role: 'user', clientId: question.id }))
+  )
+    return
+  await append(conversationId, userId, {
+    role: 'user',
+    content: question.content,
+    clientId: question.id,
+  })
+}
 
 /**
  * Returns a pass-through stream that collects the answer's text and saves it when the stream
@@ -61,6 +72,8 @@ export function chatSaveTap(conversationId: string, userId: string): Transform {
   const decoder = new StringDecoder('utf8')
   let pending = ''
   let text = ''
+  // The answer is one message; text of any other message id is not part of it.
+  let answerId: string | undefined
   let ended = false
   let saved = false
   const scan = (chunk: string) => {
@@ -70,8 +83,10 @@ export function chatSaveTap(conversationId: string, userId: string): Transform {
     for (const event of events) {
       try {
         const data = JSON.parse(event.replace(/^data: ?/, ''))
-        if (data.type === 'TEXT_MESSAGE_CONTENT' && typeof data.delta === 'string')
-          text += data.delta
+        if (data.type === 'TEXT_MESSAGE_CONTENT' && typeof data.delta === 'string') {
+          answerId ??= data.messageId
+          if (data.messageId === answerId) text += data.delta
+        }
         if (data.type === 'TEXT_MESSAGE_END') ended = true
       } catch {
         // Not JSON: nothing to collect.
@@ -94,6 +109,9 @@ export function chatSaveTap(conversationId: string, userId: string): Transform {
       scan(decoder.write(chunk))
     },
     flush(done) {
+      // The last event may have no closing blank line; without this it would be missed, and a
+      // finished answer would be saved as stopped.
+      scan(decoder.end() + '\n\n')
       void save().then(() => done())
     },
     destroy(error, done) {
