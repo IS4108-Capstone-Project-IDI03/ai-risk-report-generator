@@ -207,6 +207,50 @@ def test_reads_text_alone_for_categories_only(monkeypatch):
     assert "photographs" not in sent["system_instruction"]
 
 
+def test_regenerates_the_categories_alone_from_every_item(monkeypatch):
+    # Photos are still evidence for the categories, but nothing is described.
+    use_fakes(
+        monkeypatch,
+        FakeS3({"k": photo((50, 50))}),
+        output_text=json.dumps({"categories": [PROTECTION]}),
+    )
+
+    response = client.post(
+        "/interpret", json={"photos": photos("k"), "texts": [NOTE], "parts": ["categories"]}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["categories"] == [PROTECTION]
+    assert body["description"] is None and body["hazard_type"] is None
+    sent = FakeGemini.request
+    assert len(sent_images()) == 1
+    assert set(sent["response_format"]["schema"]["properties"]) == {"categories"}
+    assert "hazard_type" not in sent["system_instruction"]
+
+
+def test_regenerates_the_description_alone_from_the_photos(monkeypatch):
+    use_fakes(
+        monkeypatch,
+        FakeS3({"k": photo((50, 50))}),
+        output_text=json.dumps({"description": DESCRIPTION, "hazard_type": "Other"}),
+    )
+
+    response = client.post(
+        "/interpret", json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"]}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["categories"] is None
+    assert (body["description"], body["hazard_type"]) == (DESCRIPTION, "Other")
+    sent = FakeGemini.request
+    assert set(sent["response_format"]["schema"]["properties"]) == {"description", "hazard_type"}
+    instruction = sent["system_instruction"]
+    assert "COPE" not in instruction
+    assert "describe what the photographs show, not what the text claims" in instruction
+
+
 def test_keeps_each_category_once_and_at_most_four(monkeypatch):
     def proposed(category):
         return {**CONSTRUCTION, "category": category}
@@ -309,3 +353,6 @@ def test_interpret_needs_something_to_read():
         [NOTE, {**RECORDING, "label": "Note"}],
     ):
         assert client.post("/interpret", json={"texts": texts}).status_code == 422
+    # Nothing to describe without photos, and an unknown or empty list of parts.
+    for parts in (["description"], ["summary"], []):
+        assert client.post("/interpret", json={"texts": [NOTE], "parts": parts}).status_code == 422

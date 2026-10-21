@@ -11,13 +11,13 @@ describe('sample proposals in the demo', () => {
 
     expect(sample).toMatchObject({
       status: 'interpreting',
-      hazardType: 'Housekeeping',
+      photos: { status: 'interpreting', hazardType: 'Housekeeping' },
       sample: true,
       model: null,
     })
     expect(sample.categories.map((c) => c.category)).toEqual(['Occupancy', 'Exposure'])
     expect(sample.categories[0].reason).toMatch(/^A sample reason: /)
-    expect(sample.description).toMatch(
+    expect(sample.photos?.description).toMatch(
       /^During the site visit to L22M LV switch room, it was observed that /,
     )
   })
@@ -25,7 +25,7 @@ describe('sample proposals in the demo', () => {
   it('describes nothing for an observation without photos', () => {
     const sample = sampleInterpretation(['Protection'], 'Pump house', false)
 
-    expect(sample).toMatchObject({ description: null, hazardType: null })
+    expect(sample.photos).toBeNull()
     expect(sample.categories).toHaveLength(1)
   })
 
@@ -39,8 +39,18 @@ describe('sample proposals in the demo', () => {
     } as Observation
 
     expect(statusOf(entry)).toBe('Interpreting')
-    expect(
-      statusOf({ ...entry, interpretation: { ...entry.interpretation!, status: 'interpreted' } }),
-    ).toBe('Complete')
+    const reading = entry.interpretation!
+    const settled = (categories: 'interpreting' | 'interpreted', photos: typeof categories) =>
+      statusOf({
+        ...entry,
+        interpretation: {
+          ...reading,
+          status: categories,
+          photos: { ...reading.photos!, status: photos },
+        },
+      })
+    // Interpreting while either part is (CP-21).
+    expect(settled('interpreted', 'interpreting')).toBe('Interpreting')
+    expect(settled('interpreted', 'interpreted')).toBe('Complete')
   })
 })

@@ -27,6 +27,7 @@ import {
   removeMedia,
   restoreMedia,
   type MediaKind,
+  type ReadingPart,
   type Assessment,
   type AssessmentStatus,
   type SavedObservation,
@@ -342,16 +343,17 @@ function toEntry(o: SavedObservation): Observation {
     error: p.transcription.error,
   }))
   const statuses = [...recordings, ...pages].map((r) => r.status)
-  const reading = o.interpretation?.status
+  // Where both parts of its proposal stand (CP-21).
+  const reading = [o.interpretation?.status, o.interpretation?.photos?.status]
   // Where its recordings, pages and photos stand (CP-08 AC2, CP-05 AC2,
   // CP-19 AC4): anything still running first, then anything that failed.
   const status = statuses.includes('transcribing')
     ? 'Transcribing'
-    : reading === 'interpreting'
+    : reading.includes('interpreting')
       ? 'Interpreting'
       : statuses.includes('failed')
         ? 'Transcription failed'
-        : reading === 'failed'
+        : reading.includes('failed')
           ? 'Interpretation failed'
           : 'Complete'
   const photos = o.photos
@@ -437,8 +439,14 @@ function toEntry(o: SavedObservation): Observation {
     status,
     interpretation: o.interpretation && {
       status: o.interpretation.status,
-      description: o.interpretation.description,
-      hazardType: o.interpretation.hazardType,
+      photos: o.interpretation.photos && {
+        status: o.interpretation.photos.status,
+        description: o.interpretation.photos.description,
+        hazardType: o.interpretation.photos.hazardType,
+        error: o.interpretation.photos.error,
+        model: o.interpretation.photos.model,
+        outOfDate: o.interpretation.photos.outOfDate,
+      },
       categories: o.interpretation.categories,
       error: o.interpretation.error,
       model: o.interpretation.model,
@@ -470,6 +478,11 @@ function toEntry(o: SavedObservation): Observation {
     pages,
   }
 }
+
+// A refusal with "Try again." added, unless it already says when to try
+// again ("Try again once they finish."), so the advice is never doubled.
+const tryAgain = (message: string) =>
+  /\btry again\b/i.test(message) ? message : message + ' Try again.'
 
 // The create form's Site choice for adding a site the client doesn't have yet.
 export const NEW_SITE = 'new'
@@ -1255,7 +1268,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       try {
         saved = await restoreObservation(o.id)
       } catch (error: unknown) {
-        return toast(refusal(error) + ' Try again.', 'warning')
+        return toast(tryAgain(refusal(error)), 'warning')
       }
       captured.replace(saved)
       setState({ obsOpen: null })
@@ -1402,7 +1415,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       try {
         saved = await restoreMedia(o.id, item.kind, item.id)
       } catch (error: unknown) {
-        return toast(refusal(error) + ' Try again.', 'warning')
+        return toast(tryAgain(refusal(error)), 'warning')
       }
       captured.replace(saved)
       toast(
@@ -1545,7 +1558,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         captured.reload()
       } catch (error: unknown) {
         const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
-        toast(cause + ' Try again.', 'warning')
+        toast(tryAgain(cause), 'warning')
       }
     }
     // The same for a handwritten page whose transcription failed (CP-19 AC11).
@@ -1555,7 +1568,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         captured.reload()
       } catch (error: unknown) {
         const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
-        toast(cause + ' Try again.', 'warning')
+        toast(tryAgain(cause), 'warning')
       }
     }
     // Transcribes a finished page again, when its text looks misread (CP-20).
@@ -1564,18 +1577,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         await retranscribePage(id, pageId)
         captured.reload()
       } catch (error: unknown) {
-        toast(refusal(error) + ' Try again.', 'warning')
+        toast(tryAgain(refusal(error)), 'warning')
       }
     }
-    // Reads a saved observation when the engineer asks (CP-05, CP-21): the
-    // first reading, or a new one after a failure or a change.
-    async function readSaved(id: string) {
+    // Reads a saved observation when the engineer asks (CP-05, CP-21): both
+    // parts the first time, or one part again.
+    async function readSaved(id: string, part?: ReadingPart) {
       try {
-        await readObservation(id)
+        await readObservation(id, part)
         captured.reload()
       } catch (error: unknown) {
         const cause = error instanceof Error ? error.message : 'The request was not accepted.'
-        toast(cause + ' Try again.', 'warning')
+        toast(tryAgain(cause), 'warning')
       }
     }
     // A sample proposal settles after a moment, as a real reading would.
@@ -1584,8 +1597,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     function settleSamples() {
       const settle = (list: Observation[]) =>
         list.map((x) =>
-          x.interpretation?.sample && x.interpretation.status === 'interpreting'
-            ? { ...x, interpretation: { ...x.interpretation, status: 'interpreted' as const } }
+          x.interpretation?.sample
+            ? {
+                ...x,
+                interpretation: {
+                  ...x.interpretation,
+                  status: 'interpreted' as const,
+                  photos: x.interpretation.photos && {
+                    ...x.interpretation.photos,
+                    status: 'interpreted' as const,
+                  },
+                },
+              }
             : x,
         )
       updateState((previous) => ({
@@ -1598,12 +1621,21 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }
     // Reads a sample observation in this demo: nothing is read here, so a
     // labelled sample proposal stands in (CP-05, CP-21).
-    function readSample(key: string) {
+    function readSample(key: string, part?: ReadingPart) {
       setState(
-        changeLocal(key, (x) => ({
-          ...x,
-          interpretation: sampleInterpretation(x.cats, x.locationName, x.media.length > 0),
-        })),
+        changeLocal(key, (x) => {
+          const sample = sampleInterpretation(x.cats, x.locationName, x.media.length > 0)
+          // One part read again leaves the other as it was (CP-21).
+          return {
+            ...x,
+            interpretation:
+              part && x.interpretation
+                ? part === 'categories'
+                  ? { ...x.interpretation, status: sample.status, categories: sample.categories }
+                  : { ...x.interpretation, photos: sample.photos }
+                : sample,
+          }
+        }),
       )
       later(settleSamples, 2000)
     }
@@ -2191,10 +2223,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })
       const reading = o.interpretation
       const proposed = reading?.status === 'interpreted' ? reading : null
+      const described = reading?.photos?.status === 'interpreted' ? reading.photos : null
       // It is read only when a risk engineer asks (CP-05, CP-21), through the
       // gateway, or in this demo for a sample observation.
-      const read =
-        canEdit && !o.deleted ? (o.id ? () => void readSaved(o.id!) : () => readSample(key)) : null
+      const readPart = (part?: ReadingPart) =>
+        canEdit && !o.deleted
+          ? o.id
+            ? () => void readSaved(o.id!, part)
+            : () => readSample(key, part)
+          : null
+      const read = readPart()
       // Recordings and photos can be added by whoever may change it, and
       // removed while something else stays captured (CP-08).
       const changing = canChange && !o.deleted
@@ -2251,22 +2289,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         // What the model proposes from it (CP-05, CP-21), and what the
         // engineer can do with it. No action saves anything by itself: each
         // opens Edit, filled in, for the engineer to save. Not read yet, it
-        // offers only Get AI proposal, to whoever may ask; afterwards, Get new
-        // proposal (CP-08, CP-21).
+        // offers only Get AI proposal, to whoever may ask; afterwards, each
+        // part can be regenerated (CP-08, CP-21).
         proposal: !reading
           ? read
             ? { status: 'unread' as const, read }
             : null
           : {
               ...reading,
-              retry: read,
+              // Each part is read again on its own (CP-21): the categories
+              // from everything, the description from the photos. A
+              // description is offered once there are photos to describe.
+              readCategories: readPart('categories'),
+              readDescription: o.media.length ? readPart('description') : null,
               useAsNote:
-                canChange && !o.deleted && proposed?.description
+                canChange && !o.deleted && described?.description
                   ? () =>
                       openEdit({
                         note: o.detail
-                          ? o.detail + '\n\n' + proposed.description
-                          : proposed.description!,
+                          ? o.detail + '\n\n' + described.description
+                          : described.description!,
                       })
                   : null,
               // Each proposed category, with Add while it is not one of the

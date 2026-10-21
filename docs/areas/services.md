@@ -28,40 +28,50 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 
 ## Reading an observation (S5, CP-05, CP-21)
 
-An engineer can ask for any observation to be read. The model proposes the
-COPE categories it concerns from everything captured in it (its note,
-recording and page transcripts, and photos), and from its photos, if any, a
-description and hazard type.
+An engineer can ask for any observation to be read. The model proposes, in
+two parts, the COPE categories it concerns from everything captured in it (its
+note, recording and page transcripts, and photos), and from its photos, if
+any, a description and hazard type. Both are read in one call the first time;
+after that each can be regenerated on its own.
 
 1. Saving an observation reads nothing: nothing goes to the model until an
    engineer asks. Get AI proposal on the Observations tab sends `POST
-   /api/observations/:id/interpretation`, which saves the observation with
-   `interpretation.status: 'interpreting'`: one reading covering everything it
-   holds, recorded in `items` (see [database](database.md#observations)): the
-   note, each recording and page with the transcript it reads (the engineer's
-   correction where there is one, CP-08), and each kept photo. A recording or
-   page with no transcript (failed, or a page with no handwriting) is left
-   out, and the request is refused while one is still transcribing. Anything
-   added, removed or changed later leaves a finished reading out of date,
-   except the proposal's own description taken into the note by Use as note;
-   Get new proposal on the tab sends the same request, reading what it holds then;
-   it is offered on every finished proposal, so the engineer can ask for another
-   one whenever they like, each a paid call.
-2. The gateway posts `{ "photos": [{ label, s3_key }], "texts": [{ label,
-   kind, text }], "location": ... }` to S5's `POST /interpret` without making
-   the client wait. Each item's label is its own name (`Note`, a recording's,
+   /api/observations/:id/interpretation` with no body, which reads both
+   parts: it saves the observation with `interpretation.status:
+   'interpreting'` for the categories and, with photos,
+   `interpretation.photoReading.status: 'interpreting'` for the description
+   (see [database](database.md#observations)). The categories record
+   everything they read in `items`: the note, each recording and page with
+   the transcript read (the engineer's correction where there is one, CP-08),
+   and each kept photo. A recording or page with no transcript (failed, or a
+   page with no handwriting) is left out, and the categories are refused while
+   one is still transcribing. The description records the photos it reads.
+2. Regenerate categories and Regenerate description send the same request
+   with `{ "part": "categories" }` or `{ "part": "description" }`, reading that
+   part again from what the observation holds then and leaving the other as it
+   is; they are offered on every finished part, so the engineer can ask for
+   another whenever they like, each a paid call. The categories are out of date
+   once anything they read is added, removed or changed, except the proposal's
+   own description taken into the note by Use as note; the description only
+   once photos are added or removed. Photos added after a reading without any
+   are offered Describe photos, which asks for the description alone.
+3. The gateway posts `{ "photos": [{ label, s3_key }], "texts": [{ label,
+   kind, text }], "location": ..., "parts": [...] }` to S5's `POST
+   /interpret` without making the client wait. For the description alone it
+   sends the photos and only the note, as a hint. Each item's label is its own name (`Note`, a recording's,
    page's or photo's name, a repeated one numbered), so the proposal can cite
    it. The location is where the observation was made, most specific first
    ("Pump room, Level 43, Tower 1"; see `locationText`). The engineer's
    categories and severity are not sent, so the proposed categories are the
    model's own.
-3. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
+4. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
    changed. It sends each photo after its label, then the texts, to the
    provider named by `VISION_PROVIDER` (only Gemini is implemented:
    `VISION_MODEL`, default `gemini-3.8-flash`, needs a paid-tier
-   `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer:
+   `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer with
+   the parts asked for, under rules for those parts only:
    - `categories`, each of the four at most once, most relevant first, or none
      when nothing supports one: the `category`, a one-sentence `reason` naming
      the items, and `evidence`: every item that supports it, not only the
@@ -72,10 +82,11 @@ description and hazard type.
      photos show, whatever the texts claim; and `hazard_type`, one of the OFI
      Types in Marsh's sample reports, `Other`, or `No hazard visible`, so the
      model never has to invent a hazard.
-   It returns those with the provider, model, `prompt_version` and token
-   `usage` (null when the provider reports none), or 502 with `detail`. Like
-   transcription, it writes nothing to MongoDB.
-4. The gateway checks each quote against the item it cites (case, spacing,
+   It returns those, null for a part not asked for, with the provider, model,
+   `prompt_version` and token `usage` (null when the provider reports none),
+   or 502 with `detail`; a description asked for without photos is refused
+   with 422. Like transcription, it writes nothing to MongoDB.
+5. The gateway checks each quote against the item it cites (case, spacing,
    curly quotes and edge punctuation aside, as `quoteFound` does) and stores
    the proposal with each check's result, `verified`, or the failure reason,
    on the observation. It also saves the call to `ai_calls` (EV-03) as
@@ -84,10 +95,11 @@ description and hazard type.
    the assessment: thinking tokens are added to output tokens, since Google
    bills them as output, and the duration is the gateway's own timing of the
    request (S5 sends none). A failed request returns no usage, so nothing is
-   saved. A failure can be retried through the same route; a restart marks an
-   attempt still running as failed. The client re-reads the list every 3
-   seconds while any observation is interpreting.
-5. The proposal is for the engineer to review and is never drafting evidence:
+   saved. A part that failed is retried through the same route, by its
+   `part`; a restart marks each part still running as failed. The client
+   re-reads the list every 3 seconds while either part of any observation is
+   interpreting.
+6. The proposal is for the engineer to review and is never drafting evidence:
    drafting does not wait for it, never reads it, and a draft does not go out
    of date when it arrives. On the Observations tab, Use as note and each Add
    (one per proposed category not yet the observation's own) open the Edit
