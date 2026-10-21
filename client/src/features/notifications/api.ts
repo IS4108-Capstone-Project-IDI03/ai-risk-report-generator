@@ -92,3 +92,8 @@ export function markAllNotificationsRead(): Promise<void> {
 export function dismissAllNotifications(): Promise<void> {
   return send('/api/notifications/dismiss-all', { method: 'POST' })
 }
+
+// Dismisses one notification for the signed-in user only. 204, no body.
+export function dismissNotification(id: string): Promise<void> {
+  return send(`/api/notifications/${encodeURIComponent(id)}/dismiss`, { method: 'POST' })
+}

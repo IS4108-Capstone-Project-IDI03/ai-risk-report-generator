@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotificationBell } from './NotificationBell'
 import type { Notification, NotificationPage } from './api'
 import { knowledgeTab } from '../knowledge-base/openTab'
+import { toneFor } from './components/notificationTone'
 
 afterEach(cleanup)
 
@@ -179,6 +180,52 @@ describe('NotificationBell', () => {
 
     await screen.findByText('No notifications')
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+
+  it('dismisses one row: removes it, drops the counts, and calls the gateway', async () => {
+    const fetchMock = stubGateway(makeItems(2))
+    render(<NotificationBell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    open()
+    await screen.findByText('Document 1 failed to ingest.')
+
+    const firstRow = screen.getAllByRole('listitem')[0]
+    fireEvent.click(within(firstRow).getByRole('button', { name: 'Dismiss' }))
+
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+    expect(screen.queryByText('Document 1 failed to ingest.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Notifications, 1 unread' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/notifications/n1/dismiss', { method: 'POST' })
+  })
+
+  it('does not lower the unread count when a read row is dismissed', async () => {
+    const items = makeItems(2).map((n, i) => ({ ...n, read: i === 0 }))
+    stubGateway(items, 1)
+    render(<NotificationBell counts={{ total: 2, unread: 1 }} pageSize={5} />)
+    open()
+    await screen.findByText('Document 1 failed to ingest.')
+
+    const firstRow = screen.getAllByRole('listitem')[0]
+    expect(within(firstRow).queryByRole('button', { name: 'Mark as read' })).not.toBeInTheDocument()
+    fireEvent.click(within(firstRow).getByRole('button', { name: 'Dismiss' }))
+
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+    expect(screen.getByRole('button', { name: 'Notifications, 1 unread' })).toBeInTheDocument()
+  })
+
+  it('pulses the badge only when the count rises after the first load', async () => {
+    stubGateway(makeItems(1), 1)
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    expect(document.querySelector('.notif-bell--ring')).toBeNull()
+    // The count is polled into the hook, not the prop, so drive it with the poll.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => json({ total: 2, unread: 2 })),
+    )
+    document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Notifications, 2 unread' })).toBeInTheDocument(),
+    )
+    await waitFor(() => expect(document.querySelector('.notif-bell--ring')).not.toBeNull())
   })
 
   it('expands a long message in place', async () => {
@@ -372,5 +419,40 @@ describe('NotificationBell — knowledge request details', () => {
     expect(knowledgeTab.request).toBe('r7')
     knowledgeTab.current = 'documents'
     knowledgeTab.request = null
+  })
+})
+
+// CB-07 UI polish: each purpose has its own glyph, coloured by status; the header is one row.
+describe('NotificationBell — icons and header', () => {
+  it('colours by status: red, amber, green, graphite, else navy', () => {
+    expect(toneFor('failed').fg).toContain('critical')
+    expect(toneFor('needs_review').fg).toContain('moderate')
+    expect(toneFor('filled').fg).toContain('low')
+    expect(toneFor('dismissed').fg).toContain('text-secondary')
+    expect(toneFor(undefined).fg).toBe('var(--ink-600)')
+  })
+
+  it('shows a different glyph for each purpose', async () => {
+    const purposes = ['ingestion_status', 'transcription_status', 'knowledge_gap_request'] as const
+    stubGateway(purposes.map((purpose, i) => ({ ...makeItems(1, i + 1)[0], purpose })))
+    render(<NotificationBell counts={{ total: 3, unread: 3 }} />)
+    open()
+    await screen.findAllByRole('listitem')
+    const srcs = [...document.querySelectorAll('.notif-icon')].map((el) =>
+      el.getAttribute('data-icon'),
+    )
+    expect(new Set(srcs).size).toBe(3)
+  })
+
+  it('keeps the title, count and three buttons in the header', async () => {
+    stubGateway(makeItems(2))
+    render(<NotificationBell counts={{ total: 2, unread: 2 }} />)
+    open()
+    const header = (await screen.findByRole('heading', { name: 'Notifications' })).closest(
+      'header',
+    )!
+    expect(within(header).getByText('2 unread')).toBeInTheDocument()
+    for (const name of ['Mark all as read', 'Dismiss all', 'Close notifications'])
+      expect(within(header).getByRole('button', { name })).toBeInTheDocument()
   })
 })

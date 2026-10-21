@@ -986,7 +986,8 @@ notifications on their next request, with no migration of existing documents.
 
 `readBy` and `dismissedBy` exist because the document is shared. Marking as read
 adds the caller to `readBy`; "mark all as read" adds them to `readBy` across
-everything they can see; "dismiss all" adds them to `dismissedBy`. None delete,
+everything they can see; "dismiss" (one row, `POST /api/notifications/:id/dismiss`)
+and "dismiss all" add them to `dismissedBy`. None delete,
 since deleting a shared document would clear it for everyone else too — so one
 user reading or dismissing never changes what another user in the role sees.
 

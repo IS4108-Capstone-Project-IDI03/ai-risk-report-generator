@@ -15,10 +15,11 @@
 
 .notification-list__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
-  padding: var(--space-6);
+  /* Same 12px side inset as a row, so the title lines up with the icons below. */
+  padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border-default);
   background: var(--surface-card);
 }
@@ -26,9 +27,14 @@
 .notification-list__heading {
   display: flex;
   min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.notification-list__count {
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
 }
 
 .notification-list__heading h2 {
@@ -42,10 +48,9 @@
 
 .notification-list__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .notification-list__body {
@@ -79,25 +84,194 @@
   list-style: none;
 }
 
+/* Bell: red unread badge with a ring in the header's own colour so it reads on
+   white (desktop) and on the navy mobile bar. */
+.notif-bell--light {
+  --notif-ring: var(--surface-card);
+}
+.notif-bell--dark {
+  --notif-ring: var(--surface-nav);
+}
+.notif-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+  background: var(--red-600);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--notif-ring);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: var(--weight-semibold);
+  animation: notif-badge-pulse 400ms var(--ease-out);
+}
+.notif-bell--ring {
+  transform-origin: 50% 0;
+  animation: notif-bell-tilt 600ms var(--ease-out);
+}
+@keyframes notif-badge-pulse {
+  0% {
+    transform: scale(0.7);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes notif-bell-tilt {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(14deg);
+  }
+  45% {
+    transform: rotate(-10deg);
+  }
+  70% {
+    transform: rotate(5deg);
+  }
+}
+
+/* Row: icon | message + time | actions. Unread gets a navy dot on its icon and a
+   semibold message; read rows are regular. */
 .notif-row {
-  padding: var(--space-5) var(--space-6) !important;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
-
-.notif-row:hover {
-  background: var(--surface-hover) !important;
+.notif-row:hover,
+.notif-row:focus-within {
+  background: var(--surface-hover);
 }
-
 .notif-row:last-child {
-  border-bottom: 0 !important;
+  border-bottom: 0;
 }
-
-.notif-row-unread {
-  background: var(--surface-sunken) !important;
+.notif-row-unread .notif-icon::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 99px;
+  background: var(--ink-600);
+  box-shadow: 0 0 0 2px var(--surface-card);
 }
-
-.notif-row > div > button:first-child {
+.notif-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+}
+.notif-row__body {
+  flex: 1;
+  min-width: 0;
+}
+.notif-row__message {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small-size);
+  line-height: 20px;
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.notif-row-unread .notif-row__message {
+  font-weight: var(--weight-semibold);
+}
+.notif-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.notif-row__details {
+  margin: var(--space-5) 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+.notif-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.notif-row__more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-secondary);
+}
+.notif-row__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  margin: -4px -6px 0 0;
+}
+.notif-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* Mouse devices: actions float over the row's right edge on hover or keyboard focus,
+   so the message uses the full width. Touch keeps them visible in the flow. */
+@media (hover: hover) {
+  .notif-row__actions {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-4);
+    margin: 0;
+    border-radius: var(--radius-sm);
+    background: var(--surface-hover);
+    box-shadow: -12px 0 12px var(--surface-hover);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+  .notif-row:hover .notif-row__actions,
+  .notif-row:focus-within .notif-row__actions {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 759px) {
@@ -112,10 +286,6 @@
     max-height: calc(100svh - 24px) !important;
   }
 
-  .notification-list__header {
-    padding: var(--space-6);
-  }
-
   .notification-list__actions {
     flex-wrap: nowrap;
   }
@@ -123,7 +293,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .notification-popover-surface,
-  .notif-row {
+  .notif-row,
+  .notif-row__actions,
+  .notif-badge,
+  .notif-bell--ring {
     animation: none;
     transition: none;
   }
@@ -144,8 +317,14 @@
    structural label, quotes behind the design system's 2px rule, documents with mono times. */
 .notif-request {
   display: grid;
+  /* One 12px step between every block, and the same 12px above the first and below the
+     button, so the button is not closer to one edge than the other. */
   gap: var(--space-5);
-  margin-top: var(--space-4);
+  margin: var(--space-5) 0;
+}
+.notif-request + .notif-row__meta,
+.notif-row__details + .notif-row__meta {
+  margin-top: 0;
 }
 .notif-request section {
   display: grid;

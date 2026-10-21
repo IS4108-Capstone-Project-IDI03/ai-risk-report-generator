@@ -1,19 +1,24 @@
+// One dropdown row: kind icon, message, time, and hover actions. Called by NotificationList.
 import { useState } from 'react'
-import { Icon, IconButton } from '../../design-system'
+import { Icon } from '../../design-system'
 import type { Notification } from './api'
 import { formatWhen } from './formatWhen'
 import { KnowledgeRequestDetails } from './KnowledgeRequestDetails'
+import { ActionButton } from './components/ActionButton'
+import { NotificationIcon } from './components/NotificationIcon'
 
 export function NotificationRow({
   notification,
   onActivate,
   onMarkRead,
+  onDismiss,
 }: {
   notification: Notification
   // Navigate to the notification's subject. Called when the row body is
   // clicked; also marks it read.
   onActivate: (notification: Notification) => void
   onMarkRead: (id: string) => void
+  onDismiss: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const hasDetails = Boolean(notification.details)
@@ -30,99 +35,28 @@ export function NotificationRow({
   }
 
   return (
-    <li
-      className={`notif-row${notification.read ? '' : ' notif-row-unread'}`}
-      style={{
-        display: 'flex',
-        gap: 'var(--space-3)',
-        padding: 'var(--space-3) var(--space-4)',
-        borderBottom: '1px solid var(--border-subtle)',
-        background: notification.read ? 'transparent' : 'var(--surface-hover)',
-      }}
-    >
-      {/* Unread marker, also announced to assistive tech so read state is not
-          carried by colour alone. */}
-      <span
-        aria-hidden={notification.read}
-        aria-label={notification.read ? undefined : 'Unread'}
-        style={{
-          flex: '0 0 auto',
-          width: '8px',
-          height: '8px',
-          marginTop: '7px',
-          borderRadius: '99px',
-          background: notification.read ? 'transparent' : 'var(--ink-600)',
-        }}
-      />
-      <div style={{ flex: '1', minWidth: '0' }}>
-        <button
-          type="button"
-          onClick={activate}
-          style={{
-            display: 'block',
-            width: '100%',
-            textAlign: 'left',
-            border: 'none',
-            background: 'transparent',
-            padding: '0',
-            cursor: 'pointer',
-            font: 'inherit',
-            color: 'var(--text-primary)',
-          }}
-        >
-          <span style={{ fontSize: '14px', lineHeight: '20px' }}>{notification.message}</span>
+    <li className={`notif-row${notification.read ? '' : ' notif-row-unread'}`}>
+      <NotificationIcon notification={notification} />
+      <div className="notif-row__body">
+        {/* Read state is also spoken, so it is not carried by weight and the accent alone. */}
+        {!notification.read && <span className="notif-sr">Unread: </span>}
+        <button type="button" onClick={activate} className="notif-row__message">
+          <span className={expanded ? undefined : 'notif-clamp'}>{notification.message}</span>
         </button>
         {hasDetails && expanded && request && (
           <KnowledgeRequestDetails context={request} onOpen={activate} />
         )}
         {hasDetails && expanded && !request && (
-          <p
-            style={{
-              margin: 'var(--space-2) 0 0',
-              fontSize: '13px',
-              lineHeight: '19px',
-              color: 'var(--text-secondary)',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {notification.details}
-          </p>
+          <p className="notif-row__details">{notification.details}</p>
         )}
-        <div
-          style={{
-            marginTop: 'var(--space-2)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-3)',
-          }}
-        >
-          <time
-            dateTime={notification.createdAt}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '12px',
-              color: 'var(--text-muted)',
-            }}
-          >
-            {formatWhen(notification.createdAt)}
-          </time>
+        <div className="notif-row__meta">
+          <time dateTime={notification.createdAt}>{formatWhen(notification.createdAt)}</time>
           {hasDetails && (
             <button
               type="button"
               aria-expanded={expanded}
               onClick={() => setExpanded((v) => !v)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 'var(--space-1)',
-                border: 'none',
-                background: 'transparent',
-                padding: '0',
-                cursor: 'pointer',
-                font: 'inherit',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-              }}
+              className="notif-row__more"
             >
               <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />
               {expanded ? 'Show less' : 'Show more'}
@@ -130,14 +64,23 @@ export function NotificationRow({
           )}
         </div>
       </div>
-      {!notification.read && (
-        <IconButton
-          icon="check"
-          label="Mark as read"
-          size="sm"
-          onClick={() => onMarkRead(notification.id)}
+      {/* Hidden until hover or focus on a mouse device; always shown on touch (notifications.css). */}
+      <div className="notif-row__actions">
+        {!notification.read && (
+          <ActionButton
+            icon="check"
+            label="Mark as read"
+            placement="bottom"
+            onClick={() => onMarkRead(notification.id)}
+          />
+        )}
+        <ActionButton
+          icon="x"
+          label="Dismiss"
+          placement="bottom"
+          onClick={() => onDismiss(notification.id)}
         />
-      )}
+      </div>
     </li>
   )
 }

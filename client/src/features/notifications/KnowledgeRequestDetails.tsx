@@ -60,7 +60,7 @@ export function KnowledgeRequestDetails({
       )}
       {status !== 'dismissed' && (
         <Button
-          variant="secondary"
+          variant="primary"
           size="sm"
           iconRight="arrow-right"
           onClick={onOpen}
