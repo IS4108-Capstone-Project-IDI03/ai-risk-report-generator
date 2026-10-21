@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CitationSelectionContext } from './components/citationSelection'
 import { DocumentsContext, type DocSummary } from './components/documents'
 import { DeclineContext } from './components/declineContext'
+import { phrase } from './textMatcher'
 import { chatLibrary } from './library'
 
 afterEach(cleanup)
@@ -58,7 +59,7 @@ describe('Cited answer', () => {
   it('shows statements and table cells with citation markers while streaming', () => {
     renderAnswer(body, vi.fn(), true)
 
-    expect(screen.getByText(/Ordinary Hazard Group 2 needs/)).toBeInTheDocument()
+    expect(screen.getByText(phrase(/Ordinary Hazard Group 2 needs/))).toBeInTheDocument()
     expect(screen.getByRole('cell', { name: /2019/ })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^Citation 1/ })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: /^Citation 2/ })).toHaveLength(2)
@@ -159,7 +160,7 @@ describe('Cited answer', () => {
         'c1 = Cite("P1", "sample")',
       ].join('\n'),
     )
-    const name = screen.getByText('NFPA 25 (2026)')
+    const name = screen.getByText(phrase('NFPA 25 (2026)'))
     expect(name.tagName).toBe('STRONG')
     expect(name.closest('p')).toHaveTextContent(/asks for a sample test\..*Retest every 10 years\./)
     expect(screen.queryByText('AI answer')).not.toBeInTheDocument()
@@ -177,13 +178,15 @@ describe('Cited answer', () => {
         'f1 = FollowUp("Want me to check what NFPA 25 asks for the same test?")',
       ].join('\n'),
     )
-    expect(screen.getByText('Office Sample 1').closest('p')).not.toBe(
-      screen.getByText('Office Sample 2').closest('p'),
+    expect(screen.getByText(phrase('Office Sample 1')).closest('p')).not.toBe(
+      screen.getByText(phrase('Office Sample 2')).closest('p'),
     )
-    const followUp = screen.getByText('Want me to check what NFPA 25 asks for the same test?')
+    const followUp = screen.getByText(
+      phrase('Want me to check what NFPA 25 asks for the same test?'),
+    )
     // A question to pick up, not a claim: it carries no citation marker.
     expect(followUp.closest('p')).not.toHaveTextContent(/\d$/)
-    expect(followUp.compareDocumentPosition(screen.getByText('Office Sample 2'))).toBe(
+    expect(followUp.compareDocumentPosition(screen.getByText(phrase('Office Sample 2')))).toBe(
       Node.DOCUMENT_POSITION_PRECEDING,
     )
   })
@@ -198,9 +201,9 @@ describe('Cited answer', () => {
       ].join('\n'),
     )
     expect(
-      screen.getByText(/See Section 8\.15\.1, Section 9\.2 and Sections 10\.1–10\.3\./),
+      screen.getByText(phrase(/See Section 8\.15\.1, Section 9\.2 and Sections 10\.1–10\.3\./)),
     ).toBeInTheDocument()
-    expect(screen.getByText('Want me to check Section 8.16?')).toBeInTheDocument()
+    expect(screen.getByText(phrase('Want me to check Section 8.16?'))).toBeInTheDocument()
     expect(screen.queryByText(/§/)).toBeNull()
   })
 
@@ -211,8 +214,8 @@ describe('Cited answer', () => {
         'f1 = FollowUp("**Office Sample 2** also covers its transfer pump. Want me to go through it?")',
       ].join('\n'),
     )
-    expect(screen.getAllByText('Office Sample 2').at(-1)!.tagName).toBe('STRONG')
-    expect(screen.queryByText(/\*\*/)).toBeNull()
+    expect(screen.getAllByText(phrase('Office Sample 2')).at(-1)!.tagName).toBe('STRONG')
+    expect(screen.queryByText(phrase(/\*\*/))).toBeNull()
   })
 
   it('opens a citation from the keyboard with Enter', () => {
@@ -223,21 +226,27 @@ describe('Cited answer', () => {
     expect(select).toHaveBeenCalledWith(expect.objectContaining({ number: 1 }), marker)
   })
 
-  it('shows a declined answer as a plain reply, with Add documents for an admin (CB-07)', () => {
+  // Renders a declined answer whose Meta line is `meta`, as an admin.
+  const declinedWith = (meta: string) =>
     render(
       <DeclineContext.Provider value={{ isAdmin: true, notify: vi.fn() }}>
         <Renderer
-          response={
-            'root = Answer([s1], meta)\ns1 = Statement("The knowledge base cannot answer this question.", [])'
-          }
+          response={`root = Answer([s1], meta)\ns1 = Statement("The knowledge base doesn't cover that.", [])\nmeta = ${meta}`}
           library={chatLibrary}
           isStreaming={false}
         />
       </DeclineContext.Provider>,
     )
-    expect(screen.getByText("I couldn't find that in the knowledge base.")).toBeInTheDocument()
-    expect(screen.getByText('Would you like to add the document yourself?')).toBeInTheDocument()
+
+  it('shows Add documents under the reply when Meta flags a gap (CB-07)', () => {
+    declinedWith('Meta([], [], true)')
+    expect(screen.getByText(phrase("The knowledge base doesn't cover that."))).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add documents' })).toBeInTheDocument()
-    expect(screen.queryByText('No answer in the knowledge base')).toBeNull()
+  })
+
+  it('shows no button when Meta has no gap flag', () => {
+    declinedWith('Meta([], [])')
+    expect(screen.getByText(phrase("The knowledge base doesn't cover that."))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add documents' })).toBeNull()
   })
 })

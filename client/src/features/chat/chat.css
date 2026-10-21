@@ -526,7 +526,19 @@
   font-size: 14px;
   line-height: 1.45;
 }
+/* Each word of an answer fades in as it is revealed (smoothAdapter.ts paces them). */
+.chat-ch {
+  animation: chat-ch-in 240ms ease-out both;
+}
+@keyframes chat-ch-in {
+  from {
+    opacity: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  .chat-ch {
+    animation: none;
+  }
   .chat-dialog[open] {
     animation-name: chat-fade-in;
   }

@@ -2,10 +2,11 @@
 // screen posts each question here and reads the answer back as a stream.
 // Calls server/src/routes/chat.routes.ts.
 import { agUIAdapter, fetchLLM } from '@openuidev/react-headless'
+import { smoothAdapter } from './smoothAdapter'
 import { request } from '../assessments/api'
 
 /** The chat screen's link to POST /api/chat, read as AG-UI events (the gateway's format). */
-export const chatLLM = fetchLLM({ url: '/api/chat', streamAdapter: agUIAdapter() })
+export const chatLLM = fetchLLM({ url: '/api/chat', streamAdapter: smoothAdapter(agUIAdapter()) })
 
 /** One passage as GET /api/chat/passages/:id sends it (CB-02). Boxes are in PDF points, origin bottom-left. */
 export type Passage = {
