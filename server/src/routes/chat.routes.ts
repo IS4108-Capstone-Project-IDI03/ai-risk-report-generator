@@ -11,6 +11,15 @@ import { requirePermission } from '../middleware/auth.middleware'
 import { checkChatLimits } from '../services/chat-limits.service'
 import { chatUsageTap } from '../services/chat-usage.service'
 import {
+  ConversationNotFound,
+  createConversation,
+  deleteConversation,
+  getMessages,
+  InvalidTitle,
+  listConversations,
+  renameConversation,
+} from '../services/chat-conversation.service'
+import {
   getPassage,
   openChatStream,
   RagServiceError,
@@ -18,6 +27,14 @@ import {
 } from '../services/rag.service'
 
 const router = Router()
+
+// Answers a missing or someone else's chat with 404 and a bad name with 400; anything else is a real error.
+function conversationError(res: Response, error: unknown) {
+  if (error instanceof ConversationNotFound)
+    return res.status(404).json({ error: 'Chat not found.' })
+  if (error instanceof InvalidTitle) return res.status(400).json({ error: 'A chat needs a name.' })
+  throw error
+}
 
 // Everything the engineer wrote in the request: every user message and context
 // entry. Checking only the last message would let a blank last message hide a
@@ -82,6 +99,42 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
     res,
   ).catch(() => {})
 })
+
+// Saved chats (CB-03). OpenUI's thread storage calls these (client/src/features/chat/api.ts).
+const mine = (res: Response) => res.locals.user!.id as string
+const chats = Router()
+chats.get('/', async (_req, res) => {
+  res.json({ threads: await listConversations(mine(res)) })
+})
+chats.post('/', async (req, res) => {
+  const content = req.body?.message?.content
+  res
+    .status(201)
+    .json(await createConversation(mine(res), typeof content === 'string' ? content : ''))
+})
+chats.get('/:id', async (req, res) => {
+  try {
+    res.json({ messages: await getMessages(mine(res), req.params.id) })
+  } catch (error) {
+    conversationError(res, error)
+  }
+})
+chats.patch('/:id', async (req, res) => {
+  try {
+    res.json(await renameConversation(mine(res), req.params.id, req.body?.title))
+  } catch (error) {
+    conversationError(res, error)
+  }
+})
+chats.delete('/:id', async (req, res) => {
+  try {
+    await deleteConversation(mine(res), req.params.id)
+    res.status(204).end()
+  } catch (error) {
+    conversationError(res, error)
+  }
+})
+router.use('/conversations', requirePermission('knowledge:view'), chats)
 
 // One passage behind a citation (CB-02): its text and page boxes, passed through from S4.
 router.get('/passages/:id', requirePermission('knowledge:view'), async (req, res) => {
