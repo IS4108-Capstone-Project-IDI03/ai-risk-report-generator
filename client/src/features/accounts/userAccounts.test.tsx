@@ -33,13 +33,15 @@ function respond(status: number, body: unknown) {
   )
 }
 // A knowledge admin starts on the knowledge base (F-05), which loads its
-// document list; that request, and the dashboard's work list (RV-10), are
+// document list and its open knowledge requests (CB-07); those, and the dashboard's work list (RV-10), are
 // answered as unreachable, so fetchMock only sees the account requests.
 function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    url.startsWith('/api/assessments') || url.startsWith('/api/knowledge-documents')
+    url.startsWith('/api/assessments') ||
+    url.startsWith('/api/knowledge-documents') ||
+    url.startsWith('/api/knowledge-gaps')
       ? Promise.reject(new TypeError('Failed to fetch'))
       : fetchMock(url, init),
   )
