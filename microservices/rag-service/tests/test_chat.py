@@ -194,12 +194,14 @@ def test_an_ambiguous_follow_up_gets_a_question_back_without_searching(fake):
     assert _result(events)["citations"] == []
 
 
-def test_a_request_outside_property_risk_is_declined_without_searching(fake):
-    fake["plan"] = answer.Plan(kind="decline", query="", reply="")
+def test_a_request_outside_property_risk_is_declined_in_the_planners_words(fake):
+    reply = "That's outside what I can help with, but ask me about the standards."
+    fake["plan"] = answer.Plan(kind="decline", query="", reply=reply)
     events = _ask("Something with nothing to do with property risk?")
     result = _result(events)
     assert result["declined"] is True and result["citations"] == []  # AC3, AC10
-    assert answer.DECLINE in _program(events)
+    # Not the not-found sentence, so the chat offers no knowledge request (CB-07).
+    assert reply in _program(events) and answer.DECLINE not in _program(events)
     assert fake["calls"]["search"] == [] and fake["calls"]["answer"] == []
 
 
