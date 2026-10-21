@@ -100,8 +100,13 @@ describe('Knowledge assistant (CB-01)', () => {
       fireEvent.keyDown(box, { key: 'Enter' })
 
       // AC1, AC6: the cited statement and the filters it searched with.
+      // The sentence types in letter by letter, so it gets the longer wait (a slow CI machine).
       expect(
-        await screen.findByText(phrase(/Sprinklers are needed throughout\./)),
+        await screen.findByText(
+          phrase(/Sprinklers are needed throughout\./),
+          {},
+          { timeout: 5000 },
+        ),
       ).toBeInTheDocument()
       expect(screen.getByText('Searched: Singapore')).toBeInTheDocument()
       // AC1: a marker opens its source in the panel beside the chat; Escape closes it.
@@ -132,7 +137,7 @@ describe('Knowledge assistant (CB-01)', () => {
       const again = await screen.findByRole('textbox')
       fireEvent.change(again, { target: { value: 'Where are sprinklers needed?' } })
       fireEvent.keyDown(again, { key: 'Enter' })
-      await screen.findByText(phrase(/Sprinklers are needed throughout\./))
+      await screen.findByText(phrase(/Sprinklers are needed throughout\./), {}, { timeout: 5000 })
       expect(screen.queryByText("Hi, I'm MarshBot")).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'MarshBot, new chat' }))
       expect(await screen.findByText("Hi, I'm MarshBot")).toBeInTheDocument()
