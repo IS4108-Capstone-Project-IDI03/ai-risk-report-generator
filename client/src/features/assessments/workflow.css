@@ -10,25 +10,84 @@
   overflow: hidden;
   background: var(--surface-page);
 }
-/* The toast is centred on the content beside the sidebar, whatever the
-   message's length: its own centre is placed there (translateX(-50%)), rather
-   than its left edge at a guess of half a 480px toast, which drifted with
-   every message and ignored the 264px sidebar. */
+/* The toast sits bottom centre of the content column (Jesper, 21 Oct: the old place,
+   where the eye lands after an action). left is 264px wider when the sidebar is open so it
+   centres on the content, not the window (same offset as SideNav's width). Under 760px it
+   spans the screen with 12px insets. */
 .workflow-toast {
-  --nav-w: 0px;
   position: fixed;
-  left: calc(var(--nav-w) + (100vw - var(--nav-w)) / 2);
   bottom: 20px;
+  left: 24px;
+  right: 24px;
+  margin-inline: auto;
   z-index: 90;
   width: max-content;
-  max-width: min(480px, calc(100vw - var(--nav-w) - 40px));
-  transform: translateX(-50%);
+  max-width: min(480px, calc(100vw - 48px));
+  /* Rises and scales up into place on a long exponential settle (no bounce). */
+  animation: toast-in 360ms var(--ease-out) both;
 }
 .workflow[data-sidenav] .workflow-toast {
-  --nav-w: var(--sidebar-width);
+  left: 288px; /* 264px sidebar + 24px */
 }
 .workflow-toast > div {
   max-width: 100%;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+}
+/* Thin bar along the card's bottom edge, draining over the auto-close time (5s in
+   design-system/components/feedback/Toast.tsx). Low opacity: a cue, not a banner. */
+.workflow-toast .toast-bar {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  opacity: 0.35;
+  transform-origin: left;
+}
+@keyframes toast-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (max-width: 759px) {
+  .workflow-toast,
+  .workflow[data-sidenav] .workflow-toast {
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    max-width: calc(100vw - 24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workflow-toast {
+    animation-name: toast-fade;
+  }
+  /* The close fades only, without the small drop. */
+  .workflow-toast > div {
+    transform: none !important;
+  }
+  @keyframes toast-fade {
+    from {
+      opacity: 0;
+    }
+  }
+}
+/* The chat's look (apple-design): its own font and a pill shape. The font stack
+   must match --chat-font in features/chat/chat.css, which is scoped to the chat
+   screen and so is not visible here. */
+.workflow-toast.chat-toast {
+  --chat-font:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto,
+    'Helvetica Neue', sans-serif;
+  font-family: var(--chat-font);
+}
+.workflow-toast.chat-toast > div {
+  --radius-md: 999px;
+  font-family: var(--chat-font);
+  padding-inline: var(--space-5) var(--space-3);
 }
 .user-footer {
   display: flex;
