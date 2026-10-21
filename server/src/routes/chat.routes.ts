@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
 import { checkChatLimits } from '../services/chat-limits.service'
+import { chatSaveTap, lastQuestion, saveQuestion } from '../services/chat-save.service'
 import { chatUsageTap } from '../services/chat-usage.service'
 import {
   ConversationNotFound,
@@ -16,6 +17,7 @@ import {
   deleteConversation,
   getMessages,
   InvalidTitle,
+  ownedConversation,
   listConversations,
   renameConversation,
 } from '../services/chat-conversation.service'
@@ -71,11 +73,23 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   // 200 stream, not a 429, because OpenUI's fetchLLM would show a generic error
   // for a 429 instead of the reason.
   const userId = res.locals.user!.id
+  // a. A chat named by threadId must be the user's own; checked first so nothing is spent or saved otherwise.
+  const threadId: unknown = req.body?.threadId
+  if (typeof threadId === 'string') {
+    try {
+      await ownedConversation(userId, threadId)
+    } catch (error) {
+      return conversationError(res, error)
+    }
+  }
   const reason = checkChatLimits(userId, engineerTexts(req.body))
   if (reason) {
     refuse(res, reason)
     return
   }
+  // b. Save the question before asking S4, so it is kept even if the answer fails.
+  const question = lastQuestion(req.body)
+  if (typeof threadId === 'string' && question) await saveQuestion(threadId, userId, question)
   // Without this, S4 keeps writing an answer after the engineer presses stop.
   const upstream = new AbortController()
   res.on('close', () => upstream.abort())
@@ -96,6 +110,7 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   await pipeline(
     Readable.fromWeb(stream as WebReadableStream<Uint8Array>),
     chatUsageTap(userId),
+    ...(typeof threadId === 'string' ? [chatSaveTap(threadId, userId)] : []),
     res,
   ).catch(() => {})
 })
