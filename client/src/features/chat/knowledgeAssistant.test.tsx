@@ -47,6 +47,13 @@ describe('Knowledge assistant (CB-01)', () => {
               },
             ]),
           )
+        // The saved-chat list (CB-03) loads when the sidebar opens; this test starts with none.
+        if (url === '/api/chat/conversations')
+          return Promise.resolve(
+            init?.method === 'POST'
+              ? Response.json({ id: 'c1', title: 'Q' }, { status: 201 })
+              : Response.json({ threads: [] }),
+          )
         if (url !== '/api/chat') return Promise.reject(new TypeError('Failed to fetch'))
         asked(JSON.parse(String(init!.body)))
         const filters = { jurisdiction: 'SG' }
@@ -92,7 +99,11 @@ describe('Knowledge assistant (CB-01)', () => {
       expect(window.location.pathname).toBe('/ask')
 
       // The screen's first load brings OpenUI in, which is slow under jsdom.
-      const box = await screen.findByRole('textbox', {}, { timeout: 15000 })
+      const box = await screen.findByPlaceholderText(
+        'Ask about a standard or a past report',
+        {},
+        { timeout: 15000 },
+      )
       // AC13: an empty conversation suggests questions about the knowledge base.
       expect(screen.getByText('NFPA 25 inspection intervals')).toBeInTheDocument()
       fireEvent.change(box, { target: { value: 'Where are sprinklers needed?' } })
@@ -123,7 +134,7 @@ describe('Knowledge assistant (CB-01)', () => {
       })
 
       // The MarshBot logo and name start a new chat too, as in most chat apps.
-      const again = await screen.findByRole('textbox')
+      const again = await screen.findByPlaceholderText('Ask about a standard or a past report')
       fireEvent.change(again, { target: { value: 'Where are sprinklers needed?' } })
       fireEvent.keyDown(again, { key: 'Enter' })
       await screen.findByText(/Sprinklers are needed throughout\./)

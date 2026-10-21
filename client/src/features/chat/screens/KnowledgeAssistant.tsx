@@ -7,7 +7,7 @@ import { AgentInterface } from '@openuidev/react-ui'
 import '@openuidev/react-ui/components.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import '../../assessments/review.css'
-import { chatLLM } from '../api'
+import { chatLLM, chatStorage } from '../api'
 import { ChatSidebar } from '../components/ChatSidebar'
 import { CitationPanel } from '../components/CitationPanel'
 import { preloadPdfViewer } from '../components/pdfViewerLoader'
@@ -21,8 +21,6 @@ import { starters } from '../starters'
 import { chatTheme } from '../theme'
 import '../chat.css'
 
-// ponytail: conversations live in memory until the conversation list's storage
-// (CB-03) passes `storage` here; a refresh starts afresh.
 export function KnowledgeAssistant() {
   const documents = useDocumentMap()
   const [selected, setSelected] = useState<SelectedCitation | null>(null)
@@ -54,6 +52,7 @@ export function KnowledgeAssistant() {
         <div className="knowledge-assistant" data-source-open={selected ? '' : undefined}>
           <AgentInterface
             llm={chatLLM}
+            storage={chatStorage}
             componentLibrary={chatLibrary}
             components={{ ToolCallTimeline: SearchStep }}
             agentName="MarshBot"

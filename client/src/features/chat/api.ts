@@ -1,7 +1,13 @@
 // The knowledge assistant's connection to the gateway (CB-01). OpenUI's chat
 // screen posts each question here and reads the answer back as a stream.
-// Calls server/src/routes/chat.routes.ts.
-import { agUIAdapter, fetchLLM } from '@openuidev/react-headless'
+// Calls server/src/routes/chat.routes.ts. Its chat storage (CB-03) saves the chats there.
+import {
+  agUIAdapter,
+  fetchLLM,
+  type ChatStorage,
+  type Message,
+  type Thread,
+} from '@openuidev/react-headless'
 import { request } from '../assessments/api'
 
 /** The chat screen's link to POST /api/chat, read as AG-UI events (the gateway's format). */
@@ -23,4 +29,35 @@ export async function fetchPassage(id: string, signal?: AbortSignal): Promise<Pa
   // The shared helper also sends an expired session back to sign-in (F-04).
   const path = `/api/chat/passages/${encodeURIComponent(id)}`
   return (await request<Passage>('GET', path, undefined, signal)).data
+}
+
+// What the chat list is filtered by; set by the sidebar's search box (CB-03 AC3).
+let search = ''
+/** Sets the words the next chat-list load searches for; empty lists every chat. */
+export function setChatSearch(text: string) {
+  search = text.trim()
+}
+
+const CHATS = '/api/chat/conversations'
+
+/** A message's text; OpenUI allows content parts, but this chat only sends plain text. */
+const textOf = (content: unknown) => (typeof content === 'string' ? content : '')
+
+/** OpenUI's thread storage (CB-03): saved chats live behind the gateway's /api/chat/conversations. */
+export const chatStorage: ChatStorage = {
+  thread: {
+    listThreads: async () => {
+      const query = search ? `?q=${encodeURIComponent(search)}` : ''
+      return { threads: (await request<{ threads: Thread[] }>('GET', CHATS + query)).data.threads }
+    },
+    createThread: async (first) =>
+      (await request<Thread>('POST', CHATS, { message: { content: textOf(first.content) } })).data,
+    getMessages: async (id) =>
+      (await request<{ messages: Message[] }>('GET', `${CHATS}/${id}`)).data.messages,
+    updateThread: async (thread) =>
+      (await request<Thread>('PATCH', `${CHATS}/${thread.id}`, { title: thread.title })).data,
+    deleteThread: async (id) => {
+      await request('DELETE', `${CHATS}/${id}`)
+    },
+  },
 }
