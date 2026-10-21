@@ -192,7 +192,7 @@ export type SectionDrafts = { saved: Draft | null; replacement: Draft | null }
 const NO_DRAFTS: SectionDrafts = { saved: null, replacement: null }
 
 // How each replacement draft was decided, from the review audit log: accepted
-// or discarded, and when. One with no entry here is still waiting.
+// or discarded, when and by whom. One with no entry here is still waiting.
 async function replacementOutcomes(ids: Types.ObjectId[]) {
   const decided = ids.length
     ? await ReviewAuditModel.find(
@@ -201,13 +201,17 @@ async function replacementOutcomes(ids: Types.ObjectId[]) {
           finding: null,
           action: { $in: ['accept_replacement', 'discard_replacement'] },
         },
-        'draft action at',
+        'draft action at by',
       ).lean()
     : []
   return new Map(
     decided.map((d) => [
       String(d.draft),
-      { accepted: d.action === 'accept_replacement', at: d.at },
+      {
+        accepted: d.action === 'accept_replacement',
+        at: d.at,
+        by: { id: d.by.id, name: d.by.name },
+      },
     ]),
   )
 }
@@ -243,6 +247,38 @@ export async function sectionDrafts(
     bySection.set(draft.sectionId, found)
   }
   return bySection
+}
+
+// One draft that has been the section's saved content (RV-06): when it became
+// it, and, for a replacement, who accepted it then.
+export type SavedDraft = {
+  draft: Draft
+  since: Date
+  acceptedBy: { id: string; name: string } | null
+}
+
+// Every draft that has been the section's saved content, in the order each
+// became it: a draft from Generation (or Section 2's) when it was drafted, a
+// replacement once accepted. A replacement still waiting, or discarded, never
+// was. The last is the saved draft sectionDrafts reads. For the version
+// history (RV-06).
+export async function savedDraftTimeline(
+  assessment: Types.ObjectId,
+  sectionId: string,
+): Promise<SavedDraft[]> {
+  const drafts = await ReportSectionModel.find({ assessment, sectionId })
+    .sort({ createdAt: 1 })
+    .lean<Draft[]>()
+  const outcomes = await replacementOutcomes(
+    drafts.filter((d) => d.replacementFor).map((d) => d._id),
+  )
+  return drafts
+    .flatMap((draft): SavedDraft[] => {
+      if (!draft.replacementFor) return [{ draft, since: draft.createdAt, acceptedBy: null }]
+      const outcome = outcomes.get(String(draft._id))
+      return outcome?.accepted ? [{ draft, since: outcome.at, acceptedBy: outcome.by }] : []
+    })
+    .sort((a, b) => a.since.getTime() - b.since.getTime())
 }
 
 export type LoadedSection = {

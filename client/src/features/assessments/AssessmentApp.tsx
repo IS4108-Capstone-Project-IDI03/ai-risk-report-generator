@@ -296,7 +296,9 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                               {
                                 label: 'Version history',
                                 icon: 'history',
-                                onSelect: v.showVersionHistory,
+                                // Leaving the document editor for it asks
+                                // first, as leaving it for a tab does (RV-08).
+                                onSelect: () => guardLeave(v.showVersionHistory),
                               },
                               ...(v.canArchive
                                 ? [{ label: 'Archive', icon: 'archive', onSelect: v.openArchive }]
@@ -406,6 +408,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           railStyle={v.reviewRailStyle}
                           panelStyle={v.reviewEvidenceStyle}
                           onGenerate={() => v.setTab('generate')}
+                          historyRequest={v.reviewHistory}
                         />
                       ) : (
                         <Review v={v} />

@@ -551,13 +551,17 @@ export async function decideReplacement(
 // `previous` is the version the document was edited from, if it was made on
 // this draft: the formatting a finding had there is what it is compared with.
 // A finding rejected in the review workspace since the document was opened
-// cannot be saved back into it.
+// cannot be saved back into it, except by restoring an earlier version
+// (RV-06, `restoredFrom` naming it): a rejected finding the restored text
+// holds is then restored first, then edited to its words if they differ, and
+// every entry names what was restored.
 export async function recordDocumentEdits(
   draft: Draft,
   document: SectionDocument,
   previous: SectionDocument | null,
   user: Pick<SessionUser, 'id' | 'name'>,
   at = new Date(),
+  restoredFrom: string | null = null,
 ): Promise<void> {
   const findings = foldFindings(draft, await entriesFor([draft._id]))
   const now = findingBlocks(document)
@@ -565,24 +569,30 @@ export async function recordDocumentEdits(
   const records: IReviewAuditEntry[] = []
   for (const f of findings) {
     const block = now.get(f.key)
-    if (f.state === 'rejected') {
-      if (block)
-        throw new FindingStateError(
-          `Finding ${f.key} was rejected in the review workspace after you opened the document. Reload the document to carry on.`,
-        )
-      continue
-    }
     const text = block ? plainText(block.content) : ''
-    const fields = {
+    const fields = (sequence: number) => ({
       finding: f.key,
-      sequence: f.next,
+      sequence,
       heading: f.heading,
       before: f.text,
       citations: f.citations,
       inDocument: true,
+      ...(restoredFrom ? { restoredFrom } : {}),
+    })
+    let sequence = f.next
+    if (f.state === 'rejected') {
+      if (!block) continue
+      if (!restoredFrom)
+        throw new FindingStateError(
+          `Finding ${f.key} was rejected in the review workspace after you opened the document. Reload the document to carry on.`,
+        )
+      if (!text) continue
+      // Brought back by the restored text, to the state it was rejected from.
+      records.push(entry(draft, user, { ...fields(sequence), action: 'restore' }, at))
+      sequence += 1
     }
     if (!text) {
-      records.push(entry(draft, user, { ...fields, action: 'reject' }, at))
+      records.push(entry(draft, user, { ...fields(sequence), action: 'reject' }, at))
       continue
     }
     const cites = citesOf(block!.content)
@@ -597,7 +607,12 @@ export async function recordDocumentEdits(
       block!.shape !== (kept ? kept.shape : 'paragraph')
     if (!changed) continue
     records.push(
-      entry(draft, user, { ...fields, action: 'edit', after: text, citationsAfter: cites }, at),
+      entry(
+        draft,
+        user,
+        { ...fields(sequence), action: 'edit', after: text, citationsAfter: cites },
+        at,
+      ),
     )
   }
   if (!records.length) return

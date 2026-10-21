@@ -887,6 +887,8 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given an earlier section version is available, when I restore it, then its content becomes the current section draft.
   7. Given a report has multiple sections, when I restore one section, then every other section's content remains unchanged.
   8. Given I have restored a previous section version, when I reopen the report, then the restored content is retained.
+
+  A section's versions are its AI drafts (each first draft, redraft and accepted replacement) and its saves from the document editor (RV-08), Sections 1, 3 and A having only the latter. A restore is saved as a new version, so the text it replaces stays in the history (DECISIONS 2026-10-20).
   </details>
 
 - [ ] **RV-07** — Resume a partially completed review (risk engineer, Must, 1 pt, deps: RV-02, Sprint 4)

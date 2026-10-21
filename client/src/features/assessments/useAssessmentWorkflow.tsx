@@ -564,6 +564,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const returning =
     state.screen === 'field' || (state.screen === 'assessment' && state.tab === 'observations')
   if (!returning && state.obsReturn) setState({ obsReturn: null })
+  // A Version history request (RV-06) is for the Review tab it opened; once
+  // the engineer is anywhere else, it is spent, so a later visit opens the
+  // draft as usual.
+  const reviewing = state.screen === 'assessment' && state.tab === 'review'
+  if (!reviewing && state.reviewHistory) setState({ reviewHistory: 0 })
   // The work list from the gateway (RV-10); null until it loads, and when the
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
@@ -2984,7 +2989,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       openEvidenceSource: () =>
         toast('Source files are not connected in this demo. Excerpts are sample evidence.', 'info'),
       playSampleAudio: () => toast('Audio playback is not connected in this demo.', 'info'),
-      showVersionHistory: () => toast('Version history is not connected in this demo.', 'info'),
+      // The ⋯ menu's Version history (RV-06): a saved assessment's opens in its
+      // Review tab; the sample assessment has none.
+      reviewHistory: s.reviewHistory,
+      showVersionHistory: () =>
+        openRow?.persisted
+          ? setState({ tab: 'review', reviewHistory: s.reviewHistory + 1 })
+          : toast('Version history is not connected in this demo.', 'info'),
       /* annotations */
 
       /* dashboard */
