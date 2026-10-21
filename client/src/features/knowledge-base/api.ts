@@ -312,3 +312,36 @@ export async function decide(
   )
   return document
 }
+
+// A request from a risk engineer to add the document behind a question the chatbot could
+// not answer (CB-07). Matches the DTO of server/src/routes/knowledge-gap.routes.ts.
+export type KnowledgeGapRequest = {
+  id: string
+  question: string
+  message?: string
+  askedBy: { id: string; name: string }
+  createdAt: string
+  status: 'open' | 'filled' | 'dismissed'
+}
+
+const jsonPost = (body: unknown): RequestInit => ({
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+})
+
+// The open requests, newest first (knowledge admins only).
+export async function listKnowledgeRequests(signal?: AbortSignal): Promise<KnowledgeGapRequest[]> {
+  return (await request<{ requests: KnowledgeGapRequest[] }>('/api/knowledge-gaps', { signal }))
+    .requests
+}
+
+// Closes a request as filled with the documents that were added. 409 if already closed.
+export function fillKnowledgeRequest(id: string, documentIds: string[]): Promise<unknown> {
+  return request(`/api/knowledge-gaps/${encodeURIComponent(id)}/fill`, jsonPost({ documentIds }))
+}
+
+// Closes a request as dismissed, with the reason the engineer will read. 409 if already closed.
+export function dismissKnowledgeRequest(id: string, reason: string): Promise<unknown> {
+  return request(`/api/knowledge-gaps/${encodeURIComponent(id)}/dismiss`, jsonPost({ reason }))
+}

@@ -3,11 +3,26 @@
 // FollowUp line.
 
 // Everything else stays plain text (answer prompt: names only).
-/** Returns the text with each **…** part as bold, and section signs spelled out. */
+// Each letter is its own span so it can fade in as it streams (chat.css .chat-ch). Keys are
+// the letter's place in the text, so React keeps the letters already shown and only new
+// ones animate.
+function letters(part: string) {
+  return [...part].map((c, i) => (
+    <span className="chat-ch" key={i}>
+      {c}
+    </span>
+  ))
+}
+
+/** Returns the text as letter spans, each **…** part bold, and section signs spelled out. */
 export function withBold(text: string) {
-  return spellSections(text)
+  let spelled = spellSections(text)
+  // A name still streaming has its opening ** only: close it, so it shows bold as it types
+  // instead of as raw asterisks that then jump to bold.
+  if ((spelled.match(/\*\*/g) ?? []).length % 2) spelled += '**'
+  return spelled
     .split(/\*\*(.+?)\*\*/g)
-    .map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part))
+    .map((part, i) => (i % 2 ? <strong key={i}>{letters(part)}</strong> : letters(part)))
 }
 
 // Jesper (17 Oct): never show the section sign; "§ 8.15" reads "Section 8.15". Done on screen,

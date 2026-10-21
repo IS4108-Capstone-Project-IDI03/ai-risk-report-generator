@@ -37,7 +37,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
   const leave = (staying: boolean, go: () => void) => (staying ? go() : guardLeave(go))
   return (
     <>
-      {/* data-sidenav lets fixed overlays (the toast) centre on the content, not the window. */}
+      {/* data-sidenav lets fixed overlays centre on the content, not the window. */}
       <div className="workflow" data-sidenav={v.showSideNav || undefined}>
         <div className="workflow-frame">
           <div style={{ display: 'flex', height: '100%' }}>
@@ -373,7 +373,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isChat && (
                       <Suspense fallback={null}>
-                        <KnowledgeAssistant />
+                        <KnowledgeAssistant isAdmin={v.isAdmin} notify={v.notify} />
                       </Suspense>
                     )}
 
@@ -458,7 +458,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
           ></Dialog>
           {!!v.toast && (
             <>
-              <div className="workflow-toast" role="status">
+              {/* Keyed by message: a new toast starts fresh, even if the last one was fading out. */}
+              <div
+                key={v.toast}
+                className={v.isChat ? 'workflow-toast chat-toast' : 'workflow-toast'}
+              >
                 <Toast tone={v.toastTone} message={v.toast} onDismiss={v.clearToast}></Toast>
               </div>
             </>

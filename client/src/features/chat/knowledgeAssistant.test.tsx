@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { phrase } from './textMatcher'
 
 const sse = (...events: object[]) =>
   new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join(''), {
@@ -99,13 +100,23 @@ describe('Knowledge assistant (CB-01)', () => {
       fireEvent.keyDown(box, { key: 'Enter' })
 
       // AC1, AC6: the cited statement and the filters it searched with.
-      expect(await screen.findByText(/Sprinklers are needed throughout\./)).toBeInTheDocument()
+      // The sentence types in letter by letter, so it gets the longer wait (a slow CI machine).
+      expect(
+        await screen.findByText(
+          phrase(/Sprinklers are needed throughout\./),
+          {},
+          { timeout: 5000 },
+        ),
+      ).toBeInTheDocument()
       expect(screen.getByText('Searched: Singapore')).toBeInTheDocument()
       // AC1: a marker opens its source in the panel beside the chat; Escape closes it.
       fireEvent.click(
-        await screen.findByRole('button', {
-          name: /^Citation 1: Office Sample 1 - PRE 2026 - REDACTED \(2026-03-05\)/,
-        }),
+        // The citation names arrive with the last line, which the paced reveal shows last.
+        await screen.findByRole(
+          'button',
+          { name: /^Citation 1: Office Sample 1 - PRE 2026 - REDACTED \(2026-03-05\)/ },
+          { timeout: 5000 },
+        ),
       )
       const panel = screen.getByRole('complementary', { name: 'Source of citation 1' })
       expect(panel).toHaveTextContent('installed throughout')
@@ -126,7 +137,7 @@ describe('Knowledge assistant (CB-01)', () => {
       const again = await screen.findByRole('textbox')
       fireEvent.change(again, { target: { value: 'Where are sprinklers needed?' } })
       fireEvent.keyDown(again, { key: 'Enter' })
-      await screen.findByText(/Sprinklers are needed throughout\./)
+      await screen.findByText(phrase(/Sprinklers are needed throughout\./), {}, { timeout: 5000 })
       expect(screen.queryByText("Hi, I'm MarshBot")).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'MarshBot, new chat' }))
       expect(await screen.findByText("Hi, I'm MarshBot")).toBeInTheDocument()
