@@ -6,6 +6,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LossEstimates, ReviewSection, RiskQuality } from './api'
 import { DraftEditor } from './components/DraftEditor'
+import { railStatus } from './reviewDisplay'
 import { LossEstimateFigures } from './components/LossEstimateFigures'
 import { RiskQualityFigures } from './components/RiskQualityFigures'
 import { describeChanges } from './reviewDisplay'
@@ -568,4 +569,23 @@ it("hands Section 5's findings to its figures, so each sits in its level's table
   expect(onAccept).toHaveBeenCalled()
   // Not listed a second time as its own subsection block.
   expect(screen.getAllByText('A fire starts in the server room.')).toHaveLength(1)
+})
+
+it('shows the rail what figures are entered until Section 4 or 5 is drafted', () => {
+  const status = (figures: ReviewSection['figures'], state = 'not_drafted') =>
+    railStatus({
+      completion: { state: 'not_started', written: 0, total: 1, tables: 0 },
+      review: { state } as ReviewSection['review'],
+      figures,
+    } as ReviewSection)
+  expect(status({ state: 'none', entered: 0, total: 14 })).toBe('Not started · 0 of 1 subsection')
+  expect(status({ state: 'some', entered: 9, total: 14 })).toBe('Figures · 9 of 14 entered')
+  expect(status({ state: 'some' })).toBe('Figures partly entered')
+  expect(status({ state: 'all', entered: 14, total: 14 })).toBe('Figures entered · ready to draft')
+  // Once drafted, the usual written-subsections label is back.
+  expect(status({ state: 'all', entered: 14, total: 14 }, 'ai_draft')).toBe(
+    'Not started · 0 of 1 subsection',
+  )
+  // A section without figures (7-12) is unchanged.
+  expect(status(null)).toBe('Not started · 0 of 1 subsection')
 })

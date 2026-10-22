@@ -863,6 +863,8 @@ export type ReviewSection = {
   title: string
   copeDimensions: string[]
   completion: { state: CompletionState; written: number; total: number; tables: number }
+  // Sections 4 and 5: the figures entered so far, shown by the rail until drafted (GN-03).
+  figures?: { state: 'none' | 'some' | 'all'; entered?: number; total?: number } | null
   review: {
     state: ReviewState
     unsupportedStatements: number

@@ -185,6 +185,32 @@ describe('Section 4 comments (GN-03)', () => {
   })
 })
 
+describe('Figure progress in Review before drafting', () => {
+  const figures = async (id: string) =>
+    (await api.get(`${base}/review`)).body.sections.find((s: { id: string }) => s.id === id).figures
+
+  it('counts the Section 4 scores saved so far', async () => {
+    await assessment()
+    expect(await figures('4')).toEqual({ state: 'none', entered: 0, total: 14 })
+
+    const some = scores(8).categories.map((c, i) => (i < 4 ? c : { ...c, current: null }))
+    await api.put(`${base}/risk-quality`).send({ categories: some })
+    expect(await figures('4')).toEqual({ state: 'some', entered: 11, total: 14 })
+
+    await api.put(`${base}/risk-quality`).send(scores(8))
+    expect(await figures('4')).toEqual({ state: 'all', entered: 14, total: 14 })
+  })
+
+  it('says whether Section 5 is partly or fully entered', async () => {
+    await assessment()
+    expect((await figures('5')).state).toBe('none')
+    await api.put(`${base}/loss-estimates`).send({ ...VALUES, levels: [] })
+    expect((await figures('5')).state).toBe('some')
+    await api.put(`${base}/loss-estimates`).send(VALUES)
+    expect((await figures('5')).state).toBe('all')
+  })
+})
+
 describe('Section 4 after a score is cleared (GN-03 AC1)', () => {
   const cleared = () => {
     const body = scores(8)

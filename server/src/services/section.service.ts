@@ -12,7 +12,7 @@ import { listObservations, type ObservationDto } from './observation.service'
 import { recordAiCalls } from './ai-usage.service'
 import { privacyFor } from './privacy.service'
 import { listTemplateSections, requestSectionDraft, type TemplateSection } from './rag.service'
-import { lossEstimateFacts } from './loss-estimate.service'
+import { levelFiguresEntered, lossEstimateFacts, lossEstimatesOf } from './loss-estimate.service'
 import { riskQualityFacts } from './risk-quality.service'
 
 export class UnknownSectionError extends Error {
@@ -56,6 +56,33 @@ export function figureFacts(
   if (sectionId === '4') return riskQualityFacts(assessment.riskQuality)
   if (sectionId === '5') return lossEstimateFacts(assessment.lossEstimates)
   return {}
+}
+
+// How far the engineer has got entering a section's figures, for Review's rail before
+// the section is drafted: Section 4 counts its 14 scores; Section 5, whose number of
+// inputs depends on the rows added, says only none, some or all. Null for other sections.
+export type FigureProgress = { state: 'none' | 'some' | 'all'; entered?: number; total?: number }
+export function figureProgress(
+  sectionId: string,
+  assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'>,
+): FigureProgress | null {
+  const complete = figureFacts(sectionId, assessment).missing === undefined
+  if (sectionId === '4') {
+    const entered = (assessment.riskQuality?.categories ?? []).flatMap((c) =>
+      [c.current, c.potential].filter((n) => n != null),
+    ).length
+    const state = complete ? 'all' : entered ? 'some' : 'none'
+    return { state, entered, total: 14 }
+  }
+  if (sectionId === '5') {
+    const { inputs } = lossEstimatesOf(assessment.lossEstimates)
+    const any =
+      Boolean(inputs.currency || inputs.dateOfValues || inputs.indemnityMonths) ||
+      [...inputs.pd, ...inputs.te].some((r) => r.value !== null) ||
+      levelFiguresEntered(inputs)
+    return { state: complete ? 'all' : any ? 'some' : 'none' }
+  }
+  return null
 }
 
 export type SectionDraftDto = {
@@ -292,6 +319,8 @@ export type LoadedSection = {
   changesSinceDraft: number
   changeCounts: ChangeCounts
   inputsMissing: string | null
+  // Sections 4 and 5 only: the figures entered so far (Review's rail, before drafting).
+  figures: FigureProgress | null
 }
 
 export async function loadSections(reference: string): Promise<LoadedSection[]> {
@@ -327,6 +356,7 @@ export async function loadSections(reference: string): Promise<LoadedSection[]> 
         (changeCounts.figures ?? 0),
       changeCounts,
       inputsMissing: missing ?? null,
+      figures: figureProgress(section.id, assessment),
     }
   })
 }

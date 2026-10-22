@@ -1,6 +1,6 @@
 import { Badge, Button, IconRegistry, ProgressBar } from '../../../design-system'
 import type { FindingCounts, ReviewSection, Summary } from '../api'
-import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
+import { plural, railStatus, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
 // The review summary (RV-02 AC9): the saved drafts' findings across the
 // report by decision, as the gateway counted them from the saved decisions.
@@ -198,7 +198,7 @@ export function ReviewSectionRail({
                 <span className="rv-rail-body">
                   <span className="rv-rail-title">{s.title}</span>
                   <span className="rv-rail-states">
-                    <span className="rv-rail-completion">{completionLabel(s.completion)}</span>
+                    <span className="rv-rail-completion">{railStatus(s)}</span>
                     <Badge tone={badge.tone} icon={badge.icon}>
                       {badge.label}
                     </Badge>

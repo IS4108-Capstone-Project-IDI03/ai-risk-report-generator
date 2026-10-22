@@ -95,6 +95,17 @@ export function completionLabel({ state, written, total }: ReviewSection['comple
   return total ? `${label} · ${written} of ${plural(total, 'subsection')}` : label
 }
 
+// The rail's status line. Until Section 4 or 5 is drafted it says how far the figures
+// are entered (GN-03): the written-subsections count stays at nothing until then.
+export function railStatus(section: Pick<ReviewSection, 'completion' | 'review' | 'figures'>) {
+  const f = section.figures
+  if (f && f.state !== 'none' && section.review.state === 'not_drafted') {
+    if (f.state === 'all') return 'Figures entered · ready to draft'
+    return f.total ? `Figures · ${f.entered} of ${f.total} entered` : 'Figures partly entered'
+  }
+  return completionLabel(section.completion)
+}
+
 type BadgeLook = { tone: string; icon: string; label: string }
 
 // The same badges as the draft blocks (AIDraftBlock), so a review state reads

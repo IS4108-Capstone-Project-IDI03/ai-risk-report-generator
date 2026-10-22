@@ -18,6 +18,7 @@ import {
   type ReviewEntry,
 } from './review-decision.service'
 import {
+  type FigureProgress,
   filedUnder,
   loadSections,
   savedEvidence,
@@ -166,6 +167,8 @@ export type ReviewSectionDto = {
   // `written` of `total` subsections have a finding not rejected; `tables`
   // are left to GN-03.
   completion: { state: CompletionState; written: number; total: number; tables: number }
+  // Sections 4 and 5: the figures entered so far, shown by the rail until drafted (GN-03).
+  figures: FigureProgress | null
   // What makes a draft need review; all 0 for a draft with nothing flagged.
   // Unsupported statements and withdrawn sources count only findings still in
   // the draft: rejecting one clears its flag.
@@ -408,9 +411,17 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
   )
 
   const sections = loaded.map(
-    ({ section, latest, replacement, changesSinceDraft, changeCounts }): ReviewSectionDto => {
+    ({
+      section,
+      latest,
+      replacement,
+      changesSinceDraft,
+      changeCounts,
+      figures,
+    }): ReviewSectionDto => {
       const base = {
         id: section.id,
+        figures,
         title: section.title,
         copeDimensions: section.cope_dimensions,
         // A carried decision repeats one already listed (review-decision.service).
