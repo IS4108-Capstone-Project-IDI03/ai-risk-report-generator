@@ -329,6 +329,21 @@ it('opens Section 1 and Appendix A before any section is drafted (AC1, AC5)', as
   expect(await within(editor()).findByText(PURPOSE)).toBeVisible()
 }, 15_000)
 
+it('shows Section 1 on Generation, assembled from the assessment, with its text one click away', async () => {
+  reset()
+  await openTab(/^Generation/)
+  const row = await screen.findByRole('group', { name: 'Section 1 Purpose and Scope' })
+
+  expect(await within(row).findByText('From assessment details')).toBeVisible()
+  // Nothing to draft: it is never a paid call.
+  expect(within(row).queryByRole('button', { name: /Draft/ })).toBeNull()
+  fireEvent.click(within(row).getByRole('button', { name: 'View' }))
+  expect(within(row).getByText(PURPOSE)).toBeVisible()
+  expect(within(row).getByText(ACTIVITY)).toBeVisible()
+  fireEvent.click(within(row).getByRole('button', { name: 'Hide' }))
+  expect(within(row).queryByText(PURPOSE)).toBeNull()
+}, 15_000)
+
 it('drafts the Executive Summary from Generation only once every section is complete (AC3)', async () => {
   reset()
   await openTab(/^Generation/)

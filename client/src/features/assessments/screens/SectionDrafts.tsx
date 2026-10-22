@@ -11,6 +11,7 @@ import {
 import { describeChanges, maturityEntries, reportProgress } from '../reviewDisplay'
 import { MaturityTable } from '../components/MaturityTable'
 import { OfiRow } from '../components/OfiSuggestions'
+import { PurposeScopeRow } from '../components/PurposeScopeRow'
 import { SummaryRow } from '../components/SummaryRow'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
@@ -366,6 +367,8 @@ export function SectionDrafts({
               <span />
             </div>
             {/* Section 2 opens the report's drafted sections (GN-07). */}
+            {/* Section 1 needs no drafting, but is listed so the tab covers the report. */}
+            <PurposeScopeRow summaryState={summaryState} />
             <SummaryRow reference={reference} canDraft={canDraft} summaryState={summaryState} />
             {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
             <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
