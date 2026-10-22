@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { AcceptedOfi, Ofi, OfiList } from './api'
+import { OfiCharts } from './components/OfiCharts'
 import { OfiReviewPanel } from './components/OfiReviewPanel'
 import { OfiRow } from './components/OfiSuggestions'
 import { useOfis } from './useOfis'
@@ -118,6 +119,24 @@ function ReviewPanel({ canAccept }: { canAccept: boolean }) {
   ) : null
 }
 const renderReview = (canAccept = true) => render(<ReviewPanel canAccept={canAccept} />)
+
+// Section 3 as ReviewWorkspace wires it: the panel and the GN-12 charts share the
+// accepted OFIs from useOfis, so accepting one redraws the charts.
+function ReviewWithCharts() {
+  const { ofis, setOfis } = useOfis(REF)
+  return ofis ? (
+    <>
+      <OfiReviewPanel
+        reference={REF}
+        ofis={ofis}
+        setOfis={setOfis}
+        observations={[VALVE, PANEL]}
+        canAccept
+      />
+      <OfiCharts accepted={ofis.accepted} />
+    </>
+  ) : null
+}
 
 afterEach(() => {
   cleanup()
@@ -340,4 +359,26 @@ it('does not offer loss editing to a read-only reviewer', async () => {
   await screen.findByText(SUGGESTION.title)
   expect(screen.queryByRole('button', { name: /Save loss values/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+})
+
+it('redraws the Section 3 charts as each OFI is accepted, with no reload (GN-12 AC2)', async () => {
+  // Recharts measures its container; jsdom has no ResizeObserver.
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+  mockGateway([SUGGESTION, SECOND])
+  render(<ReviewWithCharts />)
+  const status = () => screen.getByRole('table', { name: 'OFI Count by Status' })
+  // Nothing accepted yet: a note stands in for the charts (AC4).
+  expect(await screen.findByText(/No accepted OFIs yet/)).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Accept Supervise sprinkler control valves' }))
+  await waitFor(() => within(status()).getByRole('row', { name: 'New 1' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Accept Improve Hot Work Permit' }))
+  await waitFor(() => within(status()).getByRole('row', { name: 'New 2' }))
 })
