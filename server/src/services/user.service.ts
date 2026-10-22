@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { USER_ROLES, UserModel, type IUser } from '../models/user.model'
+import { sendInvitation } from './invitation.service'
 import { duplicateKeyField, isDuplicateKeyError } from './mongo-errors'
 import { nextInSequence } from './sequence.service'
 
@@ -28,6 +29,27 @@ export class OwnAccessChangeError extends Error {
         : 'You cannot deactivate your own account. Ask another knowledge admin.',
     )
     this.name = 'OwnAccessChangeError'
+  }
+}
+
+// A knowledge admin asked to resend an invitation (F-08) that has no use:
+// the owner already has a password, or the account cannot sign in.
+export class InvitationNotNeededError extends Error {
+  constructor(reason: 'password-set' | 'inactive') {
+    super(
+      reason === 'password-set'
+        ? 'This person has already set a password. If they have forgotten it, they can use Reset password on the sign-in screen.'
+        : 'This account is deactivated. Reactivate it before sending an invitation.',
+    )
+    this.name = 'InvitationNotNeededError'
+  }
+}
+
+// The invitation email could not be sent, e.g. the mail server is down.
+export class InvitationNotSentError extends Error {
+  constructor() {
+    super('The invitation email could not be sent. Try again in a few minutes.')
+    this.name = 'InvitationNotSentError'
   }
 }
 
@@ -88,54 +110,82 @@ export type UserDto = {
   phone: string | null
   office: string | null
   active: boolean
+  // False until the owner sets a password from their invitation (F-08).
+  passwordSet: boolean
+  // When the latest invitation link expires (or expired), while no password
+  // is set; null once one is, or when no invitation was ever sent.
+  invitationExpiresAt: Date | null
   updatedAt: Date
 }
 
+// Every read selects the password hash, only so toDto can say whether one is
+// set (F-08); the hash itself never leaves this module.
+const WITH_PASSWORD = '+passwordHash'
+
 // Sorted by name so the list reads like a directory.
 export async function listUsers(): Promise<UserDto[]> {
-  const users = await UserModel.find().sort({ name: 1 }).lean()
+  const users = await UserModel.find().select(WITH_PASSWORD).sort({ name: 1 }).lean()
   return users.map(toDto)
 }
 
 export async function getUser(id: string): Promise<UserDto> {
-  const user = isObjectId(id) ? await UserModel.findById(id).lean() : null
+  const user = isObjectId(id) ? await UserModel.findById(id).select(WITH_PASSWORD).lean() : null
   if (!user) throw new UserNotFoundError()
   return toDto(user)
 }
 
 // Creates an active account with the next free staff ID, e.g. MRE-0005, and
-// returns it. It has no password yet: its owner sets one with the reset
-// link on the sign-in screen (F-06), then signs in to their role's screens.
+// returns it. It has no password yet: its owner is emailed an invitation to
+// set one, then signs in to their role's screens. If that email can't be
+// sent, the account is still created; it shows no invitation link, and the
+// admin can resend one from its profile.
 export async function createUser(input: NewUser): Promise<UserDto> {
   for (let attempt = 0; attempt < 25; attempt++) {
     const staffId = `MRE-${String(await nextInSequence('staff')).padStart(4, '0')}`
+    let user: IUser & { _id: unknown }
     try {
-      const user = await UserModel.create({ ...input, staffId, active: true })
-      return toDto(user.toObject())
+      user = (await UserModel.create({ ...input, staffId, active: true })).toObject()
     } catch (error: unknown) {
       if (duplicateKeyField(error) === 'email') throw new UserEmailTakenError()
       // A staff ID already in use, e.g. a seeded account: take the next one.
       if (!isDuplicateKeyError(error)) throw error
+      continue
     }
+    await sendInvitation(user)
+    return getUser(String(user._id))
   }
   throw new Error('No unused staff ID found.')
 }
 
+// Emails a new invitation link to an account whose owner has not set a
+// password yet, e.g. after the last one expired (F-08). The earlier link
+// stops working.
+export async function resendInvitation(id: string): Promise<UserDto> {
+  const user = isObjectId(id) ? await UserModel.findById(id).select(WITH_PASSWORD).lean() : null
+  if (!user) throw new UserNotFoundError()
+  if (user.passwordHash) throw new InvitationNotNeededError('password-set')
+  if (!user.active) throw new InvitationNotNeededError('inactive')
+  if (!(await sendInvitation(user))) throw new InvitationNotSentError()
+  return getUser(id)
+}
+
 // Replaces the editable profile fields and returns the saved account.
 // actorId is the signed-in admin, who may edit their own details but not
-// their own role or active flag.
+// their own role or active flag. Correcting the email of someone who has not
+// set a password yet cancels the invitation sent to the old address and, if
+// the account is active, sends a new one to the corrected address (F-08).
 export async function updateUser(
   id: string,
   profile: UserProfile,
   actorId?: string,
 ): Promise<UserDto> {
-  if (!isObjectId(id)) throw new UserNotFoundError()
+  const current = isObjectId(id) ? await UserModel.findById(id).select(WITH_PASSWORD).lean() : null
+  if (!current) throw new UserNotFoundError()
   if (actorId === id) {
-    const current = await UserModel.findById(id).select('role active').lean()
-    if (!current) throw new UserNotFoundError()
     if (current.role !== profile.role) throw new OwnAccessChangeError('role')
     if (current.active && !profile.active) throw new OwnAccessChangeError('active')
   }
+  const reinvite = !current.passwordHash && current.email !== profile.email
 
   const $set: Partial<IUser> = {
     name: profile.name,
@@ -149,19 +199,30 @@ export async function updateUser(
     if (value === undefined) $unset[key] = ''
     else $set[key] = value
   }
+  if (reinvite) {
+    $unset.inviteTokenHash = ''
+    $unset.inviteTokenExpiresAt = ''
+  }
 
+  let user: (IUser & { _id: unknown }) | null
   try {
-    const user = await UserModel.findByIdAndUpdate(
+    user = await UserModel.findByIdAndUpdate(
       id,
       Object.keys($unset).length ? { $set, $unset } : { $set },
       { returnDocument: 'after', runValidators: true },
-    ).lean()
-    if (!user) throw new UserNotFoundError()
-    return toDto(user)
+    )
+      .select(WITH_PASSWORD)
+      .lean()
   } catch (error: unknown) {
     if (isDuplicateKeyError(error)) throw new UserEmailTakenError()
     throw error
   }
+  if (!user) throw new UserNotFoundError()
+  if (reinvite && user.active && !user.passwordHash) {
+    await sendInvitation(user)
+    return getUser(id)
+  }
+  return toDto(user)
 }
 
 function isObjectId(id: string) {
@@ -179,6 +240,8 @@ function toDto(user: IUser & { _id: unknown }): UserDto {
     phone: user.phone ?? null,
     office: user.office ?? null,
     active: user.active,
+    passwordSet: Boolean(user.passwordHash),
+    invitationExpiresAt: user.passwordHash ? null : (user.inviteTokenExpiresAt ?? null),
     updatedAt: user.updatedAt,
   }
 }

@@ -45,10 +45,11 @@ export const config = {
   },
   serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
   piiProtection: piiProtectionFrom(process.env.PII_PROTECTION),
-  // Where the browser app is served; the emailed reset link points here (F-06).
+  // Where the browser app is served; the emailed reset (F-06) and invitation
+  // (F-08) links point here.
   appUrl: process.env.APP_URL ?? 'http://localhost:3000',
   // Optional on purpose: CI and fresh checkouts have no mail server, so with
-  // no SMTP_HOST the reset email falls back to the console (auth.service.ts).
+  // no SMTP_HOST emails fall back to the console (mail.service.ts).
   smtp: {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 587),

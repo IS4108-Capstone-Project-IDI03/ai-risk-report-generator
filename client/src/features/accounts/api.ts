@@ -26,6 +26,11 @@ export type UserAccount = {
   phone: string | null
   office: string | null
   active: boolean
+  // False until the owner sets a password from their invitation (F-08).
+  passwordSet: boolean
+  // When the latest invitation link expires (or expired), while no password
+  // is set; null once one is, or when no invitation could be sent.
+  invitationExpiresAt: string | null
   updatedAt: string
 }
 
@@ -83,12 +88,24 @@ export function updateUser(id: string, profile: UserProfile): Promise<UserAccoun
   })
 }
 
-// Creates an active account and returns it with its staff ID. Rejects with
-// the gateway's per-field problems (400), or an email already in use (409).
+// Creates an active account, emails its owner an invitation to set a
+// password, and returns it with its staff ID; invitationExpiresAt is null if
+// that email could not be sent. Rejects with the gateway's per-field problems
+// (400), or an email already in use (409).
 export function createUser(account: NewUserAccount): Promise<UserAccount> {
   return request<UserAccount>('/api/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(account),
+  })
+}
+
+// Emails a new invitation link to someone who has not set a password yet
+// (F-08), and returns the account with the new link's expiry. Rejects with
+// 409 when they already have a password or the account is deactivated, and
+// 503 when the email could not be sent.
+export function resendInvitation(id: string): Promise<UserAccount> {
+  return request<UserAccount>(`/api/users/${encodeURIComponent(id)}/invitation`, {
+    method: 'POST',
   })
 }

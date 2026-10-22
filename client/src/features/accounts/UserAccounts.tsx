@@ -16,6 +16,7 @@ import {
   createUser,
   getUser,
   listUsers,
+  resendInvitation,
   ROLE_LABELS,
   roleLabel,
   updateUser,
@@ -44,6 +45,24 @@ const EMPTY_ACCOUNT: NewUserAccount = {
   office: '',
 }
 
+// What the account list and profile badge say. Deactivated comes first: such
+// an account cannot sign in whether or not a password is set. Until the owner
+// sets a password from their invitation (F-08), the account is pending.
+function accountStatus(user: UserAccount): { label: string; tone: string } {
+  if (!user.active) return { label: 'Deactivated', tone: 'neutral' }
+  if (!user.passwordSet) return { label: 'Invitation pending', tone: 'info' }
+  return { label: 'Active', tone: 'low' }
+}
+// e.g. 25 Oct 2026, 09:30, in the viewer's time zone.
+function formatWhen(iso: string) {
+  return new Date(iso).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 function officeLabel(code: string | null) {
   if (!code) return 'Not set'
   return JURISDICTIONS.find((j) => j.value === code)?.label ?? code
@@ -208,9 +227,18 @@ export function UserAccounts({
       </div>
       {created && (
         <div role="status">
-          <Callout tone="success" title={`Account created for ${created.name}`}>
-            {`${created.staffId} is active as a ${roleLabel(created.role).toLowerCase()}. To sign in, they set a password with Reset password on the sign-in screen, using ${created.email}.`}
-          </Callout>
+          {created.invitationExpiresAt ? (
+            <Callout tone="success" title={`Account created for ${created.name}`}>
+              {`${created.staffId} is active as a ${roleLabel(created.role).toLowerCase()}. An invitation to set a password was emailed to ${created.email}; its link works until ${formatWhen(created.invitationExpiresAt)}.`}
+            </Callout>
+          ) : (
+            <Callout
+              tone="warning"
+              title={`Account created for ${created.name}, but no invitation sent`}
+            >
+              {`The invitation email to ${created.email} could not be sent, so they cannot set a password yet. Open their profile and choose Resend invitation to try again.`}
+            </Callout>
+          )}
         </div>
       )}
       {!currentList ? (
@@ -255,7 +283,9 @@ export function UserAccounts({
                     {roleLabel(user.role)} · {user.email}
                   </small>
                 </span>
-                {!user.active && <Badge tone="neutral">Deactivated</Badge>}
+                {accountStatus(user).label !== 'Active' && (
+                  <Badge tone={accountStatus(user).tone}>{accountStatus(user).label}</Badge>
+                )}
               </button>
             </li>
           ))}
@@ -290,11 +320,7 @@ export function UserAccounts({
             email: user.email,
             role: roleLabel(user.role),
             office: officeLabel(user.office),
-            status: (
-              <Badge tone={user.active ? 'low' : 'neutral'}>
-                {user.active ? 'Active' : 'Deactivated'}
-              </Badge>
-            ),
+            status: <Badge tone={accountStatus(user).tone}>{accountStatus(user).label}</Badge>,
           }))}
         />
       )}
@@ -316,7 +342,7 @@ function ProfilePanel({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
   // Move focus to the first field the gateway rejected. A layout effect, so
@@ -330,7 +356,7 @@ function ProfilePanel({
     setDraft(toProfile(user))
     setFieldErrors({})
     setSaveError(null)
-    setSaved(false)
+    setSaved(null)
     setEditing(true)
   }
   async function save(event: React.FormEvent) {
@@ -341,7 +367,16 @@ function ProfilePanel({
       const stored = await updateUser(user.id, draft)
       setFieldErrors({})
       setEditing(false)
-      setSaved(true)
+      // A corrected email on an account still to be set up gets a new
+      // invitation; the link sent to the old address stops working (F-08).
+      const reinvited = !stored.passwordSet && stored.active && stored.email !== user.email
+      setSaved(
+        !reinvited
+          ? 'The changes are stored and will show whenever this profile is opened.'
+          : stored.invitationExpiresAt
+            ? `The changes are stored. A new invitation was emailed to ${stored.email}, and the link sent to ${user.email} no longer works.`
+            : `The changes are stored, but the invitation to ${stored.email} could not be sent. Choose Resend invitation to try again.`,
+      )
       onSaved(stored)
     } catch (error: unknown) {
       if (error instanceof GatewayError && Object.keys(error.fields).length > 0) {
@@ -366,7 +401,7 @@ function ProfilePanel({
           <span className="accounts-mono">{user.staffId}</span> · {roleLabel(user.role)}
         </span>
       </div>
-      <Badge tone={user.active ? 'low' : 'neutral'}>{user.active ? 'Active' : 'Deactivated'}</Badge>
+      <Badge tone={accountStatus(user).tone}>{accountStatus(user).label}</Badge>
     </div>
   )
 
@@ -377,10 +412,11 @@ function ProfilePanel({
         {saved && (
           <div role="status" className="accounts-body-note">
             <Callout tone="success" title="Profile saved">
-              The changes are stored and will show whenever this profile is opened.
+              {saved}
             </Callout>
           </div>
         )}
+        {!user.passwordSet && <InvitationNote user={user} onSent={onSaved} />}
         <dl className="accounts-details">
           <div>
             <dt>Name</dt>
@@ -529,8 +565,96 @@ function AccountFields({
   )
 }
 
+// For an account whose owner has not set a password yet (F-08): when their
+// invitation link expires, and a way to email them a new one, e.g. after it
+// expired or never arrived. A new link cancels the earlier one.
+function InvitationNote({
+  user,
+  onSent,
+}: {
+  user: UserAccount
+  onSent: (user: UserAccount) => void
+}) {
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState<{ tone: string; text: string } | null>(null)
+  // Read once, as the profile opens: whether the link has lapsed only needs
+  // to be right when the admin looks.
+  const [openedAt] = useState(() => Date.now())
+
+  async function resend() {
+    if (sending) return
+    setSending(true)
+    setResult(null)
+    try {
+      const stored = await resendInvitation(user.id)
+      setResult({
+        tone: 'success',
+        text: `A new invitation was emailed to ${stored.email}. Any earlier link no longer works.`,
+      })
+      onSent(stored)
+    } catch (error: unknown) {
+      setResult({
+        tone: 'danger',
+        text:
+          error instanceof GatewayError && (error.status === 409 || error.status === 503)
+            ? error.message
+            : problem(error, 'the invitation was not sent'),
+      })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const expiresAt = user.invitationExpiresAt
+  const linkOpen = expiresAt !== null && Date.parse(expiresAt) > openedAt
+  const status = !user.active
+    ? 'Reactivate the account to send them an invitation.'
+    : expiresAt === null
+      ? 'No invitation link is open. Send one so they can set a password.'
+      : linkOpen
+        ? `The link in their invitation email works until ${formatWhen(expiresAt)}.`
+        : `Their invitation link expired on ${formatWhen(expiresAt)}. Send a new one so they can set a password.`
+
+  return (
+    <>
+      <div className="accounts-body-note">
+        <Callout
+          tone={linkOpen || !user.active ? 'info' : 'warning'}
+          title="They have not set a password yet"
+          actions={
+            user.active ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft="mail"
+                disabled={sending}
+                onClick={resend}
+              >
+                {sending ? 'Sending…' : 'Resend invitation'}
+              </Button>
+            ) : undefined
+          }
+        >
+          {status}
+        </Callout>
+      </div>
+      {result && (
+        <div role={result.tone === 'danger' ? 'alert' : 'status'} className="accounts-body-note">
+          <Callout
+            tone={result.tone}
+            title={result.tone === 'danger' ? 'Invitation not sent' : 'Invitation sent'}
+          >
+            {result.text}
+          </Callout>
+        </div>
+      )}
+    </>
+  )
+}
+
 // Adds a team member's account (F-08). Nothing is saved until the gateway
-// accepts every field; each field it rejects shows its own problem.
+// accepts every field; each field it rejects shows its own problem. Once it
+// is, the gateway emails them an invitation to set their password.
 function NewAccountPanel({
   onCreated,
   onCancel,
@@ -575,7 +699,10 @@ function NewAccountPanel({
       <div className="accounts-profile-head">
         <div className="accounts-profile-title">
           <h2>Add account</h2>
-          <span>The account is active once added, and its staff ID is assigned for you.</span>
+          <span>
+            The account is active once added, and its staff ID is assigned for you. They are emailed
+            a link to set their password.
+          </span>
         </div>
       </div>
       <form ref={formRef} noValidate onSubmit={save}>

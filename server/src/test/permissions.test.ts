@@ -54,6 +54,7 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/users', 'users:manage'],
   ['get', `/api/users/${ID}`, 'users:manage'],
   ['put', `/api/users/${ID}`, 'users:manage'],
+  ['post', `/api/users/${ID}/invitation`, 'users:manage'],
 ]
 
 const CASES = ROUTES.flatMap(([method, url, permission]) =>

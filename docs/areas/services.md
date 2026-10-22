@@ -743,6 +743,15 @@ all 61 cases plus two judge runs) costs about $2.
 - **No `SMTP_HOST`:** nothing is sent. The code is printed in the server console (CI and fresh checkouts).
 - **Mail failure:** logged, and the API answers exactly as on success, so a mail outage never reveals which addresses are registered.
 - The code is single-use and expires after 30 minutes.
+- An account that has never had a password gets no reset email (the response is unchanged): its owner sets the first one from their invitation (below).
+
+## Invitation email (F-08)
+
+`createUser` in `server/src/services/user.service.ts` emails a new account's owner a link `APP_URL/?invite=<code>` (`sendInvitation` in `invitation.service.ts`). The sign-in screen reads `?invite=`, removes it from the address bar, and opens Set your password (`client/src/features/auth/SetPassword.tsx`), which checks the link, then sets the first password. It is a separate flow from the reset, with its own token field and routes.
+
+- Mail goes through the same SMTP settings and `mail.service.ts` transport as the reset. With no `SMTP_HOST` the code is printed in the server console as `[invitation] <email> -> token: <code>`.
+- **Mail failure:** logged; the account is still created and shows no open link. The admin resends from the profile (Resend invitation), which answers 503 while mail is down.
+- The code is single-use, expires after 72 hours, and works only for an active account with no password. A resend, or correcting the account's email, cancels the earlier link.
 
 ## Idle sign-out (F-07)
 

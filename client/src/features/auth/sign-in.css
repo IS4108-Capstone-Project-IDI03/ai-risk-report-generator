@@ -102,6 +102,13 @@
   text-align: center;
   color: var(--text-secondary);
 }
+.sign-in-status {
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--text-secondary);
+}
 .sign-in-footer {
   width: 100%;
   max-width: 448px;
