@@ -73,15 +73,12 @@ function Input({
           height: h,
           padding: '0 10px',
           background: disabled ? 'var(--surface-sunken)' : 'var(--surface-card)',
+          // A field with an error shows one highlight, the focus ring in red, focused or
+          // not, rather than a red border with the blue ring on top.
           border:
-            '1px solid ' +
-            (error
-              ? 'var(--action-danger)'
-              : focus
-                ? 'var(--border-focus)'
-                : 'var(--border-default)'),
+            '1px solid ' + (focus && !error ? 'var(--border-focus)' : 'var(--border-default)'),
           borderRadius: 'var(--radius-md)',
-          boxShadow: focus ? 'var(--focus-ring)' : 'none',
+          boxShadow: error ? 'var(--focus-ring-danger)' : focus ? 'var(--focus-ring)' : 'none',
           transition: 'var(--transition-control)',
           ...style,
         }}

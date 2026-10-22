@@ -39,7 +39,8 @@ export function useFigures<T, Input>(
       // A refused save names the rule it broke (e.g. months over the indemnity period).
       setError(
         e instanceof GatewayError
-          ? [e.message, ...Object.values(e.fields)].join(' ')
+          ? // Each rule once: several rows can break the same one.
+            [...new Set([e.message, ...Object.values(e.fields)])].join(' ')
           : 'The figures were not saved.',
       )
     } finally {

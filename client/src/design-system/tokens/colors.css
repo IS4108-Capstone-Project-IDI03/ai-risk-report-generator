@@ -118,6 +118,8 @@
   --diff-changed-border: var(--ink-400);
 
   --focus-ring: 0 0 0 3px rgba(63, 110, 167, 0.32);
+  /* The same ring in --action-danger (red-600), marking a field with an error. */
+  --focus-ring-danger: 0 0 0 3px rgba(173, 46, 45, 0.32);
 
   /* Chart series — usage and cost charts (EV-04). One hue family per billed
      vendor, a dark and a light step where a vendor bills two services. They

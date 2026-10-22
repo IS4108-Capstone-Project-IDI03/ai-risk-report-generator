@@ -22,12 +22,16 @@ export function LossValuesTable({
   totals,
   canEdit,
   onChange,
+  problem,
 }: {
   typed: TypedValues
   // As last saved; null while any value is not entered.
   totals: { pd: number | null; te: number | null; tiv: number | null }
   canEdit: boolean
   onChange: (change: Partial<TypedValues>) => void
+  // What is wrong with a box, by key ("value:<row key>", "currency", "indemnity"),
+  // shown in red under it as the engineer types (LossEstimateFigures' figureProblems).
+  problem?: (key: string) => string | undefined
 }) {
   // One side's item and value cells for row i; empty cells where that side has fewer rows.
   const cells = (side: 'pd' | 'te', i: number) => {
@@ -65,6 +69,7 @@ export function LossValuesTable({
             type="number"
             min={0}
             aria-label={`${name} value`}
+            error={problem?.(`value:${row.key}`)}
             value={row.value}
             onChange={(e) => set({ value: e.target.value })}
           />
@@ -112,6 +117,7 @@ export function LossValuesTable({
                     size="sm"
                     placeholder="SGD"
                     maxLength={3}
+                    error={problem?.('currency')}
                     value={typed.currency}
                     onChange={(e) => onChange({ currency: e.target.value })}
                   />
@@ -137,6 +143,7 @@ export function LossValuesTable({
                     type="number"
                     min={1}
                     max={120}
+                    error={problem?.('indemnity')}
                     value={typed.indemnityMonths}
                     onChange={(e) => onChange({ indemnityMonths: e.target.value })}
                   />

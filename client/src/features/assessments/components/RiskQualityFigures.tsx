@@ -57,6 +57,8 @@ export function RiskQualityFigures({
   const [typed, setTyped] = useState<Record<string, Typed>>({})
   const [loaded, setLoaded] = useState<RiskQuality | null>(null)
   const [benchmarks, setBenchmarks] = useState({ client: '', peerGroup: '' })
+  // Save was pressed while a score is outlined in red; cleared by the next edit.
+  const [blocked, setBlocked] = useState(false)
   // The inputs still holding the model's proposal; editing one drops its marking (AC13).
   const [proposed, setProposed] = useState<Set<string>>(new Set())
   if (figures && figures !== loaded) {
@@ -105,6 +107,18 @@ export function RiskQualityFigures({
     current: toFigure(typed[category]?.current ?? ''),
     potential: toFigure(typed[category]?.potential ?? ''),
   }))
+  // What is wrong with a typed score, shown under its box in red as the engineer types;
+  // the gateway checks the same rules on save (risk-quality.service.ts).
+  const problem = (category: string, side: keyof Typed) => {
+    const text = typed[category]?.[side] ?? ''
+    const n = toFigure(text)
+    if (text.trim() !== '' && (Number.isNaN(n) || n! < 0 || n! > 10)) return 'Enter 0 to 10'
+    const cur = toFigure(typed[category]?.current ?? '')
+    if (side === 'potential' && n !== null && cur !== null && n < cur)
+      return 'Below the current score'
+    return undefined
+  }
+  const anyProblem = names.some((c) => problem(c, 'current') || problem(c, 'potential'))
   const why = new Map(figures.proposal?.categories.map((p) => [p.category, p]))
   const entered = figures.categories.some((c) => c.current !== null || c.potential !== null)
   const cell = (category: string, side: keyof Typed) =>
@@ -117,9 +131,11 @@ export function RiskQualityFigures({
           max={10}
           step={0.1}
           aria-label={`${category} ${side} score`}
+          error={problem(category, side)}
           value={typed[category]?.[side] ?? ''}
           onChange={(e) => {
             setTyped((t) => ({ ...t, [category]: { ...t[category], [side]: e.target.value } }))
+            setBlocked(false)
             setProposed((p) => new Set([...p].filter((k) => k !== keyOf(category, side))))
           }}
         />
@@ -218,10 +234,10 @@ export function RiskQualityFigures({
           </div>
         </div>
       </div>
-      {error && (
+      {(error || blocked) && (
         <div role="alert">
           <Callout tone="warning" title="Scores not saved">
-            {error}
+            {blocked ? 'Fix the scores outlined in red before saving.' : error}
           </Callout>
         </div>
       )}
@@ -243,15 +259,17 @@ export function RiskQualityFigures({
             variant="primary"
             size="sm"
             disabled={saving}
-            onClick={() =>
-              save({
+            onClick={() => {
+              // Nothing is sent while a box is outlined: the gateway would refuse it anyway.
+              if (anyProblem) return setBlocked(true)
+              void save({
                 categories: scores,
                 benchmarks: {
                   client: toFigure(benchmarks.client),
                   peerGroup: toFigure(benchmarks.peerGroup),
                 },
               })
-            }
+            }}
           >
             {/* Saving proposed figures is the engineer confirming them (AC14). */}
             {proposed.size ? 'Confirm figures' : 'Save scores'}

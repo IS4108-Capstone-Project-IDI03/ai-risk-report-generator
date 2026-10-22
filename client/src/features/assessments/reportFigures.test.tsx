@@ -111,6 +111,36 @@ describe('Section 4 scores', () => {
     expect(screen.getByText(/rqr-provisional-equal-v1/)).toBeInTheDocument()
   })
 
+  it('outlines in red a potential below its current, or a score outside 0-10, and saves nothing until fixed', async () => {
+    const puts = gateway(BLANK_RQR, () => BLANK_RQR)
+    render(<RiskQualityFigures reference="RPT-1" canEdit />)
+    await screen.findByRole('table', { name: 'Risk quality scores' })
+    const box = (category: string, side: string) =>
+      screen.getByLabelText(`${category} ${side} score`)
+
+    fireEvent.change(box('Fire Protection', 'current'), { target: { value: '9' } })
+    fireEvent.change(box('Fire Protection', 'potential'), { target: { value: '8' } })
+    fireEvent.change(box('Construction', 'current'), { target: { value: '11' } })
+
+    // Only the boxes at fault, each with its reason under it.
+    expect(box('Fire Protection', 'potential')).toHaveAttribute('aria-invalid', 'true')
+    expect(box('Fire Protection', 'current')).toHaveAttribute('aria-invalid', 'false')
+    expect(box('Construction', 'current')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('Below the current score')).toBeInTheDocument()
+    expect(screen.getByText('Enter 0 to 10')).toBeInTheDocument()
+
+    // Saving sends nothing and says once what to do.
+    fireEvent.click(screen.getByRole('button', { name: 'Save scores' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Fix the scores outlined in red before saving.',
+    )
+    expect(puts).toHaveLength(0)
+
+    // Fixed: the outline goes.
+    fireEvent.change(box('Fire Protection', 'potential'), { target: { value: '10' } })
+    expect(box('Fire Protection', 'potential')).toHaveAttribute('aria-invalid', 'false')
+  })
+
   it('is read-only for anyone but the assigned engineer', async () => {
     gateway(BLANK_RQR, () => BLANK_RQR)
     render(<RiskQualityFigures reference="RPT-1" canEdit={false} />)
@@ -211,6 +241,41 @@ describe('Section 5 loss estimates', () => {
     expect(
       within(two).getByText('Total Level II Property Loss Estimate').closest('tr'),
     ).toHaveTextContent('Not entered')
+  })
+
+  it('outlines in red a negative figure, a % over 100 or months beyond the indemnity period, and saves nothing until fixed', async () => {
+    const puts = gateway(LOSS, () => LOSS)
+    render(<LossEstimateFigures reference="RPT-1" canEdit />)
+    const one = await screen.findByRole('region', { name: 'Property – Level I Loss Estimate' })
+    const values = screen.getByRole('table', { name: 'Values' })
+
+    fireEvent.change(within(values).getByLabelText('Buildings value'), { target: { value: '-5' } })
+    fireEvent.change(within(one).getByLabelText('Buildings % damage'), { target: { value: '150' } })
+    // 13 months against the 12-month indemnity period.
+    fireEvent.change(within(one).getByLabelText('Business Interruption outage months'), {
+      target: { value: '13' },
+    })
+
+    expect(within(values).getByLabelText('Buildings value')).toHaveAttribute('aria-invalid', 'true')
+    expect(within(one).getByLabelText('Buildings % damage')).toHaveAttribute('aria-invalid', 'true')
+    expect(within(one).getByLabelText('Business Interruption outage months')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+    expect(screen.getByText('Enter 0 or more')).toBeInTheDocument()
+    expect(screen.getByText('Enter 0 to 100')).toBeInTheDocument()
+    expect(screen.getByText('More than the indemnity period')).toBeInTheDocument()
+    // A valid box is left alone.
+    expect(within(one).getByLabelText('Business Interruption % impacted')).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save figures' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Fix the figures outlined in red before saving.',
+    )
+    expect(puts).toHaveLength(0)
   })
 
   it('edits, adds and removes damage items in one level without changing site values or other levels', async () => {
@@ -382,6 +447,26 @@ it('says which rule a refused save broke', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'The values are invalid. Level III: outage months exceed the indemnity period.',
   )
+})
+
+it('says each refused rule once, however many rows broke it', async () => {
+  const rule = 'The potential score cannot be below the current score.'
+  vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) =>
+    init?.method === 'PUT'
+      ? new Response(
+          JSON.stringify({
+            error: 'The values are invalid.',
+            fields: { 'levels.0': rule, 'levels.1': rule, 'levels.2': rule },
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        )
+      : json(LOSS),
+  )
+  render(<LossEstimateFigures reference="RPT-1" canEdit />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Save figures' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(`The values are invalid. ${rule}`)
+  expect(screen.getByRole('alert').textContent!.split(rule)).toHaveLength(2)
 })
 
 it("puts each level's drafted scenario and assumptions in its definition table, as Marsh's template", async () => {

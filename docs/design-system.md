@@ -76,7 +76,7 @@ Sample microcopy, in register:
 
 **Hover.** Surfaces tint one step (`--surface-hover`), borders go one step stronger, icon colour lifts from muted to body. Never a lift, scale or shadow change.
 **Press.** Fills darken one step (`--action-primary-active`); nothing shrinks or translates.
-**Focus.** 1px `--border-focus` plus a 3px `--focus-ring` at 32% ink. Always visible, never suppressed.
+**Focus.** 1px `--border-focus` plus a 3px `--focus-ring` at 32% ink. Always visible, never suppressed. A field with an error shows the same 3px ring in red (`--focus-ring-danger`, red-600 at 32%) instead, focused or not, with its message under it: one highlight, never a red border with the blue ring on top.
 **Selected.** `--surface-selected` (ink-50) fill with a 2px ink left rule in rails, or a 2px underline in tabs.
 **Disabled.** 45% opacity and a sunken fill; never a greyed-out colour swap.
 

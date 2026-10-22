@@ -28,6 +28,7 @@ export function LossLevelBlock({
   assumptions,
   proposed,
   onTouched,
+  problem,
 }: {
   meta: (typeof LOSS_LEVELS)[number]
   te: TypedValue[]
@@ -43,6 +44,9 @@ export function LossLevelBlock({
   // strand a mark; and the call that drops one's marking once the engineer edits it.
   proposed?: Set<string>
   onTouched?: (mark: string) => void
+  // What is wrong with a box, by the same row key and field ("b:percent", "bi:months"),
+  // shown in red under it as the engineer types (LossEstimateFigures' figureProblems).
+  problem?: (key: string) => string | undefined
 }) {
   // A proposed input carries the AI rule until edited (AC13).
   const mark = (key: string, input: React.ReactNode) =>
@@ -67,6 +71,7 @@ export function LossLevelBlock({
             min={0}
             max={max}
             aria-label={label}
+            error={markKey ? problem?.(markKey) : undefined}
             value={value}
             onChange={(e) => {
               set(e.target.value)
@@ -165,8 +170,12 @@ export function LossLevelBlock({
                   )}
                 </td>
                 <td>
-                  {field(`Level ${meta.level} damage value ${i + 1}`, row.value, (value) =>
-                    setDamageRow(row.key, { value }),
+                  {field(
+                    `Level ${meta.level} damage value ${i + 1}`,
+                    row.value,
+                    (value) => setDamageRow(row.key, { value }),
+                    undefined,
+                    `${row.key}:value`,
                   )}
                 </td>
                 <td>

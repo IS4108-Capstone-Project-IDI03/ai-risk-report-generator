@@ -90,6 +90,45 @@ function withProposal(t: Typed, figures: LossEstimates) {
   return { typed: t, why }
 }
 
+// What is wrong with each typed figure, keyed as the boxes show it: "currency",
+// "indemnity", "value:<row key>", and "<level>:<row key>:value|percent|months". The
+// same rules the gateway checks on save (lossEstimatesSchema), shown as the engineer
+// types so a refused save never has to name them.
+function figureProblems(t: Typed): Map<string, string> {
+  const problems = new Map<string, string>()
+  const num = (text: string) => (text.trim() === '' ? null : Number(text))
+  const negative = (text: string) => {
+    const n = num(text)
+    return n !== null && (Number.isNaN(n) || n < 0)
+  }
+  const notPercent = (text: string) => {
+    const n = num(text)
+    return n !== null && (Number.isNaN(n) || n < 0 || n > 100)
+  }
+  if (t.currency.trim() && !/^[A-Za-z]{3}$/.test(t.currency.trim()))
+    problems.set('currency', 'Enter a 3-letter code')
+  const indemnity = num(t.indemnityMonths)
+  if (indemnity !== null && !(Number.isInteger(indemnity) && indemnity >= 1 && indemnity <= 120))
+    problems.set('indemnity', 'Enter 1 to 120 months')
+  for (const r of [...t.pd, ...t.te])
+    if (negative(r.value)) problems.set(`value:${r.key}`, 'Enter 0 or more')
+  for (const [level, typed] of Object.entries(t.levels)) {
+    for (const r of typed.damageRows) {
+      if (negative(r.value)) problems.set(`${level}:${r.key}:value`, 'Enter 0 or more')
+      if (notPercent(r.percent)) problems.set(`${level}:${r.key}:percent`, 'Enter 0 to 100')
+    }
+    for (const [key, e] of Object.entries(typed.te)) {
+      const months = num(e.months)
+      if (negative(e.months)) problems.set(`${level}:${key}:months`, 'Enter 0 or more')
+      // The policy pays no more than the indemnity period.
+      else if (months !== null && indemnity !== null && months > indemnity)
+        problems.set(`${level}:${key}:months`, 'More than the indemnity period')
+      if (notPercent(e.percent)) problems.set(`${level}:${key}:percent`, 'Enter 0 to 100')
+    }
+  }
+  return problems
+}
+
 // Damage rows belong to each level; time-element rows still follow the site values.
 function inputsOf(t: Typed): LossInputs {
   const row = (r: TypedValue) => ({ key: r.key, item: r.item.trim(), value: toFigure(r.value) })
@@ -144,6 +183,8 @@ export function LossEstimateFigures({
   const [loaded, setLoaded] = useState<LossEstimates | null>(null)
   // Per level, the inputs still holding the model's proposal, with why (AC13).
   const [why, setWhy] = useState<Record<string, Map<string, Marked>>>({})
+  // Save was pressed while a figure is outlined in red; cleared by the next edit.
+  const [blocked, setBlocked] = useState(false)
   if (figures && figures !== loaded) {
     setLoaded(figures)
     const filled = withProposal(typedOf(figures), figures)
@@ -158,8 +199,12 @@ export function LossEstimateFigures({
       </Callout>
     ) : null
   const { values, levels } = figures.result
-  const set = (change: Partial<Typed>) => setTyped({ ...typed, ...change })
+  const set = (change: Partial<Typed>) => {
+    setTyped({ ...typed, ...change })
+    setBlocked(false)
+  }
   const stillProposed = Object.values(why).some((m) => m.size > 0)
+  const problems = figureProblems(typed)
   // Mirrors the gateway's levelFiguresEntered: proposing is offered only before then.
   const entered = figures.inputs.levels.some(
     (l) =>
@@ -187,7 +232,13 @@ export function LossEstimateFigures({
         </p>
       ))}
       <h3>Values</h3>
-      <LossValuesTable typed={typed} totals={values} canEdit={canEdit} onChange={set} />
+      <LossValuesTable
+        typed={typed}
+        totals={values}
+        canEdit={canEdit}
+        onChange={set}
+        problem={(key) => problems.get(key)}
+      />
       <p className="rv-muted">{VALUES_NOTE}</p>
       <p className="rv-muted">
         Site values are the report’s overall insured values. Each loss level has its own property
@@ -234,6 +285,7 @@ export function LossEstimateFigures({
           scenario={drafted?.get(`Level ${meta.level} Scenario`)}
           assumptions={drafted?.get(`Level ${meta.level} Assumptions`)}
           proposed={new Set(why[meta.level]?.keys())}
+          problem={(key) => problems.get(`${meta.level}:${key}`)}
           onTouched={(key) => {
             const left = new Map(why[meta.level])
             left.delete(key)
@@ -242,10 +294,10 @@ export function LossEstimateFigures({
         />
       ))}
 
-      {error && (
+      {(error || blocked) && (
         <div role="alert">
           <Callout tone="warning" title="Figures not saved">
-            {error}
+            {blocked ? 'Fix the figures outlined in red before saving.' : error}
           </Callout>
         </div>
       )}
@@ -267,7 +319,11 @@ export function LossEstimateFigures({
             variant="primary"
             size="sm"
             disabled={saving}
-            onClick={() => save(inputsOf(typed))}
+            onClick={() => {
+              // Nothing is sent while a figure is outlined: the gateway would refuse it.
+              if (problems.size) return setBlocked(true)
+              void save(inputsOf(typed))
+            }}
           >
             {/* Saving proposed figures is the engineer confirming them (AC14). */}
             {stillProposed ? 'Confirm figures' : 'Save figures'}
