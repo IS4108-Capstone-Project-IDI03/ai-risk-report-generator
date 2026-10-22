@@ -1824,3 +1824,18 @@ Rejected:
 Known limits: restoring a finding's drafted words leaves it Edited (with the draft's words), not Pending, since the log has no "undo"; the review history says it was edited by the restore. Every pause in typing in the document editor saves a version, so a long editing session lists many; they are not grouped. A restore of text written on an earlier draft can only match findings by their exact words.
 
 Stories: RV-06, RV-08, RV-02.
+
+## 2026-10-22 — Eval results behind GN-03, GN-07 and GN-11's quality criteria
+
+The judges' and scorers' result files (`microservices/rag-service/eval/results/*.jsonl`) are gitignored, so the runs that meet these criteria are recorded here. Judge `gpt-6-luna` at high reasoning, two runs averaged; drafter `claude-sonnet-5-5` at medium effort. Each case's own report is kept out of retrieval.
+
+Measured (18-20 Oct):
+- **GN-03 AC11, Section 4** (pass mark: mean 4.0, groundedness and no invention at least 4.0): Office Sample 5, **4.8** (prompt `gn01-v2.8`, `rubric-v2.5`); Shopping Mall Sample 2, **4.8** (`gn01-v2.9`). Both pass. Marsh's own text scored 3.25 and 4.45.
+- **GN-03, Section 5** (no pass mark yet): Office Sample 5, **4.05**, failing on groundedness (2.5) with `rubric-v2.6`: an invented site fire brigade, and floor spread not tied to the evidence. Marsh's own scored 3.4.
+- **GN-07 AC15, Executive Summary** (same pass mark): Office Sample 5, **4.62** (prompt `gn07-v2`, `summary-rubric-v3`); Shopping Mall Sample 2, **4.38**. Both pass. Marsh's own scored 3.38 and 1.94.
+- **GN-11 AC6, Section 6 ranks** (`eval/score_ranks.py`, no judge): office case, **4 of 15** exact and 12 of 15 within one rank, against **11 of 15** for always answering "Embedded". The model rates one step low; the prompt's "when the evidence fits two, choose the lower one" is the likely cause, not yet changed.
+- GN-03's proposed figures (AC16) are in the entry of 2026-10-20.
+
+Reason: the criteria are met by these runs, and a reviewer should be able to check that without the results files.
+
+Known limits: one or two cases per section; judge scores vary by about 0.5 between runs. Marsh's own text scoring below the drafts reflects the rubric checking each statement against the case's evidence, which holds only part of what the engineer knew.
