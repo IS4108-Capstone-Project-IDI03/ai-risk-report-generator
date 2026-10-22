@@ -312,6 +312,7 @@ role's screens, and the reset flow gets them there with no new password
 handling. A real welcome email can reuse the same token once email delivery
 exists.
 Story: F-08.
+Superseded on 2026-10-22: the new employee is emailed an invitation instead (below).
 
 ## 2026-10-06 — Retrieved passages are reranked once per section
 
@@ -1824,3 +1825,20 @@ Rejected:
 Known limits: restoring a finding's drafted words leaves it Edited (with the draft's words), not Pending, since the log has no "undo"; the review history says it was edited by the restore. Every pause in typing in the document editor saves a version, so a long editing session lists many; they are not grouped. A restore of text written on an earlier draft can only match findings by their exact words.
 
 Stories: RV-06, RV-08, RV-02.
+
+## 2026-10-22 — A new account's owner sets their first password from an emailed invitation, not the reset
+
+Chose: creating an account (F-08) emails its owner an invitation: a link to `APP_URL/?invite=<code>` that opens its own Set your password screen. The screen checks the link as it opens (`POST /api/auth/invitation`), greets the person by name and shows their work email, and sets the first password with `POST /api/auth/invitation/accept`. The code is stored only as a sha256 hash (`inviteTokenHash`), works once, for 72 hours, and only for an active account that has no password yet. A knowledge admin can resend it from the profile (`POST /api/users/:id/invitation`), which cancels the earlier link; correcting a not-yet-set-up account's email cancels the link sent to the old address and invites the new one. The account list shows such an account as Invitation pending. A first password needs at least 12 characters, a number and a symbol, checked on the gateway as well as the screen. The reset (F-06) now sends nothing to an account with no password: a reset replaces a password, it does not create one.
+
+Rejected:
+- Keeping the reset as the way in (2026-10-04): the new employee had to know to request a reset for an account nobody had told them about, the reset's 30-minute link is too short for a first sign-in, and it made Reset password the de facto onboarding step.
+- Reusing the reset token and `/api/auth/reset` for the invitation: one token field would let a reset request cancel an invitation and the reverse, and a reset link would set a first password with none of the invitation's checks (active account, no password yet).
+- The admin typing a first password: one person knowing another's password and sending it outside the app.
+- Signing the person in as soon as the password is set: going back to the sign-in screen, with the email filled in, lets the browser offer to save the new password, and matches what the reset does.
+- Failing the account creation when the email can't be sent: the account details are right, and the admin can resend once mail works; the account shows no open link meanwhile.
+
+Reason: a new employee should hear about their account by email, with a link that lasts long enough to be found in their inbox, and the reset should stay the recovery path it was built as. Separate fields and routes keep the two links from interfering. Mail uses the same SMTP settings as the reset; with no `SMTP_HOST` the code is printed in the server console.
+
+Known limits: the 72 hours are fixed in `invitation.service.ts`. The first-password rule does not apply to the reset yet. An account created before this change, with no password, shows Invitation pending with no open link until an admin resends it.
+
+Stories: F-08, F-06.

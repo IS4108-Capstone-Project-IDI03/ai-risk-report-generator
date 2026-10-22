@@ -96,12 +96,16 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 - [ ] **F-08** — Create new employee accounts (knowledge admin, deps: F-03, F-05)
   <details><summary>Goal / AC</summary>
 
-  Goal: add a team member's account (name, work email, role and optional profile details) from the User accounts screen, so account records stay clean and unique and assessments and other records can reliably refer to them.
+  Goal: add a team member's account (name, work email, role and optional profile details) from the User accounts screen, and email the new employee an invitation to set their own password, so account records stay clean and unique and assessments and other records can reliably refer to them.
 
-  1. Given a knowledge admin on the User accounts screen, when they submit a new account with a name, work email and role, then the account is saved as active in the account list. Job title, phone and office are optional.
-  2. Given a required field is missing or invalid (e.g. a malformed email or an unknown role), when the account is submitted, then each invalid field shows its own error and no account is created.
-  3. Given another account already uses the email, when the account is submitted, then the email field reports the conflict and no account is created.
-  4. Given a new account has been created, when the employee signs in with that email, then they land on the screens their assigned role permits.
+  1. Given a knowledge admin on the User accounts screen, when they submit a new account with a name, work email and role, then the account is saved as active with no password, it appears in the account list as "Invitation pending", and an invitation email with a link to set a password is sent to the work email. Job title, phone and office are optional. The admin never sets or sees the employee's password.
+  2. Given a required field is missing or invalid (e.g. a malformed email or an unknown role), when the account is submitted, then each invalid field shows its own error, no account is created and no email is sent.
+  3. Given another account already uses the email, when the account is submitted, then the email field reports the conflict, no account is created and no email is sent.
+  4. Given a new employee opens the link in their invitation email, when they set a password that meets the password rules, then the password is saved, the link stops working, the account no longer shows "Invitation pending", and they can sign in with that email and land on the screens their assigned role permits.
+  5. Given an invitation link has expired (after 72 hours) or has already been used, when the employee opens it, then they cannot set a password and are told to ask a knowledge admin for a new invitation. The admin can resend the invitation from the account's profile, and doing so cancels any earlier link.
+  6. Given a new account whose password has not been set yet, when someone tries to sign in with that email, then sign-in fails with the usual generic error.
+
+  The invitation has its own link and set-password screen, separate from the forgotten-password reset (F-06): a new account is never set up by resetting a password.
   </details>
 
 ## E2 — Ingestion & Processing

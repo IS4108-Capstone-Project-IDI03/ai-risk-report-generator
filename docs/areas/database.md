@@ -234,13 +234,23 @@ capture sessions were kept, so the assessment returns with the status it had.
 (`risk_engineer` or `knowledge_admin`, F-05), optional `jobTitle`,
 `phone` and `office` (a two-letter jurisdiction code), `active`, and the
 bcrypt `passwordHash` (F-04, never selected by default). A deactivated account
-cannot sign in.
+cannot sign in. Two token pairs are stored as sha256 hashes of the emailed
+code, never the code: `resetTokenHash`/`resetTokenExpiresAt` for the password
+reset (F-06), and `inviteTokenHash`/`inviteTokenExpiresAt` for the invitation
+that lets a new account's owner set their first password (F-08). The hashes
+are never selected by default; `inviteTokenExpiresAt` is, so admins can see
+when an invitation lapses.
 
 `GET /api/users` lists accounts by name and `GET /api/users/:id` returns one
 (404 for an unknown or malformed ID). `PUT /api/users/:id` replaces the whole
 editable profile; optional fields sent as `''` are removed. Invalid input
 returns 400 `{ error, fields }` like assessments, and an email another account
-uses returns 409 with `fields.email`. `staffId` cannot be changed. These routes
+uses returns 409 with `fields.email`. `staffId` cannot be changed. Each
+account also reads `passwordSet` and `invitationExpiresAt` (when the latest
+invitation link expires or expired; `null` once a password is set or when no
+invitation was sent); no password or token hash is ever returned. Changing the email
+of an account with no password cancels its invitation and, if the account is
+active, emails a new one to the new address. These routes
 need a session (401) and the `users:manage` permission, which only knowledge
 admins have (403 otherwise). An admin cannot change their own role or
 deactivate themselves (400 against `fields.role` or `fields.active`), so the
@@ -252,14 +262,31 @@ always saved active, and the gateway assigns the next unused `staffId` from
 the `staff` counter (one already in use, e.g. a seeded `MRE-0001`, is skipped);
 any `staffId` or `active` in the body is ignored. 201 returns the account;
 invalid input is 400 `{ error, fields }` and an email another account uses is
-409 with `fields.email`, and neither saves anything. A new account has no
-`passwordHash`: its owner sets one through the password reset (F-06), then
-signs in.
+409 with `fields.email`, and neither saves nor sends anything. A new account
+has no `passwordHash`: its owner is emailed an invitation link,
+`APP_URL/?invite=<code>`, that works once, for 72 hours, while the account is
+active and has no password. If the email can't be sent, the account is still
+saved and returns `invitationExpiresAt: null`.
+`POST /api/users/:id/invitation` emails a new link and cancels the earlier one
+(200 with the account; 404; 409 when a password is set or the account is
+deactivated; 503 when the email can't be sent).
+
+The invitation is redeemed without a session: `POST /api/auth/invitation`
+`{ token }` returns the account's `{ name, email }`, and
+`POST /api/auth/invitation/accept` `{ token, password }` sets the first
+password, clears the token and returns `{ email }`. Both answer 400 for an
+invalid, used or expired link; a password shorter than 12 characters, without
+a number and a symbol, or over 72 bytes is 400 with `fields.password`. It is
+separate from the reset: `POST /api/auth/request-reset` sends nothing to an
+account with no password (the response is the same as for any address), and
+neither code works in the other's route.
 
 ## Role permissions (F-05)
 
-Every `/api` route except `/api/health` and `/api/auth/login|logout` needs a
-session cookie (401 without one). Each then names one permission; a role
+Every `/api` route except `/api/health` and `/api/auth/login|logout`, the
+reset routes (`/api/auth/request-reset|reset`, F-06) and the invitation routes
+(`/api/auth/invitation`, `/api/auth/invitation/accept`, F-08) needs a session
+cookie (401 without one). Each then names one permission; a role
 without it gets 403 `{ error: 'Your role does not allow this.' }` before the
 handler reads the body or the database. The matrix lives in
 `server/src/services/permissions.service.ts`, and `/api/auth/login` and

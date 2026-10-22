@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Button, Callout, Checkbox, Input, Tabs } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { signIn as requestSignIn, requestPasswordReset, resetPassword, type Session } from './api'
+import { SetPassword } from './SetPassword'
 import './sign-in.css'
 
 // Why a sign-in attempt failed. Wrong credentials always read the same, so the
@@ -17,6 +18,8 @@ function signInProblem(error: unknown) {
 
 // The reset code in an emailed link (F-06): /?reset=<code>.
 const emailedResetCode = () => new URLSearchParams(window.location.search).get('reset') ?? ''
+// The code in a new employee's invitation link (F-08): /?invite=<code>.
+const emailedInviteCode = () => new URLSearchParams(window.location.search).get('invite') ?? ''
 
 export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   // A reset link opens straight at the new-password step.
@@ -32,9 +35,12 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   const [resetEmail, setResetEmail] = useState('')
   const [resetToken, setResetToken] = useState(emailedResetCode)
   const [newPassword, setNewPassword] = useState('')
+  // An invitation link opens the set-password screen instead.
+  const [inviteToken, setInviteToken] = useState(emailedInviteCode)
   // Remove the code from the address bar so it isn't kept in history or shared.
   useEffect(() => {
-    if (emailedResetCode()) window.history.replaceState(null, '', window.location.pathname)
+    if (emailedResetCode() || emailedInviteCode())
+      window.history.replaceState(null, '', window.location.pathname)
   }, [])
   const requestAccess = mode === 'signup'
   function changeMode(value: string) {
@@ -121,6 +127,22 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (inviteToken) {
+    return (
+      <SetPassword
+        token={inviteToken}
+        onDone={(invitedEmail) => {
+          setInviteToken('')
+          setMode('signin')
+          setEmail(invitedEmail)
+          setError('')
+          setNotice('Password set. Sign in with your work email and new password.')
+        }}
+        onBack={() => setInviteToken('')}
+      />
+    )
   }
 
   if (mode === 'reset-request' || mode === 'reset-confirm') {
