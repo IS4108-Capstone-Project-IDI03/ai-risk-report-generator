@@ -443,8 +443,10 @@ export function ReviewWorkspace({
     )
 
   // Nothing drafted yet: the rail stays, so Sections 1 and 2 and Appendix A
-  // (which need no draft of 7-12) can still be opened (GN-07 AC1, AC5).
-  if (!saved || !section || (!drafted.length && selected !== '3'))
+  // (which need no draft of 7-12) can still be opened (GN-07 AC1, AC5). Sections
+  // 3, 4 and 5 open anyway: the OFIs, and 4 and 5's figures, come before any draft
+  // (GN-03), so blocking them would block the step drafting waits on.
+  if (!saved || !section || (!drafted.length && !['3', '4', '5'].includes(selected ?? '')))
     return (
       <div style={wrapStyle}>
         {rail}

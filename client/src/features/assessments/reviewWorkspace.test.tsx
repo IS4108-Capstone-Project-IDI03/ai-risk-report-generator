@@ -287,6 +287,7 @@ function mockGateway(review: () => Promise<Response>) {
     if (url === `/api/assessments/${REF}/ofis`) return json(200, ofis)
     if (url === `/api/assessments/${REF}/review`) return review()
     if (url === `/api/assessments/${REF}/sections`) return json(200, [])
+    if (url === `/api/assessments/${REF}/risk-quality`) return json(200, PROPOSED_SCORES)
     return json(200, [])
   })
 }
@@ -465,6 +466,41 @@ it('says when there is nothing to review yet', async () => {
   await openReview(() => json(200, workspace([EXPOSURES])))
   expect(await screen.findByText('No sections drafted yet')).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Draft editor' })).toBeNull()
+}, 15_000)
+
+// Section 4 before any draft (GN-03): no score entered, one the model proposed.
+const RISK_QUALITY: ReviewSection = {
+  ...EXPOSURES,
+  id: '4',
+  title: 'Risk Quality Ratings and Comments',
+  figures: { state: 'none', entered: 0, total: 14 },
+}
+const PROPOSED_SCORES = {
+  categories: ['External Exposure', 'Fire Protection'].map((category) => ({
+    category,
+    current: null,
+    potential: null,
+  })),
+  result: { current: null, potential: null, basis: { weights: [], legend: [], rulesVersion: 'v' } },
+  updatedAt: null,
+  proposal: {
+    categories: [
+      { category: 'Fire Protection', current: 5, potential: 8.5, reason: 'r', citations: [] },
+    ],
+    provenance: { model: 'm', prompt_version: 'p' },
+    proposedAt: '2026-10-23T08:32:26.009Z',
+  },
+}
+
+it('opens Section 4 or 5 before anything is drafted, so its figures can be entered first', async () => {
+  await openReview(() => json(200, workspace([RISK_QUALITY, EXPOSURES])))
+  fireEvent.click(
+    within(await screen.findByRole('navigation', { name: 'Report sections' })).getByRole('button', {
+      name: /Risk Quality Ratings/,
+    }),
+  )
+  expect(await screen.findByDisplayValue('8.5')).toBeInTheDocument()
+  expect(screen.queryByText('No sections drafted yet')).toBeNull()
 }, 15_000)
 
 it('says why the workspace could not be loaded', async () => {
