@@ -124,3 +124,26 @@ def test_a_number_written_another_way_or_from_the_location_is_grounded(monkeypat
     )
     rows = response.json()["subsections"][0]["statements"]
     assert [r["supported"] for r in rows] == [True, True]
+
+
+def test_a_date_or_number_the_notes_abbreviate_or_spell_out_is_grounded(monkeypatch):
+    # Site notes write "Apr 26" and voice transcripts "thirty"; the report writes them out.
+    note = "FM200 svc tag - last svc Apr 26. Discharge delay set to thirty seconds."
+    request = {**SECTION_4, "observations": [{**SECTION_4["observations"][0], "note": note}]}
+    response, _, _ = draft(
+        monkeypatch,
+        [
+            Subsection(
+                heading="Positive Points",
+                statements=statements(
+                    "The FM-200 system was last serviced in April 2026.",
+                    "The discharge delay is set to 30 seconds.",
+                    # Neither written nor abbreviated in the note: still made up.
+                    "The system was installed in 2019.",
+                ),
+            )
+        ],
+        request=request,
+    )
+    rows = next(s for s in response.json()["subsections"] if s["heading"] == "Positive Points")
+    assert [r["supported"] for r in rows["statements"]] == [True, True, False]

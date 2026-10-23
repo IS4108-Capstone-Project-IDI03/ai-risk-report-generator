@@ -86,6 +86,35 @@ def _numbers(text: str) -> set[float]:
     return {float(n.replace(",", "")) for n in _NUMBER.findall(text)}
 
 
+# Site notes abbreviate dates ("Apr 26") and voice transcripts spell numbers out
+# ("thirty"); the report writes them in full (April 2026, 30). Read on the sources' side
+# only, so a statement's own numbers are still checked as written.
+_MONTH_YEAR = re.compile(
+    r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+'?(\d{2})\b", re.I
+)
+_ONES = (
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen"
+    " fifteen sixteen seventeen eighteen nineteen"
+).split()
+_TENS = "twenty thirty forty fifty sixty seventy eighty ninety".split()
+_SPELLED = re.compile(
+    rf"\b(?:({'|'.join(_TENS)})(?:[\s-]({'|'.join(_ONES[1:10])}))?|({'|'.join(_ONES)}))\b", re.I
+)
+
+
+def _source_numbers(text: str) -> set[float]:
+    years = {2000.0 + int(yy) for yy in _MONTH_YEAR.findall(text)}
+    spelled = {
+        float(
+            (_TENS.index(t.lower()) + 2) * 10 + (_ONES.index(u.lower()) if u else 0)
+            if t
+            else _ONES.index(o.lower())
+        )
+        for t, u, o in _SPELLED.findall(text)
+    }
+    return _numbers(text) | years | spelled
+
+
 def check_numbers_grounded(
     subsections: list[dict], guardrail: dict, texts: dict[str, str], facts: str
 ) -> dict:
@@ -99,7 +128,7 @@ def check_numbers_grounded(
         for statement in sub["statements"]:
             text = statement["text"]
             known = _numbers(facts).union(
-                *(_numbers(texts.get(c, "")) for c in statement["citations"])
+                *(_source_numbers(texts.get(c, "")) for c in statement["citations"])
             )
             allowed = {
                 m[1] for m in (current, potential if "potential" in text.lower() else None) if m
