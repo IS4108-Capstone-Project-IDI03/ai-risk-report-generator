@@ -114,7 +114,7 @@ class Session:
             ) from error
         body = response.json()
         self.mapping = body["mapping"]
-    
+
         return body["texts"]
 
     def provenance(self) -> dict:
