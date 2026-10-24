@@ -1022,7 +1022,7 @@ export async function cancelIngestion(id: string): Promise<void> {
   if (queued) {
     // MongoDB is authoritative. If Redis removal fails, the worker will still
     // skip this document because its status is already terminal.
-    await removeIngestionJob(id).catch((error: unknown) => {
+    await removeIngestionJob(id, queued.retryCount ?? 0).catch((error: unknown) => {
       console.error('Removing cancelled ingestion job failed:', error)
     })
     return
@@ -1077,8 +1077,6 @@ export async function retryIngestion(id: string): Promise<void> {
     },
     // Keep the matched terminal document so a queue failure can restore the
     // exact terminal state that the retry started from.
-    // Keep the matched terminal document so a queue failure can restore the
-    // exact terminal state that the retry started from.
     { returnDocument: 'before' },
   )
     .lean()
@@ -1102,12 +1100,13 @@ export async function retryIngestion(id: string): Promise<void> {
     }
     throw new KnowledgeDocumentNotFoundError()
   }
-  // Re-queue, clearing the stale terminal job BullMQ still holds under this
-  // document id (see requeueIngestion). If it cannot be placed, roll the status
-  // and the counter back, so the document does not sit at `queued` with no job
-  // and the attempt number is not inflated by a retry that never ran.
+  // Re-queue under this attempt's own job id (see requeueIngestion): a run that
+  // was cancelled mid-parse may still hold the previous one. If it cannot be
+  // placed, roll the status and the counter back, so the document does not sit
+  // at `queued` with no job and the attempt number is not inflated by a retry
+  // that never ran.
   try {
-    await requeueIngestion(id)
+    await requeueIngestion(id, (updated.retryCount ?? 0) + 1)
   } catch {
     const rolledBackStatus = updated.status
     await KnowledgeDocumentModel.updateOne(

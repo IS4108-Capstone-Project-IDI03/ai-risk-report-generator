@@ -27,6 +27,9 @@ def health() -> dict:
 
 @router.post("/mask")
 def mask_texts(request: MaskRequest) -> dict:
+    print(request.texts)
     known = [KnownEntity(e.type, e.names) for e in request.known_entities]
     texts, mapping = mask(request.texts, known, request.mapping)
+    print(texts)
+    print(mapping)
     return {"texts": texts, "mapping": mapping}
