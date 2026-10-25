@@ -236,6 +236,9 @@ class PageRecorder:
     def update_pages(self, current, total):
         self.page_updates.append((current, total))
 
+    def check_cancelled(self):
+        pass
+
 
 def _passage(n, page):
     return {

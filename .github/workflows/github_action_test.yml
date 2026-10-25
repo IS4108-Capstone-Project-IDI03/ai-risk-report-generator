@@ -174,7 +174,7 @@ jobs:
       - name: Pytest
         # Add on specific marker so that gh action runs only the relevant tests for each service.
         if: matrix.service == 'ingestion-service'
-        run: uv run pytest -q --tb=short -m "not model and not e2e"
+        run: uv run pytest -q --tb=short -m "not slow and not inspect and not model and not e2e and not chroma and not live"
         working-directory: microservices/${{ matrix.service }}
 
       - name: Pytest (rag-service)

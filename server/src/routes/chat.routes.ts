@@ -10,6 +10,7 @@ import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
 import { checkChatLimits, pickReply, UNAVAILABLE } from '../services/chat-limits.service'
 import { chatUsageTap } from '../services/chat-usage.service'
+import { chatPrivacy } from '../services/privacy.service'
 import {
   getPassage,
   openChatStream,
@@ -66,7 +67,12 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   try {
     stream = await openChatStream(
       // The role is set here, never taken from the browser: it decides who S4 offers to add a document.
-      { ...(await withChatDocuments(req.body)), role: res.locals.user!.role },
+      // The gateway decides protection (PV-03), replacing any privacy the browser sent.
+      {
+        ...(await withChatDocuments(req.body)),
+        role: res.locals.user!.role,
+        privacy: await chatPrivacy(),
+      },
       upstream.signal,
       userId,
     )

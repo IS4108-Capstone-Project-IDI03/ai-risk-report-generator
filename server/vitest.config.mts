@@ -13,9 +13,11 @@ export default defineConfig({
     // forgets to mock fetch fails instead of spending money.
     // The Cohere key tier is cleared so pricing tests see the default (trial),
     // whatever key the developer's .env names.
+    // PII protection starts off; tests that need it on set config.piiProtection.
     env: {
       SMTP_HOST: '',
       COHERE_KEY_TIER: '',
+      PII_PROTECTION: 'off',
       RAG_SERVICE_URL: 'http://127.0.0.1:9',
       SPEECH_OCR_SERVICE_URL: 'http://127.0.0.1:9',
       INGESTION_SERVICE_URL: 'http://127.0.0.1:9',
