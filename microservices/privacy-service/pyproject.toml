@@ -11,6 +11,9 @@ dependencies = [
     # spaCy's English model, for names nobody listed. Installed from its release wheel,
     # since spaCy models are not on PyPI.
     "en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
+    # preshed 3.0.14 breaks loading the model ("OverflowError ... _flush_specials" in spaCy's
+    # tokenizer). The Dockerfile's pip install ignores uv.lock, so the pin has to live here.
+    "preshed<3.0.14",
     "ruff>=0.17.1",
     "black>=26.10.1",
 ]
