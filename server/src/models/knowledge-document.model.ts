@@ -83,7 +83,7 @@ export interface IKnowledgeDocument {
   // anyone confirm a retrieved copy matches what was uploaded.
   file: { key: string; contentType: 'application/pdf'; size: number; sha256: string }
   // The file as uploaded, when it was converted to the PDF in `file` (a Word,
-  // PowerPoint or image file); absent for a PDF upload. Only its fingerprint is
+  // PowerPoint, RTF or ODT file); absent for a PDF upload. Only its fingerprint is
   // kept, not its bytes, so a repeat upload is still recognised (IN-07).
   original?: { contentType: string; size: number; sha256: string }
   status: IngestionStatus
