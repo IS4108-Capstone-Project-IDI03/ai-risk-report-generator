@@ -1021,7 +1021,8 @@ changed, not the title.
 `file.sha256` has a **unique partial index** covering documents whose `status`
 is `queued`, `processing` or `complete`, so a failed document's file can be
 uploaded again. It stops two identical files uploaded together both being
-stored. The gateway builds it at startup. It can't build while identical files
+stored. `original.sha256` has the same index, limited to documents that have
+an `original`, because two conversions of one Word file give different PDFs. The gateway builds it at startup. It can't build while identical files
 are already stored: the gateway then logs one error naming how many groups of
 identical files there are, and carries on without the index. Remove the extra
 copies and restart. The upload's own check still rejects most repeats.

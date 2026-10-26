@@ -579,6 +579,22 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
     )
   })
 
+  it('rejects a repeat of a Word file with 409, without converting it again', async () => {
+    // Each conversion's PDF differs (the converter stamps the time), as in real use.
+    converting.mockImplementation(async () => new Response(new Uint8Array(freshPdf())))
+    const first = await uploadWordReport()
+    await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'complete' })
+
+    const response = await uploadWordReport()
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      'Already in the knowledge base as Cold store risk survey, Active.',
+    )
+    expect(converting).toHaveBeenCalledTimes(1)
+    expectNothingNewKept(1)
+  })
+
   it('accepts the same file again after its earlier upload failed', async () => {
     const first = await upload(PDF)
     await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'failed' })
@@ -588,6 +604,16 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
 
   it('turns the second of two identical uploads made together into a 409 and removes its file', async () => {
     const [a, b] = await Promise.all([upload(PDF), upload(PDF)])
+
+    expect([a.status, b.status].sort()).toEqual([201, 409])
+    expect(s3.size).toBe(1)
+    expect(await KnowledgeDocumentModel.countDocuments()).toBe(1)
+  })
+
+  it('turns the second of two identical Word uploads made together into a 409 and removes its file', async () => {
+    converting.mockImplementation(async () => new Response(new Uint8Array(freshPdf())))
+
+    const [a, b] = await Promise.all([uploadWordReport(), uploadWordReport()])
 
     expect([a.status, b.status].sort()).toEqual([201, 409])
     expect(s3.size).toBe(1)

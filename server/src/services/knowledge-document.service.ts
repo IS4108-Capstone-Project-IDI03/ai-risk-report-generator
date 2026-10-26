@@ -549,11 +549,15 @@ export class DuplicateDocumentError extends RejectedFileError {
   }
 }
 
-// The stored document, if any, with this fingerprint. A failed one doesn't
-// count, so its file can be uploaded again. Same condition as the unique index
-// in models/knowledge-document.model.ts.
+// The stored document, if any, whose PDF or uploaded original (a converted
+// Word file, say) has this fingerprint. A failed one doesn't count, so its file
+// can be uploaded again. Same condition as the unique indexes in
+// models/knowledge-document.model.ts.
 const findStoredCopy = (sha256: string) =>
-  KnowledgeDocumentModel.findOne({ 'file.sha256': sha256, status: { $ne: 'failed' } }).lean()
+  KnowledgeDocumentModel.findOne({
+    $or: [{ 'file.sha256': sha256 }, { 'original.sha256': sha256 }],
+    status: { $ne: 'failed' },
+  }).lean()
 
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
 const PDF_MARKER = Buffer.from('%PDF-')
@@ -711,7 +715,7 @@ export async function uploadKnowledgeDocument(
     // 11000 = duplicate key: an identical file was stored between step a and
     // here (two copies uploaded together). Without this, the loser gets a 500.
     if ((error as { code?: number }).code === 11000) {
-      const winner = await findStoredCopy(sha256)
+      const winner = await findStoredCopy(uploadSha256)
       if (winner) throw new DuplicateDocumentError(winner)
     }
     throw error
