@@ -686,14 +686,14 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
   }
 }
 
-// Stores the original PDF in S3, records it with the details auto-labelling
+// Stores the PDF in S3 (the upload itself, or the PDF a Word, PowerPoint, RTF
+// or ODT upload is converted to), records it with the details auto-labelling
 // reads from it and queues its ingestion (IN-01, IN-05, IN-07), in steps a–g.
 // Throws RejectedFileError before labelling or storing anything if the file is
-// a repeat (IN-07 AC1), not a PDF or cannot be opened (IN-01 AC5), so a
-// rejected file leaves no trace.
+// a repeat (IN-07 AC1), not a type that can be uploaded or cannot be opened
+// (IN-01 AC5), so a rejected file leaves no trace.
 export async function uploadKnowledgeDocument(
   upload: Buffer,
-  contentType: string,
   fileName: string,
 ): Promise<KnowledgeDocumentDto> {
   // a. Is it a file we already hold? First, so a repeat costs no PDF check,
@@ -703,13 +703,15 @@ export async function uploadKnowledgeDocument(
   const stored = await findStoredCopy(uploadSha256)
   if (stored) throw new DuplicateDocumentError(stored)
 
-  // b. Is it really a PDF, or a file to turn into one? Cheap, so it runs next.
-  const isPdf =
-    contentType.split(';')[0].trim() === 'application/pdf' &&
-    upload.subarray(0, 5).equals(PDF_MARKER)
+  // b. Is it really a PDF, or a file to turn into one? Read from its bytes,
+  // since the Content-Type is only a claim. Cheap, so it runs next.
+  const isPdf = upload.subarray(0, 5).equals(PDF_MARKER)
   const format = isPdf ? undefined : CONVERTIBLE_FORMATS.find(({ matches }) => matches(upload))
   if (!isPdf && !format) {
-    throw new RejectedFileError(415, 'Only PDF files can be uploaded.')
+    throw new RejectedFileError(
+      415,
+      'Only PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF and ODT files can be uploaded.',
+    )
   }
   const pdf = format ? await toPdf(upload, format.extension) : upload
   // The stored PDF's own fingerprint, which proves a copy retrieved later matches.
