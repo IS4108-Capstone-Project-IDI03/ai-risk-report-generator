@@ -21,6 +21,7 @@ export default defineConfig({
       RAG_SERVICE_URL: 'http://127.0.0.1:9',
       SPEECH_OCR_SERVICE_URL: 'http://127.0.0.1:9',
       INGESTION_SERVICE_URL: 'http://127.0.0.1:9',
+      CONVERTER_SERVICE_URL: 'http://127.0.0.1:9',
     },
     // Downloads the in-memory MongoDB binary once, before test files run.
     globalSetup: ['src/test/global-setup.ts'],

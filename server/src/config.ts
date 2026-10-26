@@ -31,6 +31,9 @@ export const config = {
   ingestionServiceUrl: requireEnv('INGESTION_SERVICE_URL'),
   ragServiceUrl: requireEnv('RAG_SERVICE_URL'),
   speechOcrServiceUrl: requireEnv('SPEECH_OCR_SERVICE_URL'),
+  // Gotenberg, which turns non-PDF uploads into PDFs. Defaults to its local
+  // port so an existing .env keeps booting; Compose overrides it.
+  converterServiceUrl: process.env.CONVERTER_SERVICE_URL || 'http://localhost:3100',
   awsRegion: requireEnv('AWS_REGION'),
   s3Bucket: requireEnv('S3_BUCKET'),
   redisUrl: requireEnv('REDIS_URL'),

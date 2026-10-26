@@ -28,6 +28,7 @@ import {
 } from './ingestion.service'
 import * as storage from './storage.service'
 import { getObjectRangeStream } from './file-copy.service'
+import { toPdf } from './converter.service'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 
@@ -556,6 +557,9 @@ const findStoredCopy = (sha256: string) =>
 
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
 const PDF_MARKER = Buffer.from('%PDF-')
+// A Word file is a ZIP whose entries sit under word/.
+const ZIP_MARKER = Buffer.from('PK\x03\x04')
+const isDocx = (file: Buffer) => file.subarray(0, 4).equals(ZIP_MARKER) && file.includes('word/')
 
 // Today's date in Singapore (UTC+8, no daylight saving) as YYYY-MM-DD: the
 // upload date a document is effective from when /label gives no date (IN-05).
@@ -642,24 +646,28 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
 // a repeat (IN-07 AC1), not a PDF or cannot be opened (IN-01 AC5), so a
 // rejected file leaves no trace.
 export async function uploadKnowledgeDocument(
-  pdf: Buffer,
+  upload: Buffer,
   contentType: string,
   fileName: string,
 ): Promise<KnowledgeDocumentDto> {
   // a. Is it a file we already hold? First, so a repeat costs no PDF check,
   // no LLM call, no S3 write and no job. sha256 is a fingerprint: equal
   // fingerprints mean equal files.
-  const sha256 = createHash('sha256').update(pdf).digest('hex')
-  const stored = await findStoredCopy(sha256)
+  const uploadSha256 = createHash('sha256').update(upload).digest('hex')
+  const stored = await findStoredCopy(uploadSha256)
   if (stored) throw new DuplicateDocumentError(stored)
 
-  // b. Is it really a PDF? Cheap, so it runs next.
-  if (
-    contentType.split(';')[0].trim() !== 'application/pdf' ||
-    !pdf.subarray(0, 5).equals(PDF_MARKER)
-  ) {
+  // b. Is it really a PDF, or a Word file to turn into one? Cheap, so it runs next.
+  const isPdf =
+    contentType.split(';')[0].trim() === 'application/pdf' &&
+    upload.subarray(0, 5).equals(PDF_MARKER)
+  if (!isPdf && !isDocx(upload)) {
     throw new RejectedFileError(415, 'Only PDF files can be uploaded.')
   }
+  const pdf = isPdf ? upload : await toPdf(upload, 'docx')
+  // The stored PDF's own fingerprint, which proves a copy retrieved later matches.
+  const sha256 = isPdf ? uploadSha256 : createHash('sha256').update(pdf).digest('hex')
+
   // c. Does it open? Asks the ingestion service (see ingestion.service.ts).
   const cannotOpen = await whyPdfCannotOpen(pdf)
   if (cannotOpen) throw new RejectedFileError(422, cannotOpen)
