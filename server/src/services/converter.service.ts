@@ -1,5 +1,5 @@
 // The gateway's call to the converter (Gotenberg: LibreOffice behind HTTP),
-// which turns an uploaded Word, PowerPoint or image file into a PDF. Every stage
+// which turns an uploaded Word, PowerPoint, RTF or ODT file into a PDF. Every stage
 // after upload reads PDF pages: the ingestion pipeline's page batches and OCR
 // crops, labelling, and the chat's page citations (CB-02).
 import { config } from '../config'

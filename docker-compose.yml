@@ -192,7 +192,7 @@ services:
     ports:
       - "127.0.0.1:8004:8004"
 
-  # Gotenberg (LibreOffice behind HTTP): turns Word, PowerPoint and image
+  # Gotenberg (LibreOffice behind HTTP): turns Word, PowerPoint, RTF and ODT
   # uploads into PDFs. Its own container, since it opens untrusted files.
   # 120 s fits a 100-page file with room to spare, and keeps an upload (plus
   # up to 180 s of labelling) within nginx's 300 s on EC2. Only the LibreOffice

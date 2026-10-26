@@ -561,10 +561,51 @@ const findStoredCopy = (sha256: string) =>
 
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
 const PDF_MARKER = Buffer.from('%PDF-')
-// A Word file is a ZIP whose entries sit under word/.
+// Newer Office and OpenDocument files are ZIPs, told apart by their entries;
+// older Office files are OLE containers, told apart by their main stream's name.
 const ZIP_MARKER = Buffer.from('PK\x03\x04')
-const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-const isDocx = (file: Buffer) => file.subarray(0, 4).equals(ZIP_MARKER) && file.includes('word/')
+const OLE_MARKER = Buffer.from('d0cf11e0a1b11ae1', 'hex')
+const isZipWith = (file: Buffer, entry: string) =>
+  file.subarray(0, 4).equals(ZIP_MARKER) && file.includes(entry)
+const isOleWith = (file: Buffer, stream: string) =>
+  file.subarray(0, 8).equals(OLE_MARKER) && file.includes(Buffer.from(stream, 'utf16le'))
+
+// The other files an upload may be, each turned into a PDF by the converter.
+// Each is recognised by its bytes, as the Content-Type is only a claim, and
+// sent under its extension, which is how the converter reads it. The first
+// match wins, so a Word file with an embedded presentation is still Word.
+const CONVERTIBLE_FORMATS = [
+  {
+    extension: 'docx',
+    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    matches: (file: Buffer) => isZipWith(file, 'word/'),
+  },
+  {
+    extension: 'pptx',
+    contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    matches: (file: Buffer) => isZipWith(file, 'ppt/'),
+  },
+  {
+    extension: 'odt',
+    contentType: 'application/vnd.oasis.opendocument.text',
+    matches: (file: Buffer) => isZipWith(file, 'application/vnd.oasis.opendocument.text'),
+  },
+  {
+    extension: 'doc',
+    contentType: 'application/msword',
+    matches: (file: Buffer) => isOleWith(file, 'WordDocument'),
+  },
+  {
+    extension: 'ppt',
+    contentType: 'application/vnd.ms-powerpoint',
+    matches: (file: Buffer) => isOleWith(file, 'PowerPoint Document'),
+  },
+  {
+    extension: 'rtf',
+    contentType: 'application/rtf',
+    matches: (file: Buffer) => file.subarray(0, 5).toString('latin1') === '{\\rtf',
+  },
+]
 
 // Today's date in Singapore (UTC+8, no daylight saving) as YYYY-MM-DD: the
 // upload date a document is effective from when /label gives no date (IN-05).
@@ -662,20 +703,23 @@ export async function uploadKnowledgeDocument(
   const stored = await findStoredCopy(uploadSha256)
   if (stored) throw new DuplicateDocumentError(stored)
 
-  // b. Is it really a PDF, or a Word file to turn into one? Cheap, so it runs next.
+  // b. Is it really a PDF, or a file to turn into one? Cheap, so it runs next.
   const isPdf =
     contentType.split(';')[0].trim() === 'application/pdf' &&
     upload.subarray(0, 5).equals(PDF_MARKER)
-  if (!isPdf && !isDocx(upload)) {
+  const format = isPdf ? undefined : CONVERTIBLE_FORMATS.find(({ matches }) => matches(upload))
+  if (!isPdf && !format) {
     throw new RejectedFileError(415, 'Only PDF files can be uploaded.')
   }
-  const pdf = isPdf ? upload : await toPdf(upload, 'docx')
+  const pdf = format ? await toPdf(upload, format.extension) : upload
   // The stored PDF's own fingerprint, which proves a copy retrieved later matches.
-  const sha256 = isPdf ? uploadSha256 : createHash('sha256').update(pdf).digest('hex')
+  const sha256 = format ? createHash('sha256').update(pdf).digest('hex') : uploadSha256
   // What was uploaded, when it isn't the stored PDF.
-  const original = isPdf
-    ? undefined
-    : { contentType: DOCX_TYPE, size: upload.length, sha256: uploadSha256 }
+  const original = format && {
+    contentType: format.contentType,
+    size: upload.length,
+    sha256: uploadSha256,
+  }
 
   // c. Does it open? Asks the ingestion service (see ingestion.service.ts).
   const cannotOpen = await whyPdfCannotOpen(pdf)

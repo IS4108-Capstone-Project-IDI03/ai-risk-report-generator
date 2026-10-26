@@ -90,6 +90,9 @@ const PDF = Buffer.from('%PDF-1.7\nfake but well-formed enough\n%%EOF')
 // A Word file starts as a ZIP whose entries sit under word/.
 const DOCX = Buffer.from('PK\x03\x04\x14\x00[Content_Types].xml PK\x03\x04 word/document.xml')
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+// Older Office files are OLE containers, told apart by the name of their main stream.
+const ole = (stream: string) =>
+  Buffer.concat([Buffer.from('d0cf11e0a1b11ae1', 'hex'), Buffer.from(stream, 'utf16le')])
 const DETAILS = {
   fileName: 'NFPA 13 – 2022.pdf',
   title: 'NFPA 13: Standard for the Installation of Sprinkler Systems',
@@ -295,6 +298,43 @@ describe('POST /api/knowledge-documents', () => {
     expect(response.status).toBe(201)
     expect(s3.get(`knowledge/${response.body.id}.pdf`)).toEqual(CONVERTED_PDF)
     expect(queued).toHaveBeenCalledExactlyOnceWith(response.body.id)
+  })
+
+  it.each([
+    ['an older Word file', 'doc', ole('WordDocument'), 'application/msword'],
+    [
+      'an older PowerPoint file',
+      'ppt',
+      ole('PowerPoint Document'),
+      'application/vnd.ms-powerpoint',
+    ],
+    [
+      'a PowerPoint file',
+      'pptx',
+      Buffer.from('PK\x03\x04\x14\x00[Content_Types].xml PK\x03\x04 ppt/presentation.xml'),
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ],
+    ['an RTF file', 'rtf', Buffer.from('{\\rtf1\\ansi Sprinkler survey}'), 'application/rtf'],
+    [
+      'an OpenDocument text file',
+      'odt',
+      Buffer.from('PK\x03\x04\x14\x00mimetypeapplication/vnd.oasis.opendocument.text'),
+      'application/vnd.oasis.opendocument.text',
+    ],
+  ])('converts %s, recognised by its bytes, to PDF', async (_name, extension, body, type) => {
+    const response = await upload(
+      body,
+      { ...REPORT, fileName: `Cold store survey.${extension}` },
+      'application/octet-stream',
+    )
+
+    expect(response.status).toBe(201)
+    expect(s3.get(`knowledge/${response.body.id}.pdf`)).toEqual(CONVERTED_PDF)
+    // The converter reads a file by its extension.
+    const sent = (converting.mock.calls[0][1]!.body as FormData).get('files') as File
+    expect(sent.name).toMatch(new RegExp(`\\.${extension}$`))
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved!.original!.contentType).toBe(type)
   })
 
   it('records the Word file a document was converted from', async () => {
