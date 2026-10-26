@@ -48,10 +48,13 @@ router.get('/ingested', requirePermission('knowledge:view'), async (_req, res) =
   res.json(await listIngestedDocuments())
 })
 
-// Uploads one knowledge document (IN-01, IN-05). The body is the PDF itself;
-// its name is in the query string because it is not plain ASCII; every other
-// detail is read from the file. Answers: 201 accepted · 400 no file name · 413 over 100 MB · 415 not a PDF ·
-// 409 an identical file is stored · 422 a PDF that will not open · 503 ingestion down (retry later).
+// Uploads one knowledge document (IN-01, IN-05). The body is the file itself: a
+// PDF, or a Word, PowerPoint, RTF or ODT file, which is converted to one (its
+// Content-Type is ignored; the type is read from its bytes). Its name is in the
+// query string because it is not plain ASCII; every other detail is read from
+// the file. Answers: 201 accepted · 400 no file name · 413 over 100 MB · 415 not
+// a type that can be uploaded · 409 an identical file is stored · 422 a PDF that
+// will not open · 503 ingestion down (retry later).
 router.post(
   '/',
   requirePermission('knowledge:manage'),
@@ -63,15 +66,7 @@ router.post(
       return
     }
     try {
-      res
-        .status(201)
-        .json(
-          await uploadKnowledgeDocument(
-            req.body,
-            req.get('Content-Type') ?? '',
-            parsed.data.fileName,
-          ),
-        )
+      res.status(201).json(await uploadKnowledgeDocument(req.body, parsed.data.fileName))
     } catch (error: unknown) {
       if (error instanceof RejectedFileError) {
         res.status(error.status).json({ error: error.message })

@@ -367,12 +367,34 @@ describe('POST /api/knowledge-documents', () => {
 
   it.each([
     ['a file named .pdf that is not a PDF', Buffer.from('just some text'), 'application/pdf'],
-  ])('rejects %s with a reason', async (_name, body, type) => {
+    [
+      'a plain ZIP archive',
+      Buffer.from('PK\x03\x04\x14\x00 reports/survey.pdf'),
+      'application/zip',
+    ],
+    [
+      'an Excel file',
+      Buffer.from('PK\x03\x04\x14\x00[Content_Types].xml PK\x03\x04 xl/workbook.xml'),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
+    ['a Windows program', Buffer.from('MZ\x90\x00 This program cannot be run'), 'application/pdf'],
+  ])('rejects %s, naming the files that can be uploaded', async (_name, body, type) => {
     const response = await upload(body, DETAILS, type)
 
     expect(response.status).toBe(415)
-    expect(response.body.error).toBe('Only PDF files can be uploaded.')
+    expect(response.body.error).toBe(
+      'Only PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF and ODT files can be uploaded.',
+    )
+    expect(converting).not.toHaveBeenCalled()
     await expectNothingKept()
+  })
+
+  it('accepts a PDF by its bytes, whatever type the browser claims, and stores it as uploaded', async () => {
+    const response = await upload(PDF, DETAILS, 'application/octet-stream')
+
+    expect(response.status).toBe(201)
+    expect(s3.get(`knowledge/${response.body.id}.pdf`)).toEqual(PDF)
+    expect(converting).not.toHaveBeenCalled()
   })
 
   it('rejects an empty file as not a PDF', async () => {
