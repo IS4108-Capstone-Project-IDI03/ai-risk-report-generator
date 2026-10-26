@@ -251,8 +251,9 @@ export function cancelIngestion(id: string): Promise<void> {
   return send(`/api/knowledge-documents/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
 }
 
-// Sends one PDF with its details and returns the queued document. The body is
-// the raw PDF and the details go in the URL's query string, so the gateway
+// Sends one file (a PDF, or a Word, PowerPoint, RTF or ODT file the gateway
+// converts to one) with its details and returns the queued document. The body is
+// the raw file and the details go in the URL's query string, so the gateway
 // needs no multipart-form library.
 export function uploadKnowledgeDocument(
   file: File,
@@ -261,7 +262,9 @@ export function uploadKnowledgeDocument(
   const query = new URLSearchParams([['fileName', file.name], ...filled(details)])
   return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/pdf' },
+    // The gateway reads the type from the file's bytes, but reads no body
+    // without a Content-Type, so a file the browser can't name goes as bytes.
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file,
   })
 }
