@@ -297,6 +297,25 @@ describe('POST /api/knowledge-documents', () => {
     expect(queued).toHaveBeenCalledExactlyOnceWith(response.body.id)
   })
 
+  it('records the Word file a document was converted from', async () => {
+    const response = await uploadWordReport()
+
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved!.original).toEqual({
+      contentType: DOCX_TYPE,
+      size: DOCX.length,
+      sha256: createHash('sha256').update(DOCX).digest('hex'),
+    })
+    expect(saved!.file.sha256).toBe(createHash('sha256').update(CONVERTED_PDF).digest('hex'))
+  })
+
+  it('records no original for a PDF, which is stored as uploaded', async () => {
+    const response = await upload()
+
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved!.original).toBeUndefined()
+  })
+
   it('checks and labels the converted PDF, not the Word file', async () => {
     await uploadWordReport()
 
