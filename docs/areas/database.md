@@ -912,7 +912,12 @@ permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
 `fileName` is the original name. The unaltered PDF is in S3 at
 `knowledge/<_id>.pdf` (flat: no folder per source type, because a corrected
 source type would leave the file in the wrong folder); the record keeps `file`
-(`key`, `contentType`, `size`, `sha256`).
+(`key`, `contentType`, `size`, `sha256`). A Word, PowerPoint or image upload
+is converted to PDF at upload (Gotenberg, `CONVERTER_SERVICE_URL`), and that
+PDF is what S3, `file` and every later step hold. The record then also keeps
+`original` (`contentType`, read from the file's bytes, plus `size` and
+`sha256`) so a repeat upload of the same file is still recognised; the
+uploaded file's bytes are not stored. `original` is absent for a PDF upload.
 
 The details are read from the PDF at upload (IN-05, see "Automatic labelling"
 below) and corrected by the admin (KB-01). The source type decides which apply:

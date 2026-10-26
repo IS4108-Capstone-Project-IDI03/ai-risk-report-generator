@@ -82,6 +82,10 @@ export interface IKnowledgeDocument {
   // The unaltered original in S3. MongoDB holds only its key; sha256 lets
   // anyone confirm a retrieved copy matches what was uploaded.
   file: { key: string; contentType: 'application/pdf'; size: number; sha256: string }
+  // The file as uploaded, when it was converted to the PDF in `file` (a Word,
+  // PowerPoint or image file); absent for a PDF upload. Only its fingerprint is
+  // kept, not its bytes, so a repeat upload is still recognised (IN-07).
+  original?: { contentType: string; size: number; sha256: string }
   status: IngestionStatus
   // Why ingestion failed, shown to the admin.
   error?: string
@@ -162,6 +166,16 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
       contentType: { type: String, enum: ['application/pdf'], required: true },
       size: { type: Number, required: true },
       sha256: { type: String, required: true },
+    },
+    original: {
+      type: new Schema(
+        {
+          contentType: { type: String, required: true },
+          size: { type: Number, required: true },
+          sha256: { type: String, required: true },
+        },
+        { _id: false },
+      ),
     },
     status: { type: String, enum: INGESTION_STATUSES, required: true },
     error: String,

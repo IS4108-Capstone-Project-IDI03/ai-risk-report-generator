@@ -559,6 +559,7 @@ const findStoredCopy = (sha256: string) =>
 const PDF_MARKER = Buffer.from('%PDF-')
 // A Word file is a ZIP whose entries sit under word/.
 const ZIP_MARKER = Buffer.from('PK\x03\x04')
+const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const isDocx = (file: Buffer) => file.subarray(0, 4).equals(ZIP_MARKER) && file.includes('word/')
 
 // Today's date in Singapore (UTC+8, no daylight saving) as YYYY-MM-DD: the
@@ -667,6 +668,10 @@ export async function uploadKnowledgeDocument(
   const pdf = isPdf ? upload : await toPdf(upload, 'docx')
   // The stored PDF's own fingerprint, which proves a copy retrieved later matches.
   const sha256 = isPdf ? uploadSha256 : createHash('sha256').update(pdf).digest('hex')
+  // What was uploaded, when it isn't the stored PDF.
+  const original = isPdf
+    ? undefined
+    : { contentType: DOCX_TYPE, size: upload.length, sha256: uploadSha256 }
 
   // c. Does it open? Asks the ingestion service (see ingestion.service.ts).
   const cannotOpen = await whyPdfCannotOpen(pdf)
@@ -697,6 +702,7 @@ export async function uploadKnowledgeDocument(
         size: pdf.length,
         sha256,
       },
+      original,
       status: 'queued',
     })
   } catch (error) {

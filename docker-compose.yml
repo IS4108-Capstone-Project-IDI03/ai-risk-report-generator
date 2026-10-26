@@ -194,9 +194,22 @@ services:
 
   # Gotenberg (LibreOffice behind HTTP): turns Word, PowerPoint and image
   # uploads into PDFs. Its own container, since it opens untrusted files.
+  # 120 s fits a 100-page file with room to spare, and keeps an upload (plus
+  # up to 180 s of labelling) within nginx's 300 s on EC2. Only the LibreOffice
+  # route is used, so Chromium (which can fetch any URL), the PDF tools and
+  # webhooks are switched off. Capped at 1 GB so a huge file can't starve
+  # Docling on the 4 GB EC2 box; LibreOffice restarts every 10 files to free memory.
   converter:
     restart: unless-stopped
     image: gotenberg/gotenberg:8
+    command:
+      - gotenberg
+      - --api-timeout=120s
+      - --chromium-disable-routes=true
+      - --pdfengines-disable-routes=true
+      - --webhook-disable=true
+      - --libreoffice-restart-after=10
+    mem_limit: 1g
     ports:
       - "127.0.0.1:3100:3000"
 
