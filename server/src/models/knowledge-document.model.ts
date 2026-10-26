@@ -259,6 +259,18 @@ knowledgeDocumentSchema.index(
     partialFilterExpression: { status: { $in: ['queued', 'processing', 'complete'] } },
   },
 )
+// The same for a converted upload's original, since each conversion's PDF differs.
+// PDF uploads have no `original`, so they are left out rather than all clashing as null.
+knowledgeDocumentSchema.index(
+  { 'original.sha256': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ['queued', 'processing', 'complete'] },
+      'original.sha256': { $exists: true },
+    },
+  },
+)
 
 export const KnowledgeDocumentModel = model<IKnowledgeDocument>(
   'KnowledgeDocument',
