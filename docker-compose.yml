@@ -198,7 +198,7 @@ services:
   # up to 180 s of labelling) within nginx's 300 s on EC2. Only the LibreOffice
   # route is used, so Chromium (which can fetch any URL), the PDF tools and
   # webhooks are switched off. Capped at 1 GB so a huge file can't starve
-  # Docling on the 4 GB EC2 box; LibreOffice restarts every 10 files to free memory.
+  # Docling on the 8 GiB EC2 box; LibreOffice restarts every 10 files to free memory.
   converter:
     restart: unless-stopped
     image: gotenberg/gotenberg:8
