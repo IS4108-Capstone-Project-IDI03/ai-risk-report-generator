@@ -54,7 +54,7 @@ router.get('/ingested', requirePermission('knowledge:view'), async (_req, res) =
 // query string because it is not plain ASCII; every other detail is read from
 // the file. Answers: 201 accepted · 400 no file name · 413 over 100 MB · 415 not
 // a type that can be uploaded · 409 an identical file is stored · 422 a PDF that
-// will not open · 503 ingestion down (retry later).
+// will not open, or a file that will not convert · 503 ingestion down (retry later).
 router.post(
   '/',
   requirePermission('knowledge:manage'),

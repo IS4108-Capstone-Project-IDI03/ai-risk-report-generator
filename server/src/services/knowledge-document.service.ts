@@ -714,6 +714,12 @@ export async function uploadKnowledgeDocument(
     )
   }
   const pdf = format ? await toPdf(upload, format.extension) : upload
+  if (!pdf) {
+    throw new RejectedFileError(
+      422,
+      'This file could not be converted to PDF. Check that it opens in Word or PowerPoint, or save it as a PDF and upload that.',
+    )
+  }
   // The stored PDF's own fingerprint, which proves a copy retrieved later matches.
   const sha256 = format ? createHash('sha256').update(pdf).digest('hex') : uploadSha256
   // What was uploaded, when it isn't the stored PDF.

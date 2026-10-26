@@ -6,12 +6,15 @@ import { config } from '../config'
 
 // Converts `file` to PDF. `extension` names its real type (from its bytes, not
 // its name), since the converter picks how to read a file by its extension.
-export async function toPdf(file: Buffer, extension: string): Promise<Buffer> {
+// Returns null when the converter cannot read the file: Gotenberg answers a
+// corrupt file with a 500 (its text blames memory, but the file is the cause).
+export async function toPdf(file: Buffer, extension: string): Promise<Buffer | null> {
   const form = new FormData()
   form.append('files', new Blob([new Uint8Array(file)]), `upload.${extension}`)
   const response = await fetch(`${config.converterServiceUrl}/forms/libreoffice/convert`, {
     method: 'POST',
     body: form,
   })
+  if (!response.ok) return null
   return Buffer.from(await response.arrayBuffer())
 }
