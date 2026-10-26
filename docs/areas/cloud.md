@@ -4,7 +4,8 @@ AWS resources, deployment steps, environment variable ownership, and cost taggin
 
 The backend runs in Docker Compose on one **m7i-flex.large** (2 vCPU, 8 GiB,
 free-tier eligible) and the client is served from the same box. Compose runs server,
-rag-service, speech-ocr-service, ingestion-service, ingestion-worker and Redis,
+rag-service, speech-ocr-service, privacy-service, ingestion-service, ingestion-worker,
+converter (Gotenberg: Word and PowerPoint uploads to PDF, capped at 1 GB) and Redis,
 with nginx on the host serving the built client on port 80. Everything else is
 a managed service or an API:
 
@@ -152,6 +153,10 @@ server {
     listen 80;
     server_name <elastic-ip>;
     root /var/www/a2603/current;
+
+    # Knowledge documents upload as one body of up to 100 MB (the gateway's
+    # limit). nginx's default is 1 MB, which would refuse most of them with 413.
+    client_max_body_size 100m;
 
     # Hashed file names: a changed file gets a new name, so cache forever.
     # Shared by all releases, so a page loaded before a deploy can still
