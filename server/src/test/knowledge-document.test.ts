@@ -389,6 +389,22 @@ describe('POST /api/knowledge-documents', () => {
     await expectNothingKept()
   })
 
+  it('rejects a file the converter cannot read with a reason, keeping nothing', async () => {
+    // What Gotenberg answers for a corrupt Word file (checked against the real service).
+    converting.mockResolvedValue(
+      new Response("LibreOffice failed to convert the document 'upload.docx'.", { status: 500 }),
+    )
+
+    const response = await uploadWordReport()
+
+    expect(response.status).toBe(422)
+    expect(response.body.error).toBe(
+      'This file could not be converted to PDF. Check that it opens in Word or PowerPoint, or save it as a PDF and upload that.',
+    )
+    expect(labelling).not.toHaveBeenCalled()
+    await expectNothingKept()
+  })
+
   it('accepts a PDF by its bytes, whatever type the browser claims, and stores it as uploaded', async () => {
     const response = await upload(PDF, DETAILS, 'application/octet-stream')
 
