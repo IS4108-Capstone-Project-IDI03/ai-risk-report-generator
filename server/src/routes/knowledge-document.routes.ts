@@ -3,6 +3,7 @@
 import express, { Router, type ErrorRequestHandler } from 'express'
 import { pipeline } from 'stream'
 import { IngestionUnavailableError } from '../services/ingestion.service'
+import { ConverterUnavailableError } from '../services/converter.service'
 import type { z } from 'zod'
 import {
   correctKnowledgeDocument,
@@ -72,7 +73,10 @@ router.post(
         res.status(error.status).json({ error: error.message })
         return
       }
-      if (error instanceof IngestionUnavailableError) {
+      if (
+        error instanceof IngestionUnavailableError ||
+        error instanceof ConverterUnavailableError
+      ) {
         res.status(503).json({ error: error.message })
         return
       }

@@ -405,6 +405,27 @@ describe('POST /api/knowledge-documents', () => {
     await expectNothingKept()
   })
 
+  it.each([
+    ['is down', () => converting.mockRejectedValue(new TypeError('fetch failed'))],
+    [
+      'times out',
+      () => converting.mockRejectedValue(new DOMException('timed out', 'TimeoutError')),
+    ],
+    [
+      'is busy (Gotenberg answers 503)',
+      () => converting.mockResolvedValue(new Response('Service Unavailable', { status: 503 })),
+    ],
+  ])('answers 503, to retry later, when the converter %s', async (_name, arrange) => {
+    arrange()
+
+    const response = await uploadWordReport()
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toBe('The file could not be converted just now. Try again shortly.')
+    expect(labelling).not.toHaveBeenCalled()
+    await expectNothingKept()
+  })
+
   it('accepts a PDF by its bytes, whatever type the browser claims, and stores it as uploaded', async () => {
     const response = await upload(PDF, DETAILS, 'application/octet-stream')
 
