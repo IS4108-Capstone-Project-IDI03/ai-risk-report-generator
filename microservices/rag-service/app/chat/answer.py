@@ -777,6 +777,9 @@ def _events(
             # The answer had started: keep it, and still add its quote check.
             citations, meta = _check(program, passages)
             yield text("\n" + meta)
+        elif isinstance(failure, pii.PrivacyUnavailable):
+            # The engineer is told why: nothing was sent, so retrying later can help (PV-03).
+            yield text(_one_statement(f"Sorry, the chat couldn't answer: {failure}"))
         else:
             # The technical reason stays in `error` and the log, not on screen.
             yield text(_one_statement(random.choice(TROUBLE if history else NO_QUESTION)))

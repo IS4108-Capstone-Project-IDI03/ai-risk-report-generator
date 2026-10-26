@@ -128,6 +128,33 @@ def test_nothing_is_sent_when_privacy_service_fails(fake, fake_privacy, failure)
     # Shared with drafting, so it names neither: the reader learns nothing was sent.
     assert "nothing was sent to the AI model" in error and "drafting" not in error
     assert leaked([error]) == []
+    # AC5: the screen says why, not a generic "try again".
+    shown = _program(events)
+    assert "Sorry, the chat couldn't answer: Client details couldn't be protected" in shown
+    assert not any(json.dumps(p) in shown for p in answer.TROUBLE)
+
+
+def test_a_privacy_failure_after_search_still_says_why(fake, fake_privacy):
+    """The passages are masked after search, so privacy-service can fail there too."""
+    fake["passages"] = [REPORT]
+    serve = fake_privacy.handler
+    seen = []
+
+    def fail_after_first(request):
+        seen.append(request)
+        if len(seen) > 1:
+            raise httpx.ConnectError("refused")
+        return serve(request)
+
+    fake_privacy.handler = fail_after_first
+
+    events = ask("Did John Tan agree to test the sprinklers?")
+
+    assert len(seen) > 1 and fake["calls"]["answer"] == []
+    assert "Sorry, the chat couldn't answer: Client details couldn't be protected" in _program(
+        events
+    )
+    assert "privacy service" in _result(events)["error"].lower()
 
 
 def test_the_answer_reaches_the_screen_with_real_names(fake, fake_privacy):
