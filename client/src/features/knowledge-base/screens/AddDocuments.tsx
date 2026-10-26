@@ -32,7 +32,7 @@ export function AddDocuments({
         className="kb-panel"
         data-dragging={dragging || undefined}
         aria-labelledby="kb-add-title"
-        // Dropping PDFs anywhere on the panel uploads them, like choosing them.
+        // Dropping files anywhere on the panel uploads them, like choosing them.
         // The panel takes the focus style while files are over it.
         onDragOver={(event) => {
           event.preventDefault()
@@ -52,14 +52,16 @@ export function AddDocuments({
           <div>
             <h2 id="kb-add-title">Add documents</h2>
             <p>
-              PDF only, up to 100 MB each. Each file uploads as soon as you add it, and its details
+              PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT, up to 100 MB each; all but
+              PDFs are converted to PDF. Each file uploads as soon as you add it, and its details
               are read from the document.
             </p>
           </div>
           <label className="kb-pick">
             <input
               type="file"
-              accept="application/pdf,.pdf"
+              // The gateway reads each file's type from its bytes and refuses the rest.
+              accept=".pdf,.docx,.doc,.pptx,.ppt,.rtf,.odt"
               multiple
               onChange={(event) => {
                 addFiles([...(event.target.files ?? [])])
@@ -67,12 +69,12 @@ export function AddDocuments({
               }}
             />
             <Icon name="file-plus" size={16} />
-            Choose PDF files
+            Choose files
           </label>
         </header>
 
         {uploads.length === 0 ? (
-          <p className="kb-empty">No files yet. Drop PDF files here or choose them to upload.</p>
+          <p className="kb-empty">No files yet. Drop files here or choose them to upload.</p>
         ) : (
           <div className="kb-rows">
             {uploads.map((upload) => (
