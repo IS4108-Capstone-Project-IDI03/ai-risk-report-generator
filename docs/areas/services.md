@@ -601,6 +601,92 @@ independent level rows. An empty level remains incomplete, not zero loss.
 `eval/judge_ofis.py` scores drafted OFIs, and Marsh's own, on three cases from
 the sample reports (AC7).
 
+## Pre-survey checklist (S4, CP-30)
+
+The assessment's Checklist tab (`screens/Checklist.tsx`) lists the standards
+that apply to the site and the latest checklist. Before the first checklist
+every standard is ticked; after it, those the latest checklist used are, and
+any added to the knowledge base since; the list is folded once there is a
+checklist. The checklist shows **Priority risks** (the facility type's
+hazards) first, then **Report sections**: each report section once, with a
+switch between two views. "Relevant sections" (the default) shows only the
+sections the selected standards add requirements to, under their subsection,
+and lists the rest as tags under "No specific requirements for:", with a link
+to show all sections, so none goes missing unexplained. "All sections" shows every
+template subsection with those requirements beneath it, and says "Nothing
+specific in the selected standards" in a section they add nothing to. A risk names the standards it is checked against when they were selected. When
+none was, its general check (from `checklist.json`) says which standard to
+select, if one applies, or to add to the knowledge base. Each card marks its AI-written items
+once, with a violet rule on each; a citation is a chip naming the standard and
+page ("NFPA 13 p. 196"), one per page, opening to its quotes and the passage.
+A facility type with no hazard list (one outside the nine) is said so on the
+checklist. If the site's facility type or
+country has changed since the checklist was generated, the tab says it is out
+of date and to regenerate it.
+
+1. The engineer unticks any standard to leave out and clicks **Generate
+   checklist**. The gateway (`checklist.service.generateChecklist`) checks the
+   assigned engineer and that the assessment is not archived, and that every
+   chosen standard still applies, then sends S4's `POST /checklist/draft` only
+   the facility type, the country and the chosen standards' ids, source types
+   and numbers. No client detail is sent, so nothing is masked.
+2. `checklist.template_items` writes one item per template subsection of
+   Sections 6-12 (`sections.json`), leaving out "… Comments" subsections. Its
+   text is `checklist.json`'s `template_details` for the subsection, or the
+   heading, with the subsection's fields; a rag-service test checks no item is a
+   bare heading. No model is involved.
+3. With standards in scope, `orchestrator.draft_checklist_for` runs one batched
+   Cohere search, filtered to those documents (`doc_id`): one per report area,
+   by what it covers (`checklist.area_scope`: each subsection with its fields or
+   template detail, not the title alone, which left Management Programs drawing
+   whatever no other search claimed), and one per hazard configured for the facility type (`checklist.json`
+   `hazards`). A hazard is searched within the standards it names when any of
+   them is in scope, else across all in scope. One rerank orders the pool; the
+   top 20, plus each search's own two nearest passages, go to the model, so no
+   area or hazard is crowded out by another's. If rerank fails, vector order is
+   used. Each passage is offered under one area or hazard only, so the model
+   does not write the same requirement under two: a hazard's, if any hazard's
+   search found it (a hazard keeps its own standards' passages, AC7), else the
+   area whose search found it nearest.
+4. `checklist.draft_items` (prompt `cp30-v5`, `CHECKLIST_EFFORT`, default
+   `medium`, on `LLM_MODEL`) writes items as structured output: each under a
+   report area and subsection, or a hazard, citing passages by label with the
+   words it rests on. The prompt lists the passages each area's and hazard's
+   own search found (`<found_for>`) as where to look, not where an item goes:
+   each requirement is filed, once, under the area and subsection whose scope
+   (the same `area_scope`, listed in `<report_areas>`) covers what it checks,
+   without stretching a passage to fill an area, and never from a loss history
+   or example, which tells of a past fire rather than setting a requirement.
+   A passage's headings longer than 200 characters are left out
+   (`generator.passage_headings`, which drafting and chat use too): they are
+   body text the PDF reader took for a heading (FM 2-0's loss examples), which
+   the model quoted though the passage's text did not hold them.
+   Items for an unknown area or hazard are dropped. An item in a section of one
+   subsection (6) is put under it when the model leaves it out.
+5. Code checks the result. A citation of a passage not given is dropped; each
+   quote is looked for in its passage (`quote_found`, as chat does). An item
+   left with no citation is flagged `uncited`. A configured hazard with no item
+   gets the config's own item, with origin `hazard_list` (written by the team,
+   so not shown as AI-generated) and flagged `uncited`. Items are placed after their
+   subsection's template item, in report order, then the hazards.
+6. The gateway records the paid calls under the `checklist` feature and saves
+   the checklist in `checklists` (see [database](database.md#pre-survey-checklists-cp-30)).
+
+With no standard in scope, steps 3-4 are skipped: the checklist has its
+template and hazard items only, and no paid call is made.
+
+`checklist.json` holds the hazards for each of the nine facility types (3-4
+each), each naming the NFPA or FM standards it is checked against. It was
+drafted by the team and is to be reviewed with Marsh; bump its `version` on any
+change; a rag-service test checks it covers exactly the nine facility types.
+`eval/score_checklist.py` generates a checklist for every facility type from
+the standards in `eval/checklist_cases.json`, and counts template and hazard
+coverage, hazards cited by one of their own standards, citations resolving to
+a standard in scope and quotes found (one paid call per type). The cases file
+comes from the gateway (`npm run export:checklist-cases -- <file>`), since the
+passages in Chroma carry no standard numbers; it holds one database's document
+ids, so it is not committed.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for

@@ -1842,3 +1842,27 @@ Reason: a new employee should hear about their account by email, with a link tha
 Known limits: the 72 hours are fixed in `invitation.service.ts`. The first-password rule does not apply to the reset yet. An account created before this change, with no password, shows Invitation pending with no open link until an admin resends it.
 
 Stories: F-08, F-06.
+
+## 2026-10-26 — The pre-survey checklist is the template's subsections in code, plus cited items from the standards in scope
+
+Chose: an assessment's Checklist tab (CP-30) generates a pre-survey checklist from three sources, each with its own guarantee:
+- Marsh's report template: one item per subsection of Sections 6-12 in `sections.json`, written in code, so building details such as walls, roof and frame are always covered (AC3). "… Comments" subsections ask for judgement, not inspection, and get no item.
+- Hazards per facility type: `rag-service/app/generation/checklist.json` names 3-4 hazards for each of the nine facility types, each with the NFPA or FM standards it is checked against. Every hazard gets an item; if the model writes none, the config's own item is added, flagged `uncited` (AC4, AC7).
+- The standards the engineer keeps ticked (AC1-2): the model (`LLM_MODEL` at `CHECKLIST_EFFORT`, default `medium`) adds items from their passages only, each citing passages by label with the words it rests on. Code drops citations of passages not given, looks for each quote in its passage, and flags an item left with none.
+
+The gateway lists the applicable standards (FM, NFPA or local, labelled with the site's facility type and country or `all`, not withdrawn or needing review) and sends S4 only the facility type, country and chosen standards. Each generation is a new `checklists` document and the latest is shown (AC9). Items are stored with room for later stories (`status`, `prefill`, `check`), so CP-31 to CP-34 need no migration. Paid calls are recorded under a new `checklist` feature.
+
+Rejected:
+- One item per template field (~90 items): too long to read before a visit; fields are listed under their subsection's item instead.
+- Letting the model write the whole checklist: template coverage would depend on the model, and AC3 could fail silently.
+- Hazards editable by a knowledge admin: a screen and a collection for a list that changes rarely. A versioned file, recorded on every checklist, is enough until Marsh asks to edit it.
+- Overwriting the checklist on regenerate: CP-32 must keep the engineer's edits across regenerations, which needs the earlier version.
+- An Overview card: 60-plus items need their own tab, which CP-31 will also open from capture.
+- The template's items first: about 44 of a checklist's rows are the report's own subsections, which an engineer knows already, and they buried the cited rows. The tab shows the priority risks, then each report section once, showing by default only what the standards add (a switch shows the template's subsections with them). Two lists by section, one of the standards' items and one of the template's, repeated every section heading.
+- Masking: nothing about the client or site is sent, so there is nothing to mask; the request has no field for it.
+
+Reason: Marsh asked for checklists by facility type (warehouse vs office: roofing, hazardous storage, NFPA), built from the knowledge base. Fixed coverage in code and citations checked in code keep it trustworthy without an LLM judge.
+
+Known limits: the hazard lists were drafted by the team and are to be reviewed with Marsh. A hazard's named standards are matched to knowledge-base documents by source type and standard number, so a standard labelled without a number is not recognised as one of them. Standards are listed per facility type and country, not by the risk areas RT-01 describes. A site saved before the gateway checked facility types may hold another, such as the old seed's `Warehouse`: it gets no hazards and the checklist says so. The gateway now refuses a new or changed facility type off the list, but keeps an unchanged older one, so such an assessment can still be edited; existing sites on a shared database are not migrated.
+
+Stories: CP-30.
