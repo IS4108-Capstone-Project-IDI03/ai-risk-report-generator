@@ -9,11 +9,10 @@ ARG UV_EXTRAS="--extra cpu"
 # ── base: system deps, uv, Python ─────────────────────────────────────────────
 FROM python:3.12-slim AS base
 
-# opencv-python (required by rapidocr ← docling) links against libGL and
-# libglib2.0. On slim images those aren't present, causing an ImportError.
-# Install them here rather than switching to the headless build, because
-# rapidocr hard-requires `opencv_python` by name and would still pull in
-# this build even if we declared the headless variant.
+# libGL and libglib2.0 for OpenCV (used by rapidocr ← docling); slim images lack
+# them. Only the headless OpenCV wheel is installed now (pyproject.toml
+# override-dependencies drops the full opencv-python), so libGL may no longer be
+# needed; kept until that is checked.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
