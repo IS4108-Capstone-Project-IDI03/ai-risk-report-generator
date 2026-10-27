@@ -1,11 +1,14 @@
 """Cohere query embedding -> Chroma vector search -> Cohere reranking."""
 
 import json
+import logging
 import os
 import re
 import time
 
+import httpx
 from chromadb.errors import NotFoundError
+from cohere.errors import GatewayTimeoutError, ServiceUnavailableError, TooManyRequestsError
 
 from app import usage
 from app.retrieval.glossary import expand_query
@@ -17,6 +20,37 @@ from app.retrieval_config import (
     chroma_client,
     cohere_client,
 )
+
+log = logging.getLogger("uvicorn.error")
+
+# Waits before each retry of a Cohere call, in seconds. A trial key allows few calls a minute
+# and a call can time out, so one slow or refused call should not fail a whole chat answer.
+RETRY_DELAYS = (2.0, 5.0)
+_RETRYABLE = (
+    httpx.TransportError,
+    TooManyRequestsError,
+    ServiceUnavailableError,
+    GatewayTimeoutError,
+)
+
+
+def _with_retries(call, what: str):
+    """Return call(), trying again after a timeout, rate limit or outage; raise the last error.
+
+    Any other error (a bad request, a bad key) is raised at once: retrying cannot fix it.
+    """
+    for attempt, delay in enumerate((*RETRY_DELAYS, None), start=1):
+        try:
+            return call()
+        except _RETRYABLE as error:
+            if delay is None:
+                log.error("Cohere %s failed after %d tries: %r", what, attempt, error)
+                raise
+            log.warning(
+                "Cohere %s failed (%r); retry %d of %d in %.0f s",
+                what, error, attempt, len(RETRY_DELAYS), delay,
+            )  # fmt: skip
+            time.sleep(delay)
 
 
 def _match(key: str, value: str | list[str]) -> str | dict:
@@ -92,13 +126,16 @@ def retrieve(
         return []
     cohere = cohere_client()
     started = time.perf_counter()
-    embedding = cohere.embed(
-        model=EMBEDDING_MODEL,
-        texts=[query],
-        input_type="search_query",
-        embedding_types=["float"],
-        output_dimension=EMBEDDING_DIMENSION,
-        truncate="NONE",
+    embedding = _with_retries(
+        lambda: cohere.embed(
+            model=EMBEDDING_MODEL,
+            texts=[query],
+            input_type="search_query",
+            embedding_types=["float"],
+            output_dimension=EMBEDDING_DIMENSION,
+            truncate="NONE",
+        ),
+        "embed",
     )
     _record_embed(embedding, started)
     nearest = collection.query(
@@ -228,11 +265,14 @@ def rerank(query: str, passages: list[dict], top_n: int | None = None) -> list[d
         return []
     model = os.getenv("RERANK_MODEL", "rerank-v3.5")
     started = time.perf_counter()
-    ranked = cohere_client().rerank(
-        model=model,
-        query=query,
-        documents=[rank_text(p) for p in passages],
-        top_n=min(top_n or len(passages), len(passages)),
+    ranked = _with_retries(
+        lambda: cohere_client().rerank(
+            model=model,
+            query=query,
+            documents=[rank_text(p) for p in passages],
+            top_n=min(top_n or len(passages), len(passages)),
+        ),
+        "rerank",
     )
     usage.record(
         "retrieval",
@@ -266,13 +306,16 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
     if not count:
         return empty
     started = time.perf_counter()
-    embedding = cohere_client().embed(
-        model=EMBEDDING_MODEL,
-        texts=[query for query, _, _ in requests],
-        input_type="search_query",
-        embedding_types=["float"],
-        output_dimension=EMBEDDING_DIMENSION,
-        truncate="NONE",
+    embedding = _with_retries(
+        lambda: cohere_client().embed(
+            model=EMBEDDING_MODEL,
+            texts=[query for query, _, _ in requests],
+            input_type="search_query",
+            embedding_types=["float"],
+            output_dimension=EMBEDDING_DIMENSION,
+            truncate="NONE",
+        ),
+        "embed",
     )
     _record_embed(embedding, started)
     vectors = embedding.embeddings.float_

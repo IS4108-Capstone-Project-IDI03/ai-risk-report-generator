@@ -160,6 +160,10 @@ def prepare(env):
 
 
 def test_first_turns_are_searched_once_for_every_candidate(env, monkeypatch):
+    # This is about the cache, which searches each first turn once. The search of the engineer's
+    # own words (answer.OWN_WORDS_PASSAGES) is cached with it but adds a retrieve call per
+    # search, so it is off here to keep the call count one per case.
+    monkeypatch.setattr(answer, "OWN_WORDS_PASSAGES", 0)
     live_anthropic(monkeypatch)
     assert prepare(env) == 0
     first_turns = list(env.calls["search"])
