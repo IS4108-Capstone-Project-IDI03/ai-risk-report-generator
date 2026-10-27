@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
+from docling.datamodel.backend_options import ThreadedDoclingParseBackendOptions
 from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.datamodel.pipeline_options import (
     HeadingHierarchyOptions,
@@ -271,7 +272,12 @@ def _converter() -> DocumentConverter:
 
     return DocumentConverter(
         format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+            # Pages are rendered at the OCR scale. Docling's default renders at 72 DPI and
+            # re-renders each OCR crop soft, so a scanned page came out garbled ("sprinkder").
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=pipeline_options,
+                backend_options=ThreadedDoclingParseBackendOptions(render_scale=ocr_options.scale),
+            ),
         }
     )
 

@@ -23,6 +23,7 @@ _ocr_lock = Lock()
 @cache
 def _converter():
     # Lazy import: Docling is heavy, and most documents never need OCR.
+    from docling.datamodel.backend_options import ThreadedDoclingParseBackendOptions
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import OcrMode, PdfPipelineOptions
     from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -32,8 +33,15 @@ def _converter():
     # Only pages with no text layer reach here, so OCR the whole page.
     ocr_options = get_ocr_options()[0].model_copy(update={"mode": OcrMode.FULL_PAGE})
     options = PdfPipelineOptions(do_ocr=True, ocr_options=ocr_options, do_table_structure=False)
+    # Rendered at the OCR scale (as in app/pipeline/parser.py): Docling's 72 DPI default makes the
+    # OCR crop soft and the labels are read from garbled text.
     return DocumentConverter(
-        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=options,
+                backend_options=ThreadedDoclingParseBackendOptions(render_scale=ocr_options.scale),
+            )
+        }
     )
 
 
