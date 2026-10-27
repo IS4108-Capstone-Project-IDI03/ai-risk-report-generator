@@ -36,6 +36,7 @@ const STACK_ORDER = [
   'self-hosted-ocr',
   'draft-section',
   'retrieval',
+  'checklist',
   'transcribe',
   'interpret-photo',
   'transcribe-handwriting',
@@ -62,6 +63,9 @@ const SERIES_COLORS: Record<string, string> = {
   'self-hosted-ocr': 'neutral',
   'draft-section': 'blue',
   retrieval: 'orange-light',
+  // The pre-survey checklist (CP-30) shares an assessment's bar with drafting,
+  // so it takes the one report-feature hue no other uses.
+  checklist: 'olive',
   transcribe: 'magenta-dark',
   'interpret-photo': 'aqua-light',
   'transcribe-handwriting': 'aqua-dark',

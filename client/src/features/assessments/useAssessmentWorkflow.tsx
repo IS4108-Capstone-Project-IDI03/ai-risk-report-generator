@@ -2931,6 +2931,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
       closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
       saveTags: () => void saveTags(),
+      isChecklist: isAssessment && s.tab === 'checklist',
       isGenerate: isAssessment && s.tab === 'generate',
       isReview: isAssessment && s.tab === 'review',
       isExport: isAssessment && s.tab === 'export',
@@ -2994,6 +2995,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'overview',
           label: 'Overview',
           icon: 'file-pen',
+        },
+        {
+          // The pre-survey checklist (CP-30): read before the visit, so it
+          // comes before Observations.
+          value: 'checklist',
+          label: 'Checklist',
+          icon: 'list-checks',
         },
         {
           value: 'observations',
