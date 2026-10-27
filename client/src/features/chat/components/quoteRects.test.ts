@@ -67,6 +67,23 @@ describe('quoteRects', () => {
     expect(rect.t - rect.b).toBe(10)
   })
 
+  it("finds a table row's quote although it names columns the PDF does not show", () => {
+    // Ingestion turns a row into "Column: value; Column: value" (table_text.py); the PDF page
+    // shows only the values, one cell per text item.
+    const table = [
+      line('Test a random sample of dry-type sprin-', 700),
+      line('klers (AKA dry pendent)', 688),
+      line('Every 15 years', 676),
+    ]
+    const quote =
+      'Test a random sample of dry-type sprinklers (AKA dry pendent); Frequency: Every 15 years'
+    expect(quoteRects(table, quote)).toHaveLength(3)
+  })
+
+  it('still gives nothing for a labelled quote whose words are not on the page', () => {
+    expect(quoteRects(PAGE, 'Frequency: Every 15 years')).toEqual([])
+  })
+
   it('gives nothing when the quote is not on the page', () => {
     expect(quoteRects(PAGE, 'replace the valve monthly')).toEqual([])
   })

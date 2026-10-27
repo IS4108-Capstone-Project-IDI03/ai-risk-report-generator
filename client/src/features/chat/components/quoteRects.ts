@@ -29,9 +29,15 @@ export function quoteRects(pdfItems: PdfText[], quote: string): PageRect[] {
   // passage text the quote came from does. Widths stay per item, so offsets still line up.
   const items = pdfItems.map((t) => ({ ...t, str: t.str.normalize('NFKC') }))
   // Located in the items joined by one space, as the page's text reads.
-  const span = quoteSpan(quote.normalize('NFKC'), items.map((t) => t.str).join(' '), {
-    acrossLineBreaks: true,
-  })
+  const page = items.map((t) => t.str).join(' ')
+  const wanted = quote.normalize('NFKC')
+  // A table row's passage reads "Column: value; Column: value" (ingestion table_text.py), but the
+  // PDF shows only the values; so when the quote is not found as written, it is tried again with
+  // the column labels taken out.
+  const unlabelled = wanted.replace(/(^|;)\s*[^;:]{1,40}:\s/g, ' ')
+  const span =
+    quoteSpan(wanted, page, { acrossLineBreaks: true }) ??
+    quoteSpan(unlabelled, page, { acrossLineBreaks: true })
   if (!span) return []
   const rects: PageRect[] = []
   let start = 0
