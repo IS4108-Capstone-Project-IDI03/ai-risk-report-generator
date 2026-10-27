@@ -48,12 +48,19 @@ const LETTER = 11 / 8.5
 // on every render.
 const PDF_OPTIONS = { disableAutoFetch: true }
 
-/** Returns the passage's pages: those its boxes sit on, else its page range, else page 1. */
+/** Returns the passage's pages: those its boxes sit on plus its page range, else page 1. */
+// Both, because a picture passage's boxes cover only the figure's page while its text, and so the
+// quote, can run on to the next page.
 function passagePages(p: Passage): number[] {
-  if (p.boxes.length) return [...new Set(p.boxes.map((b) => b.page))].sort((a, b) => a - b)
-  if (p.pageStart == null) return [1]
-  const end = p.pageEnd ?? p.pageStart
-  return Array.from({ length: end - p.pageStart + 1 }, (_, i) => p.pageStart! + i)
+  const range =
+    p.pageStart == null
+      ? []
+      : Array.from(
+          { length: (p.pageEnd ?? p.pageStart) - p.pageStart + 1 },
+          (_, i) => p.pageStart! + i,
+        )
+  const all = [...new Set([...p.boxes.map((b) => b.page), ...range])].sort((a, b) => a - b)
+  return all.length ? all : [1]
 }
 
 /** Returns a page rectangle's position as percentages of the drawn page. */
@@ -198,12 +205,16 @@ export function PdfViewer({ fileUrl, passage, quote, shown, expanded, onToggleEx
   const onPageLoad = (p: PDFPageProxy & { originalWidth: number; originalHeight: number }) =>
     setSize({ width: p.originalWidth, height: p.originalHeight })
   const marks = useMemo(() => (items ? quoteRects(items, quote) : []), [items, quote])
-  // The cited page: where the quote's first words are, else where the passage starts.
-  const cited = marks[0]?.page ?? pages?.[0] ?? 1
+  // The cited page: where the quote's first words are, else where the passage is outlined.
+  // With no highlight: the first outlined page (the passage's boxes), else its first page.
+  const firstOutlined = passage?.boxes.length ? Math.min(...passage.boxes.map((b) => b.page)) : null
+  const cited = marks[0]?.page ?? firstOutlined ?? pages?.[0] ?? 1
   // Opens on the cited page (Jesper, 18 Oct) until the engineer steps elsewhere. Worked out
   // here rather than set by an effect, so no render ever shows another page first.
   const page = chosen ?? cited
   const notFound = items !== null && marks.length === 0 && Boolean(pages?.includes(page))
+  // A scan has no text layer, so there is nothing to search: said so, not "couldn't be found".
+  const scanned = items !== null && !items.some((t) => t.page === page && t.str.trim())
   // The page is drawn only once the cited page is known, so the first page drawn is the right
   // one; drawing the passage's first page and then jumping flashed a blank canvas.
   const ready = items !== null
@@ -312,7 +323,14 @@ export function PdfViewer({ fileUrl, passage, quote, shown, expanded, onToggleEx
       </div>
       {notFound && (
         <p className="chat-pdf-note" role="status">
-          The quoted words couldn't be found on this page. The outline marks the passage.
+          {scanned ? (
+            <>
+              This page is a scan, so the quoted words can't be highlighted. The outline marks the
+              passage.
+            </>
+          ) : (
+            <>The quoted words couldn't be found on this page. The outline marks the passage.</>
+          )}
         </p>
       )}
       {page !== cited && (

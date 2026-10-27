@@ -114,7 +114,9 @@ const PASSAGE: Passage = {
 // Block body: a function returned from beforeEach would be run by vitest as cleanup.
 beforeEach(() => {
   vi.mocked(fetchPassage).mockResolvedValue(PASSAGE)
-  pdf.texts = {}
+  // The passage covers pages 50-52 but is outlined on 51 only. Any page not set here reads as TEXT,
+  // so 50 and 52 are empty until a test puts words on them.
+  pdf.texts = { 50: { items: [] }, 52: { items: [] } }
 })
 
 const DOCS = new Map<string, DocSummary>([
@@ -321,6 +323,31 @@ describe('PDF tab', () => {
     expect(screen.queryByTestId('quote-mark')).not.toBeInTheDocument()
   })
 
+  it('looks on every page the passage covers, not only the pages its outline boxes sit on', async () => {
+    // A picture passage is outlined on page 51 only, but its words run on to page 52.
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...PASSAGE,
+      boxes: [{ page: 51, l: 60, t: 700, r: 360, b: 500 }],
+    })
+    pdf.texts[52] = TEXT
+    pdf.texts[51] = {
+      items: [{ str: 'Figure 4', transform: [10, 0, 0, 10, 60, 700], width: 70, height: 10 }],
+    }
+    const page = await openPdf()
+    await waitFor(() => expect(page).toHaveAttribute('data-page', '52'))
+    expect(await screen.findAllByTestId('quote-mark')).toHaveLength(2)
+  })
+
+  it('says a scanned page has no text to highlight, instead of that the words are missing', async () => {
+    pdf.texts[51] = { items: [] } // a scan: no text layer on the page
+    renderPanel(cited({ quote: 'Replace the valve monthly', state: 'unverified' }))
+    await screen.findByText(/Record the result/)
+    fireEvent.click(screen.getByRole('tab', { name: 'PDF' }))
+    expect(await screen.findByTestId('passage-box')).toBeInTheDocument()
+    expect(await screen.findByText(/page is a scan/)).toBeVisible()
+    expect(screen.queryByText(/couldn't be found/)).not.toBeInTheDocument()
+  })
+
   it('keeps the panel when pdf.js crashes', async () => {
     pdf.crash = true
     vi.spyOn(console, 'error').mockImplementation(() => {}) // React logs the caught error
@@ -413,6 +440,7 @@ describe('PDF tab', () => {
     pdf.texts[51] = {
       items: [{ str: 'Weekly:', transform: [10, 0, 0, 10, 60, 700], width: 70, height: 10 }],
     }
+    pdf.texts[52] = TEXT
     const page = await openPdf()
     await waitFor(() => expect(page).toHaveAttribute('data-page', '52'))
     expect(await screen.findAllByTestId('quote-mark')).toHaveLength(2)
@@ -453,6 +481,7 @@ describe('PDF tab', () => {
 
   it('falls back to the first page when there is no box', async () => {
     vi.mocked(fetchPassage).mockResolvedValue({ ...PASSAGE, boxes: [] })
+    pdf.texts = {} // every page reads as TEXT, so the quote is on the passage's first page
     const page = await openPdf()
     expect(page).toHaveAttribute('data-page', '50')
     expect(screen.queryByTestId('passage-box')).not.toBeInTheDocument()
