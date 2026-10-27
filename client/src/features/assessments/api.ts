@@ -734,6 +734,79 @@ export async function saveOfiLossValues(
   ).data
 }
 
+// A knowledge-base standard that applies to the site (CP-30 AC1).
+export type ScopeStandard = {
+  id: string
+  title: string
+  issuingBody: string | null
+  standardNumber: string | null
+  edition: string | null
+  sourceType: string | null
+  // When it was added to the knowledge base (ISO).
+  uploadedAt: string
+}
+export type ChecklistItem = {
+  id: string
+  // A report section ('7') or 'hazards'.
+  area: string
+  subsection: string | null
+  // Only 'standard' and 'hazard' are written by the model (AC8).
+  origin: 'template' | 'standard' | 'hazard' | 'hazard_list'
+  hazard: string | null
+  text: string
+  fields: string[]
+  COPE_dimension: string[]
+  citations: { ref: string; quote: string; quoteFound: boolean }[]
+  flags: 'uncited'[]
+}
+// A cited passage as the checklist was given it: its text and Chroma labels.
+export type ChecklistSource = {
+  text: string
+  doc_id?: string
+  headings?: string[]
+  page_start?: number
+  page_end?: number
+}
+export type Checklist = {
+  id: string
+  facilityType: string
+  jurisdiction: string
+  standards: Omit<ScopeStandard, 'issuingBody' | 'uploadedAt'>[]
+  items: ChecklistItem[]
+  areas: { id: string; title: string }[]
+  hazards: { id: string; name: string; standards: string[]; inScope: string[] }[]
+  sources: Record<string, ChecklistSource>
+  provenance: {
+    provider: string
+    model: string | null
+    effort: string
+    prompt_version: string
+    checklist_version: string
+    template_version: string
+    generated_at: string
+  }
+  createdAt: string
+}
+// The site's scope, the standards that apply to it now, and the latest checklist.
+export type ChecklistView = {
+  scope: { facilityType: string; jurisdiction: string }
+  standards: ScopeStandard[]
+  checklist: Checklist | null
+}
+
+const checklistPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/checklist`
+
+export async function getChecklist(reference: string, signal?: AbortSignal) {
+  return (await request<ChecklistView>('GET', checklistPath(reference), undefined, signal)).data
+}
+
+// Generates a checklist from the standards kept ticked (AC2); the gateway saves
+// it as the latest and keeps the earlier ones.
+export async function generateChecklist(reference: string, standardIds: string[]) {
+  return (await request<ChecklistView>('POST', checklistPath(reference), { standardIds })).data
+}
+
 // Drafts one section from the assessment's observations; the gateway saves it.
 export async function draftSection(reference: string, sectionId: string): Promise<SectionDraft> {
   return (

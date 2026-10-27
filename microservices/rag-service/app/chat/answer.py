@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from app import config, usage
 from app import privacy as pii
 from app.chat.quotes import find_cites, quote_found
-from app.generation.generator import PLACEHOLDER_RULE
+from app.generation.generator import PLACEHOLDER_RULE, passage_headings
 from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
 
@@ -361,7 +361,7 @@ def passage_header(n: int, passage: dict) -> str:
     Also used by eval/chat_grade.py, so the judge reads the same header the model did.
     """
     meta = passage["metadata"]
-    where = " > ".join(meta.get("headings") or [])
+    where = " > ".join(passage_headings(meta))
     # Without the name, the model guesses one from the text and the judge fails the guess.
     if meta.get("document_name"):
         where = f"{meta['document_name']} > {where}" if where else meta["document_name"]

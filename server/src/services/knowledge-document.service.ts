@@ -68,8 +68,8 @@ const country = (allowAll: boolean) =>
 
 // The facility types a document may be labelled with (KB-01 AC7). Must match
 // FACILITY_TYPES in client/src/features/assessments/demo-data.ts, which the
-// forms offer.
-const FACILITY_TYPES = [
+// forms offer. The checklist's hazard list (rag-service checklist.json) covers each.
+export const FACILITY_TYPES = [
   'Distribution warehouse',
   'Cold store',
   'Chemical plant',
@@ -806,6 +806,30 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
     .sort({ title: 1 })
     .lean()
   // Complete documents carry no progress, so no job is passed.
+  return toDtos(documents)
+}
+
+// The standards that apply to a site (CP-30 AC1): FM, NFPA and local standards
+// labelled with its facility type and country, or `all`, that search can return.
+// Like retrieval, this leaves out withdrawn documents and those needing review
+// (Unconfirmed details or an undecided match), since none of their passages are searched.
+export async function listApplicableStandards(
+  facilityType: string,
+  jurisdiction: string,
+): Promise<KnowledgeDocumentDto[]> {
+  const documents = await KnowledgeDocumentModel.find({
+    status: 'complete',
+    withdrawn: { $exists: false },
+    unconfirmed: { $size: 0 },
+    // null matches a missing field too.
+    match: null,
+    'metadata.source_type': { $in: ['fm_standard', 'nfpa_standard', 'local_standard'] },
+    'metadata.facility_type': { $in: [facilityType, 'all'] },
+    'metadata.jurisdiction': { $in: [jurisdiction, 'all'] },
+  })
+    .collation({ locale: 'en' })
+    .sort({ title: 1 })
+    .lean()
   return toDtos(documents)
 }
 

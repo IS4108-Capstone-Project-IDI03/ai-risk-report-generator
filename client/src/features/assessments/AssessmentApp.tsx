@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Button, Dialog, Icon, SideNav, Tabs, Toast } from '../../design-system'
+import { Button, Dialog, EmptyState, Icon, SideNav, Tabs, Toast } from '../../design-system'
 import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
@@ -10,6 +10,7 @@ import { CreateAssessment } from './screens/CreateAssessment'
 import { SiteObservation } from './screens/SiteObservation'
 import { MoreMenu } from './components/MoreMenu'
 import { Overview } from './screens/Overview'
+import { Checklist } from './screens/Checklist'
 import { Observations } from './screens/Observations'
 import { Generation } from './screens/Generation'
 import { SectionDrafts } from './screens/SectionDrafts'
@@ -380,6 +381,19 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     )}
 
                     {v.isOverview && <Overview v={v} />}
+
+                    {v.isChecklist &&
+                      (v.liveReference ? (
+                        <Checklist reference={v.liveReference} canGenerate={v.canDraftSections} />
+                      ) : (
+                        <div style={{ padding: '24px' }}>
+                          <EmptyState
+                            icon="list-checks"
+                            title="No checklist for the sample assessment"
+                            description="Checklists are generated for saved assessments. Open one from the dashboard to generate its checklist."
+                          />
+                        </div>
+                      ))}
 
                     {v.isObservations && <Observations v={v} />}
 

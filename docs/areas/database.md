@@ -215,7 +215,10 @@ client and site are not editable: they stay as the assessment was created
 (CP-17 AC8). The site's details are shared once the site has another
 assessment not archived, so changing them is then refused (409); sending them
 unchanged is fine. Renaming a site to another of its client's site names is
-refused (400, `site.name`). A date left empty is cleared. Only the assigned engineer
+refused (400, `site.name`). A new site's facility type, or a changed one, must
+be one of the nine the forms offer (`FACILITY_TYPES`, as knowledge documents
+are labelled; 400, `site.facilityType`); a site's older type sent unchanged is
+kept, so its assessments can still be edited (CP-30). A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
 
 `POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a
@@ -818,6 +821,44 @@ list. No loss figure comes from a model.
 | `GET /api/assessments/:reference/ofis` | `{ suggestions, accepted }`. Each OFI has `status` and `issueDate`; `accepted` is in report order with `number`. 404. |
 | `POST /api/assessments/:reference/ofis/draft` | Drafts OFIs from the assessment's usable observations and replaces the unaccepted suggestions (`reports:generate`, assigned engineer only). 201 with the list, 403, 404, 409 (a transcription in progress, or archived), 503 (drafting failed, with the reason). |
 | `POST /api/assessments/:reference/ofis/:id/accept` | Accepts a suggestion into the report (assigned engineer only). 200 with the list; accepting twice changes nothing. 403, 404. |
+
+## Pre-survey checklists (CP-30)
+
+`checklists` holds one document per generated checklist. Generating again adds
+a document and the latest is shown; earlier ones are kept (CP-32 will compare
+against them to keep the engineer's edits). Each document has:
+
+- `assessment`, and `facilityType` and `jurisdiction`: the site's when it was
+  generated.
+- `standards`: the knowledge-base standards the engineer kept in scope
+  (`id`, `title`, `sourceType`, `standardNumber`, `edition`), as they were then.
+- `items`, in report order, each with its own `_id` for later stories to refer to:
+  `area` (a section, `'6'` to `'12'`, or `'hazards'`), `subsection`, `origin`
+  (`template`; `standard` or `hazard`, written by the model; or `hazard_list`,
+  the hazard list's own item when the model wrote none), `hazard` (the configured hazard's id),
+  `text`, `fields` (the template subsection's fields), `COPE_dimension` (a
+  list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`), and `flags`
+  (`uncited`: it rests on no passage). `status` (`active`), `prefill` and
+  `check` (both `null`) are kept for CP-32, CP-34 and CP-31.
+- `areas` (`id`, `title`) and `hazards` (`id`, `name`, `standards` it is
+  checked against, `inScope`: those that were in scope).
+- `sources`: the cited passages by `C:` ID, with their text and Chroma labels.
+- `provenance`: `provider`, `model` (`null` when no standard was in scope, so
+  no model was called), `effort`, `prompt_version`, `checklist_version` (of
+  `checklist.json`), `template_version` and `generated_at`.
+- `createdBy`, the engineer's user `_id`.
+- `metadata` with the five required fields: `source_type: 'checklist'`,
+  `jurisdiction` and `facility_type` from the site, `COPE_dimension: 'all'`
+  (each item carries its own) and `effective_date` (when generated).
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/checklist` | `{ scope, standards, checklist }`: the site's facility type and country, the standards that apply to it now (each with `uploadedAt`), and the latest checklist or `null`. Anyone who can view the assessment. 404. |
+| `POST /api/assessments/:reference/checklist` | `{ standardIds }`: generates from those standards and saves it as the latest (`reports:generate`, assigned engineer only). 201 with the same body as the GET; 400 (a standard that doesn't apply), 403, 404, 409 (archived), 503 (S4 failed, with the reason). |
+
+A standard applies when it is an FM, NFPA or local standard labelled with the
+site's facility type and country, or `all`, has finished ingesting, and is not
+withdrawn or needing review (`knowledge-document.service.listApplicableStandards`).
 
 ## Knowledge documents (IN-01, KB-01, IN-07)
 

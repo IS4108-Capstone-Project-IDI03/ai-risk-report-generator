@@ -13,6 +13,9 @@ LLM_MODEL = os.getenv("LLM_MODEL", "claude-opus-5-5")
 # Starts at high: cited engineering prose is intelligence-sensitive work.
 # Raise to xhigh only if a measured comparison shows it drafts better.
 LLM_EFFORT = os.getenv("LLM_EFFORT", "high")
+# The pre-survey checklist (CP-30): short inspection points from given passages, so
+# less thinking than drafting needs. Same provider and model as drafting.
+CHECKLIST_EFFORT = os.getenv("CHECKLIST_EFFORT", "medium")
 
 # Knowledge base chat (CB-01). Provider names come from env, like LLM_PROVIDER above.
 # The defaults are the CB-01 model comparison's winner (docs/DECISIONS.md, 2026-10-15).

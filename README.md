@@ -118,6 +118,15 @@ the assigned engineer restore one as the section's draft
 (`POST …/sections/:sectionId/versions/restore`): a new version, so nothing is
 overwritten, and no other section changes.
 
+Before the visit, the assessment's Checklist tab generates a pre-survey
+checklist (CP-30): one item per subsection of Marsh's template (Sections
+6-12), and items from the knowledge-base standards that apply to the site's
+facility type and country, each citing the passage and words it rests on. The
+hazards checked for each facility type, and the standards they are checked
+against, are in `rag-service/app/generation/checklist.json`. The assigned
+engineer chooses the standards to use and generates; each generation is kept,
+and the latest is shown. Only the facility type and country reach S4.
+
 In Section 5's Review editor, each loss level has its own property damage items,
 values and damage percentages. Site-wide insured values remain in
 the Values table. Existing estimates keep their figures; saving converts their

@@ -59,7 +59,7 @@ async function seedAndVerify(): Promise<void> {
       $set: {
         name: 'Synthetic Singapore Warehouse',
         jurisdiction: 'SG',
-        facilityType: 'Warehouse',
+        facilityType: 'Distribution warehouse',
       },
     },
     {
@@ -236,7 +236,11 @@ async function seedAndVerify(): Promise<void> {
     },
     {
       reference: 'RPT-2026-0327',
-      site: { code: 'SYN-IE-DW4', name: 'Dublin Warehouse 4', facilityType: 'Warehouse' },
+      site: {
+        code: 'SYN-IE-DW4',
+        name: 'Dublin Warehouse 4',
+        facilityType: 'Distribution warehouse',
+      },
       client: 'Northgate Logistics',
       siteVisitDate: '2026-03-20',
       lead: 'MRE-0002',
