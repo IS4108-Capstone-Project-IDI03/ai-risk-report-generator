@@ -91,6 +91,34 @@ describe('chat list (CB-03)', () => {
     expect(screen.getByText('FM-200 notes')).toBeInTheDocument()
   })
 
+  it('shows a long name in full on hover, and announces an empty list', async () => {
+    await open()
+    expect(screen.getByRole('button', { name: 'Sprinkler spacing' })).toHaveAttribute(
+      'title',
+      'Sprinkler spacing',
+    )
+    cleanup()
+    const { storage } = fakeStorage([])
+    render(
+      <ChatProvider llm={chatLLM} storage={storage}>
+        <ChatThreadList />
+      </ChatProvider>,
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent('No chats yet.')
+  })
+
+  it('puts the cursor in the rename box and focus on Cancel in the delete box', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Sprinkler spacing' }))
+    await waitFor(() => expect(screen.getByLabelText('Chat name')).toHaveFocus())
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Sprinkler spacing' }))
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus(),
+    )
+  })
+
   it('shows the new name after a rename (AC4)', async () => {
     const thread = await open()
     fireEvent.click(screen.getByRole('button', { name: 'Rename Sprinkler spacing' }))

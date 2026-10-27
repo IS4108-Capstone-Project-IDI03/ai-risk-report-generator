@@ -13,10 +13,24 @@ export function ChatThreadList({ searching = false }: { searching?: boolean }) {
   useEffect(() => {
     load()
   }, [load])
-  if (failed) return <p className="chat-thread-note">Chats could not be loaded. Try again later.</p>
-  if (loading && !threads.length) return <p className="chat-thread-note">Loading chats…</p>
+  if (failed)
+    return (
+      <p className="chat-thread-note" role="alert">
+        Chats could not be loaded. Try again later.
+      </p>
+    )
+  if (loading && !threads.length)
+    return (
+      <p className="chat-thread-note" role="status">
+        Loading chats…
+      </p>
+    )
   if (!threads.length)
-    return <p className="chat-thread-note">{searching ? 'No chats match.' : 'No chats yet.'}</p>
+    return (
+      <p className="chat-thread-note" role="status">
+        {searching ? 'No chats match.' : 'No chats yet.'}
+      </p>
+    )
   return (
     <nav aria-label="Chats" className="chat-thread-list">
       {threads.map((t) => (

@@ -22,6 +22,8 @@ export function ChatThreadRow({ id, title }: Props) {
         type="button"
         className="chat-thread-title"
         aria-current={selected ? 'true' : undefined}
+        // A long name is cut short with an ellipsis; this shows it in full on hover.
+        title={title}
         onClick={() => select(id)}
       >
         {title}
