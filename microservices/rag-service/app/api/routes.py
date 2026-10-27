@@ -9,7 +9,13 @@ from app.chat.passages import get_passage
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.generation.proposals import propose_figures
-from app.orchestrator.orchestrator import draft, draft_ofis_for, draft_summary_for, run
+from app.orchestrator.orchestrator import (
+    draft,
+    draft_checklist_for,
+    draft_ofis_for,
+    draft_summary_for,
+    run,
+)
 from app.retrieval.retriever import retrieve
 
 router = APIRouter()
@@ -212,6 +218,32 @@ def draft_summary(request: DraftSummaryRequest) -> dict:
     """Draft Section 2's Executive Summary (GN-07) from the sections the gateway sends."""
     try:
         return draft_summary_for(request.assessment, request.sections, privacy=_privacy(request))
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+# One knowledge-base standard the engineer kept in scope for a checklist (CP-30 AC1-2).
+class ScopeStandard(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    source_type: str
+    standard_number: str | None = None
+
+
+# Only the facility type and country: a checklist is about the kind of site, so no client
+# detail is sent and nothing needs masking.
+class DraftChecklistRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    facility_type: str
+    jurisdiction: str
+    standards: list[ScopeStandard] = []
+
+
+@router.post("/checklist/draft")
+def draft_checklist(request: DraftChecklistRequest) -> dict:
+    """Generate a pre-survey checklist (CP-30) for the gateway to save."""
+    try:
+        return draft_checklist_for(request.facility_type, request.jurisdiction, request.standards)
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 
