@@ -348,6 +348,12 @@ describe('PDF tab', () => {
     expect(screen.queryByText(/couldn't be found/)).not.toBeInTheDocument()
   })
 
+  it('tells pdf.js where its image decoders are, so image-only pages are drawn', async () => {
+    // Without wasmUrl, pdf.js cannot decode JPEG 2000 / JBIG2 page images and draws a blank page.
+    await openPdf()
+    expect(pdf.options).toMatchObject({ wasmUrl: expect.stringMatching(/wasm\/$/) })
+  })
+
   it('keeps the panel when pdf.js crashes', async () => {
     pdf.crash = true
     vi.spyOn(console, 'error').mockImplementation(() => {}) // React logs the caught error
@@ -365,7 +371,7 @@ describe('PDF tab', () => {
     // Before the PDF tab is clicked: the document is already loading behind the Passage tab.
     expect(await screen.findByTestId('pdf-document')).not.toBeVisible()
     // Only the ranges pages need: no fetching pages nobody looks at.
-    expect(pdf.options).toEqual({ disableAutoFetch: true })
+    expect(pdf.options).toMatchObject({ disableAutoFetch: true })
   })
 
   it('loads in place, keeping the toolbar, rather than blanking the viewer', async () => {

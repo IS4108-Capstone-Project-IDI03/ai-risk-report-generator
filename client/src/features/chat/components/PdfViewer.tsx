@@ -46,7 +46,15 @@ const LETTER = 11 / 8.5
 // pdf.js asks for byte ranges only as pages need them (pdfSource.ts fetches them), instead of
 // fetching pages nobody looks at. A module constant, so react-pdf doesn't reload the document
 // on every render.
-const PDF_OPTIONS = { disableAutoFetch: true }
+//
+// wasmUrl: where pdf.js fetches its JPEG 2000 and JBIG2 image decoders and its colour module, by
+// file name. Without it, a page that is one big image (all of NFPA 13 2022) is drawn blank. The
+// dev server serves node_modules; the build copies the folder to /pdfjs-wasm/ (vite.config.ts,
+// pdfjsWasm), which must match the path here.
+const PDF_OPTIONS = {
+  disableAutoFetch: true,
+  wasmUrl: import.meta.env.DEV ? '/node_modules/pdfjs-dist/wasm/' : '/pdfjs-wasm/',
+}
 
 /** Returns the passage's pages: those its boxes sit on plus its page range, else page 1. */
 // Both, because a picture passage's boxes cover only the figure's page while its text, and so the

@@ -1,6 +1,24 @@
+import { readdirSync, readFileSync } from 'fs'
 import react from '@vitejs/plugin-react'
-import { loadEnv } from 'vite'
+import { loadEnv, type Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
+
+// CB-02: copies pdf.js's WebAssembly decoders into the build at /pdfjs-wasm/, under their own
+// names because pdf.js asks for them by name. Must match wasmUrl in
+// src/features/chat/components/PdfViewer.tsx. Without them an image-only PDF page is drawn blank.
+const pdfjsWasm = (): Plugin => ({
+  name: 'pdfjs-wasm',
+  apply: 'build',
+  generateBundle() {
+    const dir = 'node_modules/pdfjs-dist/wasm'
+    for (const name of readdirSync(dir))
+      this.emitFile({
+        type: 'asset',
+        fileName: `pdfjs-wasm/${name}`,
+        source: readFileSync(`${dir}/${name}`),
+      })
+  },
+})
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -15,7 +33,7 @@ export default defineConfig(({ mode }) => {
   const serverUrl = process.env.SERVER_URL || fileEnv.SERVER_URL || 'http://localhost:4000'
 
   return {
-    plugins: [react()],
+    plugins: [react(), pdfjsWasm()],
     resolve: {
       alias: [
         // CB-02: react-pdf imports pdf.js's modern build, which needs Chrome 145+
