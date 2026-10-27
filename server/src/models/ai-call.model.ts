@@ -15,6 +15,8 @@ export const AI_FEATURES = [
   'ocr',
   'embed-document',
   'chat',
+  // A pre-survey checklist (CP-30): its Claude call and its Cohere searches.
+  'checklist',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

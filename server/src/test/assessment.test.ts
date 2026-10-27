@@ -354,6 +354,25 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
   const edit = (reference: string, changes: Record<string, unknown>, as = api) =>
     as.put(`/api/assessments/${reference}`).send({ ...body(), ...changes })
 
+  it('refuses a facility type off the list, but keeps an older site type unchanged (CP-30)', async () => {
+    // The knowledge base's labels and the checklist's hazards use only the listed types.
+    const refused = await create(body({ site: { ...SITE, facilityType: 'Warehouse' } }))
+    expect(refused.status).toBe(400)
+    expect(refused.body.fields['site.facilityType']).toBe('Choose a facility type from the list.')
+
+    const { reference, site } = (await create(body())).body
+    // A site saved before the check, with a type now off the list.
+    await SiteModel.updateOne({ _id: site.id }, { facilityType: 'Warehouse' })
+    const unchanged = await edit(reference, {
+      site: { ...SITE, facilityType: 'Warehouse' },
+      reportDueDate: '2026-10-30',
+    })
+    expect(unchanged.status).toBe(204)
+    const changed = await edit(reference, { site: { ...SITE, facilityType: 'Depot' } })
+    expect(changed.status).toBe(400)
+    expect(changed.body.fields['site.facilityType']).toBe('Choose a facility type from the list.')
+  })
+
   it('lets the assigned engineer correct the details, keeping the engineer, client and site', async () => {
     const { reference, site } = (await create(body())).body
 
