@@ -442,35 +442,121 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a saved annotation, when the raw photo is opened, then the original image remains unchanged.
   </details>
 
-- [ ] **CP-11** — Generate a pre-survey checklist (risk engineer, Could, 5 pts, deps: RT-01, Sprint 5)
+- [ ] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)
   <details><summary>Goal / AC</summary>
 
-  Goal: generate an inspection checklist for the selected facility context, so relevant inspection points are prepared before a visit.
+  Goal: have a checklist generated for my site's facility type, built from Marsh's report template and the knowledge base's standards, so I know what to inspect before I arrive, including the risks specific to that kind of facility.
 
-  1. Given a facility type with selected applicable standards, when a checklist is requested, then the generated checklist uses that facility scope.
-  2. Given a generated checklist, when its inspection items are reviewed, then each standards-derived item cites its source requirement.
-  3. Given a configured mandatory hazard for the selected facility, when the checklist is generated, then an inspection item covers that hazard.
+  Replaces CP-11, and lists the applicable standards itself, so it does not wait for RT-01. Built on `feat/xuren-cp-30-generate-checklist`.
+
+  Scope
+
+  1. Given an assessment's site has a facility type and country, when I open its checklist, then the standards that apply to them are listed and selected, and withdrawn standards and those needing review are left out.
+  2. Given I deselect a standard, when the checklist is generated, then no item cites it.
+
+  Generation
+
+  3. Given a facility type, when the checklist is generated, then each of its priority risks has at least one item.
+  4. Given any facility type, when the checklist is generated, then it has one item for each subsection of Sections 6–12 of Marsh's report template.
+
+  Citations
+
+  5. Given an AI item, when I open its citation, then I see the standard, page, quoted words and full passage. If the quote is not in the passage, it is marked as unverified.
+  6. Given a priority risk, when the checklist is generated, then its items come from the risk's own standards if selected, or else from any selected standard. If none covers it, a general check says which standard to select or add.
+
+  Saving
+
+  7. Given a checklist has been generated, when I reopen the assessment, then the same checklist is shown without generating it again. Each generation is saved as a new version, and the latest is shown.
+
+  Layout
+
+  8. Given a checklist is shown, when I view it, then the facility type's priority risks come first, then the report sections, showing by default only the sections the selected standards add requirements to with a toggle to view all sections.
+
+  Keeping Up to Date
+
+  9. Given the site's facility type or country has changed since the checklist was generated, when I open it, then I am told it is out of date and to regenerate it.
   </details>
 
-- [ ] **CP-12** — Customise a pre-survey checklist (risk engineer, Could, 2 pts, deps: CP-11, Sprint 5)
+- [ ] **CP-31** — Verify checklist items on site (risk engineer, Could, 5 pts, deps: CP-30, CP-08, CP-16, Sprint 4)
   <details><summary>Goal / AC</summary>
 
-  Goal: customise the generated checklist, so the site visit checklist reflects the planned inspection.
+  Goal: confirm or correct each checklist item as I walk the site, with my answer saved as an observation, so the checklist guides what I observe, and my findings reach the report without my capturing each one from scratch.
 
-  1. Given a generated checklist, when the engineer adds, edits or removes an item, then the saved checklist reflects that change.
-  2. Given an existing checklist item, when its standard reference is changed, then the saved item uses that reference.
-  3. Given a saved customised checklist, when the engineer opens it before or during the survey, then the customised content is available.
-  4. Given a saved customised checklist, when a field-use copy is downloaded, then every saved inspection item is included.
-  5. Given a downloaded checklist, when it is opened without external lookups, then the saved standard references are available.
+  Using the checklist on site
+
+  1. Given a capture session is active, when I open the checklist from the capture screen, then its items are grouped by report area with unchecked items first, and it can be used at phone width.
+
+  Checking items
+
+  2. Given an item, when I choose Confirm, then an observation is saved at my current location with the item's COPE category and its value as observed, linked to the item, and the item shows Confirmed.
+  3. Given an item, when I choose Differs, then capture opens with the item's category and location filled in, and the saved observation records what I observed.
+  4. Given an item, when I mark it Not seen or Not applicable, then the mark is saved and no observation is created.
+  5. Given a checked item's observation is deleted, when I view the checklist, then the item is unchecked again.
+
+  Progress
+
+  6. Given some items are checked, when I view the checklist, then each area shows how many items are checked and how many remain.
+  7. Given a report section does not yet have enough observations to be drafted, when I view progress, then the section is shown with how many more observations it needs.
+
+  Permissions
+
+  8. Given I am not the assigned engineer, or the assessment is archived, when I check an item, then it is refused.
   </details>
 
-- [ ] **CP-13** — Recommend checklist items (risk engineer, Could, 2 pts, deps: CP-12, RT-02, Sprint 5)
+- [ ] **CP-32** — Customise the checklist (risk engineer, Could, 3 pts, deps: CP-30 (CP-31 for the download), Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: recommend relevant inspection items based on past/similar inspections, so the checklist surfaces known risks to verify.
+  Goal: customise the generated checklist, so my site visit checklist reflects the planned inspection. Replaces CP-12.
 
-  1. Given a selected facility context, when checklist recommendations are generated, then the system retrieves relevant historical inspection information for similar facilities.
-  2. Given a recommended item, when the engineer reviews the checklist, then the engineer can accept, edit or remove the recommendation.
+  1. Given a generated checklist, when I add, edit or remove an item, then the saved checklist reflects that change.
+  2. Given an existing item, when I change its standard reference by choosing a passage from the standards in scope, then the saved item uses that reference.
+  3. Given I have customised a checklist, when I generate it again, then items I added or edited are kept and items I removed stay removed.
+  4. Given a saved checklist, when I download a field-use copy, then every saved item is included with whether it has been checked.
+  5. Given a downloaded copy, when it is opened without a network connection, then each saved reference's title, edition, page and quoted words are in it.
+  6. Given I am not the assigned engineer, or the assessment is archived, when I change the checklist, then it is refused.
+  </details>
+
+- [ ] **CP-33** — Recommend checklist items (risk engineer, Could, 3 pts, deps: CP-30, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: have the system recommend inspection items based on past inspections of similar facilities, so my checklist includes known risks to verify. Replaces CP-13.
+
+  1. Given a facility type, when recommendations are generated, then they are drawn from findings and Opportunities for Improvement in past Marsh reports for the same facility type.
+  2. Given a recommendation, when I view it, then the past report passage it came from is shown with its page.
+  3. Given a recommendation, when I view it, then no client, site or person name from the past report appears in it.
+  4. Given recommendations have been generated, when I view the checklist, then they are kept apart from it until I accept them, and I can accept, edit or remove each one.
+  5. Given the checklist already has an item covering a recommendation, when recommendations are generated, then that recommendation is not proposed.
+  6. Given no past report matches the facility type, when recommendations are generated, then I am told none were found.
+  7. Given protection is on, when recommendations are generated, then past-report passages are masked before any external AI call.
+  </details>
+
+- [ ] **CP-34** — Pre-fill the checklist (risk engineer, Could, 5 pts, deps: CP-30, CP-40, CP-17, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: have checklist items filled in with what the client's documents and our earlier visits say, so on site I verify known details instead of recording everything from scratch.
+
+  Pre-filling
+
+  1. Given a client document states a detail an item asks about (e.g. roof construction), when the checklist is pre-filled, then the item shows that value with the document, page and issue date.
+  2. Given an earlier assessment of the same site has an observation on an item, when the checklist is pre-filled, then the item shows it with that assessment's reference and visit date.
+  3. Given no source states an item's detail, when the checklist is pre-filled, then the item shows that nothing was known before the visit.
+
+  Not trusted as fact
+
+  4. Given an item has a pre-filled value, when I view it, then it is labelled as reported and to be verified on site.
+  5. Given two sources state different values (e.g. a 2012 site map shows a concrete wall and a 2024 survey a timber one), when I view the item, then both values are shown with their sources.
+  6. Given a pre-filled value has not been verified on site, when a section is drafted, then it is not used.
+  7. Given I choose Differs on a pre-filled item (CP-31), when the observation is saved, then it records both what I observed and what the source said.
+
+  Keeping current
+
+  8. Given a client document is uploaded or deleted after pre-filling, when I view the checklist, then it is marked out of date. I can pre-fill it again without losing items I have already verified.
+  9. Given a checklist is pre-filled, when I download a field-use copy (CP-32), then each item's pre-filled value and its source are included.
+
+  Privacy and evaluation
+
+  10. Given protection is on, when the checklist is pre-filled, then client details are masked before any external AI call.
+  11. Given a test set of client documents with known details, when pre-filling is evaluated on it, then the share of values filled in correctly meets the agreed threshold, and no value is shown without its source.
   </details>
 
 - [ ] **CP-14** — Complete a site assessment (risk engineer, Must, 1 pt, deps: CP-08, Sprint 2)
@@ -663,6 +749,109 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: suggesting severity, location or the standard (CP-07's area); describing an observation without photos; applying categories without the engineer saving them.
   </details>
 
+- [ ] **CP-40** — Upload client documents for a site (risk engineer, Could, 8 pts, deps: CP-17, IN-01, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: upload documents the client sends me, such as site maps, floor plans, maintenance schedules and certificates, against their site, so what the client has told us stays with the site and can be checked on every visit.
+
+  Uploading
+
+  1. Given an assessment I am assigned to, when I upload a PDF, Word (.docx), Excel (.xlsx), JPG or PNG file with its document type (e.g. site map, floor plan, maintenance schedule, fire certificate, previous survey, other) and issue date, then it is saved against the assessment's site.
+  2. Given I am creating an assessment, when I attach supporting documents on the form and save, then they are uploaded against the new assessment's site and processing starts.
+  3. Given a file of another format, or one that cannot be opened, when I upload it, then it is refused with the reason.
+  4. Given a document is being processed, when I view it, then its stage is shown. If processing fails, the reason is shown and I can retry.
+
+  Viewing
+
+  5. Given a site has client documents, when I open any assessment of that site, then they are listed with their type and issue date, and I can open the original.
+  6. Given a document's issue date is more than 10 years ago, when it is listed, then it is marked as possibly out of date.
+
+  Keeping them private
+
+  7. Given a client document belongs to one site, when drafting, the chat or a checklist runs for another site, then none of its passages are used, and it is not listed in the knowledge base.
+  8. Given protection is on, when a client document is read, labelled or indexed, then client details are masked before any external AI call. If masking is unavailable, the document fails with a reason.
+
+  Removing
+
+  9. Given I uploaded a document by mistake, when I delete it and confirm, then it is removed from storage and from search.
+  10. Given I am not the assigned engineer of an assessment at the site, when I try to upload or delete a document, then it is refused.
+  </details>
+
+- [ ] **CP-41** — Flag missing client documents (risk engineer, Could, 3 pts, deps: CP-40, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: have a prep list of the documents a site of this facility type should have, showing which ones the client hasn't sent, so I can ask the client for them before the survey instead of finding gaps on site.
+
+  1. Given expected documents are configured for the facility type (e.g. for a warehouse: site plan, floor plans, fire certificate, sprinkler design, pump test records, maintenance schedule, hazardous materials inventory), when I open the prep list, then each one is listed as Received or Missing.
+  2. Given a client document of an expected type has been uploaded for the site, when I view the prep list, then that item shows Received with the document and its issue date.
+  3. Given an item is Missing, when I mark it Requested or Not available, then the mark and its date are saved and shown.
+  4. Given an item is Requested, when a document of its type is uploaded, then it shows Received.
+  5. Given items are Missing, when I copy the request list, then I get a list of the missing documents ready to paste into an email to the client.
+  6. Given one assessment is a warehouse and another an office, when I open both prep lists, then each lists its own facility type's documents.
+  7. Given an assessment has Missing documents, when I view its overview, then the number missing is shown.
+  </details>
+
+- [ ] **CP-42** — Use client documents in report drafting (risk engineer, Could, 5 pts, deps: CP-40, GN-01, GN-05, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: have report drafts draw on the documents the client provided, such as site maps and maintenance schedules, alongside my observations and the standards, so details the client has documented reach the report without my retyping them, while staying clearly separate from what I observed.
+
+  Using the documents
+
+  1. Given the site has processed client documents, when a report section (Sections 6–12) or the Opportunities for Improvement are drafted, then passages from those documents relevant to the section are given to the draft alongside the observations and standards.
+  2. Given a statement draws on a client document, when I open its citation, then the passage is shown with the document's name, type, page and issue date.
+
+  Reported, not observed
+
+  3. Given a statement rests only on a client document, when it is shown, then it is worded as reported by the client (e.g. "The 2011 site plan shows…"), not as observed, and the review workspace labels it as client-provided.
+  4. Given a client document and an observation disagree, when the section is drafted, then the draft follows the observation and raises the disagreement as a question to the engineer.
+
+  Ingested first
+
+  5. Given a client document for the site is still processing, when I request a draft, then it is refused and the document is named. A document whose processing failed is left out, and I am told so.
+
+  Keeping current
+
+  6. Given a section was drafted using a client document, when that document is deleted or a new one is uploaded, then the draft shows as out of date and keeps the passages it used.
+
+  Privacy and validation
+
+  7. Given protection is on, when a section is drafted, then client document passages are masked before Cohere and the model.
+  8. Given a draft cites a client document, when report validation runs, then the citation passes only if it resolves to a passage of a document for that site.
+  </details>
+
+- [ ] **CP-43** — Review discrepancies (risk engineer, Could, 5 pts, deps: CP-40, CP-31, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see where my site findings differ from the site map, maintenance schedule and other documents the client submitted, so I can reconcile missing, outdated or contradictory information before it reaches the report.
+
+  Finding discrepancies
+
+  1. Given an observation records something no client document mentions (e.g. a mezzanine not on the floor plan), when discrepancies are checked, then it is listed as Missing from the documents.
+  2. Given a checklist item was marked Differs (CP-31), when I open discrepancies, then it is listed as Contradictory with what was observed and what the source said.
+  3. Given a client document and an observation disagree on a detail outside the checklist (e.g. the maintenance schedule says the sprinklers were serviced in 2023, an observation records a 2021 service tag), when discrepancies are checked, then it is listed as Contradictory.
+  4. Given two client documents state different values for the same detail, when discrepancies are checked, then it is listed as Contradictory.
+  5. Given a newer document or observation replaces what a document says, when discrepancies are checked, then it is listed as Out of date.
+
+  Reviewing
+
+  6. Given a discrepancy is listed, when I open it, then I see its type, the detail, both sides with their sources (document and page, observation and location), and links to each.
+  7. Given an open discrepancy, when I resolve it as Observation correct, Document correct, Ask client or Dismissed with a reason, then the decision is saved with who made it and when, and it moves to Resolved.
+  8. Given I resolve a discrepancy as Ask client, when I copy the request list (CP-41), then it is included.
+  9. Given an assessment has open discrepancies, when I view its overview, then the number open is shown.
+
+  Keeping current
+
+  10. Given a new observation or document is saved, when I view discrepancies, then the list is updated, and a resolved discrepancy whose sources changed is reopened.
+  11. Given a discrepancy has been resolved, when the related section is drafted, then the draft follows the resolution and does not raise it again as a question.
+
+  Privacy, permissions and evaluation
+
+  12. Given protection is on, when discrepancies are checked, then client details are masked before any external AI call.
+  13. Given I am not the assigned engineer, or the assessment is archived, when I resolve a discrepancy, then it is refused.
+  14. Given a test set of documents and observations with known disagreements, when discrepancy checking is evaluated on it, then the share found meets the agreed threshold, and none is listed without both sources.
+  </details>
+
 ## E6 — Report Generation & Guardrails
 
 - [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)
@@ -794,6 +983,18 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   13. Given an OFI rests on observations that have photos, when the OFI is shown, then those photos appear whole in its Observation row, leaving out a deleted observation's. (Added 10 Oct.)
 
   "Complete" means Sections 3-12 each have a saved draft (3: an accepted OFI), so the Executive Summary can't be drafted until Sections 4-6 can. Appendix B (site map) was dropped: Marsh's template has none.
+  </details>
+
+- [ ] **GN-13** — Draft the full report in one go (risk engineer, Could, 3 pts, deps: CP-42, GN-01, GN-03, GN-05, GN-07, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: generate a complete draft report from all my observations and the client's documents in one action, so I review a whole first draft instead of starting each part of the report separately.
+
+  1. Given an assessment has observations, when I choose Draft full report, then Sections 6–12 are drafted in turn, then the Opportunities for Improvement, then the proposed Section 4 and 5 figures, then the Executive Summary last.
+  2. Given a part already has a draft that is not out of date, when I draft the full report, then it is kept, and only parts without a current draft are drafted.
+  3. Given a part fails, when the full report is drafted, then the reason is shown, the other parts continue, and I can retry that part alone.
+  4. Given the full report is being drafted, when I view it, then each part shows whether it is waiting, drafting, drafted, skipped or failed, and I can stop after the current part.
+  5. Given I am not the assigned engineer, or the assessment is archived, when I choose Draft full report, then it is refused.
   </details>
 
 ## E7 — Engineer Review & Editing
