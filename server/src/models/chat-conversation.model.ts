@@ -8,6 +8,8 @@ export interface IChatConversation {
   // Only this user can read it; admins cannot (CB-03 AC7).
   userId: Types.ObjectId
   title: string
+  // The last message of the version on screen (CB-04); the chat shows the path from the root to it.
+  activeLeafId?: Types.ObjectId
   createdAt: Date
   updatedAt: Date
 }
@@ -16,6 +18,7 @@ const chatConversationSchema = new Schema<IChatConversation>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     title: { type: String, required: true, trim: true },
+    activeLeafId: { type: Schema.Types.ObjectId, ref: 'ChatMessage' },
   },
   { timestamps: true },
 )

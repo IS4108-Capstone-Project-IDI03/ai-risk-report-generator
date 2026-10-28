@@ -20,6 +20,7 @@ import {
   ownedConversation,
   listConversations,
   renameConversation,
+  switchVersion,
 } from '../services/chat-conversation.service'
 import {
   getPassage,
@@ -90,10 +91,13 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   // b. Save the question before asking S4, so it is kept even if the answer fails.
   const question = lastQuestion(req.body)
   // A failed save is logged, not fatal: the engineer still gets their answer.
-  if (typeof threadId === 'string' && question)
-    await saveQuestion(threadId, userId, question).catch((error) =>
-      console.error('Could not save the chat question:', error),
-    )
+  const questionId =
+    typeof threadId === 'string' && question
+      ? await saveQuestion(threadId, userId, question).catch((error) => {
+          console.error('Could not save the chat question:', error)
+          return null
+        })
+      : null
   // Without this, S4 keeps writing an answer after the engineer presses stop.
   const upstream = new AbortController()
   res.on('close', () => upstream.abort())
@@ -114,7 +118,7 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   await pipeline(
     Readable.fromWeb(stream as WebReadableStream<Uint8Array>),
     chatUsageTap(userId),
-    ...(typeof threadId === 'string' ? [chatSaveTap(threadId, userId)] : []),
+    ...(typeof threadId === 'string' ? [chatSaveTap(threadId, userId, questionId)] : []),
     res,
   ).catch(() => {})
 })
@@ -134,7 +138,15 @@ chats.post('/', async (req, res) => {
 })
 chats.get('/:id', async (req, res) => {
   try {
-    res.json({ messages: await getMessages(mine(res), req.params.id) })
+    res.json(await getMessages(mine(res), req.params.id))
+  } catch (error) {
+    conversationError(res, error)
+  }
+})
+// Switches the chat to another version (CB-04): `messageId` is one of its messages.
+chats.patch('/:id/active', async (req, res) => {
+  try {
+    res.json(await switchVersion(mine(res), req.params.id, req.body?.messageId))
   } catch (error) {
     conversationError(res, error)
   }

@@ -1076,9 +1076,9 @@ What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become 
 
 Two collections hold each engineer's chats with the knowledge assistant. They are the third exception to the CLAUDE.md metadata rule (after Unconfirmed details and knowledge documents' missing `COPE_dimension`): they have **no `metadata` block**, because a chat is the user's own history, not a knowledge or review record. They carry `userId` instead, and every read and write is scoped to it.
 
-`chat_conversations` (`server/src/models/chat-conversation.model.ts`): `userId`, `title` (the first question trimmed to 60 characters; renamed by the user), `createdAt`, `updatedAt`. Index `{ userId, updatedAt: -1 }` for the newest-first list.
+`chat_conversations` (`server/src/models/chat-conversation.model.ts`): `userId`, `title` (the first question trimmed to 60 characters; renamed by the user), `activeLeafId` (CB-04: the last message of the version on screen; the chat shows the path from the first question to it), `createdAt`, `updatedAt`. Index `{ userId, updatedAt: -1 }` for the newest-first list.
 
-`chat_messages` (`server/src/models/chat-message.model.ts`): `conversationId`, `userId`, `parentId` (the message before it, so CB-04 can add a retry as a sibling without a migration), `clientId` (the id the browser gave it), `role` (`user` or `assistant`), `content` (for an answer, the answer program text S4 streamed), `status` (`complete`, or `stopped` when the answer was cut off), `createdAt`.
+`chat_messages` (`server/src/models/chat-message.model.ts`): `conversationId`, `userId`, `parentId` (the message it follows; a retry or an edited question (CB-04) is a sibling with the same `parentId`; an answer's `clientId` is the id S4 streamed it under), `clientId` (the id the browser gave it), `role` (`user` or `assistant`), `content` (for an answer, the answer program text S4 streamed), `status` (`complete`, or `stopped` when the answer was cut off), `createdAt`.
 
 - Only the owner can read a chat. An admin cannot, and another user's chat answers 404, the same as a chat that does not exist.
 - Deleting a chat is permanent and deletes its messages.
