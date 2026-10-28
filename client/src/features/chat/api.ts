@@ -66,9 +66,10 @@ export const chatStorage: ChatStorage = {
 export type Versions = Record<string, { ids: string[]; index: number }>
 type View = { messages: Message[]; versions: Versions }
 
-/** Returns the versions on screen for a saved chat. */
-export async function fetchVersions(threadId: string): Promise<Versions> {
-  return (await request<View>('GET', `${CHATS}/${threadId}`)).data.versions ?? {}
+/** Returns the saved chat's messages on screen and their versions. */
+export async function fetchView(threadId: string): Promise<View> {
+  const { messages, versions } = (await request<View>('GET', `${CHATS}/${threadId}`)).data
+  return { messages, versions: versions ?? {} }
 }
 
 /** Switches a saved chat to the version holding `messageId`; returns the new messages and versions. */

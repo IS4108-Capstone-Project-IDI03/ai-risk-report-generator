@@ -1,5 +1,10 @@
 // Tests for retry, edit and the version switcher (CB-04). fetch is stubbed; no gateway runs.
-import { ChatProvider, useThreadList, type ChatStorage } from '@openuidev/react-headless'
+import {
+  ChatProvider,
+  useThreadList,
+  type ChatStorage,
+  type UserMessage as UserMsg,
+} from '@openuidev/react-headless'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { useEffect, useState } from 'react'
@@ -7,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { chatLLM } from './api'
 import { AnswerBar } from './components/AnswerBar'
 import { UserMessage } from './components/UserMessage'
-import { VersionsContext } from './useVersions'
+import { VersionsContext, versionsOnScreen } from './useVersions'
 
 // fetchLLM binds globalThis.fetch once, when api.ts loads, so the mock must be in place before
 // that import (vi.hoisted runs first). Without this, chatLLM would call the real fetch.
@@ -23,7 +28,11 @@ const versions = { a2: { ids: ['a1', 'a2'], index: 1 }, q1: { ids: ['q1', 'q0'],
 
 // Opens chat c1 (messages = `path`) with the CB-04 controls, and records every request made.
 function setup() {
-  const requests: { method: string; url: string; body: any }[] = []
+  const requests: {
+    method: string
+    url: string
+    body: { threadId?: string; messages: { content: string }[] } | undefined
+  }[] = []
   fetchMock.mockImplementation((url: string, init?: RequestInit) => {
     const body = init?.body ? JSON.parse(String(init.body)) : undefined
     requests.push({ method: init?.method ?? 'GET', url, body })
@@ -52,7 +61,7 @@ function setup() {
     return (
       <VersionsContext.Provider value={{ versions: v, setVersions: setV }}>
         <Open />
-        <UserMessage message={path[0]} />
+        <UserMessage message={path[0] as UserMsg} />
         <AnswerBar />
       </VersionsContext.Provider>
     )
@@ -84,9 +93,9 @@ describe('retry, edit and versions (CB-04)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(requests.some((r) => r.url === '/api/chat')).toBe(true))
     const sent = requests.find((r) => r.url === '/api/chat')!.body
-    expect(sent.threadId).toBe('c1')
+    expect(sent?.threadId).toBe('c1')
     // Only the question: the answer being retried is not sent (AC4).
-    expect(sent.messages.map((m: { content: string }) => m.content)).toEqual(['Spacing?'])
+    expect(sent?.messages.map((m: { content: string }) => m.content)).toEqual(['Spacing?'])
   })
 
   it('an edited question is sent in place of the old one, with the same earlier messages (AC2)', async () => {
@@ -99,7 +108,26 @@ describe('retry, edit and versions (CB-04)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(requests.some((r) => r.url === '/api/chat')).toBe(true))
     const sent = requests.find((r) => r.url === '/api/chat')!.body
-    expect(sent.threadId).toBe('c1')
-    expect(sent.messages.map((m: { content: string }) => m.content)).toEqual(['Spacing for EH2?'])
+    expect(sent?.threadId).toBe('c1')
+    expect(sent?.messages.map((m: { content: string }) => m.content)).toEqual(['Spacing for EH2?'])
+  })
+})
+
+describe('versions on screen (CB-04)', () => {
+  it('matches streamed messages to saved ones by order, skipping tool messages', () => {
+    const shown = [
+      { id: 'u-live', role: 'user', content: 'Q' },
+      { id: 'tool-call', role: 'assistant', content: '' },
+      { id: 'tool', role: 'tool', content: '{}', toolCallId: 't' },
+      { id: 'a-live', role: 'assistant', content: 'A' },
+    ] as never[]
+    const saved = [
+      { id: 'u-saved', role: 'user', content: 'Q' },
+      { id: 'a-saved', role: 'assistant', content: 'A' },
+    ] as never[]
+    const versions = { 'a-saved': { ids: ['a0', 'a-saved'], index: 1 } }
+    expect(versionsOnScreen(shown, saved, versions)).toEqual({
+      'a-live': { ids: ['a0', 'a-saved'], index: 1 },
+    })
   })
 })
