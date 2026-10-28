@@ -142,6 +142,22 @@ def test_passages_reach_the_model_as_labelled_data_not_ids(fake):
     assert "[P1]" in last and P1["text"] in last and "fm:4" not in last
 
 
+def test_engineer_context_reaches_the_model_and_is_not_evidence(fake):
+    # CB-05: a remembered fact arrives as an "Engineer context:" line before the passages, and
+    # the rules tell the model it steers the answer but is never cited.
+    list(
+        answer.answer_events(
+            [{"role": "user", "content": "What clearance is needed above storage?"}],
+            ["I mostly survey Singapore offices"],
+            [],
+        )
+    )
+    system, messages = fake["calls"]["answer"][0]
+    assert "Engineer context: I mostly survey Singapore offices" in messages[-1]["content"]
+    # The rules wrap lines, so compare on single spaces.
+    assert "never cite them" in " ".join(system.split())
+
+
 def test_declines_without_citations_when_nothing_is_relevant(fake):
     fake["passages"] = [P1 | {"relevance_score": 0.01}]
     events = _ask("What does the knowledge base say about earthquakes?")
