@@ -960,3 +960,67 @@
 .knowledge-assistant .openui-agent-container--mobile .chat-thread-note {
   padding-left: 10px;
 }
+
+/* CB-04: edit, "Try again" and the ‹ 2/3 › switcher. Small text buttons under a message. */
+.message-actions,
+.answer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #5b6573);
+}
+.message-actions {
+  justify-content: flex-end;
+}
+.message-actions button,
+.answer-bar button,
+.question-edit button,
+.version-switcher button {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.message-actions button:hover:not(:disabled),
+.answer-bar button:hover:not(:disabled),
+.version-switcher button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+.message-actions button:disabled,
+.version-switcher button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.message-actions button:focus-visible,
+.answer-bar button:focus-visible,
+.question-edit button:focus-visible,
+.version-switcher button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.version-switcher {
+  display: inline-flex;
+  align-items: center;
+}
+.question-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.question-edit textarea {
+  width: 100%;
+  font: inherit;
+  resize: vertical;
+}
+.question-edit button {
+  align-self: flex-end;
+}
+.answer-bar {
+  padding: 4px 16px;
+}

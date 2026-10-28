@@ -61,3 +61,17 @@ export const chatStorage: ChatStorage = {
     },
   },
 }
+
+/** For a message with siblings (retries, edited questions): all their ids and which one is shown (CB-04). */
+export type Versions = Record<string, { ids: string[]; index: number }>
+type View = { messages: Message[]; versions: Versions }
+
+/** Returns the versions on screen for a saved chat. */
+export async function fetchVersions(threadId: string): Promise<Versions> {
+  return (await request<View>('GET', `${CHATS}/${threadId}`)).data.versions ?? {}
+}
+
+/** Switches a saved chat to the version holding `messageId`; returns the new messages and versions. */
+export async function switchVersion(threadId: string, messageId: string): Promise<View> {
+  return (await request<View>('PATCH', `${CHATS}/${threadId}/active`, { messageId })).data
+}
