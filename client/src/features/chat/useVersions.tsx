@@ -13,30 +13,27 @@ export const VersionsContext = createContext<{
 }>({ versions: {}, setVersions: () => {} })
 
 /**
- * Re-keys the gateway's versions (by saved message id) to the ids on screen. A streamed answer
- * has an id OpenUI made up, and the chat also holds the search step's tool messages, so ids and
- * counts differ; the Nth question and the Nth answer with text are the same message in both.
+ * Maps each message on screen to the id the gateway saved it under. A streamed answer has an id
+ * OpenUI made up, and the chat also holds the search step's tool messages, so ids and counts
+ * differ; the Nth question and the Nth answer with text are the same message in both. Returns
+ * null when the counts differ (something was not saved), so nothing is paired wrongly.
  */
-export function versionsOnScreen(shown: Message[], saved: Message[], versions: Versions) {
-  const text = (m: Message) =>
-    (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && !!m.content
-  const pair = (role: string) => [
-    shown.filter((m) => m.role === role && text(m)),
-    saved.filter((m) => m.role === role),
-  ]
-  const out: Versions = {}
+export function savedIds(shown: Message[], saved: Message[]) {
+  const text = (m: Message) => typeof m.content === 'string' && !!m.content
+  const ids = new Map<string, string>()
   for (const role of ['user', 'assistant']) {
-    const [on, was] = pair(role)
-    on.forEach((m, i) => {
-      if (was[i] && versions[was[i].id]) out[m.id] = versions[was[i].id]
-    })
+    const on = shown.filter((m) => m.role === role && text(m))
+    const was = saved.filter((m) => m.role === role)
+    if (on.length !== was.length) return null
+    on.forEach((m, i) => ids.set(m.id, was[i].id))
   }
-  return out
+  return ids
 }
 
 /** Loads the versions whenever an answer finishes or another chat opens. Renders nothing. */
 export function useLoadVersions() {
   const { setVersions } = useContext(VersionsContext)
+  const setMessages = useThread((s) => s.setMessages)
   const threadId = useThreadList((s) => s.selectedThreadId)
   const running = useThread((s) => s.isRunning)
   const shown = useThread((s) => s.messages)
@@ -51,13 +48,19 @@ export function useLoadVersions() {
     let stale = false
     fetchView(threadId)
       .then((view) => {
-        if (!stale) setVersions(versionsOnScreen(latest.current, view.messages, view.versions))
+        if (stale) return
+        // Messages on screen take the saved ids, so a retry, edit or switch names the right message.
+        const ids = savedIds(latest.current, view.messages)
+        const renamed = ids && latest.current.map((m) => ({ ...m, id: ids.get(m.id) ?? m.id }))
+        if (renamed && renamed.some((m, i) => m.id !== latest.current[i].id)) setMessages(renamed)
+        setVersions(ids ? view.versions : {})
       })
-      .catch(() => !stale && setVersions({}))
+      // A failed load keeps the switchers already shown; the next answer loads them again.
+      .catch(() => {})
     return () => {
       stale = true
     }
-  }, [threadId, running, count, setVersions])
+  }, [threadId, running, count, setVersions, setMessages])
 }
 
 /** Returns the versions on screen and the actions that change them. */

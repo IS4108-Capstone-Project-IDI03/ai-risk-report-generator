@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { chatLLM } from './api'
 import { AnswerBar } from './components/AnswerBar'
 import { UserMessage } from './components/UserMessage'
-import { VersionsContext, versionsOnScreen } from './useVersions'
+import { VersionsContext, savedIds } from './useVersions'
 
 // fetchLLM binds globalThis.fetch once, when api.ts loads, so the mock must be in place before
 // that import (vi.hoisted runs first). Without this, chatLLM would call the real fetch.
@@ -113,7 +113,7 @@ describe('retry, edit and versions (CB-04)', () => {
   })
 })
 
-describe('versions on screen (CB-04)', () => {
+describe('saved ids (CB-04)', () => {
   it('matches streamed messages to saved ones by order, skipping tool messages', () => {
     const shown = [
       { id: 'u-live', role: 'user', content: 'Q' },
@@ -125,9 +125,16 @@ describe('versions on screen (CB-04)', () => {
       { id: 'u-saved', role: 'user', content: 'Q' },
       { id: 'a-saved', role: 'assistant', content: 'A' },
     ] as never[]
-    const versions = { 'a-saved': { ids: ['a0', 'a-saved'], index: 1 } }
-    expect(versionsOnScreen(shown, saved, versions)).toEqual({
-      'a-live': { ids: ['a0', 'a-saved'], index: 1 },
-    })
+    expect(savedIds(shown, saved)).toEqual(
+      new Map([
+        ['u-live', 'u-saved'],
+        ['a-live', 'a-saved'],
+      ]),
+    )
+  })
+
+  it('pairs nothing when a message was not saved', () => {
+    const shown = [{ id: 'u', role: 'user', content: 'Q' }] as never[]
+    expect(savedIds(shown, [])).toBeNull()
   })
 })

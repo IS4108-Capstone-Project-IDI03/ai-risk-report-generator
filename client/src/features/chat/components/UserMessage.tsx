@@ -30,7 +30,7 @@ export function UserMessage({ message }: { message: Message }) {
               rows={3}
               onChange={(e) => setDraft(e.target.value)}
             />
-            <button type="button" onClick={send} disabled={!draft.trim()}>
+            <button type="button" onClick={send} disabled={!draft.trim() || running}>
               Send
             </button>
             <button type="button" onClick={() => setDraft(null)}>
