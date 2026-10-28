@@ -19,7 +19,11 @@ export function lastQuestion(body: unknown) {
   const list = Array.isArray(messages) ? messages : []
   const at = list.map((m) => m?.role).lastIndexOf('user')
   const last = list[at]
-  const before = at > 0 ? list[at - 1]?.id : undefined
+  // The message before it that the chat saves: tool messages and empty search-step messages are not.
+  const before = list
+    .slice(0, Math.max(at, 0))
+    .reverse()
+    .find((m) => (m?.role === 'user' || m?.role === 'assistant') && !!m.content)?.id
   return last && typeof last.content === 'string'
     ? {
         id: typeof last.id === 'string' ? last.id : undefined,

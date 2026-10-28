@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { signedInAsRole } from './auth-test-helpers'
+import { resetChatLimits } from '../services/chat-limits.service'
 import { useMemoryMongo } from './memory-mongo'
 
 useMemoryMongo()
@@ -15,6 +16,8 @@ const answer = (id: string, text: string) =>
   sse({ type: 'TEXT_MESSAGE_CONTENT', messageId: id, delta: text }) +
   sse({ type: 'TEXT_MESSAGE_END', messageId: id })
 
+// The daily question limit (CB-01) is per user and counts across tests; start each test fresh.
+beforeEach(resetChatLimits)
 afterEach(() => vi.unstubAllGlobals())
 
 const CHATS = '/api/chat/conversations'
@@ -101,5 +104,22 @@ describe('retrying and editing (CB-04)', () => {
     await send(other, [user('q9', 'Q9')], 'z1', 'other answer')
     expect((await jide.patch(`${CHATS}/${id}/active`).send({ messageId: 'a1' })).status).toBe(404)
     expect((await alex.patch(`${CHATS}/${id}/active`).send({ messageId: 'z1' })).status).toBe(404)
+  })
+
+  it("finds the parent past the search step's tool messages (AC4)", async () => {
+    const id = await newChat()
+    await send(id, [user('q1', 'Q1')], 'a1', 'answer 1')
+    // On screen, the search step leaves an empty assistant message and a tool message before the answer.
+    const onScreen = [
+      user('q1', 'Q1'),
+      { id: 'step', role: 'assistant', content: '' },
+      { id: 'tool', role: 'tool', content: '{}' },
+      bot('a1', 'answer 1'),
+      user('q2', 'Q2'),
+    ]
+    await send(id, onScreen, 'a2', 'answer 2')
+    const body = await view(id)
+    expect(texts(body)).toEqual(['Q1', 'answer 1', 'Q2', 'answer 2'])
+    expect(body.versions).toEqual({})
   })
 })
