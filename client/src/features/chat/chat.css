@@ -973,6 +973,21 @@
 .message-actions {
   justify-content: flex-end;
 }
+/* The question's buttons go under its bubble, not beside it (beside it they squeezed the bubble). */
+.openui-agent-thread-message-user.has-actions {
+  flex-direction: column;
+  align-items: flex-end;
+}
+/* "Try again" sits between the messages and the composer in OpenUI's chat column. */
+.knowledge-assistant .openui-agent-thread-scroll-container {
+  order: 1;
+}
+.knowledge-assistant .answer-bar {
+  order: 2;
+}
+.knowledge-assistant .openui-agent-composer-slot {
+  order: 3;
+}
 .message-actions button,
 .answer-bar button,
 .question-edit button,
@@ -1022,5 +1037,10 @@
   align-self: flex-end;
 }
 .answer-bar {
-  padding: 4px 16px;
+  padding: 6px 16px;
+  justify-content: flex-start;
+}
+.answer-bar > button {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  padding: 0 12px;
 }

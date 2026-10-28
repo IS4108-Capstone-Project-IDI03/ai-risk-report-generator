@@ -17,7 +17,7 @@ export function UserMessage({ message }: { message: Message }) {
     if (edited) void resend(message.id, edited)
   }
   return (
-    <div className="openui-agent-thread-message-user">
+    <div className="openui-agent-thread-message-user has-actions">
       <div className="openui-agent-thread-message-user__content">
         {draft === null ? (
           text
