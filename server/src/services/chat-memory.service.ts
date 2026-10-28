@@ -1,0 +1,105 @@
+// "My preferences" for the knowledge assistant (CB-05): the engineer's own lasting facts and
+// the on/off switch. Every function takes the signed-in user's id and only touches that user's
+// facts, so another user's fact looks like it does not exist.
+// Called by routes/chat.routes.ts. Calls the memory model and the user model.
+import { Types } from 'mongoose'
+import { ChatMemoryFactModel } from '../models/chat-memory-fact.model'
+import { UserModel } from '../models/user.model'
+
+export const MAX_FACT_CHARS = 200
+export const MAX_FACTS = 20
+
+/** Thrown when a fact is missing or not the user's; the route answers 404 for both. */
+export class FactNotFound extends Error {}
+/** Thrown when a fact is empty, not text or over 200 characters; the route answers 400. */
+export class InvalidFact extends Error {}
+/** Thrown when the user already has 20 facts; the route answers 409. */
+export class FactLimitReached extends Error {}
+
+const toFact = (f: { _id: Types.ObjectId; text: string; createdAt: Date }) => ({
+  id: String(f._id),
+  text: f.text,
+  createdAt: f.createdAt.toISOString(),
+})
+
+// Returns the cleaned text, or throws InvalidFact.
+function cleanText(text: unknown) {
+  const clean = typeof text === 'string' ? text.trim() : ''
+  if (!clean || clean.length > MAX_FACT_CHARS) throw new InvalidFact()
+  return clean
+}
+
+/** Returns whether memory is on for the user (it is by default). */
+async function isEnabled(userId: string) {
+  const user = await UserModel.findById(userId).select('chatMemoryEnabled')
+  return user?.chatMemoryEnabled !== false
+}
+
+/** Returns the user's switch, their facts oldest first, and the limits the form shows. */
+export async function getMemory(userId: string) {
+  const facts = await ChatMemoryFactModel.find({ userId }).sort({ createdAt: 1 })
+  return {
+    enabled: await isEnabled(userId),
+    facts: facts.map(toFact),
+    maxFacts: MAX_FACTS,
+    maxChars: MAX_FACT_CHARS,
+  }
+}
+
+/** Adds a fact and returns it. Throws InvalidFact, or FactLimitReached at 20 facts. */
+export async function addFact(userId: string, text: unknown) {
+  const clean = cleanText(text)
+  if ((await ChatMemoryFactModel.countDocuments({ userId })) >= MAX_FACTS) {
+    throw new FactLimitReached()
+  }
+  return toFact(await ChatMemoryFactModel.create({ userId, text: clean }))
+}
+
+/** Changes a fact's text and returns it. */
+export async function editFact(userId: string, id: string, text: unknown) {
+  const clean = cleanText(text)
+  const fact = Types.ObjectId.isValid(id)
+    ? await ChatMemoryFactModel.findOneAndUpdate(
+        { _id: id, userId },
+        { text: clean },
+        { new: true },
+      )
+    : null
+  if (!fact) throw new FactNotFound()
+  return toFact(fact)
+}
+
+/** Deletes a fact for good. */
+export async function deleteFact(userId: string, id: string) {
+  const gone = Types.ObjectId.isValid(id)
+    ? await ChatMemoryFactModel.findOneAndDelete({ _id: id, userId })
+    : null
+  if (!gone) throw new FactNotFound()
+}
+
+/** Turns memory on or off; the facts are kept either way. Throws InvalidFact for a non-boolean. */
+export async function setMemoryEnabled(userId: string, enabled: unknown) {
+  if (typeof enabled !== 'boolean') throw new InvalidFact()
+  await UserModel.updateOne({ _id: userId }, { $set: { chatMemoryEnabled: enabled } })
+  return getMemory(userId)
+}
+
+/**
+ * Returns the chat body with the user's facts added to its `context`, after any context the
+ * browser sent. Facts come from the database, never from the browser, and none are added while
+ * memory is off (AC5, AC6). S4 shows them to the answer model as "Engineer context", so a fact
+ * steers the answer but is never cited as evidence (S4 only cites passages).
+ */
+export async function withChatMemory(body: unknown, userId: string): Promise<object> {
+  if (!(await isEnabled(userId))) return body as object
+  const facts = await ChatMemoryFactModel.find({ userId }).sort({ createdAt: 1 })
+  if (!facts.length) return body as object
+  const { context } = (body ?? {}) as { context?: unknown }
+  return {
+    ...(body as object),
+    context: [
+      ...(Array.isArray(context) ? context : []),
+      ...facts.map((f) => ({ description: 'Engineer preference', value: f.text })),
+    ],
+  }
+}

@@ -1084,3 +1084,13 @@ Two collections hold each engineer's chats with the knowledge assistant. They ar
 - Deleting a chat is permanent and deletes its messages.
 - Search matches the chat's name or any message, case-insensitive and part-word.
 - The gateway saves the question before calling S4 and the answer when the stream ends. A question refused by the daily limits is not saved.
+
+## My preferences (CB-05)
+
+One collection holds the lasting facts an engineer keeps for the knowledge assistant. It is the fourth exception to the CLAUDE.md metadata rule, for the same reason as saved chats: it is a user's own settings, not a knowledge or review record, so it has **no `metadata` block**.
+
+`chat_memory_facts` (`server/src/models/chat-memory-fact.model.ts`): `userId`, `text` (1 to 200 characters, typed by the engineer), `createdAt`. Index `{ userId, createdAt: 1 }`. At most 20 per user. The user record gains `chatMemoryEnabled` (absent or true = on; false = off).
+
+- Only the owner can read or change a fact; another user's fact answers 404.
+- The gateway adds the facts to S4's `context` after any context the browser sent (never from the browser), and adds none while memory is off. Facts steer an answer; they are never cited, because S4 only cites passages.
+- Turning memory off keeps the facts. Chat is not masked yet (PV-03), so the form tells the engineer not to type client names or site details.

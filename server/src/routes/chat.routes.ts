@@ -12,6 +12,17 @@ import { checkChatLimits } from '../services/chat-limits.service'
 import { chatSaveTap, lastQuestion, saveQuestion } from '../services/chat-save.service'
 import { chatUsageTap } from '../services/chat-usage.service'
 import {
+  FactLimitReached,
+  FactNotFound,
+  InvalidFact,
+  addFact,
+  deleteFact,
+  editFact,
+  getMemory,
+  setMemoryEnabled,
+  withChatMemory,
+} from '../services/chat-memory.service'
+import {
   ConversationNotFound,
   createConversation,
   deleteConversation,
@@ -103,7 +114,11 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   res.on('close', () => upstream.abort())
   let stream: ReadableStream<Uint8Array>
   try {
-    stream = await openChatStream(await withChatDocuments(req.body), upstream.signal, userId)
+    stream = await openChatStream(
+      await withChatDocuments(await withChatMemory(req.body, userId)),
+      upstream.signal,
+      userId,
+    )
   } catch (error: unknown) {
     if (error instanceof RagServiceError) {
       res.status(503).json({ error: error.message })
@@ -122,6 +137,53 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
     res,
   ).catch(() => {})
 })
+
+// "My preferences" (CB-05): the engineer's own facts and the memory switch.
+const memory = Router()
+// Answers a missing fact with 404, a bad fact with 400 and a full list with 409; anything else is a real error.
+function memoryError(res: Response, error: unknown) {
+  if (error instanceof FactNotFound) return res.status(404).json({ error: 'Fact not found.' })
+  if (error instanceof InvalidFact)
+    return res.status(400).json({ error: 'A fact needs 1 to 200 characters.' })
+  if (error instanceof FactLimitReached)
+    return res
+      .status(409)
+      .json({ error: 'You can keep up to 20 facts. Delete one to add another.' })
+  throw error
+}
+memory.get('/', async (_req, res) => {
+  res.json(await getMemory(res.locals.user!.id))
+})
+memory.patch('/', async (req, res) => {
+  try {
+    res.json(await setMemoryEnabled(res.locals.user!.id, req.body?.enabled))
+  } catch (error) {
+    memoryError(res, error)
+  }
+})
+memory.post('/facts', async (req, res) => {
+  try {
+    res.status(201).json(await addFact(res.locals.user!.id, req.body?.text))
+  } catch (error) {
+    memoryError(res, error)
+  }
+})
+memory.patch('/facts/:id', async (req, res) => {
+  try {
+    res.json(await editFact(res.locals.user!.id, req.params.id, req.body?.text))
+  } catch (error) {
+    memoryError(res, error)
+  }
+})
+memory.delete('/facts/:id', async (req, res) => {
+  try {
+    await deleteFact(res.locals.user!.id, req.params.id)
+    res.status(204).end()
+  } catch (error) {
+    memoryError(res, error)
+  }
+})
+router.use('/memory', requirePermission('knowledge:view'), memory)
 
 // Saved chats (CB-03). OpenUI's thread storage calls these (client/src/features/chat/api.ts).
 const mine = (res: Response) => res.locals.user!.id as string
