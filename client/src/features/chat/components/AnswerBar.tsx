@@ -1,18 +1,38 @@
-// "Try again" and the answer's version switcher, shown under the latest answer (CB-04).
+// "Try again" and the answer's version switcher, drawn directly under the latest answer (CB-04).
 // Rendered inside AgentInterface (screens/KnowledgeAssistant.tsx), where OpenUI's chat state lives.
+import { useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useLoadVersions, useVersions } from '../useVersions'
+import { RetryIcon } from './icons'
 import { VersionSwitcher } from './VersionSwitcher'
 
-/**
- * Renders nothing until the latest message is a finished answer. It is drawn into OpenUI's chat
- * column, between the messages and the composer (chat.css orders them); left where AgentInterface
- * puts its children, it became a third column beside the chat.
- */
+const ROOT = '.knowledge-assistant'
+// OpenUI draws a generated-UI answer in the "shell" message, not the plain-markdown one.
+const ANSWER = `${ROOT} .openui-shell-thread-message-assistant`
+
+// The last answer's text area in OpenUI's chat, or null. The bar is drawn into it, so it sits
+// under the answer and scrolls with it; left where AgentInterface puts its children, it became a
+// column beside the chat.
+const lastAnswer = () => {
+  const all = document.querySelectorAll(ANSWER)
+  return (
+    all[all.length - 1]?.querySelector('.openui-shell-thread-message-assistant__content') ?? null
+  )
+}
+// Re-checks whenever the chat's DOM changes (answers stream in, versions switch), so the bar
+// never points at a message OpenUI has since replaced.
+function watchAnswers(onChange: () => void) {
+  const root = document.querySelector(ROOT)
+  if (!root) return () => {}
+  const observer = new MutationObserver(onChange)
+  observer.observe(root, { childList: true, subtree: true })
+  return () => observer.disconnect()
+}
+
+/** Renders nothing until the latest message is a finished answer. */
 export function AnswerBar() {
   useLoadVersions()
-  // Found at render: the panel is there whenever there is an answer to put the bar under.
-  const host = document.querySelector('.knowledge-assistant .openui-agent-thread-chat-panel')
+  const host = useSyncExternalStore(watchAnswers, lastAnswer)
   const { versions, messages, running, resend, switchTo } = useVersions()
   const last = messages.at(-1)
   if (running || last?.role !== 'assistant') return null
@@ -22,8 +42,14 @@ export function AnswerBar() {
     <div className="answer-bar">
       {info && <VersionSwitcher info={info} label="answer" onPick={(id) => void switchTo(id)} />}
       {question && typeof question.content === 'string' && (
-        <button type="button" onClick={() => void resend(question.id, question.content as string)}>
-          <span aria-hidden="true">↻</span> Try again
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Try again"
+          title="Try again"
+          onClick={() => void resend(question.id, question.content as string)}
+        >
+          <RetryIcon />
         </button>
       )}
     </div>

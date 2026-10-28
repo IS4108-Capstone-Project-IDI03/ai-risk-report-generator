@@ -961,86 +961,129 @@
   padding-left: 10px;
 }
 
-/* CB-04: edit, "Try again" and the ‹ 2/3 › switcher. Small text buttons under a message. */
+/* CB-04: retry, edit and the ‹ 2/3 › switcher. Quiet icon buttons under a message, as in ChatGPT. */
 .message-actions,
 .answer-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   font-size: 0.8125rem;
   color: var(--text-secondary, #5b6573);
 }
 .message-actions {
   justify-content: flex-end;
+  margin-top: 4px;
 }
-/* The question's buttons go under its bubble, not beside it (beside it they squeezed the bubble). */
-.openui-agent-thread-message-user.has-actions {
+.answer-bar {
+  margin-top: 8px;
+}
+/* OpenUI lays an answer out in a row; the bar goes under the text, not beside it. */
+.knowledge-assistant .openui-shell-thread-message-assistant__content {
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
 }
-/* "Try again" sits between the messages and the composer in OpenUI's chat column. */
-.knowledge-assistant .openui-agent-thread-scroll-container {
-  order: 1;
-}
-.knowledge-assistant .answer-bar {
-  order: 2;
-}
-.knowledge-assistant .openui-agent-composer-slot {
-  order: 3;
-}
-.message-actions button,
-.answer-bar button,
-.question-edit button,
-.version-switcher button {
-  min-height: 32px;
-  min-width: 32px;
-  padding: 0 8px;
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: inherit;
-  font: inherit;
   cursor: pointer;
 }
-.message-actions button:hover:not(:disabled),
-.answer-bar button:hover:not(:disabled),
-.version-switcher button:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.06);
+.icon-button:hover:not(:disabled) {
+  background: var(--chat-selected);
+  color: var(--marsh-navy, #000f47);
 }
-.message-actions button:disabled,
-.version-switcher button:disabled {
-  opacity: 0.4;
+.icon-button:disabled {
+  opacity: 0.35;
   cursor: default;
 }
-.message-actions button:focus-visible,
-.answer-bar button:focus-visible,
-.question-edit button:focus-visible,
-.version-switcher button:focus-visible {
-  outline: 2px solid currentColor;
+.icon-button:focus-visible,
+.pill:focus-visible {
+  outline: 2px solid var(--marsh-navy, #000f47);
   outline-offset: 2px;
 }
 .version-switcher {
   display: inline-flex;
   align-items: center;
 }
-.question-edit {
-  display: flex;
+.version-switcher__count {
+  min-width: 2.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* The question's buttons go under its bubble, not beside it (beside it they squeezed the bubble). */
+.openui-agent-thread-message-user.has-actions {
   flex-direction: column;
-  gap: 8px;
+  align-items: flex-end;
 }
-.question-edit textarea {
+/* The editor replaces the bubble: same colour and corner, wide enough to write in. */
+.question-edit {
+  box-sizing: border-box;
+  width: min(100%, 44rem);
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgb(233 242 254);
+  color: rgb(26 31 38);
+}
+.question-edit textarea,
+.question-edit textarea:hover,
+.question-edit textarea:focus,
+.question-edit textarea:focus-visible {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
+  max-height: 14rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  resize: vertical;
+  line-height: 1.5;
+  resize: none;
 }
-.question-edit button {
-  align-self: flex-end;
+.question-edit__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
 }
-.answer-bar {
-  padding: 6px 16px;
-  justify-content: flex-start;
+.pill {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid rgb(0 15 71 / 0.2);
+  border-radius: 999px;
+  background: #fff;
+  color: rgb(26 31 38);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
 }
-.answer-bar > button {
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  padding: 0 12px;
+.pill:hover:not(:disabled) {
+  background: var(--chat-hover);
+}
+.pill--primary {
+  border-color: transparent;
+  background: var(--marsh-navy, #000f47);
+  color: #fff;
+}
+.pill--primary:hover:not(:disabled) {
+  background: rgb(0 15 71 / 0.88);
+}
+.pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .icon-button {
+    transition: background 120ms ease;
+  }
 }
