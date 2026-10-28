@@ -1722,7 +1722,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
       {
         label: 'Knowledge',
-        items: [{ value: 'chat', label: 'Ask the knowledge base', icon: 'message-square' }],
+        items: [
+          { value: 'chat', label: 'Ask the knowledge base', icon: 'message-square' },
+          { value: 'preferences', label: 'My preferences', icon: 'settings' },
+        ],
       },
       { label: 'Recent', items: recentItems },
       {
@@ -2634,6 +2637,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isKnowledge: sc === 'knowledge',
       isUsage: sc === 'usage',
       isChat: sc === 'chat',
+      isPreferences: sc === 'preferences',
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
@@ -2900,7 +2904,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ? 'Administration'
               : sc === 'usage'
                 ? 'Reporting'
-                : sc === 'chat'
+                : sc === 'chat' || sc === 'preferences'
                   ? 'Knowledge'
                   : 'Assessment workspace',
       title:
@@ -2920,7 +2924,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                     ? 'Usage and costs'
                     : sc === 'chat'
                       ? 'Ask the knowledge base'
-                      : s.captureTarget.site,
+                      : sc === 'preferences'
+                        ? 'My preferences'
+                        : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · ' + session.user.name
@@ -2934,7 +2940,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   ? 'What the AI calls cost, how much they were used, and how fast they ran.'
                   : sc === 'chat'
                     ? 'Answers come from the standards and past reports in the knowledge base.'
-                    : // An assessment shows only its name; its details are in its Overview.
+                    : sc === 'preferences'
+                      ? 'Lasting facts about your work that MarshBot takes into account in every chat.'
+                      : // An assessment shows only its name; its details are in its Overview.
                       '',
       showSeverity: isAssessment,
       tab: s.tab,

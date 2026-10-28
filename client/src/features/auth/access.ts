@@ -7,7 +7,15 @@ import type { UserRole } from '../accounts/api'
 import type { Permission, Session } from './api'
 
 export type Screen =
-  'dashboard' | 'create' | 'field' | 'assessment' | 'users' | 'knowledge' | 'usage' | 'chat'
+  | 'dashboard'
+  | 'create'
+  | 'field'
+  | 'assessment'
+  | 'users'
+  | 'knowledge'
+  | 'usage'
+  | 'chat'
+  | 'preferences'
 
 export const SCREEN_PATHS: Record<Screen, string> = {
   dashboard: '/assessments',
@@ -18,6 +26,7 @@ export const SCREEN_PATHS: Record<Screen, string> = {
   knowledge: '/admin/knowledge-base',
   usage: '/usage-costs',
   chat: '/ask',
+  preferences: '/ask/preferences',
 }
 
 const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
@@ -29,6 +38,7 @@ const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
   knowledge: 'knowledge:manage',
   usage: 'usage:view',
   chat: 'knowledge:view',
+  preferences: 'knowledge:view',
 }
 
 // A knowledge document's Review page (IN-07) is part of the knowledge screen:

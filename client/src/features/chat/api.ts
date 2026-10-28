@@ -76,3 +76,31 @@ export async function fetchView(threadId: string): Promise<View> {
 export async function switchVersion(threadId: string, messageId: string): Promise<View> {
   return (await request<View>('PATCH', `${CHATS}/${threadId}/active`, { messageId })).data
 }
+
+/** One fact in "My preferences" (CB-05). */
+export type Fact = { id: string; text: string; createdAt: string }
+/** What GET /api/chat/memory sends: the switch, the facts and the limits the form shows. */
+export type Memory = { enabled: boolean; facts: Fact[]; maxFacts: number; maxChars: number }
+
+const MEMORY = '/api/chat/memory'
+
+/** Returns the signed-in user's switch and facts. */
+export async function fetchMemory(): Promise<Memory> {
+  return (await request<Memory>('GET', MEMORY)).data
+}
+/** Turns memory on or off; returns the new state. The facts are kept either way. */
+export async function setMemoryEnabled(enabled: boolean): Promise<Memory> {
+  return (await request<Memory>('PATCH', MEMORY, { enabled })).data
+}
+/** Adds a fact. Throws GatewayError (400 bad text, 409 at the limit). */
+export async function addFact(text: string): Promise<Fact> {
+  return (await request<Fact>('POST', `${MEMORY}/facts`, { text })).data
+}
+/** Changes a fact's text. */
+export async function saveFact(id: string, text: string): Promise<Fact> {
+  return (await request<Fact>('PATCH', `${MEMORY}/facts/${id}`, { text })).data
+}
+/** Deletes a fact for good. */
+export async function removeFact(id: string): Promise<void> {
+  await request('DELETE', `${MEMORY}/facts/${id}`)
+}

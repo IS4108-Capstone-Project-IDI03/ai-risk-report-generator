@@ -1,0 +1,47 @@
+/* "My preferences" page (CB-05): a narrow column of cards, as on the other settings-style screens. */
+.preferences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 44rem;
+  padding: var(--space-7);
+}
+.fact-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.fact-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+.fact-list {
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fact-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--border-default);
+}
+.fact-row--editing {
+  display: block;
+}
+.fact-row__text p {
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+}
+.fact-row__date {
+  font-size: var(--text-small-size);
+  color: var(--text-muted);
+}
+.fact-row__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+}
