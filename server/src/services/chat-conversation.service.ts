@@ -3,15 +3,11 @@
 // user's chats, so another user's chat looks like it does not exist (AC7).
 // Called by routes/chat.routes.ts. Calls the chat models.
 import { Types, type HydratedDocument } from 'mongoose'
+import { ChatError } from './chat-error'
 import { ChatConversationModel } from '../models/chat-conversation.model'
 import { ChatMessageModel, type IChatMessage } from '../models/chat-message.model'
 
 const TITLE_CHARS = 60
-
-/** Thrown when the chat does not exist or is not the user's; the route answers 404 for both. */
-export class ConversationNotFound extends Error {}
-/** Thrown when a new name is empty; the route answers 400. */
-export class InvalidTitle extends Error {}
 
 /** The thread shape OpenUI's storage expects. */
 const toThread = (c: { _id: Types.ObjectId; title: string; createdAt: Date }) => ({
@@ -20,12 +16,12 @@ const toThread = (c: { _id: Types.ObjectId; title: string; createdAt: Date }) =>
   createdAt: c.createdAt.toISOString(),
 })
 
-/** Returns the chat if it is this user's, else throws ConversationNotFound. */
+/** Returns the chat if it is this user's, else throws a 404 ChatError. */
 export async function ownedConversation(userId: string, id: string) {
   const found = Types.ObjectId.isValid(id)
     ? await ChatConversationModel.findOne({ _id: id, userId })
     : null
-  if (!found) throw new ConversationNotFound()
+  if (!found) throw new ChatError(404, 'Chat not found.')
   return found
 }
 
@@ -108,7 +104,7 @@ export async function switchVersion(userId: string, id: string, messageId: unkno
   const wanted = typeof messageId === 'string' ? messageId : ''
   let leaf: Stored | undefined =
     all.find((m) => shownId(m) === wanted) ?? all.find((m) => String(m._id) === wanted)
-  if (!leaf) throw new ConversationNotFound()
+  if (!leaf) throw new ChatError(404, 'Chat not found.')
   while (leaf) {
     const parentOf: Stored = leaf
     const next: Stored | undefined = all
@@ -125,7 +121,7 @@ export async function switchVersion(userId: string, id: string, messageId: unkno
 /** Renames a chat and returns its thread. */
 export async function renameConversation(userId: string, id: string, title: unknown) {
   const name = typeof title === 'string' ? title.trim() : ''
-  if (!name) throw new InvalidTitle()
+  if (!name) throw new ChatError(400, 'A chat needs a name.')
   const chat = await ownedConversation(userId, id)
   chat.title = name.slice(0, 100)
   await chat.save()

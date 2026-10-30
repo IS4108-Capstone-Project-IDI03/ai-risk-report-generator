@@ -3,18 +3,16 @@
 // back unchanged, apart from the usage event at the end, which the service
 // records and removes (EV-03). Called by client/src/features/chat/api.ts.
 import { randomUUID } from 'node:crypto'
-import { Router, type Response } from 'express'
+import { Router, type Request, type RequestHandler, type Response } from 'express'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
+import { ChatError } from '../services/chat-error'
 import { checkChatLimits } from '../services/chat-limits.service'
 import { chatSaveTap, lastQuestion, saveQuestion } from '../services/chat-save.service'
 import { chatUsageTap } from '../services/chat-usage.service'
 import {
-  FactLimitReached,
-  FactNotFound,
-  InvalidFact,
   addFact,
   deleteFact,
   editFact,
@@ -23,11 +21,9 @@ import {
   withChatMemory,
 } from '../services/chat-memory.service'
 import {
-  ConversationNotFound,
   createConversation,
   deleteConversation,
   getMessages,
-  InvalidTitle,
   ownedConversation,
   listConversations,
   renameConversation,
@@ -42,13 +38,23 @@ import {
 
 const router = Router()
 
-// Answers a missing or someone else's chat with 404 and a bad name with 400; anything else is a real error.
-function conversationError(res: Response, error: unknown) {
-  if (error instanceof ConversationNotFound)
-    return res.status(404).json({ error: 'Chat not found.' })
-  if (error instanceof InvalidTitle) return res.status(400).json({ error: 'A chat needs a name.' })
+// Answers a ChatError with its status and message (404 missing or not yours, 400 bad input, 409 full
+// list); anything else is a real error and is rethrown.
+function chatError(res: Response, error: unknown) {
+  if (error instanceof ChatError) return res.status(error.status).json({ error: error.message })
   throw error
 }
+type Params = Record<string, string>
+// Runs a handler and answers its ChatError, so each handler holds only its own work.
+const handle =
+  (fn: (req: Request<Params>, res: Response) => Promise<void>): RequestHandler<Params> =>
+  async (req, res) => {
+    try {
+      await fn(req, res)
+    } catch (error) {
+      chatError(res, error)
+    }
+  }
 
 // Everything the engineer wrote in the request: every user message and context
 // entry. Checking only the last message would let a blank last message hide a
@@ -91,7 +97,7 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
     try {
       await ownedConversation(userId, threadId)
     } catch (error) {
-      return conversationError(res, error)
+      return chatError(res, error)
     }
   }
   const reason = checkChatLimits(userId, engineerTexts(req.body))
@@ -140,49 +146,34 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
 
 // "My preferences" (CB-05): the engineer's own facts and the memory switch.
 const memory = Router()
-// Answers a missing fact with 404, a bad fact with 400 and a full list with 409; anything else is a real error.
-function memoryError(res: Response, error: unknown) {
-  if (error instanceof FactNotFound) return res.status(404).json({ error: 'Fact not found.' })
-  if (error instanceof InvalidFact)
-    return res.status(400).json({ error: 'A fact needs 1 to 200 characters.' })
-  if (error instanceof FactLimitReached)
-    return res
-      .status(409)
-      .json({ error: 'You can keep up to 20 facts. Delete one to add another.' })
-  throw error
-}
 memory.get('/', async (_req, res) => {
   res.json(await getMemory(res.locals.user!.id))
 })
-memory.patch('/', async (req, res) => {
-  try {
+memory.patch(
+  '/',
+  handle(async (req, res) => {
     res.json(await setMemoryEnabled(res.locals.user!.id, req.body?.enabled))
-  } catch (error) {
-    memoryError(res, error)
-  }
-})
-memory.post('/facts', async (req, res) => {
-  try {
+  }),
+)
+memory.post(
+  '/facts',
+  handle(async (req, res) => {
     res.status(201).json(await addFact(res.locals.user!.id, req.body?.text))
-  } catch (error) {
-    memoryError(res, error)
-  }
-})
-memory.patch('/facts/:id', async (req, res) => {
-  try {
+  }),
+)
+memory.patch(
+  '/facts/:id',
+  handle(async (req, res) => {
     res.json(await editFact(res.locals.user!.id, req.params.id, req.body?.text))
-  } catch (error) {
-    memoryError(res, error)
-  }
-})
-memory.delete('/facts/:id', async (req, res) => {
-  try {
+  }),
+)
+memory.delete(
+  '/facts/:id',
+  handle(async (req, res) => {
     await deleteFact(res.locals.user!.id, req.params.id)
     res.status(204).end()
-  } catch (error) {
-    memoryError(res, error)
-  }
-})
+  }),
+)
 router.use('/memory', requirePermission('knowledge:view'), memory)
 
 // Saved chats (CB-03). OpenUI's thread storage calls these (client/src/features/chat/api.ts).
@@ -198,36 +189,32 @@ chats.post('/', async (req, res) => {
     .status(201)
     .json(await createConversation(mine(res), typeof content === 'string' ? content : ''))
 })
-chats.get('/:id', async (req, res) => {
-  try {
+chats.get(
+  '/:id',
+  handle(async (req, res) => {
     res.json(await getMessages(mine(res), req.params.id))
-  } catch (error) {
-    conversationError(res, error)
-  }
-})
+  }),
+)
 // Switches the chat to another version (CB-04): `messageId` is one of its messages.
-chats.patch('/:id/active', async (req, res) => {
-  try {
+chats.patch(
+  '/:id/active',
+  handle(async (req, res) => {
     res.json(await switchVersion(mine(res), req.params.id, req.body?.messageId))
-  } catch (error) {
-    conversationError(res, error)
-  }
-})
-chats.patch('/:id', async (req, res) => {
-  try {
+  }),
+)
+chats.patch(
+  '/:id',
+  handle(async (req, res) => {
     res.json(await renameConversation(mine(res), req.params.id, req.body?.title))
-  } catch (error) {
-    conversationError(res, error)
-  }
-})
-chats.delete('/:id', async (req, res) => {
-  try {
+  }),
+)
+chats.delete(
+  '/:id',
+  handle(async (req, res) => {
     await deleteConversation(mine(res), req.params.id)
     res.status(204).end()
-  } catch (error) {
-    conversationError(res, error)
-  }
-})
+  }),
+)
 router.use('/conversations', requirePermission('knowledge:view'), chats)
 
 // One passage behind a citation (CB-02): its text and page boxes, passed through from S4.

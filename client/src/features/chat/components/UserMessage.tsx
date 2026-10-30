@@ -3,7 +3,7 @@
 import type { UserMessage as Message } from '@openuidev/react-headless'
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useVersions } from '../useVersions'
-import { EditIcon } from './icons'
+import { IconButton } from '../../../design-system'
 import { VersionSwitcher } from './VersionSwitcher'
 
 /** Shows a question; Edit turns it into a box whose Send asks the new wording as another version. */
@@ -69,16 +69,12 @@ export function UserMessage({ message }: { message: Message }) {
         {info && (
           <VersionSwitcher info={info} label="question" onPick={(id) => void switchTo(id)} />
         )}
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Edit question"
-          title="Edit question"
+        <IconButton
+          icon="pencil"
+          label="Edit question"
           disabled={running}
           onClick={() => setDraft(text)}
-        >
-          <EditIcon />
-        </button>
+        />
       </div>
     </div>
   )

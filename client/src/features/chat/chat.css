@@ -982,28 +982,6 @@
   flex-direction: column;
   align-items: flex-start;
 }
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.icon-button:hover:not(:disabled) {
-  background: var(--chat-selected);
-  color: var(--marsh-navy, #000f47);
-}
-.icon-button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.icon-button:focus-visible,
 .pill:focus-visible {
   outline: 2px solid var(--marsh-navy, #000f47);
   outline-offset: 2px;
@@ -1081,9 +1059,4 @@
 .pill:disabled {
   opacity: 0.4;
   cursor: default;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .icon-button {
-    transition: background 120ms ease;
-  }
 }

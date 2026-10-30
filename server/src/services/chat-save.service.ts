@@ -36,12 +36,9 @@ export function lastQuestion(body: unknown) {
 // Finds a message of this chat by the id the browser knows it by (its own id, else the stored one).
 async function findMessage(conversationId: string, id?: string) {
   if (!id) return null
-  return (
-    (await ChatMessageModel.findOne({ conversationId, clientId: id })) ??
-    (Types.ObjectId.isValid(id)
-      ? await ChatMessageModel.findOne({ conversationId, _id: id })
-      : null)
-  )
+  const ids: object[] = [{ clientId: id }]
+  if (Types.ObjectId.isValid(id)) ids.push({ _id: id })
+  return ChatMessageModel.findOne({ conversationId, $or: ids })
 }
 
 // Adds a message under `parentId`, makes it the version on screen and bumps the chat to the top.

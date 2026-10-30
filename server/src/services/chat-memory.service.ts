@@ -3,18 +3,12 @@
 // facts, so another user's fact looks like it does not exist.
 // Called by routes/chat.routes.ts. Calls the memory model and the user model.
 import { Types } from 'mongoose'
+import { ChatError } from './chat-error'
 import { ChatMemoryFactModel } from '../models/chat-memory-fact.model'
 import { UserModel } from '../models/user.model'
 
 export const MAX_FACT_CHARS = 200
 export const MAX_FACTS = 20
-
-/** Thrown when a fact is missing or not the user's; the route answers 404 for both. */
-export class FactNotFound extends Error {}
-/** Thrown when a fact is empty, not text or over 200 characters; the route answers 400. */
-export class InvalidFact extends Error {}
-/** Thrown when the user already has 20 facts; the route answers 409. */
-export class FactLimitReached extends Error {}
 
 const toFact = (f: { _id: Types.ObjectId; text: string; createdAt: Date }) => ({
   id: String(f._id),
@@ -22,10 +16,11 @@ const toFact = (f: { _id: Types.ObjectId; text: string; createdAt: Date }) => ({
   createdAt: f.createdAt.toISOString(),
 })
 
-// Returns the cleaned text, or throws InvalidFact.
+// Returns the cleaned text, or throws a 400 ChatError.
 function cleanText(text: unknown) {
   const clean = typeof text === 'string' ? text.trim() : ''
-  if (!clean || clean.length > MAX_FACT_CHARS) throw new InvalidFact()
+  if (!clean || clean.length > MAX_FACT_CHARS)
+    throw new ChatError(400, `A fact needs 1 to ${MAX_FACT_CHARS} characters.`)
   return clean
 }
 
@@ -46,11 +41,11 @@ export async function getMemory(userId: string) {
   }
 }
 
-/** Adds a fact and returns it. Throws InvalidFact, or FactLimitReached at 20 facts. */
+/** Adds a fact and returns it. Throws a 400 ChatError, or a 409 at 20 facts. */
 export async function addFact(userId: string, text: unknown) {
   const clean = cleanText(text)
   if ((await ChatMemoryFactModel.countDocuments({ userId })) >= MAX_FACTS) {
-    throw new FactLimitReached()
+    throw new ChatError(409, `You can keep up to ${MAX_FACTS} facts. Delete one to add another.`)
   }
   return toFact(await ChatMemoryFactModel.create({ userId, text: clean }))
 }
@@ -65,7 +60,7 @@ export async function editFact(userId: string, id: string, text: unknown) {
         { new: true },
       )
     : null
-  if (!fact) throw new FactNotFound()
+  if (!fact) throw new ChatError(404, 'Fact not found.')
   return toFact(fact)
 }
 
@@ -74,12 +69,12 @@ export async function deleteFact(userId: string, id: string) {
   const gone = Types.ObjectId.isValid(id)
     ? await ChatMemoryFactModel.findOneAndDelete({ _id: id, userId })
     : null
-  if (!gone) throw new FactNotFound()
+  if (!gone) throw new ChatError(404, 'Fact not found.')
 }
 
-/** Turns memory on or off; the facts are kept either way. Throws InvalidFact for a non-boolean. */
+/** Turns memory on or off; the facts are kept either way. Throws a 400 ChatError for a non-boolean. */
 export async function setMemoryEnabled(userId: string, enabled: unknown) {
-  if (typeof enabled !== 'boolean') throw new InvalidFact()
+  if (typeof enabled !== 'boolean') throw new ChatError(400, '`enabled` must be true or false.')
   await UserModel.updateOne({ _id: userId }, { $set: { chatMemoryEnabled: enabled } })
   return getMemory(userId)
 }
