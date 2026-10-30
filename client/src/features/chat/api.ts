@@ -63,6 +63,49 @@ export const chatStorage: ChatStorage = {
   },
 }
 
+/** For a message with siblings (retries, edited questions): all their ids and which one is shown (CB-04). */
+export type Versions = Record<string, { ids: string[]; index: number }>
+type View = { messages: Message[]; versions: Versions }
+
+/** Returns the saved chat's messages on screen and their versions. */
+export async function fetchView(threadId: string): Promise<View> {
+  const { messages, versions } = (await request<View>('GET', `${CHATS}/${threadId}`)).data
+  return { messages, versions: versions ?? {} }
+}
+
+/** Switches a saved chat to the version holding `messageId`; returns the new messages and versions. */
+export async function switchVersion(threadId: string, messageId: string): Promise<View> {
+  return (await request<View>('PATCH', `${CHATS}/${threadId}/active`, { messageId })).data
+}
+
+/** One fact in "My preferences" (CB-05). */
+export type Fact = { id: string; text: string; createdAt: string }
+/** What GET /api/chat/memory sends: the switch, the facts and the limits the form shows. */
+export type Memory = { enabled: boolean; facts: Fact[]; maxFacts: number; maxChars: number }
+
+const MEMORY = '/api/chat/memory'
+
+/** Returns the signed-in user's switch and facts. */
+export async function fetchMemory(): Promise<Memory> {
+  return (await request<Memory>('GET', MEMORY)).data
+}
+/** Turns memory on or off; returns the new state. The facts are kept either way. */
+export async function setMemoryEnabled(enabled: boolean): Promise<Memory> {
+  return (await request<Memory>('PATCH', MEMORY, { enabled })).data
+}
+/** Adds a fact. Throws GatewayError (400 bad text, 409 at the limit). */
+export async function addFact(text: string): Promise<Fact> {
+  return (await request<Fact>('POST', `${MEMORY}/facts`, { text })).data
+}
+/** Changes a fact's text. */
+export async function saveFact(id: string, text: string): Promise<Fact> {
+  return (await request<Fact>('PATCH', `${MEMORY}/facts/${id}`, { text })).data
+}
+/** Deletes a fact for good. */
+export async function removeFact(id: string): Promise<void> {
+  await request('DELETE', `${MEMORY}/facts/${id}`)
+}
+
 /** Sends a risk engineer's request to add the document behind `question` (CB-07). */
 export function askAdminToAdd(question: string, message: string): Promise<unknown> {
   return request('POST', '/api/knowledge-gaps', message ? { question, message } : { question })

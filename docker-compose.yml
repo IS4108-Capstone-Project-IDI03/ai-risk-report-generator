@@ -73,6 +73,10 @@ services:
     volumes:
       - ./client:/app
       - /app/node_modules
+      # Two client tests read rag-service files through `../microservices/...` (the answer-component
+      # list and ofi.json). In this container that path is `/microservices/...`, so mount them
+      # read-only; without it those tests fail here although they pass on a full checkout and in CI.
+      - ./microservices/rag-service/app:/microservices/rag-service/app:ro
 
   # ingestion-service and ingestion-worker share one image (same tag), so it
   # is built and stored once.

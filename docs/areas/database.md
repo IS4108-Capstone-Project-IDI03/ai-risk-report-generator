@@ -1208,11 +1208,21 @@ What the gateway does on the way in (`ai-usage.service.ts`): non-numbers become 
 
 Two collections hold each engineer's chats with the knowledge assistant. They are the third exception to the CLAUDE.md metadata rule (after Unconfirmed details and knowledge documents' missing `COPE_dimension`): they have **no `metadata` block**, because a chat is the user's own history, not a knowledge or review record. They carry `userId` instead, and every read and write is scoped to it.
 
-`chat_conversations` (`server/src/models/chat-conversation.model.ts`): `userId`, `title` (the first question trimmed to 60 characters; renamed by the user), `createdAt`, `updatedAt`. Index `{ userId, updatedAt: -1 }` for the newest-first list.
+`chat_conversations` (`server/src/models/chat-conversation.model.ts`): `userId`, `title` (the first question trimmed to 60 characters; renamed by the user), `activeLeafId` (CB-04: the last message of the version on screen; the chat shows the path from the first question to it), `createdAt`, `updatedAt`. Index `{ userId, updatedAt: -1 }` for the newest-first list.
 
-`chat_messages` (`server/src/models/chat-message.model.ts`): `conversationId`, `userId`, `parentId` (the message before it, so CB-04 can add a retry as a sibling without a migration), `clientId` (the id the browser gave it), `role` (`user` or `assistant`), `content` (for an answer, the answer program text S4 streamed), `status` (`complete`, or `stopped` when the answer was cut off), `createdAt`.
+`chat_messages` (`server/src/models/chat-message.model.ts`): `conversationId`, `userId`, `parentId` (the message it follows; a retry or an edited question (CB-04) is a sibling with the same `parentId`; an answer's `clientId` is the id S4 streamed it under), `clientId` (the id the browser gave it), `role` (`user` or `assistant`), `content` (for an answer, the answer program text S4 streamed), `status` (`complete`, or `stopped` when the answer was cut off), `createdAt`.
 
 - Only the owner can read a chat. An admin cannot, and another user's chat answers 404, the same as a chat that does not exist.
 - Deleting a chat is permanent and deletes its messages.
 - Search matches the chat's name or any message, case-insensitive and part-word.
 - The gateway saves the question before calling S4 and the answer when the stream ends. A question refused by the daily limits is not saved.
+
+## My preferences (CB-05)
+
+One collection holds the lasting facts an engineer keeps for the knowledge assistant. It is the fourth exception to the CLAUDE.md metadata rule, for the same reason as saved chats: it is a user's own settings, not a knowledge or review record, so it has **no `metadata` block**.
+
+`chat_memory_facts` (`server/src/models/chat-memory-fact.model.ts`): `userId`, `text` (1 to 200 characters, typed by the engineer), `createdAt`. Index `{ userId, createdAt: 1 }`. At most 20 per user. The user record gains `chatMemoryEnabled` (absent or true = on; false = off).
+
+- Only the owner can read or change a fact; another user's fact answers 404.
+- The gateway adds the facts to S4's `context` after any context the browser sent (never from the browser), and adds none while memory is off. Facts steer an answer; they are never cited, because S4 only cites passages.
+- Turning memory off keeps the facts. Chat is not masked yet (PV-03), so the form tells the engineer not to type client names or site details.

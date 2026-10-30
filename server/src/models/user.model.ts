@@ -19,6 +19,8 @@ export interface IUser {
   // Two-letter jurisdiction code of the office the user works from, e.g. SG.
   office?: string
   active: boolean
+  // CB-05: whether the knowledge assistant uses the user's "My preferences" facts. On unless set false.
+  chatMemoryEnabled?: boolean
   // bcrypt hash (F-04). Absent for accounts that predate sign-in.
   passwordHash?: string
   // Password reset (F-06): sha256 of the raw token emailed to the user, plus
@@ -46,6 +48,7 @@ const userSchema = new Schema<IUser>(
     phone: { type: String, trim: true },
     office: { type: String, trim: true },
     active: { type: Boolean, required: true, default: true },
+    chatMemoryEnabled: { type: Boolean },
     passwordHash: { type: String, select: false },
     resetTokenHash: { type: String, select: false },
     resetTokenExpiresAt: { type: Date, select: false },

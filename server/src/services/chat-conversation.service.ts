@@ -2,16 +2,12 @@
 // and read back. Every function takes the signed-in user's id and only ever touches that
 // user's chats, so another user's chat looks like it does not exist (AC7).
 // Called by routes/chat.routes.ts. Calls the chat models.
-import { Types } from 'mongoose'
+import { Types, type HydratedDocument } from 'mongoose'
+import { ChatError } from './chat-error'
 import { ChatConversationModel } from '../models/chat-conversation.model'
-import { ChatMessageModel } from '../models/chat-message.model'
+import { ChatMessageModel, type IChatMessage } from '../models/chat-message.model'
 
 const TITLE_CHARS = 60
-
-/** Thrown when the chat does not exist or is not the user's; the route answers 404 for both. */
-export class ConversationNotFound extends Error {}
-/** Thrown when a new name is empty; the route answers 400. */
-export class InvalidTitle extends Error {}
 
 /** The thread shape OpenUI's storage expects. */
 const toThread = (c: { _id: Types.ObjectId; title: string; createdAt: Date }) => ({
@@ -20,12 +16,12 @@ const toThread = (c: { _id: Types.ObjectId; title: string; createdAt: Date }) =>
   createdAt: c.createdAt.toISOString(),
 })
 
-/** Returns the chat if it is this user's, else throws ConversationNotFound. */
+/** Returns the chat if it is this user's, else throws a 404 ChatError. */
 export async function ownedConversation(userId: string, id: string) {
   const found = Types.ObjectId.isValid(id)
     ? await ChatConversationModel.findOne({ _id: id, userId })
     : null
-  if (!found) throw new ConversationNotFound()
+  if (!found) throw new ChatError(404, 'Chat not found.')
   return found
 }
 
@@ -55,21 +51,77 @@ export async function listConversations(userId: string, q?: string) {
   return chats.map(toThread)
 }
 
-/** Returns a chat's messages in the order they were sent, in OpenUI's message shape. */
+type Stored = HydratedDocument<IChatMessage>
+const loadAll = (conversationId: Types.ObjectId) =>
+  ChatMessageModel.find({ conversationId }).sort({ createdAt: 1 })
+// The id the browser knows a message by: its own, else the stored one.
+const shownId = (m: Stored) => m.clientId ?? String(m._id)
+
+/**
+ * Returns the version on screen (CB-04): the messages from the first question down to the chat's
+ * active leaf, in OpenUI's message shape, plus `versions` for each message that has siblings
+ * (same parent and role): all their ids in the order made, and which one is shown.
+ */
 export async function getMessages(userId: string, id: string) {
   const chat = await ownedConversation(userId, id)
-  const messages = await ChatMessageModel.find({ conversationId: chat._id }).sort({ createdAt: 1 })
-  return messages.map((m) => ({
-    id: m.clientId ?? String(m._id),
-    role: m.role,
-    content: m.content,
-  }))
+  return pathView(chat.activeLeafId, await loadAll(chat._id))
+}
+
+function pathView(leafId: Types.ObjectId | undefined, all: Stored[]) {
+  const byId = new Map(all.map((m) => [String(m._id), m]))
+  // A chat from before CB-04 has no active leaf: its newest message is the end of its one path.
+  let at = (leafId && byId.get(String(leafId))) || all.at(-1)
+  const path: Stored[] = []
+  while (at) {
+    path.unshift(at)
+    at = at.parentId ? byId.get(String(at.parentId)) : undefined
+  }
+  const versions: Record<string, { ids: string[]; index: number }> = {}
+  for (const m of path) {
+    const siblings = all.filter(
+      (o) => String(o.parentId ?? '') === String(m.parentId ?? '') && o.role === m.role,
+    )
+    if (siblings.length > 1)
+      versions[shownId(m)] = {
+        ids: siblings.map(shownId),
+        index: siblings.findIndex((o) => String(o._id) === String(m._id)),
+      }
+  }
+  return {
+    messages: path.map((m) => ({ id: shownId(m), role: m.role, content: m.content })),
+    versions,
+  }
+}
+
+/**
+ * Makes `messageId` (one of the chat's messages, by either id) the version on screen, and returns
+ * the new view. The end of the path is that message's newest descendants, so the exchanges that
+ * followed it come back too. Another chat's message looks like it does not exist.
+ */
+export async function switchVersion(userId: string, id: string, messageId: unknown) {
+  const chat = await ownedConversation(userId, id)
+  const all = await loadAll(chat._id)
+  const wanted = typeof messageId === 'string' ? messageId : ''
+  let leaf: Stored | undefined =
+    all.find((m) => shownId(m) === wanted) ?? all.find((m) => String(m._id) === wanted)
+  if (!leaf) throw new ChatError(404, 'Chat not found.')
+  while (leaf) {
+    const parentOf: Stored = leaf
+    const next: Stored | undefined = all
+      .filter((m) => String(m.parentId) === String(parentOf._id))
+      .at(-1)
+    if (!next) break
+    leaf = next
+  }
+  chat.activeLeafId = leaf._id
+  await chat.save()
+  return pathView(leaf._id, all)
 }
 
 /** Renames a chat and returns its thread. */
 export async function renameConversation(userId: string, id: string, title: unknown) {
   const name = typeof title === 'string' ? title.trim() : ''
-  if (!name) throw new InvalidTitle()
+  if (!name) throw new ChatError(400, 'A chat needs a name.')
   const chat = await ownedConversation(userId, id)
   chat.title = name.slice(0, 100)
   await chat.save()

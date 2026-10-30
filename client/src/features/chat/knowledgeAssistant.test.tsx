@@ -96,7 +96,7 @@ describe('Knowledge assistant (CB-01)', () => {
       })
       render(<App />)
       await signIn('risk_engineer')
-      fireEvent.click(screen.getAllByRole('button', { name: 'Ask the knowledge base' })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: 'Chatbot' })[0])
       expect(window.location.pathname).toBe('/ask')
 
       // The screen's first load brings OpenUI in, which is slow under jsdom.

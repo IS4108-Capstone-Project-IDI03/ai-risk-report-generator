@@ -1,0 +1,81 @@
+/* "My preferences" panel (CB-05): a light stack inside a dialog, no cards. */
+.preferences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.preferences__note {
+  margin: 0;
+  font-size: var(--text-small-size);
+  color: var(--text-muted);
+}
+.preferences__count {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-small-size);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+.fact-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.fact-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+.fact-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fact-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--border-default);
+}
+.fact-row--editing {
+  display: block;
+}
+.fact-row__text p {
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+}
+.fact-row__date {
+  font-size: var(--text-small-size);
+  color: var(--text-muted);
+}
+.fact-row__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+}
+
+/* With memory off the list is kept but not used, so its text goes muted (not faded: faded text
+   fails the contrast minimum). */
+.fact-list--off .fact-row__text p {
+  color: var(--text-muted);
+}
+/* Read by screen readers only: the notices that a fact was added, saved, deleted or refused. */
+.preferences__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* On a touch screen the panel's controls are at least 44px, the touch-target minimum. */
+@media (pointer: coarse) {
+  .fact-row__actions button,
+  .fact-form__actions button,
+  .preferences label {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

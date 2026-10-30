@@ -11,12 +11,14 @@ import { Icon } from '../../../design-system'
 import marshbot from '../marshbot.svg'
 import { ChatSearch } from './ChatSearch'
 import { ChatThreadList } from './ChatThreadList'
+import { PreferencesPanel } from './PreferencesPanel'
 
 /** The sidebar's contents: header, a New chat row, then the Chats heading and list. */
 export function ChatSidebar() {
   const startNewChat = useThreadList((s) => s.switchToNewThread)
   const hasChats = useThreadList((s) => s.threads.length > 0)
   const [words, setWords] = useState('')
+  const [preferencesOpen, setPreferencesOpen] = useState(false)
   return (
     <>
       <div className="openui-agent-sidebar-actions">
@@ -45,6 +47,14 @@ export function ChatSidebar() {
           >
             New chat
           </AgentInterface.SidebarItem>
+          {/* CB-05: the engineer's remembered facts, in a light panel instead of a page. */}
+          <AgentInterface.SidebarItem
+            icon={<Icon name="settings" />}
+            aria-label="My preferences"
+            onClick={() => setPreferencesOpen(true)}
+          >
+            My preferences
+          </AgentInterface.SidebarItem>
         </div>
       </div>
       <AgentInterface.SidebarContent>
@@ -52,6 +62,7 @@ export function ChatSidebar() {
         {(hasChats || words) && <h3 className="chat-sidebar-heading">Chats</h3>}
         <ChatThreadList searching={!!words} />
       </AgentInterface.SidebarContent>
+      {preferencesOpen && <PreferencesPanel onClose={() => setPreferencesOpen(false)} />}
     </>
   )
 }

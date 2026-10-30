@@ -301,7 +301,7 @@ describe('Create assessment (CP-01)', () => {
 
     // The next assessment starts from a blank form, not this one's details.
     // New assessment is the Dashboard's action.
-    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Assessment dashboard/ }))
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     expect(screen.getByLabelText(/Site name/)).toHaveValue('')
     expect(screen.getByRole('combobox', { name: /^Client/ })).toHaveValue('')
@@ -1101,7 +1101,7 @@ it('dates a new form today with its report due in two weeks, and keeps a blank o
     mockGateway()
     await openApp()
     const openForm = () => {
-      fireEvent.click(screen.getAllByRole('button', { name: /^Dashboard/ })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: /^Assessment dashboard/ })[0])
       fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     }
     const visit = () => screen.getByLabelText(/Site visit date/)
@@ -1147,7 +1147,7 @@ it('reloads the engineer directory after failure and preserves the selected engi
   await screen.findByText('Engineer list unavailable')
   fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Retained site' } })
 
-  fireEvent.click(screen.getAllByRole('button', { name: /^Dashboard/ })[0])
+  fireEvent.click(screen.getAllByRole('button', { name: /^Assessment dashboard/ })[0])
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
   expect(screen.getByText('Loading engineers…')).toBeInTheDocument()
   expect(screen.queryByText('Engineer list unavailable')).not.toBeInTheDocument()
@@ -1362,7 +1362,7 @@ it('edits my assessment details, keeping its engineer (RV-10 AC10, AC11)', async
   expect(screen.getAllByText('Jurong Hub East').length).toBeGreaterThan(0)
 
   // A new assessment then starts from a blank form, not the edited details.
-  fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+  fireEvent.click(screen.getByRole('button', { name: /^Assessment dashboard/ }))
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
   expect(screen.getByRole('combobox', { name: /^Client/ })).toHaveValue('')
   expect(screen.getByRole('heading', { name: 'Create assessment' })).toBeInTheDocument()

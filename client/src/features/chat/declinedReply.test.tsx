@@ -78,7 +78,7 @@ describe('Declined question (CB-07)', () => {
     })
     render(<App />)
     await signIn(role)
-    fireEvent.click(screen.getAllByRole('button', { name: 'Ask the knowledge base' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chatbot' })[0])
     // The composer by its placeholder: the saved-chats search (CB-03) is a textbox too.
     const box = await screen.findByPlaceholderText(
       'Ask about a standard or a past report',

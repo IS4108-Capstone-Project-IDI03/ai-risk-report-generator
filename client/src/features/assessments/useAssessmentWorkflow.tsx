@@ -1745,42 +1745,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         },
       ]
     })
+    // Three groups, then the assessments last opened. A role sees only the places it may open,
+    // and a group with none of them is left out (an engineer has no Users group).
+    const order =
+      session.user.role === 'risk_engineer'
+        ? ['Assessments', 'Knowledge', 'Users', 'Recent']
+        : ['Knowledge', 'Users', 'Assessments', 'Recent']
     const navSections = [
+      {
+        label: 'Knowledge',
+        items: [
+          { value: 'knowledge', label: 'Knowledge base', icon: 'library' },
+          { value: 'chat', label: 'Chatbot', icon: 'message-square' },
+        ],
+      },
+      { label: 'Users', items: [{ value: 'users', label: 'User accounts', icon: 'users' }] },
       {
         label: 'Assessments',
         items: [
-          {
-            value: 'dashboard',
-            label: 'Dashboard',
-            icon: 'inbox',
-            count: rows.length,
-          },
+          { value: 'dashboard', label: 'Assessment dashboard', icon: 'inbox', count: rows.length },
+          { value: 'usage', label: 'Usage and costs', icon: 'files' },
         ],
-      },
-      {
-        label: 'Knowledge',
-        items: [{ value: 'chat', label: 'Ask the knowledge base', icon: 'message-square' }],
       },
       { label: 'Recent', items: recentItems },
-      {
-        label: 'Administration',
-        items: [
-          {
-            value: 'users',
-            label: 'User accounts',
-            icon: 'users',
-          },
-          {
-            value: 'knowledge',
-            label: 'Knowledge base',
-            icon: 'library',
-          },
-        ],
-      },
-      {
-        label: 'Reporting',
-        items: [{ value: 'usage', label: 'Usage and costs', icon: 'files' }],
-      },
     ]
       .map((section) => ({
         ...section,
@@ -1789,6 +1776,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       }))
       .filter((section) => section.items.length > 0)
+      // A risk engineer works from the assessments, so their group comes first and the chatbot
+      // (their only knowledge place) next; the knowledge admin starts from the knowledge group.
+      .sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label))
 
     const q = s.q.trim().toLowerCase()
     // Archived is a view of its own, Archived (n), not a status (CP-17).

@@ -11,7 +11,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | Section drafting, incl. redraft and Regenerate | Yes | PV-02 | Cohere search and rerank queries, past-report passages and the prompt are masked. |
 | OFI drafting (Section 3) | Yes | PV-02 | As for sections; accepted OFI titles are masked too. |
 | Executive Summary (Section 2) | Yes | PV-02 | The saved section text is masked. |
-| Knowledge-base chat | Yes | PV-03 | The conversation, context, document names, passages, Cohere queries and rerank documents are masked; the answer streams back with real names. |
+| Knowledge-base chat | Yes | PV-03 | The conversation, context (the engineer's remembered facts, CB-05, travel as context), document names, passages, Cohere queries and rerank documents are masked; the answer streams back with real names. |
 | Pre-survey checklist (CP-30) | Not needed | CP-30 | Only the facility type, country and standard ids are sent; S4's request has no field for client text. |
 | Proposed figures for Sections 4 and 5 (GN-03) | **No** | (PV-02 follow-up) | `POST /figures/propose` sends observations and sections to the model unmasked. |
 | Observation reading: photos, and since CP-21 any observation's text (Gemini) | **No** | PV-04 | |
