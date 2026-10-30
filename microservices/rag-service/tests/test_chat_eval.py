@@ -159,7 +159,20 @@ def prepare(env):
 # ---- prepare: search once ------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _no_extra_searches(monkeypatch):
+    # These tests count searches. The engineer's own-words search and the retry after a decline
+    # (CB-01) each add some, and their fake answers have no citation, which counts as a decline.
+    # Both are tested in test_chat.py, so they are switched off here, not in each test.
+    monkeypatch.setattr(answer, "OWN_WORDS_PASSAGES", 0)
+    monkeypatch.setattr(answer, "RETRY_MIN_SCORE", 2.0)  # no score reaches it: never retried
+
+
 def test_first_turns_are_searched_once_for_every_candidate(env, monkeypatch):
+    # This is about the cache, which searches each first turn once. The search of the engineer's
+    # own words (answer.OWN_WORDS_PASSAGES) is cached with it but adds a retrieve call per
+    # search, so it is off here to keep the call count one per case.
+    monkeypatch.setattr(answer, "OWN_WORDS_PASSAGES", 0)
     live_anthropic(monkeypatch)
     assert prepare(env) == 0
     first_turns = list(env.calls["search"])

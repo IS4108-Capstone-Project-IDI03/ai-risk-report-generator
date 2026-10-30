@@ -1,17 +1,22 @@
-// The chat screen's sidebar (CB-01): MarshBot's name, a "New chat" row and the "Chats" list.
+// The chat screen's sidebar (CB-01): MarshBot's name, a "New chat" row, a search box (CB-03)
+// and the "Chats" list.
 // The logo and name start a new chat too, as in most chat apps.
 // Built from OpenUI's own sidebar parts, placed inside <AgentInterface.Sidebar> by
 // screens/KnowledgeAssistant.tsx. OpenUI's default sidebar hardcodes "New Chat" and "Threads"
 // with no label props, so this composes the same parts with our words.
 import { useThreadList } from '@openuidev/react-headless'
 import { AgentInterface } from '@openuidev/react-ui'
+import { useState } from 'react'
 import { Icon } from '../../../design-system'
 import marshbot from '../marshbot.svg'
+import { ChatSearch } from './ChatSearch'
+import { ChatThreadList } from './ChatThreadList'
 
 /** The sidebar's contents: header, a New chat row, then the Chats heading and list. */
 export function ChatSidebar() {
   const startNewChat = useThreadList((s) => s.switchToNewThread)
   const hasChats = useThreadList((s) => s.threads.length > 0)
+  const [words, setWords] = useState('')
   return (
     <>
       <div className="openui-agent-sidebar-actions">
@@ -43,8 +48,9 @@ export function ChatSidebar() {
         </div>
       </div>
       <AgentInterface.SidebarContent>
-        {hasChats && <h3 className="chat-sidebar-heading">Chats</h3>}
-        <AgentInterface.ThreadList />
+        <ChatSearch words={words} onChange={setWords} />
+        {(hasChats || words) && <h3 className="chat-sidebar-heading">Chats</h3>}
+        <ChatThreadList searching={!!words} />
       </AgentInterface.SidebarContent>
     </>
   )

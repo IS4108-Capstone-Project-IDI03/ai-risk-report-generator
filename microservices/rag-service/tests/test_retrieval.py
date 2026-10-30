@@ -136,3 +136,75 @@ def test_a_search_of_many_queries_stays_within_chromas_per_query_limit(monkeypat
     assert [r[0]["id"] for r in results] == [f"hit-{i}" for i in range(25)]
     assert collection.sizes == [20, 5]
     assert cohere.embed.call_count == 1
+
+
+# ---- Cohere calls are retried on a timeout or rate limit, not failing a chat on one slow call ----
+
+
+def test_a_cohere_timeout_is_retried_and_then_succeeds(monkeypatch):
+    import httpx
+
+    from app.retrieval import retriever
+
+    sleeps = []
+    monkeypatch.setattr(retriever.time, "sleep", sleeps.append)
+    calls = []
+
+    def call():
+        calls.append(1)
+        if len(calls) < 3:
+            raise httpx.ReadTimeout("slow")
+        return "ok"
+
+    assert retriever._with_retries(call, "embed") == "ok"
+    assert len(calls) == 3 and sleeps == list(retriever.RETRY_DELAYS)
+
+
+def test_a_cohere_rate_limit_is_retried(monkeypatch):
+    from cohere.errors import TooManyRequestsError
+
+    from app.retrieval import retriever
+
+    monkeypatch.setattr(retriever.time, "sleep", lambda s: None)
+    calls = []
+
+    def call():
+        calls.append(1)
+        if len(calls) == 1:
+            raise TooManyRequestsError(body={})
+        return "ok"
+
+    assert retriever._with_retries(call, "rerank") == "ok"
+    assert len(calls) == 2
+
+
+def test_the_last_retry_gives_up_with_the_original_error(monkeypatch):
+    import httpx
+
+    from app.retrieval import retriever
+
+    monkeypatch.setattr(retriever.time, "sleep", lambda s: None)
+    calls = []
+
+    def call():
+        calls.append(1)
+        raise httpx.ReadTimeout("still slow")
+
+    with pytest.raises(httpx.ReadTimeout):
+        retriever._with_retries(call, "embed")
+    assert len(calls) == 1 + len(retriever.RETRY_DELAYS)
+
+
+def test_other_errors_are_not_retried(monkeypatch):
+    from app.retrieval import retriever
+
+    monkeypatch.setattr(retriever.time, "sleep", lambda s: None)
+    calls = []
+
+    def call():
+        calls.append(1)
+        raise ValueError("a bad request")
+
+    with pytest.raises(ValueError):
+        retriever._with_retries(call, "embed")
+    assert len(calls) == 1

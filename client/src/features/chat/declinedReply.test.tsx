@@ -67,12 +67,24 @@ describe('Declined question (CB-07)', () => {
         return Promise.resolve(Response.json({ id: 'r1' }, { status: 201 }))
       }
       if (url === '/api/knowledge-documents/ingested') return Promise.resolve(Response.json([]))
+      // The saved-chat list and a new chat (CB-03): the chat starts with none and saves its first.
+      if (url === '/api/chat/conversations')
+        return Promise.resolve(
+          init?.method === 'POST'
+            ? Response.json({ id: 'c1', title: 'Q' }, { status: 201 })
+            : Response.json({ threads: [] }),
+        )
       return Promise.reject(new TypeError('Failed to fetch'))
     })
     render(<App />)
     await signIn(role)
     fireEvent.click(screen.getAllByRole('button', { name: 'Ask the knowledge base' })[0])
-    const box = await screen.findByRole('textbox', {}, { timeout: 15000 })
+    // The composer by its placeholder: the saved-chats search (CB-03) is a textbox too.
+    const box = await screen.findByPlaceholderText(
+      'Ask about a standard or a past report',
+      {},
+      { timeout: 15000 },
+    )
     fireEvent.change(box, { target: { value: 'What is the Mars sprinkler rule?' } })
     fireEvent.keyDown(box, { key: 'Enter' })
   }

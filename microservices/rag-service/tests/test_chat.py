@@ -64,6 +64,9 @@ def fake(monkeypatch):
     monkeypatch.setattr(answer, "complete_json", complete_json)
     monkeypatch.setattr(answer, "retrieve", retrieve)
     monkeypatch.setattr(answer, "stream_text", stream_text)
+    # One search per question, as these tests assume; the tests of the engineer's own words
+    # (below) switch it back on.
+    monkeypatch.setattr(answer, "OWN_WORDS_PASSAGES", 0)
     return state
 
 
@@ -626,3 +629,141 @@ def test_a_named_report_gets_its_top_passages_not_one(fake):
 def test_the_meta_line_names_each_passage_id_so_the_panel_can_open_it(fake):
     # CB-02: the citation panel fetches the passage by this id.
     assert f"passageId: {json.dumps(P1['id'])}" in _program(_ask("Clearance?"))
+
+
+# ---- Fewer chance misses: own words, a retry on a decline, a debuggable error ----
+
+RAW = "What density and area do I use for an EH2 area on a new system?"
+REWRITE = (
+    "What design density and design area should be used for an EH2 (Extra Hazard Group 2) area?"
+)
+P2 = {
+    "id": "nfpa:9",
+    "text": "19.2.3.2.2.1 The densities and areas provided in Table 19.2.3.1.1 shall be used.",
+    "metadata": {"doc_id": "nfpa", "page_start": 180, "page_end": 181},
+    "relevance_score": 0.7,
+}
+DECLINED = [
+    "root = Answer([s1])\n",
+    's1 = Statement("The knowledge base cannot answer this question.", [])\n',
+]
+
+
+def _answers(monkeypatch, fake, *attempts):
+    """Makes each answer attempt return the next chunk list."""
+    queue = iter(attempts)
+
+    def stream_text(system, messages, **kwargs):
+        fake["calls"]["answer"].append((system, messages))
+        yield from next(queue)
+
+    monkeypatch.setattr(answer, "stream_text", stream_text)
+
+
+def _retrieve_recording(monkeypatch, results):
+    """Fakes search: `results(query)` gives the passages; returns the (query, options) seen."""
+    seen = []
+
+    def retrieve(query, filters=None, include_withdrawn=False, **options):
+        seen.append((query, options))
+        return results(query)
+
+    monkeypatch.setattr(answer, "retrieve", retrieve)
+    return seen
+
+
+def test_the_engineers_own_words_are_searched_too_when_the_planner_rewrote_them(fake, monkeypatch):
+    monkeypatch.setattr(answer, "OWN_WORDS_PASSAGES", 3)
+    # The planner words its search differently each time, and each wording finds different passages.
+    fake["plan"] = answer.Plan(kind="search", query=REWRITE, reply="")
+    seen = _retrieve_recording(monkeypatch, lambda q: [P1] if q == REWRITE else [P2])
+
+    _ask(RAW)
+
+    assert [q for q, _ in seen] == [REWRITE, RAW]
+    last = fake["calls"]["answer"][0][1][-1]["content"]
+    assert P1["text"] in last and P2["text"] in last
+
+
+def test_a_question_the_planner_kept_is_searched_once(fake, monkeypatch):
+    fake["plan"] = answer.Plan(kind="search", query=RAW.upper(), reply="")
+    seen = _retrieve_recording(monkeypatch, lambda q: [P1])
+
+    _ask(RAW)
+
+    assert len(seen) == 1
+
+
+def test_a_failed_search_of_the_engineers_own_words_does_not_fail_the_answer(fake, monkeypatch):
+    monkeypatch.setattr(answer, "OWN_WORDS_PASSAGES", 3)
+    fake["plan"] = answer.Plan(kind="search", query=REWRITE, reply="")
+
+    def results(query):
+        if query == RAW:
+            raise RuntimeError("second search down")
+        return [P1]
+
+    _retrieve_recording(monkeypatch, results)
+
+    events = _ask(RAW)
+
+    assert "18 in." in _program(events)  # the planner's search still answered
+
+
+def test_a_decline_despite_a_strong_passage_is_retried_once_with_more_passages(fake, monkeypatch):
+    seen = _retrieve_recording(monkeypatch, lambda q: [P1])  # P1 scores 0.9
+    _answers(monkeypatch, fake, DECLINED, GOOD_ANSWER)
+
+    events = _ask("What clearance is needed above storage?")
+
+    assert "18 in." in _program(events)
+    assert len(fake["calls"]["answer"]) == 2
+    assert 10 in [options.get("top_n") for _, options in seen]  # the second search is wider
+
+
+def test_a_decline_with_only_weak_passages_is_not_retried(fake, monkeypatch):
+    weak = {**P1, "relevance_score": 0.3}
+    _retrieve_recording(monkeypatch, lambda q: [weak])
+    _answers(monkeypatch, fake, DECLINED)
+
+    events = _ask("What clearance is needed above storage?")
+
+    assert len(fake["calls"]["answer"]) == 1
+    assert _result(events)["declined"] is True
+
+
+def test_a_decline_that_survives_the_retry_is_shown_as_written_and_logged(
+    fake, monkeypatch, caplog
+):
+    # The decline is the model's own words (it offers to ask an admin to add the document, CB-07);
+    # the log says what was tried, under one reference.
+    _retrieve_recording(monkeypatch, lambda q: [P1])
+    _answers(monkeypatch, fake, DECLINED, DECLINED)
+
+    with caplog.at_level("WARNING"):
+        events = _ask("What clearance is needed above storage?")
+
+    assert "Cite(" not in _program(events)
+    assert _result(events)["declined"] is True
+    assert any(
+        "declined again" in r.getMessage() and "ref" in r.getMessage() for r in caplog.records
+    )
+
+
+def test_a_search_failure_says_what_failed_with_a_reference_and_is_logged(
+    fake, monkeypatch, caplog
+):
+    import httpx
+
+    def retrieve(*args, **kwargs):
+        raise httpx.ReadTimeout("The read operation timed out")
+
+    monkeypatch.setattr(answer, "retrieve", retrieve)
+
+    with caplog.at_level("ERROR"):
+        events = _ask("What clearance is needed above storage?")
+
+    # On screen: only the friendly sentence. The reason and the reference are in the result and log.
+    assert "ReadTimeout" not in _program(events)
+    assert "ReadTimeout" in _result(events)["error"] and "ref " in _result(events)["error"]
+    assert any("ref" in r.getMessage() for r in caplog.records)

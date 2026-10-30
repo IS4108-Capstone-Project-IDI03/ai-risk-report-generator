@@ -267,4 +267,4 @@ def test_both_chat_models_are_told_to_copy_placeholders_exactly(fake):
     system, _ = fake["calls"]["answer"][0]
     assert PLACEHOLDER_RULE in system
     assert PLACEHOLDER_RULE in answer.PLAN_SYSTEM
-    assert _result(events)["prompt_version"] == "cb01-v22"
+    assert _result(events)["prompt_version"] == "cb01-v23"

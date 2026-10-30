@@ -1074,3 +1074,91 @@
   mix-blend-mode: multiply;
   pointer-events: none;
 }
+
+/* ---- Saved chats (CB-03) ---- */
+
+.chat-thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chat-thread-note {
+  margin: 0;
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.chat-thread-row {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: background-color 160ms var(--chat-ease);
+}
+.chat-thread-row:hover,
+.chat-thread-row:focus-within {
+  background: var(--chat-hover);
+}
+.chat-thread-row[data-selected] {
+  background: var(--chat-selected);
+}
+.chat-thread-title {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 6px;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-thread-row[data-selected] .chat-thread-title {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+/* Shown on hover and keyboard focus; always shown on touch screens, which have no hover. */
+.chat-thread-actions {
+  display: none;
+  flex: none;
+  padding-right: 2px;
+}
+.chat-thread-row:hover .chat-thread-actions,
+.chat-thread-row:focus-within .chat-thread-actions {
+  display: flex;
+}
+@media (hover: none) {
+  .chat-thread-actions {
+    display: flex;
+  }
+}
+/* A collapsed sidebar shows icons only. */
+.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-thread-list,
+.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-thread-note {
+  display: none;
+}
+
+/* The footer buttons sit side by side like a Dialog's own footer. */
+.chat-dialog-actions {
+  display: flex;
+  gap: 8px;
+}
+/* Touch screens: the row and its two icon buttons reach 44 px, the smallest comfortable tap
+   target. !important because the shared IconButton sets its size inline. */
+@media (hover: none) {
+  .chat-thread-title {
+    min-height: 44px;
+  }
+  .chat-thread-actions button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+/* In the phone drawer OpenUI pads the "Chats" heading by 10 px, so the titles do too. */
+.knowledge-assistant .openui-agent-container--mobile .chat-thread-title,
+.knowledge-assistant .openui-agent-container--mobile .chat-thread-note {
+  padding-left: 10px;
+}

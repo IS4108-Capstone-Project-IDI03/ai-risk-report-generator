@@ -9,8 +9,19 @@ import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
 import { checkChatLimits, pickReply, UNAVAILABLE } from '../services/chat-limits.service'
+import { chatSaveTap, lastQuestion, saveQuestion } from '../services/chat-save.service'
 import { chatUsageTap } from '../services/chat-usage.service'
 import { chatPrivacy } from '../services/privacy.service'
+import {
+  ConversationNotFound,
+  createConversation,
+  deleteConversation,
+  getMessages,
+  InvalidTitle,
+  ownedConversation,
+  listConversations,
+  renameConversation,
+} from '../services/chat-conversation.service'
 import {
   getPassage,
   openChatStream,
@@ -19,6 +30,14 @@ import {
 } from '../services/rag.service'
 
 const router = Router()
+
+// Answers a missing or someone else's chat with 404 and a bad name with 400; anything else is a real error.
+function conversationError(res: Response, error: unknown) {
+  if (error instanceof ConversationNotFound)
+    return res.status(404).json({ error: 'Chat not found.' })
+  if (error instanceof InvalidTitle) return res.status(400).json({ error: 'A chat needs a name.' })
+  throw error
+}
 
 // Everything the engineer wrote in the request: every user message and context
 // entry. Checking only the last message would let a blank last message hide a
@@ -55,11 +74,27 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   // 200 stream, not a 429, because OpenUI's fetchLLM would show a generic error
   // for a 429 instead of the reason.
   const userId = res.locals.user!.id
+  // a. A chat named by threadId must be the user's own; checked first so nothing is spent or saved otherwise.
+  const threadId: unknown = req.body?.threadId
+  if (typeof threadId === 'string') {
+    try {
+      await ownedConversation(userId, threadId)
+    } catch (error) {
+      return conversationError(res, error)
+    }
+  }
   const reason = checkChatLimits(userId, engineerTexts(req.body))
   if (reason) {
     refuse(res, reason)
     return
   }
+  // b. Save the question before asking S4, so it is kept even if the answer fails.
+  const question = lastQuestion(req.body)
+  // A failed save is logged, not fatal: the engineer still gets their answer.
+  if (typeof threadId === 'string' && question)
+    await saveQuestion(threadId, userId, question).catch((error) =>
+      console.error('Could not save the chat question:', error),
+    )
   // Without this, S4 keeps writing an answer after the engineer presses stop.
   const upstream = new AbortController()
   res.on('close', () => upstream.abort())
@@ -91,9 +126,47 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   await pipeline(
     Readable.fromWeb(stream as WebReadableStream<Uint8Array>),
     chatUsageTap(userId),
+    ...(typeof threadId === 'string' ? [chatSaveTap(threadId, userId)] : []),
     res,
   ).catch(() => {})
 })
+
+// Saved chats (CB-03). OpenUI's thread storage calls these (client/src/features/chat/api.ts).
+const mine = (res: Response) => res.locals.user!.id as string
+const chats = Router()
+chats.get('/', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q : undefined
+  res.json({ threads: await listConversations(mine(res), q) })
+})
+chats.post('/', async (req, res) => {
+  const content = req.body?.message?.content
+  res
+    .status(201)
+    .json(await createConversation(mine(res), typeof content === 'string' ? content : ''))
+})
+chats.get('/:id', async (req, res) => {
+  try {
+    res.json({ messages: await getMessages(mine(res), req.params.id) })
+  } catch (error) {
+    conversationError(res, error)
+  }
+})
+chats.patch('/:id', async (req, res) => {
+  try {
+    res.json(await renameConversation(mine(res), req.params.id, req.body?.title))
+  } catch (error) {
+    conversationError(res, error)
+  }
+})
+chats.delete('/:id', async (req, res) => {
+  try {
+    await deleteConversation(mine(res), req.params.id)
+    res.status(204).end()
+  } catch (error) {
+    conversationError(res, error)
+  }
+})
+router.use('/conversations', requirePermission('knowledge:view'), chats)
 
 // One passage behind a citation (CB-02): its text and page boxes, passed through from S4.
 router.get('/passages/:id', requirePermission('knowledge:view'), async (req, res) => {

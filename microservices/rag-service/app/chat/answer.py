@@ -26,7 +26,7 @@ from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
 
 # Bump on every prompt change; each scored eval run records it (AC12).
-PROMPT_VERSION = "cb01-v22"  # v22: copy placeholders exactly (PV-03)
+PROMPT_VERSION = "cb01-v23"  # v23: v22 plus retries, own-words search, error refs (CB-01)
 # The component signatures, generated from the client's library (must match
 # client/src/features/chat/library.test.ts, which rewrites this file).
 COMPONENTS = (Path(__file__).parent / "answer_components.txt").read_text()
@@ -76,11 +76,21 @@ NO_QUESTION = (
 )
 SEARCH_TOOL = "search_knowledge_base"
 log = logging.getLogger("uvicorn.error")
+# The engineer's last message, set by `_events` for `search_passages`, whose signature is fixed.
+_OWN_WORDS: contextvars.ContextVar[str] = contextvars.ContextVar("own_words", default="")
 # ponytail: only the latest turns go to the models, so a long chat's cost stays flat.
 HISTORY_MESSAGES = 8
 # Report searches look wider, so every report that mentions a topic can surface (16 Oct).
 # ponytail: only reports among these candidates can appear; raise it if reports are missed.
 REPORT_CANDIDATES = 40
+# A decline despite a strong match is retried once with a wider search (CB-01 follow-up): the
+# answer model sometimes declines when the passage that answers was not among the first few.
+RETRY_MIN_SCORE = 0.6
+RETRY_TOP_N = 10
+# The most of an answer held back, waiting for its first citation, to see whether it declines.
+HOLD_CHARS = 600
+# The engineer's own words are searched too, and the best few of them added to the planner's.
+OWN_WORDS_PASSAGES = 3
 # An earlier answer's readable text: its statements and table cells.
 _TEXTS = r'(?:Statement|Cell|FollowUp)\(\s*("(?:[^"\\]|\\.)*")'
 
@@ -146,7 +156,10 @@ ANSWER_RULES = f"""
 PLAN_SYSTEM = f"""You prepare a knowledge base search for a property risk engineer's chat.
 Read the conversation and decide for its LAST message:
 - kind "search": write `query` as a standalone search question, resolving any reference to
-  earlier messages ("it", "the 2022 edition") into full words. Also put in `reply` what to send
+  earlier messages ("it", "the 2022 edition") into full words.
+  a complete question that needs no earlier message to be understood, copy it unchanged as
+  `query`: rewording it makes the search find different passages from one ask to the next.
+  Also put in `reply` what to send
   only if the search finds nothing relevant: one natural sentence, as a colleague would,
   saying the knowledge base doesn't cover <the topic in a few words>, then one short question
   offering to get it added: if <role> is risk engineer, ask whether they'd like you to ask a
@@ -243,18 +256,26 @@ def search_filters(filters: Filters, names: dict[str, str]) -> dict:
     return found
 
 
-def _search(query: str, filters: dict, include_withdrawn: bool, rank_texts=None) -> list[dict]:
+def _search(
+    query: str,
+    filters: dict,
+    include_withdrawn: bool,
+    rank_texts=None,
+    top_n: int | None = None,
+) -> list[dict]:
     """Return the passages for one search: its top 5, or for past reports one per report.
 
     A report search keeps the best passage of every report that clears the cut-off, so an
     answer about "past reports" can name all of them instead of the one that ranked first.
-    `rank_texts` changes only what the reranker reads (see `retrieve`).
+    `rank_texts` changes only what the reranker reads (see `retrieve`). `top_n` widens a
+    standards search (the retry after a decline).
     """
     # Only when given, so searches without protection call retrieve exactly as before.
     masking = {"rank_texts": rank_texts} if rank_texts else {}
     # A search limited to one named document wants its top passages, not one per report.
     if filters.get("source_type") != "marsh_report" or "doc_id" in filters:
-        return retrieve(query, filters, include_withdrawn, expand=True, **masking)
+        wider = {"top_n": top_n} if top_n else {}
+        return retrieve(query, filters, include_withdrawn, expand=True, **masking, **wider)
     ranked = retrieve(
         query,
         filters,
@@ -292,26 +313,65 @@ def _real_documents(plan: Plan, protection: pii.Session) -> Plan:
     )
 
 
-def search_passages(plan: Plan, names: dict[str, str] | None = None, rank_texts=None) -> list[dict]:
-    """Return a plan's passages: one search's, or the best 3 of each when it has extras.
-
-    `rank_texts` changes only what the reranker reads (see `retrieve`).
-    """
-    names = names or {}
+def _gather(
+    plan: Plan,
+    names: dict[str, str],
+    rank_texts=None,
+    top_n: int | None = None,
+) -> list[dict]:
+    """Return a plan's passages: one search's, or the best 3 of each when it has extras."""
     filters = search_filters(plan.filters, names)
     if not plan.extra_searches:
-        return _search(plan.query, filters, plan.include_withdrawn, rank_texts)
+        return _search(plan.query, filters, plan.include_withdrawn, rank_texts, top_n)
     searches = [(plan.query, filters)] + [
         (x.query, search_filters(x.filters, names)) for x in plan.extra_searches
     ]
     merged, seen = [], set()
     for query, each in searches:
-        for p in _search(query, each, plan.include_withdrawn, rank_texts)[:3]:
+        for p in _search(query, each, plan.include_withdrawn, rank_texts, top_n)[:3]:
             # Without this, a passage found by two searches would reach the model twice.
             if p["id"] not in seen:
                 seen.add(p["id"])
                 merged.append(p)
     return merged
+
+
+def search_passages(plan: Plan, names: dict[str, str] | None = None, rank_texts=None) -> list[dict]:
+    """Return a plan's passages: one search's, or the best 3 of each when it has extras.
+
+    Plus the best few for the engineer's own words (see `_add_own_words`), which `_events` leaves
+    in `_OWN_WORDS`. The signature is fixed: eval/chat_runner.py replaces this function with a
+    cached copy of the same shape, so what is cached includes the own-words passages.
+    """
+    names = names or {}
+    return _add_own_words(_gather(plan, names, rank_texts), plan, names, rank_texts)
+
+
+def _add_own_words(
+    found: list[dict],
+    plan: Plan,
+    names: dict[str, str],
+    rank_texts=None,
+    top_n: int | None = None,
+) -> list[dict]:
+    """Return `found` plus the best few passages for the engineer's own words.
+
+    The planner words its search differently every time, and each wording finds different
+    passages; searching the engineer's own words as well makes the answer steadier. Nothing is
+    added when the planner kept the words, and a failure of this extra search is logged and
+    ignored, so the answer still uses the planner's passages.
+    """
+    raw = _OWN_WORDS.get()
+    if not OWN_WORDS_PASSAGES or raw.strip().lower() in ("", plan.query.strip().lower()):
+        return found
+    try:
+        filters = search_filters(plan.filters, names)
+        own = _search(raw, filters, plan.include_withdrawn, rank_texts, top_n)[:OWN_WORDS_PASSAGES]
+    except Exception:  # noqa: BLE001
+        log.warning("Search of the engineer's own words failed; using the planner's", exc_info=True)
+        return found
+    have = {p["id"] for p in found}
+    return found + [p for p in own if p["id"] not in have]
 
 
 def _sse(event: dict) -> str:
@@ -412,6 +472,28 @@ def _program_lines(chunks: Iterator[str]) -> Iterator[str]:
         start = buffer.find("root =")
         # An unfinished root is passed on as written; plain prose is shown as one statement.
         yield buffer[start:] if start != -1 else _one_statement(buffer.strip())
+
+
+def _hold(chunks: Iterator[str], taken: list[str]) -> tuple[str, bool]:
+    """Take chunks into `taken` until a citation appears or HOLD_CHARS have arrived.
+
+    Returns their text, and whether the answer ended first. A cited answer starts streaming at
+    its first `Cite(`. A decline has no citation and is short, so it is held to its end: that is
+    what lets a retry replace it without the engineer seeing it. `taken` is filled as it goes,
+    so an error part-way still leaves what had arrived.
+    """
+    text = ""
+    for chunk in chunks:
+        taken.append(chunk)
+        text += chunk
+        if "Cite(" in text or len(text) >= HOLD_CHARS:
+            return text, False
+    return text, True
+
+
+def _ref() -> str:
+    """Return a short reference the engineer can quote, and that the logs carry too."""
+    return uuid.uuid4().hex[:6]
 
 
 def _check(program: str, passages: list[dict], declined: bool = False) -> tuple[list[dict], str]:
@@ -574,6 +656,9 @@ def _events(
             # Stored past reports may name people, so Cohere's reranker reads them masked.
             # Passed only when protection is on, so search without it runs as before.
             masking = {"rank_texts": protection.mask} if protection.enabled else {}
+            # The engineer's own words are searched too (see `_add_own_words`). `history` is
+            # already masked here, so those words reach Cohere masked, like the planner's query.
+            _OWN_WORDS.set(history[-1]["content"])
             passages = search_passages(search_plan, names, **masking)
             # Names are added here, after search, so cached eval searches stay valid.
             for p in passages:
@@ -602,21 +687,69 @@ def _events(
             else:
                 # d. Answer, streamed as written, from the passages only.
                 extra = "".join(f"Engineer context: {c}\n" for c in context)
-                # Stored passages may name people (past reports), so the block is masked
-                # too, with the same mapping (Rule 2). The check below reads the originals.
-                block = protection.mask([_passage_block(passages)])[0]
-                question = f"{role_line}{extra}{block}\n\nQuestion: {history[-1]['content']}"
-                written = stream_text(
-                    COMPONENTS + ANSWER_RULES,
-                    history[:-1] + [{"role": "user", "content": question}],
-                    provider=config.CHAT_PROVIDER,
-                    model=config.CHAT_MODEL,
-                    effort=config.CHAT_EFFORT,
-                    feature="chat",
-                )
-                # Real names go back in as the answer arrives, so the screen, the quote
-                # check and the saved answer all read real text (PV-03).
-                for chunk in _program_lines(protection.unmask_stream(written)):
+
+                def answer_from(found: list[dict]) -> Iterator[str]:
+                    # Stored passages may name people (past reports), so the block is masked
+                    # too, with the same mapping (Rule 2). The check below reads the originals.
+                    block = protection.mask([_passage_block(found)])[0]
+                    question = f"{role_line}{extra}{block}\n\nQuestion: {history[-1]['content']}"
+                    written = stream_text(
+                        COMPONENTS + ANSWER_RULES,
+                        history[:-1] + [{"role": "user", "content": question}],
+                        provider=config.CHAT_PROVIDER,
+                        model=config.CHAT_MODEL,
+                        effort=config.CHAT_EFFORT,
+                        feature="chat",
+                    )
+                    # Real names go back in as the answer arrives, so the screen, the quote
+                    # check and the saved answer all read real text (PV-03).
+                    return _program_lines(protection.unmask_stream(written))
+
+                attempt, ref = 0, ""
+                while True:
+                    chunks = answer_from(passages)
+                    head: list[str] = []
+                    failed, finished = None, False
+                    try:
+                        held, finished = _hold(chunks, head)
+                    except Exception as error:  # noqa: BLE001
+                        failed, held = error, "".join(head)
+                    # A decline is an answer that ended with no citation at all.
+                    model_declined = failed is None and finished and "Cite(" not in held
+                    if model_declined and attempt == 0 and best >= RETRY_MIN_SCORE:
+                        # Declined although a passage matched strongly: search wider, once.
+                        ref = _ref()
+                        log.warning(
+                            "Answer model declined with best relevance %.2f; retrying once with "
+                            "up to %d passages (ref %s)",
+                            best, RETRY_TOP_N, ref,
+                        )  # fmt: skip
+                        wider = _add_own_words(
+                            _gather(plan, names, masking.get("rank_texts"), RETRY_TOP_N),
+                            plan,
+                            names,
+                            masking.get("rank_texts"),
+                            RETRY_TOP_N,
+                        )
+                        passages = wider or passages
+                        attempt = 1
+                        continue
+                    break
+                if model_declined and attempt:
+                    # Still declined after the retry. The decline is shown as the model wrote it
+                    # (it offers to ask an admin to add the document, CB-07); the log says what
+                    # was tried, under the same ref.
+                    log.warning(
+                        "Answer model declined again after the retry: best relevance %.2f, "
+                        "%d passages (ref %s)",
+                        best, len(passages), ref,
+                    )  # fmt: skip
+                for chunk in head:
+                    program += chunk
+                    yield text(chunk)
+                if failed is not None:
+                    raise failed  # the partial answer is shown; the handler adds its check
+                for chunk in chunks:
                     program += chunk
                     yield text(chunk)
                 model = config.CHAT_MODEL
@@ -627,9 +760,14 @@ def _events(
     except Exception as failure:  # noqa: BLE001
         # Without this, a search outage or a model error would cut the stream mid-answer:
         # no end event, no result, and the paid calls missing from the cost log.
-        if not isinstance(failure, GenerationFailed):
-            log.exception("Chat answer failed")
-        error = str(failure) if isinstance(failure, GenerationFailed) else "search is unavailable."
+        # The reference is in the message and in the log line, so a reported failure can be found.
+        ref = _ref()
+        if isinstance(failure, GenerationFailed):
+            log.error("Chat answer failed: %s (ref %s)", failure, ref)
+            error = f"{failure} (ref {ref})"
+        else:
+            log.exception("Chat answer failed (ref %s)", ref)
+            error = f"search failed: {type(failure).__name__}: {str(failure)[:100]} (ref {ref})"
         if program:
             # The answer had started: keep it, and still add its quote check.
             citations, meta = _check(program, passages)

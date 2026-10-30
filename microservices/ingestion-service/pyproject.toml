@@ -16,7 +16,7 @@ dependencies = [
     "chromadb-client==1.5.5",
     "docling[ocrmac,rapidocr]>=2.0,<3",
     "pymupdf>=1.28.2",
-    "opencv-python-headless>=5.0.0.93",
+    "opencv-python-headless>=4.10,<5",
     "bullmq>=3.2.8",
     "pymongo>=4.18.2",
     "boto3>=1.43.104",
@@ -83,6 +83,16 @@ environments = [
 ]
 
 conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+
+# Only one OpenCV build, the headless one below 5 (see dependencies). On Linux aarch64,
+# cv2.resize in the full opencv-python wheel (4.14, 5.0) and in headless 5.0 reads past
+# the end of the image, so RapidOCR segfaults on some scanned pages and takes the whole
+# service down (NFPA 25 page 1 in POST /label: 1153x1509 resized to 1152x1504).
+# rapidocr asks for the full opencv-python, and both wheels write the same cv2/ folder,
+# so the never-true marker drops it and rapidocr imports the headless cv2 instead.
+# Repro to recheck before lifting the cap: mock the image flush against a guard page,
+# then cv2.resize it to those sizes (exit 139 = still broken).
+override-dependencies = ["opencv-python; sys_platform == 'never'"]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu", extra = "cpu", marker = "sys_platform == 'linux'" }]
