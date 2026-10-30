@@ -4,7 +4,15 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Memory } from './api'
-import { Preferences } from './screens/Preferences'
+import { PreferencesPanel } from './components/PreferencesPanel'
+
+// jsdom does not implement <dialog>; the shared Dialog opens it with showModal.
+HTMLDialogElement.prototype.showModal = function () {
+  this.setAttribute('open', '')
+}
+HTMLDialogElement.prototype.close = function () {
+  this.removeAttribute('open')
+}
 
 afterEach(() => {
   cleanup()
@@ -47,13 +55,11 @@ function gateway(facts = [fact(1, 'I mostly survey Singapore offices')], enabled
   return calls
 }
 const open = async () => {
-  const notify = vi.fn()
-  render(<Preferences notify={notify} />)
-  await screen.findByText('My facts')
-  return notify
+  render(<PreferencesPanel onClose={() => {}} />)
+  await screen.findByText(/of 20 facts/)
 }
 
-describe('My preferences (CB-05)', () => {
+describe('My preferences panel (CB-05)', () => {
   it('lists each fact with the date it was added, and warns against client details (AC4)', async () => {
     gateway()
     await open()
@@ -64,7 +70,7 @@ describe('My preferences (CB-05)', () => {
 
   it('adds a fact and shows it, clearing the box (AC1)', async () => {
     const calls = gateway()
-    const notify = await open()
+    await open()
     fireEvent.change(screen.getByRole('textbox', { name: /Add a fact/ }), {
       target: { value: 'I prefer short answers' },
     })
@@ -72,7 +78,6 @@ describe('My preferences (CB-05)', () => {
     expect(await screen.findByText('I prefer short answers')).toBeInTheDocument()
     expect(calls).toContain('POST /api/chat/memory/facts {"text":"I prefer short answers"}')
     expect(screen.getByRole('textbox', { name: /Add a fact/ })).toHaveValue('')
-    expect(notify).toHaveBeenCalledWith('Fact added')
   })
 
   it("shows the gateway's reason when a fact is refused", async () => {

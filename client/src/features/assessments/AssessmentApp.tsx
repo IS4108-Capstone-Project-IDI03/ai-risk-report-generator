@@ -22,9 +22,6 @@ import { UserAccounts } from '../accounts/UserAccounts'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
 // brings the chart library, which every other screen can skip.
-const Preferences = lazy(() =>
-  import('../chat/screens/Preferences').then((m) => ({ default: m.Preferences })),
-)
 const KnowledgeAssistant = lazy(() =>
   import('../chat/screens/KnowledgeAssistant').then((m) => ({ default: m.KnowledgeAssistant })),
 )
@@ -377,12 +374,6 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     {v.isChat && (
                       <Suspense fallback={null}>
                         <KnowledgeAssistant />
-                      </Suspense>
-                    )}
-
-                    {v.isPreferences && (
-                      <Suspense fallback={null}>
-                        <Preferences notify={v.notify} />
                       </Suspense>
                     )}
 

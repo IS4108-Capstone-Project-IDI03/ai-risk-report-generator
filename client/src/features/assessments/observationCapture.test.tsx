@@ -645,7 +645,7 @@ describe('Leaving capture', () => {
     await screen.findByRole('button', { name: 'Stop recording' })
 
     // Left by the navigation rather than the back button.
-    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Assessment dashboard/ }))
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
 
@@ -658,7 +658,7 @@ describe('Leaving capture', () => {
     await openCapture()
     write('Tilbury: exit sign E4 unlit.')
 
-    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Assessment dashboard/ }))
     fireEvent.click(screen.getAllByRole('button', { name: /^Leeds Cold Store/ })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
 

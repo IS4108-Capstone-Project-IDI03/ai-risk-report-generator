@@ -307,7 +307,7 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     choose(pdf('broken.pdf'))
     await screen.findByText('Only PDF files can be uploaded.')
 
-    fireEvent.click(screen.getAllByRole('button', { name: /^Dashboard/ })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Assessment dashboard/ })[0])
     fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
 
     expect(await screen.findByText('Only PDF files can be uploaded.')).toBeInTheDocument()

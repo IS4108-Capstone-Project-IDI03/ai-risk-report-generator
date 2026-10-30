@@ -86,7 +86,7 @@ describe('Marsh prototype integration', () => {
     expect(await screen.findByRole('heading', { name: 'Demo Warehouse' })).toBeInTheDocument()
     expect(screen.getByText(/exists only in this demo and is not saved/)).toBeInTheDocument()
     // New assessment is the Dashboard's action.
-    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Assessment dashboard/ }))
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
     // The next assessment starts from a blank form.
     expect(screen.getByLabelText(/Site name/)).toHaveValue('')
@@ -98,7 +98,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
     expect(await screen.findByRole('heading', { name: 'Second Warehouse' })).toBeInTheDocument()
     // Both are on the list.
-    fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Assessment dashboard/ }))
     expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
     expect(screen.getByText('8 of 8 assessments')).toBeInTheDocument()
     expect(screen.getAllByText('Demo Warehouse').length).toBeGreaterThan(0)
@@ -113,7 +113,7 @@ describe('Marsh prototype integration', () => {
     // Nothing is listed until an assessment is opened.
     expect(screen.queryByRole('group', { name: 'Recent' })).not.toBeInTheDocument()
     const openFromList = (id: string) => {
-      fireEvent.click(screen.getByRole('button', { name: /^Dashboard/ }))
+      fireEvent.click(screen.getByRole('button', { name: /^Assessment dashboard/ }))
       fireEvent.click(document.querySelector(`[data-id="${id}"]`)!)
     }
     openFromList('RPT-2026-0411')
@@ -219,7 +219,7 @@ describe('Marsh prototype integration', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
       // The drawer navigates, then closes.
       const reopened = screen.getByRole('dialog', { name: 'Navigation' })
-      fireEvent.click(within(reopened).getByRole('button', { name: /^Dashboard/ }))
+      fireEvent.click(within(reopened).getByRole('button', { name: /^Assessment dashboard/ }))
       expect(screen.queryByRole('dialog', { name: 'Navigation' })).not.toBeInTheDocument()
     }
     openAssessment()
