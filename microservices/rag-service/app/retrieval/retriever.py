@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import time
+from collections.abc import Callable
 
 import httpx
 from chromadb.errors import NotFoundError
@@ -106,6 +107,7 @@ def retrieve(
     candidates: int = 20,
     top_n: int | None = 5,
     expand: bool = False,
+    rank_texts: Callable[[list[str]], list[str]] | None = None,
 ) -> list[dict]:
     """Return the reranked passages for a query: `candidates` from Chroma, best `top_n` kept.
 
@@ -113,6 +115,8 @@ def retrieve(
     candidates to find every report. One rerank call either way (Cohere bills up to 100).
     `expand` widens the best few hits to their table or neighbours (`widen`).
     Short forms in the query ("EH2") are spelled out before it is embedded and reranked.
+    `rank_texts` changes only what the reranker reads, e.g. chat masking client details
+    (PV-03); the passages returned keep their stored text.
     """
     if not query.strip():
         raise ValueError("Query must not be blank")
@@ -156,6 +160,7 @@ def retrieve(
             )
         ],
         top_n=top_n,
+        rank_texts=rank_texts,
     )
     return widen(hits, collection, include_withdrawn) if expand else hits
 
@@ -254,22 +259,31 @@ def widen(hits: list[dict], collection, include_withdrawn: bool = False) -> list
     return widened
 
 
-def rerank(query: str, passages: list[dict], top_n: int | None = None) -> list[dict]:
+def rerank(
+    query: str,
+    passages: list[dict],
+    top_n: int | None = None,
+    rank_texts: Callable[[list[str]], list[str]] | None = None,
+) -> list[dict]:
     """Reorder passages by Cohere Rerank, most relevant first, keeping the top `top_n`.
 
     A reranker reads the query and each passage together, so it judges whether a
     passage answers the query better than vector distance does. One Cohere call; the
     trial key allows 10 a minute. Each passage gains its `relevance_score`.
+    `rank_texts`, if given, rewrites what Cohere reads (see `retrieve`).
     """
     if not passages:
         return []
+    documents = [rank_text(p) for p in passages]
+    if rank_texts:
+        documents = rank_texts(documents)
     model = os.getenv("RERANK_MODEL", "rerank-v3.5")
     started = time.perf_counter()
     ranked = _with_retries(
         lambda: cohere_client().rerank(
             model=model,
             query=query,
-            documents=[rank_text(p) for p in passages],
+            documents=documents,
             top_n=min(top_n or len(passages), len(passages)),
         ),
         "rerank",

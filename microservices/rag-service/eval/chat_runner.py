@@ -74,11 +74,11 @@ def pipeline_hooks():
         p.new["plan"] = result.model_dump()
         return result
 
-    def search(plan, names=None):
+    def search(plan, names=None, **options):
         p = _pass.get()
         if p.cached is not None:
             return p.cached.get("passages") or []
-        passages = real["search"](plan, names)
+        passages = real["search"](plan, names, **options)
         p.new["passages"] = passages
         return passages
 
@@ -101,8 +101,6 @@ def pipeline_hooks():
         (answer, "complete_json"): plan,
         (answer, "search_passages"): search,
         (answer, "stream_text"): stream,
-        # Production paces words for the screen; the eval would only time the pause.
-        (answer, "WORD_DELAY_SECONDS"): 0,
         (llm, "_anthropic_usage"): keeper("anthropic"),
         (llm, "_openai_usage"): keeper("openai"),
     }
@@ -184,6 +182,8 @@ class Context:
     doc_ids: dict
     # Raw document details from `docmap`, so answers get names as in production.
     documents: list = field(default_factory=list)
+    # The gateway's privacy field (PV-03) for a --privacy run, else None.
+    privacy: dict | None = None
     timeout_s: float = 600
     concurrency: int = 4
     poll_s: float = 30
@@ -196,14 +196,17 @@ class Context:
         return self.flow / self.variant
 
 
-def cache_path(flow: Path, variant: str, case_id: str, rep: int, t: int) -> Path:
+def cache_path(
+    flow: Path, variant: str, case_id: str, rep: int, t: int, private: bool = False
+) -> Path:
     """Return where a turn's plan and passages are cached.
 
     A first turn is shared by every candidate (search once). A later turn depends on the
-    candidate's own earlier answers, so it is cached per variant and rep.
+    candidate's own earlier answers, so it is cached per variant and rep. With protection on
+    (`private`), the planner reads masked text, so its first turns are cached apart.
     """
     if t == 0:
-        return flow / "_cache" / f"{case_id}_t0.json"
+        return flow / ("_cache_private" if private else "_cache") / f"{case_id}_t0.json"
     return flow / variant / "_cache" / f"{case_id}_rep{rep}_t{t}.json"
 
 
@@ -212,7 +215,11 @@ def _load(path: Path) -> dict | None:
 
 
 def run_pass(
-    messages: list[dict], cached: dict | None, stand_in, documents: list[dict] | None = None
+    messages: list[dict],
+    cached: dict | None,
+    stand_in,
+    documents: list[dict] | None = None,
+    privacy: dict | None = None,
 ) -> tuple[Pass, list[dict]]:
     """Run answer_events once; return the pass and its events."""
     p = Pass(cached=cached, answer=stand_in)
@@ -220,7 +227,7 @@ def run_pass(
     try:
         events = [
             json.loads(line[6:])
-            for chunk in answer.answer_events(messages, [], documents)
+            for chunk in answer.answer_events(messages, [], documents, privacy=privacy)
             for line in chunk.splitlines()
             if line.startswith("data: ")
         ]
@@ -291,6 +298,7 @@ def turn_record(user: str, p: Pass, events: list[dict], ctx: Context) -> dict:
         "refused": bool(p.error and "declined" in str(p.error)),
         "answer": reply,
         "pipeline_usage": cached.get("usage") or [],
+        "privacy": result.get("privacy"),
     }
 
 
@@ -355,6 +363,7 @@ def build_row(case: dict, rep: int, records: list[dict], ctx: Context, retries: 
             "requested_model": ctx.model,
             "effort": ctx.effort,
             "plan_model": config.CHAT_PLAN_MODEL,
+            "privacy": ctx.privacy is not None,
             "refused": any(r["refused"] for r in records),
             **({"retries": retries} if retries else {}),
         },
@@ -400,17 +409,18 @@ def write_error(ctx: Context, case_id: str, rep: int, error: Exception, retries:
 # ---- prepare --------------------------------------------------------------------------------
 
 
-def prepare(cases: list[dict], flow: Path, log=print) -> int:
+def prepare(cases: list[dict], flow: Path, log=print, privacy: dict | None = None) -> int:
     """Plan and search every case's first turn once, caching it; return the failure count."""
     failed = 0
     with pipeline_hooks():
         for case in cases:
-            path = cache_path(flow, "", case["id"], 0, 0)
+            path = cache_path(flow, "", case["id"], 0, 0, private=privacy is not None)
             if path.exists():
                 continue
             messages = [{"role": "user", "content": case["turns"][0]["user"]}]
             try:
-                p, events = run_pass(messages, None, collect)  # stops before the answer model
+                # Stops before the answer model.
+                p, events = run_pass(messages, None, collect, privacy=privacy)
                 if "plan" not in p.new:
                     raise AttemptFailed("the plan step failed", "api_error")
                 save_new(path, p, events)
@@ -420,9 +430,9 @@ def prepare(cases: list[dict], flow: Path, log=print) -> int:
     return failed
 
 
-def missing_first_turns(cases: list[dict], flow: Path) -> list[str]:
+def missing_first_turns(cases: list[dict], flow: Path, private: bool = False) -> list[str]:
     """Return the ids of cases whose first turn has not been prepared."""
-    return [c["id"] for c in cases if not cache_path(flow, "", c["id"], 0, 0).exists()]
+    return [c["id"] for c in cases if not cache_path(flow, "", c["id"], 0, 0, private).exists()]
 
 
 # ---- live -----------------------------------------------------------------------------------
@@ -459,10 +469,12 @@ def _converse_live(case: dict, rep: int, ctx: Context, real_stream, retries: dic
     messages, records = [], []
     for t, turn in enumerate(case["turns"]):
         messages.append({"role": "user", "content": turn["user"]})
-        path = cache_path(ctx.flow, ctx.variant, case["id"], rep, t)
+        path = cache_path(ctx.flow, ctx.variant, case["id"], rep, t, ctx.privacy is not None)
 
         def attempt():
-            p, events = run_pass(messages, _load(path), live(real_stream), ctx.documents)
+            p, events = run_pass(
+                messages, _load(path), live(real_stream), ctx.documents, ctx.privacy
+            )
             save_new(path, p, events)
             return turn_record(turn["user"], p, events, ctx)
 
@@ -528,9 +540,13 @@ def run_batch(todo: list[tuple[dict, int]], ctx: Context) -> tuple[int, int]:
             for c in active:
                 user = c.case["turns"][t]["user"]
                 c.messages.append({"role": "user", "content": user})
-                path = cache_path(ctx.flow, ctx.variant, c.case["id"], c.rep, t)
+                path = cache_path(
+                    ctx.flow, ctx.variant, c.case["id"], c.rep, t, ctx.privacy is not None
+                )
                 try:
-                    p, events = run_pass(c.messages, _load(path), collect, ctx.documents)
+                    p, events = run_pass(
+                        c.messages, _load(path), collect, ctx.documents, ctx.privacy
+                    )
                     save_new(path, p, events)
                     if p.request:
                         pending[json.dumps([c.case["id"], c.rep, t, ctx.model])] = (c, p.request)
@@ -568,10 +584,16 @@ def run_batch(todo: list[tuple[dict, int]], ctx: Context) -> tuple[int, int]:
                 if "error" in result:
                     c.error = AttemptFailed(result["error"], "api_error")
                     continue
-                path = cache_path(ctx.flow, ctx.variant, c.case["id"], c.rep, t)
+                path = cache_path(
+                    ctx.flow, ctx.variant, c.case["id"], c.rep, t, ctx.privacy is not None
+                )
                 try:
                     p, events = run_pass(
-                        c.messages, _load(path), replay(ctx.provider, result["ok"]), ctx.documents
+                        c.messages,
+                        _load(path),
+                        replay(ctx.provider, result["ok"]),
+                        ctx.documents,
+                        ctx.privacy,
                     )
                     c.records.append(turn_record(c.case["turns"][t]["user"], p, events, ctx))
                 except Exception as error:

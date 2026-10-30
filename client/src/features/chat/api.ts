@@ -8,10 +8,11 @@ import {
   type Message,
   type Thread,
 } from '@openuidev/react-headless'
+import { smoothAdapter } from './smoothAdapter'
 import { request } from '../assessments/api'
 
 /** The chat screen's link to POST /api/chat, read as AG-UI events (the gateway's format). */
-export const chatLLM = fetchLLM({ url: '/api/chat', streamAdapter: agUIAdapter() })
+export const chatLLM = fetchLLM({ url: '/api/chat', streamAdapter: smoothAdapter(agUIAdapter()) })
 
 /** One passage as GET /api/chat/passages/:id sends it (CB-02). Boxes are in PDF points, origin bottom-left. */
 export type Passage = {
@@ -103,4 +104,9 @@ export async function saveFact(id: string, text: string): Promise<Fact> {
 /** Deletes a fact for good. */
 export async function removeFact(id: string): Promise<void> {
   await request('DELETE', `${MEMORY}/facts/${id}`)
+}
+
+/** Sends a risk engineer's request to add the document behind `question` (CB-07). */
+export function askAdminToAdd(question: string, message: string): Promise<unknown> {
+  return request('POST', '/api/knowledge-gaps', message ? { question, message } : { question })
 }

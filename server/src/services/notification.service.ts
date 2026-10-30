@@ -251,3 +251,16 @@ export async function markAllReadForUser(user: SessionUser): Promise<void> {
 export async function dismissAllForUser(user: SessionUser): Promise<void> {
   await NotificationModel.updateMany(visibleTo(user), { $addToSet: { dismissedBy: user.id } })
 }
+
+/**
+ * Dismisses one notification for this user only (adds them to `dismissedBy`).
+ * Same visibility rule and same not-found answer as markAsRead.
+ */
+export async function dismissForUser(id: string, user: SessionUser): Promise<void> {
+  if (!isValidObjectId(id)) throw new NotificationNotFoundError()
+  const { matchedCount } = await NotificationModel.updateOne(
+    { _id: id, ...visibleTo(user) },
+    { $addToSet: { dismissedBy: user.id } },
+  )
+  if (!matchedCount) throw new NotificationNotFoundError()
+}

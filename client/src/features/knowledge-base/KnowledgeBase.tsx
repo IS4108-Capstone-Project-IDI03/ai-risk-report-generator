@@ -1,21 +1,19 @@
-// The Knowledge base screen, as two tabs: Documents (the knowledge base
-// itself, KB-01, in KnowledgeDocuments.tsx) and Add documents (IN-01, in
-// AddDocuments.tsx). At /admin/knowledge-base/review/<id> it shows one
+// The Knowledge base screen, as three tabs: Documents (the knowledge base
+// itself, KB-01, in KnowledgeDocuments.tsx), Add documents (IN-01, in
+// AddDocuments.tsx) and Requests (CB-07, in Requests.tsx). At /admin/knowledge-base/review/<id> it shows one
 // document's Review page instead (IN-07, ReviewDocument.tsx). Shown by
 // AssessmentApp.tsx.
 import { useEffect, useState } from 'react'
 import { Tabs } from '../../design-system'
 import { KNOWLEDGE_REVIEW_PATH, reviewIdForPath, SCREEN_PATHS } from '../auth/access'
-import { listIngestedDocuments } from './api'
+import { listIngestedDocuments, listKnowledgeRequests } from './api'
+import { knowledgeTab } from './openTab'
 import { needsReview } from './display'
 import { AddDocuments } from './screens/AddDocuments'
 import { KnowledgeDocuments, type Filters } from './screens/KnowledgeDocuments'
+import { Requests } from './screens/Requests'
 import { ReviewDocument } from './screens/ReviewDocument'
 import './knowledge-base.css'
-
-// Kept outside React so coming back to the screen reopens the tab you left,
-// e.g. to see how an upload went (a module variable outlives the screen).
-let lastTab = 'documents'
 
 export function KnowledgeBase({
   narrow,
@@ -25,11 +23,14 @@ export function KnowledgeBase({
   // Shows a toast, e.g. to confirm a saved correction.
   notify: (message: string) => void
 }) {
-  const [tab, setTab] = useState(lastTab)
+  const [tab, setTab] = useState(knowledgeTab.current)
   // How many documents in the knowledge base need review (IN-05), for the
   // Documents tab's count. The Documents tab reports it after loads and saves;
   // on Add documents it is re-read whenever an upload finishes.
   const [needReview, setNeedReview] = useState(0)
+  // How many knowledge requests are open (CB-07), for the Requests tab's count.
+  const [openRequests, setOpenRequests] = useState(0)
+  const [visit, setVisit] = useState(0)
   const [completed, setCompleted] = useState(0)
   // Decisions made on a Review page change the count too (IN-07).
   const [decided, setDecided] = useState(0)
@@ -42,11 +43,25 @@ export function KnowledgeBase({
     )
     return () => controller.abort()
   }, [completed, decided])
+  useEffect(() => {
+    const controller = new AbortController()
+    listKnowledgeRequests(controller.signal).then(
+      (list) => setOpenRequests(list.length),
+      () => undefined,
+    )
+    return () => controller.abort()
+  }, [])
   // Which document's Review page is open, if any. It follows the URL, so the
   // page can be linked to, reloaded, and left with the browser's Back.
   const [reviewId, setReviewId] = useState(() => reviewIdForPath(window.location.pathname))
   useEffect(() => {
-    const follow = () => setReviewId(reviewIdForPath(window.location.pathname))
+    const follow = () => {
+      setReviewId(reviewIdForPath(window.location.pathname))
+      // A tab chosen from elsewhere (openKnowledgeTab) shows on arrival.
+      setTab(knowledgeTab.current)
+      // A new visit re-reads which request to highlight, even if Requests is already open.
+      setVisit((v) => v + 1)
+    }
     window.addEventListener('popstate', follow)
     return () => window.removeEventListener('popstate', follow)
   }, [])
@@ -79,7 +94,7 @@ export function KnowledgeBase({
     then?.()
   }
   const open = (value: string) => {
-    lastTab = value
+    knowledgeTab.current = value
     setTab(value)
   }
   if (reviewId) {
@@ -110,6 +125,13 @@ export function KnowledgeBase({
               : undefined,
           },
           { value: 'add', label: 'Add documents' },
+          {
+            value: 'requests',
+            label: 'Requests',
+            count: openRequests || undefined,
+            // The same amber pill as Documents' review count: open requests are a to-do list.
+            alert: openRequests ? `${openRequests} open` : undefined,
+          },
         ]}
         value={tab}
         onChange={open}
@@ -121,6 +143,8 @@ export function KnowledgeBase({
           onNeedReview={setNeedReview}
           onReview={openReview}
         />
+      ) : tab === 'requests' ? (
+        <Requests key={visit} notify={notify} onCount={setOpenRequests} />
       ) : (
         <AddDocuments
           narrow={narrow}

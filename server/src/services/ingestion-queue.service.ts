@@ -25,32 +25,43 @@ function ingestionQueue(): Queue {
   return queue
 }
 
-// Queues one ingestion job for a stored document. The job id is the document
-// id, so BullMQ ignores a second add for the same document. Rejects if Redis
-// does not answer in time; an add that lands later is harmless, because the
-// worker skips a document that no longer exists.
-export async function enqueueIngestion(documentId: string): Promise<void> {
+// One job id per document attempt (the document's retryCount): the original
+// upload is the bare document id, retry n is `<id>-<n>`. BullMQ ignores an add
+// whose id it still holds and cannot remove a job a worker is running, so a
+// retry pressed while a cancelled run is still winding down needs its own id.
+const jobId = (documentId: string, attempt: number) =>
+  attempt ? `${documentId}-${attempt}` : documentId
+
+// Queues one ingestion job for a stored document's attempt, so BullMQ ignores
+// a second add for the same attempt. Rejects if Redis does not answer in time;
+// an add that lands later is harmless, because the worker skips a document
+// that no longer exists.
+export async function enqueueIngestion(documentId: string, attempt = 0): Promise<void> {
   const timedOut = sleep(ADD_TIMEOUT_MS, undefined, { ref: false }).then(() => {
     throw new Error('The ingestion queue did not respond.')
   })
   await Promise.race([
-    ingestionQueue().add('ingest', { documentId }, { jobId: documentId, attempts: 1 }),
+    ingestionQueue().add(
+      'ingest',
+      { documentId },
+      { jobId: jobId(documentId, attempt), attempts: 1 },
+    ),
     timedOut,
   ])
 }
 
-// Re-queues a document whose previous ingestion job finished (failed). BullMQ
-// keeps the old job under jobId=documentId, and add() ignores a duplicate id,
-// so the stale job is removed first; removing a job that is already gone is a
-// no-op. The add then behaves exactly like a first upload.
-export async function requeueIngestion(documentId: string): Promise<void> {
-  await ingestionQueue().remove(documentId)
-  await enqueueIngestion(documentId)
+// Re-queues a failed or cancelled document as attempt `attempt`. The previous
+// attempt's job is removed first to keep Redis tidy; that is a no-op when it is
+// gone, and returns 0 when a worker still holds it (a cancelled run winding
+// down), which the worker handles by seeing the retryCount move on.
+export async function requeueIngestion(documentId: string, attempt: number): Promise<void> {
+  await ingestionQueue().remove(jobId(documentId, attempt - 1))
+  await enqueueIngestion(documentId, attempt)
 }
 
 // Removes a queued ingestion job. BullMQ treats a missing job as a no-op.
 // Active jobs may already be claimed by the worker, so MongoDB cancellation
 // state remains the source of truth for those runs.
-export async function removeIngestionJob(documentId: string): Promise<void> {
-  await ingestionQueue().remove(documentId)
+export async function removeIngestionJob(documentId: string, attempt = 0): Promise<void> {
+  await ingestionQueue().remove(jobId(documentId, attempt))
 }

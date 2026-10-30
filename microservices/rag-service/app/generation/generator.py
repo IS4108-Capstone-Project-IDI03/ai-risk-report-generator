@@ -161,9 +161,19 @@ def _observation_block(label: str, o) -> str:
     return f"[{label}] ({details})\n" + "\n".join(body)
 
 
+# A heading longer than this is body text the PDF reader took for a heading: FM 2-0's loss
+# examples became one. Shown to the model, it was quoted, though it is not the passage's text.
+MAX_HEADING_CHARS = 200
+
+
+def passage_headings(meta: dict) -> list[str]:
+    """A passage's headings, leaving out any too long to be one (MAX_HEADING_CHARS)."""
+    return [h for h in meta.get("headings") or [] if len(h) <= MAX_HEADING_CHARS]
+
+
 def _chunk_block(label: str, chunk: dict) -> str:
     meta = chunk.get("metadata") or {}
-    where = " > ".join(meta.get("headings") or [])
+    where = " > ".join(passage_headings(meta))
     pages = meta.get("page_start")
     if pages is not None:
         where += f", p. {pages}" + (f"-{meta['page_end']}" if meta.get("page_end") else "")

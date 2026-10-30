@@ -138,6 +138,44 @@ def fetch_documents() -> list[dict]:
     return [{"id": str(d["_id"])} | {k: d[k] for k in fields if d.get(k)} for d in docs.find({})]
 
 
+def fetch_known_entities() -> list[dict]:
+    """Return every client, site, address and active user from MongoDB, as the gateway sends
+    them with each chat message (server/src/services/privacy.service.ts, chatKnownEntities)."""
+    from pymongo import MongoClient
+
+    db = MongoClient(os.environ["MONGODB_URI"]).get_default_database()
+    clients = [c["name"] for c in db["clients"].find({}, {"name": 1})]
+    # Assessments from before CP-17 hold the client's name as typed.
+    typed = [n for n in db["assessments"].distinct("client") if n]
+    sites = list(db["sites"].find({}, {"name": 1, "code": 1, "address": 1}))
+    users = [u["name"] for u in db["users"].find({"active": True}, {"name": 1})]
+    return (
+        [{"type": "CLIENT", "names": [name]} for name in clients + typed]
+        + [{"type": "SITE", "names": [s["name"], s["code"]]} for s in sites]
+        + [{"type": "ADDRESS", "names": [s["address"]]} for s in sites if s.get("address")]
+        + [{"type": "PERSON", "names": [name]} for name in users]
+    )
+
+
+def load_known_entities(flow: Path) -> list[dict] | None:
+    """Return the known names written by `docmap` for --privacy runs, or None if absent."""
+    path = flow / "known_entities.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def privacy_for(args) -> dict | None:
+    """Return the privacy field a --privacy run sends, as the gateway does (PV-03), else None.
+
+    Raises SystemExit when `docmap` hasn't written the known names.
+    """
+    if not args.privacy:
+        return None
+    known = load_known_entities(args.flow)
+    if known is None:
+        raise SystemExit(f"no {args.flow / 'known_entities.json'}: run docmap first.")
+    return {"enabled": True, "known_entities": known}
+
+
 def read_state(flow: Path) -> dict:
     path = flow / "_state.json"
     return json.loads(path.read_text()) if path.exists() else {}
@@ -230,6 +268,9 @@ def cmd_docmap(args) -> int:
     args.flow.mkdir(parents=True, exist_ok=True)
     (args.flow / "documents.json").write_text(json.dumps(fetch_documents(), indent=1))
     (args.flow / "doc_ids.json").write_text(json.dumps(found, indent=1))
+    # For --privacy runs (PV-03). Names of real clients and people: kept out of git with the flow.
+    known = fetch_known_entities()
+    (args.flow / "known_entities.json").write_text(json.dumps(known, indent=1))
     eprint(f"mapped {len(found)} file name(s)")
     return 0
 
@@ -267,7 +308,9 @@ def cmd_prepare(args) -> int:
     cases = _select(load_cases(args.cases_file), args.cases)
     if not harness_ok(args.flow, args.approve_harness):
         return 2
-    todo = [c for c in cases if c["id"] in chat_runner.missing_first_turns(cases, args.flow)]
+    privacy = privacy_for(args)
+    missing = chat_runner.missing_first_turns(cases, args.flow, privacy is not None)
+    todo = [c for c in cases if c["id"] in missing]
     scope = [
         f"prepare: {len(todo)} case(s) to plan and search ({len(cases) - len(todo)} cached):",
         f"  {len(todo)} plan call(s) on {config.CHAT_PLAN_PROVIDER}:{config.CHAT_PLAN_MODEL}"
@@ -275,7 +318,7 @@ def cmd_prepare(args) -> int:
     ]
     if not consent(scope, args.yes):
         return 2
-    failed = chat_runner.prepare(todo, args.flow, log=eprint)
+    failed = chat_runner.prepare(todo, args.flow, log=eprint, privacy=privacy)
     eprint(f"prepare done: {len(todo) - failed} cached, {failed} failed")
     return 1 if failed else 0
 
@@ -285,7 +328,8 @@ def cmd_run(args) -> int:
     cases = _select(load_cases(args.cases_file), args.cases)
     if not harness_ok(args.flow, args.approve_harness):
         return 2
-    missing = chat_runner.missing_first_turns(cases, args.flow)
+    privacy = privacy_for(args)
+    missing = chat_runner.missing_first_turns(cases, args.flow, privacy is not None)
     if missing:
         eprint(f"{len(missing)} first turn(s) not prepared (e.g. {missing[0]}): run prepare first.")
         return 2
@@ -319,6 +363,7 @@ def cmd_run(args) -> int:
         transport=args.transport,
         doc_ids=doc_ids,
         documents=load_documents(args.flow),
+        privacy=privacy,
         timeout_s=args.timeout_s,
         concurrency=args.concurrency,
         poll_s=args.poll_s,
@@ -417,6 +462,13 @@ def parse(argv: list[str]) -> argparse.Namespace:
             p.add_argument("--cases", help="comma-separated case ids (default: all)")
         return p
 
+    def private(p):
+        p.add_argument(
+            "--privacy",
+            action="store_true",
+            help="mask client details as the gateway does with protection on (PV-03)",
+        )
+
     def batching(p):
         p.add_argument("--transport", choices=["batch", "live"], default="batch")
         p.add_argument("--concurrency", type=int, default=4)
@@ -435,8 +487,9 @@ def parse(argv: list[str]) -> argparse.Namespace:
     split = command("split", paid=False)
     split.add_argument("--seed", type=int, default=0)
     split.add_argument("--train", type=float, default=0.67)
-    command("prepare")
+    private(command("prepare"))
     run = command("run")
+    private(run)
     run.add_argument("--variant", type=variant, required=True)
     run.add_argument("--provider", choices=["anthropic", "openai"], required=True)
     run.add_argument("--model", required=True)

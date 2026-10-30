@@ -9,7 +9,13 @@ from app.chat.passages import get_passage
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.generation.proposals import propose_figures
-from app.orchestrator.orchestrator import draft, draft_ofis_for, draft_summary_for, run
+from app.orchestrator.orchestrator import (
+    draft,
+    draft_checklist_for,
+    draft_ofis_for,
+    draft_summary_for,
+    run,
+)
 from app.retrieval.retriever import retrieve
 
 router = APIRouter()
@@ -216,6 +222,32 @@ def draft_summary(request: DraftSummaryRequest) -> dict:
         raise HTTPException(502, str(error)) from error
 
 
+# One knowledge-base standard the engineer kept in scope for a checklist (CP-30 AC1-2).
+class ScopeStandard(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    source_type: str
+    standard_number: str | None = None
+
+
+# Only the facility type and country: a checklist is about the kind of site, so no client
+# detail is sent and nothing needs masking.
+class DraftChecklistRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    facility_type: str
+    jurisdiction: str
+    standards: list[ScopeStandard] = []
+
+
+@router.post("/checklist/draft")
+def draft_checklist(request: DraftChecklistRequest) -> dict:
+    """Generate a pre-survey checklist (CP-30) for the gateway to save."""
+    try:
+        return draft_checklist_for(request.facility_type, request.jurisdiction, request.standards)
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
 # Proposed figures for Section 4 or 5 (GN-03 addendum): the observations, the drafted
 # sections' text, and for Section 5 the business interruption items to estimate.
 class ProposeFiguresRequest(BaseModel):
@@ -272,6 +304,10 @@ class ChatRequest(BaseModel):
     messages: Annotated[list[ChatMessage], Field(min_length=1)]
     context: list[ChatContext] = []
     documents: list[ChatDocument] = []
+    # The signed-in user's role, set by the gateway; shapes the "not covered" offer.
+    role: str = "risk_engineer"
+    # Set by the gateway (PV-03), never by the browser.
+    privacy: Privacy | None = None
 
 
 @router.post("/chat")
@@ -279,7 +315,8 @@ def chat(request: ChatRequest) -> StreamingResponse:
     """Stream one cited answer to the conversation's last message (CB-01)."""
     messages = [m.model_dump() for m in request.messages]
     documents = [d.model_dump() for d in request.documents]
-    events = answer_events(messages, [c.value for c in request.context], documents)
+    context = [c.value for c in request.context]
+    events = answer_events(messages, context, documents, request.role, privacy=_privacy(request))
     return StreamingResponse(events, media_type="text/event-stream")
 
 

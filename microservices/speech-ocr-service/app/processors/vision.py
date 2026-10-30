@@ -19,7 +19,7 @@ from app.config import AWS_REGION, GEMINI_API_KEY, S3_BUCKET, VISION_MODEL, VISI
 from app.processors.images import upright_jpeg
 
 # Bump whenever the prompt wording changes, so a saved proposal names the prompt it came from.
-PROMPT_VERSION = "cp21-v2"
+PROMPT_VERSION = "cp21-v3"
 
 COPE_DIMENSIONS = ("Construction", "Occupancy", "Protection", "Exposure")
 
@@ -73,19 +73,42 @@ class ProposedCategory(BaseModel):
     evidence: list[Evidence]
 
 
-class TextReading(BaseModel):
+# The two parts of a proposal, which can be asked for together or one at a time (CP-21): the
+# categories, from every item, and the description and hazard type, from the photos.
+PARTS = ("categories", "description")
+
+
+class CategoriesAnswer(BaseModel):
     categories: list[ProposedCategory]
 
 
-class PhotoReading(TextReading):
+class DescriptionAnswer(BaseModel):
     description: str
     hazard_type: Literal[HAZARD_TYPES]
 
 
-CATEGORIES_INSTRUCTION = """You read what a Marsh property risk engineer captured about one \
-finding during a site survey, and propose for the engineer to review which COPE categories it \
-concerns. Each item has a name, such as "Note", "Recording 1", "Page 2" or "Photo 1". Recordings \
-and pages are machine transcripts and can contain misheard or misread words.
+class FullAnswer(CategoriesAnswer, DescriptionAnswer):
+    pass
+
+
+ANSWERS = {
+    ("categories",): CategoriesAnswer,
+    ("description",): DescriptionAnswer,
+    PARTS: FullAnswer,
+}
+
+ITEMS = """Each item has a name, such as "Note", "Recording 1", "Page 2" or "Photo 1". Recordings \
+and pages are machine transcripts and can contain misheard or misread words."""
+
+CATEGORIES_INTRO = f"""You read what a Marsh property risk engineer captured about one finding \
+during a site survey, and propose for the engineer to review which COPE categories it concerns. \
+{ITEMS}"""
+
+DESCRIPTION_INTRO = f"""You look at the photographs a Marsh property risk engineer took of one \
+finding during a site survey, and propose a description of them for the engineer to review. \
+{ITEMS}"""
+
+CATEGORIES_INSTRUCTION = """
 
 categories: the COPE categories the finding concerns, most relevant first. One finding can \
 concern more than one: an unsealed wall penetration is both Construction and Protection. Propose \
@@ -109,8 +132,6 @@ An item that supports no category is left out of every category's evidence."""
 
 PHOTOS_INSTRUCTION = f"""
 
-There are also photographs.
-
 description: one or two sentences in the form Marsh's reports use, for example "During the site \
 visit to the L43 hosereel pump room, it was observed that the valves were not locked open." Name \
 the location if you are given it. Use Singapore English. State only what the photographs show: no \
@@ -121,14 +142,22 @@ If the photographs show nothing wrong, say what they show and set hazard_type to
 "No hazard visible". Never invent a hazard.
 
 The note and transcripts say what the engineer saw. Use them to know what to look at, but \
-describe what the photographs show, not what the text claims. The categories may rest on any item.
+describe what the photographs show, not what the text claims.
 
 hazard_type: the closest of {", ".join(HAZARD_TYPES[:-2])}; "Other" if none fits; or \
 "No hazard visible"."""
 
 
-def system_instruction(with_photos: bool) -> str:
-    return CATEGORIES_INSTRUCTION + (PHOTOS_INSTRUCTION if with_photos else "")
+def system_instruction(parts: tuple[str, ...]) -> str:
+    """The rules for the parts asked for: categories may rest on any item, a description only on
+    the photos."""
+    if parts == ("description",):
+        return DESCRIPTION_INTRO + PHOTOS_INSTRUCTION
+    rules = CATEGORIES_INTRO + CATEGORIES_INSTRUCTION
+    if "description" in parts:
+        rules += "\n\nThere are also photographs." + PHOTOS_INSTRUCTION
+        rules += " The categories may rest on any item."
+    return rules
 
 
 def _read(s3, key: str) -> bytes:
@@ -161,8 +190,9 @@ def _prompt(photos: list[str], texts: list[dict], location: str | None) -> str:
 
 
 def _interpret_gemini(
-    images: list[tuple[str, str]], prompt: str, answer_type: type[TextReading]
-) -> tuple[TextReading, str, dict | None]:
+    images: list[tuple[str, str]], prompt: str, parts: tuple[str, ...]
+) -> tuple[BaseModel, str, dict | None]:
+    answer_type = ANSWERS[parts]
     try:
         # Held open for the whole call: the client closes its connection when it is
         # discarded, so `genai.Client(...).interactions.create(...)` fails with "the
@@ -170,7 +200,7 @@ def _interpret_gemini(
         with genai.Client(api_key=GEMINI_API_KEY) as client:
             result = client.interactions.create(
                 model=VISION_MODEL,
-                system_instruction=system_instruction(bool(images)),
+                system_instruction=system_instruction(parts),
                 # Each photo after its name, then the text that asks about them.
                 input=[
                     *(
@@ -221,8 +251,10 @@ def _interpret_gemini(
 _PROVIDERS = {"gemini": _interpret_gemini}
 
 
-def _categories(answer: TextReading) -> list[dict]:
-    """Each category once, in the model's order, at most MAX_CATEGORIES."""
+def _categories(answer: BaseModel) -> list[dict] | None:
+    """Each category once, in the model's order, at most MAX_CATEGORIES; None if not asked for."""
+    if not isinstance(answer, CategoriesAnswer):
+        return None
     seen: set[str] = set()
     kept = []
     for proposed in answer.categories:
@@ -232,30 +264,42 @@ def _categories(answer: TextReading) -> list[dict]:
     return kept[:MAX_CATEGORIES]
 
 
-def interpret(photos: list[dict], texts: list[dict], location: str | None) -> dict:
+def interpret(
+    photos: list[dict],
+    texts: list[dict],
+    location: str | None,
+    parts: tuple[str, ...] | None = None,
+) -> dict:
     """The proposal for an observation: photos as {label, s3_key}, texts as {label, kind, text}."""
     s3 = boto3.client("s3", region_name=AWS_REGION) if photos else None
-    return interpret_images([(p["label"], _read(s3, p["s3_key"])) for p in photos], texts, location)
+    return interpret_images(
+        [(p["label"], _read(s3, p["s3_key"])) for p in photos], texts, location, parts
+    )
 
 
 def interpret_images(
-    photos: list[tuple[str, bytes]], texts: list[dict], location: str | None
+    photos: list[tuple[str, bytes]],
+    texts: list[dict],
+    location: str | None,
+    parts: tuple[str, ...] | None = None,
 ) -> dict:
-    """The proposal for photos already in hand; interpret() and the eval both use it."""
+    """The proposal for photos already in hand; interpret() and the eval both use it. Without
+    `parts`, both when there are photos, else the categories."""
     try:
         provider = _PROVIDERS[VISION_PROVIDER]
     except KeyError:
         raise NotImplementedError(f"VISION_PROVIDER {VISION_PROVIDER!r} is not supported") from None
+    parts = tuple(p for p in PARTS if p in (parts or (PARTS if photos else ("categories",))))
     images = [(label, _prepare(photo)) for label, photo in photos]
     if sum(len(data) for _, data in images) > MAX_INLINE_CHARS:
         raise InterpretationError(
             "There are too many photos to interpret together. Save fewer photos per observation."
         )
     prompt = _prompt([label for label, _ in images], texts, location)
-    answer, model, usage = provider(images, prompt, PhotoReading if images else TextReading)
+    answer, model, usage = provider(images, prompt, parts)
     return {
+        # None for a part not asked for.
         "categories": _categories(answer),
-        # Only photos are described, so a reading without them has neither.
         "description": getattr(answer, "description", None),
         "hazard_type": getattr(answer, "hazard_type", None),
         "provider": VISION_PROVIDER,

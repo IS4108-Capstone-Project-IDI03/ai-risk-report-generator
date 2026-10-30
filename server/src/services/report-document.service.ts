@@ -1,6 +1,7 @@
 // The report as one document (RV-08): saving a section the engineer wrote or
 // revised in the document editor, and reading each section's newest saved
-// version back for the review workspace.
+// version back for the review workspace. A restore from the version history
+// (RV-06, version-history.service) is saved the same way.
 //
 // Each save adds a version to `report_section_versions`. In a drafted
 // section (4 to 12), a finding the engineer changed is also an `edit` entry
@@ -9,7 +10,8 @@
 // state, the review summary and the history stay as RV-02 reads them, and
 // drafts are never changed. Section 2's statements have no review decisions
 // (GN-07), so its changes are kept in the version only.
-// Called by routes/assessment.routes.ts; review.service reads the versions.
+// Called by routes/assessment.routes.ts; review.service and
+// version-history.service read the versions.
 import type { Types } from 'mongoose'
 import { z } from 'zod'
 import type { SessionUser } from './auth.service'
@@ -47,10 +49,10 @@ export class DocumentShapeError extends Error {
   }
 }
 export class StaleDocumentError extends Error {
-  constructor() {
-    super(
-      'This section was saved from somewhere else after you opened the document. Reload it to see the newer text, then make your change again.',
-    )
+  constructor(
+    message = 'This section was saved from somewhere else after you opened the document. Reload it to see the newer text, then make your change again.',
+  ) {
+    super(message)
     this.name = 'StaleDocumentError'
   }
 }
@@ -147,15 +149,18 @@ export type SectionVersionDto = {
   // The saved draft it was edited from, or null.
   draftId: string | null
   document: SectionDocument
+  // What it restored (RV-06), `version:<n>` or `draft:<_id>`; null for a save.
+  restoredFrom: string | null
   savedAt: Date
   savedBy: { id: string; name: string }
 }
-type Version = IReportSectionVersion & { _id: Types.ObjectId }
-function toVersionDto(v: Version): SectionVersionDto {
+export type Version = IReportSectionVersion & { _id: Types.ObjectId }
+export function toVersionDto(v: Version): SectionVersionDto {
   return {
     version: v.version,
     draftId: v.draft ? String(v.draft) : null,
     document: v.document,
+    restoredFrom: v.restoredFrom ?? null,
     savedAt: v.at,
     savedBy: { id: v.by.id, name: v.by.name },
   }
@@ -187,6 +192,23 @@ export async function latestVersions(
   return new Map(newest.map((n) => [n._id, toVersionDto(n.latest)]))
 }
 
+// The section's saved draft a version is built on, and the category its
+// metadata names: Section 2's newest summary draft, a drafted section's saved
+// draft (checking the template knows the section), or none for 1, 3 and A.
+export async function savedDraftOf(
+  assessment: Types.ObjectId,
+  sectionId: string,
+): Promise<{ draft: Draft | null; cope: CopeDimension | 'all' }> {
+  if (sectionId === '2') return { draft: await summaryDraft(assessment), cope: 'all' }
+  if (UNDRAFTED_PARTS.has(sectionId)) return { draft: null, cope: 'all' }
+  const section = await templateSection(sectionId)
+  return {
+    draft: (await sectionDrafts(assessment)).get(sectionId)?.saved ?? null,
+    cope:
+      section.cope_dimensions.length === 1 ? (section.cope_dimensions[0] as CopeDimension) : 'all',
+  }
+}
+
 // Saves one section of the document as a new version (AC3, AC4, AC13, AC15).
 // Only the assigned engineer can, while the assessment is not archived. The
 // document must have been built on the section's saved draft (`draftId`)
@@ -200,30 +222,40 @@ export async function saveSectionDocument(
   input: SaveDocumentInput,
   user: SessionUser,
 ): Promise<SectionVersionDto> {
+  return await writeSectionVersion(reference, sectionId, input, user, async () => input.document)
+}
+
+// Adds the section's next version, built on its saved draft (`draftId`) and
+// newest version (`baseVersion`) as the engineer saw them, else nothing is
+// saved (409). `documentOf` gives the text from the saved draft: the
+// document editor's (RV-08), or an earlier version's carried onto it, for a
+// restore (RV-06), which `restoredFrom` names on the version and on every
+// review log entry the restore makes. Shared by saving and restoring.
+export async function writeSectionVersion(
+  reference: string,
+  sectionId: string,
+  base: { baseVersion: number; draftId: string | null },
+  user: SessionUser,
+  documentOf: (draft: Draft | null, assessment: Types.ObjectId) => Promise<SectionDocument>,
+  restoredFrom: string | null = null,
+): Promise<SectionVersionDto> {
   const assessment = await assessmentToDraft(reference, user)
-  let cope: CopeDimension | 'all' = 'all'
-  let draft: Draft | null = null
-  if (sectionId === '2') draft = await summaryDraft(assessment._id)
-  else if (!UNDRAFTED_PARTS.has(sectionId)) {
-    const section = await templateSection(sectionId)
-    if (section.cope_dimensions.length === 1) cope = section.cope_dimensions[0] as CopeDimension
-    draft = (await sectionDrafts(assessment._id)).get(sectionId)?.saved ?? null
-  }
-  if ((draft ? String(draft._id) : null) !== input.draftId) throw new StaleDraftError()
+  const { draft, cope } = await savedDraftOf(assessment._id, sectionId)
+  if ((draft ? String(draft._id) : null) !== base.draftId) throw new StaleDraftError()
 
   const latest = await ReportSectionVersionModel.findOne({ assessment: assessment._id, sectionId })
     .sort({ version: -1 })
     .lean<Version>()
-  if ((latest?.version ?? 0) !== input.baseVersion) throw new StaleDocumentError()
+  if ((latest?.version ?? 0) !== base.baseVersion) throw new StaleDocumentError()
 
-  const { document } = input
+  const document = await documentOf(draft, assessment._id)
   checkShape(document, draft)
 
   const at = new Date()
   // Section 2's statements are not reviewed one by one (GN-07): only 4-12 log.
   if (draft && sectionId !== '2') {
     const previous = latest && String(latest.draft) === String(draft._id) ? latest.document : null
-    await recordDocumentEdits(draft, document, previous, user, at)
+    await recordDocumentEdits(draft, document, previous, user, at, restoredFrom)
   }
 
   const site = assessment.site!
@@ -232,9 +264,10 @@ export async function saveSectionDocument(
       {
         assessment: assessment._id,
         sectionId,
-        version: input.baseVersion + 1,
+        version: base.baseVersion + 1,
         draft: draft?._id ?? null,
         document,
+        restoredFrom,
         by: { id: user.id, name: user.name },
         at,
         metadata: {

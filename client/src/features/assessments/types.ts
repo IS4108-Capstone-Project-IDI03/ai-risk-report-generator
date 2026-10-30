@@ -74,10 +74,18 @@ export type Observation = {
   // What the model proposes from it (CP-05, CP-21). A sample one is the
   // demo's stand-in when no capture session is live, not a real reading.
   interpretation?: {
+    // Where the categories stand.
     status: InterpretationStatus
-    // From its photos; null for a reading without them.
-    description: string | null
-    hazardType: string | null
+    // The photos' description and hazard type, read apart from the
+    // categories; null until the photos are first described (CP-21).
+    photos: {
+      status: InterpretationStatus
+      description: string | null
+      hazardType: string | null
+      error: string | null
+      model: string | null
+      outOfDate: boolean
+    } | null
     categories: ProposedCategory[]
     error: string | null
     model: string | null
@@ -312,6 +320,9 @@ export type WorkflowState = {
   archiveOpen: boolean
   archiveBusy: boolean
   tagError: string | null
+  // Counts each choice of Version history in the ⋯ menu (RV-06), which opens
+  // it in the Review tab; 0 again once the engineer leaves that tab.
+  reviewHistory: number
 }
 
 export type ObservationFilters = {

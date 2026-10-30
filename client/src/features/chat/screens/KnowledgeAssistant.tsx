@@ -12,6 +12,7 @@ import { AnswerBar } from '../components/AnswerBar'
 import { ChatSidebar } from '../components/ChatSidebar'
 import { CitationPanel } from '../components/CitationPanel'
 import { preloadPdfViewer } from '../components/pdfViewerLoader'
+import { DeclineContext } from '../components/declineContext'
 import { CloseOnChatChange } from '../components/CloseOnChatChange'
 import { CitationSelectionContext, type SelectedCitation } from '../components/citationSelection'
 import { DocumentsContext, useDocumentMap } from '../components/documents'
@@ -25,7 +26,15 @@ import type { Versions } from '../api'
 import { chatTheme } from '../theme'
 import '../chat.css'
 
-export function KnowledgeAssistant() {
+export function KnowledgeAssistant({
+  isAdmin,
+  notify,
+}: {
+  // A knowledge admin is offered Add documents instead of a request (CB-07).
+  isAdmin: boolean
+  // Shows a toast, e.g. to confirm a sent request.
+  notify: (message: string) => void
+}) {
   const documents = useDocumentMap()
   // The versions of the chat on screen (CB-04); loaded by AnswerBar, read by UserMessage.
   const [versions, setVersions] = useState<Versions>({})
@@ -53,50 +62,54 @@ export function KnowledgeAssistant() {
     [selected, close],
   )
 
+  const decline = useMemo(() => ({ isAdmin, notify }), [isAdmin, notify])
+
   return (
-    <VersionsContext.Provider value={versionState}>
-      <DocumentsContext.Provider value={documents}>
-        <CitationSelectionContext.Provider value={selection}>
-          <div className="knowledge-assistant" data-source-open={selected ? '' : undefined}>
-            <AgentInterface
-              llm={chatLLM}
-              storage={chatStorage}
-              componentLibrary={chatLibrary}
-              components={{ ToolCallTimeline: SearchStep, UserMessage }}
-              agentName="MarshBot"
-              logoUrl={marshbot}
-              starters={starters}
-              // Stacked, so all four fit; the default carousel cut off the last one.
-              starterVariant="long"
-              // Follows the answer down as it streams. The default pinned the question to the
-              // top by padding the answer with a screen of blank space, and its "latest" arrow
-              // then scrolled into that blank space, hiding the answer.
-              scrollVariant="always"
-              theme={{ mode: 'light', lightTheme: chatTheme }}
-            >
-              <AgentInterface.Sidebar>
-                <ChatSidebar />
-              </AgentInterface.Sidebar>
-              {/* A greeting only: given children, OpenUI drops its own welcome composer (whose
+    <DeclineContext.Provider value={decline}>
+      <VersionsContext.Provider value={versionState}>
+        <DocumentsContext.Provider value={documents}>
+          <CitationSelectionContext.Provider value={selection}>
+            <div className="knowledge-assistant" data-source-open={selected ? '' : undefined}>
+              <AgentInterface
+                llm={chatLLM}
+                storage={chatStorage}
+                componentLibrary={chatLibrary}
+                components={{ ToolCallTimeline: SearchStep, UserMessage }}
+                agentName="MarshBot"
+                logoUrl={marshbot}
+                starters={starters}
+                // Stacked, so all four fit; the default carousel cut off the last one.
+                starterVariant="long"
+                // Follows the answer down as it streams. The default pinned the question to the
+                // top by padding the answer with a screen of blank space, and its "latest" arrow
+                // then scrolled into that blank space, hiding the answer.
+                scrollVariant="always"
+                theme={{ mode: 'light', lightTheme: chatTheme }}
+              >
+                <AgentInterface.Sidebar>
+                  <ChatSidebar />
+                </AgentInterface.Sidebar>
+                {/* A greeting only: given children, OpenUI drops its own welcome composer (whose
                 placeholder can't be changed) and keeps the one below, with the starters. */}
-              <AgentInterface.Welcome>
-                <div className="chat-welcome">
-                  <img src={marshbot} alt="" width={64} height={64} />
-                  <h2>Hi, I'm MarshBot</h2>
-                  <p>
-                    Ask me about the FM Global and NFPA standards or Marsh's past reports. Every
-                    answer cites the page it came from.
-                  </p>
-                </div>
-              </AgentInterface.Welcome>
-              <AgentInterface.Composer placeholder="Ask about a standard or a past report" />
-              <CloseOnChatChange />
-              <AnswerBar />
-            </AgentInterface>
-            {selected && <CitationPanel selected={selected} onClose={close} />}
-          </div>
-        </CitationSelectionContext.Provider>
-      </DocumentsContext.Provider>
-    </VersionsContext.Provider>
+                <AgentInterface.Welcome>
+                  <div className="chat-welcome">
+                    <img src={marshbot} alt="" width={64} height={64} />
+                    <h2>Hi, I'm MarshBot</h2>
+                    <p>
+                      Ask me about the FM Global and NFPA standards or Marsh's past reports. Every
+                      answer cites the page it came from.
+                    </p>
+                  </div>
+                </AgentInterface.Welcome>
+                <AgentInterface.Composer placeholder="Ask about a standard or a past report" />
+                <CloseOnChatChange />
+                <AnswerBar />
+              </AgentInterface>
+              {selected && <CitationPanel selected={selected} onClose={close} />}
+            </div>
+          </CitationSelectionContext.Provider>
+        </DocumentsContext.Provider>
+      </VersionsContext.Provider>
+    </DeclineContext.Provider>
   )
 }

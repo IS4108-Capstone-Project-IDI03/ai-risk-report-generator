@@ -33,6 +33,7 @@ export type NotificationPurpose =
   | 'knowledge_document_status'
   | 'account_status'
   | 'assessment_status'
+  | 'knowledge_gap_request'
 
 // One notification as the gateway sends it; matches NotificationDto in
 // server/src/services/notification.service.ts. `read` is this user's own state.
@@ -90,4 +91,9 @@ export function markAllNotificationsRead(): Promise<void> {
 // Clears the user's list (per user; others in the role are unaffected). 204.
 export function dismissAllNotifications(): Promise<void> {
   return send('/api/notifications/dismiss-all', { method: 'POST' })
+}
+
+// Dismisses one notification for the signed-in user only. 204, no body.
+export function dismissNotification(id: string): Promise<void> {
+  return send(`/api/notifications/${encodeURIComponent(id)}/dismiss`, { method: 'POST' })
 }

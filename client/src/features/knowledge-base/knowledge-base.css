@@ -728,3 +728,150 @@
 .kb-delete-body p {
   margin: 0;
 }
+
+/* Requests tab (CB-07). */
+/* Capped so a wide screen keeps the actions beside the request instead of 1,000px away. */
+.kb-request-list {
+  max-width: 1040px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+/* One request: a card with the question as its heading and the actions top right. */
+.kb-request {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-7);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color 180ms var(--ease-standard),
+    background-color 180ms var(--ease-standard);
+}
+/* The request a notification opened: an ink border and halo. The card stays white so the
+   tonal Mark filled button keeps its contrast. */
+.kb-request[data-focused] {
+  border-color: var(--ink-300);
+  box-shadow: 0 0 0 3px var(--surface-selected);
+}
+.kb-request-body {
+  min-width: 0;
+  max-width: 68ch;
+  display: grid;
+  gap: var(--space-3);
+}
+.kb-request-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+.kb-request-meta > span {
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.kb-request-meta time {
+  color: var(--text-muted);
+}
+.kb-request-question {
+  margin: 0;
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-lh);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+/* The engineer's own words: quoted verbatim behind the design system's 2px rule. */
+.kb-request-message,
+.kb-request-quote {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.kb-request-message figcaption,
+.kb-request-quote figcaption {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.kb-request-message blockquote {
+  margin: 0;
+  padding-left: var(--space-5);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+.kb-request-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--space-3);
+}
+@media (max-width: 640px) {
+  .kb-request {
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-5);
+  }
+}
+/* The question being closed, quoted at the top of the fill and dismiss dialogs. */
+.kb-request-quote {
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+.kb-request-quote blockquote {
+  margin: 0;
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.kb-request-quote p {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.kb-request-dialog {
+  display: grid;
+  gap: var(--space-6);
+}
+.kb-request-dialog > p {
+  margin: 0;
+}
+.kb-request-picker {
+  display: grid;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+/* One document per row: a divider between rows, a tint on hover, the selected fill once picked. */
+.kb-request-picker > label {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color 80ms var(--ease-standard);
+}
+.kb-request-picker > label:last-child {
+  border-bottom: 0;
+}
+.kb-request-picker > label:hover {
+  background: var(--surface-hover);
+}
+.kb-request-picker > label:has(input:checked) {
+  background: var(--surface-selected);
+}

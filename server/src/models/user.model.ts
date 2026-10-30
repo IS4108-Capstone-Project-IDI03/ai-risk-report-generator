@@ -27,6 +27,13 @@ export interface IUser {
   // its expiry. Cleared after use (single-use) or once it expires.
   resetTokenHash?: string
   resetTokenExpiresAt?: Date
+  // Invitation (F-08): sha256 of the raw token emailed to a new account's
+  // owner so they can set their first password, plus its expiry. Separate
+  // from the reset token: an invitation sets a password the account never
+  // had, a reset replaces one. Cleared once used; a new invitation replaces
+  // it. The expiry stays readable so admins can see when the link lapses.
+  inviteTokenHash?: string
+  inviteTokenExpiresAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -45,6 +52,8 @@ const userSchema = new Schema<IUser>(
     passwordHash: { type: String, select: false },
     resetTokenHash: { type: String, select: false },
     resetTokenExpiresAt: { type: Date, select: false },
+    inviteTokenHash: { type: String, select: false },
+    inviteTokenExpiresAt: { type: Date },
   },
   {
     timestamps: true,

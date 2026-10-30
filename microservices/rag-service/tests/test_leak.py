@@ -1,13 +1,17 @@
-"""PV-02 leak test (Rule 10): with protection on, no seeded client detail reaches any external
-API. The Cohere and Anthropic SDK clients are replaced by recorders, and Chroma by an
-in-memory collection, so every step between the route and the paid APIs runs for real.
+"""PV-02 and PV-03 leak test (Rule 10): with protection on, no seeded client detail reaches any
+external API. The Cohere, Anthropic and OpenAI SDK clients are replaced by recorders, and Chroma
+by an in-memory collection, so every step between the route and the paid APIs runs for real.
 privacy-service's /mask is faked in-process (conftest `fake_privacy`)."""
 
+import json
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app import config
+from app.chat.answer import Filters, Plan
 from app.generation import llm
 from app.generation.generator import (
     Ofi,
@@ -219,3 +223,94 @@ def test_summary_drafting_sends_no_seeded_detail(external):
     assert recorder.payloads
     assert leaked(recorder.payloads) == [], [p for p in recorder.payloads if leaked([p])]
     assert response.json()["statements"][0]["text"] == "John Tan confirmed it."
+
+
+class _Stream:
+    """An SDK answer stream: Anthropic reads `text_stream`, OpenAI iterates events."""
+
+    def __init__(self, deltas: list[str]):
+        self.text_stream = iter(deltas)
+        self.events = [SimpleNamespace(type="response.output_text.delta", delta=d) for d in deltas]
+        final = SimpleNamespace(model="m", stop_reason="end_turn", status="completed", usage=None)
+        self.get_final_message = self.get_final_response = lambda: final
+
+    def __iter__(self):
+        return iter(self.events)
+
+
+class ChatRecorder(Recorder):
+    """Also stands in for chat's SDK calls on either provider: the plan's parse and the
+    answer's stream. Each request is kept whole, so nothing in it can slip past."""
+
+    def __init__(self, plan, deltas: list[str]):
+        super().__init__(plan)
+        self.deltas = deltas
+        self.beta = SimpleNamespace(
+            messages=SimpleNamespace(parse=self.parse_json, stream=self.stream)
+        )
+        self.responses = SimpleNamespace(parse=self.parse_json, stream=self.stream)
+
+    def parse_json(self, **request):
+        self.payloads.append(json.dumps(request, default=str))
+        return SimpleNamespace(
+            parsed_output=self.parsed,
+            output_parsed=self.parsed,
+            model="m",
+            stop_reason="end_turn",
+            status="completed",
+            usage=None,
+        )
+
+    @contextmanager
+    def stream(self, **request):
+        self.payloads.append(json.dumps(request, default=str))
+        yield _Stream(self.deltas)
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+def test_chat_sends_no_seeded_detail(external, monkeypatch, provider):
+    monkeypatch.setattr(config, "CHAT_PLAN_PROVIDER", provider)
+    monkeypatch.setattr(config, "CHAT_PROVIDER", provider)
+    recorder = ChatRecorder(
+        Plan(
+            kind="search",
+            query="impairment handling agreed by [PERSON_1]",
+            filters=Filters(source_type="marsh_report"),
+            reply="",
+        ),
+        [
+            "root = Answer([s1])\n",
+            's1 = Statement("[PERSON_1] noted fire-resistive construction.", [c1])\n',
+            'c1 = Cite("P1", "As [PERSON_1] noted")\n',
+        ],
+    )
+    external(None)  # Chroma and Cohere as for drafting; chat's models are the chat recorder
+    monkeypatch.setattr(retriever, "cohere_client", lambda: recorder)
+    monkeypatch.setattr(llm, "_anthropic_client", lambda: recorder)
+    monkeypatch.setattr(llm, "_openai_client", lambda: recorder)
+
+    response = client.post(
+        "/chat",
+        json={
+            "messages": [
+                {"role": "user", "content": "Who handles impairments at Acme Holdings?"},
+                {"role": "assistant", "content": "John Tan does."},
+                {"role": "user", "content": "Did John Tan (S1234567D) agree to formalize it?"},
+            ],
+            "context": [{"description": "note", "value": "Call +65 9123 4567."}],
+            "documents": [{"id": "rep", "title": "Acme Holdings Tower survey"}],
+            "privacy": PRIVACY,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(recorder.payloads) >= 4  # embed, rerank, plan, answer
+    assert leaked(recorder.payloads) == [], [p for p in recorder.payloads if leaked([p])]
+    events = [
+        json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")
+    ]
+    program = "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT")
+    assert "John Tan noted fire-resistive construction." in program
+    result = next(e["value"] for e in events if e.get("name") == "chat_result")
+    assert result["error"] is None
+    assert [c["verified"] for c in result["citations"]] == [True]

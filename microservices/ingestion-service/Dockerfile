@@ -46,7 +46,7 @@ ARG UV_EXTRAS
 # this layer (the heavy one) is still valid in the cache.
 COPY pyproject.toml uv.lock ./
 
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project --no-dev ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-install-project --no-dev ${UV_EXTRAS}
 
 # Docling's layout + RapidOCR models and the chunker's bge-m3 tokenizer (files
 # only, no weights), so a container never downloads from Hugging Face.
@@ -63,10 +63,10 @@ RUN uv run docling-tools models download layout rapidocr -o "$DOCLING_ARTIFACTS_
 FROM deps AS test
 ARG UV_EXTRAS
 
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-install-project ${UV_EXTRAS}
 
 COPY . .
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked ${UV_EXTRAS}
 
 CMD ["uv", "run", "pytest", "-q", "--tb=short", "-m", "not slow and not inspect and not live"]
 
@@ -78,7 +78,7 @@ ARG UV_EXTRAS
 COPY app/ ./app/
 COPY config.yml ./
 
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev ${UV_EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev ${UV_EXTRAS}
 
 EXPOSE 8001
 

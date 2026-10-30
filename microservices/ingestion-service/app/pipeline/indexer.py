@@ -164,6 +164,8 @@ def index_chunks(chunks: list[dict], reporter=None, page_total: int | None = Non
     )
     for ids, documents, embeddings, metadatas in _batched(*columns):
         collection.upsert(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
+        if reporter:
+            reporter.check_cancelled()
     # Trailing pages with no passage never move the counter; indexing is done with them.
     if reporter and page_total and furthest < page_total:
         reporter.update_pages(page_total, page_total)

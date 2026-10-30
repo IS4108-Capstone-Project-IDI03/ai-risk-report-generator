@@ -1,4 +1,5 @@
-import { Badge, Button, Callout, EmptyState, IconButton } from '../../design-system'
+import { Button, Callout, EmptyState } from '../../design-system'
+import { ActionButton } from './components/ActionButton'
 import { NotificationRow } from './NotificationRow'
 import type { UseNotifications } from './useNotifications'
 import type { Notification } from './api'
@@ -23,24 +24,18 @@ export function NotificationList({
       <header className="notification-list__header">
         <div className="notification-list__heading">
           <h2>Notifications</h2>
-          <Badge tone="neutral" dot={n.unread > 0}>
+          <span className="notification-list__count">
             {n.unread > 0 ? `${n.unread} unread` : 'All caught up'}
-          </Badge>
+          </span>
         </div>
         <div className="notification-list__actions">
           {n.unread > 0 && (
-            <Button variant="ghost" size="sm" onClick={n.markAllRead}>
-              Mark all as read
-            </Button>
+            <ActionButton icon="check-check" label="Mark all as read" onClick={n.markAllRead} />
           )}
           {n.items.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={n.dismissAll}>
-              Dismiss all
-            </Button>
+            <ActionButton icon="trash-2" label="Dismiss all" onClick={n.dismissAll} />
           )}
-          {onClose && (
-            <IconButton icon="x" label="Close notifications" size="sm" onClick={onClose} />
-          )}
+          {onClose && <ActionButton icon="x" label="Close notifications" onClick={onClose} />}
         </div>
       </header>
 
@@ -73,6 +68,7 @@ export function NotificationList({
                 notification={notification}
                 onActivate={onActivate}
                 onMarkRead={n.markRead}
+                onDismiss={n.dismiss}
               />
             ))}
           </ul>

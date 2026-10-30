@@ -1,5 +1,5 @@
 import request from 'supertest'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { UserModel } from '../models/user.model'
 import { permissionsFor } from '../services/permissions.service'
@@ -212,8 +212,15 @@ describe('PUT /api/users/:id role assignment', () => {
 })
 
 // New accounts (F-08): a knowledge admin adds a team member with a name, work
-// email and role; job title, phone and office are optional.
+// email and role; job title, phone and office are optional. The invitation
+// email itself is tested in invitation.test.ts.
 describe('POST /api/users', () => {
+  // With no SMTP each new account prints its invitation code; keep it quiet.
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+  afterEach(() => vi.restoreAllMocks())
+
   function newAccount(overrides: Record<string, unknown> = {}) {
     return {
       name: 'Priya Nair',
@@ -238,8 +245,12 @@ describe('POST /api/users', () => {
       phone: null,
       office: null,
       active: true,
+      // No password until they accept the emailed invitation.
+      passwordSet: false,
     })
     expect(created.body.staffId).toMatch(/^MRE-\d{4}$/)
+    expect(Date.parse(created.body.invitationExpiresAt)).toBeGreaterThan(Date.now())
+    expect(created.body).not.toHaveProperty('passwordHash')
     const list = await api.get('/api/users')
     expect(list.body).toEqual([created.body])
   })
@@ -301,6 +312,8 @@ describe('POST /api/users', () => {
       expect(response.body.error).toBe('The account details are invalid.')
       expect(response.body.fields[field]).toBe(message)
       expect(await UserModel.countDocuments()).toBe(0)
+      // And no invitation goes out.
+      expect(console.log).not.toHaveBeenCalled()
     },
   )
 
@@ -330,29 +343,33 @@ describe('POST /api/users', () => {
     expect(await UserModel.countDocuments()).toBe(0)
   })
 
-  // F-08 AC4: the new employee sets a password with the reset link (F-06),
-  // then signs in with the email and gets their role's permissions.
+  // F-08 AC4: the new employee sets a password from the link in their
+  // invitation email, not the password reset (F-06), then signs in with the
+  // email and gets their role's permissions.
   it.each(['risk_engineer', 'knowledge_admin'] as const)(
-    'lets a new %s set a password and sign in to their role',
+    'lets a new %s set a password from their invitation and sign in to their role',
     async (role) => {
       await create(newAccount({ role }))
-
-      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      await request(app).post('/api/auth/request-reset').send({ email: 'priya.nair@example.com' })
-      const token = spy.mock.calls
-        .map((call) => String(call[0]))
-        .find((line) => line.includes('[password reset]'))
+      const token = vi
+        .mocked(console.log)
+        .mock.calls.map((call) => String(call[0]))
+        .find((line) => line.startsWith('[invitation] priya.nair@example.com '))
         ?.match(/token: ([a-f0-9]+)/)?.[1]
-      spy.mockRestore()
       expect(token).toBeTruthy()
+
+      const early = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'priya.nair@example.com', password: 'a first password 1!' })
+      expect(early.status).toBe(401)
+
       await request(app)
-        .post('/api/auth/reset')
-        .send({ token, password: 'a first password' })
+        .post('/api/auth/invitation/accept')
+        .send({ token, password: 'a first password 1!' })
         .expect(200)
 
       const signedIn = await request(app)
         .post('/api/auth/login')
-        .send({ email: 'priya.nair@example.com', password: 'a first password' })
+        .send({ email: 'priya.nair@example.com', password: 'a first password 1!' })
 
       expect(signedIn.status).toBe(200)
       expect(signedIn.body.user).toMatchObject({ name: 'Priya Nair', role })

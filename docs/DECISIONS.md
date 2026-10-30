@@ -312,6 +312,7 @@ role's screens, and the reset flow gets them there with no new password
 handling. A real welcome email can reuse the same token once email delivery
 exists.
 Story: F-08.
+Superseded on 2026-10-22: the new employee is emailed an invitation instead (below).
 
 ## 2026-10-06 — Retrieved passages are reranked once per section
 
@@ -1802,3 +1803,66 @@ Rejected:
 Known limits: another client's name or address inside a stored past report is not detected, because organisation and location recognition are off and known entities hold only this assessment's client; PV-05 redacts past reports at ingestion. spaCy reads some site fragments as names (for example "L33-47 - site"), which the model then sees as `[PERSON_1]`; they are allow-list candidates. The eval cases come from redacted reports, so the eval measures the cost of masking, not how real names are handled.
 
 Stories: PV-02, PV-01, GN-01, GN-05, GN-07, RV-02.
+
+## 2026-10-20 — A section's version history is its AI drafts and its saved versions; a restore is a new version
+
+Chose: Version history (RV-06) lists, for each part of the report, every AI draft it has had and every version saved in the document editor (RV-08), oldest first (AC1), each with who made it and when (AC2): who saved a version, who drafted a draft (looked up from its `createdBy`), who accepted a replacement. Nothing new is stored to list it: the drafts are those in `report_sections` that have been the section's saved content (a draft from Generation from when it was drafted, a replacement from when it was accepted, never one waiting or discarded; `savedDraftTimeline`), and the versions are RV-08's.
+- A draft's text in the history is its statements as the document editor first shows them, in the words they had when it became the section's content: a finding kept word for word into a redraft carries the engineer's edit with it (its `carriedFrom` entries), and decisions made on the draft since are not part of it. So a section only ever reviewed finding by finding still has a history, and the AI's own words can be compared and restored.
+- The comparison is computed in the browser (`versionDiff.ts`), between the chosen version and the section's text as the review workspace shows it, or the version before it: subsections matched by heading, blocks aligned by their longest common subsequence and the rest paired when much alike (Dice ≥ 0.4 by word), then words aligned the same way. Words added are marked `ins` (AC3), words deleted `del` (AC4), and words deleted with others added in their place one outlined change, read out as Changed from … to … (AC5). A word carries its formatting and a citation marker is a word of its own, so a word set in bold or a deleted citation counts as a change; spacing does not. No package: a word-level LCS is a page of code.
+- A restore (AC6) is a save: `POST …/sections/:sectionId/versions/restore` with the entry's `id` adds the section's next version holding its text, built on the newest version and saved draft the engineer saw (else 409, as a save), and names it in `restoredFrom` (`version:<n>` or `draft:<_id>`). In sections 4-12 the saved draft's findings follow the restored text through RV-08's `recordDocumentEdits`, extended for a restore: a finding the text lacks is rejected, one it holds that was rejected since is restored, and one worded otherwise is edited to its words, each entry marked `inDocument` and with the same `restoredFrom`, so the finding states, the review summary and its out-of-date check, and EV-02 read the restore as they read any edit. Nothing is overwritten: the text a restore replaces stays in the history, so a restore can be undone by restoring again.
+- Text written on an earlier draft (a version set aside by a redraft, or an earlier AI draft) is carried onto the saved draft first (`ontoDraft`): a passage that was a finding becomes the saved draft's finding with the same words in the same subsection, if one is left (the findings a redraft kept word for word are found this way), and anything else is the engineer's own text. A subsection the saved draft lacks, or has as a table, gives its text to the part before the first subsection. This is what recovers text a redraft set aside (RV-08's known limit).
+- A restore touches one section (AC7): one version and that section's log entries; and as a saved version it is what the section reads from then on (AC8).
+- The history is shown in place of the part's draft, in the review workspace's three panes: the rail stays, so the history follows the engineer from part to part; the versions sit in the side panel; the comparison takes the centre. It opens from a Version history button on every part's editor bar, and from the assessment's ⋯ menu, which held a "not connected" placeholder until now. Anyone who can view the assessment reads it; only the assigned engineer, on an assessment not archived, restores.
+
+Rejected:
+- Listing the document editor's saves only: a section reviewed only finding by finding would show no history, and the AI's words could not be compared or brought back.
+- Writing a version on every review decision too, so every change is a version: every accept would add a copy of the section, and the review history already keeps each edit's text before and after. A decision since the newest version shows in the comparison with the current text instead.
+- Restoring by making an earlier draft the saved draft again: drafts are never changed and the saved draft is the newest, so it would need a new kind of log entry, and the decisions on the current draft would be left behind.
+- Refusing to restore text written on an earlier draft: that is the text most easily lost.
+- Comparing on the gateway: the text the engineer sees is assembled in the browser from the draft, the decisions and the version (`sectionContent`), so the comparison is made against exactly that.
+- A diff package: it would need words, formatting and citation markers mapped into and out of its own model, for no gain over the small LCS kept beside its tests.
+
+Known limits: restoring a finding's drafted words leaves it Edited (with the draft's words), not Pending, since the log has no "undo"; the review history says it was edited by the restore. Every pause in typing in the document editor saves a version, so a long editing session lists many; they are not grouped. A restore of text written on an earlier draft can only match findings by their exact words.
+
+Stories: RV-06, RV-08, RV-02.
+
+## 2026-10-22 — A new account's owner sets their first password from an emailed invitation, not the reset
+
+Chose: creating an account (F-08) emails its owner an invitation: a link to `APP_URL/?invite=<code>` that opens its own Set your password screen. The screen checks the link as it opens (`POST /api/auth/invitation`), greets the person by name and shows their work email, and sets the first password with `POST /api/auth/invitation/accept`. The code is stored only as a sha256 hash (`inviteTokenHash`), works once, for 72 hours, and only for an active account that has no password yet. A knowledge admin can resend it from the profile (`POST /api/users/:id/invitation`), which cancels the earlier link; correcting a not-yet-set-up account's email cancels the link sent to the old address and invites the new one. The account list shows such an account as Invitation pending. A first password needs at least 12 characters, a number and a symbol, checked on the gateway as well as the screen. The reset (F-06) now sends nothing to an account with no password: a reset replaces a password, it does not create one.
+
+Rejected:
+- Keeping the reset as the way in (2026-10-04): the new employee had to know to request a reset for an account nobody had told them about, the reset's 30-minute link is too short for a first sign-in, and it made Reset password the de facto onboarding step.
+- Reusing the reset token and `/api/auth/reset` for the invitation: one token field would let a reset request cancel an invitation and the reverse, and a reset link would set a first password with none of the invitation's checks (active account, no password yet).
+- The admin typing a first password: one person knowing another's password and sending it outside the app.
+- Signing the person in as soon as the password is set: going back to the sign-in screen, with the email filled in, lets the browser offer to save the new password, and matches what the reset does.
+- Failing the account creation when the email can't be sent: the account details are right, and the admin can resend once mail works; the account shows no open link meanwhile.
+
+Reason: a new employee should hear about their account by email, with a link that lasts long enough to be found in their inbox, and the reset should stay the recovery path it was built as. Separate fields and routes keep the two links from interfering. Mail uses the same SMTP settings as the reset; with no `SMTP_HOST` the code is printed in the server console.
+
+Known limits: the 72 hours are fixed in `invitation.service.ts`. The first-password rule does not apply to the reset yet. An account created before this change, with no password, shows Invitation pending with no open link until an admin resends it.
+
+Stories: F-08, F-06.
+
+## 2026-10-26 — The pre-survey checklist is the template's subsections in code, plus cited items from the standards in scope
+
+Chose: an assessment's Checklist tab (CP-30) generates a pre-survey checklist from three sources, each with its own guarantee:
+- Marsh's report template: one item per subsection of Sections 6-12 in `sections.json`, written in code, so building details such as walls, roof and frame are always covered (AC3). "… Comments" subsections ask for judgement, not inspection, and get no item.
+- Hazards per facility type: `rag-service/app/generation/checklist.json` names 3-4 hazards for each of the nine facility types, each with the NFPA or FM standards it is checked against. Every hazard gets an item; if the model writes none, the config's own item is added, flagged `uncited` (AC4, AC7).
+- The standards the engineer keeps ticked (AC1-2): the model (`LLM_MODEL` at `CHECKLIST_EFFORT`, default `medium`) adds items from their passages only, each citing passages by label with the words it rests on. Code drops citations of passages not given, looks for each quote in its passage, and flags an item left with none.
+
+The gateway lists the applicable standards (FM, NFPA or local, labelled with the site's facility type and country or `all`, not withdrawn or needing review) and sends S4 only the facility type, country and chosen standards. Each generation is a new `checklists` document and the latest is shown (AC9). Items are stored with room for later stories (`status`, `prefill`, `check`), so CP-31 to CP-34 need no migration. Paid calls are recorded under a new `checklist` feature.
+
+Rejected:
+- One item per template field (~90 items): too long to read before a visit; fields are listed under their subsection's item instead.
+- Letting the model write the whole checklist: template coverage would depend on the model, and AC3 could fail silently.
+- Hazards editable by a knowledge admin: a screen and a collection for a list that changes rarely. A versioned file, recorded on every checklist, is enough until Marsh asks to edit it.
+- Overwriting the checklist on regenerate: CP-32 must keep the engineer's edits across regenerations, which needs the earlier version.
+- An Overview card: 60-plus items need their own tab, which CP-31 will also open from capture.
+- The template's items first: about 44 of a checklist's rows are the report's own subsections, which an engineer knows already, and they buried the cited rows. The tab shows the priority risks, then each report section once, showing by default only what the standards add (a switch shows the template's subsections with them). Two lists by section, one of the standards' items and one of the template's, repeated every section heading.
+- Masking: nothing about the client or site is sent, so there is nothing to mask; the request has no field for it.
+
+Reason: Marsh asked for checklists by facility type (warehouse vs office: roofing, hazardous storage, NFPA), built from the knowledge base. Fixed coverage in code and citations checked in code keep it trustworthy without an LLM judge.
+
+Known limits: the hazard lists were drafted by the team and are to be reviewed with Marsh. A hazard's named standards are matched to knowledge-base documents by source type and standard number, so a standard labelled without a number is not recognised as one of them. Standards are listed per facility type and country, not by the risk areas RT-01 describes. A site saved before the gateway checked facility types may hold another, such as the old seed's `Warehouse`: it gets no hazards and the checklist says so. The gateway now refuses a new or changed facility type off the list, but keeps an unchanged older one, so such an assessment can still be edited; existing sites on a shared database are not migrated.
+
+Stories: CP-30.

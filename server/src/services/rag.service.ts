@@ -188,6 +188,44 @@ export async function requestSectionDraft(body: unknown): Promise<SectionDraftRe
   })
 }
 
+// What S4 sends back for a pre-survey checklist (see rag-service POST
+// /checklist/draft, CP-30).
+export type ChecklistDraftResult = {
+  items: {
+    area: string
+    subsection: string | null
+    origin: 'template' | 'standard' | 'hazard' | 'hazard_list'
+    hazard: string | null
+    text: string
+    fields: string[]
+    COPE_dimension: string[]
+    citations: { ref: string; quote: string; quote_found: boolean }[]
+    flags: 'uncited'[]
+  }[]
+  areas: { id: string; title: string }[]
+  hazards: { id: string; name: string; standards: string[]; in_scope: string[] }[]
+  sources: Record<string, unknown>
+  // One item per paid call (EV-03); saved by checklist.service.ts.
+  usage?: unknown
+  provenance: {
+    provider: string
+    model: string | null
+    effort: string
+    prompt_version: string
+    checklist_version: string
+    template_version: string
+    generated_at: string
+  }
+}
+
+export async function requestChecklistDraft(body: unknown): Promise<ChecklistDraftResult> {
+  return callRag<ChecklistDraftResult>('/checklist/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 // What S4 sends back for drafted OFIs (see rag-service POST /ofis/draft, GN-05).
 export type OfiDraftResult = {
   ofis: {

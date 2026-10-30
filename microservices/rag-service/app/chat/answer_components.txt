@@ -22,7 +22,7 @@ CitedTable(headers: string[], rows: Cell[][]) — A comparison table. Every cell
 Cell(text: string, cites?: Cite[]) — A table cell and the citations that support it.
 Cite(passage: string, quote: string) — A citation: the passage label (e.g. "P1") and its exact words, at most 25.
 FollowUp(question: string) — One follow-up question the engineer may want next. No citations.
-Meta(sources: {label: string, documentId: string, passageId?: string, pageStart?: number, pageEnd?: number, withdrawn?: boolean}[], unverified: {label: string, quote: string}[]) — Server only. Never write this.
+Meta(sources: {label: string, documentId: string, passageId?: string, pageStart?: number, pageEnd?: number, withdrawn?: boolean}[], unverified: {label: string, quote: string}[], gap?: boolean) — Server only. Never write this.
 
 ## Hoisting & Streaming (CRITICAL)
 

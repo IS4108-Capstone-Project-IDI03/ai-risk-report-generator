@@ -46,7 +46,9 @@
   send raw text as a fallback. See docs/areas/privacy.md for which flows are
   protected so far.
 - `report_section_versions` (RV-08) is append-only too: each save from the
-  document editor adds a version; never update or delete one.
+  document editor, and each restore from the version history (RV-06), adds a
+  version; never update or delete one. A restore names what it restored in
+  `restoredFrom`, on the version and on the review log entries it makes.
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.
