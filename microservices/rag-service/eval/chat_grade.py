@@ -15,7 +15,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from app import usage
-from app.chat.answer import DECLINE, passage_header
+from app.chat.answer import passage_header
 from app.chat.quotes import _STR, find_cites
 from app.generation.llm import complete_json
 from eval import chat_transport as transport
@@ -188,7 +188,8 @@ def parse_statements(program: str) -> list[dict]:
 
     A table row is one statement ("Header: cell; ..."), so each cell is judged with its row
     and column; a row that cites nothing is a label row and is skipped. A table that can't be
-    read falls back to one statement per cited cell. The fixed decline sentence is not a statement.
+    read falls back to one statement per cited cell. A program with no citations is a decline
+    in the model's own words, not a claim.
     """
     named = {}
     for name, label, quote in _NAMED_CITE.findall(program):
@@ -222,6 +223,7 @@ def parse_statements(program: str) -> list[dict]:
         # Its cells are read as rows, so skip them in step b, named lists included.
         used = [spans[a] for a in _top_args(program[m.end() : end])[:2] if a in spans]
         skip += [(m.start(), end), *used]
+    declined = not find_cites(program) and not named
     # b. Every other block, in order; a parsed table's cells are skipped, its rows go in.
     found = list(tables)
     for m in _BLOCK.finditer(program):
@@ -233,7 +235,7 @@ def parse_statements(program: str) -> list[dict]:
         except json.JSONDecodeError:
             continue
         cited = cites_of(cites)
-        if (kind == "Cell" and not cited) or text == DECLINE:
+        if (kind == "Cell" and not cited) or declined:
             continue
         found.append((m.start(), [{"text": text, "cites": cited}]))
     return [s for _, group in sorted(found, key=lambda f: f[0]) for s in group]

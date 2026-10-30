@@ -1,6 +1,8 @@
 """PV-02: the rag privacy client masks text through privacy-service and unmasks the
 model's output. privacy-service's /mask is faked in-process (conftest `fake_privacy`)."""
 
+import json
+
 import httpx
 import pytest
 
@@ -93,3 +95,65 @@ def test_without_protection_output_is_left_as_written(fake_privacy):
         "See [PERSON_1] and LITERAL_2",
         [],
     )
+
+
+def _masked_session() -> privacy.Session:
+    """A session that has masked John Tan as [PERSON_1] and Acme Holdings as [CLIENT_1]."""
+    s = privacy.session(ON)
+    s.mask(["John Tan of Acme Holdings"])
+    return s
+
+
+def test_a_streamed_answer_reaches_the_screen_with_real_names(fake_privacy):
+    s = _masked_session()
+
+    out = list(s.unmask_stream(iter(['s1 = Statement("[PER', 'SON_1] of [CLIENT_1] agreed.")'])))
+
+    assert "".join(out) == 's1 = Statement("John Tan of Acme Holdings agreed.")'
+    assert not any("PER" in piece or "SON_1" in piece for piece in out), out
+
+
+def test_text_that_only_starts_like_a_placeholder_streams_through_unchanged(fake_privacy):
+    s = _masked_session()
+    answer = (
+        "root = Answer([s1, s2], meta)\n"
+        's1 = Statement("The site client keeps a person on [standby] at each SITE.", [c1])\n'
+        's2 = Statement("See [PHONE_BOOK] and CLIENT_X.", [])\n'
+        # Cut off mid-word (the engineer pressed stop): the held-back end still arrives.
+        's3 = Statement("Ask the client'
+    )
+
+    out = list(s.unmask_stream(iter(answer[i : i + 3] for i in range(0, len(answer), 3))))
+
+    assert "".join(out) == answer
+
+
+def test_text_is_never_held_back_for_more_than_24_characters(fake_privacy):
+    s = _masked_session()
+    text = "Ref PERSON_" + "7" * 40 + " ends here."
+    shown = []
+
+    def chunks():
+        for pulled, char in enumerate(text):
+            # Before each new character, all but the last 24 pulled are already on screen.
+            assert pulled - len("".join(shown)) <= 24, (pulled, "".join(shown))
+            yield char
+
+    for piece in s.unmask_stream(chunks()):
+        shown.append(piece)
+
+    assert "".join(shown) == text
+
+
+def test_a_restored_name_keeps_the_answer_program_parseable(fake_privacy):
+    awkward = 'Tan "AK" Ah Kow \ Facilities'
+    s = privacy.session(
+        {"enabled": True, "known_entities": [{"type": "PERSON", "names": [awkward]}]}
+    )
+    [masked] = s.mask([f"{awkward} agreed."])
+    assert masked == "[PERSON_1] agreed."
+
+    line = "".join(s.unmask_stream(iter(['s1 = Statement("[PERSON_1] agreed.", [])'])))
+
+    literal = line[len("s1 = Statement(") : line.index(", [])")]
+    assert json.loads(literal) == f"{awkward} agreed."

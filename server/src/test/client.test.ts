@@ -34,7 +34,7 @@ const KENT_RIDGE = {
   name: 'Kent Ridge campus',
   address: '21 Lower Kent Ridge Road',
   jurisdiction: 'SG',
-  facilityType: 'University campus',
+  facilityType: 'Mixed-use development',
 }
 
 function body(overrides: Record<string, unknown> = {}) {

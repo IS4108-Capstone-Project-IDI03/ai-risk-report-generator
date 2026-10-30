@@ -14,6 +14,16 @@ from pathlib import Path
 
 from app import config, usage
 from app import privacy as pii
+from app.chat.quotes import quote_found
+from app.generation.checklist import (
+    CHECKLIST,
+    CHECKLIST_PROMPT_VERSION,
+    area_scope,
+    draft_items,
+    hazards_for,
+    named_standard,
+    template_items,
+)
 from app.generation.generator import (
     OFI_CONFIG,
     OFI_PROMPT_VERSION,
@@ -577,5 +587,181 @@ def draft_summary_for(assessment, sections, privacy=None) -> dict:
             "template_version": TEMPLATE["version"],
             "generated_at": datetime.now(UTC).isoformat(),
             "privacy": protection.provenance(),
+        },
+    }
+
+
+# Pre-survey checklist (CP-30). Passages per search: enough for the reranker to choose from.
+CHECKLIST_PER_QUERY = 4
+# Each search keeps its nearest passages, so no area or hazard is crowded out by another's
+# (a single rerank of the pool once left Fire Protection with nothing to cite).
+CHECKLIST_KEPT_PER_QUERY = 2
+# Passages sent to the model, besides each search's own.
+MAX_CHECKLIST_PASSAGES = 20
+
+
+def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dict:
+    """Generate a pre-survey checklist (CP-30): template items, then items from standards.
+
+    `standards` are the knowledge documents the engineer kept in scope (AC1-2): only their
+    passages are searched. Nothing about the site but its facility type and country is
+    sent, so no client detail reaches Cohere or the model.
+    """
+    paid_calls = usage.start()
+    hazards = hazards_for(facility_type)
+    ids = [s.id for s in standards]
+    in_scope = {(s.source_type, (s.standard_number or "").strip().lower()) for s in standards}
+
+    def named_in_scope(hazard: dict) -> list[str]:
+        return [n for n in hazard["standards"] if named_standard(n) in in_scope]
+
+    def named_ids(hazard: dict) -> list[str]:
+        named = {named_standard(n) for n in hazard["standards"]}
+        return [
+            s.id
+            for s in standards
+            if (s.source_type, (s.standard_number or "").strip().lower()) in named
+        ]
+
+    passages: list[dict] = []
+    # The passages each report area and hazard's own search found, by area or hazard id, so
+    # the model knows what to write for each.
+    found_for: dict[str, list[str]] = {}
+    if ids:
+        areas = CHECKLIST["template_sections"]
+        # One batched search: each report area, then each hazard within the standards it is
+        # checked against (AC7), or every standard in scope when none of those is.
+        requests = [
+            (
+                f"{facility_type}: {TEMPLATE['sections'][a]['title']}: {area_scope(a)}",
+                {"doc_id": ids},
+                CHECKLIST_PER_QUERY,
+            )
+            for a in areas
+        ] + [
+            (
+                f"{facility_type}: {h['search']}",
+                {"doc_id": named_ids(h) or ids},
+                CHECKLIST_PER_QUERY,
+            )
+            for h in hazards
+        ]
+        results = search(requests)
+        keys = [*areas, *(h["id"] for h in hazards)]
+        own = {hit["id"] for hits in results for hit in hits[:CHECKLIST_KEPT_PER_QUERY]}
+        pooled = {hit["id"]: hit for hits in results for hit in hits}
+        candidates = list(pooled.values())
+        try:
+            candidates = rerank(
+                f"What to inspect at a {facility_type}: "
+                + ", ".join(
+                    [TEMPLATE["sections"][a]["title"] for a in areas] + [h["name"] for h in hazards]
+                ),
+                candidates,
+            )
+        except Exception:
+            log.warning("Rerank failed for the checklist; using vector order", exc_info=True)
+        kept = {c["id"] for c in candidates[:MAX_CHECKLIST_PASSAGES]} | own
+        passages = [c for c in candidates if c["id"] in kept]
+        # Each passage is listed under one area or hazard only (offered for two, the model
+        # wrote the same requirement in both): a hazard's, if any hazard's search found it, so
+        # a hazard keeps its own standards' passages (AC7); else the area's that found it
+        # nearest. Among hazards, or among areas, the nearest wins.
+        owner: dict[str, tuple[bool, float, str]] = {}
+        for key, hits in zip(keys, results):
+            is_area = key in areas
+            for hit in hits:
+                rank = (is_area, hit["distance"], key)
+                if hit["id"] in kept and (hit["id"] not in owner or rank < owner[hit["id"]]):
+                    owner[hit["id"]] = rank
+        found_for = {
+            key: [hit["id"] for hit in hits if owner.get(hit["id"], (0, 0, None))[2] == key]
+            for key, hits in zip(keys, results)
+        }
+
+    drafted, model = (
+        draft_items(
+            facility_type, jurisdiction, hazards, passages, found_for, config.CHECKLIST_EFFORT
+        )
+        if passages
+        else ([], None)
+    )
+
+    # Checks in code (AC6): a citation counts only if it names a passage the model was given,
+    # and its quote is looked for in that passage. An item left with none is "uncited".
+    given = {f"C:{p['id']}": p for p in passages}
+    for item in drafted:
+        item["citations"] = [
+            {**c, "quote_found": quote_found(c["quote"], given[c["ref"]]["text"])}
+            for c in item["citations"]
+            if c["ref"] in given
+        ]
+        if not item["citations"]:
+            item["flags"].append("uncited")
+
+    # Every configured hazard gets an item (AC4), from the config when the model wrote none.
+    # Its own origin, as the team wrote it, not the model (AC8).
+    covered = {item["hazard"] for item in drafted}
+    for hazard in hazards:
+        if hazard["id"] not in covered:
+            drafted.append(
+                {
+                    "area": "hazards",
+                    "subsection": None,
+                    "origin": "hazard_list",
+                    "hazard": hazard["id"],
+                    "text": hazard["item"],
+                    "fields": [],
+                    "COPE_dimension": hazard["cope"],
+                    "citations": [],
+                    "flags": ["uncited"],
+                }
+            )
+
+    # Report order: each area's template items, each followed by the items written under
+    # its subsection, then the area's other items; then the hazards in config order.
+    items = []
+    templates = template_items()
+    for area in CHECKLIST["template_sections"]:
+        written = [i for i in drafted if i["area"] == area]
+        for template in (t for t in templates if t["area"] == area):
+            items.append(template)
+            items += [i for i in written if i["subsection"] == template["subsection"]]
+        items += [i for i in written if i["subsection"] is None]
+    order = {h["id"]: n for n, h in enumerate(hazards)}
+    items += sorted(
+        (i for i in drafted if i["area"] == "hazards"), key=lambda i: order[i["hazard"]]
+    )
+
+    cited = {c["ref"] for item in items for c in item["citations"]}
+    return {
+        "items": items,
+        "areas": [
+            {"id": s, "title": TEMPLATE["sections"][s]["title"]}
+            for s in CHECKLIST["template_sections"]
+        ],
+        "hazards": [
+            {
+                "id": h["id"],
+                "name": h["name"],
+                "standards": h["standards"],
+                "in_scope": named_in_scope(h),
+            }
+            for h in hazards
+        ],
+        "sources": {
+            ref: {"text": passage["text"], **(passage["metadata"] or {})}
+            for ref, passage in given.items()
+            if ref in cited
+        },
+        "usage": paid_calls,
+        "provenance": {
+            "provider": config.LLM_PROVIDER,
+            "model": model,
+            "effort": config.CHECKLIST_EFFORT,
+            "prompt_version": CHECKLIST_PROMPT_VERSION,
+            "checklist_version": CHECKLIST["version"],
+            "template_version": TEMPLATE["version"],
+            "generated_at": datetime.now(UTC).isoformat(),
         },
     }

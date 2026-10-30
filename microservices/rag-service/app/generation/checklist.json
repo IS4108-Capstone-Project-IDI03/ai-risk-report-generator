@@ -1,0 +1,341 @@
+{
+  "version": "checklist-v2-2026-10",
+  "note": "Pre-survey checklist (CP-30). Drafted by the team, to be reviewed with Marsh: the hazards per facility type and the standards each is checked against. Bump `version` on any change; every saved checklist records it. v2: descriptions for Section 8's utility subsections, which showed as a bare heading.",
+  "template_sections": ["6", "7", "8", "9", "10", "11", "12"],
+  "template_details": {
+    "7/Construction Narrative": "Walls, roof, frame and floors, with their materials and combustibility; building age, height and any alterations",
+    "7/Construction Table": "Each building's construction class, floor area, storeys and year built",
+    "7/Compartmentalization and Fire Divisions": "Fire walls and separations, and whether openings in them are protected",
+    "7/Details on Combustible Construction": "Combustible roof or wall panels, insulation and linings, and where they are",
+    "8/Overview": "What the site is used for, its operating hours and occupancy",
+    "8/Key Processes": "The main processes, and any that are hazardous",
+    "8/Key Machinery": "Critical machinery and equipment, and how replaceable it is",
+    "8/Back-up Power": "Generators or UPS, what they serve and how they are tested",
+    "8/Transformer details": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+    "8/Boilers": "Each boiler's type, fuel and pressure, where it sits and how it is separated, and its combustion safeguards and inspection records",
+    "8/Refrigeration / Chillers / Cooling towers": "Refrigeration plant and its refrigerant, chillers, and cooling towers with their construction and whether combustible fill is protected",
+    "8/Fuels and energy supplies": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+    "8/Process water": "Where process water comes from, how it is stored and treated, and what operations stop without it",
+    "8/Compressed air": "Compressors, their location and condition, and what operations depend on compressed air",
+    "8/Compressed gases": "Gas cylinders and bulk tanks, what they hold, where and how they are stored and secured",
+    "8/Waste and effluent treatment": "How waste and effluent are collected, stored and treated, and where combustible waste builds up",
+    "8/Other site services": "Any other utility or service the site depends on, and what happens if it fails",
+    "9/Automatic Sprinkler Protection": "Sprinkler system types, coverage and design density for each area",
+    "9/Special Extinguishing Systems": "Gaseous, foam or other special systems, and what they protect",
+    "9/Water Supply Details": "Water sources, tanks and mains feeding the fire protection",
+    "9/Water Supply Test Results": "The latest water supply test: static and residual pressure, and flow",
+    "9/Fire / Booster Pump Details": "Each fire pump's type, driver, rating and controller",
+    "9/Pump Flow Test Data": "The latest pump flow test results",
+    "9/Fire Alarm Monitoring": "Where alarms are monitored, and how quickly they are acted on",
+    "10/Location Details": "The site's location, surroundings and access for the fire service",
+    "11/CCTV": "CCTV coverage, recording and who monitors it"
+  },
+  "hazards": {
+    "Distribution warehouse": [
+      {
+        "id": "rack_storage",
+        "name": "Rack and high-piled storage",
+        "search": "rack storage height, flue spaces, commodity classification and in-rack sprinklers",
+        "standards": ["NFPA 13", "FM 8-9"],
+        "cope": ["Occupancy", "Protection"],
+        "item": "Check rack and high-piled storage heights, flue spaces and commodity classes against the sprinkler design"
+      },
+      {
+        "id": "roofing",
+        "name": "Roofing materials",
+        "search": "roof construction, combustible insulated roof panels and roof covering",
+        "standards": ["FM 1-57", "FM 1-28"],
+        "cope": ["Construction"],
+        "item": "Check the roof deck, covering and insulation, including any combustible-core panels"
+      },
+      {
+        "id": "hazardous_materials",
+        "name": "Hazardous material storage",
+        "search": "storage of flammable liquids and hazardous materials, quantities, cabinets and separation",
+        "standards": ["NFPA 30", "NFPA 400", "FM 7-29"],
+        "cope": ["Occupancy"],
+        "item": "Check where flammable or hazardous goods are stored, in what quantities, and how they are separated"
+      },
+      {
+        "id": "battery_charging",
+        "name": "Forklift battery charging",
+        "search": "industrial truck battery charging areas, ventilation and separation from storage",
+        "standards": ["NFPA 505", "FM 7-39"],
+        "cope": ["Occupancy"],
+        "item": "Check forklift charging is ventilated and kept clear of combustible storage"
+      }
+    ],
+    "Cold store": [
+      {
+        "id": "insulated_panels",
+        "name": "Insulated sandwich panels",
+        "search": "insulated sandwich panel walls and ceilings with combustible cores",
+        "standards": ["FM 1-57"],
+        "cope": ["Construction"],
+        "item": "Check the insulated wall and ceiling panels, their core material and any damage"
+      },
+      {
+        "id": "refrigeration",
+        "name": "Ammonia refrigeration plant",
+        "search": "mechanical refrigeration machinery rooms, ammonia leak detection and ventilation",
+        "standards": ["FM 12-61"],
+        "cope": ["Occupancy"],
+        "item": "Check the refrigeration plant room, leak detection and emergency ventilation"
+      },
+      {
+        "id": "freezer_sprinklers",
+        "name": "Sprinklers in refrigerated areas",
+        "search": "dry pipe or preaction sprinklers for refrigerated and freezer storage",
+        "standards": ["NFPA 13", "FM 8-29"],
+        "cope": ["Protection"],
+        "item": "Check the sprinkler systems in freezers and chillers are suitable for low temperatures"
+      },
+      {
+        "id": "rack_storage",
+        "name": "Rack storage",
+        "search": "rack storage height, flue spaces and in-rack sprinklers",
+        "standards": ["NFPA 13", "FM 8-9"],
+        "cope": ["Occupancy", "Protection"],
+        "item": "Check rack heights, flue spaces and commodity classes against the sprinkler design"
+      }
+    ],
+    "Chemical plant": [
+      {
+        "id": "ignitable_liquids",
+        "name": "Ignitable liquid storage and use",
+        "search": "ignitable and flammable liquid storage and process operations, containment and drainage",
+        "standards": ["NFPA 30", "FM 7-32", "FM 7-83"],
+        "cope": ["Occupancy"],
+        "item": "Check how ignitable liquids are stored and handled, and how spills are contained and drained"
+      },
+      {
+        "id": "hazardous_materials",
+        "name": "Reactive and hazardous chemicals",
+        "search": "hazardous materials storage, incompatible chemicals and separation",
+        "standards": ["NFPA 400"],
+        "cope": ["Occupancy"],
+        "item": "Check hazardous and reactive chemicals are stored apart from incompatible materials"
+      },
+      {
+        "id": "combustible_dust",
+        "name": "Combustible dust",
+        "search": "combustible dust hazard analysis, dust collection and explosion protection",
+        "standards": ["NFPA 652", "NFPA 654", "FM 7-76"],
+        "cope": ["Occupancy"],
+        "item": "Check for combustible dust build-up, dust collection and explosion protection"
+      },
+      {
+        "id": "hot_work",
+        "name": "Hot work",
+        "search": "hot work permit system and fire watch",
+        "standards": ["NFPA 51B", "FM 10-3"],
+        "cope": ["Occupancy"],
+        "item": "Check the hot work permit system and how it is enforced"
+      }
+    ],
+    "Paper mill": [
+      {
+        "id": "roll_paper",
+        "name": "Roll paper storage",
+        "search": "roll paper storage height, banding and sprinkler protection",
+        "standards": ["NFPA 13", "FM 8-21"],
+        "cope": ["Occupancy", "Protection"],
+        "item": "Check roll paper storage heights, arrangement and sprinkler protection"
+      },
+      {
+        "id": "combustible_dust",
+        "name": "Paper dust and fibre",
+        "search": "combustible dust and fibre accumulation, housekeeping and dust collection",
+        "standards": ["NFPA 652", "FM 7-76"],
+        "cope": ["Occupancy"],
+        "item": "Check for paper dust and fibre build-up on structure and equipment"
+      },
+      {
+        "id": "hot_work",
+        "name": "Hot work",
+        "search": "hot work permit system and fire watch",
+        "standards": ["NFPA 51B", "FM 10-3"],
+        "cope": ["Occupancy"],
+        "item": "Check the hot work permit system and how it is enforced"
+      },
+      {
+        "id": "transformers",
+        "name": "Transformers",
+        "search": "oil-filled transformer separation, containment and fire protection",
+        "standards": ["FM 5-4"],
+        "cope": ["Occupancy"],
+        "item": "Check oil-filled transformers are separated from buildings and their oil is contained"
+      }
+    ],
+    "Port terminal": [
+      {
+        "id": "wharf_construction",
+        "name": "Wharf and pier construction",
+        "search": "marine terminal, pier and wharf construction and fire protection",
+        "standards": ["NFPA 307"],
+        "cope": ["Construction", "Protection"],
+        "item": "Check wharf and pier construction, including any combustible substructure, and its fire protection"
+      },
+      {
+        "id": "dangerous_goods",
+        "name": "Dangerous goods storage",
+        "search": "hazardous materials and dangerous goods container storage and segregation",
+        "standards": ["NFPA 400", "NFPA 307"],
+        "cope": ["Occupancy"],
+        "item": "Check where dangerous goods containers are held and how they are segregated"
+      },
+      {
+        "id": "flood",
+        "name": "Flood and storm surge",
+        "search": "flood and storm surge exposure and protection",
+        "standards": ["FM 1-40"],
+        "cope": ["Exposure"],
+        "item": "Check the site's flood and storm surge exposure and any protection against it"
+      },
+      {
+        "id": "mobile_equipment",
+        "name": "Cranes and mobile equipment",
+        "search": "industrial trucks and mobile handling equipment, refuelling and charging",
+        "standards": ["NFPA 505", "FM 7-39"],
+        "cope": ["Occupancy"],
+        "item": "Check where cranes and handling equipment are parked, refuelled and charged"
+      }
+    ],
+    "Data centre": [
+      {
+        "id": "it_rooms",
+        "name": "Data halls and IT equipment",
+        "search": "information technology equipment rooms and data centre fire protection",
+        "standards": ["NFPA 75", "FM 5-32"],
+        "cope": ["Occupancy", "Protection"],
+        "item": "Check the data halls' separation, detection and fire protection"
+      },
+      {
+        "id": "batteries",
+        "name": "UPS batteries",
+        "search": "battery energy storage and UPS battery rooms, separation and ventilation",
+        "standards": ["NFPA 855", "FM 5-32"],
+        "cope": ["Occupancy"],
+        "item": "Check UPS battery rooms: battery type, separation, ventilation and detection"
+      },
+      {
+        "id": "clean_agent",
+        "name": "Gaseous suppression",
+        "search": "clean agent fire extinguishing systems, enclosure integrity and maintenance",
+        "standards": ["NFPA 2001"],
+        "cope": ["Protection"],
+        "item": "Check gaseous suppression systems, the rooms they protect and their last test"
+      },
+      {
+        "id": "standby_power",
+        "name": "Generators and diesel storage",
+        "search": "emergency and standby generators and their fuel storage",
+        "standards": ["NFPA 110", "NFPA 30"],
+        "cope": ["Occupancy"],
+        "item": "Check the standby generators, their fuel storage and how they are tested"
+      }
+    ],
+    "Office": [
+      {
+        "id": "server_rooms",
+        "name": "Server and comms rooms",
+        "search": "information technology equipment rooms, separation and fire protection",
+        "standards": ["NFPA 75", "FM 5-32"],
+        "cope": ["Occupancy", "Protection"],
+        "item": "Check server and comms rooms: separation, detection and suppression"
+      },
+      {
+        "id": "cooking",
+        "name": "Kitchens and pantries",
+        "search": "commercial cooking ventilation, grease ducts and kitchen hood suppression",
+        "standards": ["NFPA 96"],
+        "cope": ["Occupancy"],
+        "item": "Check kitchen cooking areas, grease ducts and hood suppression"
+      },
+      {
+        "id": "smoke_control",
+        "name": "Atrium smoke control",
+        "search": "atrium smoke control systems",
+        "standards": ["NFPA 92"],
+        "cope": ["Protection"],
+        "item": "Check any atrium's smoke control and when it was last tested"
+      },
+      {
+        "id": "egress",
+        "name": "High-rise evacuation",
+        "search": "means of egress, exit stairs and evacuation in high-rise buildings",
+        "standards": ["NFPA 101"],
+        "cope": ["Protection"],
+        "item": "Check exit stairs, evacuation arrangements and fire lifts"
+      }
+    ],
+    "Shopping mall": [
+      {
+        "id": "cooking",
+        "name": "Tenant kitchens",
+        "search": "commercial cooking ventilation, grease ducts and kitchen hood suppression",
+        "standards": ["NFPA 96"],
+        "cope": ["Occupancy"],
+        "item": "Check food court and restaurant kitchens, grease ducts and hood suppression"
+      },
+      {
+        "id": "smoke_control",
+        "name": "Atrium smoke control",
+        "search": "atrium smoke control systems",
+        "standards": ["NFPA 92"],
+        "cope": ["Protection"],
+        "item": "Check atrium smoke control and when it was last tested"
+      },
+      {
+        "id": "back_of_house",
+        "name": "Back-of-house and tenant storage",
+        "search": "storage in mercantile occupancies and sprinkler protection of stock rooms",
+        "standards": ["NFPA 13"],
+        "cope": ["Occupancy", "Protection"],
+        "item": "Check stock rooms and back-of-house storage heights against the sprinkler protection"
+      },
+      {
+        "id": "egress",
+        "name": "Crowd egress",
+        "search": "means of egress capacity and exits in assembly and mercantile occupancies",
+        "standards": ["NFPA 101"],
+        "cope": ["Protection"],
+        "item": "Check exits are clear and sized for the crowds the mall draws"
+      }
+    ],
+    "Mixed-use development": [
+      {
+        "id": "separation",
+        "name": "Separation between uses",
+        "search": "separation of occupancies in mixed-use buildings",
+        "standards": ["NFPA 101"],
+        "cope": ["Construction"],
+        "item": "Check fire separation between the residential, retail and office parts"
+      },
+      {
+        "id": "cooking",
+        "name": "Tenant kitchens",
+        "search": "commercial cooking ventilation, grease ducts and kitchen hood suppression",
+        "standards": ["NFPA 96"],
+        "cope": ["Occupancy"],
+        "item": "Check restaurant kitchens, grease ducts and hood suppression"
+      },
+      {
+        "id": "car_park",
+        "name": "Car park",
+        "search": "parking structures fire protection and ventilation",
+        "standards": ["NFPA 88A"],
+        "cope": ["Occupancy", "Protection"],
+        "item": "Check the car park's sprinklers, ventilation and any electric vehicle charging"
+      },
+      {
+        "id": "smoke_control",
+        "name": "Atrium smoke control",
+        "search": "atrium smoke control systems",
+        "standards": ["NFPA 92"],
+        "cope": ["Protection"],
+        "item": "Check any atrium's smoke control and when it was last tested"
+      }
+    ]
+  }
+}

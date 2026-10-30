@@ -149,11 +149,27 @@ export type ProposedCategory = {
     verified: boolean | null
   }[]
 }
-export type SavedInterpretation = {
+// The parts of a proposal that can be read again one at a time (CP-21).
+export type ReadingPart = 'categories' | 'description'
+// The photos' part of a proposal: their description and hazard type, with
+// where they stand, read again apart from the categories (CP-21).
+export type SavedPhotoReading = {
   status: InterpretationStatus
-  // From its photos; null for a reading without them.
   description: string | null
   hazardType: string | null
+  error: string | null
+  attempts: number
+  model: string | null
+  // The photos it describes, removed ones included.
+  photoIds: string[]
+  // Finished, but of photos other than those it has now.
+  outOfDate: boolean
+}
+export type SavedInterpretation = {
+  // Where the categories stand.
+  status: InterpretationStatus
+  // Null until its photos are first described.
+  photos: SavedPhotoReading | null
   // The proposed categories, which may differ from the observation's own.
   categories: ProposedCategory[]
   // Why it failed, to show the engineer.
@@ -525,11 +541,15 @@ export async function retranscribePage(
   ).data
 }
 
-// Asks for an observation to be read (CP-05, CP-21): the first reading, a new
-// one after a failure, or after what it holds changed (CP-08). Saving never
+// Asks for an observation to be read (CP-05, CP-21): both parts the first
+// time, or one part again (`part`), whenever the engineer asks. Saving never
 // reads it.
-export async function readObservation(observationId: string) {
-  await request<void>('POST', `${observationPath(observationId)}/interpretation`)
+export async function readObservation(observationId: string, part?: ReadingPart) {
+  await request<void>(
+    'POST',
+    `${observationPath(observationId)}/interpretation`,
+    part ? { part } : undefined,
+  )
 }
 
 const locationsPath = (reference: string) =>
@@ -714,6 +734,79 @@ export async function saveOfiLossValues(
   ).data
 }
 
+// A knowledge-base standard that applies to the site (CP-30 AC1).
+export type ScopeStandard = {
+  id: string
+  title: string
+  issuingBody: string | null
+  standardNumber: string | null
+  edition: string | null
+  sourceType: string | null
+  // When it was added to the knowledge base (ISO).
+  uploadedAt: string
+}
+export type ChecklistItem = {
+  id: string
+  // A report section ('7') or 'hazards'.
+  area: string
+  subsection: string | null
+  // Only 'standard' and 'hazard' are written by the model (AC8).
+  origin: 'template' | 'standard' | 'hazard' | 'hazard_list'
+  hazard: string | null
+  text: string
+  fields: string[]
+  COPE_dimension: string[]
+  citations: { ref: string; quote: string; quoteFound: boolean }[]
+  flags: 'uncited'[]
+}
+// A cited passage as the checklist was given it: its text and Chroma labels.
+export type ChecklistSource = {
+  text: string
+  doc_id?: string
+  headings?: string[]
+  page_start?: number
+  page_end?: number
+}
+export type Checklist = {
+  id: string
+  facilityType: string
+  jurisdiction: string
+  standards: Omit<ScopeStandard, 'issuingBody' | 'uploadedAt'>[]
+  items: ChecklistItem[]
+  areas: { id: string; title: string }[]
+  hazards: { id: string; name: string; standards: string[]; inScope: string[] }[]
+  sources: Record<string, ChecklistSource>
+  provenance: {
+    provider: string
+    model: string | null
+    effort: string
+    prompt_version: string
+    checklist_version: string
+    template_version: string
+    generated_at: string
+  }
+  createdAt: string
+}
+// The site's scope, the standards that apply to it now, and the latest checklist.
+export type ChecklistView = {
+  scope: { facilityType: string; jurisdiction: string }
+  standards: ScopeStandard[]
+  checklist: Checklist | null
+}
+
+const checklistPath = (reference: string) =>
+  `/api/assessments/${encodeURIComponent(reference)}/checklist`
+
+export async function getChecklist(reference: string, signal?: AbortSignal) {
+  return (await request<ChecklistView>('GET', checklistPath(reference), undefined, signal)).data
+}
+
+// Generates a checklist from the standards kept ticked (AC2); the gateway saves
+// it as the latest and keeps the earlier ones.
+export async function generateChecklist(reference: string, standardIds: string[]) {
+  return (await request<ChecklistView>('POST', checklistPath(reference), { standardIds })).data
+}
+
 // Drafts one section from the assessment's observations; the gateway saves it.
 export async function draftSection(reference: string, sectionId: string): Promise<SectionDraft> {
   return (
@@ -787,8 +880,11 @@ export type ReviewHistoryEntry = {
   // Accepted by Bulk accept.
   bulk: boolean
   // Made in the document editor (RV-08): an edit, or a reject for a finding
-  // deleted there.
+  // deleted there. Also set on the entries a version restore made (RV-06).
   inDocument?: boolean
+  // Made by restoring an earlier version (RV-06): what was restored,
+  // `version:<n>` or `draft:<id>`; null or absent otherwise.
+  restoredFrom?: string | null
   by: { id: string; name: string }
   at: string
 }
@@ -1002,6 +1098,8 @@ export type SectionVersion = {
   version: number
   draftId: string | null
   document: SectionDocument
+  // What it restored (RV-06), `version:<n>` or `draft:<id>`; null for a save.
+  restoredFrom?: string | null
   savedAt: string
   savedBy: { id: string; name: string }
   current: boolean
@@ -1019,6 +1117,70 @@ export async function saveSectionDocument(
     await request<Omit<SectionVersion, 'current'>>(
       'PUT',
       `${sectionPath(reference, sectionId)}/document`,
+      body,
+    )
+  ).data
+}
+
+// A section's version history (RV-06): every AI draft it has had and every
+// version saved in the document editor, oldest first. `id` is what a restore
+// names: `version:<n>` or `draft:<id>`.
+export type VersionOrigin = 'drafted' | 'redrafted' | 'replacement' | 'saved' | 'restored'
+export type SectionHistoryEntry = {
+  id: string
+  kind: 'version' | 'draft'
+  // A saved version's number; null for a draft.
+  version: number | null
+  // The draft its finding keys name, or null for text written with none.
+  draftId: string | null
+  // Made on the section's saved draft, so its findings are the section's now.
+  onSavedDraft: boolean
+  origin: VersionOrigin
+  restoredFrom: string | null
+  // The section's text as it then stood.
+  document: SectionDocument
+  // When it became the section's text, and who saved, drafted or accepted it.
+  at: string
+  by: { id: string; name: string } | null
+  // The model that wrote a draft; null for a version.
+  model: string | null
+}
+export type SectionHistory = {
+  sectionId: string
+  entries: SectionHistoryEntry[]
+  // What a restore is built on: the newest version (0 for none) and the saved draft.
+  latestVersion: number
+  savedDraftId: string | null
+}
+
+export async function getSectionHistory(
+  reference: string,
+  sectionId: string,
+  signal?: AbortSignal,
+): Promise<SectionHistory> {
+  return (
+    await request<SectionHistory>(
+      'GET',
+      `${sectionPath(reference, sectionId)}/versions`,
+      undefined,
+      signal,
+    )
+  ).data
+}
+
+// Restores one entry of a section's version history as its text: a new
+// version, built on the newest version and saved draft the engineer saw.
+// Only the assigned engineer may; a newer save or draft is refused (409).
+// Returns the new version and the review workspace as it now stands.
+export async function restoreSectionVersion(
+  reference: string,
+  sectionId: string,
+  body: { baseVersion: number; draftId: string | null; from: string },
+): Promise<{ version: Omit<SectionVersion, 'current'>; workspace: ReviewWorkspace }> {
+  return (
+    await request<{ version: Omit<SectionVersion, 'current'>; workspace: ReviewWorkspace }>(
+      'POST',
+      `${sectionPath(reference, sectionId)}/versions/restore`,
       body,
     )
   ).data

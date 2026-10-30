@@ -80,16 +80,27 @@ def cancel_document(document_id: str) -> None:
     finish_cancellation(collection, _id, reporter)
 
 
-def cancellation_requested(collection, document_id: ObjectId) -> bool:
-    """Return whether MongoDB has asked this document's worker to stop."""
+def cancellation_requested(collection, document_id: ObjectId, attempt: int | None = None) -> bool:
+    """Return whether MongoDB has asked this document's worker to stop.
+
+    With `attempt` (the retryCount the run claimed), a retry also stops it: the
+    gateway marks a processing document cancelled at once, so an admin can press
+    Retry before this run reaches a checkpoint, and by then the status is back
+    to `queued` with the next attempt's job waiting behind this one.
+    """
     current = collection.find_one({"_id": document_id})
     return bool(
-        current and (current.get("status") == "cancelled" or current.get("cancelRequestedAt"))
+        current
+        and (
+            current.get("status") == "cancelled"
+            or current.get("cancelRequestedAt")
+            or (attempt is not None and (current.get("retryCount") or 0) != attempt)
+        )
     )
 
 
-def ensure_not_cancelled(collection, document_id: ObjectId) -> None:
-    if cancellation_requested(collection, document_id):
+def ensure_not_cancelled(collection, document_id: ObjectId, attempt: int | None = None) -> None:
+    if cancellation_requested(collection, document_id, attempt):
         raise IngestionCancelledError()
 
 
@@ -184,8 +195,9 @@ def _ingest_document(document_id: str) -> None:
 
     # One progress reporter per job (E2): records each stage transition to
     # ingestion_jobs, which the gateway reads while the document is processing.
+    attempt = doc.get("retryCount") or 0
     reporter = ProgressReporter(
-        jobs(), document_id, lambda: cancellation_requested(collection, _id)
+        jobs(), document_id, lambda: cancellation_requested(collection, _id, attempt)
     )
 
     # 2. Download the original into a temporary folder that deletes itself, and
@@ -198,7 +210,7 @@ def _ingest_document(document_id: str) -> None:
             # Keep the original file name: the parser reports it as the doc name.
             path = str(Path(tmp) / Path(doc["fileName"]).name)
             download(doc["file"]["key"], path)
-            ensure_not_cancelled(collection, _id)
+            ensure_not_cancelled(collection, _id, attempt)
             summary = run(
                 path,
                 doc_id=document_id,
@@ -208,18 +220,18 @@ def _ingest_document(document_id: str) -> None:
         # 4. Look for a copy or another edition among stored documents, then give
         # the passages their final labels. An error here fails the document like
         # any other stage; without that it could go live with the wrong status.
-        ensure_not_cancelled(collection, _id)
+        ensure_not_cancelled(collection, _id, attempt)
         match = find_match(doc, collection)
-        ensure_not_cancelled(collection, _id)
+        ensure_not_cancelled(collection, _id, attempt)
         relabel_passages({**doc, "match": match})
-        ensure_not_cancelled(collection, _id)
+        ensure_not_cancelled(collection, _id, attempt)
     except IngestionCancelledError:
         finish_cancellation(collection, _id, reporter)
         return
     # 5. Record the outcome: failed here, complete below. The admin sees a plain
     # reason; re-raising tells BullMQ the job failed (not retried: attempts is 1).
     except Exception as error:
-        if cancellation_requested(collection, _id):
+        if cancellation_requested(collection, _id, attempt):
             finish_cancellation(collection, _id, reporter)
             return
         log.exception("Ingesting document %s failed.", document_id)
@@ -271,7 +283,7 @@ def _ingest_document(document_id: str) -> None:
         return_document=ReturnDocument.AFTER,
     )
     if completed is None:
-        if cancellation_requested(collection, _id):
+        if cancellation_requested(collection, _id, attempt):
             finish_cancellation(collection, _id, reporter)
             return
         log.warning("Document %s changed before completion; skipping notification.", document_id)

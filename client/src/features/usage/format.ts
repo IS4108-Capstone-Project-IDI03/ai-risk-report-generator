@@ -16,6 +16,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   ocr: 'Table and formula OCR',
   'embed-document': 'Document embedding',
   chat: 'Chatbot',
+  checklist: 'Pre-survey checklist',
 }
 
 export const SERVICE_LABELS: Record<string, string> = {

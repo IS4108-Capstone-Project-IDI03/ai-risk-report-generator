@@ -26,16 +26,20 @@ class TextItem(BaseModel):
 
 
 # Everything the engineer captured about one finding, each item by the name the proposal cites
-# it by (CP-05, CP-21), with where it was found.
+# it by (CP-05, CP-21), with where it was found, and which parts of the proposal to write: the
+# categories, the photos' description, or (left out) both, or the categories alone without photos.
 class InterpretRequest(BaseModel):
     photos: list[PhotoItem] = []
     texts: list[TextItem] = []
     location: str | None = None
+    parts: list[Literal["categories", "description"]] | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def has_evidence(self):
         if not self.photos and not self.texts:
             raise ValueError("There is nothing to read: no photo, note or transcript.")
+        if self.parts and "description" in self.parts and not self.photos:
+            raise ValueError("There are no photos to describe.")
         labels = [item.label for item in (*self.photos, *self.texts)]
         if len(set(labels)) != len(labels):
             raise ValueError("Each item needs its own label.")
@@ -64,6 +68,7 @@ def interpret_observation(request: InterpretRequest) -> dict:
             [p.model_dump() for p in request.photos],
             [t.model_dump() for t in request.texts],
             request.location,
+            tuple(request.parts) if request.parts else None,
         )
     except InterpretationError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error

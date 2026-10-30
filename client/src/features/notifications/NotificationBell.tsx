@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { IconButton, Popover } from '../../design-system'
 import { useNotifications, type NotificationCounts } from './useNotifications'
+import './notifications.css'
 import { NotificationList } from './NotificationList'
 import type { Notification } from './api'
-import { KNOWLEDGE_REVIEW_PATH } from '../auth/access'
+import { KNOWLEDGE_REVIEW_PATH, SCREEN_PATHS } from '../auth/access'
+import { openKnowledgeTab } from '../knowledge-base/openTab'
 
 export type NotificationBellProps = {
   // Counts from the session, so the badge is right before the dropdown opens.
@@ -29,6 +31,20 @@ export function NotificationBell({
   const [open, setOpen] = useState(false)
   const n = useNotifications(pageSize, counts)
 
+  // Plays the pulse and tilt once each time the count rises while the page is
+  // open. The first value is skipped, so loading the page with unread items is
+  // calm. Bumping `pulse` changes the badge's key, which restarts its animation.
+  const previous = useRef(n.unread)
+  const [pulse, setPulse] = useState(0)
+  const [ringing, setRinging] = useState(false)
+  useEffect(() => {
+    if (n.unread > previous.current) {
+      setPulse((p) => p + 1)
+      setRinging(true)
+    }
+    previous.current = n.unread
+  }, [n.unread])
+
   const toggle = () => {
     const next = !open
     setOpen(next)
@@ -37,7 +53,7 @@ export function NotificationBell({
   }
 
   const label = n.unread > 0 ? `Notifications, ${n.unread} unread` : 'Notifications'
-  const color = tone === 'dark' ? '#fff' : 'var(--text-secondary)'
+  const color = tone === 'dark' ? '#fff' : 'var(--text-primary)'
 
   return (
     <Popover
@@ -50,8 +66,11 @@ export function NotificationBell({
         <IconButton
           icon="bell"
           label={label}
-          size="md"
+          // Large, so the bell is noticed on every page (UI polish, 21 Oct).
+          size="lg"
           selected={open}
+          className={`notif-bell notif-bell--${tone}${ringing ? ' notif-bell--ring' : ''}`}
+          onAnimationEnd={(e) => e.target === e.currentTarget && setRinging(false)}
           onClick={toggle}
           style={{
             position: 'relative',
@@ -63,28 +82,7 @@ export function NotificationBell({
           }}
         >
           {n.unread > 0 && (
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: '4px',
-                right: '4px',
-                minWidth: '16px',
-                height: '16px',
-                padding: '0 4px',
-                boxSizing: 'border-box',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '99px',
-                background: 'var(--ink-600)',
-                color: '#fff',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
-                lineHeight: '1',
-                fontWeight: '600',
-              }}
-            >
+            <span key={pulse} aria-hidden="true" className="notif-badge">
               {n.unread > 99 ? '99+' : n.unread}
             </span>
           )}
@@ -110,11 +108,22 @@ export function NotificationBell({
 // needs review (IN-07) opens its Review page: the URL changes and popstate
 // tells the app and the knowledge base to follow it, as the browser's Back does.
 function openSubject(notification: Notification) {
+  if (notification.purpose === 'knowledge_gap_request') return openKnowledgeRequest(notification)
   const { documentId, status } = notification.context ?? {}
   if (status !== 'needs_review' || !documentId) return
   const path = KNOWLEDGE_REVIEW_PATH + encodeURIComponent(documentId)
   // Already there: a second entry would make Back land on the same page.
   if (window.location.pathname === path) return
   window.history.pushState(null, '', path)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+// A knowledge request (CB-07). The admin's "New knowledge request" has no status in its context,
+// so it opens Requests; the engineer's outcome (filled or dismissed) carries one and opens the chat.
+function openKnowledgeRequest(notification: Notification) {
+  if (!notification.context?.status)
+    return openKnowledgeTab('requests', notification.context?.requestId)
+  if (window.location.pathname === SCREEN_PATHS.chat) return
+  window.history.pushState(null, '', SCREEN_PATHS.chat)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }

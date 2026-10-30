@@ -106,10 +106,13 @@ export const typeLabel = (o: Observation) => {
     ? [first, ...others.slice(0, -1)].join(', ') + ' and ' + others[others.length - 1]
     : first
 }
-// A sample observation has nothing being transcribed, but its sample photo
-// proposal is briefly interpreting.
+// A sample observation has nothing being transcribed, but either part of its
+// sample proposal is briefly interpreting.
 export const statusOf = (o: Observation) =>
-  o.status ?? (o.interpretation?.status === 'interpreting' ? 'Interpreting' : 'Complete')
+  o.status ??
+  ([o.interpretation?.status, o.interpretation?.photos?.status].includes('interpreting')
+    ? 'Interpreting'
+    : 'Complete')
 
 // An observation matches when every filter that is set matches its label, so
 // any one label on its own returns every observation carrying it (CP-06 AC2,

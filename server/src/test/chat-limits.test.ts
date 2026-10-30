@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { signedInAsRole } from './auth-test-helpers'
 import { useMemoryMongo } from './memory-mongo'
-import { addChatSpend, checkChatLimits, resetChatLimits } from '../services/chat-limits.service'
+import {
+  addChatSpend,
+  checkChatLimits,
+  PER_DAY,
+  PER_MINUTE,
+  resetChatLimits,
+  TOO_LONG,
+} from '../services/chat-limits.service'
 
 useMemoryMongo()
 
@@ -10,10 +17,6 @@ useMemoryMongo()
 // refused before S4 (and so any model) is called, with the reason as the answer.
 const EVENTS = 'data: {"type":"TEXT_MESSAGE_START","messageId":"m"}\n\n'
 const ask = (content: string) => ({ messages: [{ id: '1', role: 'user', content }] })
-const TOO_LONG = 'Your message is too long. Please keep it under 4,000 characters.'
-const PER_MINUTE =
-  "You've asked a lot of questions in the last minute. Please wait a minute and try again."
-const TODAY = "You've reached today's chat limit. You can ask again tomorrow."
 
 const ITEM = {
   feature: 'chat',
@@ -68,7 +71,7 @@ describe('POST /api/chat limits (AC16)', () => {
     const res = await user.post('/api/chat').send(ask('x'.repeat(4001)))
     expect(res.status).toBe(200)
     expect(res.headers['content-type']).toMatch(/^text\/event-stream/)
-    expect(refusalText(res.text)).toBe(TOO_LONG)
+    expect(TOO_LONG).toContain(refusalText(res.text))
     expect(res.text).not.toContain('chat_result')
     expect(res.text).toContain('TEXT_MESSAGE_START')
     expect(res.text).toContain('TEXT_MESSAGE_END')
@@ -86,7 +89,7 @@ describe('POST /api/chat limits (AC16)', () => {
     const user = signedInAsRole(app, 'risk_engineer')
     for (let i = 0; i < 10; i++) await user.post('/api/chat').send(ask('q'))
     const res = await user.post('/api/chat').send(ask('q'))
-    expect(refusalText(res.text)).toBe(PER_MINUTE)
+    expect(PER_MINUTE).toContain(refusalText(res.text))
     expect(s4Calls).toHaveBeenCalledTimes(10)
   })
 
@@ -96,7 +99,7 @@ describe('POST /api/chat limits (AC16)', () => {
     await user.post('/api/chat').send(ask('q'))
     s4Calls.mockClear()
     const res = await user.post('/api/chat').send(ask('q'))
-    expect(refusalText(res.text)).toBe(TODAY)
+    expect(PER_DAY).toContain(refusalText(res.text))
     expect(s4Calls).not.toHaveBeenCalled()
   })
 
@@ -130,14 +133,14 @@ describe('POST /api/chat limits (AC16)', () => {
         { id: '2', role: 'user', content: '' },
       ],
     }
-    expect(refusalText((await user.post('/api/chat').send(body)).text)).toBe(TOO_LONG)
+    expect(TOO_LONG).toContain(refusalText((await user.post('/api/chat').send(body)).text))
     expect(s4Calls).not.toHaveBeenCalled()
   })
 
   it('refuses a too-long context entry', async () => {
     const user = signedInAsRole(app, 'risk_engineer')
     const body = { ...ask('q'), context: [{ description: 'note', value: 'x'.repeat(4001) }] }
-    expect(refusalText((await user.post('/api/chat').send(body)).text)).toBe(TOO_LONG)
+    expect(TOO_LONG).toContain(refusalText((await user.post('/api/chat').send(body)).text))
     expect(s4Calls).not.toHaveBeenCalled()
   })
 })
@@ -151,13 +154,13 @@ describe('checkChatLimits clock windows', () => {
       for (let i = 0; i < 10; i++) expect(checkChatLimits('u', ['q'])).toBeNull()
       vi.advanceTimersByTime(61_000)
     }
-    expect(checkChatLimits('u', ['q'])).toBe(TODAY)
+    expect(PER_DAY).toContain(checkChatLimits('u', ['q']))
   })
   it('lets questions through again 60 seconds after the burst', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0))
     for (let i = 0; i < 10; i++) expect(checkChatLimits('u', ['q'])).toBeNull()
-    expect(checkChatLimits('u', ['q'])).toBe(PER_MINUTE)
+    expect(PER_MINUTE).toContain(checkChatLimits('u', ['q']))
     vi.advanceTimersByTime(61_000)
     expect(checkChatLimits('u', ['q'])).toBeNull()
   })
@@ -174,7 +177,7 @@ describe('checkChatLimits clock windows', () => {
       }
       vi.advanceTimersByTime(61_000)
     }
-    expect(checkChatLimits('u', ['q'])).toBe(TODAY)
+    expect(PER_DAY).toContain(checkChatLimits('u', ['q']))
     vi.setSystemTime(new Date(2026, 9, 16, 0, 0, 1))
     expect(checkChatLimits('u', ['q'])).toBeNull()
   })
@@ -184,8 +187,26 @@ describe('checkChatLimits clock windows', () => {
     vi.setSystemTime(new Date(2026, 9, 15, 23, 59, 0))
     checkChatLimits('u', ['q'])
     addChatSpend('u', [{ ...ITEM, cost_usd: 2 }])
-    expect(checkChatLimits('u', ['q'])).toBe(TODAY)
+    expect(PER_DAY).toContain(checkChatLimits('u', ['q']))
     vi.setSystemTime(new Date(2026, 9, 16, 0, 0, 1))
     expect(checkChatLimits('u', ['q'])).toBeNull()
+  })
+})
+
+describe('refusal wording', () => {
+  // Every phrasing must still state the reason and the next step (AC16).
+  it.each([
+    ['too long', TOO_LONG, /4,000/],
+    ['per minute', PER_MINUTE, /minute/],
+    ['per day', PER_DAY, /tomorrow/],
+  ])('every %s phrasing states its key fact', (_name, list, fact) => {
+    expect(list.length).toBeGreaterThanOrEqual(4)
+    for (const reply of list) expect(reply).toMatch(fact)
+  })
+
+  it('varies the wording and avoids repeating the last reply (retries once, so rare repeats are allowed)', () => {
+    const seen = new Set<string>()
+    for (let i = 0; i < 40; i++) seen.add(checkChatLimits('u', ['x'.repeat(4001)])!)
+    expect(seen.size).toBeGreaterThan(1)
   })
 })

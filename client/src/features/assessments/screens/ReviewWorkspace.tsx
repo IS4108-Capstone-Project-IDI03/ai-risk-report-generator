@@ -29,8 +29,15 @@ import { ReviewHistory } from '../components/ReviewHistory'
 import { ReviewSectionRail } from '../components/ReviewSectionRail'
 import { SectionReviewBar, type DraftView } from '../components/SectionReviewBar'
 import { SourcePanel } from '../components/SourcePanel'
+import { VersionHistory } from '../components/VersionHistory'
 import { WrittenBlocks } from '../components/WrittenBlocks'
-import { contentCitationNumbers, hasWritten, partContent, sectionContent } from '../documentContent'
+import {
+  contentCitationNumbers,
+  hasWritten,
+  partContent,
+  sectionContent,
+  summaryContent,
+} from '../documentContent'
 import { describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
 import { useObservations } from '../useObservations'
@@ -50,6 +57,17 @@ const OfiCharts = lazy(() =>
 const NOTHING: ReviewFocus = { citation: null, statement: null }
 // The rail's rows that are not one of sections 4-12.
 const OPENING = new Set(['1', '2', '3', 'A'])
+// Their headings.
+const PART_TITLES: Record<string, string> = {
+  '1': '1. Purpose and Scope',
+  '2': '2. Executive Summary',
+  '3': '3. Opportunities for Improvement',
+  A: 'Appendix A. Site Photos',
+}
+
+// A version restored from the version history (RV-06): on which part, what
+// was restored, and the version it was saved as.
+type RestoredNotice = { sectionId: string; name: string; version: number }
 
 // The dialog open over the workspace, if any.
 type OpenDialog =
@@ -89,6 +107,10 @@ function replacementView(section: ReviewSection): ReviewSection {
 // Sections 1 and 2 lead the rail and Appendix A ends it (GN-07).
 // Edit document opens the whole report as one document to write in (RV-08);
 // Return to review comes back on the section being edited, with its changes.
+// Version history (RV-06), on each part of the report and in the
+// assessment's ⋯ menu, shows the part's versions in place of its draft, and
+// stays open as the engineer moves through the rail; the assigned engineer
+// can restore one as the part's text.
 export function ReviewWorkspace({
   reference,
   canReview = false,
@@ -96,6 +118,7 @@ export function ReviewWorkspace({
   railStyle,
   panelStyle,
   onGenerate,
+  historyRequest = 0,
 }: {
   reference: string
   // The assigned engineer, on an assessment not archived: others only read.
@@ -105,6 +128,9 @@ export function ReviewWorkspace({
   railStyle: React.CSSProperties
   panelStyle: React.CSSProperties
   onGenerate: () => void
+  // Counts each time Version history is chosen from the assessment's ⋯ menu
+  // (RV-06); a new count opens the version history. 0 for none.
+  historyRequest?: number
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis, setOfis } = useOfis(reference)
@@ -133,6 +159,27 @@ export function ReviewWorkspace({
   // Back from the document: the workspace read before it, until the reload
   // lands with the saved changes (AC2).
   const [returnedFrom, setReturnedFrom] = useState<string | null>(null)
+  // The version history (RV-06), shown in place of the selected part's draft;
+  // the ⋯ menu's request it last acted on; and the restore last made, shown on
+  // its part until the engineer moves on.
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyFor, setHistoryFor] = useState(0)
+  const [restored, setRestored] = useState<RestoredNotice | null>(null)
+
+  // Version history chosen from the ⋯ menu opens it, leaving the document
+  // editor (the menu asked first if anything there was unsaved) for the
+  // section it was opened on.
+  if (historyRequest && historyRequest !== historyFor) {
+    setHistoryFor(historyRequest)
+    setHistoryOpen(true)
+    setRestored(null)
+    if (documentAt) {
+      setSelected(documentAt)
+      setDocumentAt(null)
+      setReopening(null)
+      reload()
+    }
+  }
 
   const sections = workspace?.sections
   if (loadError && !sections)
@@ -209,26 +256,41 @@ export function ReviewWorkspace({
     ? contentCitationNumbers(sectionContent(section))
     : new Map<string, number>()
   const describe = (citation: string) => describeCitation(section!, citation)
+  // The version history stays open on the part chosen.
   const select = (id: string) => {
     setSelected(id)
     setFocus(NOTHING)
     setView('saved')
     setProblem(null)
+    setRestored(null)
+  }
+  const openHistory = () => {
+    setHistoryOpen(true)
+    setRestored(null)
   }
   const cite = (citation: string | null, statement: string | null) =>
     setFocus({ citation, statement })
   const previous = sections[index - 1]
   const next = sections[index + 1]
+  // The part the rail marks as open.
+  const railId = selected && OPENING.has(selected) ? selected : (saved?.id ?? '')
   const rail = (
     <ReviewSectionRail
       sections={sections}
       summary={workspace.summary}
       regenerating={regenerating}
-      selected={selected && OPENING.has(selected) ? selected : (saved?.id ?? '')}
+      selected={railId}
       onSelect={select}
       inReport={accepted.length}
       executiveSummary={summary?.executiveSummary ?? null}
-      onEditDocument={canReview ? () => setDocumentAt(selected ?? saved?.id ?? '1') : undefined}
+      onEditDocument={
+        canReview
+          ? () => {
+              setHistoryOpen(false)
+              setDocumentAt(selected ?? saved?.id ?? '1')
+            }
+          : undefined
+      }
       editPending={returnedFrom !== null && workspace.asOf === returnedFrom && !loadError}
       style={railStyle}
     />
@@ -238,6 +300,72 @@ export function ReviewWorkspace({
   // the drafted sections (4-12), then Appendix A.
   const parts = ['1', '2', '3', ...sections.map((s) => s.id), 'A']
   const positionOf = (id: string) => `${parts.indexOf(id) + 1} of ${parts.length}`
+
+  // The version history (RV-06) of the part the rail marks: its versions
+  // compared with its text as shown here, for any part of the report.
+  if (historyOpen) {
+    const id = railId || '1'
+    const listed = sections.find((s) => s.id === id)
+    const current =
+      id === '2'
+        ? summary || summaryError
+          ? summaryContent(summary?.executiveSummary.draft ?? null, workspace.parts?.['2'] ?? null)
+          : null
+        : listed
+          ? sectionContent(listed)
+          : partContent(workspace.parts?.[id as '1' | '3' | 'A'] ?? null)
+    return (
+      <div style={wrapStyle}>
+        {rail}
+        <VersionHistory
+          key={id}
+          reference={reference}
+          sectionId={id}
+          title={PART_TITLES[id] ?? (listed ? `${listed.id}. ${listed.title}` : id)}
+          position={positionOf(id)}
+          current={current}
+          describe={listed ? (citation) => describeCitation(listed, citation) : undefined}
+          findings={!!listed?.draft}
+          canRestore={canReview}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={({ workspace: after, version, name }) => {
+            keep(after)
+            setHistoryOpen(false)
+            setRestored({ sectionId: id, name, version: version.version })
+            setFocus(NOTHING)
+            setView('saved')
+            setProblem(null)
+            void reloadSummary()
+          }}
+          onStale={reload}
+          panelStyle={panelStyle}
+        />
+      </div>
+    )
+  }
+  // A restore just made on this part (RV-06 AC6), above its text.
+  const restoredNotice = (id: string) =>
+    restored?.sectionId === id && (
+      <div role="status">
+        <Callout
+          tone="success"
+          title={`Restored ${restored.name}`}
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={IconRegistry.object.history}
+              onClick={openHistory}
+            >
+              Open version history
+            </Button>
+          }
+        >
+          Its text is the section's current draft, saved as version {restored.version}. The text it
+          replaced stays in the version history.
+        </Callout>
+      </div>
+    )
 
   // What the engineer wrote into Section 1 or 3 or Appendix A in the
   // document editor (RV-08), after the part's own content.
@@ -270,7 +398,8 @@ export function ReviewWorkspace({
   ) => (
     <div style={wrapStyle}>
       {rail}
-      <ReportPart title={title} position={positionOf(id)} {...nav}>
+      <ReportPart title={title} position={positionOf(id)} onHistory={openHistory} {...nav}>
+        {restoredNotice(id)}
         {body}
         {(id === '1' || id === 'A') && writtenIn(id)}
       </ReportPart>
@@ -286,7 +415,7 @@ export function ReviewWorkspace({
   if (selected === '1')
     return part(
       '1',
-      '1. Purpose and Scope',
+      PART_TITLES['1'],
       <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} />,
       'Section 1 is filled in from the assessment and site details, with no AI drafting. It always matches them.',
       { onNext: () => select('2') },
@@ -294,7 +423,7 @@ export function ReviewWorkspace({
   if (selected === '2')
     return part(
       '2',
-      '2. Executive Summary',
+      PART_TITLES['2'],
       <ExecutiveSummary
         summary={summary?.executiveSummary ?? null}
         error={summaryError}
@@ -307,7 +436,7 @@ export function ReviewWorkspace({
   if (selected === 'A')
     return part(
       'A',
-      'Appendix A. Site Photos',
+      PART_TITLES.A,
       <AppendixPhotos reference={reference} canEdit={canReview} />,
       'The export (EX-01) shows only these photos, in this order, with their captions.',
       { onPrevious: last && (() => select(last.id)) },
@@ -358,8 +487,17 @@ export function ReviewWorkspace({
               >
                 Next
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                iconLeft={IconRegistry.object.history}
+                onClick={openHistory}
+              >
+                Version history
+              </Button>
             </div>
-            <h2>3. Opportunities for Improvement</h2>
+            <h2>{PART_TITLES['3']}</h2>
+            {restoredNotice('3')}
             {/* Marsh's matrix opens the section, drafted or not (GN-12 AC6). */}
             <RiskMatrix />
             {!drafted ? (
@@ -490,6 +628,8 @@ export function ReviewWorkspace({
         // The last section leads on to Appendix A.
         onNext={() => select(next ? next.id : 'A')}
         onGenerate={onGenerate}
+        onHistory={openHistory}
+        notice={restoredNotice(saved.id)}
         numbers={numbers}
         focus={focus}
         describe={describe}

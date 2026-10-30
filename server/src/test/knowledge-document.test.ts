@@ -36,9 +36,9 @@ vi.mock('../services/storage.service', () => ({
   },
   deleteObject: async (key: string) => void s3.delete(key),
 }))
-const queued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
-const requeued = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
-const removed = vi.hoisted(() => vi.fn<(documentId: string) => Promise<void>>())
+const queued = vi.hoisted(() => vi.fn<(documentId: string, attempt?: number) => Promise<void>>())
+const requeued = vi.hoisted(() => vi.fn<(documentId: string, attempt?: number) => Promise<void>>())
+const removed = vi.hoisted(() => vi.fn<(documentId: string, attempt?: number) => Promise<void>>())
 vi.mock('../services/ingestion-queue.service', () => ({
   enqueueIngestion: queued,
   requeueIngestion: requeued,
@@ -1371,7 +1371,7 @@ describe('retryIngestion', () => {
 
     await retryIngestion(DOC_ID)
 
-    expect(requeued).toHaveBeenCalledWith(DOC_ID)
+    expect(requeued).toHaveBeenCalledWith(DOC_ID, 1)
   })
 
   it('refuses a document that is not failed, leaving it and its counter untouched', async () => {
@@ -1487,7 +1487,7 @@ describe('cancelIngestion', () => {
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
     expect(doc!.cancelledAt).toBeInstanceOf(Date)
-    expect(removed).toHaveBeenCalledWith(CANCEL_ID)
+    expect(removed).toHaveBeenCalledWith(CANCEL_ID, 0)
   })
 
   it('cancels a processing document immediately for cooperative cleanup', async () => {
@@ -1559,7 +1559,7 @@ describe('cancelIngestion', () => {
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
     expect(doc!.cancelledAt).toBeInstanceOf(Date)
-    expect(removed).toHaveBeenCalledWith(CANCEL_ID)
+    expect(removed).toHaveBeenCalledWith(CANCEL_ID, 0)
   })
 
   it('marks a processing document for cooperative cancellation', async () => {
@@ -1639,7 +1639,7 @@ describe('POST /api/knowledge-documents/:id/retry', () => {
     const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
     expect(doc!.status).toBe('queued')
     expect(doc!.retryCount).toBe(1)
-    expect(requeued).toHaveBeenCalledWith(RETRY_ID)
+    expect(requeued).toHaveBeenCalledWith(RETRY_ID, 1)
   })
 
   it('409s a document that is not failed', async () => {
@@ -1661,7 +1661,7 @@ describe('POST /api/knowledge-documents/:id/retry', () => {
     const doc = await KnowledgeDocumentModel.findById(RETRY_ID).lean()
     expect(doc!.status).toBe('queued')
     expect(doc!.cancelledAt).toBeUndefined()
-    expect(requeued).toHaveBeenCalledWith(RETRY_ID)
+    expect(requeued).toHaveBeenCalledWith(RETRY_ID, 1)
   })
 
   it('404s an unknown id', async () => {

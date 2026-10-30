@@ -8,6 +8,7 @@ import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-sess
 import { nextInSequence } from './sequence.service'
 import { SiteModel, type ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
+import { FACILITY_TYPES } from './knowledge-document.service'
 import {
   clientNameOf,
   findOrCreateClient,
@@ -19,6 +20,18 @@ import {
   SiteSharedError,
   UnknownSiteError,
 } from './client.service'
+
+// A new or changed facility type must be one the forms offer, since the
+// knowledge base's labels and the checklist's hazards (CP-30) use only those.
+// An older site's type, kept unchanged, is not refused, so its assessments can
+// still be edited.
+const FACILITY_TYPE_RULE = 'Choose a facility type from the list.'
+export class UnknownFacilityTypeError extends Error {
+  constructor() {
+    super(FACILITY_TYPE_RULE)
+    this.name = 'UnknownFacilityTypeError'
+  }
+}
 
 export class InvalidEngineersError extends Error {
   constructor() {
@@ -97,7 +110,14 @@ export const newAssessmentSchema = z
     clientId: objectId('Choose one of the listed clients, or name a new one.').optional(),
     client: required('Client').optional(),
     siteId: objectId("Choose one of this client's sites, or add a new one.").optional(),
-    site: siteDetails.optional(),
+    site: siteDetails
+      .extend({
+        facilityType: required('Facility type').refine(
+          (type) => FACILITY_TYPES.includes(type),
+          FACILITY_TYPE_RULE,
+        ),
+      })
+      .optional(),
     copyLocations: z.boolean().default(true),
     ...assessmentFields,
     engineerId: objectId('Choose the engineer for this assessment.'),
@@ -317,6 +337,11 @@ export async function updateAssessment(
       site.jurisdiction !== details.jurisdiction ||
       site.facilityType !== details.facilityType)
   if (changed) {
+    if (
+      site.facilityType !== details.facilityType &&
+      !FACILITY_TYPES.includes(details.facilityType)
+    )
+      throw new UnknownFacilityTypeError()
     if (await isSiteShared(site._id, assessment._id)) throw new SiteSharedError()
     if (site.client && site.name !== details.name)
       await refuseDuplicateSite(site.client, details.name, site._id)

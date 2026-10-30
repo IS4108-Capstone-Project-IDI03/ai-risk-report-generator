@@ -14,6 +14,8 @@ const JIDE = {
   phone: null,
   office: 'SG',
   active: true,
+  passwordSet: true,
+  invitationExpiresAt: null as string | null,
   updatedAt: '2026-09-25T04:00:00.000Z',
 }
 const ALEX = {
@@ -33,13 +35,15 @@ function respond(status: number, body: unknown) {
   )
 }
 // A knowledge admin starts on the knowledge base (F-05), which loads its
-// document list; that request, and the dashboard's work list (RV-10), are
+// document list and its open knowledge requests (CB-07); those, and the dashboard's work list (RV-10), are
 // answered as unreachable, so fetchMock only sees the account requests.
 function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    url.startsWith('/api/assessments') || url.startsWith('/api/knowledge-documents')
+    url.startsWith('/api/assessments') ||
+    url.startsWith('/api/knowledge-documents') ||
+    url.startsWith('/api/knowledge-gaps')
       ? Promise.reject(new TypeError('Failed to fetch'))
       : fetchMock(url, init),
   )
@@ -222,16 +226,27 @@ describe('Role assignment (F-05)', () => {
   })
 })
 
+// A new account whose owner has not yet set a password from their
+// invitation (F-08). Its link works for another 72 hours.
+const PRIYA = {
+  ...JIDE,
+  id: '6ab39017e45cf009e4507735',
+  staffId: 'MRE-0005',
+  name: 'Priya Nair',
+  email: 'priya.nair@example.com',
+  jobTitle: null,
+  office: null,
+  passwordSet: false,
+  invitationExpiresAt: new Date(Date.now() + 72 * 3_600_000).toISOString() as string | null,
+}
+
+// The list row (table) or list item (narrow layout) for one account.
+async function listEntry(name: string) {
+  const link = await screen.findByRole('button', { name: `Open profile for ${name}` })
+  return link.closest<HTMLElement>('tr, li')!
+}
+
 describe('New accounts (F-08)', () => {
-  const PRIYA = {
-    ...JIDE,
-    id: '6ab39017e45cf009e4507735',
-    staffId: 'MRE-0005',
-    name: 'Priya Nair',
-    email: 'priya.nair@example.com',
-    jobTitle: null,
-    office: null,
-  }
   async function openNewAccount() {
     await openAccounts()
     fireEvent.click(await screen.findByRole('button', { name: 'Add account' }))
@@ -264,13 +279,38 @@ describe('New accounts (F-08)', () => {
       office: '',
     })
     expect(
-      screen.getByText(/MRE-0005 is active as a risk engineer\. To sign in, they set a password/),
+      screen.getByText(
+        /MRE-0005 is active as a risk engineer\. An invitation to set a password was emailed to priya\.nair@example\.com; its link works until /,
+      ),
     ).toBeVisible()
-    // The list is read again, so it includes the new account.
-    const listed = await screen.findByRole('button', { name: 'Open profile for Priya Nair' })
+    // The list is read again, so it includes the new account, waiting for
+    // its owner to set a password.
+    const listed = await listEntry('Priya Nair')
+    expect(within(listed).getByText('Invitation pending')).toBeVisible()
     expect(within(listed).queryByText('Deactivated')).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(fetchMock).toHaveBeenLastCalledWith('/api/users', expect.anything())
+  })
+
+  it('warns when the invitation email could not be sent', async () => {
+    mockGateway(
+      () => respond(200, [ALEX, JIDE]),
+      () => respond(201, { ...PRIYA, invitationExpiresAt: null }),
+      () => respond(200, [ALEX, JIDE, { ...PRIYA, invitationExpiresAt: null }]),
+    )
+    await openNewAccount()
+
+    fireEvent.change(field(/^Name/), { target: { value: 'Priya Nair' } })
+    fireEvent.change(field(/^Email/), { target: { value: 'priya.nair@example.com' } })
+    fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+
+    expect(
+      await screen.findByText('Account created for Priya Nair, but no invitation sent'),
+    ).toBeVisible()
+    expect(
+      screen.getByText(/The invitation email to priya\.nair@example\.com could not be sent/),
+    ).toBeVisible()
   })
 
   it('asks for a role rather than choosing one', async () => {
@@ -352,5 +392,86 @@ describe('New accounts (F-08)', () => {
       await screen.findByRole('button', { name: 'Open profile for Jide Okafor' }),
     ).toBeVisible()
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Invitations (F-08)', () => {
+  async function openPriya() {
+    await openAccounts()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open profile for Priya Nair' }))
+    return screen.findByRole('region', { name: 'Profile for Priya Nair' })
+  }
+
+  it('shows a pending invitation on the profile and emails a new link', async () => {
+    const renewed = {
+      ...PRIYA,
+      invitationExpiresAt: new Date(Date.now() + 73 * 3_600_000).toISOString(),
+    }
+    const fetchMock = mockGateway(
+      () => respond(200, [ALEX, JIDE, PRIYA]),
+      () => respond(200, PRIYA),
+      () => respond(200, renewed),
+    )
+    const profile = await openPriya()
+
+    expect(within(profile).getByText('Invitation pending')).toBeVisible()
+    expect(within(profile).getByText('They have not set a password yet')).toBeVisible()
+    expect(
+      within(profile).getByText(/The link in their invitation email works until /),
+    ).toBeVisible()
+
+    fireEvent.click(within(profile).getByRole('button', { name: 'Resend invitation' }))
+
+    expect(
+      await screen.findByText(
+        'A new invitation was emailed to priya.nair@example.com. Any earlier link no longer works.',
+      ),
+    ).toBeVisible()
+    const [url, init] = fetchMock.mock.calls[2]
+    expect(url).toBe(`/api/users/${PRIYA.id}/invitation`)
+    expect(init.method).toBe('POST')
+  })
+
+  it('says when the link has expired', async () => {
+    const lapsed = { ...PRIYA, invitationExpiresAt: '2026-01-05T01:00:00.000Z' }
+    mockGateway(
+      () => respond(200, [ALEX, JIDE, lapsed]),
+      () => respond(200, lapsed),
+    )
+    const profile = await openPriya()
+
+    expect(within(profile).getByText(/Their invitation link expired on /)).toBeVisible()
+    expect(within(profile).getByRole('button', { name: 'Resend invitation' })).toBeEnabled()
+  })
+
+  it('reports an invitation that could not be sent', async () => {
+    mockGateway(
+      () => respond(200, [ALEX, JIDE, PRIYA]),
+      () => respond(200, PRIYA),
+      () =>
+        respond(503, {
+          error: 'The invitation email could not be sent. Try again in a few minutes.',
+        }),
+    )
+    const profile = await openPriya()
+
+    fireEvent.click(within(profile).getByRole('button', { name: 'Resend invitation' }))
+
+    expect(await screen.findByText('Invitation not sent')).toBeVisible()
+    expect(
+      screen.getByText('The invitation email could not be sent. Try again in a few minutes.'),
+    ).toBeVisible()
+  })
+
+  it('offers no invitation once a password is set', async () => {
+    mockGateway(
+      () => respond(200, [ALEX, JIDE]),
+      () => respond(200, JIDE),
+    )
+    await openAccounts()
+    const profile = await openJide()
+
+    expect(within(profile).getByText('Active')).toBeVisible()
+    expect(within(profile).queryByRole('button', { name: 'Resend invitation' })).toBeNull()
   })
 })

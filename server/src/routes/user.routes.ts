@@ -4,9 +4,12 @@ import { fieldErrors } from './field-errors'
 import {
   createUser,
   getUser,
+  InvitationNotNeededError,
+  InvitationNotSentError,
   listUsers,
   newUserSchema,
   OwnAccessChangeError,
+  resendInvitation,
   updateUser,
   userProfileSchema,
   UserEmailTakenError,
@@ -24,9 +27,11 @@ router.get('/', async (_req, res) => {
   res.json(await listUsers())
 })
 
-// Creates an active account (F-08) and returns it with its staff ID (201).
-// 400 lists the first problem with each invalid field; an email another
-// account uses is 409 against the email field. Nothing is saved on either.
+// Creates an active account (F-08), emails its owner an invitation to set a
+// password, and returns it with its staff ID (201). invitationExpiresAt is
+// null if the email could not be sent. 400 lists the first problem with each
+// invalid field; an email another account uses is 409 against the email
+// field. Nothing is saved or sent on either.
 router.post('/', async (req, res) => {
   const parsed = newUserSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -56,6 +61,29 @@ router.get('/:id', async (req, res) => {
   } catch (error: unknown) {
     if (error instanceof UserNotFoundError) {
       res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Emails a new invitation link to someone who has not set a password yet
+// (F-08); the earlier link stops working. 409 when they already have a
+// password or the account is deactivated; 503 when the email can't be sent.
+router.post('/:id/invitation', async (req, res) => {
+  try {
+    res.json(await resendInvitation(req.params.id))
+  } catch (error: unknown) {
+    if (error instanceof UserNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof InvitationNotNeededError) {
+      res.status(409).json({ error: error.message })
+      return
+    }
+    if (error instanceof InvitationNotSentError) {
+      res.status(503).json({ error: error.message })
       return
     }
     throw error

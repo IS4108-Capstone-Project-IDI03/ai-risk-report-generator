@@ -8,10 +8,11 @@ import {
   type Message,
   type Thread,
 } from '@openuidev/react-headless'
+import { smoothAdapter } from './smoothAdapter'
 import { request } from '../assessments/api'
 
 /** The chat screen's link to POST /api/chat, read as AG-UI events (the gateway's format). */
-export const chatLLM = fetchLLM({ url: '/api/chat', streamAdapter: agUIAdapter() })
+export const chatLLM = fetchLLM({ url: '/api/chat', streamAdapter: smoothAdapter(agUIAdapter()) })
 
 /** One passage as GET /api/chat/passages/:id sends it (CB-02). Boxes are in PDF points, origin bottom-left. */
 export type Passage = {
@@ -75,4 +76,9 @@ export async function fetchView(threadId: string): Promise<View> {
 /** Switches a saved chat to the version holding `messageId`; returns the new messages and versions. */
 export async function switchVersion(threadId: string, messageId: string): Promise<View> {
   return (await request<View>('PATCH', `${CHATS}/${threadId}/active`, { messageId })).data
+}
+
+/** Sends a risk engineer's request to add the document behind `question` (CB-07). */
+export function askAdminToAdd(question: string, message: string): Promise<unknown> {
+  return request('POST', '/api/knowledge-gaps', message ? { question, message } : { question })
 }

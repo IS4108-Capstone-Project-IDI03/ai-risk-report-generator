@@ -12,7 +12,8 @@ const removedCitations = (e: ReviewHistoryEntry) =>
 // entry who made the decision and when (AC4), and a rejection the finding's
 // content (AC6), with Restore while it is still rejected. An edit made in the
 // document editor (RV-08) also names the citations it deleted, and a finding
-// deleted there reads Removed in the document.
+// deleted there reads Removed in the document. A change made by restoring an
+// earlier version of the section (RV-06) names the version restored.
 export function ReviewHistory({
   entries,
   savedDraftId,
@@ -56,7 +57,9 @@ export function ReviewHistory({
             return (
               <li key={e.id} className="rv-history-item">
                 <div className="rv-history-head">
-                  <strong>{historyLabel(e.action, e.bulk, e.inDocument)}</strong>
+                  <strong>
+                    {historyLabel(e.action, e.bulk, e.inDocument, e.restoredFrom ?? null)}
+                  </strong>
                   {earlier && <Badge tone="neutral">Earlier draft</Badge>}
                 </div>
                 {e.heading && <p className="rv-history-where">{e.heading}</p>}

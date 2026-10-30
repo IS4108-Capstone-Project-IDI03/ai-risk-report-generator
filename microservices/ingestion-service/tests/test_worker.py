@@ -356,6 +356,26 @@ def test_a_processing_cancellation_cleans_partial_passages_and_does_not_notify(
     assert documents.notifications == []
 
 
+def test_a_run_cancelled_then_retried_mid_parse_stops_and_leaves_the_retry_queued(
+    documents, monkeypatch
+):
+    # Cancel marks the document cancelled at once; Retry then puts it back to
+    # queued as attempt 1 before this run reaches a checkpoint. The old run must
+    # stop and leave the document for attempt 1's job, not skip silently.
+    def fake_run(*_args, **_kwargs):
+        documents.doc["status"] = "queued"
+        documents.doc["retryCount"] = 1
+        return RUN_OK()
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "queued"
+    assert documents.deleted_passages == [DOC_ID]
+    assert documents.notifications == []
+
+
 def test_a_cancellation_job_finishes_a_stale_processing_document(documents):
     documents.doc["status"] = "processing"
     documents.doc["cancelRequestedAt"] = datetime.now()

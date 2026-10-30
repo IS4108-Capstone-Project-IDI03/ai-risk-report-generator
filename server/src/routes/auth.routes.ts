@@ -8,6 +8,12 @@ import {
   revokeSession,
   TooManyAttemptsError,
 } from '../services/auth.service'
+import {
+  acceptInvitation,
+  InvalidInvitationError,
+  lookUpInvitation,
+  newPasswordSchema,
+} from '../services/invitation.service'
 import { requireAuth, SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '../middleware/auth.middleware'
 import { permissionsFor } from '../services/permissions.service'
 import { countsForUser } from '../services/notification.service'
@@ -73,6 +79,56 @@ router.post('/reset', async (req, res) => {
     res.status(200).json({ message: 'Password updated. Sign in with your new password.' })
   } catch (error: unknown) {
     if (error instanceof InvalidResetTokenError) {
+      res.status(400).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// A new employee's invitation link (F-08), checked when the set-password
+// screen opens so a link that no longer works says so before a password is
+// typed. 200 { name, email }; 400 for an invalid, used or expired link.
+router.post('/invitation', async (req, res) => {
+  const { token } = req.body ?? {}
+  if (typeof token !== 'string') {
+    res.status(400).json({ error: 'The invitation code is required.' })
+    return
+  }
+  try {
+    res.json(await lookUpInvitation(token))
+  } catch (error: unknown) {
+    if (error instanceof InvalidInvitationError) {
+      res.status(400).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Sets a new employee's first password from their invitation link (F-08).
+// Separate from /reset, which replaces a password the account already has.
+// 400 with fields.password for a password that breaks the rules; 400 without
+// fields for a link that no longer works.
+router.post('/invitation/accept', async (req, res) => {
+  const { token, password } = req.body ?? {}
+  if (typeof token !== 'string') {
+    res.status(400).json({ error: 'The invitation code is required.' })
+    return
+  }
+  const parsed = newPasswordSchema.safeParse(password)
+  if (!parsed.success) {
+    res.status(400).json({
+      error: 'The password is not strong enough.',
+      fields: { password: parsed.error.issues[0].message },
+    })
+    return
+  }
+  try {
+    const { email } = await acceptInvitation(token, parsed.data)
+    res.json({ email, message: 'Password set. Sign in with your work email and new password.' })
+  } catch (error: unknown) {
+    if (error instanceof InvalidInvitationError) {
       res.status(400).json({ error: error.message })
       return
     }

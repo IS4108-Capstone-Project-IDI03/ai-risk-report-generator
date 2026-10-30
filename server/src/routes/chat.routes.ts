@@ -8,9 +8,10 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { requirePermission } from '../middleware/auth.middleware'
-import { checkChatLimits } from '../services/chat-limits.service'
+import { checkChatLimits, pickReply, UNAVAILABLE } from '../services/chat-limits.service'
 import { chatSaveTap, lastQuestion, saveQuestion } from '../services/chat-save.service'
 import { chatUsageTap } from '../services/chat-usage.service'
+import { chatPrivacy } from '../services/privacy.service'
 import {
   ConversationNotFound,
   createConversation,
@@ -103,10 +104,21 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   res.on('close', () => upstream.abort())
   let stream: ReadableStream<Uint8Array>
   try {
-    stream = await openChatStream(await withChatDocuments(req.body), upstream.signal, userId)
+    stream = await openChatStream(
+      // The role is set here, never taken from the browser: it decides who S4 offers to add a document.
+      // The gateway decides protection (PV-03), replacing any privacy the browser sent.
+      {
+        ...(await withChatDocuments(req.body)),
+        role: res.locals.user!.role,
+        privacy: await chatPrivacy(),
+      },
+      upstream.signal,
+      userId,
+    )
   } catch (error: unknown) {
     if (error instanceof RagServiceError) {
-      res.status(503).json({ error: error.message })
+      // A chat reply, not a 503: OpenUI's fetchLLM would show a generic error box instead.
+      refuse(res, pickReply(userId, UNAVAILABLE))
       return
     }
     throw error

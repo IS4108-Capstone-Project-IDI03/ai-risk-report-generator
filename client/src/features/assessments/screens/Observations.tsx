@@ -165,6 +165,8 @@ function ObservationProposal({
               .getElementById('evidence-' + item.id)
               ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
         : null
+  const photos = proposal.photos
+  const parts = [proposal.status, photos?.status]
   return (
     <section aria-label="Proposal from this observation" style={proposalSection}>
       <div style={proposalHeading}>
@@ -173,122 +175,107 @@ function ObservationProposal({
         <Badge tone="ai" icon="sparkles">
           {proposal.sample ? 'Sample proposal' : 'AI proposal'}
         </Badge>
-        {proposal.status === 'interpreting' && <Badge tone="info">Reading</Badge>}
-        {proposal.status === 'failed' && <Badge tone="high">Failed</Badge>}
+        {parts.includes('interpreting') && <Badge tone="info">Reading</Badge>}
+        {parts.includes('failed') && <Badge tone="high">Failed</Badge>}
       </div>
-      {proposal.status === 'failed' ? (
-        <div role="status" style={{ marginTop: '8px' }}>
-          <Callout
-            tone="warning"
-            title="Reading failed"
-            actions={
-              proposal.retry && (
+      {/* Categories on the left and, with photos, their description on the
+          right, each read again on its own (CP-21); one column when narrow
+          or when there are no photos. */}
+      <div style={proposalColumns}>
+        <div style={{ minWidth: 0 }}>
+          <div style={proposalSubhead}>{'Suggested categories'}</div>
+          <ProposalPart
+            status={proposal.status}
+            error={proposal.error}
+            outOfDate={!!proposal.outOfDate}
+            reading="Reading this observation…"
+            changed="Its note, recordings, pages or photos changed since these were suggested."
+            again={proposal.readCategories}
+            againLabel="Regenerate categories"
+          >
+            {proposal.categories.length ? (
+              <ul
+                aria-label="Suggested categories"
+                style={{ listStyle: 'none', margin: 0, padding: 0 }}
+              >
+                {proposal.categories.map((c) => (
+                  <li key={c.category} style={{ marginTop: '8px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <Tag>{c.category}</Tag>
+                      {c.added && <Badge tone="neutral">Added</Badge>}
+                      {c.unverified && <Badge tone="moderate">Unverified</Badge>}
+                      {!!c.add && (
+                        <Button variant="secondary" size="sm" iconLeft="tag" onClick={c.add}>
+                          {'Add ' + c.category}
+                        </Button>
+                      )}
+                    </div>
+                    {!!c.reason && <p style={aiText}>{c.reason}</p>}
+                    {/* The words it quoted from each item; a quote the gateway
+                        could not find there, or none given, is marked, not hidden. */}
+                    {c.evidence
+                      .filter((e) => e.quote || e.verified === false)
+                      .map((e, index) => (
+                        <p key={index} style={{ ...stampStyle, margin: '4px 0 0 14px' }}>
+                          {e.quote
+                            ? '“' + e.quote + '” · ' + e.item
+                            : 'No words quoted from ' + e.item}
+                          {e.quote && e.verified === false && ' · not found in ' + e.item}
+                        </p>
+                      ))}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+                {'None suggested: nothing in this observation points to a category.'}
+              </p>
+            )}
+          </ProposalPart>
+        </div>
+        {/* Only photos are described (CP-05); photos added after a reading
+            without them can be described on their own. */}
+        {(!!photos || !!proposal.readDescription) && (
+          <div style={{ minWidth: 0 }}>
+            <div style={proposalSubhead}>{'From the photos'}</div>
+            {!photos ? (
+              <>
+                <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+                  {'Not described yet.'}
+                </p>
                 <Button
                   variant="secondary"
                   size="sm"
-                  iconLeft="refresh-cw"
-                  onClick={proposal.retry}
+                  iconLeft={IconRegistry.action.generate}
+                  onClick={proposal.readDescription!}
+                  style={{ marginTop: '8px' }}
                 >
-                  {'Retry'}
+                  {'Describe photos'}
                 </Button>
-              )
-            }
-          >
-            {proposal.error}
-          </Callout>
-        </div>
-      ) : proposal.status === 'interpreting' ? (
-        <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-          {'Reading this observation…'}
-        </p>
-      ) : (
-        <>
-          {/* Something it read changed since (CP-08, CP-21). */}
-          {!!proposal.outOfDate && (
-            <div role="status" style={{ marginTop: '8px' }}>
-              <Callout
-                tone="warning"
-                title="Read from earlier evidence"
-                actions={
-                  proposal.retry && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      iconLeft="refresh-cw"
-                      onClick={proposal.retry}
-                    >
-                      {'Get new proposal'}
-                    </Button>
-                  )
-                }
+              </>
+            ) : (
+              <ProposalPart
+                status={photos.status}
+                error={photos.error}
+                outOfDate={photos.outOfDate}
+                reading="Describing the photos…"
+                changed="Photos were added or removed since this was written."
+                again={proposal.readDescription}
+                againLabel="Regenerate description"
               >
-                {
-                  'Its note, recordings, pages or photos changed since this was read. Get a new proposal to include the change.'
-                }
-              </Callout>
-            </div>
-          )}
-          {/* Categories on the left and, with photos, their description on
-              the right; one column when narrow or when there is no description. */}
-          <div style={proposalColumns}>
-            <div style={{ minWidth: 0 }}>
-              <div style={proposalSubhead}>{'Suggested categories'}</div>
-              {proposal.categories.length ? (
-                <ul
-                  aria-label="Suggested categories"
-                  style={{ listStyle: 'none', margin: 0, padding: 0 }}
-                >
-                  {proposal.categories.map((c) => (
-                    <li key={c.category} style={{ marginTop: '8px' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <Tag>{c.category}</Tag>
-                        {c.added && <Badge tone="neutral">Added</Badge>}
-                        {c.unverified && <Badge tone="moderate">Unverified</Badge>}
-                        {!!c.add && (
-                          <Button variant="secondary" size="sm" iconLeft="tag" onClick={c.add}>
-                            {'Add ' + c.category}
-                          </Button>
-                        )}
-                      </div>
-                      {!!c.reason && <p style={aiText}>{c.reason}</p>}
-                      {/* The words it quoted from each item; a quote the gateway
-                      could not find there, or none given, is marked, not hidden. */}
-                      {c.evidence
-                        .filter((e) => e.quote || e.verified === false)
-                        .map((e, index) => (
-                          <p key={index} style={{ ...stampStyle, margin: '4px 0 0 14px' }}>
-                            {e.quote
-                              ? '“' + e.quote + '” · ' + e.item
-                              : 'No words quoted from ' + e.item}
-                            {e.quote && e.verified === false && ' · not found in ' + e.item}
-                          </p>
-                        ))}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                  {'None suggested: nothing in this observation points to a category.'}
-                </p>
-              )}
-            </div>
-            {/* Only photos are described (CP-05). */}
-            {!!proposal.description && (
-              <div style={{ minWidth: 0 }}>
-                <div style={proposalSubhead}>{'From the photos'}</div>
-                <p style={aiText}>{proposal.description}</p>
-                {!!proposal.hazardType && (
+                <p style={aiText}>{photos.description}</p>
+                {!!photos.hazardType && (
                   <p
                     style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}
                   >
-                    {'Hazard type: ' + proposal.hazardType}
+                    {'Hazard type: ' + photos.hazardType}
                   </p>
                 )}
                 {!!proposal.useAsNote && (
@@ -302,50 +289,92 @@ function ObservationProposal({
                     {'Use as note'}
                   </Button>
                 )}
-              </div>
+              </ProposalPart>
             )}
           </div>
-          {/* What it read, each opening the item, marking any left out for
-              having no transcript or since removed (CP-08, CP-21). */}
-          {!!proposal.readFrom?.length && (
-            <p style={{ margin: '10px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-              {'Read from '}
-              {proposal.readFrom.map((item, index) => {
-                const onClick = open(item)
-                return (
-                  <Fragment key={index}>
-                    {index > 0 && ', '}
-                    {onClick ? <PhotoLink name={item.label} onClick={onClick} /> : item.label}
-                    {item.leftOut && ' (left out: no transcript)'}
-                    {item.removed && ' (removed)'}
-                    {/* Read, but no suggestion rests on it (CP-21). */}
-                    {item.notCited && ' (not cited)'}
-                  </Fragment>
-                )
-              })}
-            </p>
-          )}
-          <p style={stampStyle}>
-            {proposal.sample
-              ? 'No capture session, so this is a sample proposal, not a reading of this observation.'
-              : 'Proposed by ' + (proposal.model ?? 'the AI service')}
-          </p>
-          {/* Another proposal whenever the engineer wants one (CP-21); once
-              out of date, the warning above offers it instead. */}
-          {!proposal.outOfDate && !!proposal.retry && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft="refresh-cw"
-              onClick={proposal.retry}
-              style={{ marginTop: '8px' }}
-            >
-              {'Get new proposal'}
-            </Button>
-          )}
-        </>
+        )}
+      </div>
+      {/* What it read, each opening the item, marking any left out for
+          having no transcript or since removed (CP-08, CP-21). */}
+      {!!proposal.readFrom?.length && proposal.status === 'interpreted' && (
+        <p style={{ margin: '10px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+          {'Read from '}
+          {proposal.readFrom.map((item, index) => {
+            const onClick = open(item)
+            return (
+              <Fragment key={index}>
+                {index > 0 && ', '}
+                {onClick ? <PhotoLink name={item.label} onClick={onClick} /> : item.label}
+                {item.leftOut && ' (left out: no transcript)'}
+                {item.removed && ' (removed)'}
+                {/* Read, but no suggestion rests on it (CP-21). */}
+                {item.notCited && ' (not cited)'}
+              </Fragment>
+            )
+          })}
+        </p>
       )}
+      <p style={stampStyle}>
+        {proposal.sample
+          ? 'No capture session, so this is a sample proposal, not a reading of this observation.'
+          : 'Proposed by ' + (proposal.model ?? photos?.model ?? 'the AI service')}
+      </p>
     </section>
+  )
+}
+
+// One part of a proposal as it stands (CP-21): being read, failed with Retry,
+// or written, with Regenerate, or once what it read changed, a warning that
+// offers it instead.
+function ProposalPart({
+  status,
+  error,
+  outOfDate,
+  reading,
+  changed,
+  again,
+  againLabel,
+  children,
+}: {
+  status: string
+  error: string | null
+  outOfDate: boolean
+  reading: string
+  changed: string
+  again: (() => void) | null
+  againLabel: string
+  children: React.ReactNode
+}) {
+  const button = (label: string, style?: React.CSSProperties) =>
+    again && (
+      <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={again} style={style}>
+        {label}
+      </Button>
+    )
+  if (status === 'interpreting')
+    return (
+      <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>{reading}</p>
+    )
+  if (status === 'failed')
+    return (
+      <div role="status" style={{ marginTop: '8px' }}>
+        <Callout tone="warning" title="Reading failed" actions={button('Retry')}>
+          {error}
+        </Callout>
+      </div>
+    )
+  return (
+    <>
+      {outOfDate && (
+        <div role="status" style={{ marginTop: '8px' }}>
+          <Callout tone="warning" title="Read from earlier evidence" actions={button(againLabel)}>
+            {changed}
+          </Callout>
+        </div>
+      )}
+      {children}
+      {!outOfDate && button(againLabel, { marginTop: '8px' })}
+    </>
   )
 }
 
