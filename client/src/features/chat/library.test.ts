@@ -4,13 +4,13 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { chatLibrary } from './library'
+import { chatPrompt } from './library'
 
 // must match microservices/rag-service/app/chat/answer.py (COMPONENTS_FILE)
 const copy = resolve(process.cwd(), '../microservices/rag-service/app/chat/answer_components.txt')
 
 it("matches the rag-service's copy of the component prompt", () => {
-  const prompt = chatLibrary.prompt()
+  const prompt = chatPrompt()
   if (process.env.UPDATE_PROMPT) writeFileSync(copy, prompt)
   // A Windows checkout gives the copy CRLF endings; the rag-service reads it with
   // universal newlines, so compare line by line, not ending by ending.

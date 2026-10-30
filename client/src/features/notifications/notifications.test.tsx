@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotificationBell } from './NotificationBell'
 import type { Notification, NotificationPage } from './api'
+import { knowledgeTab } from '../knowledge-base/openTab'
+import { toneFor } from './components/notificationTone'
 
 afterEach(cleanup)
 
@@ -180,6 +182,52 @@ describe('NotificationBell', () => {
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
   })
 
+  it('dismisses one row: removes it, drops the counts, and calls the gateway', async () => {
+    const fetchMock = stubGateway(makeItems(2))
+    render(<NotificationBell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    open()
+    await screen.findByText('Document 1 failed to ingest.')
+
+    const firstRow = screen.getAllByRole('listitem')[0]
+    fireEvent.click(within(firstRow).getByRole('button', { name: 'Dismiss' }))
+
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+    expect(screen.queryByText('Document 1 failed to ingest.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Notifications, 1 unread' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/notifications/n1/dismiss', { method: 'POST' })
+  })
+
+  it('does not lower the unread count when a read row is dismissed', async () => {
+    const items = makeItems(2).map((n, i) => ({ ...n, read: i === 0 }))
+    stubGateway(items, 1)
+    render(<NotificationBell counts={{ total: 2, unread: 1 }} pageSize={5} />)
+    open()
+    await screen.findByText('Document 1 failed to ingest.')
+
+    const firstRow = screen.getAllByRole('listitem')[0]
+    expect(within(firstRow).queryByRole('button', { name: 'Mark as read' })).not.toBeInTheDocument()
+    fireEvent.click(within(firstRow).getByRole('button', { name: 'Dismiss' }))
+
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+    expect(screen.getByRole('button', { name: 'Notifications, 1 unread' })).toBeInTheDocument()
+  })
+
+  it('pulses the badge only when the count rises after the first load', async () => {
+    stubGateway(makeItems(1), 1)
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    expect(document.querySelector('.notif-bell--ring')).toBeNull()
+    // The count is polled into the hook, not the prop, so drive it with the poll.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => json({ total: 2, unread: 2 })),
+    )
+    document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Notifications, 2 unread' })).toBeInTheDocument(),
+    )
+    await waitFor(() => expect(document.querySelector('.notif-bell--ring')).not.toBeNull())
+  })
+
   it('expands a long message in place', async () => {
     const items = makeItems(1)
     items[0].details = 'Processing stopped on a system error. Upload the document again.'
@@ -282,5 +330,129 @@ describe('NotificationBell — needs review', () => {
     expect(followed).toHaveBeenCalled()
     window.removeEventListener('popstate', followed)
     window.history.replaceState(null, '', '/')
+  })
+})
+
+// CB-07: a knowledge request's notification opens Requests for an admin, the chat for the asker.
+describe('NotificationBell — knowledge requests', () => {
+  it.each([
+    ['New knowledge request', { requestId: 'r1' }, '/admin/knowledge-base', 'requests'],
+    [
+      'Your knowledge request was filled',
+      { requestId: 'r1', status: 'filled' },
+      '/ask',
+      'documents',
+    ],
+  ])('opens the right screen for "%s"', async (message, context, path, tab) => {
+    stubGateway([{ ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, context }])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: message }))
+
+    expect(window.location.pathname).toBe(path)
+    expect(knowledgeTab.current).toBe(tab)
+    window.history.replaceState(null, '', '/')
+    knowledgeTab.current = 'documents'
+  })
+})
+
+// CB-07: a knowledge request opens the Requests tab for an admin, and the chat for an engineer.
+describe('NotificationBell — knowledge requests', () => {
+  const click = async (context: Record<string, string>, message: string) => {
+    stubGateway([{ ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, context }])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: message }))
+  }
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
+  it('opens Requests for a new request', async () => {
+    await click({ requestId: 'r1' }, 'New knowledge request')
+    expect(window.location.pathname).toBe('/admin/knowledge-base')
+  })
+
+  it('opens the chat for the engineer when a request is closed', async () => {
+    await click({ requestId: 'r1', status: 'filled' }, 'Your knowledge request was filled')
+    expect(window.location.pathname).toBe('/ask')
+  })
+})
+
+// CB-07: an expanded knowledge request shows its parts under labels, not one block of text.
+describe('NotificationBell — knowledge request details', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
+  it('shows the question, the documents added and Ask again for a filled request', async () => {
+    const context = {
+      requestId: 'r1',
+      status: 'filled',
+      question: 'Lithium-ion storage?',
+      documents: JSON.stringify([{ title: 'FM 8-1', uploadedAt: '2026-10-20T08:00:00.000Z' }]),
+    }
+    const message = 'Your knowledge request was filled'
+    stubGateway([
+      { ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, details: 'x', context },
+    ])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show more' }))
+
+    expect(screen.getByRole('heading', { name: 'Added' })).toBeInTheDocument()
+    expect(screen.getByText('Lithium-ion storage?')).toBeInTheDocument()
+    expect(screen.getByText('FM 8-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ask again' }))
+    expect(window.location.pathname).toBe('/ask')
+  })
+
+  it('opens the request itself from Go to request', async () => {
+    const context = { requestId: 'r7', question: 'Q?', askedBy: 'Alex Rowe', message: 'FM 8-1' }
+    const message = 'New knowledge request'
+    stubGateway([
+      { ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, details: 'x', context },
+    ])
+    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show more' }))
+
+    expect(screen.getByRole('heading', { name: 'Message from Alex Rowe' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to request' }))
+    expect(knowledgeTab.request).toBe('r7')
+    knowledgeTab.current = 'documents'
+    knowledgeTab.request = null
+  })
+})
+
+// CB-07 UI polish: each purpose has its own glyph, coloured by status; the header is one row.
+describe('NotificationBell — icons and header', () => {
+  it('colours by status: red, amber, green, graphite, else navy', () => {
+    expect(toneFor('failed').fg).toContain('critical')
+    expect(toneFor('needs_review').fg).toContain('moderate')
+    expect(toneFor('filled').fg).toContain('low')
+    expect(toneFor('dismissed').fg).toContain('text-secondary')
+    expect(toneFor(undefined).fg).toBe('var(--ink-600)')
+  })
+
+  it('shows a different glyph for each purpose', async () => {
+    const purposes = ['ingestion_status', 'transcription_status', 'knowledge_gap_request'] as const
+    stubGateway(purposes.map((purpose, i) => ({ ...makeItems(1, i + 1)[0], purpose })))
+    render(<NotificationBell counts={{ total: 3, unread: 3 }} />)
+    open()
+    await screen.findAllByRole('listitem')
+    const srcs = [...document.querySelectorAll('.notif-icon')].map((el) =>
+      el.getAttribute('data-icon'),
+    )
+    expect(new Set(srcs).size).toBe(3)
+  })
+
+  it('keeps the title, count and three buttons in the header', async () => {
+    stubGateway(makeItems(2))
+    render(<NotificationBell counts={{ total: 2, unread: 2 }} />)
+    open()
+    const header = (await screen.findByRole('heading', { name: 'Notifications' })).closest(
+      'header',
+    )!
+    expect(within(header).getByText('2 unread')).toBeInTheDocument()
+    for (const name of ['Mark all as read', 'Dismiss all', 'Close notifications'])
+      expect(within(header).getByRole('button', { name })).toBeInTheDocument()
   })
 })

@@ -1,5 +1,6 @@
 import { Schema, Types, model } from 'mongoose'
 import { COPE_DIMENSIONS, type CopeDimension, type IStamp } from './observation.model'
+import { RESTORED_FROM } from './report-section-version.model'
 
 // The immutable audit log of review decisions (RV-02): one entry per decision
 // an engineer makes on a report section's draft. A finding (one statement of
@@ -59,7 +60,15 @@ export interface IReviewAuditEntry {
   citationsAfter?: string[] | null
   // Made in the document editor (RV-08) rather than on the finding itself: an
   // edit of its text, or a reject for a finding deleted from the document.
+  // Also set on the entries a version restore makes (RV-06), as a saved
+  // version of the section's text carries them.
   inDocument?: boolean
+  // Made by restoring an earlier version of the section (RV-06): what was
+  // restored, as the restored version's `restoredFrom` names it
+  // (`version:<n>` or `draft:<_id>`). A restore can edit a finding back to
+  // the version's words, take out one the version lacks, or restore one it
+  // holds that was rejected since. null otherwise.
+  restoredFrom?: string | null
   // What the engineer asked a regenerated draft to change, if anything.
   instruction: string | null
   // Accepted by Bulk accept (AC7) rather than one at a time.
@@ -104,6 +113,7 @@ const reviewAuditSchema = new Schema<IReviewAuditEntry>(
     citations: { type: [String], default: [] },
     citationsAfter: { type: [String], default: null },
     inDocument: { type: Boolean, default: false },
+    restoredFrom: { type: String, default: null, match: RESTORED_FROM },
     instruction: { type: String, default: null },
     bulk: { type: Boolean, default: false },
     carriedFrom: { type: Schema.Types.ObjectId, ref: 'ReportSection', default: null },

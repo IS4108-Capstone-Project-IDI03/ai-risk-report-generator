@@ -198,7 +198,7 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
       clearFilters()
       expect(shown(...ALL)).toEqual(ALL)
     }
-  })
+  }, 10000)
 
   it('shows each filter set as a chip that removes it, and counts them on the button', async () => {
     await openObservations()

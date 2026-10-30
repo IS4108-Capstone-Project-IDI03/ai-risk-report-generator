@@ -1,7 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 
-// requeueIngestion must clear the stale BullMQ job before re-adding, because
-// add() ignores a duplicate jobId. These tests mock the BullMQ Queue to observe
+// requeueIngestion adds each retry under its own job id, because add() ignores
+// a duplicate jobId and remove() cannot clear a job a worker still holds (a
+// cancelled run winding down). These tests mock the BullMQ Queue to observe
 // the remove→add ordering without a Redis connection. (The real-Redis timeout
 // behaviour of enqueueIngestion is covered separately in ingestion-queue.test.ts.)
 const calls = vi.hoisted(() => [] as string[])
@@ -26,32 +27,31 @@ beforeEach(() => {
   add.mockClear()
 })
 
-it('removes the stale job before re-adding it', async () => {
+it("removes the previous attempt's job, then adds this one", async () => {
   const { requeueIngestion } = await import('../services/ingestion-queue.service')
 
-  await requeueIngestion(DOC)
+  await requeueIngestion(DOC, 2)
 
-  expect(remove).toHaveBeenCalledWith(DOC)
-  expect(add).toHaveBeenCalledOnce()
-  // The order is the whole point: a re-add before the remove would be a no-op.
+  expect(remove).toHaveBeenCalledWith(`${DOC}-1`)
   expect(calls).toEqual(['remove', 'add'])
 })
 
-it('re-adds with the document id as the job id, so one job per document holds', async () => {
+it("adds a retry under its own job id, not the original upload's", async () => {
   const { requeueIngestion } = await import('../services/ingestion-queue.service')
 
-  await requeueIngestion(DOC)
+  await requeueIngestion(DOC, 1)
 
+  expect(remove).toHaveBeenCalledWith(DOC)
   const [, , options] = add.mock.calls[0] as [unknown, unknown, { jobId: string }]
-  expect(options.jobId).toBe(DOC)
+  expect(options.jobId).toBe(`${DOC}-1`)
 })
 
-it('still re-adds when there was no stale job to remove', async () => {
-  // remove() on a non-existent job is a no-op in BullMQ; the add must still run.
-  remove.mockResolvedValueOnce(undefined)
+it('still adds when a worker still holds the previous job', async () => {
+  // remove() returns 0 for a locked (running) job; the retry must still queue.
+  remove.mockResolvedValueOnce(0 as never)
   const { requeueIngestion } = await import('../services/ingestion-queue.service')
 
-  await requeueIngestion(DOC)
+  await requeueIngestion(DOC, 1)
 
   expect(add).toHaveBeenCalledOnce()
 })

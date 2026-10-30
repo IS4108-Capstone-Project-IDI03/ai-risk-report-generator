@@ -159,6 +159,15 @@ def prepare(env):
 # ---- prepare: search once ------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _no_extra_searches(monkeypatch):
+    # These tests count searches. The engineer's own-words search and the retry after a decline
+    # (CB-01) each add some, and their fake answers have no citation, which counts as a decline.
+    # Both are tested in test_chat.py, so they are switched off here, not in each test.
+    monkeypatch.setattr(answer, "OWN_WORDS_PASSAGES", 0)
+    monkeypatch.setattr(answer, "RETRY_MIN_SCORE", 2.0)  # no score reaches it: never retried
+
+
 def test_first_turns_are_searched_once_for_every_candidate(env, monkeypatch):
     # This is about the cache, which searches each first turn once. The search of the engineer's
     # own words (answer.OWN_WORDS_PASSAGES) is cached with it but adds a retrieve call per
@@ -336,7 +345,7 @@ def test_batch_answers_replay_through_the_real_pipeline(env, monkeypatch):
 
 
 def test_a_model_decline_sentence_counts_as_declined_in_batch(env, monkeypatch):
-    decline = f'root = Answer([s1])\ns1 = Statement("{answer.DECLINE}", [])\n'
+    decline = 'root = Answer([s1])\ns1 = Statement("The knowledge base has nothing on that.", [])\n'
     fake_anthropic_batches(monkeypatch, text_for=lambda params: decline)
     prepare(env)
     run(env, "--transport", "batch", "--cases", "a1")
@@ -721,6 +730,70 @@ def test_docmap_writes_the_document_details_and_run_loads_them(tmp_path, monkeyp
     docs = [{"id": "d1", "title": "NFPA 13", "issuingBody": "NFPA", "standardNumber": "13"}]
     monkeypatch.setattr(chat_eval, "fetch_doc_ids", lambda: {"a.pdf": ["d1"]})
     monkeypatch.setattr(chat_eval, "fetch_documents", lambda: docs)
+    monkeypatch.setattr(chat_eval, "fetch_known_entities", lambda: [])
     assert chat_eval.main(["docmap", "--flow", str(tmp_path)]) == 0
     assert chat_eval.load_documents(tmp_path) == docs
     assert chat_eval.load_documents(tmp_path / "none") == []  # absent: passages stay unnamed
+
+
+# ---- PII protection (PV-03) ----------------------------------------------------------------
+
+KNOWN = [{"type": "CLIENT", "names": ["Acme Holdings"]}, {"type": "PERSON", "names": ["John Tan"]}]
+
+
+def private_env(env):
+    """The env, with a case that names the client and the known names `docmap` writes."""
+    case = {
+        "id": "p1",
+        "tags": ["single_fact", "fm"],
+        "turns": [
+            {
+                "user": "What clearance did John Tan want at Acme Holdings?",
+                "expect": "answer",
+                "gold": FM,
+            }
+        ],
+    }
+    env.cases.write_text(json.dumps([case]))
+    (env.flow / "known_entities.json").write_text(json.dumps(KNOWN))
+    return env
+
+
+def test_a_private_run_masks_what_the_models_and_search_see(env, monkeypatch, fake_privacy):
+    sent = live_anthropic(monkeypatch)
+    private_env(env)
+
+    assert chat_eval.main(["prepare", *env.base, "--privacy", "--approve-harness", "--yes"]) == 0
+    assert run(env, "--privacy") == 0
+
+    assert fake_privacy.requests[0]["known_entities"] == KNOWN
+    assert env.calls["search"] == ["user: What clearance did [PERSON_1] want at [CLIENT_1]?"]
+    answer_request = json.dumps(sent[0])
+    assert "John Tan" not in answer_request and "Acme Holdings" not in answer_request
+    [row] = rows(env)
+    assert row["meta"]["privacy"] is True
+    assert row["turns"][0]["privacy"] == {"enabled": True, "masked_count": 2}
+
+
+def test_a_private_run_never_replays_first_turns_planned_from_real_names(
+    env, monkeypatch, fake_privacy
+):
+    live_anthropic(monkeypatch)
+    private_env(env)
+    assert prepare(env) == 0  # planned from the real names
+
+    assert run(env, "--privacy") == 2  # not prepared with protection on: refused, not replayed
+
+    assert chat_eval.main(["prepare", *env.base, "--privacy", "--approve-harness", "--yes"]) == 0
+    assert env.calls["plan"] == 2  # planned again, from masked text
+    assert run(env, "--privacy") == 0
+
+
+def test_docmap_writes_the_known_names_a_private_run_masks(tmp_path, monkeypatch):
+    monkeypatch.setattr(chat_eval, "fetch_doc_ids", lambda: {})
+    monkeypatch.setattr(chat_eval, "fetch_documents", lambda: [])
+    monkeypatch.setattr(chat_eval, "fetch_known_entities", lambda: KNOWN)
+
+    assert chat_eval.main(["docmap", "--flow", str(tmp_path)]) == 0
+
+    assert chat_eval.load_known_entities(tmp_path) == KNOWN

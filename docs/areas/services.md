@@ -28,40 +28,50 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 
 ## Reading an observation (S5, CP-05, CP-21)
 
-An engineer can ask for any observation to be read. The model proposes the
-COPE categories it concerns from everything captured in it (its note,
-recording and page transcripts, and photos), and from its photos, if any, a
-description and hazard type.
+An engineer can ask for any observation to be read. The model proposes, in
+two parts, the COPE categories it concerns from everything captured in it (its
+note, recording and page transcripts, and photos), and from its photos, if
+any, a description and hazard type. Both are read in one call the first time;
+after that each can be regenerated on its own.
 
 1. Saving an observation reads nothing: nothing goes to the model until an
    engineer asks. Get AI proposal on the Observations tab sends `POST
-   /api/observations/:id/interpretation`, which saves the observation with
-   `interpretation.status: 'interpreting'`: one reading covering everything it
-   holds, recorded in `items` (see [database](database.md#observations)): the
-   note, each recording and page with the transcript it reads (the engineer's
-   correction where there is one, CP-08), and each kept photo. A recording or
-   page with no transcript (failed, or a page with no handwriting) is left
-   out, and the request is refused while one is still transcribing. Anything
-   added, removed or changed later leaves a finished reading out of date,
-   except the proposal's own description taken into the note by Use as note;
-   Get new proposal on the tab sends the same request, reading what it holds then;
-   it is offered on every finished proposal, so the engineer can ask for another
-   one whenever they like, each a paid call.
-2. The gateway posts `{ "photos": [{ label, s3_key }], "texts": [{ label,
-   kind, text }], "location": ... }` to S5's `POST /interpret` without making
-   the client wait. Each item's label is its own name (`Note`, a recording's,
+   /api/observations/:id/interpretation` with no body, which reads both
+   parts: it saves the observation with `interpretation.status:
+   'interpreting'` for the categories and, with photos,
+   `interpretation.photoReading.status: 'interpreting'` for the description
+   (see [database](database.md#observations)). The categories record
+   everything they read in `items`: the note, each recording and page with
+   the transcript read (the engineer's correction where there is one, CP-08),
+   and each kept photo. A recording or page with no transcript (failed, or a
+   page with no handwriting) is left out, and the categories are refused while
+   one is still transcribing. The description records the photos it reads.
+2. Regenerate categories and Regenerate description send the same request
+   with `{ "part": "categories" }` or `{ "part": "description" }`, reading that
+   part again from what the observation holds then and leaving the other as it
+   is; they are offered on every finished part, so the engineer can ask for
+   another whenever they like, each a paid call. The categories are out of date
+   once anything they read is added, removed or changed, except the proposal's
+   own description taken into the note by Use as note; the description only
+   once photos are added or removed. Photos added after a reading without any
+   are offered Describe photos, which asks for the description alone.
+3. The gateway posts `{ "photos": [{ label, s3_key }], "texts": [{ label,
+   kind, text }], "location": ..., "parts": [...] }` to S5's `POST
+   /interpret` without making the client wait. For the description alone it
+   sends the photos and only the note, as a hint. Each item's label is its own name (`Note`, a recording's,
    page's or photo's name, a repeated one numbered), so the proposal can cite
    it. The location is where the observation was made, most specific first
    ("Pump room, Level 43, Tower 1"; see `locationText`). The engineer's
    categories and severity are not sent, so the proposed categories are the
    model's own.
-3. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
+4. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
    changed. It sends each photo after its label, then the texts, to the
    provider named by `VISION_PROVIDER` (only Gemini is implemented:
    `VISION_MODEL`, default `gemini-3.8-flash`, needs a paid-tier
-   `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer:
+   `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer with
+   the parts asked for, under rules for those parts only:
    - `categories`, each of the four at most once, most relevant first, or none
      when nothing supports one: the `category`, a one-sentence `reason` naming
      the items, and `evidence`: every item that supports it, not only the
@@ -72,10 +82,11 @@ description and hazard type.
      photos show, whatever the texts claim; and `hazard_type`, one of the OFI
      Types in Marsh's sample reports, `Other`, or `No hazard visible`, so the
      model never has to invent a hazard.
-   It returns those with the provider, model, `prompt_version` and token
-   `usage` (null when the provider reports none), or 502 with `detail`. Like
-   transcription, it writes nothing to MongoDB.
-4. The gateway checks each quote against the item it cites (case, spacing,
+   It returns those, null for a part not asked for, with the provider, model,
+   `prompt_version` and token `usage` (null when the provider reports none),
+   or 502 with `detail`; a description asked for without photos is refused
+   with 422. Like transcription, it writes nothing to MongoDB.
+5. The gateway checks each quote against the item it cites (case, spacing,
    curly quotes and edge punctuation aside, as `quoteFound` does) and stores
    the proposal with each check's result, `verified`, or the failure reason,
    on the observation. It also saves the call to `ai_calls` (EV-03) as
@@ -84,10 +95,11 @@ description and hazard type.
    the assessment: thinking tokens are added to output tokens, since Google
    bills them as output, and the duration is the gateway's own timing of the
    request (S5 sends none). A failed request returns no usage, so nothing is
-   saved. A failure can be retried through the same route; a restart marks an
-   attempt still running as failed. The client re-reads the list every 3
-   seconds while any observation is interpreting.
-5. The proposal is for the engineer to review and is never drafting evidence:
+   saved. A part that failed is retried through the same route, by its
+   `part`; a restart marks each part still running as failed. The client
+   re-reads the list every 3 seconds while either part of any observation is
+   interpreting.
+6. The proposal is for the engineer to review and is never drafting evidence:
    drafting does not wait for it, never reads it, and a draft does not go out
    of date when it arrives. On the Observations tab, Use as note and each Add
    (one per proposed category not yet the observation's own) open the Edit
@@ -589,6 +601,92 @@ independent level rows. An empty level remains incomplete, not zero loss.
 `eval/judge_ofis.py` scores drafted OFIs, and Marsh's own, on three cases from
 the sample reports (AC7).
 
+## Pre-survey checklist (S4, CP-30)
+
+The assessment's Checklist tab (`screens/Checklist.tsx`) lists the standards
+that apply to the site and the latest checklist. Before the first checklist
+every standard is ticked; after it, those the latest checklist used are, and
+any added to the knowledge base since; the list is folded once there is a
+checklist. The checklist shows **Priority risks** (the facility type's
+hazards) first, then **Report sections**: each report section once, with a
+switch between two views. "Relevant sections" (the default) shows only the
+sections the selected standards add requirements to, under their subsection,
+and lists the rest as tags under "No specific requirements for:", with a link
+to show all sections, so none goes missing unexplained. "All sections" shows every
+template subsection with those requirements beneath it, and says "Nothing
+specific in the selected standards" in a section they add nothing to. A risk names the standards it is checked against when they were selected. When
+none was, its general check (from `checklist.json`) says which standard to
+select, if one applies, or to add to the knowledge base. Each card marks its AI-written items
+once, with a violet rule on each; a citation is a chip naming the standard and
+page ("NFPA 13 p. 196"), one per page, opening to its quotes and the passage.
+A facility type with no hazard list (one outside the nine) is said so on the
+checklist. If the site's facility type or
+country has changed since the checklist was generated, the tab says it is out
+of date and to regenerate it.
+
+1. The engineer unticks any standard to leave out and clicks **Generate
+   checklist**. The gateway (`checklist.service.generateChecklist`) checks the
+   assigned engineer and that the assessment is not archived, and that every
+   chosen standard still applies, then sends S4's `POST /checklist/draft` only
+   the facility type, the country and the chosen standards' ids, source types
+   and numbers. No client detail is sent, so nothing is masked.
+2. `checklist.template_items` writes one item per template subsection of
+   Sections 6-12 (`sections.json`), leaving out "… Comments" subsections. Its
+   text is `checklist.json`'s `template_details` for the subsection, or the
+   heading, with the subsection's fields; a rag-service test checks no item is a
+   bare heading. No model is involved.
+3. With standards in scope, `orchestrator.draft_checklist_for` runs one batched
+   Cohere search, filtered to those documents (`doc_id`): one per report area,
+   by what it covers (`checklist.area_scope`: each subsection with its fields or
+   template detail, not the title alone, which left Management Programs drawing
+   whatever no other search claimed), and one per hazard configured for the facility type (`checklist.json`
+   `hazards`). A hazard is searched within the standards it names when any of
+   them is in scope, else across all in scope. One rerank orders the pool; the
+   top 20, plus each search's own two nearest passages, go to the model, so no
+   area or hazard is crowded out by another's. If rerank fails, vector order is
+   used. Each passage is offered under one area or hazard only, so the model
+   does not write the same requirement under two: a hazard's, if any hazard's
+   search found it (a hazard keeps its own standards' passages, AC7), else the
+   area whose search found it nearest.
+4. `checklist.draft_items` (prompt `cp30-v5`, `CHECKLIST_EFFORT`, default
+   `medium`, on `LLM_MODEL`) writes items as structured output: each under a
+   report area and subsection, or a hazard, citing passages by label with the
+   words it rests on. The prompt lists the passages each area's and hazard's
+   own search found (`<found_for>`) as where to look, not where an item goes:
+   each requirement is filed, once, under the area and subsection whose scope
+   (the same `area_scope`, listed in `<report_areas>`) covers what it checks,
+   without stretching a passage to fill an area, and never from a loss history
+   or example, which tells of a past fire rather than setting a requirement.
+   A passage's headings longer than 200 characters are left out
+   (`generator.passage_headings`, which drafting and chat use too): they are
+   body text the PDF reader took for a heading (FM 2-0's loss examples), which
+   the model quoted though the passage's text did not hold them.
+   Items for an unknown area or hazard are dropped. An item in a section of one
+   subsection (6) is put under it when the model leaves it out.
+5. Code checks the result. A citation of a passage not given is dropped; each
+   quote is looked for in its passage (`quote_found`, as chat does). An item
+   left with no citation is flagged `uncited`. A configured hazard with no item
+   gets the config's own item, with origin `hazard_list` (written by the team,
+   so not shown as AI-generated) and flagged `uncited`. Items are placed after their
+   subsection's template item, in report order, then the hazards.
+6. The gateway records the paid calls under the `checklist` feature and saves
+   the checklist in `checklists` (see [database](database.md#pre-survey-checklists-cp-30)).
+
+With no standard in scope, steps 3-4 are skipped: the checklist has its
+template and hazard items only, and no paid call is made.
+
+`checklist.json` holds the hazards for each of the nine facility types (3-4
+each), each naming the NFPA or FM standards it is checked against. It was
+drafted by the team and is to be reviewed with Marsh; bump its `version` on any
+change; a rag-service test checks it covers exactly the nine facility types.
+`eval/score_checklist.py` generates a checklist for every facility type from
+the standards in `eval/checklist_cases.json`, and counts template and hazard
+coverage, hazards cited by one of their own standards, citations resolving to
+a standard in scope and quotes found (one paid call per type). The cases file
+comes from the gateway (`npm run export:checklist-cases -- <file>`), since the
+passages in Chroma carry no standard numbers; it holds one database's document
+ids, so it is not committed.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for
@@ -710,7 +808,10 @@ per engineer per day adds about $6 a month.
 **Limits per user** (`server/src/services/chat-limits.service.ts`): a message of at most
 4,000 characters, 10 questions a minute, 200 a day, and $2 of chat a day. Over a limit,
 the gateway refuses before any model is called. So one user can cost at most about $2
-a day, or $44 a month.
+a day, or $44 a month. The refusal is a normal chat reply, picked at random from a few
+hand-written phrasings per limit (never the same one twice in a row) so it reads as the
+chatbot talking. If S4 can't be reached, the gateway answers the same way (a 200 stream
+with a friendly "try again shortly" reply), not a 503.
 
 **Testing doesn't spend money.** Unit tests mock every paid call. Two guards make a
 missed mock fail instead of spending:
@@ -728,6 +829,15 @@ all 61 cases plus two judge runs) costs about $2.
 - **No `SMTP_HOST`:** nothing is sent. The code is printed in the server console (CI and fresh checkouts).
 - **Mail failure:** logged, and the API answers exactly as on success, so a mail outage never reveals which addresses are registered.
 - The code is single-use and expires after 30 minutes.
+- An account that has never had a password gets no reset email (the response is unchanged): its owner sets the first one from their invitation (below).
+
+## Invitation email (F-08)
+
+`createUser` in `server/src/services/user.service.ts` emails a new account's owner a link `APP_URL/?invite=<code>` (`sendInvitation` in `invitation.service.ts`). The sign-in screen reads `?invite=`, removes it from the address bar, and opens Set your password (`client/src/features/auth/SetPassword.tsx`), which checks the link, then sets the first password. It is a separate flow from the reset, with its own token field and routes.
+
+- Mail goes through the same SMTP settings and `mail.service.ts` transport as the reset. With no `SMTP_HOST` the code is printed in the server console as `[invitation] <email> -> token: <code>`.
+- **Mail failure:** logged; the account is still created and shows no open link. The admin resends from the profile (Resend invitation), which answers 503 while mail is down.
+- The code is single-use, expires after 72 hours, and works only for an active account with no password. A resend, or correcting the account's email, cancels the earlier link.
 
 ## Idle sign-out (F-07)
 
@@ -744,6 +854,14 @@ saves those calls to `ai_calls` as feature `chat` with the signed-in user's
 sees it. Every other byte passes through unchanged. S4 starts collecting in
 the same generator step as the search, because Starlette runs each step of a
 streaming generator in a fresh copy of the context.
+
+S4 sends text as the model writes it; the chat screen paces it
+(`client/src/features/chat/smoothAdapter.ts` splits deltas into words and reveals them
+at an even rate, keeping the `meta` line whole). When the knowledge base lacks the
+answer, the reply is in the model's own words and the `meta` line carries a third
+argument, `Meta([...], [...], true)`, which shows the "Ask an admin" or "Add documents"
+button (CB-07). Errors and an empty question get a random friendly phrasing instead of
+a fixed sentence; the technical reason stays in `chat_result.error`.
 
 ## Usage and costs report (EV-04)
 

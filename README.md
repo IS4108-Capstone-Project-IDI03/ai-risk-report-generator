@@ -109,7 +109,23 @@ redo, and find and replace, while headings, tables and other parts filled in
 elsewhere stay fixed. It saves itself when typing pauses: each save adds a
 version of the section through `PUT …/sections/:sectionId/document`, and a
 change to a drafted finding is also recorded in the audit log, so Return to
-review shows it, its section Edited by you.
+review shows it, its section Edited by you. Version history (RV-06), on each
+part of the report and in the assessment's ⋯ menu, lists a section's AI drafts
+and saved versions oldest first, with who made each and when
+(`GET …/sections/:sectionId/versions`), compares any of them with the current
+text or the version before, marking added, deleted and changed words, and lets
+the assigned engineer restore one as the section's draft
+(`POST …/sections/:sectionId/versions/restore`): a new version, so nothing is
+overwritten, and no other section changes.
+
+Before the visit, the assessment's Checklist tab generates a pre-survey
+checklist (CP-30): one item per subsection of Marsh's template (Sections
+6-12), and items from the knowledge-base standards that apply to the site's
+facility type and country, each citing the passage and words it rests on. The
+hazards checked for each facility type, and the standards they are checked
+against, are in `rag-service/app/generation/checklist.json`. The assigned
+engineer chooses the standards to use and generates; each generation is kept,
+and the latest is shown. Only the facility type and country reach S4.
 
 In Section 5's Review editor, each loss level has its own property damage items,
 values and damage percentages. Site-wide insured values remain in

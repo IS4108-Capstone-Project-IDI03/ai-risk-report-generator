@@ -215,7 +215,10 @@ client and site are not editable: they stay as the assessment was created
 (CP-17 AC8). The site's details are shared once the site has another
 assessment not archived, so changing them is then refused (409); sending them
 unchanged is fine. Renaming a site to another of its client's site names is
-refused (400, `site.name`). A date left empty is cleared. Only the assigned engineer
+refused (400, `site.name`). A new site's facility type, or a changed one, must
+be one of the nine the forms offer (`FACILITY_TYPES`, as knowledge documents
+are labelled; 400, `site.facilityType`); a site's older type sent unchanged is
+kept, so its assessments can still be edited (CP-30). A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
 
 `POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a
@@ -234,13 +237,23 @@ capture sessions were kept, so the assessment returns with the status it had.
 (`risk_engineer` or `knowledge_admin`, F-05), optional `jobTitle`,
 `phone` and `office` (a two-letter jurisdiction code), `active`, and the
 bcrypt `passwordHash` (F-04, never selected by default). A deactivated account
-cannot sign in.
+cannot sign in. Two token pairs are stored as sha256 hashes of the emailed
+code, never the code: `resetTokenHash`/`resetTokenExpiresAt` for the password
+reset (F-06), and `inviteTokenHash`/`inviteTokenExpiresAt` for the invitation
+that lets a new account's owner set their first password (F-08). The hashes
+are never selected by default; `inviteTokenExpiresAt` is, so admins can see
+when an invitation lapses.
 
 `GET /api/users` lists accounts by name and `GET /api/users/:id` returns one
 (404 for an unknown or malformed ID). `PUT /api/users/:id` replaces the whole
 editable profile; optional fields sent as `''` are removed. Invalid input
 returns 400 `{ error, fields }` like assessments, and an email another account
-uses returns 409 with `fields.email`. `staffId` cannot be changed. These routes
+uses returns 409 with `fields.email`. `staffId` cannot be changed. Each
+account also reads `passwordSet` and `invitationExpiresAt` (when the latest
+invitation link expires or expired; `null` once a password is set or when no
+invitation was sent); no password or token hash is ever returned. Changing the email
+of an account with no password cancels its invitation and, if the account is
+active, emails a new one to the new address. These routes
 need a session (401) and the `users:manage` permission, which only knowledge
 admins have (403 otherwise). An admin cannot change their own role or
 deactivate themselves (400 against `fields.role` or `fields.active`), so the
@@ -252,14 +265,31 @@ always saved active, and the gateway assigns the next unused `staffId` from
 the `staff` counter (one already in use, e.g. a seeded `MRE-0001`, is skipped);
 any `staffId` or `active` in the body is ignored. 201 returns the account;
 invalid input is 400 `{ error, fields }` and an email another account uses is
-409 with `fields.email`, and neither saves anything. A new account has no
-`passwordHash`: its owner sets one through the password reset (F-06), then
-signs in.
+409 with `fields.email`, and neither saves nor sends anything. A new account
+has no `passwordHash`: its owner is emailed an invitation link,
+`APP_URL/?invite=<code>`, that works once, for 72 hours, while the account is
+active and has no password. If the email can't be sent, the account is still
+saved and returns `invitationExpiresAt: null`.
+`POST /api/users/:id/invitation` emails a new link and cancels the earlier one
+(200 with the account; 404; 409 when a password is set or the account is
+deactivated; 503 when the email can't be sent).
+
+The invitation is redeemed without a session: `POST /api/auth/invitation`
+`{ token }` returns the account's `{ name, email }`, and
+`POST /api/auth/invitation/accept` `{ token, password }` sets the first
+password, clears the token and returns `{ email }`. Both answer 400 for an
+invalid, used or expired link; a password shorter than 12 characters, without
+a number and a symbol, or over 72 bytes is 400 with `fields.password`. It is
+separate from the reset: `POST /api/auth/request-reset` sends nothing to an
+account with no password (the response is the same as for any address), and
+neither code works in the other's route.
 
 ## Role permissions (F-05)
 
-Every `/api` route except `/api/health` and `/api/auth/login|logout` needs a
-session cookie (401 without one). Each then names one permission; a role
+Every `/api` route except `/api/health` and `/api/auth/login|logout`, the
+reset routes (`/api/auth/request-reset|reset`, F-06) and the invitation routes
+(`/api/auth/invitation`, `/api/auth/invitation/accept`, F-08) needs a session
+cookie (401 without one). Each then names one permission; a role
 without it gets 403 `{ error: 'Your role does not allow this.' }` before the
 handler reads the body or the database. The matrix lives in
 `server/src/services/permissions.service.ts`, and `/api/auth/login` and
@@ -415,21 +445,29 @@ doesn't count toward a section's minimum.
 An observation gains an `interpretation` (CP-05, CP-21) once an engineer asks
 for it to be read: what the model proposes from everything captured in it, for
 the engineer to review. Saving never reads it, so a client's notes and site
-photos reach the model only by an engineer's choice. Its `status` is
-`interpreting`, `interpreted` or `failed` (with `error`, S5's reason, which the
-API turns into a readable one). An interpreted one has `categories`, the
+photos reach the model only by an engineer's choice. It has two parts, read
+together the first time and one at a time after: the categories, on the
+`interpretation` itself, and the photos' description, in
+`interpretation.photoReading`. Each part has its own `status` (`interpreting`,
+`interpreted` or `failed`, with `error`, S5's reason, which the API turns into
+a readable one), `attempts` and `provenance`. An interpreted one has `categories`, the
 proposed COPE categories, each with a `reason` and `evidence`: the `item` it
 rests on, by label, any `quote` from it, and `verified`, whether the gateway
-found the quote in that item (null for a photo, which has no words). With
-photos it also has a `description` and `hazardType`; a reading without photos
-has neither. A reading from before CP-21 has one `copeDimension` instead of
-`categories`, which the API returns as a list of one with no reason.
+found the quote in that item (null for a photo, which has no words). Its
+`photoReading`, once photos are described, has a `description`, a
+`hazardType` and the `photoIds` it describes; it is absent for a reading
+without photos. A reading from before the parts were split kept `description`
+and `hazardType` on the `interpretation` itself, under the categories'
+status: the API returns them as its photos' part, and reading either part
+again moves them into `photoReading`. A reading from before CP-21 has one
+`copeDimension` instead of `categories`, which the API returns as a list of
+one with no reason.
 `attempts` records each run as for a recording, and `provenance` records the
 `provider`, `model`, `promptVersion`, token `usage` (`inputTokens`,
 `outputTokens`, `thoughtTokens`, or null when not reported, EV-03) and
-`interpretedAt`. Asking creates it with one attempt, or adds one while it is
-`failed`, out of date, or whenever the engineer asks for another proposal, matched
-atomically so two clicks start one reading;
+`interpretedAt`. Asking creates it with one attempt on each part, or adds one
+to the part asked for, whenever the engineer asks, matched atomically on that
+part's status so two clicks start one reading;
 it is refused while a recording or page is still transcribing, or when there
 is nothing to read. Until then it has no `interpretation`, and the API returns
 `null`.
@@ -489,7 +527,7 @@ none.
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, description, hazardType, categories, error, attempts, model, photoIds, items, outOfDate }`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, photos, categories, error, attempts, model, photoIds, items, outOfDate }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }` or `null`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
@@ -498,7 +536,7 @@ none.
 | `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId` | Removes one, a soft removal (CP-08). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
 | `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |
-| `POST /api/observations/:id/interpretation` | Reads the observation (CP-05, CP-21): its note, transcripts and kept photos, for proposed categories and, with photos, a description and hazard type. The first reading, or a new one replacing it at any time: after a failure, after what it holds changed (CP-08), or for another proposal. Saving never reads it. 202, or 404 (unknown observation) / 409 (a recording or page still transcribing, nothing to read, deleted, or already being read) |
+| `POST /api/observations/:id/interpretation` | Reads the observation (CP-05, CP-21): its note, transcripts and kept photos, for proposed categories and, with photos, a description and hazard type. With no body, both parts in one call; with `{ "part": "categories" }` or `{ "part": "description" }`, that part again, replacing it, at any time. Saving never reads it. 202, or 400 (an unknown `part`) / 404 (unknown observation) / 409 (for the categories: a recording or page still transcribing, or nothing to read; for the description: no photos; or deleted, or the part already being read) |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 | `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
 | `POST /api/observations/:id/pages/:pageId/transcription/retry` | New attempt for a failed handwritten page (CP-19 AC11): 202, or 404 / 409 (not failed) |
@@ -605,7 +643,13 @@ on the draft. Each entry has:
   draft), `bulk` (accepted by Bulk accept), `carriedFrom` (see below; null
   otherwise).
 - `inDocument` (RV-08): made in the document editor, an `edit` of the
-  finding there or a `reject` for one deleted there; false otherwise.
+  finding there or a `reject` for one deleted there; false otherwise. Also
+  true on the entries a version restore makes (RV-06).
+- `restoredFrom` (RV-06): made by restoring an earlier version of the
+  section, which it names as the new version does (`version:<n>` or
+  `draft:<_id>`): an `edit` back to the restored words, a `reject` for a
+  finding the restored text lacks, or a `restore` for a rejected one it holds
+  (then an `edit` if its words differ). null otherwise.
   `citationsAfter`: a document edit's citations after it, as citation
   markers can be moved or deleted there; null otherwise. A finding missing a
   citation it was drafted with is unsupported.
@@ -653,12 +697,13 @@ a transcription in progress), 422 (too little evidence to regenerate), 503
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/accept` | `{ draftId }` of the waiting replacement: it becomes the saved draft (AC11): kept findings keep their decisions, the rest are pending. |
 | `POST /api/assessments/:reference/sections/:sectionId/replacement/discard` | Leaves the saved draft and its decisions as they were (AC12). |
 
-## Report section versions (RV-08)
+## Report section versions (RV-08, RV-06)
 
 `report_section_versions` holds one document per save of a report section
-from the document editor: the section's text as the engineer wrote it. It is
-append-only, like `review_audit_log`: the model refuses every update,
-replace and delete, and each save adds a version. Each version has:
+from the document editor: the section's text as the engineer wrote it, and
+one per restore from the version history (RV-06). It is append-only, like
+`review_audit_log`: the model refuses every update, replace and delete, and
+each save or restore adds a version. Each version has:
 
 - `assessment`; `sectionId`: `1` to `12`, or `A` for Appendix A.
 - `version`: 1, 2, 3… per assessment and section. `{ assessment, sectionId,
@@ -677,7 +722,10 @@ replace and delete, and each save adds a version. Each version has:
   Content is `{ type: 'text', text, marks? }` (marks: `bold`, `italic`,
   `underline`) or `{ type: 'cite', id }`, the id as a statement's citations
   name it. Empty paragraphs are not saved.
-- `by` `{ id, name }` and `at`: who saved it and when.
+- `restoredFrom` (RV-06): on a version made by a restore, what it restored:
+  `version:<n>`, an earlier version of the section, or `draft:<_id>`, one of
+  its AI drafts. null for a save from the document editor.
+- `by` `{ id, name }` and `at`: who saved (or restored) it and when.
 - `metadata` with the five required fields: `source_type:
   'report_section_version'`, `jurisdiction` and `facility_type` from the
   site, `COPE_dimension` (the section's one category, else `all`) and
@@ -694,10 +742,30 @@ each section's newest version.
 
 | Route | Does |
 | --- | --- |
-| `PUT /api/assessments/:reference/sections/:sectionId/document` | `{ baseVersion, draftId, document }`: saves the section as version `baseVersion + 1`, built on the saved draft `draftId` (null for none). 200 with `{ version, draftId, document, savedAt, savedBy }`. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 for a body that is not a section document or does not fit the section (subsections not the draft's, text in a table, a finding twice or not in the draft, over 2,000 characters in a finding or 60,000 in the section); 403; 404 (unknown assessment or section); 409 when `baseVersion` is not the newest, the saved draft is not `draftId`, a finding in it was rejected since, or another decision was saved at the same moment; 503 when S4 cannot list the sections. Bodies up to 1 MB. |
+| `PUT /api/assessments/:reference/sections/:sectionId/document` | `{ baseVersion, draftId, document }`: saves the section as version `baseVersion + 1`, built on the saved draft `draftId` (null for none). 200 with `{ version, draftId, document, restoredFrom, savedAt, savedBy }`. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 for a body that is not a section document or does not fit the section (subsections not the draft's, text in a table, a finding twice or not in the draft, over 2,000 characters in a finding or 60,000 in the section); 403; 404 (unknown assessment or section); 409 when `baseVersion` is not the newest, the saved draft is not `draftId`, a finding in it was rejected since, or another decision was saved at the same moment; 503 when S4 cannot list the sections. Bodies up to 1 MB. |
 
 `GET …/review` returns each section's newest version as `document` (or
-null) and Sections 1, 2, 3 and A's as `parts`, each with `current`. Each
+null) and Sections 1, 2, 3 and A's as `parts`, each with `current`.
+
+**Version history (RV-06).** A section's history is read, not stored: its
+AI drafts from `report_sections` that have been its saved content (each
+draft from Generation when drafted, a replacement from when it was accepted;
+none waiting or discarded), and its versions, merged oldest first. A draft's
+text is its statements as the document editor first shows them, in the words
+they had when it became the section's content: a finding kept word for word
+into a redraft carries the engineer's edit with it (the copied, `carriedFrom`
+entries). Restoring an entry saves its text as the section's next version
+through the same checks as a save (the newest version and saved draft the
+engineer saw, else 409), with `restoredFrom` set, and logs what it changes
+in the saved draft's findings as above. Text written on an earlier draft is
+carried onto the saved draft first: a passage that was a finding becomes the
+saved draft's finding with the same words in the same subsection, if there
+is one; any other is the engineer's own text.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/sections/:sectionId/versions` | `{ sectionId, entries, latestVersion, savedDraftId }` for sections 1 to 12 and A: `entries` oldest first, each `{ id, kind, version, draftId, onSavedDraft, origin, restoredFrom, document, at, by, model }`. `id` is `version:<n>` or `draft:<_id>`; `kind` `version` or `draft`; `origin` `drafted`, `redrafted` or `replacement` for a draft, `saved` or `restored` for a version; `onSavedDraft` false once the section has been drafted again since; `by` who saved a version, drafted a draft or accepted a replacement (null for a drafting engineer with no account); `model` a draft's. `latestVersion` (0 for none) and `savedDraftId` are what a restore is built on. Anyone who can view the assessment. 404 for an unknown assessment or section. |
+| `POST /api/assessments/:reference/sections/:sectionId/versions/restore` | `{ baseVersion, draftId, from }`, `from` an entry's `id`: saves its text as version `baseVersion + 1`. 200 with `{ version, workspace }`: the new version, and the review workspace as `GET …/review` returns it. Needs `reports:generate` and the assigned engineer, on an assessment not archived. 400 (invalid body, or a text that no longer fits the section); 403; 404 (unknown assessment or section, or `from` not in the history); 409 as for a save; 503 when S4 cannot list the sections. | Each
 section's `review` also has `editedInDocument`: true when it was changed or
 written in the document, so Edited by you shows even while another state
 (Needs review) comes first.
@@ -753,6 +821,44 @@ list. No loss figure comes from a model.
 | `GET /api/assessments/:reference/ofis` | `{ suggestions, accepted }`. Each OFI has `status` and `issueDate`; `accepted` is in report order with `number`. 404. |
 | `POST /api/assessments/:reference/ofis/draft` | Drafts OFIs from the assessment's usable observations and replaces the unaccepted suggestions (`reports:generate`, assigned engineer only). 201 with the list, 403, 404, 409 (a transcription in progress, or archived), 503 (drafting failed, with the reason). |
 | `POST /api/assessments/:reference/ofis/:id/accept` | Accepts a suggestion into the report (assigned engineer only). 200 with the list; accepting twice changes nothing. 403, 404. |
+
+## Pre-survey checklists (CP-30)
+
+`checklists` holds one document per generated checklist. Generating again adds
+a document and the latest is shown; earlier ones are kept (CP-32 will compare
+against them to keep the engineer's edits). Each document has:
+
+- `assessment`, and `facilityType` and `jurisdiction`: the site's when it was
+  generated.
+- `standards`: the knowledge-base standards the engineer kept in scope
+  (`id`, `title`, `sourceType`, `standardNumber`, `edition`), as they were then.
+- `items`, in report order, each with its own `_id` for later stories to refer to:
+  `area` (a section, `'6'` to `'12'`, or `'hazards'`), `subsection`, `origin`
+  (`template`; `standard` or `hazard`, written by the model; or `hazard_list`,
+  the hazard list's own item when the model wrote none), `hazard` (the configured hazard's id),
+  `text`, `fields` (the template subsection's fields), `COPE_dimension` (a
+  list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`), and `flags`
+  (`uncited`: it rests on no passage). `status` (`active`), `prefill` and
+  `check` (both `null`) are kept for CP-32, CP-34 and CP-31.
+- `areas` (`id`, `title`) and `hazards` (`id`, `name`, `standards` it is
+  checked against, `inScope`: those that were in scope).
+- `sources`: the cited passages by `C:` ID, with their text and Chroma labels.
+- `provenance`: `provider`, `model` (`null` when no standard was in scope, so
+  no model was called), `effort`, `prompt_version`, `checklist_version` (of
+  `checklist.json`), `template_version` and `generated_at`.
+- `createdBy`, the engineer's user `_id`.
+- `metadata` with the five required fields: `source_type: 'checklist'`,
+  `jurisdiction` and `facility_type` from the site, `COPE_dimension: 'all'`
+  (each item carries its own) and `effective_date` (when generated).
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/checklist` | `{ scope, standards, checklist }`: the site's facility type and country, the standards that apply to it now (each with `uploadedAt`), and the latest checklist or `null`. Anyone who can view the assessment. 404. |
+| `POST /api/assessments/:reference/checklist` | `{ standardIds }`: generates from those standards and saves it as the latest (`reports:generate`, assigned engineer only). 201 with the same body as the GET; 400 (a standard that doesn't apply), 403, 404, 409 (archived), 503 (S4 failed, with the reason). |
+
+A standard applies when it is an FM, NFPA or local standard labelled with the
+site's facility type and country, or `all`, has finished ingesting, and is not
+withdrawn or needing review (`knowledge-document.service.listApplicableStandards`).
 
 ## Knowledge documents (IN-01, KB-01, IN-07)
 
@@ -969,7 +1075,7 @@ it as lists of user ids.
 
 Fields: `purpose` (one of `ingestion_status`, `transcription_status`,
 `drafting_status`, `knowledge_document_status`, `account_status`,
-`assessment_status`), `message` (the line shown in the dropdown), `details` (the
+`assessment_status`, `knowledge_gap_request`), `message` (the line shown in the dropdown), `details` (the
 longer text behind the row's expand control, e.g. a failure reason),
 `targetRole` (a `USER_ROLES` value), `targetUserIds`, `readBy`, `dismissedBy`,
 `createdBy` and `createdByService`, and `context`.
@@ -986,7 +1092,8 @@ notifications on their next request, with no migration of existing documents.
 
 `readBy` and `dismissedBy` exist because the document is shared. Marking as read
 adds the caller to `readBy`; "mark all as read" adds them to `readBy` across
-everything they can see; "dismiss all" adds them to `dismissedBy`. None delete,
+everything they can see; "dismiss" (one row, `POST /api/notifications/:id/dismiss`)
+and "dismiss all" add them to `dismissedBy`. None delete,
 since deleting a shared document would clear it for everyone else too — so one
 user reading or dismissing never changes what another user in the role sees.
 
@@ -1007,6 +1114,31 @@ Purposes are a closed set so every notification has a known audience and a known
 screen to open. Only `ingestion_status` has a producer today. Deadline and
 reminder purposes are absent on purpose: nothing in the repo schedules work, so
 nothing could fire them.
+
+## Knowledge gap requests (CB-07)
+
+`knowledge_gap_requests` holds one document per request from a risk engineer that
+a knowledge admin add a document the chatbot lacked
+(`server/src/models/knowledge-gap-request.model.ts`).
+
+Fields: `question` (≤ 4,000 chars, the chat's limit), `message` (optional, ≤ 1,000,
+absent when blank), `askedBy` (user id), `status` (`open`, `filled` or `dismissed`),
+`documentIds` (knowledge document ids, set when filled), `reason` (≤ 500, set when
+dismissed), `closedBy`, `closedAt`, and timestamps.
+
+Closing is atomic: fill and dismiss update only where `status` is `open`, so two
+admins acting at once cannot both close it (the second gets 409). Filling and
+dismissing also write a `knowledge_gap_request` notification for the asker; a failed
+notification is logged and never fails the action, because the request is the record.
+Each `knowledge_gap_request` notification's `context` carries the request's parts as
+strings, so the bell can lay them out with labels: `requestId` and `question` always;
+`askedBy` and `message` (if given) on a new request; `status` plus `documents` (a JSON
+array of `{ title, uploadedAt }`) or `reason` on a closed one.
+
+Index: `{ status: 1, createdAt: -1 }` for the admin's open list.
+
+It carries none of the five mandatory metadata fields: like `notifications`, it is not
+retrieval evidence.
 
 References: [Chroma Docker](https://docs.trychroma.com/guides/deploy/docker),
 [Cohere RAG](https://docs.cohere.com/docs/rag-complete-example).

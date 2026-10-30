@@ -30,7 +30,9 @@ export function useObservations(reference: string, open: boolean, includeDeleted
               (o) =>
                 [...o.recordings, ...(o.pages ?? [])].some(
                   (m) => m.transcription.status === 'transcribing',
-                ) || o.interpretation?.status === 'interpreting',
+                ) ||
+                o.interpretation?.status === 'interpreting' ||
+                o.interpretation?.photos?.status === 'interpreting',
             )
           )
             timer = setTimeout(load, 3000)

@@ -1,9 +1,9 @@
 import bcrypt from 'bcrypt'
 import { randomBytes, createHash } from 'crypto'
 import jwt from 'jsonwebtoken'
-import nodemailer from 'nodemailer'
 import { config } from '../config'
 import { UserModel, type IUser, type UserRole } from '../models/user.model'
+import { mailIsConfigured, sendMail } from './mail.service'
 
 export class InvalidCredentialsError extends Error {
   constructor() {
@@ -106,31 +106,12 @@ function toSessionUser(user: IUser & { _id: unknown }): SessionUser {
 
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000
 
-// Real SMTP when SMTP_HOST is set, otherwise jsonTransport, which never leaves
-// the server: it hands back the composed message instead of delivering it, so
-// CI and fresh checkouts need no mail server (F-06). Built per send so the
-// settings are read when used, not frozen at import.
-function mailTransport() {
-  const { host, port, user, pass } = config.smtp
-  if (!host) return nodemailer.createTransport({ jsonTransport: true })
-  // Port 587 starts plain, then upgrades to TLS (STARTTLS); nodemailer does it.
-  // Timeouts: without them a dead mail server would hang the request for ~2 minutes.
-  return nodemailer.createTransport({
-    host,
-    port,
-    auth: user ? { user, pass } : undefined,
-    connectionTimeout: 10_000,
-    socketTimeout: 10_000,
-  })
-}
-
 // Emails the reset link. Never throws: a mail outage must not change the
 // response, or it would reveal which addresses are registered (AC6).
 async function sendResetEmail(email: string, token: string): Promise<void> {
   const link = `${config.appUrl}/?reset=${token}`
   try {
-    await mailTransport().sendMail({
-      from: config.smtp.from,
+    await sendMail({
       to: email,
       subject: 'Reset your password',
       text: `Open this link to choose a new password (expires in 30 minutes):\n\n${link}`,
@@ -141,7 +122,7 @@ async function sendResetEmail(email: string, token: string): Promise<void> {
   }
   // With no SMTP the console is the only inbox. With SMTP the code is a secret
   // and stays out of the logs.
-  if (!config.smtp.host) {
+  if (!mailIsConfigured()) {
     console.log(`[password reset] ${email} -> token: ${token} (expires in 30 min)`)
   }
 }
@@ -152,9 +133,14 @@ function hashToken(token: string): string {
 
 // Always resolves the same way whether or not the email is registered (AC6)
 // — only the internal branch (send or don't) differs, never the response.
+// An account that has never had a password gets no reset either: a reset
+// replaces a password, and a new employee sets their first one from the
+// invitation a knowledge admin sends them (F-08).
 export async function requestPasswordReset(email: string): Promise<void> {
-  const user = await UserModel.findOne({ email: email.toLowerCase().trim(), active: true })
-  if (!user) return
+  const user = await UserModel.findOne({ email: email.toLowerCase().trim(), active: true }).select(
+    '+passwordHash',
+  )
+  if (!user?.passwordHash) return
 
   const token = randomBytes(32).toString('hex')
   user.set({
@@ -166,7 +152,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
   // Real SMTP takes seconds. Waiting for it would make a registered address
   // answer slower than an unknown one, which reveals who has an account (AC6).
   // The console fallback is instant, so tests and local dev can wait for it.
-  if (!config.smtp.host) await sent
+  if (!mailIsConfigured()) await sent
 }
 
 // Single-use: the matching token is cleared whether or not this call

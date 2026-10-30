@@ -6,6 +6,7 @@ import { signIn } from '../../test/session'
 import type {
   Assessment,
   SavedInterpretation,
+  SavedPhotoReading,
   SavedObservation,
   SavedRecording,
   Stamp,
@@ -95,6 +96,20 @@ const PHOTO = {
 }
 const PROPOSED =
   'During the site visit to Bay 3, it was observed that the new racking sits under two sprinkler heads.'
+// The photos' part of a proposal (CP-21), described and up to date.
+function described(fields: Partial<SavedPhotoReading> = {}): SavedPhotoReading {
+  return {
+    status: 'interpreted',
+    description: PROPOSED,
+    hazardType: 'Sprinkler Installation',
+    error: null,
+    attempts: 1,
+    model: 'gemini-3.8-flash',
+    photoIds: ['p1'],
+    outOfDate: false,
+    ...fields,
+  }
+}
 function photographed(id: string, note: string, interpretation: Partial<SavedInterpretation>) {
   return observation({
     id,
@@ -103,8 +118,7 @@ function photographed(id: string, note: string, interpretation: Partial<SavedInt
     photos: [{ ...PHOTO, url: `/api/observations/${id}/photos/p1/image` }],
     interpretation: {
       status: 'interpreted',
-      description: null,
-      hazardType: null,
+      photos: null,
       categories: [],
       error: null,
       attempts: 1,
@@ -125,8 +139,7 @@ const UNREAD = 'Riser room photographed.'
 const INTERPRETING = photographed('o5', READING, { status: 'interpreting' })
 const SHOWN = 'IMG_0460.jpg shows racking under two sprinkler heads.'
 const INTERPRETED = photographed('o6', PROPOSAL, {
-  description: PROPOSED,
-  hazardType: 'Sprinkler Installation',
+  photos: described(),
   // One category to add, and one the observation already has (CP-21).
   categories: [
     {
@@ -230,30 +243,47 @@ function mockGateway() {
           listed.find((o) => o.id === id),
         )
       }
+      // Both parts the first time, or the one part asked for (CP-21).
       if (method === 'POST' && rest === '/interpretation') {
+        const part = (body as { part?: string } | undefined)?.part
         change((o) => ({
           interpretation: {
-            description: null,
-            hazardType: null,
+            photos: null,
             categories: [],
             attempts: 0,
             model: null,
-            ...o.interpretation,
-            status: 'interpreting',
+            status: 'interpreted' as const,
             error: null,
-            photoIds: o.photos.map((p) => p.id),
-            items: [
-              ...(o.note
-                ? [{ label: 'Note', kind: 'note' as const, id: null, leftOut: false }]
-                : []),
-              ...o.photos.map((p) => ({
-                label: p.name,
-                kind: 'photo' as const,
-                id: p.id,
-                leftOut: false,
-              })),
-            ],
+            photoIds: [],
+            items: [],
             outOfDate: false,
+            ...o.interpretation,
+            ...(part !== 'categories' &&
+              o.photos.length > 0 && {
+                photos: described({
+                  status: 'interpreting',
+                  description: null,
+                  hazardType: null,
+                  photoIds: o.photos.map((p) => p.id),
+                }),
+              }),
+            ...(part !== 'description' && {
+              status: 'interpreting' as const,
+              error: null,
+              photoIds: o.photos.map((p) => p.id),
+              items: [
+                ...(o.note
+                  ? [{ label: 'Note', kind: 'note' as const, id: null, leftOut: false }]
+                  : []),
+                ...o.photos.map((p) => ({
+                  label: p.name,
+                  kind: 'photo' as const,
+                  id: p.id,
+                  leftOut: false,
+                })),
+              ],
+              outOfDate: false,
+            }),
           },
         }))
         return Promise.resolve(new Response(null, { status: 202 }))
@@ -478,7 +508,9 @@ describe('Proposals from an observation (CP-05, CP-21)', () => {
     expect(proposal).not.toHaveTextContent('not cited')
     // Up to date, so no warning, but another proposal can still be asked for.
     expect(within(proposal).queryByText('Read from earlier evidence')).not.toBeInTheDocument()
-    expect(within(proposal).getAllByRole('button', { name: 'Get new proposal' })).toHaveLength(1)
+    // Each part is regenerated on its own (CP-21).
+    for (const name of ['Regenerate categories', 'Regenerate description'])
+      expect(within(proposal).getAllByRole('button', { name })).toHaveLength(1)
     fireEvent.click(within(proposal).getByRole('button', { name: 'IMG_0460.jpg' }))
     const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
     expect(within(popup).getByRole('img', { name: 'IMG_0460.jpg' })).toHaveAttribute(
@@ -528,19 +560,44 @@ describe('Proposals from an observation (CP-05, CP-21)', () => {
     expect(screen.queryByRole('button', { name: 'Add Protection' })).not.toBeInTheDocument()
   })
 
-  it('asks for another proposal of an up-to-date one (Get new proposal)', async () => {
+  it('regenerates the categories alone, keeping the description (CP-21)', async () => {
     listed = [INTERPRETED]
     await openObservations()
     fireEvent.click(row(PROPOSAL))
 
-    click('Get new proposal')
+    click('Regenerate categories')
 
     await vi.waitFor(() =>
       expect(calls).toEqual([
-        { method: 'POST', url: '/api/observations/o6/interpretation', body: undefined },
+        {
+          method: 'POST',
+          url: '/api/observations/o6/interpretation',
+          body: { part: 'categories' },
+        },
       ]),
     )
     expect(await screen.findByText('Reading this observation…')).toBeInTheDocument()
+    expect(screen.getByText(PROPOSED)).toBeInTheDocument()
+  })
+
+  it('regenerates the description alone, keeping the categories (CP-21)', async () => {
+    listed = [INTERPRETED]
+    await openObservations()
+    fireEvent.click(row(PROPOSAL))
+
+    click('Regenerate description')
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        {
+          method: 'POST',
+          url: '/api/observations/o6/interpretation',
+          body: { part: 'description' },
+        },
+      ]),
+    )
+    expect(await screen.findByText('Describing the photos…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add Protection' })).toBeInTheDocument()
   })
 
   it('marks a quote not found in the item it cites as unverified', async () => {
@@ -580,8 +637,7 @@ describe('Proposals from an observation (CP-05, CP-21)', () => {
         ],
         interpretation: {
           status: 'interpreted',
-          description: null,
-          hazardType: null,
+          photos: null,
           categories: [
             {
               category: 'Protection',
@@ -632,10 +688,28 @@ describe('Proposals from an observation (CP-05, CP-21)', () => {
 
     await vi.waitFor(() =>
       expect(calls).toEqual([
-        { method: 'POST', url: '/api/observations/o7/interpretation', body: undefined },
+        {
+          method: 'POST',
+          url: '/api/observations/o7/interpretation',
+          body: { part: 'categories' },
+        },
       ]),
     )
     expect(await screen.findByText('Reading this observation…')).toBeInTheDocument()
+  })
+
+  it('says once when to try again, when the gateway already says so', async () => {
+    const waiting =
+      'Its recordings and pages are still being transcribed. Try again once they finish.'
+    refuse = (method) => (method === 'POST' ? json(409, { error: waiting }) : null)
+    listed = [NOTE_ONLY]
+    await openObservations()
+    fireEvent.click(row(NOTE))
+
+    click('Get AI proposal')
+
+    // Not "…once they finish. Try again."
+    expect(await screen.findByText(waiting)).toBeInTheDocument()
   })
 
   it('reads any observation, photos or not, only when the engineer asks (AC7)', async () => {
@@ -1025,16 +1099,14 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(screen.queryByRole('button', { name: 'Remove IMG_0460.jpg' })).not.toBeInTheDocument()
   })
 
-  it('marks a reading of photos since changed as out of date, and reads it again', async () => {
+  it('marks a description of photos since changed as out of date, and describes them again', async () => {
     listed = [
       {
         ...photographed('o6', PROPOSAL, {
-          description: PROPOSED,
-          hazardType: 'Sprinkler Installation',
+          photos: described({ photoIds: ['p0'], outOfDate: true }),
           model: 'gemini-3.8-flash',
           photoIds: ['p0'],
           items: [{ label: 'IMG_0400.jpg', kind: 'photo', id: 'p0', leftOut: false }],
-          outOfDate: true,
         }),
         removedPhotos: [
           {
@@ -1056,14 +1128,19 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(
       within(proposal).getByRole('button', { name: 'IMG_0400.jpg' }).parentElement,
     ).toHaveTextContent('Read from IMG_0400.jpg (removed)')
-    click('Get new proposal')
+    expect(within(proposal).getByText(/^Photos were added or removed/)).toBeInTheDocument()
+    click('Regenerate description')
 
     await vi.waitFor(() =>
       expect(calls).toEqual([
-        { method: 'POST', url: '/api/observations/o6/interpretation', body: undefined },
+        {
+          method: 'POST',
+          url: '/api/observations/o6/interpretation',
+          body: { part: 'description' },
+        },
       ]),
     )
-    expect(await screen.findByText('Reading this observation…')).toBeInTheDocument()
+    expect(await screen.findByText('Describing the photos…')).toBeInTheDocument()
   })
 
   it('adds, removes and restores media of a sample observation in this demo only', async () => {

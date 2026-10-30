@@ -13,6 +13,7 @@ import {
   type IObservation,
   type IPage,
   type IPhoto,
+  type IPhotoReading,
   type IReadItem,
   type IRecording,
   type IStamp,
@@ -254,12 +255,26 @@ export type ObservationDto = {
   removedRecordings: (RecordingDto & { removed: StampDto })[]
   removedPhotos: (PhotoDto & { removed: StampDto })[]
   // What the model proposes from it (CP-05, CP-21), for the engineer to
-  // review; null until an engineer asks for it to be read.
+  // review; null until an engineer asks for it to be read. Its two parts are
+  // read together the first time and one at a time after: the categories
+  // (these fields) and the photos' description (`photos`).
   interpretation: {
+    // Where the categories stand.
     status: IInterpretation['status']
-    // From its photos; null for a reading without them.
-    description: string | null
-    hazardType: string | null
+    // The photos' description and hazard type, with where they stand; null
+    // until its photos are first described.
+    photos: {
+      status: IInterpretation['status']
+      description: string | null
+      hazardType: string | null
+      error: string | null
+      attempts: number
+      model: string | null
+      // The photos it describes, removed ones included.
+      photoIds: string[]
+      // Finished, but of photos other than those it has now.
+      outOfDate: boolean
+    } | null
     // The proposed categories, each with what it rests on. A reading from
     // before CP-21 proposed one, with no reason.
     categories: {
@@ -422,7 +437,35 @@ function itemsChanged(read: IReadItem[], now: IReadItem[], description?: string)
   return !description || noteNow !== (noteBefore ? `${noteBefore}\n\n${description}` : description)
 }
 
-// A finished reading of something other than what the observation holds now.
+// The photos' part of a reading as it stands (CP-21): its own record, or on a
+// reading from before the parts were split, the description kept with the
+// categories, under their status.
+function photoReadingOf(o: StoredObservation): IPhotoReading | null {
+  const reading = o.interpretation
+  if (!reading) return null
+  if (reading.photoReading) return reading.photoReading
+  if (reading.description === undefined && reading.hazardType === undefined) return null
+  return {
+    status: reading.status,
+    description: reading.description,
+    hazardType: reading.hazardType,
+    attempts: reading.attempts,
+    photoIds: readPhotoIds(o).map((id) => new Types.ObjectId(id)),
+    provenance: reading.provenance,
+  }
+}
+
+// A finished description of photos other than those kept now (CP-08): photos
+// were added or removed since. Nothing else it reads changes it.
+function photosOutOfDate(o: StoredObservation): boolean {
+  const reading = photoReadingOf(o)
+  if (reading?.status !== 'interpreted') return false
+  const read = reading.photoIds.map(String)
+  const now = kept(o.photos ?? []).map((p) => String(p._id))
+  return read.length !== now.length || now.some((id) => !read.includes(id))
+}
+
+// Finished categories of something other than what the observation holds now.
 // A reading from before CP-21 read only its photos and note: it is judged by
 // its photos (CP-08), and is out of date once there is a transcript it never
 // read, so the engineer can ask for one that reads it.
@@ -430,7 +473,7 @@ function readingOutOfDate(o: StoredObservation): boolean {
   if (o.interpretation?.status !== 'interpreted') return false
   const now = readingItems(o)
   if (o.interpretation.items)
-    return itemsChanged(o.interpretation.items, now, o.interpretation.description)
+    return itemsChanged(o.interpretation.items, now, photoReadingOf(o)?.description)
   const read = readPhotoIds(o)
   const photos = now.filter((item) => item.kind === 'photo').map((item) => String(item.id))
   return (
@@ -481,10 +524,19 @@ function interpretationDto(
       })),
     })) ??
     (reading.copeDimension ? [{ category: reading.copeDimension, reason: null, evidence: [] }] : [])
+  const photos = photoReadingOf(o)
   return {
     status: reading.status,
-    description: reading.description ?? null,
-    hazardType: reading.hazardType ?? null,
+    photos: photos && {
+      status: photos.status,
+      description: photos.description ?? null,
+      hazardType: photos.hazardType ?? null,
+      error: interpretationFailureReason(photos.error),
+      attempts: photos.attempts.length,
+      model: photos.provenance?.model ?? null,
+      photoIds: photos.photoIds.map(String),
+      outOfDate: photosOutOfDate(o),
+    },
     categories,
     error: interpretationFailureReason(reading.error),
     attempts: reading.attempts.length,
@@ -1250,15 +1302,22 @@ export async function failInterruptedTranscriptions() {
   }
 }
 
+// The parts of a proposal that can be read again one at a time (CP-21).
+export const READING_PARTS = ['categories', 'description'] as const
+export type ReadingPart = (typeof READING_PARTS)[number]
+
 // Reads an observation when an engineer asks (CP-05, CP-21): saving never
 // sends anything to the model, so a client's notes and site photos leave the
-// system only by choice. Starts the first reading, or a new one of what it
-// holds now, replacing the last: after a failure, once what it holds changed
-// (CP-08), or whenever the engineer wants another proposal (CP-21). Each
-// reading records everything it reads. It waits for transcriptions still
-// running, and leaves out a recording or page with no transcript. Matching on
-// the state it found makes it atomic, so a double click cannot start two.
-export async function readObservation(id: string): Promise<void> {
+// system only by choice. The first time, or without `part`, it reads both
+// parts in one call: the categories, and with photos, their description. With
+// `part`, it reads that part again, replacing it, whenever the engineer asks:
+// after a failure, once what it reads changed (CP-08), or for another proposal.
+// Each reading records everything it reads. The categories wait for
+// transcriptions still running and leave out a recording or page with no
+// transcript; the description reads the photos, with the note as a hint.
+// Matching on the state it found makes it atomic, so a double click cannot
+// start two.
+export async function readObservation(id: string, part?: ReadingPart): Promise<void> {
   if (!isValidObjectId(id)) throw new ObservationNotFoundError()
   const o = await ObservationModel.findById(
     id,
@@ -1266,77 +1325,130 @@ export async function readObservation(id: string): Promise<void> {
   ).lean<StoredObservation>()
   if (!o) throw new ObservationNotFoundError()
   if (o.deleted) throw new ObservationStateError(DELETED)
-  const transcribing = [...kept(o.recordings), ...(o.pages ?? [])].some(
-    (item) => item.transcription.status === 'transcribing',
-  )
-  if (transcribing)
-    throw new ObservationStateError(
-      'Its recordings and pages are still being transcribed. Try again once they finish.',
-    )
   const items = readingItems(o)
-  if (!items.some((item) => item.kind === 'photo' || item.text))
-    throw new ObservationStateError('This observation has nothing to read yet.')
   const photoIds = items.filter((item) => item.kind === 'photo').map((item) => item.id!)
-  const status = o.interpretation?.status
-  const reading = 'It is already being read.'
-  if (status === 'interpreting') throw new ObservationStateError(reading)
+  const parts: ReadingPart[] = part
+    ? [part]
+    : ['categories', ...(photoIds.length ? (['description'] as const) : [])]
+  const reading = o.interpretation
+  const photoReading = reading?.photoReading
+  const busy = 'It is already being read.'
+
+  if (parts.includes('categories')) {
+    const transcribing = [...kept(o.recordings), ...(o.pages ?? [])].some(
+      (item) => item.transcription.status === 'transcribing',
+    )
+    if (transcribing)
+      throw new ObservationStateError(
+        'Its recordings and pages are still being transcribed. Try again once they finish.',
+      )
+    if (!items.some((item) => item.kind === 'photo' || item.text))
+      throw new ObservationStateError('This observation has nothing to read yet.')
+    if (reading?.status === 'interpreting') throw new ObservationStateError(busy)
+  }
+  if (parts.includes('description')) {
+    if (!photoIds.length)
+      throw new ObservationStateError('This observation has no photos to describe.')
+    if (photoReadingOf(o)?.status === 'interpreting') throw new ObservationStateError(busy)
+  }
 
   const attempt = { startedAt: new Date() }
-  const { matchedCount } = await ObservationModel.updateOne(
-    {
-      _id: id,
-      deleted: { $exists: false },
-      ...(status ? { 'interpretation.status': status } : { interpretation: { $exists: false } }),
-    },
-    status
-      ? {
-          $set: {
-            'interpretation.status': 'interpreting',
-            'interpretation.photoIds': photoIds,
-            'interpretation.items': items,
-          },
-          // A proposal always matches what its reading names.
-          $unset: {
-            'interpretation.error': 1,
-            'interpretation.description': 1,
-            'interpretation.categories': 1,
-            'interpretation.copeDimension': 1,
-            'interpretation.hazardType': 1,
-            'interpretation.provenance': 1,
-          },
-          $push: { 'interpretation.attempts': attempt },
-        }
-      : {
-          $set: {
-            interpretation: { status: 'interpreting', attempts: [attempt], photoIds, items },
-          },
-        },
-  )
+  const started = { status: 'interpreting', attempts: [attempt], photoIds }
+  const filter: Record<string, unknown> = { _id: id, deleted: { $exists: false } }
+  const set: Record<string, unknown> = {}
+  const unset: Record<string, 1> = {}
+  const push: Record<string, unknown> = {}
+  if (!reading) {
+    filter.interpretation = { $exists: false }
+    set.interpretation = {
+      ...started,
+      items,
+      ...(parts.includes('description') && { photoReading: started }),
+    }
+  } else {
+    // The photos' description, wherever a reading kept it, now lives in its
+    // own part: one from before the parts were split moves there.
+    unset['interpretation.description'] = 1
+    unset['interpretation.hazardType'] = 1
+    if (parts.includes('categories')) {
+      filter['interpretation.status'] = reading.status
+      Object.assign(set, {
+        'interpretation.status': 'interpreting',
+        'interpretation.photoIds': photoIds,
+        'interpretation.items': items,
+      })
+      // The categories always match what their reading names.
+      for (const field of ['error', 'categories', 'copeDimension', 'provenance'])
+        unset[`interpretation.${field}`] = 1
+      push['interpretation.attempts'] = attempt
+    }
+    if (parts.includes('description') && photoReading) {
+      filter['interpretation.photoReading.status'] = photoReading.status
+      Object.assign(set, {
+        'interpretation.photoReading.status': 'interpreting',
+        'interpretation.photoReading.photoIds': photoIds,
+      })
+      for (const field of ['description', 'hazardType', 'error', 'provenance'])
+        unset[`interpretation.photoReading.${field}`] = 1
+      push['interpretation.photoReading.attempts'] = attempt
+    } else if (parts.includes('description')) {
+      filter['interpretation.photoReading'] = { $exists: false }
+      set['interpretation.photoReading'] = started
+    } else if (!photoReading && photoReadingOf(o)) {
+      // Reading the categories alone keeps a description read before the split.
+      set['interpretation.photoReading'] = photoReadingOf(o)
+    }
+  }
+  const { matchedCount } = await ObservationModel.updateOne(filter, {
+    $set: set,
+    ...(Object.keys(unset).length && { $unset: unset }),
+    ...(Object.keys(push).length && { $push: push }),
+  })
   // Someone else started one between the read and the write.
-  if (!matchedCount) throw new ObservationStateError(reading)
-  void runInterpretation(id)
+  if (!matchedCount) throw new ObservationStateError(busy)
+  void runInterpretation(id, parts)
 }
 
-// Runs the latest attempt at reading an observation and records the proposal
-// (CP-05 AC3-AC5, CP-21), once an engineer has asked (readObservation). It
-// reads what the attempt names, so a change made while it runs leaves it
-// reading what it started with. Never throws: a failure is stored as the
-// reason the engineer sees. The model is told where the finding was made and
-// everything captured about it, but not the engineer's categories or severity,
-// so its proposed categories are its own. Each quote it gives is checked
-// against the item it names. The proposal is not drafting evidence, so a draft
-// never reads it and never goes out of date because of it.
+// Runs the latest attempt at reading the given parts of an observation and
+// records the proposal (CP-05 AC3-AC5, CP-21), once an engineer has asked
+// (readObservation): one call for the parts together. It reads what the
+// attempt names, so a change made while it runs leaves it reading what it
+// started with. Never throws: a failure is stored on each part as the reason
+// the engineer sees. The model is told where the finding was made and what was
+// captured, but not the engineer's categories or severity, so its proposed
+// categories are its own. Each quote it gives is checked against the item it
+// names. The proposal is not drafting evidence, so a draft never reads it and
+// never goes out of date because of it.
 // ponytail: runs in the gateway process, like runTranscription.
-export async function runInterpretation(id: string): Promise<void> {
+export async function runInterpretation(
+  id: string,
+  parts: ReadingPart[] = [...READING_PARTS],
+): Promise<void> {
   const observation = await ObservationModel.findById(
     id,
     'assessment photos note location interpretation',
   )
     .lean<StoredObservation>()
     .catch(() => null)
-  const items = observation?.interpretation?.items ?? []
+  const reading = observation?.interpretation
+  if (!reading) return
+  const categories = parts.includes('categories')
+  // The categories read every item their attempt names; the description alone
+  // reads the photos its attempt names, under their own names, with the note.
+  const items: IReadItem[] = categories
+    ? (reading.items ?? [])
+    : [
+        ...(observation.note?.trim()
+          ? [{ label: 'Note', kind: 'note' as const, text: observation.note }]
+          : []),
+        ...(reading.photoReading?.photoIds ?? []).map((photoId) => ({
+          label: observation.photos?.find((p) => p._id.equals(photoId))?.name ?? 'Photo',
+          kind: 'photo' as const,
+          id: photoId,
+        })),
+      ]
   const photos = items.flatMap((item) => {
-    const photo = item.kind === 'photo' && observation!.photos?.find((p) => p._id.equals(item.id!))
+    const photo = item.kind === 'photo' && observation.photos?.find((p) => p._id.equals(item.id!))
     return photo ? [{ label: item.label, s3Key: photo.key }] : []
   })
   const texts = items.flatMap((item) =>
@@ -1344,86 +1456,99 @@ export async function runInterpretation(id: string): Promise<void> {
       ? [{ label: item.label, kind: item.kind, text: item.text }]
       : [],
   )
-  if (!observation?.interpretation || (!photos.length && !texts.length)) return
+  if (categories ? !photos.length && !texts.length : !photos.length) return
   const assessment = await AssessmentModel.findById(observation.assessment, 'locations reference')
     .lean()
     .catch(() => null)
   const place = assessment?.locations?.find((l) => l._id.equals(observation.location))
-  const attempt = `interpretation.attempts.${observation.interpretation.attempts.length - 1}`
-  let outcome: Record<string, unknown>
+  // Each part's latest attempt, finished whatever the outcome.
+  const prefix = (p: ReadingPart) =>
+    p === 'categories' ? 'interpretation' : 'interpretation.photoReading'
+  const attempt = (p: ReadingPart) => {
+    const attempts = p === 'categories' ? reading.attempts : (reading.photoReading?.attempts ?? [])
+    return `${prefix(p)}.attempts.${attempts.length - 1}`
+  }
+  let outcome: Record<string, unknown> = {}
   try {
     const started = performance.now()
     const result = await interpret({
       photos,
       texts,
       location: place ? locationText(place) : null,
+      parts,
     })
     // EV-03: the paid call, tagged with the assessment. Never throws.
     await recordAiCalls(visionUsageToWire(result, performance.now() - started), {
       reportId: assessment?.reference,
     })
+    const provenance = {
+      provider: result.provider,
+      model: result.model,
+      promptVersion: result.prompt_version,
+      usage: result.usage && {
+        inputTokens: result.usage.input_tokens,
+        outputTokens: result.usage.output_tokens,
+        thoughtTokens: result.usage.thought_tokens,
+      },
+      interpretedAt: new Date(),
+    }
     const textOf = new Map(texts.map((t) => [t.label, t.text]))
     const photoLabels = new Set(photos.map((p) => p.label))
-    outcome = {
-      'interpretation.status': 'interpreted',
-      ...(result.description && { 'interpretation.description': result.description }),
-      ...(result.hazard_type && { 'interpretation.hazardType': result.hazard_type }),
-      'interpretation.categories': result.categories
-        .filter((c): c is typeof c & { category: CopeDimension } =>
-          (COPE_DIMENSIONS as readonly string[]).includes(c.category),
-        )
-        .map((c) => ({
-          category: c.category,
-          reason: c.reason,
-          evidence: c.evidence.map((e) =>
-            // A photo has no words: any quote given for one is dropped.
-            photoLabels.has(e.item)
-              ? { item: e.item, verified: null }
-              : {
-                  item: e.item,
-                  ...(e.quote && { quote: e.quote }),
-                  verified: textOf.has(e.item) && quoteFound(e.quote, textOf.get(e.item)!),
-                },
-          ),
-        })),
-      'interpretation.provenance': {
-        provider: result.provider,
-        model: result.model,
-        promptVersion: result.prompt_version,
-        usage: result.usage && {
-          inputTokens: result.usage.input_tokens,
-          outputTokens: result.usage.output_tokens,
-          thoughtTokens: result.usage.thought_tokens,
-        },
-        interpretedAt: new Date(),
-      },
-    }
+    if (categories)
+      Object.assign(outcome, {
+        'interpretation.status': 'interpreted',
+        'interpretation.categories': (result.categories ?? [])
+          .filter((c): c is typeof c & { category: CopeDimension } =>
+            (COPE_DIMENSIONS as readonly string[]).includes(c.category),
+          )
+          .map((c) => ({
+            category: c.category,
+            reason: c.reason,
+            evidence: c.evidence.map((e) =>
+              // A photo has no words: any quote given for one is dropped.
+              photoLabels.has(e.item)
+                ? { item: e.item, verified: null }
+                : {
+                    item: e.item,
+                    ...(e.quote && { quote: e.quote }),
+                    verified: textOf.has(e.item) && quoteFound(e.quote, textOf.get(e.item)!),
+                  },
+            ),
+          })),
+        'interpretation.provenance': provenance,
+      })
+    if (parts.includes('description'))
+      Object.assign(outcome, {
+        'interpretation.photoReading.status': 'interpreted',
+        'interpretation.photoReading.description': result.description,
+        'interpretation.photoReading.hazardType': result.hazard_type,
+        'interpretation.photoReading.provenance': provenance,
+      })
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Interpretation failed.'
-    outcome = {
-      'interpretation.status': 'failed',
-      'interpretation.error': reason,
-      [`${attempt}.error`]: reason,
-    }
+    outcome = {}
+    for (const p of parts)
+      Object.assign(outcome, {
+        [`${prefix(p)}.status`]: 'failed',
+        [`${prefix(p)}.error`]: reason,
+        [`${attempt(p)}.error`]: reason,
+      })
   }
-  await ObservationModel.updateOne(
-    { _id: id },
-    { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
-  ).catch((error) => console.error('Saving interpretation failed:', error))
+  for (const p of parts) outcome[`${attempt(p)}.finishedAt`] = new Date()
+  await ObservationModel.updateOne({ _id: id }, { $set: outcome }).catch((error) =>
+    console.error('Saving interpretation failed:', error),
+  )
 }
 
 // As for transcriptions: a restart loses an attempt still running in memory,
-// so mark it failed with the reason, ready to retry.
+// so mark each part still running as failed with the reason, ready to retry.
 export async function failInterruptedInterpretations() {
-  await ObservationModel.updateMany(
-    { 'interpretation.status': 'interpreting' },
-    {
-      $set: {
-        'interpretation.status': 'failed',
-        'interpretation.error': 'Interpretation was interrupted by a gateway restart. Retry it.',
-      },
-    },
-  )
+  const reason = 'Interpretation was interrupted by a gateway restart. Retry it.'
+  for (const prefix of ['interpretation', 'interpretation.photoReading'])
+    await ObservationModel.updateMany(
+      { [`${prefix}.status`]: 'interpreting' },
+      { $set: { [`${prefix}.status`]: 'failed', [`${prefix}.error`]: reason } },
+    )
 }
 
 export async function getRecordingAudio(id: string, recordingId: string) {

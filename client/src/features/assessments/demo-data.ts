@@ -35,10 +35,16 @@ export function sampleInterpretation(
   const first = SAMPLE_PROPOSALS[chosen[0]]
   return {
     status: 'interpreting',
-    description: withPhotos
-      ? `During the site visit to ${where}, it was observed that ${first.finding}`
+    photos: withPhotos
+      ? {
+          status: 'interpreting',
+          description: `During the site visit to ${where}, it was observed that ${first.finding}`,
+          hazardType: first.hazardType,
+          error: null,
+          model: null,
+          outOfDate: false,
+        }
       : null,
-    hazardType: withPhotos ? first.hazardType : null,
     categories: chosen.map((category) => ({
       category,
       reason: `A sample reason: ${SAMPLE_PROPOSALS[category].finding}`,
@@ -175,9 +181,15 @@ export const initialState: WorkflowState = {
         'Racking installed against the north wall since the 2023 survey has completely obstructed the spray pattern for heads SH-04 and SH-05. Minimum clearance of 457 mm is not maintained. Rerouting or relocation of drops is required to meet the design density recorded in 2023.',
       interpretation: {
         status: 'interpreted',
-        description:
-          'During the site visit to Bay 3 — north aisle, it was observed that pallet racking stood directly beneath two sprinkler heads.',
-        hazardType: 'Sprinkler Installation',
+        photos: {
+          status: 'interpreted',
+          description:
+            'During the site visit to Bay 3 — north aisle, it was observed that pallet racking stood directly beneath two sprinkler heads.',
+          hazardType: 'Sprinkler Installation',
+          error: null,
+          model: null,
+          outOfDate: false,
+        },
         categories: [
           {
             category: 'Protection',
@@ -321,6 +333,7 @@ export const initialState: WorkflowState = {
   archiveOpen: false,
   archiveBusy: false,
   tagError: null,
+  reviewHistory: 0,
 }
 
 export const ROWS: AssessmentRow[] = [

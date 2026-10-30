@@ -62,7 +62,7 @@ function setAside(version: SectionVersion | null | undefined): EditorSection['no
     {
       tone: 'warning',
       title: 'Drafted again since your edits.',
-      text: `Your text saved ${formatDayTime(new Date(version.savedAt))} was written on an earlier draft. Findings you edited were carried into this draft; text you wrote yourself is kept in that saved version.`,
+      text: `Your text saved ${formatDayTime(new Date(version.savedAt))} was written on an earlier draft. Findings you edited were carried into this draft; text you wrote yourself is kept in that saved version, which Version history in the review workspace can restore.`,
     },
   ]
 }

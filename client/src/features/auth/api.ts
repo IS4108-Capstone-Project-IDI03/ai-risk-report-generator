@@ -36,8 +36,11 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
 }
 
 async function problem(response: Response) {
-  const body = (await response.json().catch(() => ({}))) as { error?: string }
-  return new GatewayError(response.status, body.error)
+  const body = (await response.json().catch(() => ({}))) as {
+    error?: string
+    fields?: Record<string, string>
+  }
+  return new GatewayError(response.status, body.error, body.fields)
 }
 
 // Signs in. Wrong credentials, and too many attempts, reject with the
@@ -85,4 +88,37 @@ export async function resetPassword(token: string, password: string): Promise<vo
     body: JSON.stringify({ token: token.trim(), password }),
   })
   if (!response.ok) throw await problem(response)
+}
+
+// Who a new employee's invitation link is for (F-08). Rejects with 400 when
+// the link is invalid, has expired or has already been used.
+export async function lookUpInvitation(
+  token: string,
+  signal?: AbortSignal,
+): Promise<{ name: string; email: string }> {
+  const response = await send('/api/auth/invitation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token.trim() }),
+    signal,
+  })
+  if (!response.ok) throw await problem(response)
+  return (await response.json()) as { name: string; email: string }
+}
+
+// Sets a new employee's first password from their invitation link (F-08),
+// and resolves with the email to sign in with. Rejects with 400 and
+// fields.password for a password that breaks the rules, or 400 without
+// fields when the link no longer works.
+export async function acceptInvitation(
+  token: string,
+  password: string,
+): Promise<{ email: string }> {
+  const response = await send('/api/auth/invitation/accept', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token.trim(), password }),
+  })
+  if (!response.ok) throw await problem(response)
+  return (await response.json()) as { email: string }
 }

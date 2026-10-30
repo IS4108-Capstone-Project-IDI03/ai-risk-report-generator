@@ -145,8 +145,11 @@ export type ReviewHistoryEntryDto = {
   citationsAfter: string[] | null
   instruction: string | null
   bulk: boolean
-  // Made in the document editor (RV-08).
+  // Made in the document editor (RV-08), or by a version restore.
   inDocument: boolean
+  // Made by restoring an earlier version (RV-06): what was restored,
+  // `version:<n>` or `draft:<_id>`; null otherwise.
+  restoredFrom: string | null
   by: { id: string; name: string }
   at: Date
 }
@@ -359,6 +362,7 @@ function historyEntry(e: ReviewEntry): ReviewHistoryEntryDto {
     instruction: e.instruction,
     bulk: e.bulk,
     inDocument: e.inDocument ?? false,
+    restoredFrom: e.restoredFrom ?? null,
     by: { id: e.by.id, name: e.by.name },
     at: e.at,
   }

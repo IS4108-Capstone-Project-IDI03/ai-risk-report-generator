@@ -7,6 +7,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import {
   dismissAllForUser,
+  dismissForUser,
   listForUser,
   markAllReadForUser,
   markAsRead,
@@ -80,6 +81,20 @@ router.post('/read-all', async (_req, res) => {
 router.post('/dismiss-all', async (_req, res) => {
   await dismissAllForUser(res.locals.user!)
   res.status(204).end()
+})
+
+// Dismisses one notification for the caller only. 404 as for mark-read.
+router.post('/:id/dismiss', async (req, res) => {
+  try {
+    await dismissForUser(req.params.id, res.locals.user!)
+    res.status(204).end()
+  } catch (error: unknown) {
+    if (error instanceof NotificationNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    throw error
+  }
 })
 
 export default router
