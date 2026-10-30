@@ -87,7 +87,8 @@ describe('My preferences panel (CB-05)', () => {
       target: { value: 'refuse me' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add fact' }))
-    expect(await screen.findByText('A fact needs 1 to 200 characters.')).toBeInTheDocument()
+    // Shown under the box and also read out through the alert region.
+    expect(await screen.findByRole('alert')).toHaveTextContent('A fact needs 1 to 200 characters.')
   })
 
   it('edits a fact in place (AC4)', async () => {

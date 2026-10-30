@@ -1078,3 +1078,10 @@
     min-height: 44px;
   }
 }
+
+/* The chat sidebar's rows (New chat, My preferences) are at least 44px on a touch screen. */
+@media (pointer: coarse) {
+  .openui-agent-sidebar-primary-actions .openui-agent-sidebar-item {
+    min-height: 44px;
+  }
+}

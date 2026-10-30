@@ -5,7 +5,7 @@
 import { Schema, Types, model } from 'mongoose'
 
 export interface IChatMemoryFact {
-  // Only this user can read or change it; deleted with the account.
+  // Only this user can read or change it. Nothing deletes it with the account yet: accounts are only deactivated.
   userId: Types.ObjectId
   text: string
   createdAt: Date

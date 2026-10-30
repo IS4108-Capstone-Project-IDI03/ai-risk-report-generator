@@ -148,12 +148,12 @@ def test_engineer_context_reaches_the_model_and_is_not_evidence(fake):
     list(
         answer.answer_events(
             [{"role": "user", "content": "What clearance is needed above storage?"}],
-            ["I mostly survey Singapore offices"],
+            ["Preference: I mostly survey Singapore offices"],
             [],
         )
     )
     system, messages = fake["calls"]["answer"][0]
-    assert "Engineer context: I mostly survey Singapore offices" in messages[-1]["content"]
+    assert "Engineer context: Preference: I mostly survey Singapore offices" in messages[-1]["content"]
     # The rules wrap lines, so compare on single spaces.
     assert "never cite them" in " ".join(system.split())
 

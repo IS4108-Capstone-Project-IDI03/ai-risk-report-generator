@@ -1710,6 +1710,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     })
     // Three groups, then the assessments last opened. A role sees only the places it may open,
     // and a group with none of them is left out (an engineer has no Users group).
+    const order =
+      session.user.role === 'risk_engineer'
+        ? ['Assessments', 'Knowledge', 'Users', 'Recent']
+        : ['Knowledge', 'Users', 'Assessments', 'Recent']
     const navSections = [
       {
         label: 'Knowledge',
@@ -1735,6 +1739,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       }))
       .filter((section) => section.items.length > 0)
+      // A risk engineer works from the assessments, so their group comes first and the chatbot
+      // (their only knowledge place) next; the knowledge admin starts from the knowledge group.
+      .sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label))
 
     const q = s.q.trim().toLowerCase()
     // Archived is a view of its own, Archived (n), not a status (CP-17).

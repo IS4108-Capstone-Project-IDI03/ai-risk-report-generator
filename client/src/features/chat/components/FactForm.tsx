@@ -1,4 +1,4 @@
-// The box that adds or edits one fact in "My preferences" (CB-05). Used by screens/Preferences.tsx
+// The box that adds or edits one fact in "My preferences" (CB-05). Used by components/PreferencesPanel.tsx
 // (add) and components/FactRow.tsx (edit). Calls the `onSubmit` it is given; it knows no API.
 import { useState } from 'react'
 import { Button, Textarea } from '../../../design-system'
@@ -13,7 +13,7 @@ type Props = {
   onCancel?: () => void
 }
 
-/** A short text box with a character count. Enter saves; Shift+Enter is not needed (one line of thought). */
+/** A short text box with a character count. Enter saves; Shift+Enter adds a line, which the gateway folds into one line. */
 export function FactForm({ initial = '', max, label, submitLabel, onSubmit, onCancel }: Props) {
   const [text, setText] = useState(initial)
   const [error, setError] = useState('')
@@ -37,7 +37,7 @@ export function FactForm({ initial = '', max, label, submitLabel, onSubmit, onCa
     <div className="fact-form">
       <Textarea
         label={label}
-        rows={2}
+        rows={3}
         // Editing a fact puts the cursor in the box; the add box keeps the dialog's own focus.
         autoFocus={!!initial}
         value={text}
@@ -52,6 +52,10 @@ export function FactForm({ initial = '', max, label, submitLabel, onSubmit, onCa
           }
         }}
       />
+      {/* Read out when a fact is refused: the error under the box is not announced by itself. */}
+      <p role="alert" className="preferences__sr-only">
+        {error}
+      </p>
       <div className="fact-form__actions">
         {onCancel && (
           <Button variant="secondary" onClick={onCancel}>

@@ -1,7 +1,7 @@
 // The "My preferences" panel (CB-05): the engineer's lasting facts for the knowledge assistant,
 // with add, edit, delete and a memory on/off switch. A light dialog opened from the chat
 // sidebar (components/ChatSidebar.tsx). Calls ../api.ts, which calls /api/chat/memory.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Callout, Dialog, EmptyState, Switch } from '../../../design-system'
 import { addFact, fetchMemory, removeFact, saveFact, setMemoryEnabled, type Memory } from '../api'
 import '../preferences.css'
@@ -29,8 +29,22 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
     }
   }, [tries])
 
-  // Each change updates the list on screen from what the gateway returned.
-  const change = (next: Partial<Memory>) => setMemory((m) => (m ? { ...m, ...next } : m))
+  // Each change updates the list on screen from what the gateway returned. It works on the list as
+  // it is when the answer arrives, so two requests in flight cannot bring back a deleted fact.
+  const change = (update: (m: Memory) => Memory) => setMemory((m) => (m ? update(m) : m))
+  // Shows why a switch or delete failed; add and edit show theirs under their own box.
+  const [problem, setProblem] = useState('')
+  // Read out by screen readers after an add, save or delete; nothing else tells them it worked.
+  const [notice, setNotice] = useState('')
+  const panel = useRef<HTMLDivElement>(null)
+  const attempt = async (job: () => Promise<void>) => {
+    setProblem('')
+    try {
+      await job()
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : 'Something went wrong.')
+    }
+  }
   const facts = memory?.facts ?? []
   const maxChars = memory?.maxChars ?? 200
   const maxFacts = memory?.maxFacts ?? 20
@@ -51,15 +65,25 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
           Check your connection and try again.
         </Callout>
       ) : !memory ? null : (
-        <div className="preferences">
+        <div className="preferences" ref={panel}>
+          <p role="status" className="preferences__sr-only">
+            {notice}
+          </p>
           <Switch
             label="Use my preferences in chats"
             checked={memory.enabled}
-            onChange={async (on) => change(await setMemoryEnabled(on))}
+            onChange={(on) =>
+              attempt(async () => {
+                const saved = await setMemoryEnabled(on)
+                change((m) => ({ ...m, enabled: saved.enabled }))
+              })
+            }
           />
+          {problem && <Callout tone="warning">{problem}</Callout>}
+          <p className="preferences__note">Your list is kept when this is off.</p>
           <p className="preferences__note">
-            Turn this off and MarshBot stops using your facts. Your list is kept. Do not type client
-            names or site details. A fact steers an answer; it is never cited as evidence.
+            Do not type client names or site details. A fact steers an answer; it is never cited as
+            evidence.
           </p>
           {facts.length >= maxFacts ? (
             <Callout tone="info">You have {maxFacts} facts. Delete one to add another.</Callout>
@@ -68,7 +92,11 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
               max={maxChars}
               label="Add a fact"
               submitLabel="Add fact"
-              onSubmit={async (text) => change({ facts: [...facts, await addFact(text)] })}
+              onSubmit={async (text) => {
+                const added = await addFact(text)
+                change((m) => ({ ...m, facts: [...m.facts, added] }))
+                setNotice('Fact added')
+              }}
             />
           )}
           <h3 className="preferences__count">
@@ -89,12 +117,18 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
                   max={maxChars}
                   onSave={async (id, text) => {
                     const saved = await saveFact(id, text)
-                    change({ facts: facts.map((f) => (f.id === id ? saved : f)) })
+                    change((m) => ({ ...m, facts: m.facts.map((f) => (f.id === id ? saved : f)) }))
+                    setNotice('Fact saved')
                   }}
-                  onDelete={async (id) => {
-                    await removeFact(id)
-                    change({ facts: facts.filter((f) => f.id !== id) })
-                  }}
+                  onDelete={(id) =>
+                    attempt(async () => {
+                      await removeFact(id)
+                      change((m) => ({ ...m, facts: m.facts.filter((f) => f.id !== id) }))
+                      setNotice('Fact deleted')
+                      // The deleted row had focus; without this it would be lost to the page.
+                      panel.current?.querySelector('textarea')?.focus()
+                    })
+                  }
                 />
               ))}
             </ul>

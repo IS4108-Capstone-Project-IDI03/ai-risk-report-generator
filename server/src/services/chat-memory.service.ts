@@ -16,9 +16,10 @@ const toFact = (f: { _id: Types.ObjectId; text: string; createdAt: Date }) => ({
   createdAt: f.createdAt.toISOString(),
 })
 
-// Returns the cleaned text, or throws a 400 ChatError.
+// Returns the cleaned text, or throws a 400 ChatError. Line breaks and runs of spaces become one
+// space: a fact is one line, and a line break inside it could pass for a new line of the prompt.
 function cleanText(text: unknown) {
-  const clean = typeof text === 'string' ? text.trim() : ''
+  const clean = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : ''
   if (!clean || clean.length > MAX_FACT_CHARS)
     throw new ChatError(400, `A fact needs 1 to ${MAX_FACT_CHARS} characters.`)
   return clean
@@ -86,15 +87,27 @@ export async function setMemoryEnabled(userId: string, enabled: unknown) {
  * steers the answer but is never cited as evidence (S4 only cites passages).
  */
 export async function withChatMemory(body: unknown, userId: string): Promise<object> {
-  if (!(await isEnabled(userId))) return body as object
-  const facts = await ChatMemoryFactModel.find({ userId }).sort({ createdAt: 1 })
-  if (!facts.length) return body as object
-  const { context } = (body ?? {}) as { context?: unknown }
-  return {
-    ...(body as object),
-    context: [
-      ...(Array.isArray(context) ? context : []),
-      ...facts.map((f) => ({ description: 'Engineer preference', value: f.text })),
-    ],
+  try {
+    const [on, facts] = await Promise.all([
+      isEnabled(userId),
+      ChatMemoryFactModel.find({ userId }).sort({ createdAt: 1 }),
+    ])
+    if (!on || !facts.length) return body as object
+    const { context } = (body ?? {}) as { context?: unknown }
+    return {
+      ...(body as object),
+      context: [
+        ...(Array.isArray(context) ? context : []),
+        // "Preference:" is what S4's answer rules key on to treat a line as a steer, not evidence.
+        ...facts.map((f) => ({
+          description: 'Engineer preference',
+          value: `Preference: ${f.text}`,
+        })),
+      ],
+    }
+  } catch (error) {
+    // Memory is optional: if it cannot be read, the chat still answers, just without the facts.
+    console.error('Could not read the chat memory:', error)
+    return body as object
   }
 }

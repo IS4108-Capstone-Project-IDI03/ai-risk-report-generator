@@ -11,7 +11,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | Section drafting, incl. redraft and Regenerate | Yes | PV-02 | Cohere search and rerank queries, past-report passages and the prompt are masked. |
 | OFI drafting (Section 3) | Yes | PV-02 | As for sections; accepted OFI titles are masked too. |
 | Executive Summary (Section 2) | Yes | PV-02 | The saved section text is masked. |
-| Knowledge-base chat | **No** | PV-03 | Sends history, message and passages unmasked. |
+| Knowledge-base chat | **No** | PV-03 | Sends history, message and passages unmasked, and so the engineer's remembered facts (CB-05): keep client names out of them. |
 | Photo reading (Gemini) | **No** | PV-04 | |
 | Ingestion: labelling, OCR crops, embedding | **No** | PV-05/06 | Past reports in Chroma were indexed unredacted (open question G4). |
 | Speech-to-text | **No** | PV-08 (deferred) | |
