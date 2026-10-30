@@ -153,7 +153,8 @@ def test_engineer_context_reaches_the_model_and_is_not_evidence(fake):
         )
     )
     system, messages = fake["calls"]["answer"][0]
-    assert "Engineer context: Preference: I mostly survey Singapore offices" in messages[-1]["content"]
+    line = "Engineer context: Preference: I mostly survey Singapore offices"
+    assert line in messages[-1]["content"]
     # The rules wrap lines, so compare on single spaces.
     assert "never cite them" in " ".join(system.split())
 
