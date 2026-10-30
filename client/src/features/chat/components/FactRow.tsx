@@ -15,6 +15,9 @@ type Props = {
 const added = (iso: string) =>
   new Date(iso).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
 
+// A long fact would make a very long button name; the first words are enough to tell them apart.
+const short = (text: string) => (text.length > 40 ? `${text.slice(0, 40)}…` : text)
+
 /** Shows a fact; Edit swaps it for the form, and Delete asks the screen to remove it. */
 export function FactRow({ fact, max, onSave, onDelete }: Props) {
   const [editing, setEditing] = useState(false)
@@ -41,10 +44,14 @@ export function FactRow({ fact, max, onSave, onDelete }: Props) {
         <span className="fact-row__date">Added {added(fact.createdAt)}</span>
       </div>
       <div className="fact-row__actions">
-        <IconButton icon="pencil" label={`Edit: ${fact.text}`} onClick={() => setEditing(true)} />
+        <IconButton
+          icon="pencil"
+          label={`Edit: ${short(fact.text)}`}
+          onClick={() => setEditing(true)}
+        />
         <IconButton
           icon="trash-2"
-          label={`Delete: ${fact.text}`}
+          label={`Delete: ${short(fact.text)}`}
           onClick={() => onDelete(fact.id)}
         />
       </div>

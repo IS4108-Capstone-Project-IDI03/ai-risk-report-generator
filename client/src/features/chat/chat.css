@@ -1009,6 +1009,10 @@
   background: rgb(233 242 254);
   color: rgb(26 31 38);
 }
+.question-edit:focus-within {
+  outline: 2px solid var(--marsh-navy, #000f47);
+  outline-offset: 2px;
+}
 .question-edit textarea,
 .question-edit textarea:hover,
 .question-edit textarea:focus,
@@ -1059,4 +1063,18 @@
 .pill:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* On a touch screen the controls this feature adds are at least 44px, the touch-target minimum. */
+@media (pointer: coarse) {
+  .message-actions button,
+  .answer-bar button,
+  .fact-row__actions button,
+  .version-switcher button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .pill {
+    min-height: 44px;
+  }
 }

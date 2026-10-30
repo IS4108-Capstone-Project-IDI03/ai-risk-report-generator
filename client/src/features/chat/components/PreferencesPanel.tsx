@@ -81,7 +81,7 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
               description="For example: I mostly survey Singapore offices."
             />
           ) : (
-            <ul className="fact-list">
+            <ul className={memory.enabled ? 'fact-list' : 'fact-list fact-list--off'}>
               {facts.map((fact) => (
                 <FactRow
                   key={fact.id}

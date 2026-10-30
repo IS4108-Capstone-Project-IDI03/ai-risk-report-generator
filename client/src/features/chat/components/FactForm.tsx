@@ -38,6 +38,8 @@ export function FactForm({ initial = '', max, label, submitLabel, onSubmit, onCa
       <Textarea
         label={label}
         rows={2}
+        // Editing a fact puts the cursor in the box; the add box keeps the dialog's own focus.
+        autoFocus={!!initial}
         value={text}
         maxLength={max}
         error={error || undefined}
