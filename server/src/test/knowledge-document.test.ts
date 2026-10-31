@@ -17,7 +17,7 @@ import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole } from './auth-test-helpers'
 
 // S3 stands in as a map, the queue as a spy, and the ingestion service's PDF
-// check and /label as one stubbed fetch, routed by URL.
+// check and /label and the converter as one stubbed fetch, routed by URL.
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
 // How often a file is read from S3 (CB-02: once, then ranges come from the local copy).
 const s3Reads = vi.hoisted(() => ({ count: 0 }))
@@ -45,7 +45,10 @@ vi.mock('../services/ingestion-queue.service', () => ({
   removeIngestionJob: removed,
 }))
 const inspect = vi.fn<(url?: string, init?: RequestInit) => Promise<Response>>()
-const labelling = vi.fn<() => Promise<Response>>()
+const labelling = vi.fn<(url?: string, init?: RequestInit) => Promise<Response>>()
+const converting = vi.fn<(url?: string, init?: RequestInit) => Promise<Response>>()
+// What the converter answers for a Word, PowerPoint or image file.
+const CONVERTED_PDF = Buffer.from('%PDF-1.7\nconverted from an upload\n%%EOF')
 
 useMemoryMongo()
 
@@ -62,8 +65,13 @@ beforeEach(() => {
   requeued.mockResolvedValue(undefined)
   removed.mockResolvedValue(undefined)
   inspect.mockResolvedValue(Response.json({ pages: 3 }))
+  converting.mockImplementation(async () => new Response(new Uint8Array(CONVERTED_PDF)))
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    String(url).endsWith('/label') ? labelling() : inspect(url, init),
+    String(url).endsWith('/label')
+      ? labelling(url, init)
+      : String(url).endsWith('/forms/libreoffice/convert')
+        ? converting(url, init)
+        : inspect(url, init),
   )
 })
 afterEach(() => {
@@ -73,11 +81,18 @@ afterEach(() => {
   removed.mockReset()
   inspect.mockReset()
   labelling.mockReset()
+  converting.mockReset()
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 
 const PDF = Buffer.from('%PDF-1.7\nfake but well-formed enough\n%%EOF')
+// A Word file starts as a ZIP whose entries sit under word/.
+const DOCX = Buffer.from('PK\x03\x04\x14\x00[Content_Types].xml PK\x03\x04 word/document.xml')
+const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+// Older Office files are OLE containers, told apart by the name of their main stream.
+const ole = (stream: string) =>
+  Buffer.concat([Buffer.from('d0cf11e0a1b11ae1', 'hex'), Buffer.from(stream, 'utf16le')])
 const DETAILS = {
   fileName: 'NFPA 13 – 2022.pdf',
   title: 'NFPA 13: Standard for the Installation of Sprinkler Systems',
@@ -148,6 +163,10 @@ function upload(
     .set('Content-Type', type)
     .send(body)
 }
+
+// Uploads a Marsh report as a Word file; the converter answers CONVERTED_PDF.
+const uploadWordReport = () =>
+  upload(DOCX, { ...REPORT, fileName: 'Cold store survey.docx' }, DOCX_TYPE)
 
 // The last PUT .../labels the gateway sent; a correction also calls /match after it.
 const lastLabelsCall = () =>
@@ -273,19 +292,146 @@ describe('POST /api/knowledge-documents', () => {
     expect((await api.get('/api/knowledge-documents')).body).toEqual([])
   }
 
+  it('converts a Word file to PDF, stores the PDF and queues one ingestion job', async () => {
+    const response = await uploadWordReport()
+
+    expect(response.status).toBe(201)
+    expect(s3.get(`knowledge/${response.body.id}.pdf`)).toEqual(CONVERTED_PDF)
+    expect(queued).toHaveBeenCalledExactlyOnceWith(response.body.id)
+  })
+
   it.each([
+    ['an older Word file', 'doc', ole('WordDocument'), 'application/msword'],
     [
-      'a Word file',
-      Buffer.from('PK\x03\x04 docx bytes'),
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'an older PowerPoint file',
+      'ppt',
+      ole('PowerPoint Document'),
+      'application/vnd.ms-powerpoint',
     ],
+    [
+      'a PowerPoint file',
+      'pptx',
+      Buffer.from('PK\x03\x04\x14\x00[Content_Types].xml PK\x03\x04 ppt/presentation.xml'),
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ],
+    ['an RTF file', 'rtf', Buffer.from('{\\rtf1\\ansi Sprinkler survey}'), 'application/rtf'],
+    [
+      'an OpenDocument text file',
+      'odt',
+      Buffer.from('PK\x03\x04\x14\x00mimetypeapplication/vnd.oasis.opendocument.text'),
+      'application/vnd.oasis.opendocument.text',
+    ],
+  ])('converts %s, recognised by its bytes, to PDF', async (_name, extension, body, type) => {
+    const response = await upload(
+      body,
+      { ...REPORT, fileName: `Cold store survey.${extension}` },
+      'application/octet-stream',
+    )
+
+    expect(response.status).toBe(201)
+    expect(s3.get(`knowledge/${response.body.id}.pdf`)).toEqual(CONVERTED_PDF)
+    // The converter reads a file by its extension.
+    const sent = (converting.mock.calls[0][1]!.body as FormData).get('files') as File
+    expect(sent.name).toMatch(new RegExp(`\\.${extension}$`))
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved!.original!.contentType).toBe(type)
+  })
+
+  it('records the Word file a document was converted from', async () => {
+    const response = await uploadWordReport()
+
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved!.original).toEqual({
+      contentType: DOCX_TYPE,
+      size: DOCX.length,
+      sha256: createHash('sha256').update(DOCX).digest('hex'),
+    })
+    expect(saved!.file.sha256).toBe(createHash('sha256').update(CONVERTED_PDF).digest('hex'))
+  })
+
+  it('records no original for a PDF, which is stored as uploaded', async () => {
+    const response = await upload()
+
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved!.original).toBeUndefined()
+  })
+
+  it('checks and labels the converted PDF, not the Word file', async () => {
+    await uploadWordReport()
+
+    const bodySentTo = (calls: [string?, RequestInit?][], path: string) =>
+      Buffer.from(calls.find(([url]) => String(url).endsWith(path))![1]!.body as Uint8Array)
+    expect(bodySentTo(inspect.mock.calls, '/inspect')).toEqual(CONVERTED_PDF)
+    expect(bodySentTo(labelling.mock.calls, '/label')).toEqual(CONVERTED_PDF)
+  })
+
+  it.each([
     ['a file named .pdf that is not a PDF', Buffer.from('just some text'), 'application/pdf'],
-  ])('rejects %s with a reason', async (_name, body, type) => {
+    [
+      'a plain ZIP archive',
+      Buffer.from('PK\x03\x04\x14\x00 reports/survey.pdf'),
+      'application/zip',
+    ],
+    [
+      'an Excel file',
+      Buffer.from('PK\x03\x04\x14\x00[Content_Types].xml PK\x03\x04 xl/workbook.xml'),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
+    ['a Windows program', Buffer.from('MZ\x90\x00 This program cannot be run'), 'application/pdf'],
+  ])('rejects %s, naming the files that can be uploaded', async (_name, body, type) => {
     const response = await upload(body, DETAILS, type)
 
     expect(response.status).toBe(415)
-    expect(response.body.error).toBe('Only PDF files can be uploaded.')
+    expect(response.body.error).toBe(
+      'Only PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF and ODT files can be uploaded.',
+    )
+    expect(converting).not.toHaveBeenCalled()
     await expectNothingKept()
+  })
+
+  it('rejects a file the converter cannot read with a reason, keeping nothing', async () => {
+    // What Gotenberg answers for a corrupt Word file (checked against the real service).
+    converting.mockResolvedValue(
+      new Response("LibreOffice failed to convert the document 'upload.docx'.", { status: 500 }),
+    )
+
+    const response = await uploadWordReport()
+
+    expect(response.status).toBe(422)
+    expect(response.body.error).toBe(
+      'This file could not be converted to PDF. Check that it opens in Word or PowerPoint, or save it as a PDF and upload that.',
+    )
+    expect(labelling).not.toHaveBeenCalled()
+    await expectNothingKept()
+  })
+
+  it.each([
+    ['is down', () => converting.mockRejectedValue(new TypeError('fetch failed'))],
+    [
+      'times out',
+      () => converting.mockRejectedValue(new DOMException('timed out', 'TimeoutError')),
+    ],
+    [
+      'is busy (Gotenberg answers 503)',
+      () => converting.mockResolvedValue(new Response('Service Unavailable', { status: 503 })),
+    ],
+  ])('answers 503, to retry later, when the converter %s', async (_name, arrange) => {
+    arrange()
+
+    const response = await uploadWordReport()
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toBe('The file could not be converted just now. Try again shortly.')
+    expect(labelling).not.toHaveBeenCalled()
+    await expectNothingKept()
+  })
+
+  it('accepts a PDF by its bytes, whatever type the browser claims, and stores it as uploaded', async () => {
+    const response = await upload(PDF, DETAILS, 'application/octet-stream')
+
+    expect(response.status).toBe(201)
+    expect(s3.get(`knowledge/${response.body.id}.pdf`)).toEqual(PDF)
+    expect(converting).not.toHaveBeenCalled()
   })
 
   it('rejects an empty file as not a PDF', async () => {
@@ -532,6 +678,22 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
     )
   })
 
+  it('rejects a repeat of a Word file with 409, without converting it again', async () => {
+    // Each conversion's PDF differs (the converter stamps the time), as in real use.
+    converting.mockImplementation(async () => new Response(new Uint8Array(freshPdf())))
+    const first = await uploadWordReport()
+    await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'complete' })
+
+    const response = await uploadWordReport()
+
+    expect(response.status).toBe(409)
+    expect(response.body.error).toBe(
+      'Already in the knowledge base as Cold store risk survey, Active.',
+    )
+    expect(converting).toHaveBeenCalledTimes(1)
+    expectNothingNewKept(1)
+  })
+
   it('accepts the same file again after its earlier upload failed', async () => {
     const first = await upload(PDF)
     await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'failed' })
@@ -541,6 +703,16 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
 
   it('turns the second of two identical uploads made together into a 409 and removes its file', async () => {
     const [a, b] = await Promise.all([upload(PDF), upload(PDF)])
+
+    expect([a.status, b.status].sort()).toEqual([201, 409])
+    expect(s3.size).toBe(1)
+    expect(await KnowledgeDocumentModel.countDocuments()).toBe(1)
+  })
+
+  it('turns the second of two identical Word uploads made together into a 409 and removes its file', async () => {
+    converting.mockImplementation(async () => new Response(new Uint8Array(freshPdf())))
+
+    const [a, b] = await Promise.all([uploadWordReport(), uploadWordReport()])
 
     expect([a.status, b.status].sort()).toEqual([201, 409])
     expect(s3.size).toBe(1)

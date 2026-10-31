@@ -181,15 +181,22 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
 
 ## Knowledge document ingestion (IN-01)
 
-1. The admin drops or picks PDFs on the Knowledge base screen; nothing else is
-   asked (IN-05). The client sends one `POST /api/knowledge-documents?fileName=…`
-   per file as soon as it is added, so a rejected file never blocks the others.
+1. The admin drops or picks files on the Knowledge base screen: PDF, Word
+   (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT. Nothing else is asked
+   (IN-05). The client sends one `POST /api/knowledge-documents?fileName=…` per
+   file as soon as it is added, so a rejected file never blocks the others.
 2. The gateway first fingerprints the file (sha256) and rejects it with 409 if a
-   stored document that is not failed has the same fingerprint (IN-07): no
-   `/inspect`, no `/label`, no S3 write and no job. Then it rejects anything that is not a PDF (Content-Type and `%PDF-`
-   header, 415), then asks the ingestion service's `POST /inspect` to open it
-   with PyMuPDF (422 with the reason if it is corrupt, password-protected or has
-   no pages). Nothing is stored for a rejected file.
+   stored document that is not failed has the same fingerprint, on its PDF or
+   its `original` (IN-07): no conversion, no `/inspect`, no `/label`, no S3
+   write and no job. Then it reads the file's type from its bytes (the
+   Content-Type is ignored) and rejects anything not on the list above (415). A
+   non-PDF is converted to PDF by the `converter` service (Gotenberg, which runs
+   LibreOffice; `CONVERTER_SERVICE_URL`): 422 if it cannot read the file (a
+   corrupt file comes back as a 500), 503 if it is down, busy or past its
+   120 s limit. Every later step, S3 included, holds only that PDF (IN-16).
+   Then it asks the ingestion service's `POST /inspect` to open the PDF with
+   PyMuPDF (422 with the reason if it is corrupt, password-protected or has no
+   pages). Nothing is stored for a rejected file.
 3. The gateway asks the ingestion service's `POST /label` for the file's
    details (IN-05, see "Automatic labelling" below; 180 s timeout). If labelling
    fails, the upload still goes ahead with every detail Unconfirmed. The

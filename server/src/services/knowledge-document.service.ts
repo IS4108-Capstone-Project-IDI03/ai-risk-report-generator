@@ -28,6 +28,7 @@ import {
 } from './ingestion.service'
 import * as storage from './storage.service'
 import { getObjectRangeStream } from './file-copy.service'
+import { toPdf } from './converter.service'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 
@@ -548,14 +549,63 @@ export class DuplicateDocumentError extends RejectedFileError {
   }
 }
 
-// The stored document, if any, with this fingerprint. A failed one doesn't
-// count, so its file can be uploaded again. Same condition as the unique index
-// in models/knowledge-document.model.ts.
+// The stored document, if any, whose PDF or uploaded original (a converted
+// Word file, say) has this fingerprint. A failed one doesn't count, so its file
+// can be uploaded again. Same condition as the unique indexes in
+// models/knowledge-document.model.ts.
 const findStoredCopy = (sha256: string) =>
-  KnowledgeDocumentModel.findOne({ 'file.sha256': sha256, status: { $ne: 'failed' } }).lean()
+  KnowledgeDocumentModel.findOne({
+    $or: [{ 'file.sha256': sha256 }, { 'original.sha256': sha256 }],
+    status: { $ne: 'failed' },
+  }).lean()
 
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
 const PDF_MARKER = Buffer.from('%PDF-')
+// Newer Office and OpenDocument files are ZIPs, told apart by their entries;
+// older Office files are OLE containers, told apart by their main stream's name.
+const ZIP_MARKER = Buffer.from('PK\x03\x04')
+const OLE_MARKER = Buffer.from('d0cf11e0a1b11ae1', 'hex')
+const isZipWith = (file: Buffer, entry: string) =>
+  file.subarray(0, 4).equals(ZIP_MARKER) && file.includes(entry)
+const isOleWith = (file: Buffer, stream: string) =>
+  file.subarray(0, 8).equals(OLE_MARKER) && file.includes(Buffer.from(stream, 'utf16le'))
+
+// The other files an upload may be, each turned into a PDF by the converter.
+// Each is recognised by its bytes, as the Content-Type is only a claim, and
+// sent under its extension, which is how the converter reads it. The first
+// match wins, so a Word file with an embedded presentation is still Word.
+const CONVERTIBLE_FORMATS = [
+  {
+    extension: 'docx',
+    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    matches: (file: Buffer) => isZipWith(file, 'word/'),
+  },
+  {
+    extension: 'pptx',
+    contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    matches: (file: Buffer) => isZipWith(file, 'ppt/'),
+  },
+  {
+    extension: 'odt',
+    contentType: 'application/vnd.oasis.opendocument.text',
+    matches: (file: Buffer) => isZipWith(file, 'application/vnd.oasis.opendocument.text'),
+  },
+  {
+    extension: 'doc',
+    contentType: 'application/msword',
+    matches: (file: Buffer) => isOleWith(file, 'WordDocument'),
+  },
+  {
+    extension: 'ppt',
+    contentType: 'application/vnd.ms-powerpoint',
+    matches: (file: Buffer) => isOleWith(file, 'PowerPoint Document'),
+  },
+  {
+    extension: 'rtf',
+    contentType: 'application/rtf',
+    matches: (file: Buffer) => file.subarray(0, 5).toString('latin1') === '{\\rtf',
+  },
+]
 
 // Today's date in Singapore (UTC+8, no daylight saving) as YYYY-MM-DD: the
 // upload date a document is effective from when /label gives no date (IN-05).
@@ -636,30 +686,49 @@ function labelledRecord(answer: LabelAnswer | null, fileName: string) {
   }
 }
 
-// Stores the original PDF in S3, records it with the details auto-labelling
+// Stores the PDF in S3 (the upload itself, or the PDF a Word, PowerPoint, RTF
+// or ODT upload is converted to), records it with the details auto-labelling
 // reads from it and queues its ingestion (IN-01, IN-05, IN-07), in steps a–g.
 // Throws RejectedFileError before labelling or storing anything if the file is
-// a repeat (IN-07 AC1), not a PDF or cannot be opened (IN-01 AC5), so a
-// rejected file leaves no trace.
+// a repeat (IN-07 AC1), not a type that can be uploaded or cannot be opened
+// (IN-01 AC5), so a rejected file leaves no trace.
 export async function uploadKnowledgeDocument(
-  pdf: Buffer,
-  contentType: string,
+  upload: Buffer,
   fileName: string,
 ): Promise<KnowledgeDocumentDto> {
   // a. Is it a file we already hold? First, so a repeat costs no PDF check,
   // no LLM call, no S3 write and no job. sha256 is a fingerprint: equal
   // fingerprints mean equal files.
-  const sha256 = createHash('sha256').update(pdf).digest('hex')
-  const stored = await findStoredCopy(sha256)
+  const uploadSha256 = createHash('sha256').update(upload).digest('hex')
+  const stored = await findStoredCopy(uploadSha256)
   if (stored) throw new DuplicateDocumentError(stored)
 
-  // b. Is it really a PDF? Cheap, so it runs next.
-  if (
-    contentType.split(';')[0].trim() !== 'application/pdf' ||
-    !pdf.subarray(0, 5).equals(PDF_MARKER)
-  ) {
-    throw new RejectedFileError(415, 'Only PDF files can be uploaded.')
+  // b. Is it really a PDF, or a file to turn into one? Read from its bytes,
+  // since the Content-Type is only a claim. Cheap, so it runs next.
+  const isPdf = upload.subarray(0, 5).equals(PDF_MARKER)
+  const format = isPdf ? undefined : CONVERTIBLE_FORMATS.find(({ matches }) => matches(upload))
+  if (!isPdf && !format) {
+    throw new RejectedFileError(
+      415,
+      'Only PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF and ODT files can be uploaded.',
+    )
   }
+  const pdf = format ? await toPdf(upload, format.extension) : upload
+  if (!pdf) {
+    throw new RejectedFileError(
+      422,
+      'This file could not be converted to PDF. Check that it opens in Word or PowerPoint, or save it as a PDF and upload that.',
+    )
+  }
+  // The stored PDF's own fingerprint, which proves a copy retrieved later matches.
+  const sha256 = format ? createHash('sha256').update(pdf).digest('hex') : uploadSha256
+  // What was uploaded, when it isn't the stored PDF.
+  const original = format && {
+    contentType: format.contentType,
+    size: upload.length,
+    sha256: uploadSha256,
+  }
+
   // c. Does it open? Asks the ingestion service (see ingestion.service.ts).
   const cannotOpen = await whyPdfCannotOpen(pdf)
   if (cannotOpen) throw new RejectedFileError(422, cannotOpen)
@@ -689,6 +758,7 @@ export async function uploadKnowledgeDocument(
         size: pdf.length,
         sha256,
       },
+      original,
       status: 'queued',
     })
   } catch (error) {
@@ -697,7 +767,7 @@ export async function uploadKnowledgeDocument(
     // 11000 = duplicate key: an identical file was stored between step a and
     // here (two copies uploaded together). Without this, the loser gets a 500.
     if ((error as { code?: number }).code === 11000) {
-      const winner = await findStoredCopy(sha256)
+      const winner = await findStoredCopy(uploadSha256)
       if (winner) throw new DuplicateDocumentError(winner)
     }
     throw error

@@ -912,7 +912,12 @@ permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
 `fileName` is the original name. The unaltered PDF is in S3 at
 `knowledge/<_id>.pdf` (flat: no folder per source type, because a corrected
 source type would leave the file in the wrong folder); the record keeps `file`
-(`key`, `contentType`, `size`, `sha256`).
+(`key`, `contentType`, `size`, `sha256`). A Word (DOCX, DOC), PowerPoint
+(PPTX, PPT), RTF or ODT upload, recognised by its bytes, is converted to PDF at upload (Gotenberg, `CONVERTER_SERVICE_URL`), and that
+PDF is what S3, `file` and every later step hold. The record then also keeps
+`original` (`contentType`, read from the file's bytes, plus `size` and
+`sha256`) so a repeat upload of the same file is still recognised; the
+uploaded file's bytes are not stored. `original` is absent for a PDF upload.
 
 The details are read from the PDF at upload (IN-05, see "Automatic labelling"
 below) and corrected by the admin (KB-01). The source type decides which apply:
@@ -1061,14 +1066,15 @@ changed, not the title.
 `file.sha256` has a **unique partial index** covering documents whose `status`
 is `queued`, `processing` or `complete`, so a failed document's file can be
 uploaded again. It stops two identical files uploaded together both being
-stored. The gateway builds it at startup. It can't build while identical files
+stored. `original.sha256` has the same index, limited to documents that have
+an `original`, because two conversions of one Word file give different PDFs. The gateway builds it at startup. It can't build while identical files
 are already stored: the gateway then logs one error naming how many groups of
 identical files there are, and carries on without the index. Remove the extra
 copies and restart. The upload's own check still rejects most repeats.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/knowledge-documents` | Body is the PDF (`Content-Type: application/pdf`, up to 100 MB); `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
+| `POST /api/knowledge-documents` | Body is the file, up to 100 MB: a PDF, or a Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT file, converted to PDF first. The type is read from the file's bytes; `Content-Type` is ignored; `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |

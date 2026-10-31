@@ -1908,3 +1908,20 @@ Reason: the checklist should guide what is observed and feed the report without 
 Known limits: a model-written item that rests on different passages after a regenerate, or moves to another section, loses its answer; its observation stays, and the new items in its section or risk are highlighted. Two devices saving against the same item at the same moment can both succeed; the item then shows the later one. An item answered while its card is open moves under Answered only when the checklist is next opened. Drafting does not yet use the item link; CP-34 and CP-43 build on `result`.
 
 Stories: CP-31, CP-08.
+
+## 2026-10-26 — Word and PowerPoint uploads are converted to PDF at upload, not parsed by Docling's own readers
+
+Chose: the knowledge base also accepts Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF and ODT files. The gateway reads each file's type from its bytes (ZIP entries, OLE stream names, the RTF header; the Content-Type is ignored), sends a non-PDF to a `converter` service (Gotenberg, which runs LibreOffice, in its own container), and from then on handles only the PDF it gets back: S3, labelling, the ingestion pipeline and the chat's citations never see the original. The record keeps the original's type, size and sha256 in `original` so a repeat upload is still refused; its bytes are not kept. The same list applies to standards and past reports. Gotenberg runs with a 120 s limit, a 1 GB memory cap and only its LibreOffice route switched on. A file it cannot read answers 422; a converter that is down, busy or too slow answers 503.
+
+Rejected:
+- Docling's DOCX/PPTX readers: they give no page numbers or page boxes, and every stage after parsing needs them (the 10-page batches, the OCR crops of tables, formulas and pictures, column reordering, labelling's page reads, and the chat's page citations in pdf.js). Using them would mean a second pipeline beside the PDF one.
+- Accepting everything Gotenberg converts (about 80 types): spreadsheets split across pages, drawings come out with no text, and every extra type is more untrusted input to LibreOffice.
+- Images (JPG, PNG, TIFF): standards never come as images, and one image is one page, so a photographed report would arrive as many separate documents. A multi-page TIFF converts correctly but at about 1 s a page. Admins scan to PDF instead.
+- Keeping the original file in S3: nothing reads it (retry, the viewer and the local copy all use the PDF); it would only help to convert again with a better converter, which can be added if a conversion fault turns up.
+- Converting in the ingestion service: LibreOffice would make that image much larger, and opening untrusted Office files belongs in its own container.
+
+Reason: the page-based pipeline and citations already work for PDFs, and converting first gives every other format all of it unchanged. A separate container keeps LibreOffice away from the services that hold data.
+
+Known limits: Microsoft fonts are not in the image, so LibreOffice uses look-alikes of the same size and a page break can move. A document is only as good as its conversion, and the original is not kept to convert again. Spreadsheets, HTML pages, emails and images are refused for now.
+
+Stories: IN-16, IN-01, IN-07.

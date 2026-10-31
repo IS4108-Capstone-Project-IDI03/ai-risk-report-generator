@@ -90,7 +90,7 @@ async function openAddDocuments() {
 const pdf = (name: string) => new File(['%PDF-1.7'], name, { type: 'application/pdf' })
 
 function choose(...files: File[]) {
-  fireEvent.change(screen.getByLabelText(/Choose PDF files/), { target: { files } })
+  fireEvent.change(screen.getByLabelText(/Choose files/), { target: { files } })
 }
 
 beforeAll(() => {
@@ -108,6 +108,19 @@ afterEach(() => {
 })
 
 describe('Knowledge base uploads (IN-01, IN-05)', () => {
+  it('tells the admin which files can be uploaded, and offers only those in the picker', async () => {
+    mockGateway([])
+    await openAddDocuments()
+
+    expect(
+      screen.getByText(/^PDF, Word \(DOCX, DOC\), PowerPoint \(PPTX, PPT\), RTF or ODT/),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/Choose files/)).toHaveAttribute(
+      'accept',
+      '.pdf,.docx,.doc,.pptx,.ppt,.rtf,.odt',
+    )
+  })
+
   it('asks for no details: choosing a PDF uploads it at once with only its file name', async () => {
     const posted = mockGateway([])
     await openAddDocuments()
@@ -122,6 +135,32 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     expect(posted[0].query).toEqual({ fileName: 'nfpa-13.pdf' })
     expect(posted[0].type).toBe('application/pdf')
     expect(posted[0].body).toBeInstanceOf(File)
+  })
+
+  it('uploads a Word file the same way, sending its own type', async () => {
+    const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    const posted = mockGateway([])
+    await openAddDocuments()
+
+    choose(new File(['PK'], 'Cold store survey.docx', { type: docx }))
+
+    expect(
+      await within(screen.getByRole('group', { name: 'Cold store survey.docx' })).findByText(
+        'Uploaded',
+      ),
+    ).toBeInTheDocument()
+    expect(posted[0].query).toEqual({ fileName: 'Cold store survey.docx' })
+    expect(posted[0].type).toBe(docx)
+  })
+
+  it('sends a file the browser gives no type as generic bytes, for the gateway to identify', async () => {
+    const posted = mockGateway([])
+    await openAddDocuments()
+
+    choose(new File(['{\\rtf1'], 'old survey.rtf', { type: '' }))
+
+    await within(screen.getByRole('group', { name: 'old survey.rtf' })).findByText('Uploaded')
+    expect(posted[0].type).toBe('application/octet-stream')
   })
 
   it('uploads a dropped PDF the same way', async () => {
@@ -302,15 +341,16 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
   })
 
   it('keeps upload outcomes when you leave the screen and come back', async () => {
-    mockGateway([], { 'broken.pdf': () => json(415, { error: 'Only PDF files can be uploaded.' }) })
+    const refused = 'This file could not be converted to PDF.'
+    mockGateway([], { 'broken.pdf': () => json(422, { error: refused }) })
     await openAddDocuments()
     choose(pdf('broken.pdf'))
-    await screen.findByText('Only PDF files can be uploaded.')
+    await screen.findByText(refused)
 
     fireEvent.click(screen.getAllByRole('button', { name: /^Assessment dashboard/ })[0])
     fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
 
-    expect(await screen.findByText('Only PDF files can be uploaded.')).toBeInTheDocument()
+    expect(await screen.findByText(refused)).toBeInTheDocument()
   })
 })
 

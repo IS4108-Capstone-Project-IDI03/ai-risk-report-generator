@@ -85,8 +85,8 @@ async function send(upload: Upload) {
     await uploadKnowledgeDocument(upload.file)
     patch(upload.key, { state: 'queued' })
   } catch (error: unknown) {
-    // Nothing wrong with the file: the gateway or ingestion is down. Keep the
-    // row so the admin can upload it again.
+    // Nothing wrong with the file: the gateway, ingestion or the converter is
+    // down. Keep the row so the admin can upload it again.
     if (error instanceof GatewayError && (error.status === null || error.status >= 500)) {
       patch(upload.key, {
         state: 'failed',
@@ -97,8 +97,8 @@ async function send(upload: Upload) {
       })
       return
     }
-    // Anything else (413 too big, 415 not a PDF, 422 will not open): the file
-    // itself is the problem.
+    // Anything else (413 too big, 415 not a type that can be uploaded, 422 will
+    // not open or convert): the file itself is the problem.
     patch(upload.key, {
       state: 'rejected',
       error: error instanceof Error ? error.message : 'The file was not uploaded.',
