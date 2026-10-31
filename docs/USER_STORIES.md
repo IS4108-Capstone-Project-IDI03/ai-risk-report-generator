@@ -482,6 +482,8 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: confirm or correct each checklist item as I walk the site, with my answer saved as an observation, so the checklist guides what I observe, and my findings reach the report without my capturing each one from scratch.
 
+  Built on `feat/xuren-cp-31-verify-checklist`. The checklist is shown and answered the same way on the Checklist tab and from capture; on the tab, the answer box asks where. Until CP-34 pre-fills a value, Confirm opens a short note filled in from the item, with the severity to choose, and Differs records what was seen in the same box (decided 31 Oct 2026; see `docs/DECISIONS.md`).
+
   Using the checklist on site
 
   1. Given a capture session is active, when I open the checklist from the capture screen, then its items are grouped by report area with unchecked items first, and it can be used at phone width.

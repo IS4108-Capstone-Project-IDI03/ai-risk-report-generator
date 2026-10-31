@@ -543,6 +543,25 @@ function ObservationRow({
               animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
             }}
           >
+            {/* The checklist item it answers (CP-31), as worded then. */}
+            {!!o.checklist && (
+              <p
+                style={{
+                  margin: '0 0 16px',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  fontSize: '14px',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <Badge tone={o.checklist.result === 'confirmed' ? 'low' : 'moderate'}>
+                  {o.checklist.result === 'confirmed' ? 'Confirmed' : 'Differs'}
+                </Badge>
+                {'From checklist: ' + o.checklist.text}
+              </p>
+            )}
             {/* Side by side, one column for each kind of content it
                           holds, so no column runs on while another is empty. */}
             <div

@@ -37,6 +37,7 @@ import {
   removeLocation,
 } from '../services/location.service'
 import {
+  ChecklistItemError,
   listObservations,
   newObservationSchema,
   NoActiveSessionError,
@@ -70,9 +71,13 @@ import {
 } from '../services/risk-quality.service'
 import { RagServiceError } from '../services/rag.service'
 import {
+  checklistMarkSchema,
+  ChecklistItemNotFoundError,
   generateChecklist,
   generateChecklistSchema,
   getChecklist,
+  ItemCheckedError,
+  markChecklistItem,
   UnknownStandardError,
 } from '../services/checklist.service'
 import { FiguresEnteredError, proposeFigures } from '../services/figure-proposal.service'
@@ -430,7 +435,15 @@ router.post(
         res.status(404).json({ error: error.message })
         return
       }
-      if (error instanceof NoActiveSessionError) {
+      if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+        return
+      }
+      if (
+        error instanceof NoActiveSessionError ||
+        error instanceof AssessmentArchivedError ||
+        error instanceof ChecklistItemError
+      ) {
         res.status(409).json({ error: error.message })
         return
       }
@@ -1075,5 +1088,40 @@ router.post('/:reference/checklist', requirePermission('reports:generate'), asyn
     }
   }
 })
+
+// Marks an item of the latest checklist Not seen or Not applicable, or clears
+// the mark with null (CP-31 AC4): 200 with the same body as the GET. No
+// observation is saved, so no capture session is needed.
+router.put(
+  '/:reference/checklist/items/:itemId/mark',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = checklistMarkSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Send the mark: not_seen, not_applicable or null.' })
+      return
+    }
+    try {
+      res.json(
+        await markChecklistItem(
+          req.params.reference,
+          req.params.itemId,
+          parsed.data.mark,
+          res.locals.user!,
+        ),
+      )
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError || error instanceof ChecklistItemNotFoundError) {
+        res.status(404).json({ error: error.message })
+      } else if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+      } else if (error instanceof AssessmentArchivedError || error instanceof ItemCheckedError) {
+        res.status(409).json({ error: error.message })
+      } else {
+        throw error
+      }
+    }
+  },
+)
 
 export default router

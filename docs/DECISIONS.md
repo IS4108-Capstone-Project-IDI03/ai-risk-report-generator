@@ -1866,3 +1866,45 @@ Reason: Marsh asked for checklists by facility type (warehouse vs office: roofin
 Known limits: the hazard lists were drafted by the team and are to be reviewed with Marsh. A hazard's named standards are matched to knowledge-base documents by source type and standard number, so a standard labelled without a number is not recognised as one of them. Standards are listed per facility type and country, not by the risk areas RT-01 describes. A site saved before the gateway checked facility types may hold another, such as the old seed's `Warehouse`: it gets no hazards and the checklist says so. The gateway now refuses a new or changed facility type off the list, but keeps an unchanged older one, so such an assessment can still be edited; existing sites on a shared database are not migrated.
 
 Stories: CP-30.
+
+## 2026-10-31 — One checklist, answered the same on the tab and on site; an item is answered by the observation that answers it
+
+Chose: the assessment's Checklist tab and the sheet opened from capture (CP-31) show one shared view (`ChecklistItems`), so they cannot drift apart:
+- The facility's **Priority risks** and the **Report sections** are two tabs, each with how many of its items are answered.
+- Report sections open on the relevant sections (those the ticked standards add to) or on all of them, as the engineer last chose; the choice is kept in the browser, so the tab and the sheet open the same way. With no standard in scope, all sections are shown.
+- Each card says how many of its items are answered and, for a report section, how many more observations it needs to be drafted (AC6-7). Items answered when the card was first shown fold under **Answered (n)**; one answered meanwhile stays where it is, so nothing moves under the engineer's thumb.
+- Each item shows its citations and its answer, with **View observation**, or **Confirm**, **Differs** and, behind ⋯, **Not seen** and **Not applicable**.
+
+Only what has to differ does: the tab keeps choosing standards, generating and regenerating; on site the answers are saved where capture is, and on the tab the answer box asks where. Answering from the tab opens a capture session first, as every observation belongs to one; starting one is safe to repeat.
+
+Confirm and Differs share one box: what the checklist expects, what was seen (Confirm starts from the item's words, Differs starts empty), an optional photo, and the severity, always chosen (CP-02). It saves an observation with the item's categories, linked to the item, without leaving the checklist (AC2-3). For a recording or handwritten notes, Differs offers full capture instead: capture opens with a card naming the item, and the next observation saved answers it as Differs. **Back to checklist** leaves the item unanswered and reopens the sheet. Not seen and Not applicable are marks on the item (`check`), with no observation (AC4).
+
+An item's Confirmed or Differs is read from the linked observation, not stored on the checklist, so deleting the observation unanswers the item and restoring it answers it again (AC5) without keeping two records in step. The observation keeps the item's text, so it reads right after a regenerate. One observation answers an item at a time.
+
+Regenerating keeps answers on items that come back the same: a template subsection, a hazard's own item, or a model-written item in the same section or risk that cites a passage the earlier one cited (or is worded the same). The model rewords every item on every run, so wording alone kept none of its answers; on two real checklists with the same standard, 0 of 17 model-written items matched by wording, and 16 by section and passage. The subsection is not required, as the model files the same requirement under a subsection on one run and under the section on the next; it only breaks ties. Each such new item lists the earlier ids it continues (`carried`), so the observations still answer it, and takes over the earlier mark. Observations are never rewritten. The tab asks before regenerating an answered checklist. Afterwards it says, until dismissed, either "Checklist regenerated: All your answers are kept." or how many answers were not kept. Meanwhile the unmatched new items in the same section or risk as an answer not kept, which may replace it, are tinted and tagged "Answer again?", and each tab says how many it has to check; the earlier wording of the items not kept is folded under "Show the earlier wording", for one removed rather than reworded. Dismissing clears the message and the highlights. Nothing is said after generating a checklist that had no answers.
+
+Saving any observation now needs the assigned engineer and an unarchived assessment, as changing one already did (CP-08 AC17). Before, only an active capture session was checked, and a session opened before archiving stayed active.
+
+Rejected:
+- Separate views for the tab and the sheet (the first version): they drifted, the sheet showing every template row and the tab only the relevant sections, and engineers could not tell which was the checklist.
+- A read-only tab with an Answer on site button: the same checklist would behave differently in two places.
+- Differs taking the engineer back to capture with a banner and Unlink: it left the checklist for the common case, and Unlink was unclear. Full capture is now the exception, with a plain way back.
+- Four buttons on every row: crowded on a phone; the rarer marks sit behind ⋯.
+- "Checked": it clashes with "checklist"; items are "answered".
+- Counting the answers carried over after a regenerate ("0 checks carried over", "All 5 answers kept"): a count of what was kept reads oddly. Only the answers not kept are counted.
+- A confirmation that fades after a few seconds: easy to miss; both messages stay until dismissed.
+- Pointing at the one new item that replaced each lost answer, guessed from similar wording: a wrong guess would send the engineer to the wrong item. The candidates in its section or risk are highlighted instead.
+- Highlighting every new item: as the model rewords everything, that was every model-written item, which showed nothing.
+- Matching model-written items by wording only: no answer on them survived a regenerate.
+- Listing the lost items in full in the message: a long list above the checklist; the highlights show where to look, and the list is folded away.
+- A one-tap Confirm with a generated note and severity low: severity is never assumed (CP-02), and an item's wording is an instruction, not a finding to draft from.
+- Storing Confirmed and Differs on the checklist item as well: two records to keep in step, and deleting an observation would leave the item answered.
+- Rewriting observations' links on regenerate: an observation should keep the item it actually answered.
+- Refusing to regenerate once items are answered: an out-of-date checklist (CP-30 AC9) could not be refreshed.
+- Checking only the checklist's saves for the assigned engineer: it would leave the same gap in ordinary capture.
+
+Reason: the checklist should guide what is observed and feed the report without a second record of the same finding, and it should look and work the same wherever it is opened. Reading the answer from the observation keeps one source of truth, and the CP-08 delete, restore and audit rules apply unchanged. No external AI is called, so nothing needs masking.
+
+Known limits: a model-written item that rests on different passages after a regenerate, or moves to another section, loses its answer; its observation stays, and the new items in its section or risk are highlighted. Two devices saving against the same item at the same moment can both succeed; the item then shows the later one. An item answered while its card is open moves under Answered only when the checklist is next opened. Drafting does not yet use the item link; CP-34 and CP-43 build on `result`.
+
+Stories: CP-31, CP-08.

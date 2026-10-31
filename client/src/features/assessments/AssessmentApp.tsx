@@ -384,7 +384,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isChecklist &&
                       (v.liveReference ? (
-                        <Checklist reference={v.liveReference} canGenerate={v.canDraftSections} />
+                        <Checklist
+                          reference={v.liveReference}
+                          canGenerate={v.canDraftSections}
+                          answering={v.checklistTabAnswering}
+                          onViewObservation={v.showObservation}
+                        />
                       ) : (
                         <div style={{ padding: '24px' }}>
                           <EmptyState

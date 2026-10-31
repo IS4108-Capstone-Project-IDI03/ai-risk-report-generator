@@ -30,6 +30,7 @@ import {
   type ReadingPart,
   type Assessment,
   type AssessmentStatus,
+  type ChecklistItem,
   type SavedObservation,
   type SiteLocation,
   type Stamp,
@@ -266,6 +267,8 @@ const BLANK_DRAFT = {
   fPageError: null,
   fCats: [],
   fSev: '',
+  checklistOpen: false,
+  fChecklistItem: null,
   fRec: false,
   fSecs: 0,
   fTrans: false,
@@ -398,6 +401,9 @@ function toEntry(o: SavedObservation): Observation {
     floor: o.location?.floor ?? null,
     sev: o.severity,
     std: o.standard ?? '',
+    checklist: o.checklistItem
+      ? { text: o.checklistItem.text, result: o.checklistItem.result }
+      : null,
     media: photos.map((p) => ({ id: p.id, name: p.name, url: p.url, added: p.added })),
     // Removed recordings and photos, kept to restore (CP-08).
     removedMedia: [
@@ -1055,7 +1061,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       pages: PhotoFile[],
     ) {
       const reference = s.captureTarget.reference
-      const { fCats: cats, fSev: severity } = s
+      // The checklist item this answers as Differs, if it was opened from one (CP-31 AC3).
+      const { fCats: cats, fSev: severity, fChecklistItem: item } = s
       setState({ fSaving: true, fSaveError: null })
       let observation
       try {
@@ -1066,6 +1073,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             copeDimensions: copeDimensionsOf(cats),
             severity,
             locationId: location.id,
+            ...(item && { checklistItem: { itemId: item.id, result: 'differs' as const } }),
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
           photos.map((p) => ({ name: p.name, image: p.image })),
@@ -1110,10 +1118,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fPages: previous.fPages.filter((p) => !pages.includes(p)),
         fCats: sameCategories(previous.fCats, cats) ? [] : previous.fCats,
         fSev: previous.fSev === severity ? '' : previous.fSev,
+        fChecklistItem: previous.fChecklistItem === item ? null : previous.fChecklistItem,
         fToast: {
           text:
             'Observation saved to ' +
             reference +
+            (item ? ', and the checklist item answered as Differs' : '') +
             '.' +
             (clips.length || pages.length
               ? ' Transcribing ' +
@@ -2189,6 +2199,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // First asking Leave without saving? when something would be lost.
     const leaveCapture = (tab: string) =>
       setState(unsaved.length ? { fLeaveOpen: true, fLeaveTo: tab } : toTab(tab))
+    // A checklist item's Differs, recorded in full capture (CP-31 AC3): from
+    // the sheet or the Checklist tab, capture opens with the item's categories
+    // and the link to it, which the next observation saved takes.
+    const differInCapture = (item: ChecklistItem) =>
+      setState({
+        ...(sc !== 'field' && { screen: 'field', locDismissed: false, obsReturn: null }),
+        checklistOpen: false,
+        fChecklistItem: { id: item.id, text: item.text },
+        fCats: item.COPE_dimension,
+        fMode: 'note',
+      })
     // The Observations tab's rows, as the filters show them.
     const obsList = shownRows.map(({ o, key }) => {
       const open = s.obsOpen === key
@@ -3794,6 +3815,46 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       toggleFCat: (cat: string) => setState({ fCats: toggleCategory(s.fCats, cat) }),
       fSev: s.fSev,
       setFSev: (fSev: string) => setState({ fSev }),
+      /* the checklist over capture (CP-31): only with a capture session, as
+         its answers are saved as observations */
+      canOpenChecklist: !!liveCapture,
+      checklistOpen: !!liveCapture && s.checklistOpen,
+      openChecklist: () => setState({ checklistOpen: true }),
+      closeChecklist: () => setState({ checklistOpen: false }),
+      currentLocation,
+      // Where to answer an item from: closes the checklist on the location picker.
+      chooseLocationForChecklist: () => setState({ checklistOpen: false, locOpen: true }),
+      // Answering saves or marks for the assessment, so it follows the rule
+      // for changing its observations (AC8); the gateway decides.
+      canAnswerChecklist: canChangeObs,
+      // An answer saved from the checklist joins the list like any capture.
+      checklistSaved: (observation: SavedObservation) => captured.add(observation),
+      // The same answering from the Checklist tab, where the answer box asks where.
+      checklistTabAnswering: canChangeObs
+        ? {
+            place: { kind: 'tab' as const, locations: places.locations, last: s.fLocationId },
+            onSaved: (observation: SavedObservation) => captured.add(observation),
+            onFullCapture: (item: ChecklistItem) => differInCapture(item),
+          }
+        : null,
+      // Differs recorded in full capture (AC3), for a recording or handwritten
+      // notes: capture opens with the item's categories and the link to it.
+      differInCapture,
+      fChecklistItem: s.fChecklistItem,
+      // Leaves the difference unrecorded and goes back to the checklist.
+      backToChecklist: () => setState({ fChecklistItem: null, checklistOpen: true }),
+      goToChecklistTab: () => {
+        setState({ checklistOpen: false })
+        leaveCapture('checklist')
+      },
+      // An answer's observation, open on the Observations tab, first asking
+      // Leave without saving? when leaving capture would lose something.
+      showObservation: (id: string) =>
+        setState(
+          sc === 'field' && unsaved.length
+            ? { checklistOpen: false, fLeaveOpen: true, fLeaveTo: 'observations' }
+            : { ...toTab('observations'), checklistOpen: false, obsOpen: id },
+        ),
       fToast: s.fToast,
       saveObservation: () => {
         if (s.fSaving || s.fRec || capture.state?.status === 'starting') return

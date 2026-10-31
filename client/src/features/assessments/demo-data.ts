@@ -159,6 +159,8 @@ export const initialState: WorkflowState = {
   locRemove: null,
   fCats: [],
   fSev: '',
+  checklistOpen: false,
+  fChecklistItem: null,
   fToast: null,
   fRecent: [
     {
