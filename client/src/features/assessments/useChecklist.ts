@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
-import { getChecklist, type ChecklistView } from './api'
+import { useCallback, useEffect, useState } from 'react'
+import { getChecklist, listSections, type ChecklistView, type ReportSection } from './api'
 
 // The assessment's pre-survey checklist (CP-30): the site's scope, the
-// standards that apply to it and the latest checklist. setView lets the
-// screen show what a generation returns.
+// standards that apply to it and the latest checklist, with the report
+// sections, to say how many more observations each needs to be drafted
+// (CP-31 AC7). setView lets the screen show what a generation or a mark
+// returns; reload reads both again after an answer is saved.
 export function useChecklist(reference: string) {
   const [view, setView] = useState<ChecklistView | null>(null)
+  const [sections, setSections] = useState<ReportSection[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -22,8 +25,15 @@ export function useChecklist(reference: string) {
           )
       },
     )
+    // Without them, sections leave out what each needs to be drafted.
+    listSections(reference, controller.signal).then(setSections, () => undefined)
     return () => controller.abort()
   }, [reference])
 
-  return { view, setView, loadError }
+  const reload = useCallback(async () => {
+    setView(await getChecklist(reference))
+    listSections(reference).then(setSections, () => undefined)
+  }, [reference])
+
+  return { view, setView, sections, loadError, reload }
 }

@@ -221,6 +221,9 @@ export type SavedObservation = {
   // null until an engineer asks for its photos to be read (CP-05), and while
   // no photo is left.
   interpretation: SavedInterpretation | null
+  // The checklist item it answers (CP-31), with the item's text then. Older
+  // stand-ins for a saved observation have none.
+  checklistItem?: { itemId: string; result: 'confirmed' | 'differs'; text: string } | null
   recordedAt: string
   // The latest change to its tags, note, a transcript, or its recordings and
   // photos (CP-08).
@@ -411,6 +414,8 @@ export async function saveObservation(
     severity: string
     locationId: string
     standard?: string
+    // The checklist item it answers (CP-31).
+    checklistItem?: { itemId: string; result: 'confirmed' | 'differs' }
   },
   recordings: { name: string; audio: Blob }[],
   photos: { name: string; image: Blob }[] = [],
@@ -758,6 +763,17 @@ export type ChecklistItem = {
   COPE_dimension: string[]
   citations: { ref: string; quote: string; quoteFound: boolean }[]
   flags: 'uncited'[]
+  // Where it stands on site (CP-31); null while unchecked.
+  check: ItemCheck | null
+}
+// Confirmed and Differs come from the observation that checks the item;
+// Not seen and Not applicable are marks with no observation.
+export type CheckResult = 'confirmed' | 'differs' | 'not_seen' | 'not_applicable'
+export type ItemCheck = {
+  result: CheckResult
+  at: string
+  by: string
+  observation: { id: string; location: string | null } | null
 }
 // A cited passage as the checklist was given it: its text and Chroma labels.
 export type ChecklistSource = {
@@ -792,6 +808,10 @@ export type ChecklistView = {
   scope: { facilityType: string; jurisdiction: string }
   standards: ScopeStandard[]
   checklist: Checklist | null
+  // After regenerating (CP-31): how many of the earlier checklist's answers
+  // were kept, the text of each item whose answer was not, and the ids of the
+  // new items that may replace those: new, in the same section or risk.
+  carryOver?: { kept: number; dropped: string[]; mayReplace: string[] }
 }
 
 const checklistPath = (reference: string) =>
@@ -805,6 +825,17 @@ export async function getChecklist(reference: string, signal?: AbortSignal) {
 // it as the latest and keeps the earlier ones.
 export async function generateChecklist(reference: string, standardIds: string[]) {
   return (await request<ChecklistView>('POST', checklistPath(reference), { standardIds })).data
+}
+
+// Marks an item Not seen or Not applicable, or clears its mark with null
+// (CP-31 AC4); no observation is saved.
+export async function markChecklistItem(
+  reference: string,
+  itemId: string,
+  mark: 'not_seen' | 'not_applicable' | null,
+) {
+  const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}/mark`
+  return (await request<ChecklistView>('PUT', path, { mark })).data
 }
 
 // Drafts one section from the assessment's observations; the gateway saves it.

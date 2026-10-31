@@ -61,6 +61,8 @@ export type Observation = {
   floor?: string | null
   // Set on observations saved on the server.
   id?: string
+  // The checklist item it answers (CP-31), with the item's text then.
+  checklist?: { text: string; result: 'confirmed' | 'differs' } | null
   // What is attached, e.g. "Note · 2 recordings".
   attached?: string
   // Shown while a recording is transcribing or after one failed.
@@ -256,6 +258,10 @@ export type WorkflowState = {
   fCats: string[]
   // Its severity, '' until the engineer picks one. Both reset after each save.
   fSev: string
+  // The checklist open over capture (CP-31), and the item the next
+  // observation answers as Differs, chosen there; reset after its save.
+  checklistOpen: boolean
+  fChecklistItem: { id: string; text: string } | null
   // warn: a prompt to do something first, shown in the warning tone.
   fToast: { text: string; warn?: boolean } | null
   fRecent: Observation[]

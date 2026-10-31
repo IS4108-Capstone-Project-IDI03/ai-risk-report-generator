@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { Checklist as ChecklistData, ChecklistView } from './api'
+import type { ChecklistAnswering } from './components/ChecklistItems'
 import { Checklist } from './screens/Checklist'
 
 const REF = 'RPT-2026-0517'
@@ -40,6 +41,7 @@ const CHECKLIST: ChecklistData = {
       COPE_dimension: ['Construction'],
       citations: [],
       flags: [],
+      check: null,
     },
     {
       id: 'i2',
@@ -52,6 +54,7 @@ const CHECKLIST: ChecklistData = {
       COPE_dimension: ['Occupancy'],
       citations: [{ ref: 'C:nfpa13:118', quote: 'rack storage over 7.6 m', quoteFound: true }],
       flags: [],
+      check: null,
     },
     {
       id: 'i3',
@@ -64,6 +67,7 @@ const CHECKLIST: ChecklistData = {
       COPE_dimension: ['Construction'],
       citations: [],
       flags: ['uncited'],
+      check: null,
     },
   ],
   hazards: [
@@ -104,13 +108,24 @@ const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }),
   )
 
+beforeAll(() => {
+  // jsdom has no modal dialogs.
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  localStorage.clear()
 })
 
 function serve(first: ChecklistView, generated?: ChecklistView | (() => Promise<Response>)) {
-  const fetch = vi.fn((_url: string, init?: RequestInit) => {
+  const fetch = vi.fn((url: string, init?: RequestInit) => {
+    if (url.endsWith('/sections')) return json([])
     if (init?.method === 'POST')
       return typeof generated === 'function' ? generated() : json(generated ?? first)
     return json(first)
@@ -118,10 +133,23 @@ function serve(first: ChecklistView, generated?: ChecklistView | (() => Promise<
   vi.stubGlobal('fetch', fetch)
   return fetch
 }
+const viewed = vi.fn()
+const show = (canGenerate: boolean, answering: ChecklistAnswering | null = null) =>
+  render(
+    <Checklist
+      reference={REF}
+      canGenerate={canGenerate}
+      answering={answering}
+      onViewObservation={viewed}
+    />,
+  )
+// The checklist's two tabs.
+const openTab = async (name: 'Priority risks' | 'Report sections') =>
+  fireEvent.click(await screen.findByRole('tab', { name: new RegExp('^' + name) }))
 
 it('lists the standards that apply, all ticked, and generates from those kept (AC1-2)', async () => {
   const fetch = serve(view(null), view(CHECKLIST))
-  render(<Checklist reference={REF} canGenerate />)
+  show(true)
 
   expect(await screen.findByText('Pre-survey checklist')).toBeInTheDocument()
   expect(screen.getByText('Standards to use (2 of 2 selected)')).toBeInTheDocument()
@@ -137,22 +165,10 @@ it('lists the standards that apply, all ticked, and generates from those kept (A
 
 it('shows each area and hazard, the AI items marked and citations opening to the passage (AC3-8)', async () => {
   serve(view(CHECKLIST))
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
 
-  // A section the standards add nothing to is named in one line, not shown; All sections
-  // shows it, saying so, with the template's rows.
-  const left = await screen.findByRole('region', { name: 'No specific requirements' })
-  expect(within(left).getByText('7. Construction')).toBeInTheDocument()
-  expect(screen.queryByRole('region', { name: '7. Construction' })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('switch', { name: 'All sections' }))
-  const construction = screen.getByRole('region', { name: '7. Construction' })
-  expect(
-    within(construction).getByText('Nothing specific in the selected standards.'),
-  ).toBeVisible()
-  expect(within(construction).getByText('Construction Narrative')).toBeInTheDocument()
-  expect(within(construction).queryByText('AI-generated')).not.toBeInTheDocument()
-
-  const racks = screen.getByRole('region', { name: 'Rack and high-piled storage' })
+  // The priority risks are their own tab, shown first.
+  const racks = await screen.findByRole('region', { name: 'Rack and high-piled storage' })
   expect(within(racks).getByText('AI-generated')).toBeInTheDocument()
   // The citation names the standard and page; opened, it shows the quoted words and passage.
   const citation = within(racks).getByRole('button', { name: 'NFPA 13 p. 118' })
@@ -180,11 +196,25 @@ it('shows each area and hazard, the AI items marked and citations opening to the
   expect(
     screen.getByText(/claude-opus-5-5 · 1 standard · checklist-v1-2026-10/),
   ).toBeInTheDocument()
+
+  // A section the standards add nothing to is named in one line, not shown; All sections
+  // shows it, saying so, with the template's rows.
+  await openTab('Report sections')
+  const left = screen.getByRole('region', { name: 'No specific requirements' })
+  expect(within(left).getByText('7. Construction')).toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: '7. Construction' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('switch', { name: 'All sections' }))
+  const construction = screen.getByRole('region', { name: '7. Construction' })
+  expect(
+    within(construction).getByText('Nothing specific in the selected standards.'),
+  ).toBeVisible()
+  expect(within(construction).getByText('Construction Narrative')).toBeInTheDocument()
+  expect(within(construction).queryByText('AI-generated')).not.toBeInTheDocument()
 })
 
 it('lets anyone else read the checklist but not generate it (AC11)', async () => {
   serve(view(null))
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
 
   expect(await screen.findByText('No checklist yet')).toBeInTheDocument()
   expect(screen.getByText(/assigned engineer generates its checklist/)).toBeInTheDocument()
@@ -194,7 +224,7 @@ it('lets anyone else read the checklist but not generate it (AC11)', async () =>
 
 it('says when no standards apply, and still generates (AC10)', async () => {
   serve(view(null, []))
-  render(<Checklist reference={REF} canGenerate />)
+  show(true)
 
   expect(await screen.findByText(/No standards in the knowledge base apply/)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Generate checklist' })).toBeEnabled()
@@ -202,7 +232,7 @@ it('says when no standards apply, and still generates (AC10)', async () => {
 
 it('shows why generating failed and keeps the last checklist', async () => {
   serve(view(CHECKLIST), () => json({ error: 'The language model could not be reached.' }, 503))
-  render(<Checklist reference={REF} canGenerate />)
+  show(true)
 
   fireEvent.click(await screen.findByRole('button', { name: 'Regenerate checklist' }))
 
@@ -222,7 +252,7 @@ it('ticks the standards the last checklist used, and any added since', async () 
     uploadedAt: '2026-10-27T00:00:00.000Z',
   }
   const fetch = serve(view(CHECKLIST, [NFPA13, FM157, NFPA25]))
-  render(<Checklist reference={REF} canGenerate />)
+  show(true)
 
   expect(await screen.findByText('Standards to use (2 of 3 selected)')).toBeInTheDocument()
   expect(screen.getByLabelText(/FM 1-57 Plastics in Construction/)).not.toBeChecked()
@@ -242,7 +272,7 @@ it('says when no facility risks are configured for the facility type', async () 
       items: CHECKLIST.items.slice(0, 1),
     }),
   )
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
 
   expect(
     await screen.findByText(/No facility risks are configured for ‘Warehouse’/),
@@ -260,11 +290,14 @@ it('puts the priority risks first, then each report section once, by subsection'
     text: 'Check composite wood joist channels are firestopped.',
   }
   serve(view({ ...CHECKLIST, items: [...CHECKLIST.items, sprinklers] }))
-  const { container } = render(<Checklist reference={REF} canGenerate={false} />)
+  const { container } = show(false)
 
-  const headings = () => [...container.querySelectorAll('h3, h4')].map((h) => h.textContent)
-  await screen.findByText('Priority risks')
-  expect(headings().indexOf('Priority risks')).toBeLessThan(headings().indexOf('Report sections'))
+  // Two tabs, the priority risks first and open, each with how many are answered.
+  const tabs = await screen.findAllByRole('tab')
+  expect(tabs.map((t) => t.textContent)).toEqual(['Priority risks 0/2', 'Report sections 0/1'])
+  expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+  await openTab('Report sections')
+  const headings = () => [...container.querySelectorAll('h4')].map((h) => h.textContent)
   // Construction is shown once, its requirement under the subsection's name.
   expect(headings().filter((h) => h === '7. Construction')).toHaveLength(1)
   const construction = screen.getByRole('region', { name: '7. Construction' })
@@ -286,7 +319,7 @@ it('puts the priority risks first, then each report section once, by subsection'
 
 it('says which standard to add when none that applies covers a risk', async () => {
   serve(view(CHECKLIST, [NFPA13]))
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
 
   const roofing = await screen.findByRole('region', { name: 'Roofing materials' })
   expect(
@@ -301,7 +334,7 @@ it('warns when the site has changed since the checklist was generated', async ()
     ...view(CHECKLIST),
     scope: { facilityType: 'Cold store', jurisdiction: 'SG' },
   })
-  render(<Checklist reference={REF} canGenerate />)
+  show(true)
 
   expect(await screen.findByText('This checklist is out of date')).toBeInTheDocument()
   expect(
@@ -313,9 +346,9 @@ it('warns when the site has changed since the checklist was generated', async ()
 
 it('gives no warning while the site is as it was', async () => {
   serve(view(CHECKLIST))
-  render(<Checklist reference={REF} canGenerate />)
+  show(true)
 
-  await screen.findByText('Priority risks')
+  await screen.findByRole('tab', { name: /^Priority risks/ })
   expect(screen.queryByText('This checklist is out of date')).not.toBeInTheDocument()
 })
 
@@ -328,7 +361,7 @@ it('shows two citations of one page as one, opening to both quotes', async () =>
     ],
   }
   serve(view({ ...CHECKLIST, items: [CHECKLIST.items[0], twice, CHECKLIST.items[2]] }))
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
 
   const racks = await screen.findByRole('region', { name: 'Rack and high-piled storage' })
   const [chip] = within(racks).getAllByRole('button', { name: 'NFPA 13 p. 118' })
@@ -341,9 +374,10 @@ it('shows two citations of one page as one, opening to both quotes', async () =>
 
 it('switches back to the relevant sections from its name beside the switch', async () => {
   serve(view(CHECKLIST))
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
+  await openTab('Report sections')
 
-  const full = await screen.findByRole('switch', { name: 'All sections' })
+  const full = screen.getByRole('switch', { name: 'All sections' })
   fireEvent.click(full)
   expect(screen.getByText('Construction Narrative')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Relevant sections' }))
@@ -357,7 +391,7 @@ it('marks a quote not found in its passage as unverified, and says to verify it'
     citations: [{ ref: 'C:nfpa13:118', quote: 'racks over 25 ft', quoteFound: false }],
   }
   serve(view({ ...CHECKLIST, items: [CHECKLIST.items[0], misquoted, CHECKLIST.items[2]] }))
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
 
   const racks = await screen.findByRole('region', { name: 'Rack and high-piled storage' })
   expect(within(racks).getByText('Unverified quote')).toBeInTheDocument()
@@ -378,7 +412,7 @@ it('leaves out a heading too long to be one when a passage is opened', async () 
       sources: { 'C:nfpa13:118': { ...source, headings: ['Rack Storage', story] } },
     }),
   )
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
 
   const racks = await screen.findByRole('region', { name: 'Rack and high-piled storage' })
   fireEvent.click(within(racks).getByRole('button', { name: 'NFPA 13 p. 118' }))
@@ -388,10 +422,246 @@ it('leaves out a heading too long to be one when a passage is opened', async () 
 
 it('shows all sections from the link beside the sections left out', async () => {
   serve(view(CHECKLIST))
-  render(<Checklist reference={REF} canGenerate={false} />)
+  show(false)
+  await openTab('Report sections')
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Show all sections' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Show all sections' }))
   expect(screen.getByRole('switch', { name: 'All sections' })).toBeChecked()
   expect(screen.getByRole('region', { name: '7. Construction' })).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'No specific requirements' })).not.toBeInTheDocument()
+})
+
+it('opens the report sections the way they were last shown, on the tab or on site', async () => {
+  serve(view(CHECKLIST))
+  show(false)
+  await openTab('Report sections')
+  fireEvent.click(screen.getByRole('switch', { name: 'All sections' }))
+  cleanup()
+
+  show(false)
+  await openTab('Report sections')
+  expect(screen.getByRole('switch', { name: 'All sections' })).toBeChecked()
+})
+
+it('shows every section when no standard was selected', async () => {
+  serve(view({ ...CHECKLIST, standards: [] }))
+  show(false)
+  await openTab('Report sections')
+
+  expect(
+    screen.getByText('No standards were selected, so every report section is shown.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: 'All sections' })).not.toBeInTheDocument()
+  expect(screen.getByRole('region', { name: '7. Construction' })).toBeInTheDocument()
+})
+
+describe('answers (CP-31)', () => {
+  const differs = {
+    result: 'differs' as const,
+    at: '2026-10-28T02:00:00.000Z',
+    by: 'Alex Rowe',
+    observation: { id: 'o1', location: 'Bay 3, Level 1, Block A' },
+  }
+  const answered: ChecklistData = {
+    ...CHECKLIST,
+    items: [CHECKLIST.items[0], { ...CHECKLIST.items[1], check: differs }, CHECKLIST.items[2]],
+  }
+  const BAY = { id: 'l1', building: 'Block A', floor: 'Level 1', name: 'Bay 3' }
+  const answering = (fields: Partial<ChecklistAnswering> = {}): ChecklistAnswering => ({
+    place: { kind: 'tab', locations: [BAY], last: null },
+    onSaved: vi.fn(),
+    onFullCapture: vi.fn(),
+    ...fields,
+  })
+
+  it('shows how each item was answered, folded under Answered, and how many of a card are', async () => {
+    serve(view(answered))
+    show(false)
+
+    const racks = await screen.findByRole('region', { name: 'Rack and high-piled storage' })
+    expect(within(racks).getByText('1 of 1 answered')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Priority risks/ })).toHaveTextContent('1/2')
+    fireEvent.click(within(racks).getByRole('button', { name: 'Answered (1)' }))
+    expect(within(racks).getByText('Differs')).toBeInTheDocument()
+    expect(within(racks).getByText(/Alex Rowe · Bay 3, Level 1, Block A/)).toBeInTheDocument()
+    fireEvent.click(within(racks).getByRole('button', { name: 'View observation' }))
+    expect(viewed).toHaveBeenCalledWith('o1')
+  })
+
+  it('gives anyone but the assigned engineer no way to answer', async () => {
+    serve(view(CHECKLIST))
+    show(false)
+
+    await screen.findByRole('region', { name: 'Roofing materials' })
+    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
+  })
+
+  it('answers from the tab as on site, asking where it was seen', async () => {
+    const posts: { url: string; body: unknown }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.endsWith('/sections')) return json([])
+        if (init?.method === 'POST') {
+          const body =
+            init.body instanceof FormData ? JSON.parse(String(init.body.get('details'))) : init.body
+          posts.push({ url, body })
+          return url.endsWith('/capture-session')
+            ? json({ session: {}, assessment: {} }, 201)
+            : json({ id: 'o2' }, 201)
+        }
+        return json(view(CHECKLIST))
+      }),
+    )
+    const onSaved = vi.fn()
+    show(true, answering({ onSaved }))
+
+    const roofing = await screen.findByRole('region', { name: 'Roofing materials' })
+    fireEvent.click(within(roofing).getByRole('button', { name: 'Confirm' }))
+    const box = screen.getByRole('dialog', { name: 'Confirm' })
+    fireEvent.click(within(box).getByRole('radio', { name: 'Low' }))
+    fireEvent.click(within(box).getByRole('button', { name: 'Save observation' }))
+    expect(within(box).getByRole('alert')).toHaveTextContent('Choose where you saw it.')
+    fireEvent.change(within(box).getByLabelText('Where'), { target: { value: 'l1' } })
+    fireEvent.click(within(box).getByRole('button', { name: 'Save observation' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    // A capture session is opened first, as every observation belongs to one.
+    expect(posts.map((p) => p.url)).toEqual([
+      '/api/assessments/' + REF + '/capture-session',
+      '/api/assessments/' + REF + '/observations',
+    ])
+    expect(posts[1].body).toEqual({
+      note: 'Confirmed on site: Check the roof deck, covering and insulation',
+      copeDimensions: ['Construction'],
+      severity: 'low',
+      locationId: 'l1',
+      checklistItem: { itemId: 'i3', result: 'confirmed' },
+    })
+  })
+
+  it('offers full capture for a difference', async () => {
+    serve(view(CHECKLIST))
+    const onFullCapture = vi.fn()
+    show(true, answering({ onFullCapture }))
+
+    const roofing = await screen.findByRole('region', { name: 'Roofing materials' })
+    fireEvent.click(within(roofing).getByRole('button', { name: 'Differs' }))
+    const box = screen.getByRole('dialog', { name: 'Record a difference' })
+    expect(within(box).getByRole('textbox', { name: 'What you saw' })).toHaveValue('')
+    fireEvent.click(within(box).getByRole('button', { name: /Use full capture instead/ }))
+
+    expect(onFullCapture).toHaveBeenCalledWith(expect.objectContaining({ id: 'i3' }))
+    expect(screen.queryByRole('dialog', { name: 'Record a difference' })).not.toBeInTheDocument()
+  })
+
+  it('asks before regenerating an answered checklist, then points out what may replace a lost answer', async () => {
+    const reworded = {
+      ...CHECKLIST.items[1],
+      text: 'Check sprinkler density for racks over 7.6 m.',
+    }
+    const fetch = serve(view(answered), {
+      // A regenerate is a new checklist, with its own id.
+      ...view({
+        ...CHECKLIST,
+        id: 'c2',
+        items: [CHECKLIST.items[0], reworded, CHECKLIST.items[2]],
+      }),
+      carryOver: {
+        kept: 0,
+        dropped: ['Check in-rack sprinklers are fitted for racks over 7.6 m.'],
+        mayReplace: ['i2'],
+      },
+    })
+    show(true)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Regenerate checklist' }))
+    const ask = screen.getByRole('dialog', { name: 'Regenerate the checklist?' })
+    expect(ask).toHaveTextContent('Your answers stay with the items that come back.')
+    expect(fetch.mock.calls.some(([, i]) => i?.method === 'POST')).toBe(false)
+    fireEvent.click(within(ask).getByRole('button', { name: 'Regenerate' }))
+
+    // How many answers were not kept, with only the items that may replace
+    // them highlighted below, until dismissed.
+    expect(
+      await screen.findByText('Checklist regenerated: 1 answer was not kept'),
+    ).toBeInTheDocument()
+    const message = screen.getByText(/This item was reworded, so its answer did not carry over/)
+    expect(message).toHaveTextContent('An item that may replace it is highlighted below.')
+    expect(message).toHaveTextContent('What you recorded is still in Observations.')
+    expect(screen.getByRole('tab', { name: /^Priority risks/ })).toHaveTextContent(
+      'Priority risks 0/2 · 1 to check',
+    )
+    const row = screen.getByRole('listitem', {
+      name: 'Check sprinkler density for racks over 7.6 m.',
+    })
+    expect(within(row).getByText('Answer again?')).toBeInTheDocument()
+    // Nothing else is highlighted.
+    expect(screen.getAllByText('Answer again?')).toHaveLength(1)
+    // The earlier wording is folded away, for an item removed rather than reworded.
+    const earlier = screen.getByText('Show the earlier wording (1)')
+    expect(earlier.closest('details')).not.toHaveAttribute('open')
+    expect(earlier.closest('details')).toHaveTextContent(
+      'Check in-rack sprinklers are fitted for racks over 7.6 m.',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByText(/Checklist regenerated/)).not.toBeInTheDocument()
+    expect(within(row).queryByText('Answer again?')).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Priority risks/ })).toHaveTextContent(
+      'Priority risks 0/2',
+    )
+  })
+
+  it('says a lost answer has nothing to replace it highlighted when none is new there', async () => {
+    serve(view(answered), {
+      ...view({ ...CHECKLIST, id: 'c2' }),
+      carryOver: {
+        kept: 0,
+        dropped: ['Check in-rack sprinklers are fitted for racks over 7.6 m.'],
+        mayReplace: [],
+      },
+    })
+    show(true)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Regenerate checklist' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Regenerate' }))
+
+    const message = await screen.findByText(/This item was reworded/)
+    expect(message).not.toHaveTextContent('highlighted')
+    expect(screen.queryByText('Answer again?')).not.toBeInTheDocument()
+  })
+
+  it('says every answer was kept, highlighting nothing, until dismissed', async () => {
+    serve(view(answered), {
+      ...view(answered),
+      carryOver: { kept: 1, dropped: [], mayReplace: [] },
+    })
+    show(true)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Regenerate checklist' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Regenerate' }))
+
+    expect(await screen.findByText('Checklist regenerated')).toBeInTheDocument()
+    expect(screen.getByText('All your answers are kept.')).toBeInTheDocument()
+    expect(screen.queryByText('Answer again?')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByText('Checklist regenerated')).not.toBeInTheDocument()
+  })
+
+  it('says nothing after generating a checklist that had no answers', async () => {
+    serve(view(CHECKLIST), {
+      ...view(CHECKLIST),
+      carryOver: { kept: 0, dropped: [], mayReplace: [] },
+    })
+    show(true)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Regenerate checklist' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Regenerate checklist' })).toBeEnabled(),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Checklist regenerated/)).not.toBeInTheDocument()
+  })
 })

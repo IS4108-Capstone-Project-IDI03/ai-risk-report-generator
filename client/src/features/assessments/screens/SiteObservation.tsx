@@ -12,6 +12,7 @@ import {
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
 import { CategoryPicker } from '../components/CategoryPicker'
+import { ChecklistSheet } from '../components/ChecklistSheet'
 import { LocationPicker, RemoveLocationDialog } from '../components/LocationSheet'
 import { PhotoPickers, PhotoThumb, ReadyItem } from '../components/MediaPickers'
 import { SeverityPicker } from '../components/SeverityPicker'
@@ -39,6 +40,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
   const form = (
     <>
       <LocationPicker v={v} />
+      {v.canOpenChecklist && <ChecklistBar v={v} />}
       {/* Each mode says what it holds, so nothing waits unseen behind another. */}
       <div
         role="group"
@@ -444,6 +446,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
       </div>
       {/* Above the location picker, so it opens fresh for each location. */}
       {!!v.locRemoveLabel && <RemoveLocationDialog key={v.locRemoveLabel} v={v} />}
+      {/* Mounted only while open, so it loads the checklist as it is now. */}
+      {v.checklistOpen && <ChecklistSheet v={v} />}
       {v.leaveOpen && (
         <Dialog
           title="Leave without saving?"
@@ -463,6 +467,60 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         />
       )}
     </>
+  )
+}
+
+// Under the location bar: the checklist, to answer its items here (CP-31); or,
+// while a Differs is recorded in full capture, the item it answers, with the
+// way back to the checklist that leaves it unanswered.
+function ChecklistBar({ v }: { v: AssessmentWorkflow }) {
+  return (
+    <div
+      style={{
+        padding: '10px 16px',
+        background: 'var(--surface-card)',
+        borderBottom: '1px solid var(--border-default)',
+      }}
+    >
+      {v.fChecklistItem ? (
+        <section
+          aria-label="Recording a difference"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            padding: '10px 12px',
+            borderRadius: '6px',
+            background: 'var(--status-moderate-bg)',
+            color: 'var(--status-moderate-fg)',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+            <Icon name="equal-not" size={14} />
+            {'Recording a difference for:'}
+          </span>
+          <span style={{ fontSize: '14px', color: 'var(--text-body)' }}>
+            {v.fChecklistItem.text}
+          </span>
+          <span style={{ fontSize: '13px' }}>
+            {'Record what you saw, then save. It is answered as Differs.'}
+          </span>
+          <Button
+            variant="link"
+            size="sm"
+            iconLeft="arrow-left"
+            onClick={v.backToChecklist}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            {'Back to checklist'}
+          </Button>
+        </section>
+      ) : (
+        <Button variant="secondary" iconLeft="list-checks" onClick={v.openChecklist}>
+          {'Open checklist'}
+        </Button>
+      )}
+    </div>
   )
 }
 
