@@ -190,11 +190,19 @@ beforeEach(() => {
   photos.length = 0
   marks.length = 0
   mockGateway()
+  // Node in CI has no localStorage (a laptop's may), so each test brings its
+  // own, empty, for the remembered Relevant or All sections.
+  const kept = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => kept.get(k) ?? null,
+    setItem: (k: string, v: string) => void kept.set(k, v),
+    removeItem: (k: string) => void kept.delete(k),
+    clear: () => kept.clear(),
+  })
 })
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
-  localStorage.clear()
 })
 
 // Opens capture at Bay 3, then the checklist over it.

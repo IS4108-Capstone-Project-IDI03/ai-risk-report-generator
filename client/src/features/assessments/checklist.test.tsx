@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Checklist as ChecklistData, ChecklistView } from './api'
 import type { ChecklistAnswering } from './components/ChecklistItems'
 import { Checklist } from './screens/Checklist'
@@ -117,10 +117,20 @@ beforeAll(() => {
     this.removeAttribute('open')
   }
 })
+// Node in CI has no localStorage (a laptop's may), so each test brings its own,
+// empty, for the remembered Relevant or All sections.
+beforeEach(() => {
+  const kept = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => kept.get(k) ?? null,
+    setItem: (k: string, v: string) => void kept.set(k, v),
+    removeItem: (k: string) => void kept.delete(k),
+    clear: () => kept.clear(),
+  })
+})
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
-  localStorage.clear()
 })
 
 function serve(first: ChecklistView, generated?: ChecklistView | (() => Promise<Response>)) {
