@@ -345,6 +345,13 @@ is stored by id rather than name, so renaming a location later does not split
 its observations; responses include it as
 `location: { id, building, floor, name }`.
 
+An observation saved from the pre-survey checklist (CP-31) has
+`checklistItem: { checklist, item, result, text }`: the checklist and item it
+answers, `confirmed` or `differs`, and the item's text then, so it still reads
+right once the checklist is regenerated. Responses include it as
+`checklistItem: { itemId, result, text }`, or `null`. It does not change how
+the observation is drafted from. See "Checks on site (CP-31)".
+
 `note` is stored exactly as written, untrimmed, up to 5,000 characters; a blank
 note counts as none. An observation may be saved uncategorised: its
 `COPE_dimension` is then `null`, present but null rather than left out, and
@@ -526,7 +533,7 @@ none.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), and optional `standard` (100 characters), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 404 / 409 (no active session) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
 | `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, photos, categories, error, attempts, model, photoIds, items, outOfDate }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }` or `null`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
@@ -838,8 +845,11 @@ against them to keep the engineer's edits). Each document has:
   the hazard list's own item when the model wrote none), `hazard` (the configured hazard's id),
   `text`, `fields` (the template subsection's fields), `COPE_dimension` (a
   list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`), and `flags`
-  (`uncited`: it rests on no passage). `status` (`active`), `prefill` and
-  `check` (both `null`) are kept for CP-32, CP-34 and CP-31.
+  (`uncited`: it rests on no passage). `status` (`active`) and `prefill`
+  (`null`) are kept for CP-32 and CP-34. `check` is a mark made on site
+  without an observation (CP-31): `{ mark: 'not_seen' | 'not_applicable', at,
+  by: { id, name } }`, else `null`. `carried` lists the `_id`s of the same item
+  in earlier checklists of the assessment, newest first (see below).
 - `areas` (`id`, `title`) and `hazards` (`id`, `name`, `standards` it is
   checked against, `inScope`: those that were in scope).
 - `sources`: the cited passages by `C:` ID, with their text and Chroma labels.
@@ -854,11 +864,46 @@ against them to keep the engineer's edits). Each document has:
 | Route | Does |
 | --- | --- |
 | `GET /api/assessments/:reference/checklist` | `{ scope, standards, checklist }`: the site's facility type and country, the standards that apply to it now (each with `uploadedAt`), and the latest checklist or `null`. Anyone who can view the assessment. 404. |
-| `POST /api/assessments/:reference/checklist` | `{ standardIds }`: generates from those standards and saves it as the latest (`reports:generate`, assigned engineer only). 201 with the same body as the GET; 400 (a standard that doesn't apply), 403, 404, 409 (archived), 503 (S4 failed, with the reason). |
+| `POST /api/assessments/:reference/checklist` | `{ standardIds }`: generates from those standards and saves it as the latest (`reports:generate`, assigned engineer only). 201 with the same body as the GET, plus `carryOver: { kept, dropped, mayReplace }` (CP-31): how many answers were kept, the text of each item whose answer was not, and the ids of the new items that may replace those (unmatched, in the same section or risk; none for a first checklist); 400 (a standard that doesn't apply), 403, 404, 409 (archived), 503 (S4 failed, with the reason). |
+| `PUT /api/assessments/:reference/checklist/items/:itemId/mark` | `{ mark }`: `not_seen`, `not_applicable`, or `null` to clear it, on an item of the latest checklist (CP-31 AC4; `assessments:edit`, assigned engineer only). No observation is saved and no capture session is needed. 200 with the same body as the GET; 400, 403, 404 (not on the latest checklist), 409 (archived, or an observation checks the item). |
 
 A standard applies when it is an FM, NFPA or local standard labelled with the
 site's facility type and country, or `all`, has finished ingesting, and is not
 withdrawn or needing review (`knowledge-document.service.listApplicableStandards`).
+
+### Checks on site (CP-31)
+
+An item is answered on site in one of two ways:
+
+- **Confirmed or Differs**: an observation, saved through `POST
+  .../observations` with `checklistItem: { itemId, result }`, stores
+  `checklistItem: { checklist, item, result, text }` (see Observations). The item is
+  checked while an observation not deleted links to it, by its `_id` or one in
+  its `carried`, so deleting the observation unchecks it and restoring it
+  checks it again (AC5). Nothing on the checklist changes, except that the
+  item's mark, if any, is cleared.
+- **Not seen or Not applicable**: the item's `check` mark.
+
+The GET reads each item's `check` as `{ result, at, by, observation: { id,
+location } | null }` (the latest linked observation, else the mark), or `null`
+while unchecked. Only one observation checks an item at a time: saving
+another, or marking it, answers 409 until that observation is deleted.
+
+Regenerating carries answers over. A new item is the same as an earlier one
+when it is the same template subsection (by area and subsection), the same
+hazard's own item (by hazard), or a model-written item of the same origin in
+the same section or risk (by area and hazard, not subsection, which the model
+varies) that cites a passage the earlier one cited or is worded the same. The
+model rewords its items on every run, so matching on wording alone kept no
+answers on its items. Where several could pair, the most alike are paired
+first (same wording, then shared words, preferring the same subsection), each
+item once. A new item takes the earlier item's mark, and that item's `_id`
+and `carried` as its own `carried`, so the observations linked to the earlier
+item answer it too. Observations are never rewritten. An answered item with
+no match stays answered on the earlier checklist only; its observation stays
+an ordinary observation, `carryOver.dropped` names it, so the engineer knows
+to answer it again, and `carryOver.mayReplace` lists the unmatched new items
+in its section or risk.
 
 ## Knowledge documents (IN-01, KB-01, IN-07)
 
