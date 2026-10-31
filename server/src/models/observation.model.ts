@@ -195,6 +195,21 @@ export interface IInterpretation {
   provenance?: IReadingProvenance
 }
 
+// How the engineer answered a checklist item on site (CP-31): as the
+// checklist expected, or different, recorded in the observation's own words.
+export const CHECK_RESULTS = ['confirmed', 'differs'] as const
+export type CheckResult = (typeof CHECK_RESULTS)[number]
+
+// The checklist item an observation checks (CP-31), with the item's text as it
+// was then, so the observation still reads right after the checklist is
+// regenerated. An item is checked while an observation not deleted links to it.
+export interface IChecklistLink {
+  checklist: Types.ObjectId
+  item: Types.ObjectId
+  result: CheckResult
+  text: string
+}
+
 // One thing the engineer saw on site, with everything captured about it: a
 // note (CP-02), any number of recordings (CP-03), photographs (CP-04) and
 // handwritten pages (CP-19).
@@ -220,6 +235,8 @@ export interface IObservation {
   severity: Severity
   // Where on site: one of the assessment's locations, by its _id.
   location: Types.ObjectId
+  // Present when it was saved from the checklist (CP-31).
+  checklistItem?: IChecklistLink
   // Required on every document (see CLAUDE.md). The COPE dimension holds the
   // categories the engineer picks when capturing, one or more; null means not
   // categorised yet (CP-02 AC4). Read it through copeDimensionsOf, since older
@@ -406,6 +423,17 @@ const observationSchema = new Schema<IObservation>(
     standard: { type: String, trim: true, maxlength: 100 },
     severity: { type: String, enum: SEVERITIES, required: true },
     location: { type: Schema.Types.ObjectId, required: true },
+    checklistItem: {
+      type: new Schema<IChecklistLink>(
+        {
+          checklist: { type: Schema.Types.ObjectId, ref: 'Checklist', required: true },
+          item: { type: Schema.Types.ObjectId, required: true },
+          result: { type: String, enum: CHECK_RESULTS, required: true },
+          text: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+    },
     metadata: {
       source_type: { type: String, enum: ['observation'], required: true },
       jurisdiction: { type: String, required: true },

@@ -3,7 +3,9 @@ import { z } from 'zod'
 import type { SessionUser } from './auth.service'
 import { AssessmentModel, type ILocation } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
+import { ChecklistModel } from '../models/checklist.model'
 import {
+  CHECK_RESULTS,
   COPE_DIMENSIONS,
   copeDimensionsOf,
   ObservationModel,
@@ -17,6 +19,8 @@ import {
   type IReadItem,
   type IRecording,
   type IStamp,
+  type CheckResult,
+  type IChecklistLink,
   type ReadItemKind,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
@@ -56,6 +60,15 @@ export class ObservationStateError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'ObservationStateError'
+  }
+}
+// The checklist item an observation was to check can't take it (CP-31): it is
+// not on the latest checklist, e.g. one regenerated meanwhile, or another
+// observation checks it already.
+export class ChecklistItemError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ChecklistItemError'
   }
 }
 // Removing the note, a recording or a photo would leave the observation with
@@ -141,6 +154,13 @@ export const newObservationSchema = z.object({
   severity: severityField,
   locationId: locationIdField,
   standard: standardField.optional().transform((value) => value || undefined),
+  // The checklist item it answers (CP-31), when saved from the checklist.
+  checklistItem: z
+    .object({
+      itemId: z.string().refine(isValidObjectId, 'Choose an item on the checklist.'),
+      result: z.enum(CHECK_RESULTS, 'Answer the item as confirmed or differs.'),
+    })
+    .optional(),
 })
 export type ObservationDetails = z.infer<typeof newObservationSchema>
 
@@ -301,6 +321,9 @@ export type ObservationDto = {
     // edited other than by taking in the proposal's description (CP-08, CP-21).
     outOfDate: boolean
   } | null
+  // The checklist item it answers (CP-31), with the item's text then; null
+  // when it was captured on its own.
+  checklistItem: { itemId: string; result: CheckResult; text: string } | null
   // When it was captured (CP-02 AC2).
   recordedAt: Date
   // The latest change to its tags, note, a transcript, or its recordings and
@@ -618,6 +641,13 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
       .filter((p) => p.removed)
       .map((p) => ({ ...photo(p), removed: stampDto(p.removed)! })),
     interpretation: o.interpretation ? interpretationDto(o, o.interpretation) : null,
+    checklistItem: o.checklistItem
+      ? {
+          itemId: String(o.checklistItem.item),
+          result: o.checklistItem.result,
+          text: o.checklistItem.text,
+        }
+      : null,
     recordedAt: o.createdAt,
     edited: stampDto(o.edited),
     deleted: stampDto(o.deleted),
@@ -625,12 +655,19 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
 }
 
 // The assessment, with its site, and the capture session in progress that a
-// new observation is recorded against. Only an active session accepts one.
-async function activeCapture(reference: string) {
+// new observation is recorded against. Only an active session accepts one, and
+// only from the assigned engineer while the assessment is not archived, as for
+// changing an observation (CP-08 AC17, CP-31 AC8): a session opened before the
+// assessment was archived stays active.
+async function activeCapture(reference: string, user: SessionUser) {
   const assessment = await AssessmentModel.findOne({ reference })
     .populate<{ site: ISite | null }>('site')
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
+  if (String(assessment.engineer) !== user.id) {
+    throw new NotAssignedError('Only the engineer assigned to this assessment can capture for it.')
+  }
+  if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
   const session = await CaptureSessionModel.findOne({
     assessment: assessment._id,
     status: 'active',
@@ -654,9 +691,10 @@ export async function saveObservation(
   photos: NewPhoto[] = [],
   pages: NewPage[] = [],
 ): Promise<ObservationDto> {
-  const { assessment, session } = await activeCapture(reference)
+  const { assessment, session } = await activeCapture(reference, user)
   const locations = assessment.locations ?? []
   if (!locations.some((l) => l._id.equals(details.locationId))) throw new UnknownLocationError()
+  const link = details.checklistItem && (await checklistLink(assessment._id, details.checklistItem))
   const id = new Types.ObjectId()
   const now = new Date()
   const media = storedMedia(reference, id, { recordings, photos, pages }, now)
@@ -674,6 +712,7 @@ export async function saveObservation(
       standard: details.standard,
       severity: details.severity,
       location: details.locationId,
+      ...(link && { checklistItem: link }),
       metadata: {
         source_type: 'observation',
         jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
@@ -684,9 +723,61 @@ export async function saveObservation(
     }),
   )
 
+  // The observation now checks the item, so a Not seen or Not applicable mark
+  // on it no longer says anything.
+  if (link) {
+    await ChecklistModel.updateOne(
+      { _id: link.checklist, 'items._id': link.item },
+      { $set: { 'items.$.check': null } },
+    )
+  }
+
   for (const r of media.recordings) void runTranscription(String(id), String(r._id))
   for (const p of media.pages) void runPageTranscription(String(id), String(p._id))
   return toDto(observation.toObject(), locations)
+}
+
+// The observations not deleted that check an item of the assessment's
+// checklists (CP-31), oldest first, so a later one wins where two check the
+// same item.
+export async function checkingObservations(assessment: Types.ObjectId) {
+  return ObservationModel.find({
+    assessment,
+    checklistItem: { $exists: true },
+    deleted: { $exists: false },
+  })
+    .sort({ createdAt: 1, _id: 1 })
+    .lean<StoredObservation[]>()
+}
+
+// The link to the item of the assessment's latest checklist that a new
+// observation answers (CP-31 AC2-3). The item must still be on that checklist,
+// and no observation may check it already, under its id in this checklist or
+// an earlier one it was carried from.
+async function checklistLink(
+  assessment: Types.ObjectId,
+  input: NonNullable<ObservationDetails['checklistItem']>,
+): Promise<IChecklistLink> {
+  const checklist = await ChecklistModel.findOne({ assessment })
+    .sort({ createdAt: -1, _id: -1 })
+    .lean()
+  const item = checklist?.items.find((i) => i._id.equals(input.itemId))
+  if (!checklist || !item) {
+    throw new ChecklistItemError(
+      'This item is no longer on the checklist, which was regenerated. Remove the link to the checklist item to save the observation on its own, or reopen the checklist.',
+    )
+  }
+  const checked = await ObservationModel.exists({
+    assessment,
+    'checklistItem.item': { $in: [item._id, ...(item.carried ?? [])] },
+    deleted: { $exists: false },
+  })
+  if (checked) {
+    throw new ChecklistItemError(
+      'Another observation already checks this item. Delete that observation to check the item again, or remove the link to save this one on its own.',
+    )
+  }
+  return { checklist: checklist._id, item: item._id, result: input.result, text: item.text }
 }
 
 // Recordings, photos and pages as an observation stores them, each with its own

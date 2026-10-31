@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
+import { CaptureSessionModel } from '../models/capture-session.model'
 import { ChecklistModel } from '../models/checklist.model'
 import { KnowledgeDocumentModel, type SourceType } from '../models/knowledge-document.model'
+import { ObservationModel } from '../models/observation.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
@@ -242,16 +244,20 @@ describe('Pre-survey checklist (CP-30)', () => {
 
   it('shows the latest checklist on reopening and keeps earlier ones (AC9)', async () => {
     await assessment()
-    await api.post(url).send({ standardIds: [] })
+    const first = await api.post(url).send({ standardIds: [] })
     drafts.mockImplementation(() =>
       json({ ...reply(), provenance: { ...reply().provenance, prompt_version: 'cp30-v2' } }),
     )
-    await api.post(url).send({ standardIds: [] })
+    const second = await api.post(url).send({ standardIds: [] })
 
     const response = await api.get(url)
 
     expect(response.body.checklist.provenance.prompt_version).toBe('cp30-v2')
     expect(await ChecklistModel.countDocuments()).toBe(2)
+    // A first checklist has nothing to compare with, so nothing is new; the
+    // same items generated again are not new either.
+    expect(first.body.carryOver.mayReplace).toEqual([])
+    expect(second.body.carryOver.mayReplace).toEqual([])
     // A knowledge admin can read it too.
     const admin = await signedInAsRole(app, 'knowledge_admin').get(url)
     expect(admin.status).toBe(200)
@@ -309,5 +315,206 @@ describe('Pre-survey checklist (CP-30)', () => {
     expect((await api.get(url)).status).toBe(404)
     await assessment()
     expect((await api.post(url).send({})).status).toBe(400)
+  })
+})
+
+describe('Verifying checklist items on site (CP-31)', () => {
+  const BAY = new Types.ObjectId()
+  const observations = `/api/assessments/${REFERENCE}/observations`
+  const mark = (itemId: string, value: string | null, as = api) =>
+    as.put(`${url}/items/${itemId}/mark`).send({ mark: value })
+
+  // An assessment with a location and a capture session, and its first checklist.
+  async function onSite() {
+    const created = await assessment({
+      locations: [{ _id: BAY, name: 'Bay 3', floor: 'Level 1', building: 'Block A', key: 'bay 3' }],
+    })
+    await CaptureSessionModel.create({ assessment: created._id, status: 'active' })
+    const { body } = await api.post(url).send({ standardIds: [] })
+    const [template, rack] = body.checklist.items as { id: string }[]
+    return { created, template: template.id, rack: rack.id }
+  }
+  // Saves an observation as the checklist's Confirm or Differs does.
+  const answer = (itemId: string, result: string, fields: object = {}, as = api) =>
+    as.post(observations).field(
+      'details',
+      JSON.stringify({
+        note: 'Roof is steel deck on steel purlins.',
+        copeDimensions: ['Construction'],
+        severity: 'low',
+        locationId: String(BAY),
+        checklistItem: { itemId, result },
+        ...fields,
+      }),
+    )
+  const itemCheck = async (itemId: string) =>
+    (await api.get(url)).body.checklist.items.find((i: { id: string }) => i.id === itemId).check
+
+  it('saves a Confirm as an observation linked to the item, and shows it checked (AC2)', async () => {
+    const { template } = await onSite()
+
+    const saved = await answer(template, 'confirmed')
+
+    expect(saved.status).toBe(201)
+    expect(saved.body.checklistItem).toEqual({
+      itemId: template,
+      result: 'confirmed',
+      text: 'Walls, roof, frame and floors',
+    })
+    expect(saved.body.copeDimensions).toEqual(['Construction'])
+    expect(await itemCheck(template)).toMatchObject({
+      result: 'confirmed',
+      by: 'Alex Rowe',
+      observation: { id: saved.body.id, location: 'Bay 3, Level 1, Block A' },
+    })
+  })
+
+  it('records a Differs on the observation, in its own words (AC3)', async () => {
+    const { rack } = await onSite()
+
+    const saved = await answer(rack, 'differs', { note: 'No in-rack sprinklers on racks at 9 m.' })
+
+    expect(saved.status).toBe(201)
+    const stored = await ObservationModel.findById(saved.body.id).lean()
+    expect(stored?.checklistItem).toMatchObject({ result: 'differs' })
+    expect(stored?.note).toBe('No in-rack sprinklers on racks at 9 m.')
+    expect((await itemCheck(rack)).result).toBe('differs')
+  })
+
+  it('marks an item Not seen or Not applicable without an observation, and clears it (AC4)', async () => {
+    const { template } = await onSite()
+
+    const marked = await mark(template, 'not_seen')
+
+    expect(marked.status).toBe(200)
+    expect(marked.body.checklist.items[0].check).toMatchObject({
+      result: 'not_seen',
+      by: 'Alex Rowe',
+      observation: null,
+    })
+    expect(await ObservationModel.countDocuments()).toBe(0)
+    await mark(template, 'not_applicable')
+    expect((await itemCheck(template)).result).toBe('not_applicable')
+    await mark(template, null)
+    expect(await itemCheck(template)).toBeNull()
+  })
+
+  it('unchecks an item when its observation is deleted, and checks it again on restore (AC5)', async () => {
+    const { template } = await onSite()
+    const { body } = await answer(template, 'confirmed')
+
+    await api.delete(`/api/observations/${body.id}`)
+    expect(await itemCheck(template)).toBeNull()
+
+    await api.post(`/api/observations/${body.id}/restore`)
+    expect((await itemCheck(template)).result).toBe('confirmed')
+  })
+
+  it('lets one observation check an item at a time, and an observation replace a mark', async () => {
+    const { template } = await onSite()
+    await mark(template, 'not_seen')
+    await answer(template, 'confirmed')
+
+    // The observation now checks it, so the mark is cleared.
+    const stored = await ChecklistModel.findOne().sort({ createdAt: -1 }).lean()
+    expect(stored?.items[0].check).toBeNull()
+    expect((await answer(template, 'differs')).status).toBe(409)
+    expect((await mark(template, 'not_applicable')).status).toBe(409)
+    expect(await ObservationModel.countDocuments()).toBe(1)
+  })
+
+  it('carries answers to the same items, however the model words them this time', async () => {
+    const { template, rack } = await onSite()
+    await answer(template, 'confirmed')
+    await mark(rack, 'not_applicable')
+    // The model words the rack item differently and files it under a
+    // subsection this time, citing the same passage.
+    drafts.mockImplementation(() => {
+      const next = reply()
+      const [construction, racks] = next.items
+      return json({
+        ...next,
+        items: [
+          construction,
+          { ...racks, subsection: 'Storage', text: 'Confirm in-rack sprinklers above 7.6 m.' },
+        ],
+      })
+    })
+
+    const regenerated = await api.post(url).send({ standardIds: [] })
+
+    const [kept, reworded] = regenerated.body.checklist.items
+    expect(regenerated.body.carryOver).toEqual({ kept: 2, dropped: [], mayReplace: [] })
+    expect(kept.id).not.toBe(template)
+    expect(kept.check).toMatchObject({ result: 'confirmed' })
+    expect(reworded.check).toMatchObject({ result: 'not_applicable' })
+    // The carried item is still answered, so another Confirm is refused.
+    expect((await answer(kept.id, 'confirmed')).status).toBe(409)
+    expect(await ObservationModel.countDocuments()).toBe(1)
+  })
+
+  it('names an answer not kept, and the new items in its place that may replace it', async () => {
+    const { rack } = await onSite()
+    await answer(rack, 'differs')
+    // The rack item now rests on another passage, and a new item is added in
+    // Section 7, elsewhere.
+    drafts.mockImplementation(() => {
+      const next = reply()
+      const [construction, racks] = next.items
+      return json({
+        ...next,
+        items: [
+          construction,
+          {
+            ...racks,
+            text: 'Check sprinkler density for racks over 7.6 m.',
+            citations: [{ ref: 'C:nfpa13:120', quote: 'density', quote_found: true }],
+          },
+          {
+            ...racks,
+            area: '7',
+            hazard: null,
+            origin: 'standard',
+            text: 'Check the roof deck is non-combustible.',
+          },
+        ],
+      })
+    })
+
+    const regenerated = await api.post(url).send({ standardIds: [] })
+
+    const [, replacement] = regenerated.body.checklist.items
+    expect(regenerated.body.carryOver).toEqual({
+      kept: 0,
+      dropped: ['Check in-rack sprinklers are fitted for racks over 7.6 m.'],
+      mayReplace: [replacement.id],
+    })
+    expect(replacement.check).toBeNull()
+    // Its observation stays, on its own.
+    expect(await ObservationModel.countDocuments({ deleted: { $exists: false } })).toBe(1)
+  })
+
+  it('refuses an item not on the latest checklist', async () => {
+    const { template } = await onSite()
+    drafts.mockImplementation(() => json({ ...reply(), items: [reply().items[1]] }))
+    await api.post(url).send({ standardIds: [] })
+
+    expect((await answer(template, 'confirmed')).status).toBe(409)
+    expect((await mark(template, 'not_seen')).status).toBe(404)
+    expect(await ObservationModel.countDocuments()).toBe(0)
+  })
+
+  it('refuses checks from anyone but the assigned engineer, and once archived (AC8)', async () => {
+    const { created, template } = await onSite()
+    const other = signedInAsRole(app, 'risk_engineer')
+
+    expect((await answer(template, 'confirmed', {}, other)).status).toBe(403)
+    expect((await mark(template, 'not_seen', other)).status).toBe(403)
+    const admin = signedInAsRole(app, 'knowledge_admin')
+    expect((await mark(template, 'not_seen', admin)).status).toBe(403)
+    await AssessmentModel.updateOne({ _id: created._id }, { archivedAt: new Date() })
+    expect((await answer(template, 'confirmed')).status).toBe(409)
+    expect((await mark(template, 'not_seen')).status).toBe(409)
+    expect(await ObservationModel.countDocuments()).toBe(0)
   })
 })

@@ -312,6 +312,23 @@ describe('POST /api/assessments/:reference/observations', () => {
     expect(await ObservationModel.countDocuments()).toBe(0)
   })
 
+  it('takes a new observation only from the assigned engineer, and not once archived', async () => {
+    const assessment = await assessmentWithSession()
+    const other = signedInAsRole(app, 'risk_engineer')
+      .post('/api/assessments/RPT-2026-0411/observations')
+      .field(
+        'details',
+        JSON.stringify({ note: 'x', copeDimensions: null, severity: 'low', locationId: BAY_3 }),
+      )
+    expect((await other).status).toBe(403)
+
+    // The session opened before archiving stays active, but takes nothing.
+    await AssessmentModel.updateOne({ _id: assessment._id }, { archivedAt: new Date() })
+    expect((await note()).status).toBe(409)
+    expect(s3.size).toBe(0)
+    expect(await ObservationModel.countDocuments()).toBe(0)
+  })
+
   it('rejects unknown assessments, bad recordings and an empty observation', async () => {
     await assessmentWithSession()
 
@@ -1880,9 +1897,11 @@ describe('adding and removing recordings and photos (CP-08)', () => {
 })
 
 it('uses each authenticated capturer ID and ignores forged attribution, while deriving text metadata', async () => {
-  await assessmentWithSession()
+  const assessment = await assessmentWithSession()
   const another = { ...actor, _id: new Types.ObjectId(), name: 'Jide Okafor' }
   for (const user of [actor, another]) {
+    // Only the assigned engineer captures (CP-31 AC8), so each is assigned in turn.
+    await AssessmentModel.updateOne({ _id: assessment._id }, { engineer: user._id })
     const reply = await signedInAs(app, user)
       .post('/api/assessments/RPT-2026-0411/observations')
       .field(

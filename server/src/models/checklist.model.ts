@@ -13,6 +13,17 @@ export const ITEM_ORIGINS = ['template', 'standard', 'hazard', 'hazard_list'] as
 // 'uncited': the item rests on no passage, e.g. a hazard whose standards the
 // knowledge base doesn't hold (AC7).
 export const ITEM_FLAGS = ['uncited'] as const
+// An item marked on site without an observation (CP-31 AC4). Confirmed and
+// Differs are not stored here: they are read from the observation that checks
+// the item, so deleting it unchecks the item (AC5).
+export const CHECK_MARKS = ['not_seen', 'not_applicable'] as const
+export type CheckMark = (typeof CHECK_MARKS)[number]
+
+export interface IChecklistMark {
+  mark: CheckMark
+  at: Date
+  by: { id: string; name: string }
+}
 
 export interface IChecklistCitation {
   // `C:<chunk id>`, a key of the checklist's `sources`.
@@ -37,10 +48,14 @@ export interface IChecklistItem {
   citations: IChecklistCitation[]
   flags: (typeof ITEM_FLAGS)[number][]
   // Left empty by CP-30 so later stories need no migration: CP-32 removes items
-  // and CP-33 suggests them; CP-34 pre-fills a value; CP-31 records the check.
+  // and CP-33 suggests them; CP-34 pre-fills a value.
   status: 'active'
   prefill: null
-  check: null
+  // Not seen or Not applicable (CP-31 AC4), else null.
+  check: IChecklistMark | null
+  // The same item in earlier checklists of the assessment, newest first, so an
+  // observation that checked one of them still checks this one (CP-31).
+  carried: Types.ObjectId[]
 }
 
 export interface IChecklist {
@@ -108,7 +123,21 @@ const itemSchema = new Schema<IChecklistItem>({
   flags: { type: [String], enum: ITEM_FLAGS, default: [] },
   status: { type: String, enum: ['active'], default: 'active' },
   prefill: { type: Schema.Types.Mixed, default: null },
-  check: { type: Schema.Types.Mixed, default: null },
+  check: {
+    type: new Schema<IChecklistMark>(
+      {
+        mark: { type: String, enum: CHECK_MARKS, required: true },
+        at: { type: Date, required: true },
+        by: {
+          id: { type: String, required: true },
+          name: { type: String, required: true },
+        },
+      },
+      { _id: false },
+    ),
+    default: null,
+  },
+  carried: { type: [Schema.Types.ObjectId], default: [] },
 })
 
 const checklistSchema = new Schema<IChecklist>(
