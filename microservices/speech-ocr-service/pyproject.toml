@@ -16,6 +16,7 @@ dependencies = [
     "openai>=1.50",
     "google-genai>=1.50",   # Gemini, which interprets site photos (CP-05)
     "pillow>=11",           # upright and shrink a photo before Gemini sees it
+    "httpx>=0.28",          # privacy-service, which masks and blurs before Gemini (PV-04)
     "ruff>=0.16.9",
     "black>=26.5.1",
 ]
@@ -25,7 +26,6 @@ dev = [
     "ruff>=0.7",
     "black>=24.10",
     "pytest>=8.3",
-    "httpx>=0.28",   # required by fastapi.testclient.TestClient
     "pymupdf>=1.24", # reads the sample reports' photos for the CP-05 eval
 ]
 

@@ -146,6 +146,8 @@ def test_reads_every_photo_upright_and_shrunk_with_the_texts(monkeypatch):
         "model": "gemini-3.8-flash",
         "prompt_version": vision.PROMPT_VERSION,
         "usage": {"input_tokens": 1040, "output_tokens": 62, "thought_tokens": 210},
+        # Sent without `privacy`, so nothing was masked or blurred (PV-04).
+        "privacy": {"enabled": False, "masked_count": 0, "faces_blurred": 0},
     }
     big, turned = sent_images()
     assert big.size == (1600, 1200) and big.format == "JPEG"
