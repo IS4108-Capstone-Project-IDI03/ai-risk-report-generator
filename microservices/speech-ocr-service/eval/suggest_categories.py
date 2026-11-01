@@ -16,7 +16,10 @@ Scoring:
 
 Run from microservices/speech-ocr-service. It reads the root .env for the provider settings and
 GEMINI_API_KEY (paid tier). Set VISION_MODEL first to try another model:
-    uv run --extra dev python -m eval.suggest_categories [case-id ...]
+    uv run --extra dev python -m eval.suggest_categories [--privacy] [case-id ...]
+
+`--privacy` reads each case with protection on (PV-04): privacy-service must be running
+(PRIVACY_SERVICE_URL), and a case may list `known_entities`. The scores file is named for it.
 
 Each run makes one model call per case. The scores go to eval/categories/<date>-<model>.md, to
 commit, and each proposal to eval/results/<date>.jsonl, which is not committed.
@@ -36,6 +39,7 @@ HERE = Path(__file__).parent
 REPO = HERE.parents[2]
 load_dotenv(REPO / ".env")
 
+from app.privacy import PrivacyUnavailable  # noqa: E402
 from app.processors.vision import (  # noqa: E402
     PROMPT_VERSION,
     InterpretationError,
@@ -116,7 +120,7 @@ def photo_of(source: dict) -> bytes:
     return doc.extract_image(largest["xref"])["image"]
 
 
-def main(only: list[str]) -> None:
+def main(only: list[str], protect: bool = False) -> None:
     cases = json.loads(CASES.read_text(encoding="utf-8"))["cases"]
     cases = [c for c in cases if not only or c["id"] in only]
     results = HERE / "results"
@@ -126,9 +130,14 @@ def main(only: list[str]) -> None:
     for case in cases:
         photos = [(p["label"], photo_of(p["source"])) for p in case.get("photos", [])]
         try:
-            proposal = interpret_images(photos, case["texts"], case.get("location"))
-        except InterpretationError as error:
+            privacy = {"enabled": protect, "known_entities": case.get("known_entities", [])}
+            proposal = interpret_images(
+                photos, case["texts"], case.get("location"), privacy=privacy
+            )
+        except (InterpretationError, PrivacyUnavailable) as error:
             proposal = {"error": str(error), "categories": []}
+        # The photos as sent are large and only for the gateway to keep.
+        proposal.pop("redacted_photos", None)
         model = proposal.get("model", model)
         s = score(case, proposal["categories"])
         scores.append(s)
@@ -157,13 +166,14 @@ def main(only: list[str]) -> None:
     out_dir = HERE / "categories"
     out_dir.mkdir(exist_ok=True)
     name = re.sub(r"[^\w.-]", "-", model or "unknown")
-    out = out_dir / f"{datetime.now(UTC):%Y-%m-%d}-{name}.md"
+    out = out_dir / f"{datetime.now(UTC):%Y-%m-%d}-{name}{'-privacy' if protect else ''}.md"
     out.write_text(
         "\n".join(
             [
                 f"# Category suggestions, {datetime.now(UTC):%Y-%m-%d}",
                 "",
-                f"Model {model}, prompt {PROMPT_VERSION}, {len(scores)} cases.",
+                f"Model {model}, prompt {PROMPT_VERSION}, {len(scores)} cases, protection "
+                f"{'on' if protect else 'off'}.",
                 "",
                 *summary,
                 "",
@@ -179,4 +189,5 @@ def main(only: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    args = sys.argv[1:]
+    main([a for a in args if a != "--privacy"], protect="--privacy" in args)
