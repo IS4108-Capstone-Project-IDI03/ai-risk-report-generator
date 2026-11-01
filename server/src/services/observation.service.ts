@@ -31,12 +31,14 @@ import { locationText, toLocationDto, type LocationDto } from './location.servic
 import { onTranscriptionJob, transcriptionQueue } from './background-queues.service'
 import { retryJobId, type JobContext } from './job-queue.service'
 import { duplicateKeyField } from './mongo-errors'
+import { privacyFor } from './privacy.service'
 import {
   interpret,
   SpeechServiceError,
   transcribe,
   transcribeHandwriting,
   transcriptionFailureReason,
+  type InterpretationResult,
 } from './speech.service'
 import * as storage from './storage.service'
 import type { ByteRange } from './storage.service'
@@ -244,6 +246,10 @@ type PhotoDto = {
   contentType: IPhoto['contentType']
   size: number
   url: string
+  // How it last went to the model with protection on (PV-04): the faces
+  // blurred, and a link to that copy (null when it had none, so went as
+  // taken); null when never read with protection on.
+  redaction: { url: string | null; faces: number } | null
   added: StampDto | null
 }
 // A handwritten page (CP-19), linking to its original photo.
@@ -606,6 +612,12 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     contentType: p.contentType,
     size: p.size,
     url: `/api/observations/${o._id}/photos/${p._id}/image`,
+    redaction: p.redaction
+      ? {
+          url: p.redaction.key && `/api/observations/${o._id}/photos/${p._id}/redacted`,
+          faces: p.redaction.faces,
+        }
+      : null,
     added: stampDto(p.added),
   })
   const page = (p: IPage): PageDto => ({
@@ -1621,6 +1633,9 @@ export async function runInterpretation(
       texts,
       location: place ? locationText(place) : null,
       parts,
+      // Read inside the try, so a failure is stored as the attempt's reason (PV-04).
+      // Without the assessment, protection on fails as not found rather than send unprotected.
+      privacy: await privacyFor(assessment?.reference ?? ''),
     })
     // EV-03: the paid call, tagged with the assessment. Never throws.
     await recordAiCalls(visionUsageToWire(result, performance.now() - started), {
@@ -1635,6 +1650,13 @@ export async function runInterpretation(
         outputTokens: result.usage.output_tokens,
         thoughtTokens: result.usage.thought_tokens,
       },
+      ...(result.privacy && {
+        privacy: {
+          enabled: result.privacy.enabled,
+          maskedCount: result.privacy.masked_count,
+          facesBlurred: result.privacy.faces_blurred,
+        },
+      }),
       interpretedAt: new Date(),
     }
     const textOf = new Map(texts.map((t) => [t.label, t.text]))
@@ -1669,6 +1691,7 @@ export async function runInterpretation(
         'interpretation.photoReading.hazardType': result.hazard_type,
         'interpretation.photoReading.provenance': provenance,
       })
+    Object.assign(outcome, await keepRedactedPhotos(observation, photos, result.redacted_photos))
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Interpretation failed.'
     outcome = {}
@@ -1683,6 +1706,45 @@ export async function runInterpretation(
   await ObservationModel.updateOne({ _id: id }, { $set: outcome }).catch((error) =>
     console.error('Saving interpretation failed:', error),
   )
+}
+
+// Each photo as the model saw it, when protection blurred a face in it (PV-04):
+// stored beside the original, which is never changed, so the engineer can see
+// what left. A photo with no face went out as taken (only shrunk), so only that
+// it was checked is recorded. Returns the fields to set on the observation.
+async function keepRedactedPhotos(
+  observation: StoredObservation,
+  photos: { label: string; s3Key: string }[],
+  redacted: InterpretationResult['redacted_photos'],
+): Promise<Record<string, unknown>> {
+  const fields: Record<string, unknown> = {}
+  for (const { label, faces, image } of redacted ?? []) {
+    const key = photos.find((p) => p.label === label)?.s3Key
+    const index = observation.photos?.findIndex((p) => p.key === key) ?? -1
+    if (index < 0) continue
+    if (!faces) {
+      fields[`photos.${index}.redaction`] = { key: null, faces: 0, at: new Date() }
+      continue
+    }
+    const copy = Buffer.from(image, 'base64')
+    // One copy per photo: reading it again replaces the last one.
+    const copyKey = key!.replace(/\.[^./]+$/, '') + '.redacted.jpg'
+    try {
+      await storage.putObject(copyKey, copy, 'image/jpeg')
+    } catch (error) {
+      // The copy only shows the engineer what left: the reading still stands.
+      // Logged by key, never with the image.
+      console.error(`Keeping the blurred copy ${copyKey} failed:`, (error as Error).message)
+      continue
+    }
+    fields[`photos.${index}.redaction`] = {
+      key: copyKey,
+      faces,
+      size: copy.length,
+      at: new Date(),
+    }
+  }
+  return fields
 }
 
 // As for transcriptions: a restart loses an attempt still running in memory,
@@ -1725,6 +1787,22 @@ export async function getPhotoImage(id: string, photoId: string) {
     contentType: photo.contentType,
     size: photo.size,
     open: (range?: ByteRange) => storage.getObjectStream(photo.key, range),
+  }
+}
+
+// A photo as the model last saw it with protection on: faces blurred (PV-04).
+// Not found when it never went with a face blurred.
+export async function getRedactedPhotoImage(id: string, photoId: string) {
+  if (!isValidObjectId(id) || !isValidObjectId(photoId)) throw new ObservationNotFoundError()
+  const observation = await ObservationModel.findOne(
+    { _id: id, 'photos._id': photoId },
+    { 'photos.$': 1 },
+  ).lean<StoredObservation>()
+  const redaction = observation?.photos?.[0]?.redaction
+  if (!redaction?.key || !redaction.size) throw new ObservationNotFoundError('photo')
+  return {
+    size: redaction.size,
+    stream: await storage.getObjectStream(redaction.key),
   }
 }
 
