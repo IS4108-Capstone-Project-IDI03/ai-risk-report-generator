@@ -427,7 +427,13 @@ function toEntry(o: SavedObservation): Observation {
       ? { text: o.checklistItem.text, result: o.checklistItem.result }
       : null,
     fromSiteWalk: !!o.fromSiteWalk,
-    media: photos.map((p) => ({ id: p.id, name: p.name, url: p.url, added: p.added })),
+    media: photos.map((p) => ({
+      id: p.id,
+      name: p.name,
+      url: p.url,
+      added: p.added,
+      redaction: p.redaction,
+    })),
     // Removed recordings and photos, kept to restore (CP-08).
     removedMedia: [
       ...o.removedRecordings.map((r) => ({

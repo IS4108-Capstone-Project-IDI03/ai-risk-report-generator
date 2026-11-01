@@ -4,6 +4,7 @@ import type {
   MediaKind,
   ProposedCategory,
   ReadItemKind,
+  SavedPhoto,
   Stamp,
   TranscriptionStatus,
 } from './api'
@@ -45,7 +46,14 @@ export type Observation = {
   // Its photographs (CP-04): url opens the original, or is null for a sample
   // one, which has only a name. Not removed ones (CP-08); id is set on a
   // saved one or one added in the demo, and added on one added after saving.
-  media: { id?: string; name: string; url: string | null; added?: Stamp | null }[]
+  media: {
+    id?: string
+    name: string
+    url: string | null
+    added?: Stamp | null
+    // As sent to the AI with protection on (PV-04).
+    redaction?: SavedPhoto['redaction']
+  }[]
   // Recordings and photos removed from it, to restore (CP-08).
   removedMedia?: {
     kind: MediaKind
