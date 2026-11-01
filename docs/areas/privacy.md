@@ -15,8 +15,8 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | Site walk proposal (CP-22) | Yes | CP-22 | The transcript, existing location names and photo descriptions are masked before the walk-reading model and Jev. The photo itself and the audio are not (speech-to-text and photo description, rows below). |
 | Pre-survey checklist (CP-30) | Not needed | CP-30 | Only the facility type, country and standard ids are sent; S4's request has no field for client text. |
 | Proposed figures for Sections 4 and 5 (GN-03) | **No** | (PV-02 follow-up) | `POST /figures/propose` sends observations and sections to the model unmasked. |
-| Observation reading: photos, and since CP-21 any observation's text (Gemini) | **No** | PV-04 | |
-| Handwritten note transcription (CP-19, Gemini) | **No** | PV-04 | The page image goes to `HANDWRITING_PROVIDER`. Its text is masked later, when it feeds drafting. |
+| Observation reading: photos, and since CP-21 any observation's text (Gemini) | Yes | PV-04 | Faces in photos are blurred; the note, transcripts and location are masked. Item labels ("Note", a photo's file name) are not. |
+| Handwritten note transcription (CP-19, Gemini) | **No, by decision** | PV-04 | The page image must be read by the model, so it can't be masked. See Known gaps. |
 | Ingestion: labelling, OCR crops, embedding | **No** | PV-05/06 | Past reports in Chroma were indexed unredacted (open question G4). |
 | Speech-to-text | **No** | PV-08 (deferred) | |
 
@@ -62,6 +62,18 @@ In rag-service (`app/site_walk/propose.py`):
 
 If privacy-service fails, the step fails with rag 502 and nothing is sent to the model or Jev. The worker retries, then marks the walk `failed` with the reason.
 
+### Observation reading (PV-04)
+
+The gateway sends `privacyFor(reference)` with every reading (`runInterpretation`), as drafting does. In S5 (`app/privacy.py`, `app/processors/vision.py`):
+1. **Faces are blurred.** After each photo is turned upright and shrunk, all of a reading's photos go to privacy-service's `POST /redact-image` in one call. YuNet (OpenCV's face detector, kept in `privacy-service/app/models/`) finds the faces on a copy at most 960 px long, and each face, padded by 40%, is pixelated to 3×3 blocks and blurred. At 5 or more blocks the detector still found the face it had blurred. A photo with no face comes back unchanged. About 100 ms per 1600 px photo.
+2. **One `/mask` call** covers the note, every recording and page transcript, and the location.
+3. Gemini reads only the blurred photos and the masked text. The prompt says to copy placeholders exactly (`cp21-v4`, also with protection off).
+4. **Unmask** happens before the gateway's checks: the description, each category's reason and each quote come back with real values, so the quote check compares real text. A placeholder Gemini garbled stays visible: in a quote it fails the quote check, and in a description the engineer sees and edits it.
+5. **The S3 original is never changed.** S5 returns each photo as Gemini received it (`redacted_photos`). The gateway keeps a photo with a face blurred as a separate object, `<photo key>.redacted.jpg`, and the photo popup in Observations can switch to it ("As sent to AI · 2 faces blurred"). A photo with no face is recorded as checked ("no faces found"), and no copy is kept. If keeping a copy fails, the reading still succeeds.
+6. Provenance records `privacy: {enabled, maskedCount, facesBlurred}` on each part of the reading, never the values.
+
+If privacy-service fails, the reading fails with "Client details couldn't be protected because the privacy service…", and nothing goes to Gemini.
+
 **Placeholder-shaped input.** Text that already contains something like `[PERSON_1]` (typed by an engineer, or from a past report) is swapped for `[LITERAL_n]` before masking, and restored after unmasking. Without that swap, unmasking would put a real name where the input never had one. A bracketed escape such as `[ PERSON_1 ]` does not work, because the unmask pattern accepts placeholders without brackets.
 
 ## What is detected
@@ -80,8 +92,11 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 ## Known gaps
 
 - **Other clients in past reports.** Known entities cover only the current assessment's client. A different client's company name or address in a stored past report is not detected, because organisation and location recognition is off. PV-05 redacts past reports at ingestion.
-- **Figure proposals, observation reading, handwriting and ingestion** are not protected yet (see the table above).
-- **Site walks:** the audio (Whisper) and the photos (`/describe-photo`) go out unmasked, as for voice notes and observation reading (PV-08, PV-04). Only the AI step that reads their text is protected.
+- **Figure proposals and ingestion** are not protected yet (see the table above).
+- **Site walks:** the audio (Whisper) and the photos (`/describe-photo`) go out unmasked, as for voice notes (PV-08). Unlike observation reading (PV-04), a site walk's photos are not blurred. Only the AI step that reads their text is protected.
+- **Handwritten pages (CP-19) go to the AI as photographed.** The model must read the page, so its text can't be masked first. This is accepted for now: the risk is mostly in the *combination* of details (a name with an NRIC and a phone number), and the main goal is not to store PII in the database. Scan mode asks the engineer to leave names, phone numbers and ID numbers off the page. The transcript is masked later, like any text, whenever it feeds drafting or chat. A local handwriting model would close the gap.
+- **Photo reading: faces only.** Text in a photo (a name badge, a tag with a phone number) is not redacted. Tesseract redaction was left out (1–3 s per photo). Faces turned well away from the camera, or under about 17 px in the photo, may not be detected.
+- **Photo labels are not masked.** A photo's label is its file name, which the proposal cites. A file named after a person would reach Gemini.
 - **Chat's known names are read once a minute.** A client or user added in the last minute, or a client's or site's new name, is not masked by name in chat (spaCy may still catch a person's name).
 - **Former names are masked for good** (CP-18). A generic old name, e.g. a site once called "Main building", is masked wherever it appears in its assessment's text, and in chat for everyone.
 - **Windows, outside Docker:** `localhost` costs about 2 s per `/mask` call (IPv6 is tried first). Set `PRIVACY_SERVICE_URL=http://127.0.0.1:8004`. Docker uses the service name and is unaffected.
@@ -89,6 +104,8 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 
 ## Testing
 
+- S5 `tests/test_leak.py` and `tests/test_vision_privacy.py` (PV-04): no seeded detail reaches Gemini in any text, every photo goes as privacy-service returned it, and the reading fails closed. privacy-service's `tests/test_redact_image.py` runs the real detector on a public-domain portrait (`tests/fixtures/`).
+- Photo reading quality: `eval.interpret_photos` and `eval.suggest_categories` take `--privacy`.
 - `tests/test_leak.py` (Rule 10): replaces the Cohere, Anthropic and OpenAI SDK clients with recorders and runs each drafting flow, and chat on both providers, with seeded PII: a client name, "John Tan", `+65 9123 4567` and `S1234567D`. It asserts that none of them is sent.
 - `tests/test_chat_privacy.py`: chat's masking, streaming unmask, quote check, document filters, rerank, fail-closed and provenance. `tests/test_privacy.py` covers `unmask_stream` itself.
 - Chat quality: `eval.chat_eval prepare` and `run` take `--privacy` (see Eval results).

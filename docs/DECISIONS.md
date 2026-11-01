@@ -2012,3 +2012,26 @@ Rejected:
 Known limits: a block taller than a page's text area (a very long paragraph, a row with many photos) runs past the foot and under the footer. Page breaks fall a little earlier than Word's, since paragraphs are not split, so the export's page numbers may differ (EX-01 should decide whether its PDF comes from these pages). Marsh's disclaimer on page i, the cover's site photo, Date Last Surveyed, Site Contacts and Q/A Review By are not drawn: the app records none of them. Section 5's Scenario and Assumptions text sits after the three levels, where RV-08's document has it, not inside each level's page. Laying out runs in the browser only; jsdom lays nothing out, so tests count each section on a page of its own, and the page-break rules are tested on numbers (`paginate.test.ts`).
 
 Stories: RV-12, RV-08, CP-17, CP-18, GN-03, GN-05, GN-07, GN-11, GN-12, EX-01.
+
+## 2026-11-01 — Photo reading blurs faces and masks text before Gemini; the copy sent is kept beside the original
+
+Chose:
+- (PV-04) With `PII_PROTECTION=required`, observation reading (CP-05, CP-21) sends Gemini only blurred photos and masked text. The gateway sends `privacyFor(reference)` with each reading, as drafting does.
+- Faces are blurred in privacy-service, `POST /redact-image` (a JSON batch of base64 images, one call per reading), not in S5, so ingestion's picture crops can use it too (PV-06). YuNet (OpenCV's face detector, about 230 KB, MIT) is kept in the repo, so neither the image build nor the tests download it. A face, padded by 40%, is pixelated to 3×3 blocks and blurred: at 5 or more blocks the detector still found the face it had blurred. Faces are looked for on a copy at most 960 px long (about 100 ms per 1600 px photo instead of 210 ms); one under about 17 px in the photo is missed, and is too small to recognise.
+- The note, every recording and page transcript, and the location are masked in one `/mask` call. Item labels are not: they are what the proposal cites and the gateway matches.
+- Unmask before the gateway's checks: the description, each reason and each quote come back with real values. `[LITERAL_n]` escaping and the fail-closed wording are rag-service's, so engineers read one message everywhere.
+- The vision prompt tells the model to copy placeholders exactly (`cp21-v4`), with protection off too.
+- The photo as sent is kept. S5 returns each photo as Gemini received it, still storing nothing itself. For a photo with a face blurred, the gateway stores it as `<photo key>.redacted.jpg` beside the original, which is never changed, and the photo popup can switch to it ("As sent to AI · 2 faces blurred"). A photo without a face records only that it was checked. Failing to store the copy doesn't fail the reading.
+- Handwritten pages (CP-19) stay unprotected. The model must read the page, so it can't be masked first. The risk is mostly in a combination of details, and the goal is not to store PII in the database. Scan mode asks the engineer to leave names, phone numbers and ID numbers off the page, and the transcript is masked like any text when it feeds drafting or chat.
+
+Reason: photo reading sends client photos and the engineer's notes to Google. Blurring and masking before the call keeps people and named details out of what leaves. Keeping the copy lets the engineer check what was actually sent.
+
+Rejected:
+- Blurring in S5: ingestion needs the same detector for picture crops (PV-06), and one service keeps one model.
+- Overwriting the S3 original with the blurred photo: the original is the engineer's evidence, and the epic requires it unchanged.
+- Tesseract redaction of text inside photos: 1–3 s per photo, against a budget of about 1 s for the whole reading. Left as a known gap.
+- Refusing handwriting transcription under protection: it would remove CP-19 for every protected assessment, for a risk the capture hint mostly avoids.
+
+Open: whether site photos and notes may go to Google at all (G3) is still with Marsh. Blurring and masking may be enough for them.
+
+Stories: PV-04, PV-01, PV-02, CP-05, CP-21, CP-19.

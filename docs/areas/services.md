@@ -79,7 +79,11 @@ after that each can be regenerated on its own.
 4. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
-   changed. It sends each photo after its label, then the texts, to the
+   changed. With the gateway's `privacy` enabled (PV-04), it then has
+   privacy-service blur the faces in every photo (`POST /redact-image`, one
+   call) and mask the texts and location (`POST /mask`, one call), fails
+   closed if either fails, and restores real values in the answer; see
+   docs/areas/privacy.md. It sends each photo after its label, then the texts, to the
    provider named by `VISION_PROVIDER` (only Gemini is implemented:
    `VISION_MODEL`, default `gemini-3.8-flash`, needs a paid-tier
    `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer with
