@@ -180,7 +180,12 @@ services:
     environment:
       PRIVACY_SERVICE_URL: http://privacy-service:8004
     depends_on:
-      - server
+      server:
+        condition: service_started
+      # Photo reading masks text and blurs faces through it, and fails closed
+      # without it (PV-04).
+      privacy-service:
+        condition: service_started
     volumes:
       - ./microservices/speech-ocr-service:/app
 
