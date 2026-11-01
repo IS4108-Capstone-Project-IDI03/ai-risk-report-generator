@@ -3942,6 +3942,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       pageHint: liveCapture
         ? 'JPG or PNG, one photo per page. Each page is transcribed once you save.'
         : 'No capture session, so pages stay in this browser and are not transcribed.',
+      // A page goes to the AI service as photographed: client details in it
+      // can't be masked, so the engineer is asked to leave them off (PV-04).
+      pagePrivacyHint: liveCapture
+        ? 'Leave names, phone numbers and ID numbers off the page: an external AI service reads it.'
+        : null,
       addPages: (e: React.ChangeEvent<HTMLInputElement>) => {
         const { photos, refused } = choosePhotos([...(e.target.files ?? [])])
         e.target.value = ''

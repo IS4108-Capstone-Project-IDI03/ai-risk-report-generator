@@ -206,6 +206,13 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
     expect(
       screen.getByText('JPG or PNG, one photo per page. Each page is transcribed once you save.'),
     ).toBeInTheDocument()
+    // Pages go to an external AI service unmasked, so personal details are best left off
+    // (PV-04 keeps handwriting outside protection).
+    expect(
+      screen.getByText(
+        'Leave names, phone numbers and ID numbers off the page: an external AI service reads it.',
+      ),
+    ).toBeInTheDocument()
   }, 10000)
 
   it('lists the pages, counts them on the switcher and saves them on their own (AC1, AC3)', async () => {
