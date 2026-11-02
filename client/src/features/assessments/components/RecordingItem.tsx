@@ -16,8 +16,15 @@ export function RecordingItem({ r }: { r: Recording }) {
         <Icon name="mic" size={16} color="var(--ink-600)" />
         <span>{r.name}</span>
         {r.canCorrect && (
-          <button type="button" className="ob-button ob-button--small" onClick={r.correct}>
-            {'Edit text'}
+          // A pencil beside the bin, both icon-only, as the page's own actions are.
+          <button
+            type="button"
+            className="ob-button ob-button--small ob-icon-button"
+            aria-label="Edit text"
+            title="Edit text"
+            onClick={r.correct}
+          >
+            <Icon name="pencil" size={15} />
           </button>
         )}
         {/* Kept to restore, never deleted (CP-08). */}
