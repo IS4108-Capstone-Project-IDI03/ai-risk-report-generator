@@ -1,3 +1,16 @@
+import type { AssessmentStatus } from './api'
+
+// An assessment's status as the work list and the client page (CP-18) word it.
+export const STATUS_LABEL: Record<AssessmentStatus, string> = {
+  not_started: 'Not started',
+  capturing: 'Capturing',
+  ready_to_generate: 'Ready to generate',
+  draft: 'Draft',
+  under_review: 'Under review',
+  finalised: 'Finalised',
+  archived: 'Archived',
+}
+
 // Fixed month names: newer ICU data renders en-GB September as "Sept".
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 

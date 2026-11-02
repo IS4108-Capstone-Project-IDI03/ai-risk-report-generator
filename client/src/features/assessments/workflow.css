@@ -287,10 +287,14 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
-/* The assessment header's ⋯ menu: a short list, narrower than the shared
-   popover's default width (set inline, hence !important). */
+/* A header's ⋯ menu: a short list, narrower than the shared popover's
+   default width (set inline, hence !important), and wide enough for a reason
+   under it when it has one. */
 .om-more-menu {
   min-width: 200px !important;
+}
+.om-more-menu.has-notes {
+  width: 280px;
 }
 .om-more-item {
   display: flex;
@@ -309,6 +313,23 @@
 }
 .om-more-item:hover {
   background: var(--surface-hover);
+}
+/* Dimmed as a disabled Button is. */
+.om-more-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: none;
+}
+.om-more-note {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
 }
 .generation-row {
   grid-template-columns: 32px minmax(0, 1fr) 200px 110px 160px;

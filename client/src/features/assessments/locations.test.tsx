@@ -138,6 +138,15 @@ const lists = () =>
     .queryAllByRole('list')
     .map((l) => l.getAttribute('aria-label'))
 const locationBar = () => screen.getByRole('button', { name: /^(Location:|Choose a location)/ })
+// Every name a field suggests, listed from its chevron, then closed again.
+function suggested(input: HTMLElement) {
+  fireEvent.click(within(input.parentElement!).getByRole('button', { name: 'Show suggestions' }))
+  const names = within(document.getElementById(input.getAttribute('aria-controls')!)!)
+    .getAllByRole('option')
+    .map((o) => o.textContent)
+  fireEvent.keyDown(input, { key: 'Escape' })
+  return names
+}
 // The Remove this location? dialog the bin button opens.
 const removeDialog = () => screen.findByRole('dialog', { name: 'Remove this location?' })
 async function confirmRemove() {
@@ -349,13 +358,9 @@ describe('Choosing where observations are captured', () => {
     await within(sheet()).findByText('Block A')
     press('Add a location')
 
-    const options = (input: HTMLElement) =>
-      [...document.getElementById(input.getAttribute('list')!)!.querySelectorAll('option')].map(
-        (o) => o.value,
-      )
-    expect(options(field('Building'))).toEqual(['Block A', 'Block B'])
+    expect(suggested(field('Building'))).toEqual(['Block A', 'Block B'])
     fill({ Building: 'block b' })
-    expect(options(field('Level'))).toEqual([
+    expect(suggested(field('Level'))).toEqual([
       'G',
       'Mezzanine',
       'Basement 2',
@@ -525,7 +530,6 @@ describe('Changing a location (CP-16)', () => {
         status: 'capturing',
         captureStartedAt: '2026-04-11T08:00:00.000Z',
         createdAt: '2026-04-01T00:00:00.000Z',
-        siteShared: false,
         site: {
           id: 'site1',
           code: 'SITE-0001',
@@ -533,6 +537,8 @@ describe('Changing a location (CP-16)', () => {
           address: null,
           jurisdiction: 'GB',
           facilityType: 'Warehouse',
+          removed: false,
+          change: { allowed: true, reason: null, assessments: 1 },
         },
       },
     ]
@@ -770,10 +776,7 @@ describe('Checking building and location names against the usual ones (CP-16)', 
     await within(sheet()).findByText('Atrium')
     press('Add a location')
 
-    const input = field('Location')
-    const options = [
-      ...document.getElementById(input.getAttribute('list')!)!.querySelectorAll('option'),
-    ].map((o) => o.value)
+    const options = suggested(field('Location'))
     expect(options.slice(0, 4)).toEqual(['Atrium', 'Staircase', 'Stairwell', 'Lobby'])
     expect(options).toContain('Fire access route')
   })

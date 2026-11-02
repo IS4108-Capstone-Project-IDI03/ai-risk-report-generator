@@ -1,5 +1,14 @@
 import { useEffect, useId, useRef, type AriaAttributes, type CSSProperties } from 'react'
-import { Button, Callout, Dialog, Icon, IconButton, Input, Popover } from '../../../design-system'
+import {
+  Button,
+  Callout,
+  Combobox,
+  Dialog,
+  Icon,
+  IconButton,
+  Input,
+  Popover,
+} from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useSave } from './useSave'
 
@@ -514,57 +523,42 @@ export function LocationForm({ v }: { v: AssessmentWorkflow }) {
       </fieldset>
       {inBuilding && (
         <>
-          <Input
+          <Combobox
             label="Building"
             required
             placeholder="e.g. Block A"
             maxLength={100}
-            list={id + '-buildings'}
+            options={v.buildingSuggestions}
             value={v.lf.building}
-            onChange={v.setLf('building')}
+            onValueChange={v.setLf('building')}
             error={v.lfErrors.building}
           />
-          <datalist id={id + '-buildings'}>
-            {v.buildingSuggestions.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
           {v.lfCheck?.field === 'building' && <NameCheckCallout v={v} />}
-          <Input
+          <Combobox
             label="Level"
             hint="Leave it blank for the whole building, e.g. its facade or roof."
             placeholder="e.g. Level 2"
             maxLength={40}
-            list={id + '-levels'}
+            options={v.levelSuggestions}
             value={v.lf.floor}
-            onChange={v.setLf('floor')}
+            onValueChange={v.setLf('floor')}
             error={v.lfErrors.floor}
           />
-          <datalist id={id + '-levels'}>
-            {v.levelSuggestions.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
           {v.lfCheck?.field === 'floor' && <NameCheckCallout v={v} />}
         </>
       )}
-      <Input
+      <Combobox
         label="Location"
         required
         placeholder={
           inBuilding ? 'e.g. Staircase, Store room, Lobby' : 'e.g. Fire access route, Guardhouse'
         }
         maxLength={100}
-        list={id + '-names'}
+        options={v.locationNameSuggestions}
         value={v.lf.name}
-        onChange={v.setLf('name')}
+        onValueChange={v.setLf('name')}
         error={v.lfErrors.name}
       />
-      <datalist id={id + '-names'}>
-        {v.locationNameSuggestions.map((name) => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
       {v.lfCheck?.field === 'name' && <NameCheckCallout v={v} />}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {!v.noLocations && (

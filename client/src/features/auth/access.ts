@@ -7,7 +7,16 @@ import type { UserRole } from '../accounts/api'
 import type { Permission, Session } from './api'
 
 export type Screen =
-  'dashboard' | 'create' | 'field' | 'assessment' | 'users' | 'knowledge' | 'usage' | 'chat'
+  | 'dashboard'
+  | 'create'
+  | 'field'
+  | 'assessment'
+  | 'users'
+  | 'knowledge'
+  | 'usage'
+  | 'chat'
+  | 'clients'
+  | 'client'
 
 export const SCREEN_PATHS: Record<Screen, string> = {
   dashboard: '/assessments',
@@ -18,6 +27,10 @@ export const SCREEN_PATHS: Record<Screen, string> = {
   knowledge: '/admin/knowledge-base',
   usage: '/usage-costs',
   chat: '/ask',
+  // The engineer's clients (CP-18), and each one's page at '/clients/<id>';
+  // see clientIdForPath.
+  clients: '/clients',
+  client: '/clients',
 }
 
 const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
@@ -29,6 +42,23 @@ const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
   knowledge: 'knowledge:manage',
   usage: 'usage:view',
   chat: 'knowledge:view',
+  // Engineers manage the clients and sites of their own assessments (CP-18).
+  clients: 'assessments:edit',
+  client: 'assessments:edit',
+}
+
+// A client's page (CP-18): '/clients/<id>'.
+export const CLIENT_PATH = `${SCREEN_PATHS.client}/`
+
+// The id of the client a path opens, or null for any other path.
+export function clientIdForPath(pathname: string): string | null {
+  const id = pathname.match(new RegExp(`^${CLIENT_PATH}([^/]+)/*$`))?.[1]
+  if (!id) return null
+  try {
+    return decodeURIComponent(id)
+  } catch {
+    return null
+  }
 }
 
 // A knowledge document's Review page (IN-07) is part of the knowledge screen:
@@ -65,7 +95,11 @@ const HOME: Record<UserRole, Screen> = {
 export function screenForPath(pathname: string, session: Session): Screen {
   const path = pathname.replace(/\/+$/, '') || '/'
   if (reviewIdForPath(path)) return 'knowledge'
-  const match = (Object.keys(SCREEN_PATHS) as Screen[]).find((s) => SCREEN_PATHS[s] === path)
+  if (clientIdForPath(path)) return 'client'
+  // '/clients' alone is the list of clients.
+  const match = (Object.keys(SCREEN_PATHS) as Screen[]).find(
+    (s) => s !== 'client' && SCREEN_PATHS[s] === path,
+  )
   return match ?? homeScreen(session)
 }
 

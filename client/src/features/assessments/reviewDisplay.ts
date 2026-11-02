@@ -22,7 +22,7 @@ type Draft = ReviewDraft
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-export function describeChanges({ added, changed, removed, figures }: ChangeCounts) {
+export function describeChanges({ added, changed, removed, figures, scope }: ChangeCounts) {
   const kinds = (
     [
       [added, 'added'],
@@ -35,6 +35,13 @@ export function describeChanges({ added, changed, removed, figures }: ChangeCoun
   )
   // Section 4 or 5's figures (GN-03), after any observation changes.
   if (figures) words.push(words.length ? 'the figures changed' : 'The figures changed')
+  // The site's jurisdiction or facility type, corrected (CP-18).
+  if (scope)
+    words.push(
+      words.length
+        ? "the site's jurisdiction or facility type changed"
+        : "The site's jurisdiction or facility type changed",
+    )
   return words.length > 1
     ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
     : (words[0] ?? '')
