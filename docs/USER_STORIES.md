@@ -633,7 +633,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Editing
 
   7. Given a copied location, when it is edited or removed, then the earlier assessment's locations do not change.
-  8. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments.
+  8. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments. *(Superseded by CP-18: a site's details and its client's name change for all their assessments at once, from Edit site and Rename client, when every assessment there is the engineer's.)*
 
   Grouping
 
@@ -645,22 +645,49 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   11. Given a likely typo of a recorded client or one of the client's sites, when it is added, then the app suggests the recorded name and the engineer can use it or keep theirs (e.g. Northgate Logistic → Northgate Logistics), to prevent the same client or site being saved differently.
   </details>
 
-- [ ] **CP-18** — Edit clients and sites (risk engineer, Could, 3 pts, deps: CP-17, Sprint 5)
+- [ ] **CP-18** — Manage a client and its sites (risk engineer, Must, 13 pts, deps: CP-17, RV-10, CP-08, PV-02, Sprint 4)
   <details><summary>Goal / AC</summary>
 
-  Goal: view, rename and correct clients and their sites outside any assessment, so a shared site's details, locked on its assessments by CP-17, can still be fixed in one place.
+  Goal: view, filter, correct, remove and restore a client I survey and its sites, from the client's page, so its details are right in one place and drafting, checklists and reports use them. "Mine" means assigned to me now; everything is changed only when every assessment it has, archived or not, is mine and none is finalised.
 
-  Viewing
+  Viewing and filtering
 
-  1. Given recorded clients, when the engineer opens Clients and sites, then each client is listed with its sites, and each site with how many assessments it has and the latest one's reference and visit date.
+  1. Given I have assessments for a client, when I choose it from Clients in the side menu (my clients, found by name or site), View client on Group by client or the client's name on an assessment's Overview, then its page lists each site I have an assessment at, with its address, jurisdiction and facility type, and my visits there newest first, each with its reference, visit date, status and report due as the work list shows them, and opening its assessment.
+  2. Given a client with several sites, when I search by a site's name or address, then only matching sites are shown.
+  3. Given my visits are in several states, when I filter by status, then only those visits are shown, and a site with none left is hidden.
+  4. Given some of my visits are archived, when I choose Archived, then they are listed instead of the others.
+  5. Given a site on the client page, when I choose New visit, then the create form opens with that client and site chosen; and given the client page, when I choose Add site, then it opens with that client chosen and a new site to name.
+  6. Given my visits for a client are all archived, when I group the work list's Archived view by client, then I can open the client's page from it.
 
-  Editing
+  Correcting
 
-  2. Given a client, when the engineer renames it, then every assessment for it shows the new name; a name matching another client, whatever its case, is refused.
-  3. Given a site, when the engineer edits its name, address, jurisdiction or facility type, then every assessment for it shows the change, and observations keep the jurisdiction and facility type they were saved with.
-  4. Given a site, when its jurisdiction or facility type is changed, then the engineer is told how many assessments it affects before saving.
+  7. Given a site, when I correct its name, address, jurisdiction or facility type, from the client page or from Edit site on an assessment's Overview, then every assessment there shows the change, and observations keep the jurisdiction and facility type they were saved with.
+  8. Given I change a site's jurisdiction or facility type, when I save, then I am told how many assessments it changes before it is saved, and afterwards their section drafts show as out of date.
+  9. Given a client, when I rename it from its page, then every assessment for it shows the new name; a name another client has, whatever its case, is refused.
+  10. Given a site name the client already has, whatever its case, or a facility type not on the list, when I save, then it is refused with the reason, and what I typed is kept. A site's older facility type, unchanged, is kept.
+  11. Given an assessment's Overview, when I choose Edit details, then it offers only the visit's own details (assessment type, site visit date and report due), and saving changes only those.
 
-  Not in this story: merging duplicate clients or sites; deleting a client or site; moving a site to another client.
+  Removing and restoring
+
+  12. Given a site whose assessments are all mine and all archived, when I remove it and confirm, then it leaves the client page and the create form's site list, its assessments are unchanged, and Removed sites can restore it.
+  13. Given a site with an assessment not archived, when I try to remove it, then it is refused, with how many are still open.
+  14. Given a client whose assessments are all mine and all archived, when I remove it, then all its listed sites are removed together, it leaves the create form, and Clients lists it under Removed clients; Restore brings back those sites, not one removed on its own before.
+  15. Given a removed site or client, when I try to change it, then it is refused until it is restored.
+  16. Given a removed site's name, when another site of that name is added, then it is allowed; restoring the removed one then asks for a new name, so two listed sites never share one.
+  17. Given an archived assessment on a removed site, when it is restored, then its site is restored with it, unless the site's name was taken meanwhile, when I am told to restore the site under a new name first.
+  18. Given a removed client's name, when it is typed on the create form, then the client comes back rather than a second one being added.
+
+  Who may change what
+
+  19. Given another engineer has an assessment, archived or not, at the site or for the client, when I try to change or remove it, then it is refused without naming whose.
+  20. Given a site or client with a finalised report, when I try to change or remove it, then it is refused.
+  21. Given a client I have no assessment for, when I try to open its page, then it is refused; a knowledge admin can't open client pages.
+
+  Privacy
+
+  22. Given a site's or client's name or address was corrected, when a report is drafted or the chat is asked with protection on, then neither the old nor the new value is sent to the model or Cohere, and the masked old value reads back as the current one.
+
+  Not in this story: the knowledge admin's view of every engineer's visits, renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); permanently deleting, or moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
   </details>
 
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
@@ -852,6 +879,37 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   12. Given protection is on, when discrepancies are checked, then client details are masked before any external AI call.
   13. Given I am not the assigned engineer, or the assessment is archived, when I resolve a discrepancy, then it is refused.
   14. Given a test set of documents and observations with known disagreements, when discrepancy checking is evaluated on it, then the share found meets the agreed threshold, and none is listed without both sources.
+  </details>
+
+- [ ] **CP-44** — Manage clients and sites as a knowledge admin (knowledge admin, Could, 8 pts, deps: CP-18, CB-07, F-10, PV-02, unplanned) *(draft)*
+  <details><summary>Goal / AC</summary>
+
+  Goal: see every client's sites and visits, rename clients, merge duplicates and approve corrections to shared sites, so client and site records stay correct and single, even where several engineers' work is involved. Picks up what CP-18 leaves to one accountable role.
+
+  Viewing
+
+  1. Given recorded clients, when a knowledge admin opens a client's page, then every site is listed with every engineer's visits, each naming its engineer.
+
+  Renaming a client
+
+  2. Given a client, when the admin renames it, then every assessment for it shows the new name, its old name stays masked from AI providers, and a name another client has, whatever its case, is refused.
+
+  Correcting shared sites
+
+  3. Given an engineer's correction is refused because a colleague's assessment uses the site, when they send it as a request, then it appears in the admin's inbox with the change asked for.
+  4. Given a correction request, when the admin approves or dismisses it with a reason, then the change is applied or not, and the engineer is notified.
+
+  Merging
+
+  5. Given two sites of one client, when the admin merges one into the other, then its assessments move to the kept site, its names stay masked, and it is removed.
+  6. Given two clients, when the admin merges one into the other, then its sites move to the kept client, and sites of the same name are offered for merging next.
+  7. Given merged sites differ in jurisdiction or facility type, when the merge completes, then the moved assessments' drafts show as out of date.
+
+  Permissions
+
+  8. Given a `clients:manage` permission held only by knowledge admins, when anyone else uses these actions, then they are refused.
+
+  Not in this story: permanently deleting sites; moving a site to another client, other than by merging two records of the same client.
   </details>
 
 ## E6 — Report Generation & Guardrails

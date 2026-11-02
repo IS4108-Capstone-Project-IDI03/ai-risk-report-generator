@@ -23,7 +23,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 
 The gateway decides whether protection is on. It sends `privacy: {enabled, known_entities}` with each request (`server/src/services/privacy.service.ts: privacyFor`). The Python services never read `PII_PROTECTION`, and without a `privacy` field they behave as before.
 
-`known_entities` lists the assessment's client, site (name and code), address and every active user.
+`known_entities` lists the assessment's client, site (name and code), address and every active user. A client or site that was renamed, or a site whose address was corrected (CP-18), also lists the names and addresses it had before, after the current one: notes written with an old name are still masked, and the placeholder restores to the first name, so they read back with the current one. Names match in any case and spacing, so a change of case alone keeps no former name.
 
 In rag-service (`app/privacy.py`, `orchestrator.py`), drafting does the following:
 1. **One `/mask` call** covers the request's own text: the observations' notes, transcripts, locations and standards, plus the facts, a redraft's saved text and instruction, accepted OFI titles, or the summary's sections.
@@ -38,7 +38,7 @@ In rag-service (`app/privacy.py`, `orchestrator.py`), drafting does the followin
 
 ### Chat (PV-03)
 
-Chat has no assessment, so the gateway sends every client (and any client name typed on an assessment before CP-17), every site and its address, and every active user (`chatPrivacy`). It reads them at most once a minute, so a client added in the last minute is not yet masked. It always sets `privacy` itself, replacing any the browser sent.
+Chat has no assessment, so the gateway sends every client (and any client name typed on an assessment before CP-17), every site and its address, removed sites included, with their former names (CP-18), and every active user (`chatPrivacy`). It reads them at most once a minute, so a client added, or a name corrected, in the last minute is not yet masked by its new name. It always sets `privacy` itself, replacing any the browser sent.
 
 In rag-service (`app/chat/answer.py`):
 1. **One `/mask` call** covers the conversation (earlier answers hold real names), the engineer's context and the document names (a past report's title can name its client). The planner and the answer model see the same placeholder for a name.
@@ -69,7 +69,8 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 
 - **Other clients in past reports.** Known entities cover only the current assessment's client. A different client's company name or address in a stored past report is not detected, because organisation and location recognition is off. PV-05 redacts past reports at ingestion.
 - **Figure proposals, observation reading, handwriting and ingestion** are not protected yet (see the table above).
-- **Chat's known names are read once a minute.** A client or user added in the last minute is not masked by name in chat (spaCy may still catch a person's name).
+- **Chat's known names are read once a minute.** A client or user added in the last minute, or a client's or site's new name, is not masked by name in chat (spaCy may still catch a person's name).
+- **Former names are masked for good** (CP-18). A generic old name, e.g. a site once called "Main building", is masked wherever it appears in its assessment's text, and in chat for everyone.
 - **Windows, outside Docker:** `localhost` costs about 2 s per `/mask` call (IPv6 is tried first). Set `PRIVACY_SERVICE_URL=http://127.0.0.1:8004`. Docker uses the service name and is unaffected.
 - From PV-01: a surname written before the full name gets two placeholders, and `[PERSON 1]` (with a space) is not restored.
 
