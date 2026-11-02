@@ -1,6 +1,6 @@
 import { config } from '../config'
 import { recordAiCalls } from './ai-usage.service'
-import type { Privacy } from './privacy.service'
+import type { ReadingPrivacy } from './privacy.service'
 
 // A speech-service failure. `retryable` is true when trying again can work: the
 // service could not be reached, timed out, or was busy or rate-limited (408,
@@ -230,7 +230,12 @@ export type InterpretationResult = {
     thought_tokens: number | null
   } | null
   // What S5 protected before the model saw the reading (PV-04).
-  privacy?: { enabled: boolean; masked_count: number; faces_blurred: number }
+  privacy?: {
+    enabled: boolean
+    masked_count: number
+    faces_blurred: number
+    removed_from_answer: number
+  }
   // With protection on, each photo as the model saw it (base64 JPEG), by label.
   redacted_photos?: { label: string; faces: number; image: string }[]
 }
@@ -246,7 +251,7 @@ export async function interpret(request: {
   texts: { label: string; kind: 'note' | 'recording' | 'page'; text: string }[]
   location: string | null
   parts: ('categories' | 'description')[]
-  privacy: Privacy
+  privacy: ReadingPrivacy
 }): Promise<InterpretationResult> {
   let response: Response
   try {

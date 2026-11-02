@@ -31,7 +31,7 @@ import { locationText, toLocationDto, type LocationDto } from './location.servic
 import { onTranscriptionJob, transcriptionQueue } from './background-queues.service'
 import { retryJobId, type JobContext } from './job-queue.service'
 import { duplicateKeyField } from './mongo-errors'
-import { privacyFor } from './privacy.service'
+import { readingPrivacyFor } from './privacy.service'
 import {
   interpret,
   SpeechServiceError,
@@ -1635,7 +1635,7 @@ export async function runInterpretation(
       parts,
       // Read inside the try, so a failure is stored as the attempt's reason (PV-04).
       // Without the assessment, protection on fails as not found rather than send unprotected.
-      privacy: await privacyFor(assessment?.reference ?? ''),
+      privacy: await readingPrivacyFor(assessment?.reference ?? ''),
     })
     // EV-03: the paid call, tagged with the assessment. Never throws.
     await recordAiCalls(visionUsageToWire(result, performance.now() - started), {
@@ -1655,6 +1655,7 @@ export async function runInterpretation(
           enabled: result.privacy.enabled,
           maskedCount: result.privacy.masked_count,
           facesBlurred: result.privacy.faces_blurred,
+          removedFromAnswer: result.privacy.removed_from_answer,
         },
       }),
       interpretedAt: new Date(),

@@ -1,6 +1,6 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { config, piiProtectionFrom } from '../config'
+import { config, piiCheckAnswersFrom, piiProtectionFrom } from '../config'
 import { AssessmentModel } from '../models/assessment.model'
 import { ClientModel } from '../models/client.model'
 import { SiteModel } from '../models/site.model'
@@ -214,5 +214,17 @@ describe('piiProtectionFrom', () => {
 
   it('refuses any other value, so a typo never silently leaves protection off', () => {
     expect(() => piiProtectionFrom('requried')).toThrow('PII_PROTECTION')
+  })
+})
+
+describe('piiCheckAnswersFrom', () => {
+  it('checks AI answers unless PII_CHECK_ANSWERS says off', () => {
+    expect(piiCheckAnswersFrom(undefined)).toBe(true)
+    expect(piiCheckAnswersFrom('on')).toBe(true)
+    expect(piiCheckAnswersFrom('off')).toBe(false)
+  })
+
+  it('refuses any other value, so a typo never silently turns the check off', () => {
+    expect(() => piiCheckAnswersFrom('of')).toThrow('PII_CHECK_ANSWERS')
   })
 })

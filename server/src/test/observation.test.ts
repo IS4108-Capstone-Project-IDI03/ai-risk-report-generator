@@ -3,6 +3,7 @@ import { Readable } from 'stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { config } from '../config'
+import type { ReadingPrivacy } from '../services/privacy.service'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
@@ -34,7 +35,12 @@ vi.mock('../services/storage.service', () => ({
 }))
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 // S5's photo interpretation (CP-05), stubbed apart from transcription.
-type InterpretBody = { s3_keys: string[]; location: string | null; note: string | null }
+type InterpretBody = {
+  s3_keys: string[]
+  location: string | null
+  note: string | null
+  privacy: ReadingPrivacy
+}
 const vision = vi.fn<(body: InterpretBody) => Promise<Response>>()
 // S5's handwritten pages (CP-19), stubbed apart from voice transcription.
 const handwriting = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
@@ -1240,7 +1246,7 @@ describe('reading an observation (CP-05, CP-21)', () => {
       // Both parts in one call the first time (CP-21).
       parts: ['categories', 'description'],
       // Off unless PII_PROTECTION requires it (PV-04).
-      privacy: { enabled: false, known_entities: [] },
+      privacy: { enabled: false, known_entities: [], check_answers: false },
     })
     expect(speech).not.toHaveBeenCalled()
     // Listed as interpreting while it runs (AC2), naming what it reads.
@@ -1351,7 +1357,7 @@ describe('reading an observation (CP-05, CP-21)', () => {
       ],
       location: 'Bay 3 — north aisle, Ground',
       parts: ['categories'],
-      privacy: { enabled: false, known_entities: [] },
+      privacy: { enabled: false, known_entities: [], check_answers: false },
     })
     expect(done.interpretation?.photoReading).toBeUndefined()
     const [observation] = await listed()
@@ -1603,7 +1609,7 @@ describe('reading an observation (CP-05, CP-21)', () => {
       texts: [{ label: 'Note', kind: 'note', text: 'Bay 3 racking' }],
       location: 'Bay 3 — north aisle, Ground',
       parts: ['description'],
-      privacy: { enabled: false, known_entities: [] },
+      privacy: { enabled: false, known_entities: [], check_answers: false },
     })
     const [observation] = await listed()
     expect(observation.interpretation).toMatchObject({
@@ -1837,6 +1843,37 @@ describe('reading an observation (CP-05, CP-21)', () => {
   describe('PII protection (PV-04)', () => {
     afterEach(() => {
       config.piiProtection = 'off'
+      config.piiCheckAnswers = true
+    })
+
+    it("asks S5 to check the AI's answer when protection is required", async () => {
+      config.piiProtection = 'required'
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      expect(vision.mock.calls[0][0].privacy.check_answers).toBe(true)
+    })
+
+    it("leaves the AI's answer unchecked when PII_CHECK_ANSWERS is off", async () => {
+      config.piiProtection = 'required'
+      config.piiCheckAnswers = false
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      expect(vision.mock.calls[0][0].privacy).toMatchObject({ enabled: true, check_answers: false })
+    })
+
+    it('checks no answer when protection is off', async () => {
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      expect(vision.mock.calls[0][0].privacy.check_answers).toBe(false)
     })
 
     it("sends the assessment's known details when protection is required", async () => {
@@ -1871,13 +1908,16 @@ describe('reading an observation (CP-05, CP-21)', () => {
     it('records what was protected with each part, never the values (Rule 8)', async () => {
       config.piiProtection = 'required'
       vision.mockReturnValue(
-        s5(200, { ...PROPOSAL, privacy: { enabled: true, masked_count: 2, faces_blurred: 1 } }),
+        s5(200, {
+          ...PROPOSAL,
+          privacy: { enabled: true, masked_count: 2, faces_blurred: 1, removed_from_answer: 1 },
+        }),
       )
       await assessmentWithSession()
 
       const done = await interpreted(await readSaved())
 
-      const privacy = { enabled: true, maskedCount: 2, facesBlurred: 1 }
+      const privacy = { enabled: true, maskedCount: 2, facesBlurred: 1, removedFromAnswer: 1 }
       expect(done.interpretation?.provenance?.privacy).toEqual(privacy)
       expect(done.interpretation?.photoReading?.provenance?.privacy).toEqual(privacy)
     })

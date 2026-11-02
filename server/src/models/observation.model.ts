@@ -160,7 +160,14 @@ export interface IReadingProvenance {
   usage: { inputTokens: number; outputTokens: number | null; thoughtTokens: number | null } | null
   // Whether client details were masked and faces blurred before the model saw
   // them, and how many (PV-04). Never the details. Absent before PV-04.
-  privacy?: { enabled: boolean; maskedCount: number; facesBlurred: number }
+  // removedFromAnswer: details the AI added to its answer (a name read off a
+  // photo) that were taken out; absent before the answer check.
+  privacy?: {
+    enabled: boolean
+    maskedCount: number
+    facesBlurred: number
+    removedFromAnswer?: number
+  }
   interpretedAt: Date
 }
 
@@ -378,7 +385,7 @@ const provenanceSchema = new Schema<IReadingProvenance>(
     },
     privacy: {
       type: new Schema(
-        { enabled: Boolean, maskedCount: Number, facesBlurred: Number },
+        { enabled: Boolean, maskedCount: Number, facesBlurred: Number, removedFromAnswer: Number },
         { _id: false },
       ),
       default: undefined,
