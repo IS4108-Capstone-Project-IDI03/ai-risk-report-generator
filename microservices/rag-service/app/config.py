@@ -37,3 +37,18 @@ OPENAI_CHAT_API_KEY = os.getenv("OPENAI_CHAT_API_KEY")
 PRIVACY_SERVICE_URL = os.getenv("PRIVACY_SERVICE_URL", "http://localhost:8004")
 # Seconds. A batch of 66 texts took 0.65 s locally; a timeout fails the draft (fail closed).
 PRIVACY_TIMEOUT = float(os.getenv("PRIVACY_TIMEOUT", "10"))
+
+# The site walk proposal step (CP-22). The free-text reading uses LLM_PROVIDER and
+# SITE_WALK_MODEL at this effort; the fixed choices (place, severity, category, photo)
+# use this classifier.
+SITE_WALK_EFFORT = os.getenv("SITE_WALK_EFFORT", "medium")
+# The model that reads the walk, on LLM_PROVIDER. The 31 Oct comparison with the tuned
+# prompt on the held-out site walks (never used for tuning): Sonnet matched every place
+# (100%, Opus 92%, GPT-6.1 Sol 97%) with the same recall, at ~40% of Opus's cost
+# (eval/results/2026-10-31-held-out-*-tuned.log).
+SITE_WALK_MODEL = os.getenv("SITE_WALK_MODEL", "claude-sonnet-5-5")
+# A key of app/site_walk/jev.py's adapter registry. Jev needs TYPESAFE_API_KEY.
+SITE_WALK_CLASSIFIER = os.getenv("SITE_WALK_CLASSIFIER", "jev")
+# A pick below this probability is marked "Check" for the engineer; it is never hidden.
+# The cutoff the document labelling evaluation chose for Jev (IN-05, 2026-10-07).
+SITE_WALK_CHECK_BELOW = 0.70

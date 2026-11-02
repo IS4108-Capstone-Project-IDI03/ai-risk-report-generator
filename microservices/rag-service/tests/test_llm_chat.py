@@ -225,3 +225,26 @@ def test_complete_json_unparsed_fails(monkeypatch, items):
         llm.complete_json(
             "s", "u", Plan, provider="anthropic", model="m", effort="low", feature="p"
         )
+
+
+def test_complete_runs_on_openai_when_llm_provider_says_so(monkeypatch):
+    """LLM_PROVIDER picks the provider for `complete` too (CP-22 model comparison)."""
+    monkeypatch.setattr(llm.config, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(llm.config, "LLM_MODEL", "gpt-test")
+    seen = {}
+
+    def parse(system, user, schema, model, effort, feature):
+        seen.update(model=model, feature=feature)
+        return "answer"
+
+    monkeypatch.setattr(llm, "_parse_openai", parse)
+    assert llm.complete("sys", "user", str, "medium", feature="site-walk") == ("answer", "gpt-test")
+    assert seen == {"model": "gpt-test", "feature": "site-walk"}
+
+
+def test_complete_uses_the_model_it_is_given(monkeypatch):
+    """A step with its own model setting (e.g. SITE_WALK_MODEL) overrides LLM_MODEL."""
+    monkeypatch.setattr(llm.config, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(llm.config, "LLM_MODEL", "gpt-default")
+    monkeypatch.setattr(llm, "_parse_openai", lambda s, u, sc, model, e, f: model)
+    assert llm.complete("sys", "user", str, "medium", model="gpt-step") == ("gpt-step", "gpt-step")

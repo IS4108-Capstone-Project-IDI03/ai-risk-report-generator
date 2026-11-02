@@ -17,6 +17,7 @@ from app.orchestrator.orchestrator import (
     run,
 )
 from app.retrieval.retriever import retrieve
+from app.site_walk.propose import propose_site_walk
 
 router = APIRouter()
 Query = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
@@ -269,6 +270,87 @@ def propose(request: ProposeFiguresRequest) -> dict:
             request.observations,
             request.sections,
             request.te_items,
+        )
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+# A site walk (CP-22), as the gateway's site-walk-proposal worker sends it. Must match the
+# rag-service section of .local-docs/specs/sprint-4/CP-22-contract.md.
+class Segment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    start: float
+    end: float
+    text: str
+
+
+class WalkRecording(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    seq: int
+    # How long the recording lasts; without it, its last segment's end stands in.
+    duration_sec: float | None = None
+    segments: list[Segment]
+
+
+# A note typed during a recorded walk: it takes the next seq, like a recording, so the walk
+# is read in the order it was made. It has no times, so nothing of it can be played.
+class WalkNote(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    seq: int
+    kind: Literal["typed"]
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class RecordedWalk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["recordings"]
+    recordings: Annotated[list[WalkRecording | WalkNote], Field(min_length=1)]
+
+
+class TypedWalk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["typed"]
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class ExistingLocation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    building: str | None = None
+    floor: str | None = None
+    name: str
+
+
+# A photo taken during the walk, with S5's description of it (/describe-photo).
+class WalkPhoto(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    recording_seq: int | None = None
+    offset_sec: float | None = None
+    description: str | None = None
+
+
+class ProposeSiteWalkRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    report_id: str
+    transcript: Annotated[RecordedWalk | TypedWalk, Field(discriminator="kind")]
+    existing_locations: list[ExistingLocation] = []
+    photos: list[WalkPhoto] = []
+    # The assessment's site name: the building when the walk names levels but no building.
+    site_name: str | None = None
+    privacy: Privacy | None = None
+
+
+@router.post("/site-walks/propose")
+def propose_site_walk_route(request: ProposeSiteWalkRequest) -> dict:
+    """Propose a site walk's locations and observations (CP-22) for the engineer to review."""
+    try:
+        return propose_site_walk(
+            request.transcript,
+            request.existing_locations,
+            request.photos,
+            _privacy(request),
+            request.site_name,
         )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
