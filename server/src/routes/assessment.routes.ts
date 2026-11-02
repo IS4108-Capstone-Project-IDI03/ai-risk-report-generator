@@ -12,7 +12,6 @@ import {
   NotArchivedError,
   NotAssignedError,
   restoreAssessment,
-  UnknownFacilityTypeError,
   updateAssessment,
 } from '../services/assessment.service'
 import {
@@ -21,8 +20,8 @@ import {
   startCaptureSession,
 } from '../services/capture-session.service'
 import {
+  ClientSiteError,
   DuplicateSiteError,
-  SiteSharedError,
   UnknownClientError,
   UnknownSiteError,
 } from '../services/client.service'
@@ -146,7 +145,7 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
     return
   }
   try {
-    res.status(201).json(await createAssessment(parsed.data))
+    res.status(201).json(await createAssessment(parsed.data, res.locals.user!))
   } catch (error) {
     if (error instanceof InvalidEngineersError) {
       res.status(400).json({ error: error.message, fields: { engineerId: error.message } })
@@ -193,10 +192,10 @@ router.post(
   },
 )
 
-// Corrects an assessment's details (RV-10 AC10): 204 when saved, 400 naming
-// each invalid field (AC11) or a site name the client already has, 403 for
-// anyone but its assigned engineer, 409 once it is archived or when changing
-// a shared site's details (CP-17 AC8).
+// Corrects an assessment's own details, its type and dates (RV-10 AC10): 204
+// when saved, 400 naming each invalid field (AC11), 403 for anyone but its
+// assigned engineer, 409 once it is archived. Its site and client are
+// corrected through /api/sites and /api/clients (CP-18).
 router.put('/:reference', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = assessmentDetailsSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -213,18 +212,6 @@ router.put('/:reference', requirePermission('assessments:edit'), async (req, res
       res.status(404).json({ error: error.message })
       return
     }
-    if (error instanceof DuplicateSiteError) {
-      res.status(400).json({ error: error.message, fields: { 'site.name': error.message } })
-      return
-    }
-    if (error instanceof UnknownFacilityTypeError) {
-      res.status(400).json({ error: error.message, fields: { 'site.facilityType': error.message } })
-      return
-    }
-    if (error instanceof SiteSharedError) {
-      res.status(409).json({ error: error.message })
-      return
-    }
     if (error instanceof NotAssignedError) {
       res.status(403).json({ error: error.message })
       return
@@ -238,7 +225,8 @@ router.put('/:reference', requirePermission('assessments:edit'), async (req, res
 })
 
 // Archives (RV-10 AC8) or restores (AC9) an assessment: 204 when done, 403
-// for anyone but its assigned engineer, 409 when it is already in that state.
+// for anyone but its assigned engineer, 409 when it is already in that state,
+// or when its removed site's name has since been taken (CP-18).
 for (const [action, change] of [
   ['archive', archiveAssessment],
   ['restore', restoreAssessment],
@@ -258,6 +246,10 @@ for (const [action, change] of [
       }
       if (error instanceof AssessmentArchivedError || error instanceof NotArchivedError) {
         res.status(409).json({ error: error.message })
+        return
+      }
+      if (error instanceof ClientSiteError) {
+        res.status(error.status).json({ error: error.message })
         return
       }
       throw error
