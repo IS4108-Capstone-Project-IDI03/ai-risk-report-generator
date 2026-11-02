@@ -138,8 +138,18 @@ def test_records_what_was_protected_but_never_the_values(monkeypatch, fake_priva
     off = client.post("/interpret", json={"photos": photos("a"), "texts": [NOTE]}).json()
 
     # John Tan, Acme Holdings and the phone number; the fake finds one face in each photo.
-    assert on["privacy"] == {"enabled": True, "masked_count": 3, "faces_blurred": 2}
-    assert off["privacy"] == {"enabled": False, "masked_count": 0, "faces_blurred": 0}
+    assert on["privacy"] == {
+        "enabled": True,
+        "masked_count": 3,
+        "faces_blurred": 2,
+        "removed_from_answer": 0,
+    }
+    assert off["privacy"] == {
+        "enabled": False,
+        "masked_count": 0,
+        "faces_blurred": 0,
+        "removed_from_answer": 0,
+    }
 
 
 def test_returns_each_photo_as_sent_for_the_gateway_to_keep(monkeypatch, fake_privacy):
@@ -210,3 +220,128 @@ def test_every_prompt_says_to_copy_placeholders_exactly():
     for parts in (("categories",), ("description",), ("categories", "description")):
         assert "Copy bracketed placeholders" in vision.system_instruction(parts)
     assert vision.PROMPT_VERSION == "cp21-v4"
+
+
+# The answer check: details Gemini writes that the reading never sent it, such as a name or phone
+# number it read off a photo, are taken out before the proposal is saved.
+CHECKED = {**PRIVACY, "check_answers": True}
+
+
+def test_removes_details_the_answer_adds(monkeypatch, fake_privacy):
+    answer = {
+        "description": "At [CLIENT_1] Tower, a notice drafted by [PERSON_1] gives +65 8888 7777.",
+        "hazard_type": "Other",
+    }
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+
+    response = client.post(
+        "/interpret",
+        json={
+            "photos": photos("k"),
+            "texts": [NOTE],
+            "location": LOCATION,
+            "parts": ["description"],
+            "privacy": CHECKED,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["description"] == (
+        "At Acme Holdings Tower, a notice drafted by John Tan gives [phone number removed]."
+    )
+    assert fake_privacy.paths() == ["/redact-image", "/mask", "/mask"]
+
+
+def test_checks_each_reason_with_the_description_in_one_call(monkeypatch, fake_privacy):
+    answer = {
+        "categories": [
+            {
+                "category": "Protection",
+                "reason": "Photo 1 shows a notice to call S7654321Z.",
+                "evidence": [{"item": "Photo 1", "quote": None}],
+            }
+        ],
+        "description": "At [CLIENT_1] Tower, a notice gives +65 8888 7777.",
+        "hazard_type": "Other",
+    }
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+
+    response = client.post(
+        "/interpret",
+        json={"photos": photos("k"), "texts": [NOTE], "location": LOCATION, "privacy": CHECKED},
+    )
+
+    body = response.json()
+    assert body["categories"][0]["reason"] == "Photo 1 shows a notice to call [ID number removed]."
+    assert body["description"] == "At Acme Holdings Tower, a notice gives [phone number removed]."
+    assert fake_privacy.paths() == ["/redact-image", "/mask", "/mask"]
+
+
+def test_keeps_a_known_name_the_answer_adds(monkeypatch, fake_privacy):
+    # The client's name on a sign: known, so it stays, as it would have in the input.
+    answer = {"description": "A sign reads Acme Holdings.", "hazard_type": "Other"}
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+
+    response = client.post(
+        "/interpret",
+        json={"photos": photos("k"), "parts": ["description"], "privacy": CHECKED},
+    )
+
+    assert response.json()["description"] == "A sign reads Acme Holdings."
+
+
+def test_leaves_the_answer_as_written_when_the_check_is_off(monkeypatch, fake_privacy):
+    answer = {"description": "A notice gives +65 8888 7777.", "hazard_type": "Other"}
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+
+    response = client.post(
+        "/interpret",
+        json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"], "privacy": PRIVACY},
+    )
+
+    assert response.json()["description"] == "A notice gives +65 8888 7777."
+    assert fake_privacy.paths() == ["/redact-image", "/mask"]
+
+
+def test_fails_closed_when_the_answer_cannot_be_checked(monkeypatch, fake_privacy):
+    answer = {"description": "A notice gives +65 8888 7777.", "hazard_type": "Other"}
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+    serve = fake_privacy.handler
+
+    def down_after_two(request):
+        if len(fake_privacy.requests) == 2:
+            raise httpx.ConnectError("refused")
+        return serve(request)
+
+    fake_privacy.handler = down_after_two
+
+    response = client.post(
+        "/interpret",
+        json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"], "privacy": CHECKED},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == (
+        "The AI's answer couldn't be checked for personal details because the privacy service "
+        "isn't available, so it wasn't saved. If this keeps happening, tell your administrator."
+    )
+
+
+def test_records_how_many_details_the_answer_lost_never_which(monkeypatch, fake_privacy):
+    answer = {
+        "description": "Notices give +65 8888 7777, +65 8888 7777 and S7654321Z.",
+        "hazard_type": "Other",
+    }
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+
+    response = client.post(
+        "/interpret",
+        json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"], "privacy": CHECKED},
+    )
+
+    assert response.json()["privacy"] == {
+        "enabled": True,
+        "masked_count": 1,
+        "faces_blurred": 1,
+        "removed_from_answer": 2,
+    }

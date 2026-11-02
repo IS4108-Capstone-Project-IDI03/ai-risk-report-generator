@@ -264,6 +264,21 @@ def _interpret_gemini(
 _PROVIDERS = {"gemini": _interpret_gemini}
 
 
+def _check(answer: BaseModel, session: protection.Session) -> None:
+    """The answer's reasons and description with each detail Gemini added taken out, in one
+    call, while still masked so only those are found (PV-04). Quotes are not checked: they are
+    copied from the items, which were masked going in."""
+    proposed = getattr(answer, "categories", [])
+    texts = [category.reason for category in proposed]
+    if isinstance(answer, DescriptionAnswer):
+        texts.append(answer.description)
+    checked = session.check_answer(texts)
+    for category, reason in zip(proposed, checked, strict=False):
+        category.reason = reason
+    if isinstance(answer, DescriptionAnswer):
+        answer.description = checked[-1]
+
+
 def _categories(answer: BaseModel, unmask) -> list[dict] | None:
     """Each category once, in the model's order, at most MAX_CATEGORIES, with real values back
     in its reason and quotes; None if not asked for."""
@@ -327,6 +342,7 @@ def interpret_images(
     location = masked_location or None
     prompt = _prompt([label for label, _ in images], texts, location)
     answer, model, usage = provider(images, prompt, parts)
+    _check(answer, session)
     description = getattr(answer, "description", None)
     # Real values back before the gateway checks quotes against the items (Rule 4).
     result = {

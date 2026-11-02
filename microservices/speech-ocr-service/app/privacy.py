@@ -20,6 +20,16 @@ _PLACEHOLDER_SHAPED = re.compile(
 )
 _LITERAL = re.compile(r"\[?\bLITERAL_(\d+)\b\]?", re.IGNORECASE)
 
+# What a detail Gemini added to its answer is replaced with: its kind, never its value.
+_REMOVED = {
+    "PERSON": "[name removed]",
+    "PHONE": "[phone number removed]",
+    "EMAIL": "[email address removed]",
+    "NRIC": "[ID number removed]",
+    "UEN": "[UEN removed]",
+    "POSTAL": "[postal code removed]",
+}
+
 
 class PrivacyUnavailable(Exception):
     """privacy-service could not protect a reading's text or photos, so nothing was sent."""
@@ -29,24 +39,30 @@ def _client() -> httpx.Client:
     return httpx.Client(base_url=config.PRIVACY_SERVICE_URL, timeout=config.PRIVACY_TIMEOUT)
 
 
-def _post(path: str, body: dict) -> dict:
+# What failed, and what happened as a result, for each kind of call.
+_PROTECTING = ("Client details couldn't be protected", "so nothing was sent to the AI model")
+# By the time the answer is checked, Gemini has seen the request: nothing is saved instead.
+_CHECKING = ("The AI's answer couldn't be checked for personal details", "so it wasn't saved")
+
+
+def _post(path: str, body: dict, failure: tuple[str, str] = _PROTECTING) -> dict:
     """privacy-service's answer to `body`. Fails closed (Rule 3): on any failure the reading
     fails and raw text or photos are never the fallback. The message names no value from the
-    request (Rule 5); it is rag-service's, so engineers read one wording everywhere."""
+    request (Rule 5); protecting's is rag-service's, so engineers read one wording everywhere."""
+    what, outcome = failure
     try:
         with _client() as client:
             response = client.post(path, json=body)
         response.raise_for_status()
     except httpx.TimeoutException as error:
         raise PrivacyUnavailable(
-            "Client details couldn't be protected because the privacy service didn't "
-            "respond in time, so nothing was sent to the AI model. Try again in a moment."
+            f"{what} because the privacy service didn't respond in time, {outcome}. "
+            "Try again in a moment."
         ) from error
     except httpx.HTTPError as error:
         raise PrivacyUnavailable(
-            "Client details couldn't be protected because the privacy service isn't "
-            "available, so nothing was sent to the AI model. If this keeps happening, "
-            "tell your administrator."
+            f"{what} because the privacy service isn't available, {outcome}. "
+            "If this keeps happening, tell your administrator."
         ) from error
     return response.json()
 
@@ -57,9 +73,12 @@ class Session:
     def __init__(self, privacy: dict | None):
         self.enabled = bool(privacy and privacy.get("enabled"))
         self.known_entities = (privacy or {}).get("known_entities") or []
+        self.check_answers = self.enabled and bool((privacy or {}).get("check_answers"))
         self.mapping: dict[str, str] = {}
         # Faces blurred in each photo, in the order sent.
         self.faces: list[int] = []
+        # Details taken out of Gemini's answer, each counted once.
+        self.removed = 0
         self.literals: dict[str, str] = {}
 
     def _escape(self, text: str) -> str:
@@ -86,6 +105,31 @@ class Session:
         self.mapping = body["mapping"]
         return body["texts"]
 
+    def check_answer(self, texts: list[str]) -> list[str]:
+        """Gemini's `texts`, still masked, with each detail the reading never sent it (a name
+        or number read off a photo) replaced by its kind, in one more /mask call. What was sent
+        is a placeholder by now, so whatever /mask finds is new; a known client, site or
+        person stays, as it would have in the input."""
+        if not self.check_answers or not texts:
+            return list(texts)
+        body = _post(
+            "/mask",
+            {"texts": texts, "known_entities": self.known_entities, "mapping": self.mapping},
+            _CHECKING,
+        )
+        known = {entity["names"][0] for entity in self.known_entities}
+        checked = body["texts"]
+        for key, value in body["mapping"].items():
+            if key in self.mapping:
+                continue
+            if value in known:
+                kept = value
+            else:
+                kept = _REMOVED.get(key[1:].rsplit("_", 1)[0], "[detail removed]")
+                self.removed += 1
+            checked = [text.replace(key, kept) for text in checked]
+        return checked
+
     def redact_images(self, images: list[str]) -> list[str]:
         """`images` (base64 JPEG) with every face blurred, in one /redact-image call."""
         if not self.enabled or not images:
@@ -100,6 +144,7 @@ class Session:
             "enabled": self.enabled,
             "masked_count": len(self.mapping),
             "faces_blurred": sum(self.faces),
+            "removed_from_answer": self.removed,
         }
 
     def unmask(self, text: str) -> str:

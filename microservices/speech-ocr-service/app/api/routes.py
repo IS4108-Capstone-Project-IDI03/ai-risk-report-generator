@@ -37,6 +37,8 @@ class KnownEntity(BaseModel):
 class Privacy(BaseModel):
     enabled: bool
     known_entities: list[KnownEntity] = []
+    # Whether details Gemini adds to its answer (a name read off a photo) are taken out.
+    check_answers: bool = False
 
 
 # Everything the engineer captured about one finding, each item by the name the proposal cites
