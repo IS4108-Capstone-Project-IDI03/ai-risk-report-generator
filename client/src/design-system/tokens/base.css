@@ -18,6 +18,25 @@ a:hover {
 a:active {
   color: var(--ink-800);
 }
+/* A button that reads as a link, as a Breadcrumb's earlier steps do. */
+.text-link {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--ink-200);
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-link);
+  text-align: left;
+  cursor: pointer;
+}
+.text-link:hover {
+  color: var(--ink-700);
+  border-bottom-color: var(--ink-500);
+}
+.text-link:active {
+  color: var(--ink-800);
+}
 *:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 1px;

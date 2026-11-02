@@ -118,6 +118,24 @@ the assigned engineer restore one as the section's draft
 (`POST …/sections/:sectionId/versions/restore`): a new version, so nothing is
 overwritten, and no other section changes.
 
+Clients in the side menu (`/clients`, CP-18) lists the engineer's own
+clients, found by name or site. A client's page (`/clients/<id>`), opened from
+there, from View client on the work list's Group by client or from the
+client's name on an assessment's Overview, lists the engineer's sites at that
+client and their own visits there as the work list shows them, filtered by
+site, status, Archived and Removed sites. Its Add site opens New assessment
+with the client chosen and a new site to name. From it the engineer corrects a
+site's name, address, jurisdiction and facility type for every assessment at
+it (also from Edit site on an assessment's Overview), renames the client from
+the page's ⋯ menu, and removes and restores a site, or the whole client, once
+its visits are archived. Each is allowed only when every assessment the
+client or site has, archived or not, is theirs and none is finalised;
+otherwise the page says another engineer's assessment uses it. A corrected
+jurisdiction or facility type asks first and marks section drafts out of
+date, and old names stay masked from AI providers. Edit details is a dialog
+over the Overview with the visit's own details: assessment type, site visit
+date and report due.
+
 Before the visit, the assessment's Checklist tab generates a pre-survey
 checklist (CP-30): one item per subsection of Marsh's template (Sections
 6-12), and items from the knowledge-base standards that apply to the site's

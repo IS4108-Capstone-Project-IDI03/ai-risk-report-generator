@@ -1,6 +1,5 @@
 import { Fragment, useId } from 'react'
 import {
-  Badge,
   Button,
   Callout,
   EmptyState,
@@ -10,6 +9,7 @@ import {
   Select,
   StatusIcon,
 } from '../../../design-system'
+import { DueNote } from '../components/DueNote'
 import { FoldHeading } from '../components/FoldHeading'
 import { StatBox } from '../components/StatBox'
 import type { DateFilter } from '../types'
@@ -48,24 +48,6 @@ const DATE_CELL = {
   paddingRight: '12px',
   whiteSpace: 'nowrap',
 } as const
-
-// A row's report deadline beside its due date: the Overdue badge once past
-// due, otherwise the countdown, amber within three days.
-function DueNote({ r }: { r: AssessmentWorkflow['filteredRows'][number] }) {
-  if (r.overdue) return <Badge tone="high">Overdue</Badge>
-  if (!r.countdown) return null
-  return (
-    <span
-      style={{
-        fontSize: '13px',
-        fontWeight: r.countdown.soon ? '500' : '400',
-        color: r.countdown.soon ? 'var(--status-moderate-fg)' : 'var(--text-muted)',
-      }}
-    >
-      {r.countdown.text}
-    </span>
-  )
-}
 
 type WorkRow = AssessmentWorkflow['filteredRows'][number]
 type WorkGroup = AssessmentWorkflow['workGroups'][number]
@@ -173,7 +155,7 @@ function TableRow({ v, r, grouped }: { v: AssessmentWorkflow; r: WorkRow; groupe
         }}
       >
         <span style={{ ...DATE_CELL, paddingRight: '0' }}>{r.dueDate}</span>
-        <DueNote r={r} />
+        <DueNote overdue={r.overdue} countdown={r.countdown} />
       </span>
     </div>
   )
@@ -252,7 +234,7 @@ function StackedRow({ v, r }: { v: AssessmentWorkflow; r: WorkRow }) {
         }}
       >
         <StatusIcon status={r.status} showLabel={true} size={15} />
-        <DueNote r={r} />
+        <DueNote overdue={r.overdue} countdown={r.countdown} />
       </div>
     </div>
   )
@@ -260,7 +242,9 @@ function StackedRow({ v, r }: { v: AssessmentWorkflow; r: WorkRow }) {
 
 // A client, folding away under its heading as a building does on the
 // Observations tab, then each site, like a location there, with its visits
-// and New visit (CP-17 AC6, AC9).
+// and New visit (CP-17 AC6, AC9). View client opens its page (CP-18), beside
+// the heading rather than in it, since the heading folds the group; a button
+// like the sites' New visit below it.
 function ClientGroup({ v, group }: { v: AssessmentWorkflow; group: WorkGroup }) {
   const id = useId()
   return (
@@ -271,6 +255,19 @@ function ClientGroup({ v, group }: { v: AssessmentWorkflow; group: WorkGroup }) 
         open={group.open}
         controls={id}
         onToggle={group.toggle}
+        action={
+          !!group.viewClient && (
+            <Button
+              size="sm"
+              variant="secondary"
+              iconLeft={IconRegistry.object.client}
+              aria-label={'View client ' + group.title}
+              onClick={group.viewClient}
+            >
+              {'View client'}
+            </Button>
+          )
+        }
       />
       {group.open && (
         <div id={id}>
@@ -397,13 +394,12 @@ export function Dashboard({ v }: { v: AssessmentWorkflow }) {
             }}
           >
             {/* Says what pressing it does, so its text changes with the list,
-                as on the Observations tab. The archived list hides it and the
-                status, as the deleted observations hide theirs. */}
-            {!v.showArchived && (
-              <Button size="sm" variant="secondary" onClick={v.toggleWorkByClient}>
-                {v.workByClient ? 'Show latest first' : 'Group by client'}
-              </Button>
-            )}
+                as on the Observations tab. The archived list groups too
+                (CP-18), so a client with only archived visits can be opened;
+                it hides the status, as the deleted observations hide theirs. */}
+            <Button size="sm" variant="secondary" onClick={v.toggleWorkByClient}>
+              {v.workByClient ? 'Show latest first' : 'Group by client'}
+            </Button>
             <div style={{ flex: '0 1 220px', minWidth: '180px' }}>
               <Select
                 size="sm"

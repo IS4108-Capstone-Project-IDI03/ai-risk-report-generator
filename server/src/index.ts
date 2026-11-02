@@ -8,6 +8,7 @@ import knowledgeDocumentRoutes from './routes/knowledge-document.routes'
 import knowledgeGapRoutes from './routes/knowledge-gap.routes'
 import assessmentRoutes from './routes/assessment.routes'
 import clientRoutes from './routes/client.routes'
+import siteRoutes from './routes/site.routes'
 import authRoutes from './routes/auth.routes'
 import ragRoutes from './routes/rag.routes'
 import chatRoutes from './routes/chat.routes'
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes)
 // checks its own permission from the role matrix (403, F-05).
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
+app.use('/api/sites', requireAuth, siteRoutes)
 app.use('/api/knowledge-documents', requireAuth, knowledgeDocumentRoutes)
 app.use('/api/knowledge-gaps', requireAuth, knowledgeGapRoutes)
 app.use('/api/rag', requireAuth, ragRoutes)

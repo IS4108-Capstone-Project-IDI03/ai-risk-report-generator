@@ -79,9 +79,10 @@ client in name order with its number of sites, and `GET
 /api/clients/:id/sites` a client's sites in name order, each with its latest
 assessment not archived (`reference`, `siteVisitDate`, and the `locations` and
 `buildings` a new assessment would copy); 404 for an unknown client. Both need
-`assessments:edit`. Assessments list with `clientId` (null for a site not yet
-migrated) and `siteShared`: whether the site has another assessment not
-archived. Sites saved before CP-17 have no `client` until `npm --prefix server run
+`assessments:edit`, and both leave out removed sites (CP-18), and clients with
+no listed site. Assessments list with `clientId` (null for a site not yet
+migrated), `site.change` (see "Managing a client and its sites" below) and
+`site.removed`. Sites saved before CP-17 have no `client` until `npm --prefix server run
 migrate:clients` links each to a client made from its assessment's `client`
 text: names matching by key become one client, spelt as first found, and sites
 are never merged. It is safe to run more than once, and leaves a site with no
@@ -208,18 +209,55 @@ requires `assessments:edit` and returns only active risk engineers' IDs, names,
 staff IDs and job titles for assignment. Creating an assessment requires
 `engineerId`, the ID of one active risk engineer.
 
-`PUT /api/assessments/:reference` corrects an assessment's details (RV-10 AC10):
-its site's name, address, jurisdiction and facility type, and its assessment
-type and dates, with the same validation as creating one (AC11). The engineer,
-client and site are not editable: they stay as the assessment was created
-(CP-17 AC8). The site's details are shared once the site has another
-assessment not archived, so changing them is then refused (409); sending them
-unchanged is fine. Renaming a site to another of its client's site names is
-refused (400, `site.name`). A new site's facility type, or a changed one, must
-be one of the nine the forms offer (`FACILITY_TYPES`, as knowledge documents
-are labelled; 400, `site.facilityType`); a site's older type sent unchanged is
-kept, so its assessments can still be edited (CP-30). A date left empty is cleared. Only the assigned engineer
+`PUT /api/assessments/:reference` corrects an assessment's own details (RV-10
+AC10): its assessment type and dates, with the same validation as creating one
+(AC11). The engineer, client and site are not editable: they stay as the
+assessment was created (CP-17 AC8). The site's details and its client's name
+change for all their assessments at once, through `/api/sites` and
+`/api/clients` (CP-18, below); a `site` sent here is ignored. A new site's
+facility type must be one of the nine the forms offer (`FACILITY_TYPES`, as
+knowledge documents are labelled; 400, `site.facilityType`). A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
+
+### Managing a client and its sites (CP-18)
+
+A site gains `formerNames` and `formerAddresses` (what it was called and where
+it was before a correction, absent until one), `edited: { at, by }` (its latest
+correction) and `removed: { at, by, withClient }` (present only while removed;
+`withClient` when it went with its client). A client gains `formerNames` and
+`edited`. The former names are for masking only (see privacy.md): each is
+kept once, whatever its case or spacing, and the current name is never among
+them. A client is not marked removed: it counts as removed once it has no
+listed site.
+
+"Mine" is the rule for every change: every assessment the client or site has,
+archived or not, is assigned to the signed-in engineer now, and none has
+`reportStatus: 'finalised'`. Removing also needs every one archived. An
+assessment with no engineer is no one's. A removed client or site can't be
+changed until it is restored.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/clients/:id` | The client page: `{ id, name, edited, removed, rename, remove, removedWithClient, restore, sites }`, each of `rename`, `remove` and `restore` an `{ allowed, reason }`, and `sites` the engineer's sites at the client (removed ones too), in name order, each with its details, `edited`, `removed`, `removedWithClient`, `nameTaken` (removed, and another listed site now has its name), `assessments` (all of them, archived or not), `change`, `remove`, `restore` and `visits`: the engineer's own `{ reference, siteVisitDate, status }`, newest visit first. 403 when the engineer has no assessment for the client, 404 unknown |
+| `PUT /api/clients/:id` | Renames it: JSON `name` (200 characters, tidied as clients are matched). 204, or 400 a name another client has (`fields.name`), 403 not all mine, 404, 409 finalised or removed |
+| `POST /api/clients/:id/remove` | Removes all its listed sites as one batch (`removed.withClient`). 204, or 403, 404, 409 not all archived, finalised, or already removed |
+| `POST /api/clients/:id/restore` | Restores that batch, one site at a time: 200 `{ restored, nameTaken }`, naming any held back because another listed site now has its name. 403, 404, 409 none removed with it |
+| `PUT /api/sites/:id` | Corrects a site's `name`, `address`, `jurisdiction` and `facilityType`, validated as a new site's, for every assessment at it. A changed facility type must be one of `FACILITY_TYPES`; an older one unchanged is kept. 204, or 400 a name the client already has or a facility type off the list (`fields.name`, `fields.facilityType`), 403, 404, 409 finalised or removed |
+| `POST /api/sites/:id/remove` | Removes it. 204, or 403, 404, 409 not all archived, finalised, or already removed |
+| `POST /api/sites/:id/restore` | Restores it, renamed when JSON `name` is given. 204, or 400 when another listed site of the client has the name it would have (`fields.name`), 403, 404, 409 not removed |
+
+Site routes go by the site's own id, so a site with no client yet can be
+corrected. A removed site's name doesn't stop a new site taking it (a
+colleague can't see the removed one); a restore then needs a new name.
+`POST /api/assessments` refuses a removed site (400, `siteId`), and a removed
+client's name typed there finds it again. `POST
+/api/assessments/:reference/restore` restores the assessment's removed site
+with it, or refuses (409) while another listed site has that site's name.
+Observations keep the `jurisdiction` and `facility_type` they were saved with.
+The list's `site.change` (`{ allowed, reason, assessments }`) says whether the
+Overview offers Edit site, and how many assessments its confirm step names.
+`npm --prefix server run seed` gives MRE-0001 two Northgate sites of their
+own (`SYN-UK-TPD`, `SYN-UK-GOS`) beside the shared Tilbury.
 
 `POST /api/assessments/:reference/archive` archives an assessment (RV-10 AC8), a
 soft delete: it sets `archivedAt`, and nothing the assessment holds is removed.
@@ -299,7 +337,7 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20) | yes | no |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
@@ -582,7 +620,11 @@ accepted, and from when it was accepted. Each document has:
 - `guardrail`: `{ passed, unsupported_count }`.
 - `facts`: Sections 4 and 5 only (GN-03), the engineer's figures the draft was
   given, as sent to S4. The draft is out of date (`changeCounts.figures: 1`)
-  once the figures no longer give the same text.
+  once the figures no longer give the same text. Any draft is also out of
+  date (`changeCounts.scope: 1`, CP-18) once its site's jurisdiction or
+  facility type differs from the `metadata.jurisdiction` and
+  `metadata.facility_type` it was drafted with; both counts are present only
+  when set, so other drafts read as before.
 - `provenance`: `provider`, `model`, `effort`, `prompt_version`,
   `template_version`, `generated_at` (AC7), and `instruction`: what the
   engineer asked a regenerated draft to change, or `null` (RV-02). A

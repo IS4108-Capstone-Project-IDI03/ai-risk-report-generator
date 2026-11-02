@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useEffect, useId, useRef } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useLayoutEffect, useRef } from 'react'
 import type { CSSProperties, ReactElement, ReactNode } from 'react'
 
 export type PopoverProps = {
@@ -41,6 +41,23 @@ export function Popover({
   // entirely and leaves the trigger's own ref, if any, untouched.
   const triggerWrap = useRef<HTMLSpanElement>(null)
   const surfaceId = useId()
+
+  // Kept on screen: where its side of the trigger leaves too little room, as
+  // when a phone's header wraps its actions to the left, it moves sideways
+  // just enough to fit, a small margin from the edge. jsdom lays nothing out,
+  // so a surface with no width is left where it is.
+  const surface = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = surface.current
+    if (!open || !el) return
+    el.style.transform = ''
+    const box = el.getBoundingClientRect()
+    if (!box.width) return
+    const margin = 8
+    const room = document.documentElement.clientWidth - margin
+    const shift = box.left < margin ? margin - box.left : box.right > room ? room - box.right : 0
+    if (shift) el.style.transform = `translateX(${shift}px)`
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -100,6 +117,7 @@ export function Popover({
       </span>
       {open && (
         <div
+          ref={surface}
           id={surfaceId}
           role="dialog"
           aria-label={ariaLabel}

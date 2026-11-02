@@ -274,6 +274,58 @@ async function seedAndVerify(): Promise<void> {
     )
   }
   console.log('Work list assessments RPT-2026-0408 and RPT-2026-0327 are available.')
+
+  // Northgate's client page (CP-18) for MRE-0001: beside Tilbury, which a
+  // colleague's finalised visit locks, a depot with two of their own visits,
+  // one archived, to correct, and a store whose only visit is archived, to
+  // remove. Matched by code and reference, so re-seeding keeps changes made
+  // on screen, a removal included.
+  const ownSites = [
+    {
+      site: {
+        code: 'SYN-UK-TPD',
+        name: 'Thurrock Parts Depot',
+        address: 'London Road, Grays RM20 3LP',
+        facilityType: 'Distribution warehouse',
+      },
+      visits: [
+        { reference: 'RPT-2026-0390', siteVisitDate: '2026-03-30' },
+        { reference: 'RPT-2025-0612', siteVisitDate: '2025-06-12', archived: true },
+      ],
+    },
+    {
+      site: { code: 'SYN-UK-GOS', name: 'Grays Overflow Store', facilityType: 'Cold store' },
+      visits: [{ reference: 'RPT-2025-0318', siteVisitDate: '2025-03-18', archived: true }],
+    },
+  ]
+  for (const { site, visits } of ownSites) {
+    const stored = await SiteModel.findOneAndUpdate(
+      { code: site.code },
+      {
+        $setOnInsert: {
+          ...site,
+          jurisdiction: 'UK',
+          ...(await clientOf('Northgate Logistics')),
+        },
+      },
+      { upsert: true, returnDocument: 'after' },
+    )
+    for (const { reference, siteVisitDate, archived } of visits)
+      await AssessmentModel.updateOne(
+        { reference },
+        {
+          $setOnInsert: {
+            site: stored._id,
+            surveyType: 'Property risk survey',
+            siteVisitDate: new Date(siteVisitDate),
+            ...(archived && { archivedAt: new Date(siteVisitDate) }),
+            ...(await assignedTo('MRE-0001')),
+          },
+        },
+        { upsert: true },
+      )
+  }
+  console.log('Client page samples RPT-2026-0390, RPT-2025-0612 and RPT-2025-0318 are available.')
 }
 
 seedAndVerify()

@@ -51,9 +51,6 @@ export type Assessment = {
   // When its latest capture session started; null before capture starts.
   captureStartedAt: string | null
   createdAt: string
-  // The site has another assessment that is not archived, so its details are
-  // shared and can't be changed from this one (CP-17 AC8).
-  siteShared: boolean
   site: {
     id: string
     code: string
@@ -61,8 +58,17 @@ export type Assessment = {
     address: string | null
     jurisdiction: string
     facilityType: string
+    // Removed from its client (CP-18): it takes no new visit.
+    removed: boolean
+    // Whether the signed-in engineer may correct it, and how many
+    // assessments a correction changes, for its confirm step (CP-18).
+    change: Allowed & { assessments: number }
   }
 }
+
+// Whether the signed-in engineer may do something to a client or site, and
+// why not (CP-18): every assessment there must be theirs, and none finalised.
+export type Allowed = { allowed: boolean; reason: string | null }
 
 export type CaptureSession = {
   // True when the assessment's session in progress was returned (HTTP 200)
@@ -317,11 +323,11 @@ export async function listAssignableEngineers(signal?: AbortSignal): Promise<Ass
   ).data
 }
 
-// Corrects an assessment's details (RV-10 AC10). The engineer, client and
-// site stay as created (CP-17 AC8); the site's details can be corrected while
-// it is not shared.
+// Corrects an assessment's own details, its type and dates (RV-10 AC10). The
+// engineer, client and site stay as created (CP-17 AC8); the site's details
+// and the client's name change for all their assessments at once, through
+// features/clients/api.ts (CP-18).
 export type AssessmentDetails = {
-  site: SiteDetails
   surveyType: string
   siteVisitDate?: string
   reportDueDate?: string
@@ -632,7 +638,15 @@ export type SectionDraft = {
 
 // What changed in a draft's evidence since it was written, by kind (CP-08), and
 // `figures` (GN-03): 1, present only when Section 4 or 5's figures changed.
-export type ChangeCounts = { added: number; changed: number; removed: number; figures?: number }
+// `scope` (CP-18): the site's jurisdiction or facility type was corrected
+// since the draft, so its standards were retrieved for another scope.
+export type ChangeCounts = {
+  added: number
+  changed: number
+  removed: number
+  figures?: number
+  scope?: number
+}
 
 export type ReportSection = {
   id: string

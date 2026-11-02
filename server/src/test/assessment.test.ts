@@ -360,25 +360,26 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
     expect(refused.status).toBe(400)
     expect(refused.body.fields['site.facilityType']).toBe('Choose a facility type from the list.')
 
-    const { reference, site } = (await create(body())).body
-    // A site saved before the check, with a type now off the list.
+    const { site } = (await create(body())).body
+    // A site saved before the check, with a type now off the list. Its details
+    // are corrected through /api/sites (CP-18).
     await SiteModel.updateOne({ _id: site.id }, { facilityType: 'Warehouse' })
-    const unchanged = await edit(reference, {
-      site: { ...SITE, facilityType: 'Warehouse' },
-      reportDueDate: '2026-10-30',
-    })
+    const unchanged = await api
+      .put(`/api/sites/${site.id}`)
+      .send({ ...SITE, facilityType: 'Warehouse', address: '3 Jurong Port Road' })
     expect(unchanged.status).toBe(204)
-    const changed = await edit(reference, { site: { ...SITE, facilityType: 'Depot' } })
+    const changed = await api.put(`/api/sites/${site.id}`).send({ ...SITE, facilityType: 'Depot' })
     expect(changed.status).toBe(400)
-    expect(changed.body.fields['site.facilityType']).toBe('Choose a facility type from the list.')
+    expect(changed.body.fields.facilityType).toBe('Choose a facility type from the list.')
   })
 
-  it('lets the assigned engineer correct the details, keeping the engineer, client and site', async () => {
+  it('lets the assigned engineer correct its own details, keeping the engineer, client and site', async () => {
     const { reference, site } = (await create(body())).body
 
     const saved = await edit(reference, {
+      // The site and client change for all their assessments at once (CP-18),
+      // not here: both are ignored.
       site: { ...SITE, name: 'Jurong Hub East', address: '' },
-      // The client can't change (CP-17 AC8): it is not part of an edit.
       client: 'Straits Freight',
       siteVisitDate: '',
       reportDueDate: '2026-10-30',
@@ -393,7 +394,7 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
       reportDueDate: '2026-10-30',
       // The engineer stays the one the assessment was created for.
       engineer: { id: String(actor._id), name: 'Alex Rowe' },
-      site: { id: site.id, name: 'Jurong Hub East', address: null },
+      site: { id: site.id, name: SITE.name, address: SITE.address },
     })
     expect(await ClientModel.countDocuments()).toBe(1)
   })
@@ -401,17 +402,17 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
   it('names each invalid field and changes nothing', async () => {
     const { reference } = (await create(body())).body
 
-    const rejected = await edit(reference, {
-      site: { ...SITE, name: '' },
-      reportDueDate: '2026-10-01',
-    })
+    const rejected = await edit(reference, { surveyType: '', reportDueDate: '2026-10-01' })
     expect(rejected.status).toBe(400)
     expect(rejected.body.fields).toEqual({
-      'site.name': 'Site name is required.',
+      surveyType: 'Assessment type is required.',
       reportDueDate: 'The report due date must be on or after the site visit date.',
     })
     const [listed] = (await api.get('/api/assessments')).body
-    expect(listed).toMatchObject({ site: { name: SITE.name }, reportDueDate: '2026-10-19' })
+    expect(listed).toMatchObject({
+      surveyType: 'Property risk survey',
+      reportDueDate: '2026-10-19',
+    })
   })
 
   it('refuses anyone but the assigned engineer, and an archived assessment', async () => {

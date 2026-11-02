@@ -90,4 +90,21 @@ describe('Popover', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
     expect(screen.getByRole('dialog', { name: 'Notifications' })).toBeInTheDocument()
   })
+
+  it('moves sideways onto the screen where its side of the trigger has too little room', () => {
+    // jsdom lays nothing out, so the surface reports where a phone would put
+    // it: 280px wide, its left edge 100px off the screen.
+    const box = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ left: -100, right: 180, width: 280 } as DOMRect)
+    try {
+      render(<Harness />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+      expect(screen.getByRole('dialog', { name: 'Notifications' })).toHaveStyle({
+        transform: 'translateX(108px)',
+      })
+    } finally {
+      box.mockRestore()
+    }
+  })
 })

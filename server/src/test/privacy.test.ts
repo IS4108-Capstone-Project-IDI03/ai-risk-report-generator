@@ -62,6 +62,29 @@ describe('knownEntities', () => {
     ])
   })
 
+  it('adds the names and addresses a client and site had before, after the current one (CP-18)', async () => {
+    const client = await ClientModel.create({
+      name: 'Jurong Port Pte Ltd',
+      key: 'jurong port pte ltd',
+      formerNames: ['Jurong Port'],
+    })
+    const site = await SiteModel.create({
+      ...SITE,
+      client: client._id,
+      formerNames: ['Jurong DC'],
+      formerAddresses: ['1 Jurong Port Road'],
+    })
+    await AssessmentModel.create({ reference: 'RPT-2026-0004', site: site._id, surveyType: 'PRE' })
+
+    // A placeholder restores to the first name, so old notes read back as the current one.
+    expect(await knownEntities('RPT-2026-0004')).toEqual([
+      { type: 'CLIENT', names: ['Jurong Port Pte Ltd', 'Jurong Port'] },
+      { type: 'SITE', names: ['Jurong Distribution Hub', 'SITE-0001', 'Jurong DC'] },
+      { type: 'ADDRESS', names: ['2 Jurong Port Road', '1 Jurong Port Road'] },
+      { type: 'PERSON', names: ['Alex Rowe'] },
+    ])
+  })
+
   it('falls back to the client name typed before CP-17 when the site has no client', async () => {
     const site = await SiteModel.create(SITE)
     await AssessmentModel.create({
@@ -138,6 +161,24 @@ describe('chatKnownEntities', () => {
         { type: 'PERSON', names: ['Alex Rowe'] },
       ]),
     )
+  })
+})
+
+describe('chatKnownEntities after corrections (CP-18)', () => {
+  it("keeps a removed site's names, and every former name, masked", async () => {
+    await ClientModel.create({ name: 'NUS', key: 'nus', formerNames: ['National Univ.'] })
+    await SiteModel.create({
+      ...SITE,
+      formerNames: ['Jurong DC'],
+      removed: { at: new Date(), by: { id: 'x', name: 'Alex Rowe' } },
+    })
+
+    const entities = await chatKnownEntities()
+    expect(entities).toContainEqual({ type: 'CLIENT', names: ['NUS', 'National Univ.'] })
+    expect(entities).toContainEqual({
+      type: 'SITE',
+      names: ['Jurong Distribution Hub', 'SITE-0001', 'Jurong DC'],
+    })
   })
 })
 
