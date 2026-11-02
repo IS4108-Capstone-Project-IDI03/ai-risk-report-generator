@@ -1,0 +1,90 @@
+/* ScreenHeader.tsx: the Recording screen's bar inside the workspace. Three
+   columns, so the title stays centred whatever Back's width. No rule under it:
+   the tabs above and the card below already draw the lines. */
+.sh {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  /* Back sits 8px under the tabs, where it sits on every other screen. */
+  margin: -8px 0 12px;
+}
+.sh > .back-button {
+  justify-self: start;
+  margin-top: 0;
+}
+.sh-text {
+  min-width: 0;
+  text-align: center;
+}
+/* The screen's kind above its title (a proposal's badge), clear of the title. */
+.sh-badge {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+/* With a badge the bar is taller: it starts clear of the tabs above. */
+.sh:has(.sh-badge) {
+  margin-top: 4px;
+}
+.sh-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--marsh-navy);
+  font: 700 22px/1.2 var(--font-sans);
+  letter-spacing: -0.02em;
+}
+.sh-detail {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font: 400 14px/1.35 var(--font-sans);
+  text-wrap: balance;
+}
+/* The rename pencil sits on the title's line, after its last word. */
+.sh-title > button {
+  margin-left: 4px;
+  vertical-align: -3px;
+}
+/* With actions (a proposal's review): both sides get the same width, at least
+   the actions' room (--sh-side), so the title centres on the page, not in the
+   space left over; a long title wraps rather than push it off centre. Under
+   900px the actions go under the title (below). */
+@media (min-width: 900px) {
+  .sh:has(> .sh-actions) {
+    --sh-side: 300px;
+    grid-template-columns: minmax(var(--sh-side), 1fr) minmax(0, auto) minmax(var(--sh-side), 1fr);
+  }
+}
+.sh-actions {
+  flex-wrap: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+/* A phone: Back keeps its row; the name and detail sit centred beneath it, then
+   the actions on a row of their own. */
+@media (max-width: 559px) {
+  .sh {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+/* Under 900px a header with actions stacks: Back, the title, then the actions. */
+@media (max-width: 899px) {
+  .sh:has(> .sh-actions) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .sh:has(> .sh-actions) > .sh-text {
+    order: 1;
+  }
+  .sh-actions {
+    order: 2;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 8px;
+  }
+}

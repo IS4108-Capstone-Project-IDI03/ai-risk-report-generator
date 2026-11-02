@@ -210,10 +210,12 @@ async function openChecklist() {
   render(<App />)
   await signIn()
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  // Capture starts from the Observations tab's Add manually button (CP-22).
+  fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
   await screen.findByRole('img', { name: 'live' })
   fireEvent.click(
-    await screen.findByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+    await screen.findByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
   )
   fireEvent.click(screen.getByRole('button', { name: 'Open checklist' }))
   return screen.findByRole('dialog', { name: 'Checklist' })
@@ -245,7 +247,7 @@ it('opens from capture as on the Checklist tab, with progress by area (AC1, AC6,
   expect(within(construction).queryByRole('listitem', { name: 'Roof' })).not.toBeInTheDocument()
   fireEvent.click(within(construction).getByRole('button', { name: 'Answered (1)' }))
   expect(within(row('Roof')).getByText('Confirmed')).toBeInTheDocument()
-  expect(sheet).toHaveTextContent('Answers are saved at Warehouse · Ground · Bay 3 — north aisle.')
+  expect(sheet).toHaveTextContent('Answers are saved at Warehouse › Ground › Bay 3 — north aisle.')
 })
 
 it('saves a Confirm as an observation where capture is, linked to the item (AC2)', async () => {
@@ -257,7 +259,7 @@ it('saves a Confirm as an observation where capture is, linked to the item (AC2)
   expect(within(confirm).getByRole('textbox', { name: 'What you saw' })).toHaveValue(
     'Confirmed on site: Construction Narrative',
   )
-  expect(confirm).toHaveTextContent('At Warehouse · Ground · Bay 3 — north aisle')
+  expect(confirm).toHaveTextContent('At Warehouse › Ground › Bay 3 — north aisle')
   // Severity is always chosen, never assumed.
   fireEvent.click(within(confirm).getByRole('button', { name: 'Save observation' }))
   expect(within(confirm).getByRole('alert')).toHaveTextContent('Choose a severity first.')
@@ -326,9 +328,7 @@ it('records a Differs in full capture, for a recording or handwritten notes (AC3
   fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
   expect(
-    await screen.findByText(
-      'Observation saved to RPT-2026-0411, and the checklist item answered as Differs.',
-    ),
+    await screen.findByText('Observation saved, and the checklist item answered as Differs.'),
   ).toBeInTheDocument()
   expect(saves[0]).toMatchObject({
     copeDimensions: ['Occupancy', 'Protection'],
@@ -354,7 +354,7 @@ it('goes back to the checklist from full capture, leaving the item unanswered', 
   fireEvent.click(screen.getByRole('radio', { name: 'Low' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
-  await screen.findByText('Observation saved to RPT-2026-0411.')
+  await screen.findByText('Observation saved.')
   expect(saves[0]).not.toHaveProperty('checklistItem')
 })
 

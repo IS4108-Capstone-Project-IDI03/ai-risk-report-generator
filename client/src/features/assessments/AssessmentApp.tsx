@@ -1,14 +1,15 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Button, Dialog, EmptyState, Icon, SideNav, Tabs, Toast } from '../../design-system'
 import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import { guardLeave } from './leaveGuard'
+import { AssessmentActions } from './components/AssessmentActions'
+import { siteWalkReview } from '../site-walk/openReview'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
 import { CreateAssessment } from './screens/CreateAssessment'
 import { SiteObservation } from './screens/SiteObservation'
-import { MoreMenu } from './components/MoreMenu'
 import { Overview } from './screens/Overview'
 import { Checklist } from './screens/Checklist'
 import { Observations } from './screens/Observations'
@@ -36,6 +37,17 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
   // Going somewhere else asks first while the document editor has unsaved
   // changes (RV-08 AC14); choosing where you already are does not.
   const leave = (staying: boolean, go: () => void) => (staying ? go() : guardLeave(go))
+  // The "site walk ready" notification opens that assessment's Observations tab;
+  // Observations then opens the review (site-walk/openReview.ts).
+  useEffect(() => {
+    // Through the leave guard, like the tabs: an unsaved document or proposal asks first.
+    const open = (e: Event) =>
+      guardLeave(() =>
+        v.openObservationsOf((e as CustomEvent<{ reference: string }>).detail.reference),
+      )
+    window.addEventListener(siteWalkReview.event, open)
+    return () => window.removeEventListener(siteWalkReview.event, open)
+  })
   return (
     <>
       {/* data-sidenav lets fixed overlays centre on the content, not the window. */}
@@ -88,14 +100,20 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     <button
                       type="button"
                       onClick={captureOnPhone ? v.leaveCapture : v.toggleNav}
-                      aria-label={captureOnPhone ? 'Back to observations' : 'Open navigation'}
+                      aria-label={
+                        captureOnPhone
+                          ? v.proposalCapture
+                            ? 'Back to site walk'
+                            : 'Back to observations'
+                          : 'Open navigation'
+                      }
                       style={{
                         flex: '0 0 auto',
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: captureOnPhone ? '44px' : '36px',
-                        height: captureOnPhone ? '44px' : '36px',
+                        width: v.phone ? '44px' : '36px',
+                        height: v.phone ? '44px' : '36px',
                         border: 'none',
                         borderRadius: '99px',
                         background: 'transparent',
@@ -103,7 +121,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         cursor: 'pointer',
                       }}
                     >
-                      <Icon name={captureOnPhone ? 'arrow-left' : 'menu'} size={18}></Icon>
+                      <Icon name={captureOnPhone ? 'chevron-left' : 'menu'} size={20}></Icon>
                     </button>
                     {captureOnPhone ? (
                       <h1
@@ -119,7 +137,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           textOverflow: 'ellipsis',
                         }}
                       >
-                        {'New observation'}
+                        {'New Observation'}
                       </h1>
                     ) : (
                       <span
@@ -268,20 +286,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           New assessment
                         </Button>
                       )}
-                      {/* The main action, then the occasional ones behind ⋯.
-                        Restore stays visible: it is the one thing to do with
-                        an archived assessment. */}
-                      {!!v.isAssessment && !v.routeBlocked && (
+                      {/* Restore stays visible: it is the one thing to do with an
+                        archived assessment. Capturing starts from the
+                        Observations tab's own buttons (CP-22). */}
+                      {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
                         <>
-                          {v.canEdit && v.canCapture && (
-                            <Button
-                              variant="primary"
-                              iconLeft="plus"
-                              onClick={() => guardLeave(v.goField)}
-                            >
-                              {'Add observation'}
-                            </Button>
-                          )}
                           {v.canRestore && (
                             <Button
                               variant="secondary"
@@ -292,19 +301,13 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                               {'Restore'}
                             </Button>
                           )}
-                          <MoreMenu
-                            items={[
-                              {
-                                label: 'Version history',
-                                icon: 'history',
-                                // Leaving the document editor for it asks
-                                // first, as leaving it for a tab does (RV-08).
-                                onSelect: () => guardLeave(v.showVersionHistory),
-                              },
-                              ...(v.canArchive
-                                ? [{ label: 'Archive', icon: 'archive', onSelect: v.openArchive }]
-                                : []),
-                            ]}
+                          {/* Version history and Archive are for the whole assessment,
+                            so they sit here on every tab and on New Observation
+                            (CP-22 round 1). Leaving the document editor or a
+                            capture for history asks first (RV-08). */}
+                          <AssessmentActions
+                            onHistory={() => guardLeave(v.showVersionHistory)}
+                            onArchive={v.canArchive ? v.openArchive : undefined}
                           />
                         </>
                       )}
@@ -319,7 +322,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                   {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
                     <>
                       <div
-                        className="om-hidebar"
+                        className="om-hidebar ws-tabs"
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -485,7 +488,18 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 key={v.toast}
                 className={v.isChat ? 'workflow-toast chat-toast' : 'workflow-toast'}
               >
-                <Toast tone={v.toastTone} message={v.toast} onDismiss={v.clearToast}></Toast>
+                <Toast
+                  tone={v.toastTone}
+                  message={v.toast}
+                  onDismiss={v.clearToast}
+                  action={
+                    !!v.toastView && (
+                      <Button variant="link" size="sm" onClick={v.openToastView}>
+                        {'View'}
+                      </Button>
+                    )
+                  }
+                ></Toast>
               </div>
             </>
           )}

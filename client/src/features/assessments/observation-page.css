@@ -1,0 +1,271 @@
+/* The observation page (CP-22 round 1): its header with the arrows between
+   observations at the same location, and the stacked body. Used by
+   screens/ObservationPage.tsx and components/ObservationTags.tsx. */
+
+.op-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+/* ‹ path › : the arrows are 44px taps either side of the path. */
+.op-where {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 4px;
+}
+.op-path {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  text-align: center;
+}
+/* "Block A › Level 1 ›" small and quiet, the place's name large under it. */
+.op-path-parents {
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+.op-path-name {
+  color: var(--marsh-navy);
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.op-step {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ob-fill);
+  color: var(--marsh-navy);
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ob-ease),
+    transform 100ms var(--ob-ease);
+}
+.op-step:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.op-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+@media (hover: hover) {
+  .op-step:hover:not(:disabled) {
+    background: var(--ob-selected);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .op-step,
+  .op-step:active:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+}
+.op-which {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.op-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+/* The icon-only bin: a soft red disc, so it reads as a button on its own. */
+.op-actions .ob-button--danger.ob-icon-button:not(:disabled) {
+  background: var(--red-50);
+}
+@media (hover: hover) and (pointer: fine) {
+  .op-actions .ob-button--danger.ob-icon-button:hover {
+    background: color-mix(in srgb, var(--red-600) 14%, var(--surface-card));
+  }
+}
+.op-actions:not(:has(.ob-button)) {
+  margin-top: 0;
+}
+
+.op-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  /* No cap: the page fills the workspace like the tab's table, with the app's
+     menu open or collapsed (Jesper: no empty side margins). */
+  min-width: 0;
+}
+.op-body > * {
+  min-width: 0;
+}
+/* Words on the left (tags, note, AI suggestions, recordings), pictures on the
+   right (photos, handwritten pages, removed media) in a narrow rail, so a few
+   photos take a few small tiles instead of half the page (round 6). */
+.op-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.op-col:empty {
+  display: none;
+}
+/* Wide: the rail beside the words; with no pictures the words take the width. */
+@media (min-width: 1100px) {
+  .op-body:not(:has(.op-col:empty)) {
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 28vw, 380px);
+    gap: 20px;
+    align-items: start;
+  }
+  /* The pictures stay in view while a long note or suggestion list scrolls. */
+  .op-body:not(:has(.op-col:empty)) > .op-col:last-child {
+    position: sticky;
+    top: 16px;
+    /* Never taller than the window: a long stack of pages scrolls inside it,
+       or its lower part would stay out of reach while the words scroll. */
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ---- Above the place: its badge (From site walk, Proposed observation), centred
+   and clear of the title and the "N of M" under it ---- */
+.op-badge {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+/* ---- The pictures panel (components/MediaPanel.tsx) ---- */
+.op-media {
+  display: flex;
+  flex-direction: column;
+}
+.op-media-part {
+  padding: 14px 14px 16px;
+}
+.op-media-part + .op-media-part {
+  border-top: 1px solid var(--ob-line);
+}
+.op-media .ob-section-head {
+  margin-bottom: 10px;
+}
+.op-count {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ob-fill);
+  color: var(--text-secondary);
+  font: 650 12px/20px var(--ob-font);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* Small square tiles that fill the panel's width: three across in the rail,
+   more where the panel spans a narrower screen. */
+.op-media .cap-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+.op-media .cap-tile {
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--ob-line);
+}
+.op-media .cap-tile-open img {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .op-media .cap-tile-open:hover img {
+    transform: scale(1.04);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .op-media .cap-tile-open img {
+    transition: none;
+  }
+}
+.op-media .ob-stamp {
+  margin: 8px 0 0;
+}
+
+/* Category, Severity and Location by the card's own width (it is a size
+   container, observations.css .ob-card): stacked on a phone; two across, then
+   Location the full row; on a wide card all three on one line with Location
+   twice as wide, since a path is long and a category or severity is a word. */
+.op-fields {
+  padding: 16px;
+}
+.op-fields-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.op-fields-grid > * {
+  min-width: 0;
+}
+.op-fields-grid > .ob-stamp {
+  grid-column: 1 / -1;
+}
+@container (min-width: 440px) {
+  .op-fields-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .op-fields-grid > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+@container (min-width: 680px) {
+  .op-fields-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.1fr);
+  }
+  .op-fields-grid > :nth-child(3) {
+    grid-column: auto;
+  }
+}
+/* The menu's wrapper fills its column (the popover sets inline sizes, hence !important). */
+.op-menu {
+  display: flex !important;
+  width: 100%;
+}
+.op-menu > span {
+  display: flex !important;
+  flex: 1;
+  min-width: 0;
+}
+.op-fields .ob-picker {
+  height: 100%;
+  min-height: 48px;
+  font-size: 16px;
+}
+/* One line, cut with … when long; the button's title shows the whole path. */
+.op-fields .ob-picker > span:nth-child(2) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.op-fields .ob-stamp {
+  margin: 0;
+}
+.op-body .ob-note {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* The tile clips an outside ring, so a focused tile draws its ring inside. */
+.op-media .cap-tile > .cap-tile-open:focus-visible {
+  outline-offset: -2px;
+}

@@ -56,12 +56,11 @@ async function openApp() {
   render(<App />)
   await signIn()
 }
-// Opens or closes the assessment header's ⋯ menu.
-const moreActions = () => fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
 function openCapture() {
-  // Open the assessment from the work list; Add observation is its header's action.
+  // Open the assessment from the work list; capture starts from its Observations tab.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
 }
 
 beforeAll(() => {
@@ -104,7 +103,7 @@ describe('Capture session (CP-01)', () => {
     await screen.findByRole('img', { name: 'live' })
     // The workspace header names the assessment the session is for.
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Harbourside Cold Store')
-    expect(screen.getByRole('heading', { name: 'New observation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New Observation' })).toBeInTheDocument()
   })
 
   it('waits for the session before saving, so nothing stays in the browser by mistake', async () => {
@@ -130,7 +129,7 @@ describe('Capture session (CP-01)', () => {
     openCapture()
     await screen.findByRole('img', { name: 'live' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     openCapture()
 
@@ -162,15 +161,13 @@ describe('Capture session (CP-01)', () => {
     // Without the gateway, the sample assessment offers its sample locations,
     // by building, then elsewhere on site (CP-16).
     fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site/, expanded: false }))
-    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site · Pump house/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site › Pump house/ }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
       target: { value: 'Offline sprinkler observation' },
     })
     fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(
-      screen.getByText('Observation added to RPT-2026-0411. It is kept in this demo only.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Observation saved in this demo only.')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Observations 4' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
@@ -280,7 +277,8 @@ describe('Create assessment (CP-01)', () => {
     // It opens on its Overview, ready to capture, rather than back on the list.
     expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/assessments')
     expect(init.method).toBe('POST')
@@ -336,13 +334,12 @@ describe('Create assessment (CP-01)', () => {
     // With nothing captured yet, its Observations tab offers to add one too.
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
     expect(screen.getByText('No observations yet')).toBeInTheDocument()
-    const [, addFromList] = screen.getAllByRole('button', { name: 'Add observation' })
-    fireEvent.click(addFromList)
+    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
 
     expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(fetchMock.mock.calls[1][0]).toBe('/api/assessments/RPT-2026-0001/capture-session')
     // Capture keeps the workspace's header, which names the assessment.
-    expect(screen.getByRole('heading', { name: 'New observation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New Observation' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Jurong Distribution Hub')
     expect(screen.getByRole('tab', { name: 'Observations 0' })).toBeInTheDocument()
 
@@ -362,7 +359,7 @@ describe('Create assessment (CP-01)', () => {
       fireEvent.change(screen.getByLabelText(field), { target: { value } })
     fireEvent.click(screen.getByRole('button', { name: 'Add location' }))
     expect(
-      await screen.findByRole('button', { name: /Location: Warehouse · Ground · Loading dock/ }),
+      await screen.findByRole('button', { name: /Location: Warehouse › Ground › Loading dock/ }),
     ).toBeInTheDocument()
     expect(fetchMock.mock.calls[2][0]).toBe('/api/assessments/RPT-2026-0001/locations')
     expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({
@@ -378,12 +375,12 @@ describe('Create assessment (CP-01)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
     // With the session live, the observation is saved to the gateway (CP-02).
-    expect(await screen.findByText('Observation saved to RPT-2026-0001.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
     expect(fetchMock.mock.calls[3][0]).toBe('/api/assessments/RPT-2026-0001/observations')
     expect(screen.getByRole('tab', { name: 'Observations 1' })).toBeInTheDocument()
 
     // Back on the Observations tab, it is listed.
-    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     expect(screen.getByText('Sprinkler control valve chained open')).toBeInTheDocument()
     expect(screen.queryByText('No observations yet')).not.toBeInTheDocument()
@@ -1221,16 +1218,15 @@ it('archives my assessment from its workspace, then shows it only under Archived
   )
   await openApp()
   fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-  // Add observation is the page header's action; the navigation lists the assessment
-  // under Recent.
+  // The navigation lists the assessment under Recent.
   expect(screen.getByRole('button', { name: 'Jurong Distribution Hub' })).toHaveAttribute(
     'aria-current',
     'page',
   )
-  expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+  expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
 
-  // Archive is one of the occasional actions behind More actions.
-  moreActions()
+  // Archive sits in the header's Assessment group.
   fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
   const dialog = screen.getByRole('dialog', { name: 'Archive this assessment?' })
   status = 'archived'
@@ -1254,11 +1250,10 @@ it('archives my assessment from its workspace, then shows it only under Archived
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 
   // An archived workspace offers neither capture nor another archive.
-  expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
-  moreActions()
-  expect(screen.getByRole('button', { name: 'Version history' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+  expect(screen.queryByRole('button', { name: 'Add manually' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
-  moreActions()
 
   // Restore (AC9) returns it to the work list with the status it had.
   status = 'capturing'
@@ -1293,7 +1288,6 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
     await screen.findAllByRole('button', { name: /Tilbury Distribution Centre/ })
   ).find((b) => b.getAttribute('data-id') === 'RPT-2026-0411')!
   fireEvent.click(tilbury)
-  moreActions()
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
 
@@ -1406,8 +1400,9 @@ it('shows a knowledge admin the same assessment record, read-only', async () => 
     expect(screen.getByText('Alex Rowe')).toBeInTheDocument()
     // Only the assigned engineer edits, archives or captures.
     expect(screen.queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
-    moreActions()
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    expect(screen.queryByRole('button', { name: 'Add manually' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Record site walk' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   } finally {
     window.history.pushState({}, '', '/')
@@ -1537,15 +1532,14 @@ describe('Overview', () => {
     ).toBeInTheDocument()
 
     // The capture box opens the observations it counts; capturing is the
-    // header's button, and the empty list's.
+    // Observations tab's Add manually button.
     fireEvent.click(screen.getByRole('button', { name: /^Capture, 0, observations/ }))
     expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(screen.getAllByRole('button', { name: 'Add observation' })).toHaveLength(2)
-    fireEvent.click(screen.getAllByRole('button', { name: 'Add observation' })[0])
-    expect(await screen.findByRole('heading', { name: 'New observation' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+    expect(await screen.findByRole('heading', { name: 'New Observation' })).toBeInTheDocument()
   })
 
   it('opens Generation from the drafting box', async () => {
@@ -1561,7 +1555,8 @@ describe('Overview', () => {
   it('says when the report is overdue, and offers capture before any is captured', async () => {
     await openOverview({ status: 'not_started', reportDueDate: inDays(-2) })
     expect(box('Report due')).toHaveTextContent('2days overdue')
-    expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
   })
 
   it('says when no due date is set', async () => {
@@ -1619,6 +1614,7 @@ describe('Overview', () => {
       await screen.findByText('The report sections can’t be loaded right now.'),
     ).toBeInTheDocument()
     expect(box('Drafting')).toHaveTextContent('unavailable')
-    expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
   })
 })

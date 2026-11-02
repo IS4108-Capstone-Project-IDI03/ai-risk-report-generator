@@ -1,0 +1,42 @@
+/* The one back control (BackButton.tsx): navy text on no background, 44px tall
+   so it is easy to hit on a phone; the chevron sits in the left padding so the
+   label lines up with the content below. */
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  margin-left: -10px;
+  padding: 0 12px 0 4px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--marsh-navy);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* On a workspace sub-screen it sits 8px under the tabs, the same on every one,
+   as close to the top as the Recording screen's bar. */
+:is(.ob, .cap-page) .back-button {
+  margin-top: -8px;
+}
+.back-button:active {
+  opacity: 0.55;
+}
+@media (hover: hover) {
+  .back-button:hover {
+    background: var(--ink-50);
+  }
+}
+.back-button:focus-visible {
+  outline: 2px solid var(--marsh-navy);
+  outline-offset: 2px;
+}
+.back-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

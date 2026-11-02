@@ -1,7 +1,16 @@
-import { useEffect, useId, useRef, type AriaAttributes, type CSSProperties } from 'react'
-import { Button, Callout, Dialog, Icon, IconButton, Input, Popover } from '../../../design-system'
+// The capture screen's location field and picker (CP-16, CP-22), and the Remove
+// location dialog. The picker only picks: the Observations sidebar adds, edits
+// and removes locations. Called by screens/SiteObservation.tsx; LocationForm is
+// re-exported for screens/Observations.tsx.
+import { useId, type AriaAttributes } from 'react'
+import { Callout, Dialog, Icon, Input, Popover } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { LocationForm } from './LocationForm'
+import { LocationPath } from './LocationPath'
 import { useSave } from './useSave'
+import '../capture.css'
+
+export { LocationForm }
 
 // Confirms removing a location added by mistake (CP-15 AC6), in the same
 // style as deleting an observation. A location that observations are saved
@@ -15,12 +24,22 @@ export function RemoveLocationDialog({ v }: { v: AssessmentWorkflow }) {
       onClose={busy ? undefined : v.closeLocRemove}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={v.closeLocRemove}>
+          <button
+            type="button"
+            className="cap-btn cap-btn--secondary"
+            disabled={busy}
+            onClick={v.closeLocRemove}
+          >
             {'Cancel'}
-          </Button>
-          <Button variant="danger" loading={busy} onClick={() => run(v.confirmLocRemove)}>
+          </button>
+          <button
+            type="button"
+            className="cap-btn cap-btn--danger"
+            disabled={busy}
+            onClick={() => run(v.confirmLocRemove)}
+          >
             {'Remove location'}
-          </Button>
+          </button>
         </>
       }
     >
@@ -32,29 +51,19 @@ export function RemoveLocationDialog({ v }: { v: AssessmentWorkflow }) {
             </Callout>
           </div>
         )}
-        <p
-          style={{
-            margin: 0,
-            paddingLeft: '12px',
-            borderLeft: '2px solid var(--border-strong)',
-            fontSize: '15px',
-            lineHeight: '24px',
-            color: 'var(--text-body)',
-          }}
-        >
-          {v.locRemoveLabel}
+        <p className="cap-dialog-quote">
+          {v.locRemovePath && <LocationPath {...v.locRemovePath} />}
         </p>
-        <p style={{ margin: 0 }}>
-          It comes off this assessment’s list of locations. You can add it again at any time.
+        <p className="cap-dialog-text">
+          {'It comes off this assessment’s list of locations. You can add it again at any time.'}
         </p>
       </div>
     </Dialog>
   )
 }
 
-// The sticky bar at the top of the capture form: where observations are being
-// saved, and the way to change it.
-// The dropdown passes it its open state (aria-expanded and the like).
+// The Location field of the capture form: where observations are being saved,
+// and the way to change it. The dropdown passes it its open state (aria-expanded and the like).
 function LocationBar({
   v,
   onClick,
@@ -63,50 +72,16 @@ function LocationBar({
   return (
     <button
       type="button"
+      className="cap-select"
       onClick={onClick}
       {...popup}
+      data-empty={v.locationLabel ? undefined : ''}
       aria-label={
         v.locationLabel ? 'Location: ' + v.locationLabel + '. Change' : 'Choose a location'
       }
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        width: '100%',
-        minHeight: '56px',
-        padding: '8px 20px',
-        textAlign: 'left',
-        fontFamily: 'inherit',
-        background: v.locationLabel ? 'var(--surface-card)' : 'var(--surface-selected)',
-        border: 0,
-        borderBottom: '1px solid var(--border-default)',
-        // The form card's top corners, as the card no longer clips.
-        borderRadius: '8px 8px 0 0',
-        cursor: 'pointer',
-      }}
     >
-      <Icon name="map-pin" size={20} color="var(--action-primary)" />
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span
-          style={{
-            display: 'block',
-            fontSize: '16px',
-            fontWeight: '600',
-            color: 'var(--text-primary)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {v.locationLabel ?? 'Choose a location'}
-        </span>
-        <span style={{ display: 'block', fontSize: '13px', color: 'var(--text-muted)' }}>
-          {v.locationLabel ? 'Tap to change' : 'Observations are saved to it'}
-        </span>
-      </span>
+      <Icon name="map-pin" size={20} color="var(--marsh-navy)" />
+      {v.locationPath ? <LocationPath {...v.locationPath} /> : <span>{'Choose a location'}</span>}
       <Icon
         name={v.locSheetOpen ? 'chevron-up' : 'chevron-down'}
         size={18}
@@ -119,9 +94,11 @@ function LocationBar({
 // What the picker says under "Where are you?": a new assessment starts with
 // the form to add its first location.
 const pickerDescription = (v: AssessmentWorkflow) =>
-  v.noLocations
-    ? 'Add the first location you’re inspecting. Observations are saved to it.'
-    : 'Observations are saved to the location you choose.'
+  v.proposalCapture
+    ? 'The site walk’s locations and the assessment’s others.'
+    : v.noLocations
+      ? 'Add the first location you’re inspecting. Observations are saved to it.'
+      : 'Observations are saved to the location you choose.'
 
 // The location bar, and where the engineer picks, searches for, adds or
 // changes the location they are capturing in. On a phone it opens a bottom
@@ -172,7 +149,7 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
 }
 
 // Search, the assessment's locations by building and level (CP-16), and the
-// form adding one or changing one.
+// form adding one. Picking only: editing and removing are the sidebar's.
 function LocationChoices({ v }: { v: AssessmentWorkflow }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -201,14 +178,15 @@ function LocationChoices({ v }: { v: AssessmentWorkflow }) {
           )}
         </>
       )}
-      {/* A location being changed is changed in its row, unless a search or a
-          folded group hides it. */}
-      {v.locAdding && !editingInList(v) ? (
+      {/* Last, below the locations that exist. A site walk's capture only picks:
+          its review adds locations. */}
+      {v.proposalCapture ? null : v.locAdding ? (
         <LocationForm v={v} />
       ) : (
-        <Button variant="secondary" iconLeft="plus" onClick={v.startAddLocation}>
+        <button type="button" className="cap-btn cap-btn--secondary" onClick={v.startAddLocation}>
+          <Icon name="plus" size={16} />
           {'Add a location'}
-        </Button>
+        </button>
       )}
     </div>
   )
@@ -222,19 +200,22 @@ function LocationGroup({ v, group }: { v: AssessmentWorkflow; group: Group }) {
   const id = useId()
   const count = group.count + (group.count === 1 ? ' location' : ' locations')
   const heading = (
-    <span style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flex: 1, minWidth: 0 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+      {/* A long building name wraps under itself; the count centres against its lines. */}
       <span
         style={{
-          fontSize: '13px',
+          minWidth: 0,
+          overflowWrap: 'anywhere',
+          // Sentence case, not spaced capitals, so a long building name wraps like text.
+          fontSize: '15px',
+          lineHeight: 1.3,
           fontWeight: '600',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          color: 'var(--text-secondary)',
+          color: 'var(--text-primary)',
         }}
       >
         {group.title}
       </span>
-      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{count}</span>
+      <span style={{ flex: 'none', fontSize: '13px', color: 'var(--text-muted)' }}>{count}</span>
     </span>
   )
   return (
@@ -261,11 +242,13 @@ function LocationGroup({ v, group }: { v: AssessmentWorkflow; group: Group }) {
             cursor: 'pointer',
           }}
         >
-          <Icon
-            name={group.open ? 'chevron-down' : 'chevron-right'}
-            size={16}
-            color="var(--text-secondary)"
-          />
+          <span style={{ flex: 'none', display: 'flex' }}>
+            <Icon
+              name={group.open ? 'chevron-down' : 'chevron-right'}
+              size={16}
+              color="var(--text-secondary)"
+            />
+          </span>
           {heading}
         </button>
       ) : (
@@ -312,46 +295,18 @@ function LocationGroup({ v, group }: { v: AssessmentWorkflow; group: Group }) {
 
 type Row = Group['levels'][number]['locations'][number]
 
-// A location to capture in, named on its own under its building and level,
-// with Edit for the assigned engineer and Remove while nothing is saved there.
-// Whether the location being changed is listed, so its form takes its row.
-const editingInList = (v: AssessmentWorkflow) =>
-  v.locationGroups.some(
-    (g) => g.open && g.levels.some((level) => level.locations.some((l) => l.id === v.locEditId)),
-  )
-
+// A location to capture in, named on its own under its building and level.
 function LocationRow({ v, location: l }: { v: AssessmentWorkflow; location: Row }) {
-  // Changed in place, where its pencil was.
-  if (l.id === v.locEditId)
-    return (
-      <li>
-        <LocationForm v={v} />
-      </li>
-    )
   return (
-    <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+    <li>
       <button
         type="button"
+        className="cap-loc"
         aria-pressed={l.selected}
         aria-label={l.label + (l.detail ? ', ' + l.detail : '')}
         onClick={() => v.chooseLocation(l.id)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          flex: 1,
-          minWidth: 0,
-          minHeight: '52px',
-          padding: '8px 12px',
-          textAlign: 'left',
-          fontFamily: 'inherit',
-          background: l.selected ? 'var(--surface-selected)' : 'var(--surface-card)',
-          border: '1px solid ' + (l.selected ? 'var(--action-primary)' : 'var(--border-default)'),
-          borderRadius: '8px',
-          cursor: 'pointer',
-        }}
       >
-        <Icon name="map-pin" size={18} color="var(--action-primary)" />
+        <Icon name="map-pin" size={18} color="var(--marsh-navy)" />
         <span style={{ flex: 1, minWidth: 0 }}>
           <span
             style={{
@@ -359,6 +314,7 @@ function LocationRow({ v, location: l }: { v: AssessmentWorkflow; location: Row 
               fontSize: '15px',
               fontWeight: '500',
               color: 'var(--text-primary)',
+              overflowWrap: 'anywhere',
             }}
           >
             {l.name}
@@ -369,219 +325,8 @@ function LocationRow({ v, location: l }: { v: AssessmentWorkflow; location: Row 
             </span>
           )}
         </span>
-        {l.selected && <Icon name="check" size={18} color="var(--action-primary)" />}
+        {l.selected && <Icon name="check" size={18} color="var(--marsh-navy)" />}
       </button>
-      {!!l.edit && (
-        <IconButton icon="pencil" label={'Edit ' + l.label} size="lg" onClick={l.edit} />
-      )}
-      {!!l.remove && (
-        <IconButton icon="trash-2" label={'Remove ' + l.label} size="lg" onClick={l.remove} />
-      )}
     </li>
-  )
-}
-
-// A choice between in a building and elsewhere on site: a native radio drawn
-// as a chip, at least 44px tall, as severity is chosen.
-function kindChip(on: boolean): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '44px',
-    padding: '0 8px',
-    textAlign: 'center',
-    borderRadius: '5px',
-    fontSize: '14px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    border: '1px solid ' + (on ? 'var(--action-primary)' : 'var(--border-default)'),
-    background: on ? 'var(--surface-selected)' : 'var(--surface-card)',
-    color: on ? 'var(--text-primary)' : 'var(--text-secondary)',
-  }
-}
-
-// Asks about a building, level or location name new to the site that looks
-// mistyped (CP-16), under its field: use the name it was probably meant to
-// be, or keep it as typed; either carries on saving. A level with no likely
-// name can be kept, e.g. the site's Podium, or changed.
-function NameCheckCallout({ v }: { v: AssessmentWorkflow }) {
-  const check = v.lfCheck!
-  const quoted = '\u201c' + check.typed + '\u201d'
-  return (
-    <div role="alert">
-      <Callout
-        tone="warning"
-        title={
-          check.suggestion
-            ? 'Did you mean ' + check.suggestion + '?'
-            : 'Check the ' + (check.field === 'building' ? 'building' : 'level')
-        }
-        actions={
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {check.suggestion ? (
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={v.lfBusy}
-                onClick={v.acceptCheckedSuggestion}
-              >
-                {'Use ' + check.suggestion}
-              </Button>
-            ) : (
-              <Button size="sm" variant="secondary" onClick={v.changeCheckedName}>
-                {'Change it'}
-              </Button>
-            )}
-            <Button size="sm" variant="secondary" disabled={v.lfBusy} onClick={v.keepCheckedName}>
-              {'Keep ' + quoted}
-            </Button>
-          </div>
-        }
-      >
-        {check.field !== 'floor'
-          ? 'Check the spelling of ' + quoted + '.'
-          : check.suggestion
-            ? quoted + ' isn\u2019t a level name we recognise.'
-            : quoted + ' isn\u2019t a standard level name. Keep it if the site calls it that.'}
-      </Callout>
-    </div>
-  )
-}
-
-// Adds a location, or changes the one being edited (CP-16): in a building,
-// with an optional level (none for the whole building), or elsewhere on site,
-// with a name only. Building and Level suggest the names already used.
-export function LocationForm({ v }: { v: AssessmentWorkflow }) {
-  const id = useId()
-  const inBuilding = v.lf.kind === 'building'
-  // Opened from a pencil or Add a location, it comes into view with the
-  // cursor in its first box, as the button pressed is gone. A new
-  // assessment's picker opens on it, so the keyboard waits for a tap there.
-  const form = useRef<HTMLElement>(null)
-  const opened = !v.noLocations
-  useEffect(() => {
-    if (!opened) return
-    form.current?.scrollIntoView?.({ block: 'nearest' })
-    form.current?.querySelector<HTMLInputElement>('input:not([type=radio])')?.focus()
-  }, [opened])
-  const kinds = [
-    { kind: 'building', label: 'In a building' },
-    { kind: 'elsewhere', label: 'Elsewhere on site' },
-  ] as const
-  return (
-    <section
-      ref={form}
-      aria-label={v.locEditing ? 'Edit location' : 'Add a location'}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        padding: '14px',
-        background: 'var(--surface-sunken)',
-        border: '1px solid var(--border-default)',
-        borderRadius: '8px',
-      }}
-    >
-      <fieldset style={{ margin: 0, padding: 0, border: 'none', minWidth: 0 }}>
-        <legend
-          style={{
-            padding: 0,
-            marginBottom: '6px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: 'var(--text-body)',
-          }}
-        >
-          {'Where is it?'}
-        </legend>
-        <div
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px' }}
-        >
-          {kinds.map(({ kind, label }) => (
-            <label key={kind} className="ds-choice" style={kindChip(v.lf.kind === kind)}>
-              <input
-                type="radio"
-                name={id + '-kind'}
-                value={kind}
-                checked={v.lf.kind === kind}
-                onChange={() => v.setLfKind(kind)}
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      {inBuilding && (
-        <>
-          <Input
-            label="Building"
-            required
-            placeholder="e.g. Block A"
-            maxLength={100}
-            list={id + '-buildings'}
-            value={v.lf.building}
-            onChange={v.setLf('building')}
-            error={v.lfErrors.building}
-          />
-          <datalist id={id + '-buildings'}>
-            {v.buildingSuggestions.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
-          {v.lfCheck?.field === 'building' && <NameCheckCallout v={v} />}
-          <Input
-            label="Level"
-            hint="Leave it blank for the whole building, e.g. its facade or roof."
-            placeholder="e.g. Level 2"
-            maxLength={40}
-            list={id + '-levels'}
-            value={v.lf.floor}
-            onChange={v.setLf('floor')}
-            error={v.lfErrors.floor}
-          />
-          <datalist id={id + '-levels'}>
-            {v.levelSuggestions.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
-          {v.lfCheck?.field === 'floor' && <NameCheckCallout v={v} />}
-        </>
-      )}
-      <Input
-        label="Location"
-        required
-        placeholder={
-          inBuilding ? 'e.g. Staircase, Store room, Lobby' : 'e.g. Fire access route, Guardhouse'
-        }
-        maxLength={100}
-        list={id + '-names'}
-        value={v.lf.name}
-        onChange={v.setLf('name')}
-        error={v.lfErrors.name}
-      />
-      <datalist id={id + '-names'}>
-        {v.locationNameSuggestions.map((name) => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
-      {v.lfCheck?.field === 'name' && <NameCheckCallout v={v} />}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {!v.noLocations && (
-          <Button variant="secondary" disabled={v.lfBusy} onClick={v.cancelLocationForm}>
-            {'Cancel'}
-          </Button>
-        )}
-        <Button
-          variant="primary"
-          iconLeft={v.locEditing ? 'check' : 'plus'}
-          loading={v.lfBusy}
-          onClick={v.submitLocation}
-          style={{ flex: 1 }}
-        >
-          {v.locEditing ? 'Save location' : 'Add location'}
-        </Button>
-      </div>
-    </section>
   )
 }

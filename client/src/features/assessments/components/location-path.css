@@ -1,0 +1,19 @@
+/* The arrow path (LocationPath.tsx): parts wrap as whole words, never mid-name;
+   the arrows are small and quieter than the names. */
+.location-path {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 4px;
+  min-width: 0;
+}
+.location-path-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.location-path-arrow {
+  color: var(--text-tertiary, var(--text-secondary));
+  flex: none;
+}

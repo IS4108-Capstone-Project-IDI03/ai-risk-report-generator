@@ -53,14 +53,14 @@ export function placeFilter(list: Observation[]) {
     }
     for (const level of g.levels) {
       if (level.title && level.locations.length > 1) {
-        labels[levelValue(level.locations[0])] = g.title + ' · ' + level.title
+        labels[levelValue(level.locations[0])] = g.title + ' › ' + level.title
         options.push({ value: levelValue(level.locations[0]), label: level.title })
       }
       for (const l of level.locations) {
         labels[placeValue(l)] = locationLabel(l)
         options.push({
           value: placeValue(l),
-          label: level.title ? level.title + ' · ' + l.name : l.name,
+          label: level.title ? level.title + ' › ' + l.name : l.name,
         })
       }
     }
@@ -130,11 +130,3 @@ export function matchesFilters(o: Observation, f: ObservationFilters) {
 }
 
 export const filtersActive = (f: ObservationFilters) => Object.values(f).some(Boolean)
-
-// The distinct values of one label across the list, in the order first seen,
-// keeping the selected value so its filter never shows a value it lacks.
-export function labelValues(list: (string | null | undefined)[], selected: string) {
-  const values = new Set(list.filter((v): v is string => !!v))
-  if (selected) values.add(selected)
-  return [...values]
-}

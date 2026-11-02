@@ -398,10 +398,9 @@ it('keeps the history open on a refused restore, with the reason', async () => {
   expect(view()).toBeInTheDocument()
 })
 
-it('stays open as another section is chosen, and opens from the assessment’s ⋯ menu', async () => {
+it('stays open as another section is chosen, and opens from the assessment’s header button', async () => {
   await openWorkspace()
-  fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Version history' }))
+  fireEvent.click(screen.getByRole('button', { name: 'History' }))
 
   // The Review tab opens on its version history.
   await within(await screen.findByRole('complementary', { name: 'Versions' })).findAllByRole(

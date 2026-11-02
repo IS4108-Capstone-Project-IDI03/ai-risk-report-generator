@@ -134,13 +134,14 @@ describe('Marsh prototype integration', () => {
   it('saves observations and displays them in the assessment', async () => {
     render(<App />)
     await signIn()
-    // Open the assessment from the work list; Add observation is its header's action.
+    // Open the assessment from the work list; Add manually is on its Observations tab.
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
     // Capture starts by choosing where the engineer is: by building, or
     // elsewhere on site (CP-16).
     fireEvent.click(await screen.findByRole('button', { name: /^Elsewhere on site, / }))
-    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site · Pump house/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site › Pump house/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
     expect(screen.getByText('Add a note, recording, photograph or page first.')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
@@ -149,7 +150,7 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
     // The back button above the form goes to the assessment's Observations tab.
-    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     expect(screen.getByText('Demo sprinkler observation')).toBeInTheDocument()
   })

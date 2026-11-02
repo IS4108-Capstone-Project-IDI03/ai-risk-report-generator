@@ -1,0 +1,52 @@
+/* Version history and Archive (AssessmentActions.tsx): one pill split by a
+   hairline, like an iOS segmented group, quiet until hovered. */
+.aa-group {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 999px;
+  background: rgb(0 15 71 / 0.06); /* --marsh-navy at 6%, the grouped fill */
+}
+.aa-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--marsh-navy);
+  font: 500 14px/1 var(--font-sans);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.aa-item + .aa-item {
+  position: relative;
+}
+/* The hairline between the two halves. */
+.aa-item + .aa-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+  background: rgb(0 15 71 / 0.14);
+}
+@media (hover: hover) {
+  .aa-item:hover {
+    background: rgb(0 15 71 / 0.06);
+  }
+}
+.aa-item:active {
+  opacity: 0.6;
+}
+.aa-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+@media (pointer: coarse), (max-width: 559px) {
+  .aa-item {
+    min-height: 44px;
+  }
+}

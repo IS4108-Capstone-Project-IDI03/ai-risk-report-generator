@@ -24,11 +24,19 @@ export const LEVEL_SUGGESTIONS = [
   'Roof',
 ]
 
-// The place as shown on screen, general to specific: "Block A · Level 2 ·
-// Staircase", "Block A · Facade", "Elsewhere on site · Fire access route".
-// One with a level but no building reads "Level 2 · Stairwell B".
+// The place as text, general to specific, with the same arrows as LocationPath
+// (CP-22 round 1): "Block A › Level 2 › Staircase", "Elsewhere on site › Fire
+// access route". One with a level but no building reads "Level 2 › Stairwell B".
 export function locationLabel(l: Place) {
-  return [l.building || (l.floor ? null : ELSEWHERE), l.floor, l.name].filter(Boolean).join(' · ')
+  return locationParts(l).join(' › ')
+}
+
+// The place's parts, general to specific, for the arrow path: ["Block A",
+// "Level 2", "Staircase"]; ["Elsewhere on site", "Fire access route"].
+export function locationParts(l: Place): string[] {
+  return [l.building || (l.floor ? null : ELSEWHERE), l.floor, l.name].filter(
+    (x): x is string => !!x,
+  )
 }
 
 // The place as a report words it, most specific first: "Staircase, Level 2,

@@ -1,1360 +1,288 @@
-import { Fragment, useEffect, useId, useRef, useState } from 'react'
-import type * as React from 'react'
+// The Observations tab (CP-22): the location navigator beside a compact list
+// whose toolbar holds the site walks and the two ways to capture (record a
+// site walk or add manually), and each observation's own page. Rendered by AssessmentApp.tsx;
+// the data and saves are in useAssessmentWorkflow.tsx, the site walk screens in
+// features/site-walk.
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Dialog, Icon } from '../../../design-system'
 import {
-  Badge,
-  Button,
-  Callout,
-  Dialog,
-  EmptyState,
-  Icon,
-  IconButton,
-  IconRegistry,
-  Tag,
-} from '../../../design-system'
+  discardWalk,
+  retryWalk,
+  siteWalkReview,
+  SiteWalkRecording,
+  SiteWalkReview,
+  useKeptUploads,
+  useSiteWalks,
+} from '../../site-walk'
+import { ScreenHeader } from '../components/ScreenHeader'
 import { AddMediaDialog } from '../components/AddMediaDialog'
-import { FilterMenu } from '../components/FilterMenu'
-import { FoldHeading } from '../components/FoldHeading'
 import { LocationForm, RemoveLocationDialog } from '../components/LocationSheet'
-import { StatBox } from '../components/StatBox'
+import { LocationNavigator } from '../components/LocationNavigator'
+import { openWalks } from '../openWalks'
 import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
-import { PageEntry } from '../components/PageEntry'
+import { ObservationFilters } from '../components/ObservationFilters'
+import { ObservationList } from '../components/ObservationList'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
-import { TagDialog } from '../components/TagDialog'
-import { TRANSCRIPTION_BADGE as STATUS_BADGE } from '../transcription'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { useFitPane } from '../useFitPane'
+import { useObservationsView } from '../useObservationsView'
+import { ObservationPage } from './ObservationPage'
+import { SiteWalks } from './SiteWalks'
+import '../observations.css'
 
-type Row = AssessmentWorkflow['obsList'][number]
+// `from`: a recording or review opened in the Site Walk Proposals list goes Back to it.
+// `open`: the proposed observation open in the review.
+type WalkScreen =
+  | { kind: 'record'; from?: 'list' }
+  | { kind: 'review'; walkId: string; from?: 'list'; open?: string }
+  | { kind: 'list' }
+  | null
+// The open review, kept outside React: Add observation unmounts this tab, and
+// without this its Back would forget the review came from the list.
+let openReview: { walkId: string; from?: 'list' } | null = null
 
-// Where an observation's recordings stand (CP-08 AC2). Only one needing the
-// engineer's eyes is badged; Complete is the norm, so it stays quiet.
-function ObservationStatus({ o }: { o: Row }) {
-  return o.statusTone ? (
-    <Badge tone={o.statusTone}>{o.status}</Badge>
-  ) : (
-    <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{o.status}</span>
-  )
+// The walk screen in the URL (?walk=list, ?walk=record[.list],
+// ?walk=<id>[.list][.<observation ref>]), so a refresh reopens it. A reopened
+// recording resumes the open walk; its microphone waits for a tap.
+function walkFromUrl(): WalkScreen {
+  const w = new URLSearchParams(window.location.search).get('walk')
+  if (!w) return null
+  if (w === 'list') return { kind: 'list' }
+  const [id, ...rest] = w.split('.')
+  const from = rest.includes('list') ? { from: 'list' as const } : {}
+  if (id === 'record') return { kind: 'record', ...from }
+  const open = rest.find((part) => part !== 'list')
+  return { kind: 'review', walkId: id, ...from, ...(open && { open }) }
 }
-
-// Who last changed or deleted it, and when: "Edited by Alex Rowe · 07 Oct 14:02".
-const stampStyle = {
-  margin: '8px 0 0',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '12px',
-  color: 'var(--text-muted)',
-} as const
-
-const proposalSection = {
-  marginTop: '14px',
-  paddingTop: '12px',
-  borderTop: '1px solid var(--border-subtle)',
-} as const
-// Side by side when there is room for two columns of at least 280px; one
-// column on a phone, or when only one is shown.
-const proposalColumns = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-  gap: '14px 28px',
-  marginTop: '10px',
-} as const
-const proposalSubhead = {
-  fontSize: '13px',
-  fontWeight: '500',
-  color: 'var(--text-secondary)',
-} as const
-// Machine-written text, set off by an AI-violet rule.
-const aiText = {
-  margin: '6px 0 0',
-  paddingLeft: '12px',
-  borderLeft: '2px solid var(--ai-border)',
-  fontSize: '15px',
-  lineHeight: '24px',
-  color: 'var(--text-body)',
-  maxWidth: '68ch',
-  textWrap: 'pretty',
-} as const
-const proposalHeading = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  flexWrap: 'wrap',
-  fontSize: '14px',
-  fontWeight: '500',
-  color: 'var(--text-primary)',
-} as const
-
-// The heading over one column of an open observation.
-function ColumnHead({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: '11px',
-        fontWeight: '600',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        color: 'var(--text-muted)',
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
-// A photo's name that opens the photo in a popup.
-function PhotoLink({ name, onClick }: { name: string; onClick: () => void }) {
-  return (
-    <Button
-      variant="link"
-      size="sm"
-      onClick={onClick}
-      style={{ height: 'auto', fontSize: 'inherit', fontWeight: 'inherit', whiteSpace: 'normal' }}
-    >
-      {name}
-    </Button>
-  )
-}
-
-// What the model proposes from the observation (CP-05, CP-21): a machine
-// reading, so it sits in AI violet, naming what it read, and becomes the
-// engineer's own only through Edit. Nothing is read until an engineer asks,
-// so until then it is one line offering Get AI proposal.
-function ObservationProposal({
-  o,
-  proposal,
-  onView,
-}: {
-  o: Row
-  proposal: NonNullable<Row['proposal']>
-  onView: (photo: ViewedPhoto) => void
-}) {
-  if (proposal.status === 'unread')
-    return (
-      <section
-        aria-label="Proposal from this observation"
-        style={{
-          ...proposalSection,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <Icon name="sparkles" size={14} color="var(--ai-fg)"></Icon>
-        <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-          {
-            'Not read yet. Proposes COPE categories from its note, recordings, pages and photos, and a description from any photos.'
-          }
-        </span>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={IconRegistry.action.generate}
-          onClick={proposal.read}
-        >
-          {'Get AI proposal'}
-        </Button>
-      </section>
-    )
-  // Opens what a proposal cites: a photo or page in a popup, a recording where
-  // it sits in this observation.
-  const open = (item: NonNullable<typeof proposal.readFrom>[number]) =>
-    item.url
-      ? () => onView({ name: item.label, url: item.url!, context: o.where })
-      : item.kind === 'recording' && item.id && !item.removed
-        ? () =>
-            document
-              .getElementById('evidence-' + item.id)
-              ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
-        : null
-  const photos = proposal.photos
-  const parts = [proposal.status, photos?.status]
-  return (
-    <section aria-label="Proposal from this observation" style={proposalSection}>
-      <div style={proposalHeading}>
-        <Icon name="sparkles" size={14} color="var(--ai-fg)"></Icon>
-        <span>{'Proposal from this observation'}</span>
-        <Badge tone="ai" icon="sparkles">
-          {proposal.sample ? 'Sample proposal' : 'AI proposal'}
-        </Badge>
-        {parts.includes('interpreting') && <Badge tone="info">Reading</Badge>}
-        {parts.includes('failed') && <Badge tone="high">Failed</Badge>}
-      </div>
-      {/* Categories on the left and, with photos, their description on the
-          right, each read again on its own (CP-21); one column when narrow
-          or when there are no photos. */}
-      <div style={proposalColumns}>
-        <div style={{ minWidth: 0 }}>
-          <div style={proposalSubhead}>{'Suggested categories'}</div>
-          <ProposalPart
-            status={proposal.status}
-            error={proposal.error}
-            outOfDate={!!proposal.outOfDate}
-            reading="Reading this observation…"
-            changed="Its note, recordings, pages or photos changed since these were suggested."
-            again={proposal.readCategories}
-            againLabel="Regenerate categories"
-          >
-            {proposal.categories.length ? (
-              <ul
-                aria-label="Suggested categories"
-                style={{ listStyle: 'none', margin: 0, padding: 0 }}
-              >
-                {proposal.categories.map((c) => (
-                  <li key={c.category} style={{ marginTop: '8px' }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <Tag>{c.category}</Tag>
-                      {c.added && <Badge tone="neutral">Added</Badge>}
-                      {c.unverified && <Badge tone="moderate">Unverified</Badge>}
-                      {!!c.add && (
-                        <Button variant="secondary" size="sm" iconLeft="tag" onClick={c.add}>
-                          {'Add ' + c.category}
-                        </Button>
-                      )}
-                    </div>
-                    {!!c.reason && <p style={aiText}>{c.reason}</p>}
-                    {/* The words it quoted from each item; a quote the gateway
-                        could not find there, or none given, is marked, not hidden. */}
-                    {c.evidence
-                      .filter((e) => e.quote || e.verified === false)
-                      .map((e, index) => (
-                        <p key={index} style={{ ...stampStyle, margin: '4px 0 0 14px' }}>
-                          {e.quote
-                            ? '“' + e.quote + '” · ' + e.item
-                            : 'No words quoted from ' + e.item}
-                          {e.quote && e.verified === false && ' · not found in ' + e.item}
-                        </p>
-                      ))}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                {'None suggested: nothing in this observation points to a category.'}
-              </p>
-            )}
-          </ProposalPart>
-        </div>
-        {/* Only photos are described (CP-05); photos added after a reading
-            without them can be described on their own. */}
-        {(!!photos || !!proposal.readDescription) && (
-          <div style={{ minWidth: 0 }}>
-            <div style={proposalSubhead}>{'From the photos'}</div>
-            {!photos ? (
-              <>
-                <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                  {'Not described yet.'}
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={IconRegistry.action.generate}
-                  onClick={proposal.readDescription!}
-                  style={{ marginTop: '8px' }}
-                >
-                  {'Describe photos'}
-                </Button>
-              </>
-            ) : (
-              <ProposalPart
-                status={photos.status}
-                error={photos.error}
-                outOfDate={photos.outOfDate}
-                reading="Describing the photos…"
-                changed="Photos were added or removed since this was written."
-                again={proposal.readDescription}
-                againLabel="Regenerate description"
-              >
-                <p style={aiText}>{photos.description}</p>
-                {!!photos.hazardType && (
-                  <p
-                    style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}
-                  >
-                    {'Hazard type: ' + photos.hazardType}
-                  </p>
-                )}
-                {!!proposal.useAsNote && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    iconLeft="sticky-note"
-                    onClick={proposal.useAsNote}
-                    style={{ marginTop: '8px' }}
-                  >
-                    {'Use as note'}
-                  </Button>
-                )}
-              </ProposalPart>
-            )}
-          </div>
-        )}
-      </div>
-      {/* What it read, each opening the item, marking any left out for
-          having no transcript or since removed (CP-08, CP-21). */}
-      {!!proposal.readFrom?.length && proposal.status === 'interpreted' && (
-        <p style={{ margin: '10px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-          {'Read from '}
-          {proposal.readFrom.map((item, index) => {
-            const onClick = open(item)
-            return (
-              <Fragment key={index}>
-                {index > 0 && ', '}
-                {onClick ? <PhotoLink name={item.label} onClick={onClick} /> : item.label}
-                {item.leftOut && ' (left out: no transcript)'}
-                {item.removed && ' (removed)'}
-                {/* Read, but no suggestion rests on it (CP-21). */}
-                {item.notCited && ' (not cited)'}
-              </Fragment>
-            )
-          })}
-        </p>
-      )}
-      <p style={stampStyle}>
-        {proposal.sample
-          ? 'No capture session, so this is a sample proposal, not a reading of this observation.'
-          : 'Proposed by ' + (proposal.model ?? photos?.model ?? 'the AI service')}
-      </p>
-    </section>
-  )
-}
-
-// One part of a proposal as it stands (CP-21): being read, failed with Retry,
-// or written, with Regenerate, or once what it read changed, a warning that
-// offers it instead.
-function ProposalPart({
-  status,
-  error,
-  outOfDate,
-  reading,
-  changed,
-  again,
-  againLabel,
-  children,
-}: {
-  status: string
-  error: string | null
-  outOfDate: boolean
-  reading: string
-  changed: string
-  again: (() => void) | null
-  againLabel: string
-  children: React.ReactNode
-}) {
-  const button = (label: string, style?: React.CSSProperties) =>
-    again && (
-      <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={again} style={style}>
-        {label}
-      </Button>
-    )
-  if (status === 'interpreting')
-    return (
-      <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>{reading}</p>
-    )
-  if (status === 'failed')
-    return (
-      <div role="status" style={{ marginTop: '8px' }}>
-        <Callout tone="warning" title="Reading failed" actions={button('Retry')}>
-          {error}
-        </Callout>
-      </div>
-    )
-  return (
-    <>
-      {outOfDate && (
-        <div role="status" style={{ marginTop: '8px' }}>
-          <Callout tone="warning" title="Read from earlier evidence" actions={button(againLabel)}>
-            {changed}
-          </Callout>
-        </div>
-      )}
-      {children}
-      {!outOfDate && button(againLabel, { marginTop: '8px' })}
-    </>
-  )
-}
-
-// One observation's row, and its details once opened (CP-08).
-function ObservationRow({
-  v,
-  o,
-  onView,
-}: {
-  v: AssessmentWorkflow
-  o: Row
-  onView: (photo: ViewedPhoto) => void
-}) {
-  return (
-    <div>
-      <div
-        data-i={o.key}
-        data-landing={o.key === v.obsLandingRow || undefined}
-        onClick={v.toggleObs}
-        style={o.rowStyle}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            event.currentTarget.click()
-          }
-        }}
-      >
-        <span
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-muted)',
-          }}
-        >
-          <Icon name={o.chevron} size={15}></Icon>
-        </span>
-        <span style={{ minWidth: '0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '0' }}>
-            <Icon name={o.icon} size={15} color={o.color}></Icon>
-            <span
-              style={{
-                minWidth: '0',
-                fontSize: '15px',
-                fontWeight: '600',
-                color: 'var(--text-primary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {o.catLabel}
-            </span>
-            {!!o.deleted && <Badge tone="danger">Deleted</Badge>}
-            {!!o.isNew && <Badge tone="info">New</Badge>}
-          </span>
-          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{o.typeLabel}</span>
-          {!!v.obsStack && (
-            <>
-              <span
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  minWidth: '0',
-                }}
-              >
-                {!v.obsByLocation && (
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    {o.where}
-                  </span>
-                )}
-                <span
-                  style={{
-                    fontSize: '15px',
-                    lineHeight: '22px',
-                    color: 'var(--text-body)',
-                    textWrap: 'pretty',
-                  }}
-                >
-                  {o.text}
-                </span>
-                <span style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  <Badge tone={o.sev} dot={true}>
-                    {o.sevLabel}
-                  </Badge>
-                  <ObservationStatus o={o} />
-                </span>
-              </span>
-            </>
-          )}
-        </span>
-        {!!v.obsWide && !v.obsByLocation && (
-          <>
-            <span
-              style={{
-                minWidth: '0',
-                fontSize: '15px',
-                lineHeight: '22px',
-                color: 'var(--text-secondary)',
-                textWrap: 'pretty',
-              }}
-            >
-              {/* Wraps rather than truncating, so the whole place stays visible. */}
-              {o.where}
-            </span>
-          </>
-        )}
-        {!!v.obsWide && (
-          <>
-            <span
-              style={{
-                minWidth: '0',
-                fontSize: '15px',
-                lineHeight: '22px',
-                color: 'var(--text-body)',
-                textWrap: 'pretty',
-              }}
-            >
-              {o.text}
-            </span>
-          </>
-        )}
-        {!!v.obsWide && (
-          <>
-            <span style={{ display: 'flex' }}>
-              <Badge tone={o.sev} dot={true}>
-                {o.sevLabel}
-              </Badge>
-            </span>
-            <span style={{ display: 'flex' }}>
-              <ObservationStatus o={o} />
-            </span>
-          </>
-        )}
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '13px',
-            color: 'var(--text-secondary)',
-            textAlign: 'right',
-          }}
-        >
-          {o.clock}
-        </span>
-      </div>
-      {!!o.open && (
-        <>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '18px',
-              padding: '18px 20px 18px clamp(20px,4vw,52px)',
-              background: 'var(--surface-sunken)',
-              borderLeft: '3px solid var(--action-primary)',
-              borderBottom: '1px solid var(--border-subtle)',
-              animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
-            }}
-          >
-            {/* The checklist item it answers (CP-31), as worded then. */}
-            {!!o.checklist && (
-              <p
-                style={{
-                  margin: '0 0 16px',
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                  fontSize: '14px',
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                <Badge tone={o.checklist.result === 'confirmed' ? 'low' : 'moderate'}>
-                  {o.checklist.result === 'confirmed' ? 'Confirmed' : 'Differs'}
-                </Badge>
-                {'From checklist: ' + o.checklist.text}
-              </p>
-            )}
-            {/* Side by side, one column for each kind of content it
-                          holds, so no column runs on while another is empty. */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-                gap: '24px',
-              }}
-            >
-              {!!o.detail && (
-                <div style={{ minWidth: '0' }}>
-                  <ColumnHead>
-                    {'Detailed notes'}
-                    <Badge
-                      tone="neutral"
-                      style={{
-                        marginLeft: 'var(--space-3)',
-                        textTransform: 'none',
-                        letterSpacing: 'normal',
-                      }}
-                    >
-                      Text
-                    </Badge>
-                  </ColumnHead>
-                  <p
-                    style={{
-                      margin: '10px 0 0',
-                      fontSize: '15px',
-                      lineHeight: '24px',
-                      color: 'var(--text-body)',
-                      maxWidth: '68ch',
-                      textWrap: 'pretty',
-                    }}
-                  >
-                    {o.detail}
-                  </p>
-                </div>
-              )}
-              {(o.recordings.length > 0 || !!o.hasAudio) && (
-                <div style={{ minWidth: '0' }}>
-                  <ColumnHead>{'Recordings (' + (o.recordings.length || 1) + ')'}</ColumnHead>
-                  {o.recordings.map((r, index) => (
-                    <section
-                      key={r.id}
-                      // A proposal's Read from line scrolls here (CP-21).
-                      id={'evidence-' + r.id}
-                      aria-label={r.name}
-                      style={
-                        index
-                          ? {
-                              marginTop: '14px',
-                              paddingTop: '12px',
-                              borderTop: '1px solid var(--border-subtle)',
-                            }
-                          : { marginTop: '10px' }
-                      }
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          flexWrap: 'wrap',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          color: 'var(--text-primary)',
-                        }}
-                      >
-                        <Icon name="mic" size={14} color="#8f7dff"></Icon>
-                        <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{r.name}</span>
-                        <Badge tone="neutral">Voice</Badge>
-                        <Badge tone={STATUS_BADGE[r.status].tone}>
-                          {STATUS_BADGE[r.status].label}
-                        </Badge>
-                        {!!r.correctedLabel && <Badge tone="neutral">Corrected</Badge>}
-                      </div>
-                      {r.status === 'failed' ? (
-                        <div role="status" style={{ marginTop: '8px' }}>
-                          <Callout
-                            tone="warning"
-                            title="Transcription failed"
-                            actions={
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                iconLeft="refresh-cw"
-                                onClick={r.retry}
-                              >
-                                {'Retry transcription'}
-                              </Button>
-                            }
-                          >
-                            {r.error}
-                          </Callout>
-                        </div>
-                      ) : (
-                        <>
-                          <p
-                            style={{
-                              margin: '6px 0 0',
-                              fontSize: '15px',
-                              lineHeight: '24px',
-                              color: 'var(--text-body)',
-                              maxWidth: '68ch',
-                              textWrap: 'pretty',
-                            }}
-                          >
-                            {r.text}
-                          </p>
-                          {r.original !== null && (
-                            <details style={{ marginTop: '6px', fontSize: '14px' }}>
-                              <summary
-                                style={{
-                                  cursor: 'pointer',
-                                  color: 'var(--text-secondary)',
-                                }}
-                              >
-                                {'What Whisper wrote'}
-                              </summary>
-                              <p
-                                style={{
-                                  margin: '6px 0 0',
-                                  paddingLeft: '12px',
-                                  borderLeft: '2px solid var(--ai-border)',
-                                  color: 'var(--text-body)',
-                                  maxWidth: '68ch',
-                                }}
-                              >
-                                {r.original}
-                              </p>
-                            </details>
-                          )}
-                          {!!r.correctedLabel && <p style={stampStyle}>{r.correctedLabel}</p>}
-                          {r.canCorrect && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              iconLeft={IconRegistry.action.edit}
-                              onClick={r.correct}
-                              style={{ marginTop: '8px' }}
-                            >
-                              {'Edit transcript'}
-                            </Button>
-                          )}
-                        </>
-                      )}
-                      <audio
-                        controls
-                        preload="none"
-                        src={r.audioUrl}
-                        aria-label={'Play ' + r.name}
-                        style={{ display: 'block', width: '100%', marginTop: '8px' }}
-                      />
-                      {!!r.addedLabel && <p style={stampStyle}>{r.addedLabel}</p>}
-                      {/* Kept to restore, never deleted (CP-08). */}
-                      {!!r.remove && (
-                        <Button
-                          variant="danger-tonal"
-                          size="sm"
-                          iconLeft={IconRegistry.action.discard}
-                          aria-label={'Remove ' + r.name}
-                          onClick={r.remove}
-                          style={{ marginTop: '8px' }}
-                        >
-                          {'Remove'}
-                        </Button>
-                      )}
-                    </section>
-                  ))}
-                  {/* A sample observation's clip, played in this demo. */}
-                  {!!o.hasAudio && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      iconLeft="mic"
-                      onClick={v.playSampleAudio}
-                      style={{ marginTop: '10px' }}
-                    >
-                      {o.audioLabel}
-                    </Button>
-                  )}
-                </div>
-              )}
-              {o.pages.length > 0 && (
-                <div style={{ minWidth: '0' }}>
-                  <ColumnHead>{'Handwritten pages (' + o.pages.length + ')'}</ColumnHead>
-                  {o.pages.map((p, index) => (
-                    <PageEntry
-                      key={p.id}
-                      page={p}
-                      first={index === 0}
-                      onView={() => onView({ name: p.name, url: p.url, context: o.where })}
-                    />
-                  ))}
-                </div>
-              )}
-              {o.media.length > 0 && (
-                <div style={{ minWidth: '0' }}>
-                  <ColumnHead>{'Photos (' + o.media.length + ')'}</ColumnHead>
-                  <div
-                    style={{
-                      marginTop: '10px',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '10px',
-                    }}
-                  >
-                    {o.media.map((m, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          width: '132px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px',
-                        }}
-                      >
-                        {m.url ? (
-                          // The original photo, opened from its observation (CP-04 AC2).
-                          <button
-                            type="button"
-                            aria-label={'Open ' + m.name}
-                            onClick={() => onView({ name: m.name, url: m.url!, context: o.where })}
-                            style={{
-                              width: '132px',
-                              padding: 0,
-                              border: '1px solid var(--border-default)',
-                              borderRadius: '5px',
-                              background: 'var(--surface-card)',
-                              overflow: 'hidden',
-                              color: 'var(--text-muted)',
-                              textAlign: 'left',
-                              cursor: 'zoom-in',
-                            }}
-                          >
-                            {/* ponytail: loads the original; serve smaller copies if lists grow long. */}
-                            <img
-                              src={m.url}
-                              alt=""
-                              loading="lazy"
-                              style={{ display: 'block', width: '100%', height: 'auto' }}
-                            />
-                            <span
-                              style={{
-                                display: 'block',
-                                padding: '4px 6px',
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '12px',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {m.name}
-                            </span>
-                          </button>
-                        ) : (
-                          <div
-                            style={{
-                              width: '132px',
-                              border: '1px solid var(--border-default)',
-                              borderRadius: '5px',
-                              background: 'var(--surface-card)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px',
-                              flexWrap: 'wrap',
-                              padding: '16px 8px',
-                            }}
-                          >
-                            <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
-                            <span
-                              style={{
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '12px',
-                                color: 'var(--text-muted)',
-                              }}
-                            >
-                              {m.name}
-                            </span>
-                          </div>
-                        )}
-                        {/* Kept to restore, never deleted (CP-08). */}
-                        {!!m.remove && (
-                          <Button
-                            variant="danger-tonal"
-                            size="sm"
-                            iconLeft={IconRegistry.action.discard}
-                            aria-label={'Remove ' + m.name}
-                            onClick={m.remove}
-                          >
-                            {'Remove'}
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {o.media
-                    .filter((m) => m.addedLabel)
-                    .map((m, index) => (
-                      <p key={index} style={stampStyle}>
-                        {m.addedLabel}
-                      </p>
-                    ))}
-                </div>
-              )}
-            </div>
-            {/* What the model reads in all of it, under every column (CP-21). */}
-            {!!o.proposal && <ObservationProposal o={o} proposal={o.proposal} onView={onView} />}
-            {o.removedMedia.length > 0 && (
-              <details style={{ marginTop: '14px', fontSize: '14px' }}>
-                <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                  {'Removed media (' + o.removedMedia.length + ')'}
-                </summary>
-                <ul
-                  aria-label="Removed media"
-                  style={{
-                    listStyle: 'none',
-                    margin: '8px 0 0',
-                    padding: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                  }}
-                >
-                  {o.removedMedia.map((m) => (
-                    <li key={m.id} style={{ minWidth: 0 }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <Icon
-                          name={m.kind === 'recordings' ? 'mic' : 'image'}
-                          size={14}
-                          color="var(--text-muted)"
-                        ></Icon>
-                        {m.kind === 'photos' && m.url ? (
-                          <PhotoLink
-                            name={m.name}
-                            onClick={() => onView({ name: m.name, url: m.url!, context: o.where })}
-                          />
-                        ) : (
-                          <span style={{ overflowWrap: 'anywhere' }}>{m.name}</span>
-                        )}
-                        {!!m.restore && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            iconLeft={IconRegistry.action.reinstate}
-                            aria-label={'Restore ' + m.name}
-                            onClick={m.restore}
-                          >
-                            {'Restore'}
-                          </Button>
-                        )}
-                      </div>
-                      {m.kind === 'recordings' && !!m.url && (
-                        <audio
-                          controls
-                          preload="none"
-                          src={m.url}
-                          aria-label={'Play ' + m.name}
-                          style={{ display: 'block', width: '100%', marginTop: '6px' }}
-                        />
-                      )}
-                      <p style={{ ...stampStyle, margin: '4px 0 0' }}>{m.removedLabel}</p>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-            {/* The observation's own actions in one row: who changed it
-                          last, then Edit and Add media, and Delete apart at the
-                          bottom right so it is not pressed by mistake. */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '8px',
-                paddingTop: '14px',
-                borderTop: '1px solid var(--border-subtle)',
-              }}
-            >
-              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                {!!o.deletedLabel && <p style={{ ...stampStyle, margin: 0 }}>{o.deletedLabel}</p>}
-                {!!o.editedLabel && <p style={{ ...stampStyle, margin: 0 }}>{o.editedLabel}</p>}
-              </div>
-              {!!o.hasStd && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft="book-marked"
-                  onClick={v.openEvidenceSource}
-                >
-                  {o.std}
-                </Button>
-              )}
-              {o.canChange && (
-                <>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    iconLeft={IconRegistry.action.edit}
-                    onClick={o.editTags}
-                  >
-                    {'Edit'}
-                  </Button>
-                  {!!o.addMedia && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      iconLeft={IconRegistry.action.add}
-                      onClick={o.addMedia}
-                    >
-                      {'Add media'}
-                    </Button>
-                  )}
-                  <Button
-                    variant="danger-tonal"
-                    size="sm"
-                    iconLeft={IconRegistry.action.discard}
-                    onClick={o.deleteObs}
-                    style={{ marginLeft: '8px' }}
-                  >
-                    {'Delete observation'}
-                  </Button>
-                </>
-              )}
-              {o.canRestore && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={IconRegistry.action.reinstate}
-                  onClick={o.restoreObs}
-                >
-                  {'Restore'}
-                </Button>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-type ObservationGroupView = AssessmentWorkflow['obsGroups'][number]
-type ObservationPlaceView = ObservationGroupView['levels'][number]['locations'][number]
-
-// A building (or Elsewhere on site), folding away under its heading, then
-// each level's locations with their observations (CP-16).
-function ObservationGroup({
-  v,
-  group,
-  onView,
-}: {
-  v: AssessmentWorkflow
-  group: ObservationGroupView
-  onView: (photo: ViewedPhoto) => void
-}) {
-  const id = useId()
-  return (
-    <section aria-label={group.title}>
-      <FoldHeading
-        title={group.title}
-        countLabel={group.countLabel}
-        open={group.open}
-        controls={id}
-        onToggle={group.toggle}
-      />
-      {group.open && (
-        <div id={id}>
-          {group.levels.map((level) => (
-            <div key={level.title ?? ''}>
-              {!!level.title && (
-                <div
-                  style={{
-                    padding: '12px 16px 4px',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  {level.title}
-                </div>
-              )}
-              {level.locations.map((l) => (
-                <ObservationPlace key={l.id} v={v} place={l} onView={onView} />
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-// A location: its name and how many observations it holds, Add observation
-// (capture opens there), Edit for the assigned engineer and Remove while
-// nothing is saved there, then its observations, newest first (CP-16). Back
-// from capture, the one it returns to takes focus.
-function ObservationPlace({
-  v,
-  place: l,
-  onView,
-}: {
-  v: AssessmentWorkflow
-  place: ObservationPlaceView
-  onView: (photo: ViewedPhoto) => void
-}) {
-  return (
-    <div
-      role="group"
-      aria-label={l.label}
-      data-landing={l.landing || undefined}
-      tabIndex={l.landing ? -1 : undefined}
-      // The focus ring is drawn inside, clear of the headings around it.
-      style={{ scrollMarginTop: '16px', outlineOffset: '-2px' }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '8px',
-          padding: '8px 16px',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}
-      >
-        <Icon name="map-pin" size={16} color="var(--action-primary)" />
-        <h3
-          style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)' }}
-        >
-          {l.name}
-        </h3>
-        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{l.countLabel}</span>
-        <span style={{ flex: '1' }}></span>
-        {!!l.addObservation && (
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft="plus"
-            aria-label={'Add observation at ' + l.label}
-            onClick={l.addObservation}
-          >
-            {'Add observation'}
-          </Button>
-        )}
-        {!!l.edit && <IconButton icon="pencil" label={'Edit ' + l.label} onClick={l.edit} />}
-        {!!l.remove && <IconButton icon="trash-2" label={'Remove ' + l.label} onClick={l.remove} />}
-      </div>
-      {l.items.map((o) => (
-        <ObservationRow key={o.key} v={v} o={o} onView={onView} />
-      ))}
-    </div>
-  )
+function walkParam(walk: WalkScreen): string | null {
+  if (!walk) return null
+  if (walk.kind === 'list') return 'list'
+  const id = walk.kind === 'record' ? 'record' : walk.walkId
+  return [id, walk.from, walk.kind === 'review' && walk.open].filter(Boolean).join('.')
 }
 
 export function Observations({ v }: { v: AssessmentWorkflow }) {
+  const view = useObservationsView(v)
+  const { walks, reload } = useSiteWalks(v.captureRef)
+  const [walk, setWalk] = useState<WalkScreen>(walkFromUrl)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const param = walkParam(walk)
+    if (param === q.get('walk')) return
+    if (param) q.set('walk', param)
+    else q.delete('walk')
+    window.history.replaceState(null, '', window.location.pathname + '?' + q.toString())
+  }, [walk])
+  const waiting = useKeptUploads(v.captureRef, reload)
+  // The bell's "site walk ready" opens its review, whether this tab was already
+  // showing or is only now mounting.
+  useEffect(() => {
+    const take = () => {
+      const walkId = siteWalkReview.walkId
+      if (!walkId) return
+      const before = openReview?.walkId === walkId ? openReview.from : undefined
+      // Back goes to the screen it opened over: the list, or else the tab.
+      setWalk((cur) => ({ kind: 'review', walkId, from: cur?.kind === 'list' ? 'list' : before }))
+      siteWalkReview.walkId = null
+    }
+    take()
+    window.addEventListener(siteWalkReview.event, take)
+    return () => window.removeEventListener(siteWalkReview.event, take)
+  }, [])
+  useEffect(() => {
+    openReview = walk?.kind === 'review' ? walk : null
+  }, [walk])
+  // The review reports its open observation, so the URL carries it. Stable, and
+  // a no-op when unchanged: the review calls it from an effect.
+  const reviewOpened = useCallback(
+    (ref: string | null) =>
+      setWalk((cur) =>
+        cur?.kind === 'review' && (cur.open ?? null) !== ref
+          ? { ...cur, open: ref ?? undefined }
+          : cur,
+      ),
+    [],
+  )
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
-  // Back from capture, the list scrolls once to where the engineer was, as
-  // soon as it is listed, and focus goes there (CP-16).
+  // The title, navigator and table stay put; only the table scrolls (round 3).
+  const pane = useFitPane<HTMLDivElement>()
+  const open = v.obsList.find((o) => o.open)
+  // Back from capture, the list scrolls once to the newest saved, and focus
+  // goes there (CP-16).
   const page = useRef<HTMLDivElement>(null)
   const landed = useRef(false)
   useEffect(() => {
-    if (landed.current || !v.obsReturning) return
+    if (landed.current || !v.obsReturning || open) return
     const target = page.current?.querySelector<HTMLElement>('[data-landing]')
     if (!target) return
     landed.current = true
-    target.scrollIntoView?.({ block: 'start' })
+    target.scrollIntoView?.({ block: 'center' })
     target.focus({ preventScroll: true })
   })
+
+  // a. Recording a site walk takes the whole screen; its review sits in this tab.
+  if (walk?.kind === 'record')
+    return (
+      <SiteWalkRecording
+        reference={v.captureRef}
+        back={walk.from ? 'Site walk proposals' : 'Observations'}
+        onClose={() => {
+          setWalk(walk.from ? { kind: 'list' } : null)
+          reload()
+        }}
+      />
+    )
+  if (walk?.kind === 'review')
+    return (
+      <SiteWalkReview
+        reference={v.captureRef}
+        walkId={walk.walkId}
+        opened={walk.open}
+        onOpen={reviewOpened}
+        backTo={walk.from ? 'Site walk proposals' : 'Observations'}
+        onClose={() => {
+          setWalk(walk.from ? { kind: 'list' } : null)
+          reload()
+        }}
+        notify={v.notify}
+        onCreated={(message) => {
+          v.notify(message)
+          setWalk(null)
+          reload()
+          v.reloadAfterWalk()
+        }}
+      />
+    )
+  // b. Every walk with its details, on its own screen.
+  if (walk?.kind === 'list')
+    return (
+      <SiteWalks
+        walks={walks}
+        waiting={waiting}
+        onBack={() => setWalk(null)}
+        onRecord={() => setWalk({ kind: 'record', from: 'list' })}
+        onOpen={(w) =>
+          setWalk(
+            w.status === 'recording'
+              ? { kind: 'record', from: 'list' }
+              : { kind: 'review', walkId: w.id, from: 'list' },
+          )
+        }
+        onRetry={(walkId) =>
+          void retryWalk(v.captureRef, walkId)
+            .then(() => {
+              reload()
+              v.notify('Reading the walk again')
+            })
+            .catch(() => v.notify('The walk could not be retried. Try again.', 'danger'))
+        }
+        onDelete={(walkId) =>
+          discardWalk(v.captureRef, walkId).then(() => {
+            reload()
+            v.notify('Proposal deleted')
+          })
+        }
+      />
+    )
+  const canCapture = v.canEdit && v.canCapture
+  const shownWalks = openWalks(walks)
+  const readyWalks = shownWalks.filter((w) => w.status === 'ready').length
+  // Add manually opens capture at the location picked, when there is one.
+  const addManually = view.location?.addObservation ?? v.goField
   return (
     <>
-      <div
-        ref={page}
-        style={{
-          padding: '24px clamp(16px,2vw,28px) 40px',
-          animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
-        }}
-      >
-        {/* What the observations hold, by kind; Photos opens the photo
-            collection and Scans the handwritten pages (CP-19). */}
-        <div className="om-overview-wrap" style={{ marginBottom: '16px' }}>
-          <div className="om-overview-boxes">
-            <StatBox
-              icon="sticky-note"
-              label="Notes"
-              content={{
-                value: String(v.obsCounts.notes),
-                unit: v.obsCounts.notes === 1 ? 'text note' : 'text notes',
-              }}
-            />
-            <StatBox
-              icon="mic"
-              label="Recordings"
-              content={{
-                value: String(v.obsCounts.recordings),
-                unit: v.obsCounts.recordings === 1 ? 'recording' : 'recordings',
-              }}
-            />
-            <StatBox
-              icon="image"
-              label="Photos"
-              content={{
-                value: String(v.obsCounts.photos),
-                unit: v.obsCounts.photos === 1 ? 'photo' : 'photos',
-              }}
-              onOpen={v.goPhotos}
-              opens="the photo collection"
-            />
-            <StatBox
-              icon={IconRegistry.evidence.handwriting}
-              label="Scans"
-              content={{
-                value: String(v.obsCounts.scans),
-                unit: v.obsCounts.scans === 1 ? 'page' : 'pages',
-              }}
-              onOpen={v.goScans}
-              opens="the handwritten pages"
-            />
-          </div>
-        </div>
-        {/* The card no longer clips, so the Filters panel can hang below a
-            short list; its footer rounds the bottom corners instead. */}
-        <div
-          style={{
-            background: 'var(--surface-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: '8px',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          {/* Newest first unless grouped by location, the filters behind one
-              button, the deleted ones, and a location added without capturing
-              (CP-08, CP-16). The deleted ones are always newest first. */}
-          <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '8px',
-                padding: '14px 18px',
-              }}
-            >
-              {/* Says what pressing it does, so its text changes with the list. */}
-              {!v.obsShowDeleted && (
-                <Button size="sm" variant="secondary" onClick={v.toggleObsByLocation}>
-                  {v.obsByLocation ? 'Show newest first' : 'Group by location'}
-                </Button>
-              )}
-              <FilterMenu v={v} />
-              {/* Swaps the list for the deleted observations and back (CP-08 AC14). */}
-              <Button
-                variant={v.obsShowDeleted ? 'tonal' : 'secondary'}
-                size="sm"
-                iconLeft={v.obsShowDeleted ? 'arrow-left' : IconRegistry.action.discard}
-                onClick={() => v.setObsShowDeleted(!v.obsShowDeleted)}
-              >
-                {v.obsShowDeleted ? 'Back to observations' : `Deleted (${v.obsDeletedCount})`}
-              </Button>
-              <span style={{ flex: '1' }}></span>
-              {!v.obsShowDeleted && !!v.obsAddLocation && (
-                <Button variant="secondary" size="sm" iconLeft="map-pin" onClick={v.obsAddLocation}>
-                  {'Add location'}
-                </Button>
-              )}
-            </div>
-            {/* What the filters are set to, each removable, while any is. */}
-            {v.obsFilterChips.length > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                  padding: '0 18px 14px',
-                }}
-              >
-                {v.obsFilterChips.map((chip) => (
-                  <Tag key={chip.key} onRemove={chip.remove} removeLabel={'Remove ' + chip.label}>
-                    {chip.label}
-                  </Tag>
-                ))}
-                <Button variant="ghost" size="sm" onClick={v.clearObsFilters}>
-                  {'Clear filters'}
-                </Button>
-              </div>
+      <div ref={page} className="ob">
+        {open ? (
+          // c. One observation on its own page, edited in place.
+          <ObservationPage key={open.key} v={v} o={open} order={view.order} onView={setViewing} />
+        ) : (
+          <>
+            {/* d. Deleted observations get a header like the other sub-screens. */}
+            {v.obsShowDeleted && (
+              <ScreenHeader
+                title="Deleted Observations"
+                back="Observations"
+                onBack={() => v.setObsShowDeleted(false)}
+              />
             )}
-          </div>
-          {!!v.obsWide && v.obsList.length > 0 && (
-            <>
+            {/* e. The list's own header, then the navigator beside the list (above it on a phone). */}
+            {!v.obsShowDeleted && <h2 className="ob-title">All Observations</h2>}
+            <div ref={pane} className="ob-layout" data-fit="">
+              {!v.obsShowDeleted && <LocationNavigator v={v} view={view} />}
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: v.obsCols,
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '0 16px',
-                  height: '36px',
-                  background: 'var(--surface-header)',
-                  borderBottom: '1px solid var(--border-default)',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-muted)',
-                }}
+                className="ob-card"
+                style={{ gridColumn: v.obsShowDeleted ? '1 / -1' : undefined }}
               >
-                <span></span>
-                <span>{'Category'}</span>
-                {!v.obsByLocation && <span>{'Location'}</span>}
-                <span>{'Summary'}</span>
-                <span>{'Severity'}</span>
-                <span>{'Status'}</span>
-                <span style={{ textAlign: 'right' }}>{'Captured'}</span>
+                {/* The filters on the left; the site walks and the two ways to capture on the right. */}
+                <div className="ob-filters">
+                  <div className="ob-filter-set">
+                    <ObservationFilters v={v} />
+                  </div>
+                  {/* Deleted list: its count sits in the toolbar, by the table. */}
+                  {v.obsShowDeleted && <span className="ob-count">{v.obsCountLabel}</span>}
+                  {canCapture && !v.obsShowDeleted && (
+                    <div className="ob-head-actions">
+                      {(shownWalks.length > 0 || waiting > 0) && (
+                        <button
+                          type="button"
+                          className="ob-button ob-button--tinted ob-walks-button"
+                          aria-label={
+                            readyWalks
+                              ? `Site walk proposals, ${readyWalks} ready to review`
+                              : `Site walk proposals (${shownWalks.length})`
+                          }
+                          onClick={() => setWalk({ kind: 'list' })}
+                        >
+                          <Icon name="list" size={16} />
+                          <span>Site walk proposals</span>
+                          {readyWalks > 0 && (
+                            <span className="ob-pill" data-tone="navy">
+                              {readyWalks}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="ob-button ob-button--primary"
+                        aria-label="Record site walk"
+                        onClick={() => setWalk({ kind: 'record' })}
+                      >
+                        <Icon name="mic" size={16} />
+                        {/* One span, so the button's gap doesn't double the space before "site walk". */}
+                        <span>
+                          Record<span className="ob-more"> site walk</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="ob-button ob-button--tinted"
+                        aria-label="Add manually"
+                        onClick={addManually}
+                      >
+                        <Icon name="plus" size={16} />
+                        <span>
+                          Add<span className="ob-more"> manually</span>
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {/* The place picked in the navigator, above the table. */}
+                {!v.obsShowDeleted && view.place.kind !== 'all' && (
+                  <p className="ob-where">
+                    <Icon name="map-pin" size={15} color="var(--marsh-navy)" />
+                    {view.title}
+                  </p>
+                )}
+                <ObservationList v={v} view={view} />
               </div>
-            </>
-          )}
-          {v.obsByLocation
-            ? v.obsGroups.map((g) => (
-                <ObservationGroup key={g.key} v={v} group={g} onView={setViewing} />
-              ))
-            : v.obsList.map((o) => <ObservationRow key={o.key} v={v} o={o} onView={setViewing} />)}
-          {!!v.obsNoMatch && (
-            <div style={{ padding: '48px 18px' }}>
-              <EmptyState
-                icon={IconRegistry.action.filter}
-                title="No observations match those filters"
-                description="Clear a filter or choose another value to see the other observations on file."
-              ></EmptyState>
             </div>
-          )}
-          {!!v.obsNoDeleted && (
-            <div style={{ padding: '48px 18px' }}>
-              <EmptyState
-                icon={IconRegistry.action.discard}
-                title="No deleted observations"
-                description="An observation you delete is listed here, where you can restore it. Choose Back to observations to see the observations on file."
-              ></EmptyState>
-            </div>
-          )}
-          {!!v.obsNone && (
-            <div style={{ padding: '48px 18px' }}>
-              <EmptyState
-                icon="camera"
-                title="No observations yet"
-                description="Observations captured on site are listed here, with their notes, recordings and photos."
-                action={
-                  v.canEdit &&
-                  v.canCapture && (
-                    <Button variant="secondary" iconLeft="plus" onClick={v.goField}>
-                      {'Add observation'}
-                    </Button>
-                  )
-                }
-              ></EmptyState>
-            </div>
-          )}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '12px',
-              padding: '12px 16px',
-              background: 'var(--surface-sunken)',
-              borderTop: '1px solid var(--border-subtle)',
-              borderRadius: '0 0 8px 8px',
-            }}
-          >
-            <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{v.obsCountLabel}</span>
-            <span style={{ flex: '1' }}></span>
-            <Button variant="ghost" size="sm" disabled={true}>
-              {'Previous'}
-            </Button>
-            <Button variant="secondary" size="sm" onClick={v.obsNext}>
-              {'Next'}
-            </Button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
       {viewing && <PhotoDialog photo={viewing} onClose={() => setViewing(null)} />}
-      <TagDialog v={v} />
-      {/* Adding or changing a location here (CP-16), as in the capture picker. */}
+      {/* Adding or changing a location (CP-16), as in the capture picker. */}
       {v.obsLocFormOpen && (
         <Dialog
           className={v.phone ? 'ds-dialog-sheet' : undefined}

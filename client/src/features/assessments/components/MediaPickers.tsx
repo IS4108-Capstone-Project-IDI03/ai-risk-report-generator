@@ -1,24 +1,26 @@
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react'
 import { Icon } from '../../../design-system'
+import { ZoomBadge } from './ZoomBadge'
+import '../capture.css'
 
 // Pickers and the waiting list shared by the capture screen (CP-03, CP-04)
 // and the Add media dialog (CP-08).
 
-// A dashed, gloved-hand-sized picker; its hidden file input (ds-choice) is the
-// real control. Two side by side share the row, and wrap on a phone.
+// A gloved-hand-sized picker in the pale navy fill; its hidden file input
+// (ds-choice) is the real control. Two side by side share the row, and wrap on a phone.
 const pickerStyle = (busy: boolean): CSSProperties => ({
   flex: '1 1 200px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   gap: '8px',
-  height: '48px',
-  border: '1px dashed var(--border-strong)',
-  borderRadius: '8px',
-  background: 'var(--surface-card)',
-  color: busy ? 'var(--text-muted)' : 'var(--text-link)',
+  minHeight: '48px',
+  border: 0,
+  borderRadius: '12px',
+  background: 'var(--cap-fill)',
+  color: busy ? 'var(--text-muted)' : 'var(--marsh-navy)',
   fontSize: '16px',
-  fontWeight: '500',
+  fontWeight: '600',
   cursor: busy ? 'not-allowed' : 'pointer',
 })
 
@@ -120,8 +122,8 @@ export function ReadyItem({
         gap: '10px',
         padding: '10px 12px',
         background: 'var(--surface-card)',
-        border: '1px solid var(--border-default)',
-        borderRadius: '8px',
+        boxShadow: '0 0 0 1px var(--cap-line)',
+        borderRadius: '12px',
       }}
     >
       <span
@@ -132,7 +134,7 @@ export function ReadyItem({
           height: '32px',
           borderRadius: '50%',
           background: 'var(--surface-sunken)',
-          color: 'var(--action-primary)',
+          color: 'var(--marsh-navy)',
         }}
       >
         <Icon name={icon} size={16} />
@@ -174,19 +176,72 @@ export function ReadyItem({
 
 // A photo waiting in the list, shown whole, never cropped: contained in a
 // fixed box.
-export function PhotoThumb({ url }: { url: string }) {
-  return (
+// A waiting photo's thumbnail; with onOpen, it opens the photo full size.
+export function PhotoThumb({
+  url,
+  name,
+  onOpen,
+}: {
+  url: string
+  name?: string
+  onOpen?: () => void
+}) {
+  const img = (
     <img
       src={url}
       alt=""
       style={{
+        display: 'block',
         width: '64px',
         height: '48px',
         objectFit: 'contain',
         background: 'var(--surface-sunken)',
         border: '1px solid var(--border-subtle)',
-        borderRadius: '3px',
+        borderRadius: '6px',
       }}
     />
+  )
+  if (!onOpen) return img
+  return (
+    <button
+      type="button"
+      aria-label={'Open ' + name}
+      onClick={onOpen}
+      style={{
+        position: 'relative',
+        padding: 0,
+        border: 0,
+        background: 'none',
+        cursor: 'zoom-in',
+        minHeight: '44px',
+      }}
+    >
+      {img}
+      <ZoomBadge small />
+    </button>
+  )
+}
+
+// The round bin beside a waiting item, 44px to tap; `label` names what it removes.
+export function RemoveButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="cap-btn cap-btn--secondary"
+      style={{ width: '44px', padding: 0 }}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon name="trash-2" size={16} />
+    </button>
   )
 }

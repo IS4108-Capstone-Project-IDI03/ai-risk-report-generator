@@ -1,12 +1,21 @@
 import { useId } from 'react'
 import type { CSSProperties } from 'react'
+import { Icon, IconRegistry } from '../../../design-system'
 
+// Read by screen readers, not shown.
+const SR_ONLY: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+}
 // The report's four-step severity scale, most severe first.
 const SEVERITIES = ['critical', 'high', 'moderate', 'low']
 
 // An observation's severity, chosen from four chips that are native radios,
-// at least 44px tall for gloved hands. Capture and the Edit dialog share it,
-// so grading looks the same wherever it is set. '' leaves none chosen.
+// at least 44px tall for gloved hands, each with its symbol in its colour and
+// a red asterisk marking it required. Used by capture. '' leaves none chosen.
 export function SeverityPicker({
   value,
   onChange,
@@ -38,6 +47,11 @@ export function SeverityPicker({
           }}
         >
           {'Severity'}
+          {/* Required: an observation is always graded (CP-02). */}
+          <span aria-hidden="true" style={{ color: 'var(--red-600)', marginLeft: '2px' }}>
+            {'*'}
+          </span>
+          <span style={SR_ONLY}>{' (required)'}</span>
         </legend>
         <div className="severity-chips">
           {SEVERITIES.map((severity) => (
@@ -48,6 +62,12 @@ export function SeverityPicker({
                 value={severity}
                 checked={value === severity}
                 onChange={() => onChange(severity)}
+              />
+              {/* Each in its own colour, chosen or not, as the list shows it. */}
+              <Icon
+                name={IconRegistry.severity[severity as keyof typeof IconRegistry.severity].icon}
+                size={15}
+                color={'var(--status-' + severity + '-fg)'}
               />
               {severity.charAt(0).toUpperCase() + severity.slice(1)}
             </label>
@@ -64,6 +84,7 @@ function chip(on: boolean, tone: string): CSSProperties {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: '6px',
     height: '44px',
     padding: '0 4px',
     borderRadius: '5px',

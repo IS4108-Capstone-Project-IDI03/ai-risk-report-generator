@@ -40,7 +40,6 @@ import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
   filtersActive,
-  labelValues,
   matchesFilters,
   matchesPlace,
   NO_FILTERS,
@@ -49,7 +48,6 @@ import {
   placeFilter,
   statusOf,
   typeLabel,
-  typesOf,
 } from './observationFilters'
 import {
   BUILDING_WORDS,
@@ -90,6 +88,13 @@ import {
 import type { PageView } from './components/PageEntry'
 import type { BoxContent } from './components/StatBox'
 import { useCaptureSession } from './useCaptureSession'
+import type { Cope, Severity } from '../site-walk/api'
+import { siteWalkReview } from '../site-walk/openReview'
+import {
+  addCapturedObservation,
+  proposalCapture,
+  type ProposalCaptureTarget,
+} from '../site-walk/proposalCapture'
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
 import {
@@ -100,7 +105,6 @@ import {
   ROWS,
   CAT_ICON,
   DEMO_LOCATIONS,
-  STANDARD_REFERENCES,
   SEV,
   TITLES,
   PLAIN,
@@ -121,6 +125,13 @@ import {
   type Screen,
 } from '../auth/access'
 export type AssessmentWorkflow = ReturnType<typeof useAssessmentWorkflow>
+// A change to an observation made in place on its page (CP-06, CP-08).
+export type ObservationChange = {
+  cats?: string[]
+  sev?: string
+  locationId?: string
+  note?: string
+}
 const STATUS_LABEL: Record<AssessmentStatus, string> = {
   not_started: 'Not started',
   capturing: 'Capturing',
@@ -294,6 +305,13 @@ const placeOf = (o: Observation) =>
   o.locationName
     ? locationLabel({ building: o.building, floor: o.floor, name: o.locationName })
     : ''
+// Keep the saved fields intact; display labels cannot recover names containing separators.
+const pathOf = (o: Observation) => ({
+  building: o.building,
+  floor: o.floor,
+  name: o.locationName || 'Location not recorded',
+  bare: !o.locationName,
+})
 // The picker's form, empty, adding a location in a building.
 const BLANK_LOCATION: LocationForm = { kind: 'building', building: '', floor: '', name: '' }
 // The form with nothing refused, asked about or kept as typed.
@@ -331,7 +349,8 @@ function toEntry(o: SavedObservation): Observation {
       original: correction ? transcript : null,
       correction: correction && { at: correction.at, by: correction.by },
       error,
-      audioUrl: r.url,
+      // A site walk clip plays only its part of the walk (a media fragment).
+      audioUrl: r.clip ? r.url + '#t=' + r.clip.start + ',' + r.clip.end : r.url,
       added: r.added,
     }
   })
@@ -404,6 +423,7 @@ function toEntry(o: SavedObservation): Observation {
     checklist: o.checklistItem
       ? { text: o.checklistItem.text, result: o.checklistItem.result }
       : null,
+    fromSiteWalk: !!o.fromSiteWalk,
     media: photos.map((p) => ({ id: p.id, name: p.name, url: p.url, added: p.added })),
     // Removed recordings and photos, kept to restore (CP-08).
     removedMedia: [
@@ -496,6 +516,46 @@ export const NEW_SITE = 'new'
 // spacing tidied, so "NUS" and "nus " are one client.
 const clientKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
 
+// Where in an assessment the engineer is, kept in the URL so a refresh (or a
+// shared link) reopens the same assessment, tab and observation. Without it a
+// refresh fell back to the demo default, Tilbury.
+const ASSESSMENT_SCREENS = ['assessment', 'field']
+function placeQuery(s: WorkflowState, fromProposal: boolean): string {
+  if (!ASSESSMENT_SCREENS.includes(s.screen)) return ''
+  const q = new URLSearchParams({ ref: s.captureTarget.reference })
+  // The Observations tab's walk screen, which that tab keeps in the URL itself.
+  const walk = new URLSearchParams(window.location.search).get('walk')
+  if (s.screen === 'assessment') {
+    q.set('tab', s.tab)
+    if (s.obsOpen) q.set('obs', s.obsOpen)
+    if (walk && s.tab === 'observations' && !s.obsOpen) q.set('walk', walk)
+  }
+  // A proposal's Add observation keeps its review's walk, so a refresh can go back to it.
+  if (walk && s.screen === 'field' && fromProposal) q.set('walk', walk)
+  return '?' + q.toString()
+}
+// Returns the assessment, tab and observation the URL names, or nothing.
+function placeFromUrl(): Partial<WorkflowState> {
+  const q = new URLSearchParams(window.location.search)
+  const reference = q.get('ref')
+  if (!reference) return {}
+  // The site name shows until the gateway's own record arrives.
+  const target = { reference, site: ROWS.find((r) => r.id === reference)?.site ?? '' }
+  return {
+    captureTarget: target,
+    recent: [target],
+    ...(q.get('tab') && { tab: q.get('tab')! }),
+    obsOpen: q.get('obs'),
+    // A refreshed proposal Add observation has lost its proposal, and Save
+    // would add straight to the assessment; it reopens the review instead.
+    ...(q.get('walk') &&
+      window.location.pathname === SCREEN_PATHS.field && {
+        screen: 'assessment',
+        tab: 'observations',
+      }),
+  }
+}
+
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The create form as it first opens: assigned to the signed-in engineer,
   // visited today (or on the given day), its report due REPORT_DUE_DAYS later.
@@ -511,27 +571,39 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     ...structuredClone(initialState),
     cf: blankCreateForm(),
     screen: screenForPath(window.location.pathname, session),
+    ...placeFromUrl(),
   }))
   // The URL follows the screen. The first update replaces '/' (or the path
   // opened) rather than adding a history entry.
   const urlSynced = useRef(false)
+  // A site walk proposal's Add observation (CP-22 round 3): capture opens on
+  // the proposal's locations and Save adds to the proposal, not the assessment.
+  const [proposalTarget, setProposalTarget] = useState<ProposalCaptureTarget | null>(null)
+  const place = placeQuery(state, !!proposalTarget)
   useEffect(() => {
     const path = SCREEN_PATHS[state.screen as Screen]
     // A knowledge document's Review page is part of the knowledge screen, so
     // its own path stays (IN-07).
     const onReviewPage = state.screen === 'knowledge' && reviewIdForPath(window.location.pathname)
-    if (path && window.location.pathname !== path && !onReviewPage) {
-      if (urlSynced.current) window.history.pushState(null, '', path)
-      else window.history.replaceState(null, '', path)
+    if (path && !onReviewPage) {
+      const url = path + place
+      const here = window.location.pathname + window.location.search
+      // A new screen is a history entry; a new tab or observation on the same
+      // screen only rewrites it, so Back still leaves the screen.
+      if (url === here) return void (urlSynced.current = true)
+      if (urlSynced.current && window.location.pathname !== path)
+        window.history.pushState(null, '', url)
+      else window.history.replaceState(null, '', url)
     }
     urlSynced.current = true
-  }, [state.screen])
+  }, [state.screen, place])
   // Back and forward move between screens.
   useEffect(() => {
     const follow = () =>
       updateState((previous) => ({
         ...previous,
         screen: screenForPath(window.location.pathname, session),
+        ...placeFromUrl(),
         navOpen: false,
         toast: null,
         // Back from capture is a way of leaving it too.
@@ -562,6 +634,25 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     onField ? capture.state?.status === 'live' : captured.synced,
     state.captureTarget.reference === CAPTURE_ASSESSMENT.reference ? DEMO_LOCATIONS : NO_LOCATIONS,
   )
+  useEffect(() => {
+    const open = (e: Event) => {
+      const target = (e as CustomEvent<ProposalCaptureTarget>).detail
+      setProposalTarget(target)
+      setState({
+        screen: 'field',
+        fLocationId: target.locationId,
+        locDismissed: false,
+        obsReturn: null,
+      })
+    }
+    window.addEventListener(proposalCapture.event, open)
+    return () => window.removeEventListener(proposalCapture.event, open)
+  }, [])
+  // Leaving capture, however, ends it and reopens the review on the Observations tab.
+  if (proposalTarget && state.screen !== 'field') {
+    siteWalkReview.walkId = proposalTarget.walkId
+    setProposalTarget(null)
+  }
   // The recorder in progress, and a counter naming the clips it makes.
   const [media] = useState(() => ({
     recorder: null as MediaRecorder | null,
@@ -593,21 +684,36 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
   const [listFailed, setListFailed] = useState(false)
   const onDashboard = state.screen === 'dashboard' && canOpen('dashboard', session)
+  // A refresh inside a workspace needs the list too, for the assessment's own record.
+  const needsRows = onDashboard || ((onWorkspace || onField) && serverRows === null)
   useEffect(() => {
     // Refetched on every return to the dashboard, so capture progress shows.
-    if (!onDashboard) return
+    if (!needsRows) return
     const controller = new AbortController()
     listAssessments(controller.signal).then(
       (list) => {
-        setServerRows(list.map(toRow))
+        const rows = list.map(toRow)
+        setServerRows(rows)
         setListFailed(false)
+        // An assessment reopened from the URL knows only its reference: its
+        // site name (header, Recent) comes from the list.
+        updateState((previous) => {
+          const row = rows.find((r) => r.id === previous.captureTarget.reference)
+          if (!row || previous.captureTarget.site) return previous
+          const target = { reference: row.id, site: row.site }
+          return {
+            ...previous,
+            captureTarget: target,
+            recent: previous.recent.map((r) => (r.reference === row.id ? target : r)),
+          }
+        })
       },
       () => {
         if (!controller.signal.aborted) setListFailed(true)
       },
     )
     return () => controller.abort()
-  }, [onDashboard])
+  }, [needsRows])
   const [directory, setDirectory] = useState<AssignableEngineer[]>([])
   const [directoryStatus, setDirectoryStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const onCreate = state.screen === 'create' && canOpen('create', session)
@@ -748,10 +854,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       clearInterval(recorder)
     }
   }, [])
-  function toast(message: string, tone = 'success') {
+  // `view` names an observation the toast offers to open.
+  function toast(message: string, tone = 'success', view: string | null = null) {
     setState({
       toast: message,
       toastTone: tone || 'success',
+      toastView: view,
     })
   }
   // The workspace and capture both act on the assessment last opened from the list.
@@ -884,24 +992,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     if (!liveSections().length) return true
     return reviewedCount() < liveSections().length || openItems().length > 0
   }
-  function modeStyle(on: boolean) {
-    return {
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-      height: '46px',
-      border: 'none',
-      borderBottom: '2px solid ' + (on ? 'var(--action-primary)' : 'transparent'),
-      background: 'transparent',
-      fontFamily: 'inherit',
-      fontSize: '16px',
-      fontWeight: on ? '500' : '400',
-      color: on ? 'var(--text-primary)' : 'var(--text-muted)',
-      cursor: 'pointer',
-      transition: 'color 120ms cubic-bezier(.2,0,.2,1)',
-    } as React.CSSProperties
-  }
   function userFooter() {
     const initials = session.user.name
       .split(/\s+/)
@@ -972,10 +1062,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           name: photo.name,
           url: photo.url,
           where: placeOf(o),
+          path: pathOf(o),
           cat: categoryLabel(o.cats),
+          cats: o.cats,
+          text: o.text,
           time: o.time,
           openObservation: () =>
-            setState({ tab: 'observations', obsOpen: key, obsShowDeleted: false, of: NO_FILTERS }),
+            setState({
+              tab: 'observations',
+              obsOpen: key,
+              obsFrom: 'photos',
+              obsShowDeleted: false,
+              of: NO_FILTERS,
+            }),
         })),
       )
     const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
@@ -987,25 +1086,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         .filter((r) => obsRows.includes(r) || (!!s.of.place && matchesPlace(r.o, s.of.place)))
         .map(({ o }) => o),
     )
-    const tagRow = s.tagEdit && allRows.find((r) => r.key === s.tagEdit!.key)
     const dialogRow = s.obsDialog && allRows.find((r) => r.key === s.obsDialog!.key)
     const obsNoun = s.obsShowDeleted ? 'deleted observation' : 'observation'
     // The Observations tab by building, level and location (CP-16), unless
     // sorted newest first; the deleted ones are always newest first.
     const obsByLocation = s.obsSort === 'location' && !s.obsShowDeleted
-    // Shared by the Observations tab's header and rows: category and type,
-    // location, summary, severity, status, and when it was captured (CP-08 AC2).
-    // By location, the headings say where, so there is no Location column.
-    // The capture time wraps after its year: "11 Apr 2026" over "09:22".
-    const obsCols = narrow
-      ? '36px minmax(0,1fr) 90px'
-      : obsByLocation
-        ? '40px minmax(0,1.3fr) minmax(0,2.8fr) 110px 150px 96px'
-        : '40px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.8fr) 110px 150px 96px'
     // Real recording needs a capture session on the server; without one, voice stays simulated.
     const liveVoice = !!liveCapture
     // Capture starts from a location; the sheet stays open until one is chosen.
-    const currentLocation = places.locations.find((l) => l.id === s.fLocationId) ?? null
+    // The locations capture picks from: the proposal's, when adding to one.
+    const pickable = proposalTarget?.locations ?? places.locations
+    const currentLocation = pickable.find((l) => l.id === s.fLocationId) ?? null
     // It opens by itself while none is chosen, unless closed this visit.
     const locSheetOpen =
       sc === 'field' &&
@@ -1025,7 +1116,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const query = s.locQuery.trim().toLowerCase()
     // The picker's groups, of the locations the search matches (CP-16).
     const locationGroups = groupLocations(
-      places.locations.filter((l) => !query || locationLabel(l).toLowerCase().includes(query)),
+      pickable.filter((l) => !query || locationLabel(l).toLowerCase().includes(query)),
     )
     const currentGroup = currentLocation && groupKey(currentLocation)
     // A recording is named by its number; an uploaded file keeps its own name.
@@ -1053,6 +1144,44 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // with its one transcription (CP-19 AC6). If it fails, everything stays
     // for another try. The standard is left to drafting; the engineer can
     // name one later through Edit.
+    // Adds the form to the site walk proposal (CP-22 round 3): its media go to
+    // the walk, the observation into the proposal, then the review opens on it.
+    // If it fails, everything stays for another try, as in saveToGateway.
+    async function saveToProposal(
+      target: ProposalCaptureTarget,
+      location: SiteLocation,
+      note: string | undefined,
+    ) {
+      const { fClips: clips, fPhotos: photos, fPages: pages } = s
+      setState({ fSaving: true, fSaveError: null })
+      try {
+        siteWalkReview.observationRef = await addCapturedObservation(target, {
+          locationId: location.id,
+          note: note ?? '',
+          copeDimension: (s.fCats[0] as Cope | undefined) ?? null,
+          severity: (s.fSev || null) as Severity | null,
+          clips: clips.map((c) => c.audio),
+          photos: photos.map((p) => p.image),
+          pages: pages.map((p) => p.image),
+        })
+      } catch (error: unknown) {
+        setState({
+          fSaving: false,
+          fSaveError: {
+            title: 'Observation not added',
+            message:
+              (error instanceof GatewayError && error.status !== null
+                ? error.message
+                : 'The gateway could not be reached.') +
+              ' Everything is still listed; press Save observation to try again.',
+          },
+        })
+        return
+      }
+      for (const file of [...clips, ...photos, ...pages]) URL.revokeObjectURL(file.url)
+      setState({ ...BLANK_DRAFT, fSaving: false, ...toTab('observations') })
+      toast('Observation added to the proposal')
+    }
     async function saveToGateway(
       location: SiteLocation,
       note: string | undefined,
@@ -1119,34 +1248,42 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fCats: sameCategories(previous.fCats, cats) ? [] : previous.fCats,
         fSev: previous.fSev === severity ? '' : previous.fSev,
         fChecklistItem: previous.fChecklistItem === item ? null : previous.fChecklistItem,
-        fToast: {
-          text:
-            'Observation saved to ' +
-            reference +
-            (item ? ', and the checklist item answered as Differs' : '') +
-            '.' +
-            (clips.length || pages.length
-              ? ' Transcribing ' +
-                [
-                  clips.length ? plural(clips.length, 'recording') : '',
-                  pages.length ? plural(pages.length, 'page') : '',
-                ]
-                  .filter(Boolean)
-                  .join(' and ') +
-                ' now.'
-              : ''),
-        },
+        fToast: null,
+        // A toast with View, so the engineer stays on the form for the next one.
+        toast:
+          'Observation saved' +
+          (item ? ', and the checklist item answered as Differs' : '') +
+          '.' +
+          (clips.length || pages.length
+            ? ' Transcribing ' +
+              [
+                clips.length ? plural(clips.length, 'recording') : '',
+                pages.length ? plural(pages.length, 'page') : '',
+              ]
+                .filter(Boolean)
+                .join(' and ') +
+              ' now.'
+            : ''),
+        toastTone: 'success',
+        toastView: observation.id,
       }))
-      later(() => setState({ fToast: null }), 3200)
     }
     // Changes the observation kept in this browser under a local-<n> row key,
     // a sample one: the demo keeps the change in memory only.
-    function changeLocal(key: string, change: (o: Observation) => Observation) {
+    // `from` is the latest state, for a change applied after other saves.
+    function changeLocal(
+      key: string,
+      change: (o: Observation) => Observation,
+      from: WorkflowState = s,
+    ) {
       const n = Number(key.slice('local-'.length))
-      const list = localRecent.map((x, i) => (i === n ? change(x) : x))
+      const recent = isDemoCapture
+        ? from.fRecent
+        : (from.captureObs[from.captureTarget.reference] ?? [])
+      const list = recent.map((x, i) => (i === n ? change(x) : x))
       return isDemoCapture
         ? { fRecent: list }
-        : { captureObs: { ...s.captureObs, [s.captureTarget.reference]: list } }
+        : { captureObs: { ...from.captureObs, [from.captureTarget.reference]: list } }
     }
     // Why the gateway refused a change to an observation, to show the engineer.
     function refusal(error: unknown) {
@@ -1162,70 +1299,68 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       at: new Date().toISOString(),
       by: { id: session.user.id, name: session.user.name },
     })
-    // Saves the Edit dialog: the tags (CP-06) and the note (CP-08 AC8), in one
-    // request on the gateway for a saved observation, sending only what
-    // changed, or in this browser for one kept in the demo. The note is saved
-    // exactly as typed, and a blank one removes it, which an observation with
-    // no recording can't do (AC9). On failure the dialog stays open with the
-    // changes (AC18).
-    async function saveTags() {
-      const edit = s.tagEdit
-      if (!edit || !tagRow || s.tagBusy) return
-      const { o } = tagRow
+    // Saves a change made in place on the observation page: its tags (CP-06)
+    // or its note (CP-08 AC8), on the gateway for a saved observation, sending
+    // only what changed, or in this browser for one kept in the demo. The note
+    // is saved exactly as typed, and a blank one removes it, which an
+    // observation with nothing else captured can't do (AC9). Throws the
+    // reason a save failed, so the page keeps the change for another try (AC18).
+    async function saveObsChanges(key: string, change: ObservationChange) {
+      const row = allRows.find((r) => r.key === key)
+      if (!row) return
+      const { o } = row
+      const cats = change.cats ?? o.cats
+      const sev = change.sev ?? o.sev
+      const note = change.note ?? o.detail ?? ''
       // Unlisted (e.g. a sample observation on a live assessment): left as it is.
-      const location = places.locations.find((l) => l.id === edit.locationId)
-      const noteChanged = edit.note !== (o.detail ?? '')
-      const retry = ' Your changes are still here; press Save changes to try again.'
+      const location = change.locationId
+        ? places.locations.find((l) => l.id === change.locationId)
+        : undefined
+      const noteChanged = change.note !== undefined && note !== (o.detail ?? '')
       if (!o.id) {
-        if (noteChanged && !edit.note.trim() && !o.audio && !o.media.length && !o.pages?.length)
-          return setState({
-            tagError:
-              'An observation needs a note, a recording, a photo or a page, so this note can’t be removed.' +
-              retry,
-          })
-        setState({
-          ...changeLocal(edit.key, (x) => ({
-            ...x,
-            cats: edit.cats,
-            sev: edit.sev,
-            std: edit.std,
-            ...(location && {
-              locationName: location.name,
-              building: location.building,
-              floor: location.floor,
-              locationId: location.id,
+        if (noteChanged && !note.trim() && !o.audio && !o.media.length && !o.pages?.length)
+          throw new Error(
+            'An observation needs a note, a recording, a photo or a page, so this note can’t be removed.',
+          )
+        // Built on the latest state and row, so a queued save can't undo an earlier one.
+        updateState((latest) => ({
+          ...latest,
+          ...changeLocal(
+            key,
+            (x) => ({
+              ...x,
+              cats: change.cats ?? x.cats,
+              sev: change.sev ?? x.sev,
+              ...(location && {
+                locationName: location.name,
+                building: location.building,
+                floor: location.floor,
+                locationId: location.id,
+              }),
+              ...(noteChanged && { detail: note, text: note.trim() ? note : x.text }),
+              edited: stampNow(),
             }),
-            ...(noteChanged && {
-              detail: edit.note,
-              text: edit.note.trim() ? edit.note : x.text,
-            }),
-            edited: stampNow(),
-          })),
-          tagEdit: null,
-        })
-        toast('Changes saved. They are kept in this demo only.')
+            latest,
+          ),
+        }))
         return
       }
+      // A tag or note the change names is always sent: `o` can be older than a queued save,
+      // so comparing with it could drop an undo as "no change".
       const changes = {
-        ...(!sameCategories(edit.cats, o.cats) && {
-          copeDimensions: copeDimensionsOf(edit.cats),
-        }),
-        ...(edit.sev !== o.sev && { severity: edit.sev }),
-        ...(location && location.id !== o.locationId && { locationId: location.id }),
-        ...(edit.std !== o.std && { standard: edit.std || null }),
-        ...(noteChanged && { note: edit.note.trim() ? edit.note : null }),
+        ...(change.cats && { copeDimensions: copeDimensionsOf(cats) }),
+        ...(change.sev && { severity: sev }),
+        ...(location && { locationId: location.id }),
+        ...(change.note !== undefined && { note: note.trim() ? note : null }),
       }
-      if (!Object.keys(changes).length) return setState({ tagEdit: null })
-      setState({ tagBusy: true, tagError: null })
+      if (!Object.keys(changes).length) return
       let saved
       try {
         saved = await updateObservation(o.id, changes)
       } catch (error: unknown) {
-        return setState({ tagBusy: false, tagError: refusal(error) + retry })
+        throw new Error(refusal(error), { cause: error })
       }
       captured.replace(saved)
-      setState({ tagBusy: false, tagEdit: null })
-      toast('Changes saved.')
     }
     // The CP-08 dialogs below each throw the reason a change failed, so the
     // dialog shows it and keeps what was typed for another try (AC18).
@@ -1266,7 +1401,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       }
       captured.replace(saved)
       setState({ obsDialog: null, obsOpen: null })
-      toast('Observation deleted. Report drafting leaves it out; Deleted can restore it.')
+      toast('Observation deleted. Restore it from Deleted observations.')
     }
     // Restores a deleted observation to the list and drafting (AC14).
     async function restoreRow(key: string, o: Observation) {
@@ -1732,10 +1867,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           key: key + '/' + page.id,
           page,
           where: placeOf(o),
+          path: pathOf(o),
           cat: categoryLabel(o.cats),
+          cats: o.cats,
+          text: o.text,
           time: o.time,
           openObservation: () =>
-            setState({ tab: 'observations', obsOpen: key, obsShowDeleted: false, of: NO_FILTERS }),
+            setState({
+              tab: 'observations',
+              obsOpen: key,
+              obsFrom: 'scans',
+              obsShowDeleted: false,
+              of: NO_FILTERS,
+            }),
         })),
       )
     // New assessment and capture are actions on the Dashboard and workspace
@@ -2193,9 +2337,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       tab,
       obsShowDeleted: false,
       obsOpen: null,
+      obsFrom: null,
       locOpen: false,
       ...(tab === 'observations' && { of: NO_FILTERS }),
     })
+    // The Review tab with its Version history open.
+    const historyTab = () => ({ ...toTab('review'), reviewHistory: s.reviewHistory + 1 })
     // First asking Leave without saving? when something would be lost.
     const leaveCapture = (tab: string) =>
       setState(unsaved.length ? { fLeaveOpen: true, fLeaveTo: tab } : toTab(tab))
@@ -2217,21 +2364,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const status = statusOf(o)
       // A deleted observation changes only by being restored.
       const canChange = canChangeObs
-      // Opens the Edit dialog on its tags and note as they are now, or with
-      // a proposal's wording or category already filled in (CP-05).
-      const openEdit = (change: { note?: string; cats?: string[] } = {}) =>
-        setState({
-          tagEdit: {
-            key,
-            cats: o.cats,
-            sev,
-            locationId: o.locationId ?? '',
-            std: o.std,
-            note: o.detail ?? '',
-            ...change,
-          },
-          tagError: null,
-        })
       const reading = o.interpretation
       const proposed = reading?.status === 'interpreted' ? reading : null
       const described = reading?.photos?.status === 'interpreted' ? reading.photos : null
@@ -2269,6 +2401,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         isNew,
         // Its building, level and location, e.g. "Warehouse · Ground · Bay 3".
         where: placeOf(o),
+        path: pathOf(o),
         // What it holds and where its recordings and photos stand (CP-08 AC2).
         typeLabel: typeLabel(o),
         status,
@@ -2284,7 +2417,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         deletedLabel: o.deleted ? 'Deleted by ' + stampLabel(o.deleted) : null,
         deleteObs: () => setState({ obsDialog: { kind: 'delete', key } }),
         restoreObs: () => void restoreRow(key, o),
-        editTags: () => openEdit(),
         addMedia: changing ? () => setState({ obsDialog: { kind: 'addMedia', key } }) : null,
         // Its photos, each opening the original, with who added any later.
         media: o.media.map((m) => ({
@@ -2313,14 +2445,20 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               // description is offered once there are photos to describe.
               readCategories: readPart('categories'),
               readDescription: o.media.length ? readPart('description') : null,
-              useAsNote:
+              // Copies the photos' description into the note, below what the
+              // engineer wrote; offered until the note holds it, so it is
+              // never added twice. These are changes, not actions: the page
+              // saves them in its queue (ObservationPage.tsx), after any save
+              // already on its way, so one never builds on an older note.
+              addToNote:
                 canChange && !o.deleted && described?.description
-                  ? () =>
-                      openEdit({
+                  ? (o.detail ?? '').includes(described.description)
+                    ? null
+                    : ({
                         note: o.detail
                           ? o.detail + '\n\n' + described.description
                           : described.description!,
-                      })
+                      } satisfies ObservationChange)
                   : null,
               // Each proposed category, with Add while it is not one of the
               // observation's own: added to those it has.
@@ -2329,7 +2467,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 added: o.cats.includes(c.category),
                 add:
                   canChange && !o.deleted && proposed && !o.cats.includes(c.category)
-                    ? () => openEdit({ cats: withCategory(o.cats, c.category) })
+                    ? ({ cats: withCategory(o.cats, c.category) } satisfies ObservationChange)
                     : null,
                 // A quote the gateway did not find in the item it cites.
                 unverified: c.evidence.some((e) => e.verified === false),
@@ -2337,8 +2475,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             },
         icon: categoryIcon(o.cats),
         catLabel: categoryLabel(o.cats),
-        color: 'var(--text-secondary)',
-        chevron: open ? 'chevron-down' : 'chevron-right',
         // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
         clock: o.time || '',
         sev,
@@ -2362,20 +2498,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         detail: o.recordings ? o.detail : o.detail || o.text,
         hasAudio: !!o.audio,
         audioLabel: 'Audio note (' + (o.audio || '') + ')',
-        hasStd: !!o.std,
-        rowStyle: {
-          display: 'grid',
-          gridTemplateColumns: obsCols,
-          alignItems: narrow ? 'flex-start' : 'center',
-          gap: '12px',
-          padding: '12px 16px',
-          cursor: 'pointer',
-          borderBottom: '1px solid var(--border-subtle)',
-          transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
-          background: open ? 'var(--surface-selected)' : 'var(--surface-card)',
-          boxShadow: isNew ? 'inset 3px 0 0 var(--action-primary)' : undefined,
-          scrollMarginTop: '16px',
-        } as React.CSSProperties,
       }
     })
     // Back from capture, the list opens where the engineer was (CP-16): at
@@ -2705,19 +2827,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       goPhotos: () => setState({ tab: 'photos' }),
       goScans: () => setState({ tab: 'scans' }),
       goObservations: () => setState({ tab: 'observations' }),
-      // The Observations tab's boxes: what the observations not deleted hold.
-      obsCounts: (() => {
-        const kept = allRows.filter(({ o }) => !o.deleted).map(({ o }) => o)
-        return {
-          notes: kept.filter((o) => typesOf(o).includes('Note')).length,
-          recordings: kept.reduce(
-            (n, o) => n + (o.recordings ? o.recordings.length : o.audio ? 1 : 0),
-            0,
-          ),
-          photos: photoCollection.length,
-          scans: scanCollection.length,
-        }
-      })(),
       photoCollection,
       scanCollection,
       goGenerate: () =>
@@ -2759,17 +2868,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             { label: 'Report', value: s.captureTarget.reference },
             { label: 'Site', value: s.captureTarget.site },
           ],
-      obsWide: !narrow,
-      obsStack: narrow,
-      obsCols,
       obsList,
       obsReturning: !!s.obsReturn,
       obsLandingRow: landingRow,
       /* by location (CP-16): buildings, levels and locations, each with its
          observations, Add observation, and Edit and Remove */
-      // Newest first unless grouped by location, one switch (CP-08 AC1, CP-16).
-      toggleObsByLocation: () =>
-        setState({ obsSort: s.obsSort === 'location' ? 'newest' : 'location', obsOpen: null }),
       obsByLocation,
       obsGroups: obsGroups.map((g) => {
         const count = g.levels.reduce(
@@ -2825,18 +2928,34 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Adds a location without capturing, e.g. before the visit (CP-16).
       obsAddLocation: canEdit && canCapture ? () => openLocationForm() : undefined,
       obsLocFormOpen: s.obsLocForm,
-      toggleObs: (e: React.MouseEvent<HTMLElement>) => {
-        const k = e.currentTarget.dataset.i ?? null
+      // After a site walk's Create all (CP-22): its locations and observations.
+      reloadAfterWalk: () => {
+        captured.reload()
+        places.reload()
+      },
+      // Opens an assessment on its Observations tab, e.g. from the bell (CP-22).
+      openObservationsOf: (reference: string) => {
+        const row = rows.find((r) => r.id === reference)
+        if (!row) return
+        releaseDraft(row.id)
         setState({
-          obsOpen: s.obsOpen === k ? null : k,
+          ...openAssessment({ reference: row.id, site: row.site }, s),
+          tab: 'observations',
         })
       },
+      // Opens an observation on its own page, or back to the list with null.
+      // `step` is the page's arrows, which stay on the same way in; from the list it starts afresh.
+      openObs: (key: string, step = false) =>
+        setState({ obsOpen: key, ...(!step && { obsFrom: null }) }),
+      // Back from an observation's page: to All Photos or All Handwritten Pages if it came from there.
+      closeObs: () =>
+        setState(s.obsFrom ? { obsOpen: null, tab: s.obsFrom, obsFrom: null } : { obsOpen: null }),
+      obsFrom: s.obsFrom ?? null,
       obsCountLabel: obsRows.length
         ? filtersActive(s.of)
           ? 'Showing ' + shownRows.length + ' of ' + plural(obsRows.length, obsNoun)
           : 'Showing 1–' + obsRows.length + ' of ' + plural(obsRows.length, obsNoun)
         : plural(0, obsNoun),
-      obsNext: () => toast('Later observations are not loaded in this prototype.', 'info'),
       /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
       obsFilters: s.of,
       obsFiltering: filtersActive(s.of),
@@ -2844,14 +2963,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Nothing captured yet, and no locations to list by: the list offers
       // Add observation instead.
       obsNone: !s.obsShowDeleted && obsRows.length === 0 && !(obsByLocation && obsGroups.length),
-      setObsFilter: (key: keyof ObservationFilters) => (e: React.ChangeEvent<HTMLSelectElement>) =>
-        setState({ of: { ...s.of, [key]: e.target.value } }),
+      setObsFilter: (key: keyof ObservationFilters, value: string) =>
+        setState({ of: { ...s.of, [key]: value } }),
       clearObsFilters: () => setState({ of: NO_FILTERS }),
       obsTypeFilterOptions: [{ value: '', label: 'All types' }, ...OBSERVATION_TYPES],
       obsCatFilterOptions: [{ value: '', label: 'All categories' }, ...CATEGORY_OPTIONS],
       obsSevFilterOptions: [{ value: '', label: 'All severities' }, ...SEVERITY_OPTIONS],
-      // A building, a level of it or one location, grouped by building (CP-16).
-      obsPlaceFilterOptions: [{ value: '', label: 'All locations' }, ...placeOptions.options],
       obsStatusFilterOptions: [{ value: '', label: 'All statuses' }, ...OBSERVATION_STATUSES],
       // Each filter set, as a chip that removes it, in the panel's order.
       obsFilterChips: (
@@ -2869,8 +2986,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           label: name + ': ' + (value ?? s.of[key]),
           remove: () => setState({ of: { ...s.of, [key]: '' } }),
         })),
-      // The phone's Filters sheet closes on this, saying what it shows.
-      obsShowLabel: 'Show ' + plural(shownRows.length, obsNoun),
       /* Show deleted (CP-08 AC14): the deleted observations instead */
       obsShowDeleted: s.obsShowDeleted,
       // How many are deleted, shown on the button that lists them.
@@ -2903,45 +3018,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       confirmDelete,
       addMedia,
       confirmRemoveMedia,
-      /* the Edit dialog: tags (CP-06) and note (CP-08) */
-      tagOpen: !!tagRow,
-      tagEdit: s.tagEdit,
-      tagBusy: s.tagBusy,
-      tagError: s.tagError,
-      toggleTagCat: (cat: string) =>
-        s.tagEdit &&
-        setState({ tagEdit: { ...s.tagEdit, cats: toggleCategory(s.tagEdit.cats, cat) } }),
-      setTagSev: (sev: string) => s.tagEdit && setState({ tagEdit: { ...s.tagEdit, sev } }),
-      tagLocOptions: [
-        // A location not on the assessment's list can be kept, not chosen again.
-        ...(tagRow && !places.locations.some((l) => l.id === s.tagEdit?.locationId)
-          ? [
-              {
-                value: s.tagEdit!.locationId,
-                label: placeOf(tagRow.o),
-              },
-            ]
-          : []),
-        // In the picker's order: by building, then level (CP-16).
-        ...groupLocations(places.locations).flatMap((g) =>
-          g.levels.flatMap((level) =>
-            level.locations.map((l) => ({ value: l.id, label: locationLabel(l) })),
+      /* the observation page, edited in place: tags (CP-06) and note (CP-08) */
+      saveObsChanges,
+      // Where an observation can be moved, for the one open on its page.
+      obsLocOptions: (() => {
+        const row = s.obsOpen ? allRows.find((r) => r.key === s.obsOpen) : undefined
+        return [
+          // A location not on the assessment's list can be kept, not chosen again.
+          ...(row?.o.locationId && !places.locations.some((l) => l.id === row.o.locationId)
+            ? [{ value: row.o.locationId, label: placeOf(row.o) }]
+            : []),
+          // In the picker's order: under each building's heading, then by
+          // level (CP-16), so each line stays short: "Level 1 › Loading bay".
+          ...groupLocations(places.locations).flatMap((g) =>
+            g.levels.flatMap((level) =>
+              level.locations.map((l) => ({
+                value: l.id,
+                label: level.title ? level.title + ' › ' + l.name : l.name,
+                group: g.title,
+              })),
+            ),
           ),
-        ),
-      ],
-      tagStdOptions: [
-        { value: '', label: 'None, let the draft find it' },
-        ...labelValues(STANDARD_REFERENCES, s.tagEdit?.std ?? '').map((name) => ({
-          value: name,
-          label: name,
-        })),
-      ],
-      setTag:
-        (field: 'locationId' | 'std' | 'note') =>
-        (e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement>) =>
-          s.tagEdit && setState({ tagEdit: { ...s.tagEdit, [field]: e.target.value } }),
-      closeTags: () => !s.tagBusy && setState({ tagEdit: null, tagError: null }),
-      saveTags: () => void saveTags(),
+        ]
+      })(),
       isChecklist: isAssessment && s.tab === 'checklist',
       isGenerate: isAssessment && s.tab === 'generate',
       isReview: isAssessment && s.tab === 'review',
@@ -3045,18 +3144,34 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           toast: null,
         }),
+      // The toast's View: the saved observation on its own page (CP-22).
+      toastView: s.toastView,
+      openToastView: () =>
+        setState({
+          screen: 'assessment',
+          tab: 'observations',
+          obsOpen: s.toastView,
+          obsFrom: null,
+          obsShowDeleted: false,
+          of: NO_FILTERS,
+          toast: null,
+        }),
       // Lets a screen outside this hook confirm an action, e.g. KB-01's saves.
-      notify: (message: string) => toast(message),
+      notify: (message: string, tone?: 'danger') => toast(message, tone),
       openEvidenceSource: () =>
         toast('Source files are not connected in this demo. Excerpts are sample evidence.', 'info'),
       playSampleAudio: () => toast('Audio playback is not connected in this demo.', 'info'),
       // The ⋯ menu's Version history (RV-06): a saved assessment's opens in its
       // Review tab; the sample assessment has none.
       reviewHistory: s.reviewHistory,
+      // From capture it leaves the way a tab does, asking first when something
+      // would be lost ('history' is that leave's destination, see discardAndLeave).
       showVersionHistory: () =>
-        openRow?.persisted
-          ? setState({ tab: 'review', reviewHistory: s.reviewHistory + 1 })
-          : toast('Version history is not connected in this demo.', 'info'),
+        !openRow?.persisted
+          ? toast('Version history is not connected in this demo.', 'info')
+          : sc === 'field'
+            ? setState(unsaved.length ? { fLeaveOpen: true, fLeaveTo: 'history' } : historyTab())
+            : setState({ tab: 'review', reviewHistory: s.reviewHistory + 1 }),
       /* annotations */
 
       /* dashboard */
@@ -3478,7 +3593,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       closeLeave: () => setState({ fLeaveOpen: false }),
       discardAndLeave: () => {
         dropDraftFiles()
-        setState({ ...BLANK_DRAFT, ...toTab(s.fLeaveTo) })
+        setState({
+          ...BLANK_DRAFT,
+          ...(s.fLeaveTo === 'history' ? historyTab() : toTab(s.fLeaveTo)),
+        })
       },
       // The switcher shows what each mode holds, so nothing waits unseen
       // behind another mode.
@@ -3490,10 +3608,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isVoiceMode: s.fMode === 'voice',
       isPhotoMode: s.fMode === 'photo',
       isScanMode: s.fMode === 'scan',
-      tabNoteStyle: modeStyle(s.fMode === 'note'),
-      tabVoiceStyle: modeStyle(s.fMode === 'voice'),
-      tabPhotoStyle: modeStyle(s.fMode === 'photo'),
-      tabScanStyle: modeStyle(s.fMode === 'scan'),
       modeNote: () =>
         setState({
           fMode: 'note',
@@ -3548,22 +3662,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
       fClips: s.fClips,
       removeClip: dropClip,
-      recStyle: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        width: '100%',
-        height: '46px',
-        borderRadius: '5px',
-        border: '1px solid ' + (s.fRec ? 'var(--action-danger)' : 'var(--action-primary)'),
-        background: s.fRec ? 'var(--action-danger)' : 'var(--action-primary)',
-        color: '#fff',
-        fontFamily: 'inherit',
-        fontSize: '16px',
-        fontWeight: '500',
-        cursor: 'pointer',
-      } as React.CSSProperties,
       toggleRec: () => {
         if (s.fTransBusy || s.fSaving) return
         if (liveVoice) {
@@ -3669,6 +3767,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
       /* location */
       locationLabel: currentLocation ? locationLabel(currentLocation) : null,
+      locationPath: currentLocation,
       locSheetOpen,
       openLocations: () => setState({ locOpen: true }),
       closeLocations: () => setState(pickerClosed),
@@ -3726,7 +3825,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }
       }),
       locNoMatch: !!query && locationGroups.length === 0,
-      noLocations: places.locations.length === 0,
+      noLocations: pickable.length === 0,
+      // Adding to a site walk proposal: the picker only picks, Save adds to the proposal.
+      proposalCapture: !!proposalTarget,
       // Choosing one leaves any half-filled form behind.
       chooseLocation: (id: string) =>
         setState({
@@ -3808,16 +3909,25 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         const l = places.locations.find((x) => x.id === s.locRemove)
         return l ? locationLabel(l) : null
       })(),
+      locRemovePath: places.locations.find((x) => x.id === s.locRemove) ?? null,
       closeLocRemove: () => setState({ locRemove: null }),
       confirmLocRemove: removeLocation,
       submitLocation: () => void submitLocation(),
       fCats: s.fCats,
-      toggleFCat: (cat: string) => setState({ fCats: toggleCategory(s.fCats, cat) }),
+      // A proposed observation holds one category, so there a pick replaces the last.
+      toggleFCat: (cat: string) =>
+        setState({
+          fCats: proposalTarget
+            ? s.fCats.includes(cat)
+              ? []
+              : [cat]
+            : toggleCategory(s.fCats, cat),
+        }),
       fSev: s.fSev,
       setFSev: (fSev: string) => setState({ fSev }),
       /* the checklist over capture (CP-31): only with a capture session, as
          its answers are saved as observations */
-      canOpenChecklist: !!liveCapture,
+      canOpenChecklist: !!liveCapture && !proposalTarget,
       checklistOpen: !!liveCapture && s.checklistOpen,
       openChecklist: () => setState({ checklistOpen: true }),
       closeChecklist: () => setState({ checklistOpen: false }),
@@ -3891,6 +4001,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           setState({ fToast: { text: 'Choose a severity first.', warn: true } })
           return
         }
+        if (proposalTarget) {
+          void saveToProposal(proposalTarget, currentLocation, note)
+          return
+        }
         if (live) {
           void saveToGateway(currentLocation, note, s.fClips, s.fPhotos, s.fPages)
           return
@@ -3954,15 +4068,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fTrans: false,
           fCats: [],
           fSev: '',
-          fToast: { text: 'Observation added to ' + reference + '. It is kept in this demo only.' },
+          fToast: null,
+          // Listed first, so it is local-0 (see obsReturn above).
+          toast: 'Observation saved in this demo only.',
+          toastTone: 'success',
+          toastView: 'local-0',
         })
-        later(
-          () =>
-            setState({
-              fToast: null,
-            }),
-          3200,
-        )
       },
       /* generation */
       gsecs,

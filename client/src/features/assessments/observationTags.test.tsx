@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -110,49 +110,52 @@ async function openObservations() {
   await signIn()
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  // Listed under each location, so a row says where it is (CP-16).
-  fireEvent.click(screen.getByRole('button', { name: 'Group by location' }))
   // The sample observations show straight away; wait for the gateway's.
   if (reachable && listed.length) await screen.findByText(listed[0].note!)
 }
-const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
-// A select by the start of its label, which also holds any hint below it.
-const select = (label: string, container: HTMLElement = document.body) =>
-  within(container).getByLabelText(new RegExp('^' + label))
-const choose = (label: string, value: string, container?: HTMLElement) =>
-  fireEvent.change(select(label, container), { target: { value } })
-// The Filters panel, opened from its button; it stays open while filters
-// are chosen.
-function filters() {
-  if (!screen.queryByRole('dialog', { name: 'Filters' }))
-    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
-  return screen.getByRole('dialog', { name: 'Filters' })
+// Opens a filter's menu by its name ("Category", or "Category: Exposure" once
+// set) and picks an item by what it says.
+function filter(name: string, option: string) {
+  fireEvent.click(screen.getByRole('button', { name: new RegExp('^' + name + '(:|$)') }))
+  fireEvent.click(
+    within(screen.getByRole('menu', { name })).getByRole('menuitemradio', { name: option }),
+  )
 }
-// Chooses a filter's option by what it says, e.g. Location, "Pump house".
-function filter(label: string, option: string) {
-  const field = select(label, filters())
-  const { value } = within(field).getByRole('option', { name: option }) as HTMLOptionElement
-  fireEvent.change(field, { target: { value } })
-}
-// Clear filters, in the panel and beside the filter chips: either clears all.
-const clearFilters = () =>
-  fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0])
+// Picks a place in the location navigator, e.g. "Pump house" (CP-22).
+const goTo = (place: string) =>
+  fireEvent.click(
+    within(screen.getByRole('navigation', { name: 'Locations' })).getByRole('button', {
+      name: place,
+    }),
+  )
+const clearAll = () => fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
 // Which of these observations the list shows, by their summary.
 const shown = (...summaries: string[]) => summaries.filter((text) => screen.queryByText(text))
 const ALL = [HOSE_REEL.note!, STAIRWELL_DOOR.note!, VALVE.note!, RACKING, PUMP_TEST, SORTATION]
-// Expands the observation, unless it still is from last time, and edits its tags.
-async function editTags(summary: string) {
-  if (!screen.queryByRole('button', { name: 'Edit' }))
+// Opens the observation's page, unless it still is from last time.
+function openPage(summary: string) {
+  if (!screen.queryByRole('complementary', { name: 'Tags' }))
     fireEvent.click(screen.getByRole('button', { name: new RegExp(summary.slice(0, 20)) }))
-  click('Edit')
-  return screen.findByRole('dialog', { name: 'Edit observation' })
+  return screen.getByRole('complementary', { name: 'Tags' })
 }
+// Opens a tag's menu on the page ("Severity: High. Change") and returns it.
+function openTag(name: string) {
+  fireEvent.click(screen.getByRole('button', { name: new RegExp('^' + name + ': .*\\. Change$') }))
+  return screen.getByRole('menu', { name })
+}
+// Opens a tag's menu and chooses one item; each choice saves at once.
+const chooseTag = (name: string, item: string | RegExp) =>
+  fireEvent.click(
+    within(openTag(name)).getByRole(/Category/.test(name) ? 'menuitemcheckbox' : 'menuitemradio', {
+      name: item,
+    }),
+  )
 // The location an observation's row is listed under (CP-16).
-const placeOf = (row: HTMLElement) => row.closest('[role=group]')?.getAttribute('aria-label')
-const optionLabels = (select: HTMLElement) =>
-  within(select)
-    .getAllByRole('option')
-    .map((o) => o.textContent)
+const placeOf = (row: HTMLElement) => row.closest('section')?.getAttribute('aria-label')
+const backToList = () =>
+  fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
+const menuLabels = (menu: HTMLElement) =>
+  [...menu.querySelectorAll('[role^=menuitem]')].map((o) => o.textContent)
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -184,56 +187,67 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
       ['Category', 'Uncategorised', [VALVE.note]],
       ['Category', 'Protection', [HOSE_REEL.note, RACKING, PUMP_TEST]],
       ['Severity', 'Moderate', [VALVE.note, SORTATION]],
-      // One Location filter takes a building, a level of it or a location (CP-16).
-      ['Location', 'All of Warehouse', [HOSE_REEL.note, RACKING, SORTATION]],
-      ['Location', 'Ground', [HOSE_REEL.note, RACKING, SORTATION]],
-      ['Location', 'Ground · Bay 3 — north aisle', [HOSE_REEL.note, RACKING]],
-      ['Location', 'Level 2 · Stairwell B', [STAIRWELL_DOOR.note]],
-      ['Location', 'Pump house', [VALVE.note, PUMP_TEST]],
     ] as const
-    for (const [label, option, expected] of cases) {
-      filter(label, option)
+    for (const [name, option, expected] of cases) {
+      filter(name, option)
       expect(shown(...ALL)).toEqual(expected)
-      expect(screen.getByText(`Showing ${expected.length} of 6 observations`)).toBeInTheDocument()
-      clearFilters()
+      fireEvent.click(screen.getByRole('button', { name: `Clear ${name.toLowerCase()} filter` }))
       expect(shown(...ALL)).toEqual(ALL)
     }
   }, 10000)
 
-  it('shows each filter set as a chip that removes it, and counts them on the button', async () => {
+  it('filters by place in the location navigator, a building, a level or a location (CP-16)', async () => {
     await openObservations()
-    expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument()
-
-    filter('Category', 'Protection')
-    filter('Location', 'Pump house')
-
-    expect(screen.getByRole('button', { name: 'Filters, 2 set' })).toHaveTextContent('Filters · 2')
-    expect(shown(...ALL)).toEqual([PUMP_TEST])
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove Location: Elsewhere on site · Pump house' }),
-    )
-    expect(shown(...ALL)).toEqual([HOSE_REEL.note, RACKING, PUMP_TEST])
-    expect(screen.getByRole('button', { name: 'Filters, 1 set' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Category: Protection' }))
-    expect(shown(...ALL)).toEqual(ALL)
-    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
+    const places = [
+      ['Warehouse', [HOSE_REEL.note, RACKING, SORTATION]],
+      ['Ground', [HOSE_REEL.note, RACKING, SORTATION]],
+      ['Bay 3 — north aisle', [HOSE_REEL.note, RACKING]],
+      ['Stairwell B', [STAIRWELL_DOOR.note]],
+      ['Pump house', [VALVE.note, PUMP_TEST]],
+      ['All locations', ALL],
+    ] as const
+    for (const [place, expected] of places) {
+      goTo(place)
+      expect(shown(...ALL)).toEqual(expected)
+    }
   })
 
-  it('opens the filters in a sheet on a phone, closed by Show n observations', async () => {
+  it('shows each filter set in place, with a clear for it and a Clear all for several', async () => {
+    await openObservations()
+    expect(screen.queryByRole('button', { name: 'Clear all' })).toBeNull()
+
+    filter('Category', 'Protection')
+    filter('Severity', 'High')
+    expect(screen.getByRole('button', { name: 'Category: Protection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Severity: High' })).toBeInTheDocument()
+    expect(shown(...ALL)).toEqual([HOSE_REEL.note, PUMP_TEST])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear severity filter' }))
+    expect(shown(...ALL)).toEqual([HOSE_REEL.note, RACKING, PUMP_TEST])
+    expect(screen.queryByRole('button', { name: 'Clear all' })).toBeNull()
+
+    filter('Severity', 'High')
+    clearAll()
+    expect(shown(...ALL)).toEqual(ALL)
+    expect(screen.queryByRole('button', { name: /^Clear .* filter$/ })).toBeNull()
+  })
+
+  it('opens the location navigator in a sheet on a phone, closed by picking a place', async () => {
     const width = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
     try {
       await openObservations()
-      fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
-      const sheet = screen.getByRole('dialog', { name: 'Filters' })
+      fireEvent.click(screen.getByRole('button', { name: 'Location: All locations. Change' }))
+      const sheet = screen.getByRole('dialog', { name: 'Locations' })
       expect(sheet).toHaveClass('ds-dialog-sheet')
 
-      choose('Severity', 'moderate', sheet)
-      fireEvent.click(within(sheet).getByRole('button', { name: 'Show 2 observations' }))
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Pump house' }))
 
-      expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull()
-      expect(shown(...ALL)).toEqual([VALVE.note, SORTATION])
-      expect(screen.getByRole('button', { name: 'Remove Severity: Moderate' })).toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Locations' })).toBeNull()
+      expect(shown(...ALL)).toEqual([VALVE.note, PUMP_TEST])
+      expect(
+        screen.getByRole('button', { name: 'Location: Elsewhere on site › Pump house. Change' }),
+      ).toBeInTheDocument()
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
     }
@@ -248,7 +262,7 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
     listed = [SHARED_WALL, HOSE_REEL]
     await openObservations()
     expect(screen.getByRole('button', { name: /Shared wall/ })).toHaveTextContent(
-      'Construction, Exposure',
+      /Construction\s*Exposure/,
     )
 
     for (const category of ['Construction', 'Exposure']) {
@@ -263,7 +277,7 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
     await openObservations()
 
     filter('Category', 'Protection')
-    filter('Location', 'Pump house')
+    goTo('Pump house')
     expect(shown(...ALL)).toEqual([PUMP_TEST])
 
     filter('Severity', 'Low')
@@ -273,9 +287,8 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
 
   it('offers the shared category vocabulary, and the places on file by building and level', async () => {
     await openObservations()
-    const panel = filters()
-
-    expect(optionLabels(select('Category', panel))).toEqual([
+    fireEvent.click(screen.getByRole('button', { name: 'Category' }))
+    expect(menuLabels(screen.getByRole('menu', { name: 'Category' }))).toEqual([
       'All categories',
       'Construction',
       'Occupancy',
@@ -283,23 +296,22 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
       'Exposure',
       'Uncategorised',
     ])
-    // Each building, then Elsewhere on site; "All of" and a level only where
-    // they hold more than one location.
-    const location = select('Location', panel)
-    expect(optionLabels(location)).toEqual([
-      'All locations',
-      'Level 2 · Stairwell B',
-      'All of Warehouse',
-      'Ground',
-      'Ground · Bay 1 — despatch',
-      'Ground · Bay 3 — north aisle',
-      'Pump house',
-    ])
-    expect(
-      within(location)
-        .getAllByRole('group')
-        .map((g) => g.getAttribute('label')),
-    ).toEqual(['Block A', 'Warehouse', 'Elsewhere on site'])
+    // The navigator lists each building, its levels and its locations, even
+    // one holding no observation yet.
+    const nav = screen.getByRole('navigation', { name: 'Locations' })
+    expect([...nav.querySelectorAll('.ob-nav-pick')].map((b) => b.textContent)).toEqual(
+      expect.arrayContaining([
+        'All locations',
+        'Block A',
+        'Level 2',
+        'Stairwell B',
+        'Warehouse',
+        'Ground',
+        'Bay 1 — despatch',
+        'Bay 3 — north aisle',
+        'Pump house',
+      ]),
+    )
   })
 }, 10000)
 
@@ -307,45 +319,45 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
   // Renders the app twice, so it is given as long as the filtering tests.
   it('categorises an observation and keeps its new tags after reopening', async () => {
     await openObservations()
-    const dialog = await editTags(VALVE.note!)
+    openPage(VALVE.note!)
     // The categories come from the shared vocabulary (AC3); an uncategorised
     // observation has none ticked.
-    const boxes = within(
-      within(dialog).getByRole('group', { name: 'COPE categories' }),
-    ).getAllByRole('checkbox')
-    expect(boxes.map((c) => c.closest('label')?.textContent)).toEqual([
+    const menu = openTag('Category')
+    // Suggest categories is the menu's first item, then the four categories.
+    expect(menuLabels(menu)).toEqual([
+      'Suggest categories',
       'Construction',
       'Occupancy',
       'Protection',
       'Exposure',
     ])
-    expect(boxes.filter((c) => (c as HTMLInputElement).checked)).toEqual([])
+    expect(
+      within(menu)
+        .getAllByRole('menuitemcheckbox')
+        .filter((c) => c.getAttribute('aria-checked') === 'true'),
+    ).toEqual([])
 
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Exposure' }))
-    // The same four severity chips as capture.
-    fireEvent.click(within(dialog).getByRole('radio', { name: 'Critical' }))
-    choose('Location', 'l2', dialog)
-    choose('Standard reference', 'NFPA 25 – 2026 Edition', dialog)
-    click('Save changes')
+    // Each choice is saved as soon as it is made, one PATCH each.
+    fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Exposure' }))
+    await vi.waitFor(() => expect(patches).toHaveLength(1))
+    // The same four severities as capture.
+    chooseTag('Severity', 'Critical')
+    await vi.waitFor(() => expect(patches).toHaveLength(2))
+    chooseTag('Location', /Stairwell B/)
+    await vi.waitFor(() => expect(patches).toHaveLength(3))
 
-    expect(await screen.findByText('Changes saved.')).toBeInTheDocument()
     // The label is stored as its COPE dimension.
     expect(patches).toEqual([
-      {
-        id: 'o3',
-        tags: {
-          copeDimensions: ['Exposure'],
-          severity: 'critical',
-          locationId: 'l2',
-          standard: 'NFPA 25 – 2026 Edition',
-        },
-      },
+      { id: 'o3', tags: { copeDimensions: ['Exposure'] } },
+      { id: 'o3', tags: { severity: 'critical' } },
+      { id: 'o3', tags: { locationId: 'l2' } },
     ])
-    expect(screen.queryByRole('dialog', { name: 'Edit observation' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved')
+    backToList()
     const row = screen.getByRole('button', { name: /Unlabelled valve/ })
     expect(row).toHaveTextContent('Exposure')
     expect(row).toHaveTextContent('Critical')
-    expect(placeOf(row)).toBe('Block A · Level 2 · Stairwell B')
+    expect(placeOf(row)).toBe('Block A › Level 2 › Stairwell B')
 
     // Reopening reads the observation back from the gateway.
     cleanup()
@@ -353,80 +365,162 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     const reopened = await screen.findByRole('button', { name: /Unlabelled valve/ })
     expect(reopened).toHaveTextContent('Exposure')
     expect(reopened).toHaveTextContent('Critical')
-    expect(placeOf(reopened)).toBe('Block A · Level 2 · Stairwell B')
-    fireEvent.click(reopened)
-    expect(screen.getByRole('button', { name: 'NFPA 25 – 2026 Edition' })).toBeInTheDocument()
+    expect(placeOf(reopened)).toBe('Block A › Level 2 › Stairwell B')
   }, 10000)
 
-  it('sends only the tags that changed, and can uncategorise and remove the standard', async () => {
-    listed = [observation({ standard: 'NFPA 13 – 2022 Edition' })]
+  it('builds each category click on the one before, and saves them in order', async () => {
+    // The first save is held, so only the screen knows Construction was ticked.
+    let answer: () => void = () => {}
+    patchReply = (id) =>
+      new Promise(
+        (resolve) =>
+          (answer = () =>
+            resolve(
+              json(
+                200,
+                listed.find((o) => o.id === id),
+              ),
+            )),
+      )
     await openObservations()
+    openPage(VALVE.note!)
+    const menu = openTag('Category')
+    fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Construction' }))
+    fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Protection' }))
 
-    let dialog = await editTags(HOSE_REEL.note!)
+    // The second save waits for the first, so an older one can't land last.
+    await vi.waitFor(() => expect(patches).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(patches).toHaveLength(1)
+    answer()
+    await vi.waitFor(() => expect(patches).toHaveLength(2))
+    expect(patches.map((p) => p.tags)).toEqual([
+      { copeDimensions: ['Construction'] },
+      { copeDimensions: ['Construction', 'Protection'] },
+    ])
+  })
+
+  it('keeps a queued category when an earlier save answers', async () => {
+    // Each save is answered, with what it saved, only when the test says.
+    const answers: (() => void)[] = []
+    patchReply = (id, tags) =>
+      new Promise((resolve) =>
+        answers.push(() => {
+          listed = listed.map((o) => (o.id === id ? { ...o, ...tags } : o))
+          resolve(
+            json(
+              200,
+              listed.find((o) => o.id === id),
+            ),
+          )
+        }),
+      )
+    await openObservations()
+    openPage(VALVE.note!)
+    const tick = (name: string) => fireEvent.click(screen.getByRole('menuitemcheckbox', { name }))
+    openTag('Category')
+    tick('Construction')
+    tick('Protection')
+    await vi.waitFor(() => expect(answers).toHaveLength(1))
+    await act(async () => answers[0]())
+    tick('Exposure')
+    for (let i = 1; i < 3; i++) {
+      await vi.waitFor(() => expect(answers.length).toBeGreaterThan(i))
+      await act(async () => answers[i]())
+    }
+    // Without this, the first answer reset the menu to [Construction] and Protection was dropped.
+    expect(patches.at(-1)?.tags).toEqual({
+      copeDimensions: ['Construction', 'Protection', 'Exposure'],
+    })
+  })
+
+  it('saves a category undone before the first save is answered', async () => {
+    let answer: () => void = () => {}
+    patchReply = (id) =>
+      new Promise(
+        (resolve) =>
+          (answer = () =>
+            resolve(
+              json(
+                200,
+                listed.find((o) => o.id === id),
+              ),
+            )),
+      )
+    await openObservations()
+    openPage(VALVE.note!)
+    const menu = openTag('Category')
+    fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Construction' }))
+    fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Construction' }))
+    await vi.waitFor(() => expect(patches).toHaveLength(1))
+    answer()
+    // Without this, the undo looked like "no change" and Construction stayed saved.
+    await vi.waitFor(() => expect(patches).toHaveLength(2))
+    expect(patches[1].tags).toEqual({ copeDimensions: null })
+  })
+
+  it('sends only the tag that changed, and can uncategorise', async () => {
+    listed = [observation()]
+    await openObservations()
+    openPage(HOSE_REEL.note!)
+
     // Opens on the observation's current tags.
-    expect(within(dialog).getByRole('radio', { name: 'High' })).toBeChecked()
-    expect(select('Location', dialog)).toHaveValue('l1')
-    fireEvent.click(within(dialog).getByRole('radio', { name: 'Low' }))
-    click('Save changes')
-    await screen.findByText('Changes saved.')
-
-    dialog = await editTags(HOSE_REEL.note!)
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Protection' }))
-    choose('Standard reference', '', dialog)
     expect(
-      within(dialog).getByText(
+      within(openTag('Severity')).getByRole('menuitemradio', { name: 'High' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Low' }))
+    await vi.waitFor(() => expect(patches).toHaveLength(1))
+
+    const menu = openTag('Category')
+    fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Protection' }))
+    expect(
+      await screen.findByText(
         'None chosen: report drafting leaves this observation out until it is categorised.',
       ),
     ).toBeInTheDocument()
-    click('Save changes')
 
     await vi.waitFor(() =>
-      expect(patches.map((p) => p.tags)).toEqual([
-        { severity: 'low' },
-        { copeDimensions: null, standard: null },
-      ]),
+      expect(patches.map((p) => p.tags)).toEqual([{ severity: 'low' }, { copeDimensions: null }]),
     )
   })
 
-  it('keeps the dialog and its changes when the gateway refuses them', async () => {
+  it('keeps the typed choice off the page and says why when the gateway refuses it', async () => {
     patchReply = () =>
       json(400, {
         error: 'The observation tags are invalid.',
         fields: { locationId: 'Choose one of the locations listed for this assessment.' },
       })
     await openObservations()
-    const dialog = await editTags(HOSE_REEL.note!)
+    openPage(HOSE_REEL.note!)
 
-    choose('Location', 'l3', dialog)
-    click('Save changes')
+    chooseTag('Location', /Pump house/)
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Choose one of the locations listed for this assessment. Your changes are still here; press Save changes to try again.',
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Not saved: Choose one of the locations listed for this assessment.',
     )
-    expect(select('Location', dialog)).toHaveValue('l3')
     // Nothing changed on screen.
+    expect(screen.getByRole('button', { name: /^Location: .*Bay 3/ })).toBeInTheDocument()
+    backToList()
     expect(placeOf(screen.getByRole('button', { name: /Hose reel/ }))).toBe(
-      'Warehouse · Ground · Bay 3 — north aisle',
+      'Warehouse › Ground › Bay 3 — north aisle',
     )
   })
 
   it('edits a sample observation in this demo only', async () => {
     reachable = false
     await openObservations()
-    const dialog = await editTags(PUMP_TEST)
+    openPage(PUMP_TEST)
 
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Exposure' }))
-    choose('Location', 'demo-office', dialog)
-    click('Save changes')
+    fireEvent.click(within(openTag('Category')).getByRole('menuitemcheckbox', { name: 'Exposure' }))
+    chooseTag('Location', /Open-plan office/)
 
-    expect(
-      await screen.findByText('Changes saved. They are kept in this demo only.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved')
     expect(patches).toEqual([])
+    backToList()
     const row = screen.getByRole('button', { name: /Pump test certificate/ })
     expect(row).toHaveTextContent('Exposure')
-    expect(placeOf(row)).toBe('Office annexe · Level 1 · Open-plan office')
-    filter('Location', 'Level 1 · Open-plan office')
+    expect(placeOf(row)).toBe('Office annexe › Level 1 › Open-plan office')
+    goTo('Open-plan office')
     expect(shown(RACKING, PUMP_TEST, SORTATION)).toEqual([PUMP_TEST])
   })
 })

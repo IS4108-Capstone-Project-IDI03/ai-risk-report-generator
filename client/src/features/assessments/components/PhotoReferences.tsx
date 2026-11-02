@@ -7,10 +7,16 @@ import { ZoomablePhoto } from './ZoomablePhoto'
 export type ViewedPhoto = { name: string; url: string; context?: string }
 
 // One photo in a popup over the screen, to zoom into and move around without
-// leaving the assessment.
+// leaving the assessment; nearly the whole window, so detail is visible (CP-22).
 export function PhotoDialog({ photo, onClose }: { photo: ViewedPhoto; onClose: () => void }) {
   return createPortal(
-    <Dialog title={photo.name} description={photo.context} width={960} onClose={onClose}>
+    <Dialog
+      title={photo.name}
+      description={photo.context}
+      width={1400}
+      style={{ maxWidth: 'calc(100vw - 24px)' }}
+      onClose={onClose}
+    >
       <ZoomablePhoto src={photo.url} alt={photo.name} />
     </Dialog>,
     document.body,

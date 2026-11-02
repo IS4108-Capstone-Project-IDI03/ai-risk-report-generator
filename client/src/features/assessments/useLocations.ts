@@ -27,6 +27,8 @@ export function useLocations(
 ) {
   const [server, setServer] = useState<{ reference: string; list: SiteLocation[] } | null>(null)
   const [local, setLocal] = useState<Record<string, SiteLocation[]>>({})
+  // Bumped to list them again, e.g. after a site walk created some (CP-22).
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     if (!open || !live) return
@@ -36,7 +38,7 @@ export function useLocations(
       () => undefined,
     )
     return () => controller.abort()
-  }, [reference, open, live])
+  }, [reference, open, live, version])
 
   const locations = live
     ? server?.reference === reference
@@ -54,6 +56,7 @@ export function useLocations(
   }
   return {
     locations,
+    reload: () => setVersion((n) => n + 1),
     // Whether they are the gateway's.
     live,
     // Resolves with the new location, or rejects with the gateway's reason.
