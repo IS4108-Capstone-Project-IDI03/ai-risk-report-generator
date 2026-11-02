@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.processors.handwriting import HandwritingError, transcribe_page
 from app.processors.stt import TranscriptionError, transcribe
-from app.processors.vision import InterpretationError, interpret
+from app.processors.vision import InterpretationError, describe_photo, interpret
 
 router = APIRouter()
 
@@ -81,4 +81,14 @@ def transcribe_handwriting(request: S3KeyRequest) -> dict:
     try:
         return transcribe_page(request.s3_key)
     except HandwritingError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@router.post("/describe-photo")
+def describe_site_photo(request: S3KeyRequest) -> dict:
+    # One site photo (CP-22), described so it can be matched to a finding. As for /interpret,
+    # the gateway shows `detail` to the engineer on failure.
+    try:
+        return describe_photo(request.s3_key)
+    except InterpretationError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error

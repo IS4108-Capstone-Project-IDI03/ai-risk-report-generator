@@ -1,0 +1,1 @@
+Checking the sprinkler layout against NFPA 13 now. The spacing between heads in the warehouse is more than 3.6 metres, which is wider than the standard allows. The fire alarm cabling should follow SS 546, but I see unmarked cables running together with power lines. Block C, Level 2, storage area.

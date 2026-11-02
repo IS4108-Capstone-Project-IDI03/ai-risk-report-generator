@@ -9,6 +9,7 @@ observation's note or categories if they agree with it.
 """
 
 import base64
+import time
 from typing import Literal
 
 import boto3
@@ -108,16 +109,18 @@ DESCRIPTION_INTRO = f"""You look at the photographs a Marsh property risk engine
 finding during a site survey, and propose a description of them for the engineer to review. \
 {ITEMS}"""
 
+# Must match rag-service app/site_walk/propose.py CATEGORIES. Fire doors and shutters are
+# Construction: the sample reports put them in section 7 under compartmentation.
 CATEGORIES_INSTRUCTION = """
 
 categories: the COPE categories the finding concerns, most relevant first. One finding can \
 concern more than one: an unsealed wall penetration is both Construction and Protection. Propose \
 a category only when an item supports it, and none when nothing does.
-- Construction: the building fabric: structure, walls, roofs, fire compartments, fire stopping of \
-penetrations, combustible construction.
+- Construction: the building fabric: structure, walls, roofs, fire compartments, fire doors and \
+fire shutters, fire stopping of penetrations, combustible construction.
 - Occupancy: how the site is used: processes, storage, housekeeping, utilities, back-up power.
-- Protection: fire protection and security: sprinklers, alarms, extinguishers, hose reels, fire \
-doors, pumps, and their maintenance.
+- Protection: fire protection and security: sprinklers, alarms, extinguishers, hose reels, \
+pumps, their maintenance and impairment programmes, and emergency response plans.
 - Exposure: hazards from outside the site: neighbouring properties, flood, wind and other natural \
 hazards.
 
@@ -308,3 +311,81 @@ def interpret_images(
         # None when the provider reports no usage (EV-03 AC7).
         "usage": usage,
     }
+
+
+# A plain photo description for matching photos to findings (CP-22). Sent with only the photo.
+DESCRIBE_INSTRUCTION = """You look at one photograph a Marsh property risk engineer took on a \
+site walk. Describe in one or two plain sentences what it shows, so it can be matched to a \
+finding. Use Singapore English. State only what is visible: no recommendations, no guesses."""
+
+
+class PhotoDescription(BaseModel):
+    description: str
+
+
+def _describe_gemini(image: str) -> tuple[PhotoDescription, dict]:
+    started = time.perf_counter()
+    try:
+        with genai.Client(api_key=GEMINI_API_KEY) as client:
+            result = client.interactions.create(
+                model=VISION_MODEL,
+                system_instruction=DESCRIBE_INSTRUCTION,
+                input=[
+                    {"type": "image", "data": image, "mime_type": "image/jpeg"},
+                    {"type": "text", "text": "Describe this photo."},
+                ],
+                response_format={
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": PhotoDescription.model_json_schema(),
+                },
+                # A client's site photo: Google need not keep the request.
+                store=False,
+            )
+    except Exception as error:
+        raise InterpretationError(f"The photo could not be described: {error}") from error
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    if result.status != "completed" or not result.output_text:
+        raise InterpretationError(
+            f"The photo could not be described: no answer came back (status {result.status})."
+        )
+    try:
+        answer = PhotoDescription.model_validate_json(result.output_text)
+    except ValidationError as error:
+        raise InterpretationError(
+            "The photo could not be described: the answer was not in the expected form."
+        ) from error
+    tokens = result.usage
+    input_tokens = getattr(tokens, "total_input_tokens", None)
+    output = getattr(tokens, "total_output_tokens", None)
+    thought = getattr(tokens, "total_thought_tokens", None)
+    usage = {
+        "feature": "describe_photo",
+        "billed_service": "gemini-vision",
+        "model": result.model or VISION_MODEL,
+        "duration_ms": duration_ms,
+        "input_tokens": input_tokens,
+        # Google bills thinking as output, so it is added in.
+        "output_tokens": None if output is None else output + (thought or 0),
+        "cache_read_tokens": None,
+        "search_units": None,
+        "audio_seconds": None,
+        "usage_status": "recorded" if input_tokens is not None else "unavailable",
+    }
+    return answer, usage
+
+
+_DESCRIBERS = {"gemini": _describe_gemini}
+
+
+def describe_photo(s3_key: str) -> dict:
+    """{description, usage} for one stored photo, by the VISION_PROVIDER."""
+    describer = _DESCRIBERS.get(VISION_PROVIDER)
+    if describer is None:
+        raise InterpretationError(
+            f"The photo could not be described: VISION_PROVIDER {VISION_PROVIDER!r} "
+            "is not supported."
+        )
+    image = _prepare(_read(boto3.client("s3", region_name=AWS_REGION), s3_key))
+    answer, usage = describer(image)
+    return {"description": answer.description, "usage": [usage]}
