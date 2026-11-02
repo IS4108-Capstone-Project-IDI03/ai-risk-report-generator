@@ -243,41 +243,12 @@ describe("A client's site names (CP-17 AC10)", () => {
       .post('/api/assessments')
       .send(body({ clientId, client: undefined, site: bukit }))
 
+    // Corrected through /api/sites since CP-18.
     const renamed = await api
-      .put(`/api/assessments/${second.body.reference}`)
-      .send({ ...body(), site: { ...bukit, name: 'kent ridge campus' } })
+      .put(`/api/sites/${second.body.site.id}`)
+      .send({ ...bukit, name: 'kent ridge campus' })
     expect(renamed.status).toBe(400)
-    expect(Object.keys(renamed.body.fields)).toEqual(['site.name'])
-  })
-})
-
-describe("A shared site's details (CP-17 AC8)", () => {
-  it('locks them once the site has another assessment not archived, and unlocks them when it is archived', async () => {
-    const first = await firstVisit()
-    const listedFor = async (as: typeof api, reference: string) =>
-      (
-        (await as.get('/api/assessments')).body as { reference: string; siteShared: boolean }[]
-      ).find((a) => a.reference === reference)!
-    expect((await listedFor(jideApi, first.reference)).siteShared).toBe(false)
-
-    const second = await revisit(first.clientId, first.siteId)
-    expect(second.body.siteShared).toBe(true)
-    expect((await listedFor(jideApi, first.reference)).siteShared).toBe(true)
-
-    const edit = (site: typeof KENT_RIDGE, surveyType = 'Property risk survey') =>
-      api.put(`/api/assessments/${second.body.reference}`).send({ site, surveyType })
-    const moved = await edit({ ...KENT_RIDGE, address: '1 Somewhere Else' })
-    expect(moved.status).toBe(409)
-    expect(moved.body.error).toMatch(/other assessments/)
-    // The rest of the assessment can still be corrected, with the site as it is.
-    expect((await edit(KENT_RIDGE, 'Follow-up survey')).status).toBe(204)
-    const site = await SiteModel.findById(first.siteId).lean()
-    expect(site!.address).toBe(KENT_RIDGE.address)
-
-    // Once the other visit is archived, the site is this assessment's alone.
-    await jideApi.post(`/api/assessments/${first.reference}/archive`)
-    expect((await listedFor(api, second.body.reference)).siteShared).toBe(false)
-    expect((await edit({ ...KENT_RIDGE, address: '1 Somewhere Else' })).status).toBe(204)
+    expect(Object.keys(renamed.body.fields)).toEqual(['name'])
   })
 })
 

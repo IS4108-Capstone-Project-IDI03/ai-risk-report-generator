@@ -362,6 +362,30 @@ describe('drafting a report section (GN-01)', () => {
     expect((await sections()).changesSinceDraft).toBe(0)
   })
 
+  it("shows a draft out of date once the site's jurisdiction or facility type is corrected (CP-18)", async () => {
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Riser not fire-stopped.',
+    })
+    await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    const sections = async () => (await api.get(`/api/assessments/${REFERENCE}/sections`)).body
+    // Drafts of an unchanged site carry no scope count, so earlier ones read as before.
+    expect((await sections())[0].changeCounts).toEqual({ added: 0, changed: 0, removed: 0 })
+
+    await SiteModel.updateOne({ _id: a.site }, { facilityType: 'Cold store' })
+    const [drafted, undrafted] = await sections()
+    expect(drafted).toMatchObject({
+      changesSinceDraft: 1,
+      changeCounts: { added: 0, changed: 0, removed: 0, scope: 1 },
+    })
+    // A section with no draft has nothing to be out of date.
+    expect(undrafted.changeCounts).toEqual({ added: 0, changed: 0, removed: 0 })
+
+    // Back as it was drafted, or redrafted for the new scope, it is current.
+    await SiteModel.updateOne({ _id: a.site }, { facilityType: 'Warehouse' })
+    expect((await sections())[0].changesSinceDraft).toBe(0)
+  })
+
   it('neither waits for nor drafts from a photo interpretation (CP-05)', async () => {
     const { assessment: a, session } = await assessment('active')
     const ids = { assessment: a._id, session: session._id }
