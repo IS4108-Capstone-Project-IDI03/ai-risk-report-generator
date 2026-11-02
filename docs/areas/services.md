@@ -26,6 +26,18 @@ recording fails with "The speech service could not be reached", S5 is not runnin
 the gateway was started with the Docker hostname. S5 also needs the AWS
 credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 
+### Site walk additions (S5, CP-22)
+
+- `POST /transcribe` returns Whisper's `segments` (`start`, `end`, `text`, seconds into the
+  recording) beside `transcript`. It takes only `s3_key`: no vocabulary
+  hint is sent, because client text must not reach an external AI unmasked and
+  speech-to-text is not masked.
+- `POST /describe-photo` `{ s3_key }` returns `{ description, usage }`: one or two
+  plain sentences of what one site-walk photo shows, from `VISION_PROVIDER` /
+  `VISION_MODEL`. Only the photo is sent, no client text. The proposal step
+  uses the description to match the photo to a finding.
+- S5 still writes nothing to MongoDB.
+
 ## Reading an observation (S5, CP-05, CP-21)
 
 An engineer can ask for any observation to be read. The model proposes, in
@@ -693,6 +705,70 @@ a standard in scope and quotes found (one paid call per type). The cases file
 comes from the gateway (`npm run export:checklist-cases -- <file>`), since the
 passages in Chroma carry no standard numbers; it holds one database's document
 ids, so it is not committed.
+
+## Site walk proposal (S4, CP-22)
+
+`POST /site-walks/propose` (`app/site_walk/propose.py`) turns a finished site
+walk into proposed locations and observations. The gateway's
+`site-walk-proposal` worker calls it with the transcript (recordings in `seq`
+order, each with Whisper's timed segments, or the typed text), the
+assessment's locations, the photos with S5's descriptions, and `privacy`.
+Nothing is saved here; the response is the proposal plus `usage`. Shapes:
+`.local-docs/specs/sprint-4/CP-22-contract.md`.
+
+1. **Mask** every client text in one `/mask` call (see
+   [privacy](privacy.md)). Fails closed: rag 502, nothing sent.
+2. **Read the walk** with one `complete()` call (`LLM_PROVIDER`, `LLM_MODEL`,
+   `SITE_WALK_EFFORT`). The prompt says the text is speech-to-text and may hold
+   misheard place names, to carry the last announced place forward, and that
+   positive remarks are observations too. Each observation comes back with a
+   clean note, the place as spoken (building or elsewhere, building, level,
+   name) or none, and its span (recording, start, end). Results are put in walk
+   order; a typed walk has no spans.
+3. **Resolve places** in walk order. Levels are spelled as the gateway does
+   (`places.standard_level`, a port of `standardLevel`), and an exact repeat of
+   a place, or of an existing location, is matched by the gateway's location
+   key without a model call. Each other place goes to the classifier, which
+   chooses among the existing locations, the places accepted earlier in this
+   walk, and "a new place", reading the spoken place and the transcript within
+   30 s of it. The choices grow as the walk is read, so "Block H" said after
+   "Block A" can resolve to Block A.
+4. **Severity and COPE category** for every observation, from the classifier
+   (criteria descriptions in `propose.py`), 20 observations per call.
+5. **Photos:** each photo with a time is matched among the 3 observations
+   spoken nearest it (same recording first); the classifier picks one from the
+   photo's description and their notes. With one candidate it is attached
+   directly. A typed walk's photos are not matched.
+6. **Check flags:** a classifier pick below `SITE_WALK_CHECK_BELOW` (0.70, the
+   IN-05 labelling cutoff) sets that observation's `check.location`,
+   `check.severity` or `check.category`. No pick is hidden.
+7. **Unmask** notes and new locations' names; matched existing locations are
+   returned with the gateway's values.
+
+The classifier is `SITE_WALK_CLASSIFIER` (default `jev`), an adapter in
+`app/site_walk/jev.py` copied from ingestion's labelling one (needs
+`TYPESAFE_API_KEY`). Jev answers many questions about one text in one call.
+Calls per walk: one model call, plus one Jev call per spoken place that is
+not an exact repeat and has something to choose from, plus
+ceil(observations / 20) for severity and category, plus ceil(photos with
+more than one candidate / 20). Every call is returned in `usage` with feature
+`site-walk`; Jev calls carry their own cost (`cost_usd`, at ingestion's Jev
+price).
+
+**Evaluation** (`eval/site_walk/`): six scripted walks in `golden.json`
+(existing locations, a repeated place, a misheard place, a positive remark, a
+finding with no clear place in a typed walk, a level said three ways), scored
+in code by `scoring.py` on location matching (and extra locations),
+observation recall, and location, category and severity agreement. It is paid,
+so run it by hand from `microservices/rag-service` and report the cost it
+prints:
+
+```
+uv run python -m eval.site_walk.run_eval [--only case-id,case-id]
+```
+
+Results go to `eval/results/<date>-site-walk.json` (git-ignored). The scoring
+is unit-tested in `tests/test_site_walk_eval.py`.
 
 ## Report review workspace (RV-01)
 

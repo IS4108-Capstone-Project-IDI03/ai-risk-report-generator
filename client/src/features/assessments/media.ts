@@ -14,14 +14,9 @@ export function choosePhotos(files: File[]) {
 
 // Why chosen files were not added as photos, worded as the gateway words it.
 export function unsupportedPhotos(names: string[]) {
-  const one = names.length === 1
-  return (
-    names.join(', ') +
-    (one ? ' is not a JPG or PNG image.' : ' are not JPG or PNG images.') +
-    (one
-      ? ' Save it as JPG or PNG and add it again.'
-      : ' Save them as JPG or PNG and add them again.')
-  )
+  return names.length === 1
+    ? names[0] + ' isn’t a JPG or PNG.'
+    : names.join(', ') + ' aren’t JPG or PNG.'
 }
 
 // Why the microphone could not start (CP-03 AC8), then what to do instead.

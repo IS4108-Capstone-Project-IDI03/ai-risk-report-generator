@@ -1,0 +1,67 @@
+{
+  "r1-fire-command-centre": [
+    "Tower A",
+    "fire command centre",
+    "fire alarm panel",
+    "isolations"
+  ],
+  "r2-cooling-tower-deck": [
+    "Tower A",
+    "cooling tower",
+    "firewater",
+    "three metres",
+    "fire watch"
+  ],
+  "r3-bin-centre-and-guard-house": [
+    "refuse bin centre",
+    "guard house",
+    "main gate",
+    "private hydrant"
+  ],
+  "s1-basement-pump-room": [
+    "Basement 2",
+    "Block H",
+    "jockey pump",
+    "sprinkler main",
+    "diesel fire pump"
+  ],
+  "s2-level3-plant-room": [
+    "Level 3",
+    "Tower B",
+    "FM-200",
+    "MCCB",
+    "hose reel"
+  ],
+  "s3-fire-damper": [
+    "Level 5",
+    "fire damper",
+    "2.4 metres",
+    "fire stopping"
+  ],
+  "s4-standards": [
+    "NFPA 13",
+    "SS 546",
+    "3.6 metres",
+    "Block C",
+    "Level 2"
+  ],
+  "s5-cooling-tower": [
+    "Block D",
+    "cooling tower",
+    "deluge",
+    "bund"
+  ],
+  "s6-warehouse": [
+    "Tuas",
+    "Unit 12",
+    "6 metres",
+    "0.5 metres",
+    "sprinkler heads"
+  ],
+  "s7-server-room": [
+    "Level 4",
+    "Tower A",
+    "Block B",
+    "uninterruptible power supply"
+  ]
+}

@@ -75,18 +75,13 @@
     }
   }
 }
-/* The chat's look (apple-design): its own font and a pill shape. The font stack
-   must match --chat-font in features/chat/chat.css, which is scoped to the chat
-   screen and so is not visible here. */
+/* The chat's look (apple-design): a pill shape in the app's system font. */
 .workflow-toast.chat-toast {
-  --chat-font:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto,
-    'Helvetica Neue', sans-serif;
-  font-family: var(--chat-font);
+  font-family: var(--font-sans);
 }
 .workflow-toast.chat-toast > div {
   --radius-md: 999px;
-  font-family: var(--chat-font);
+  font-family: var(--font-sans);
   padding-inline: var(--space-5) var(--space-3);
 }
 .user-footer {
@@ -265,9 +260,8 @@
   min-width: 0;
 }
 .capture-location-menu {
-  right: 0 !important;
-  min-width: 0 !important;
-  max-width: none !important;
+  min-width: min(100%, 360px) !important;
+  max-width: min(100%, 420px) !important;
   max-height: min(70vh, 520px);
   overflow: auto !important;
 }
@@ -387,4 +381,61 @@
   margin-top: 4px;
   color: var(--status-critical-fg);
   font-size: 14px;
+}
+
+/* ---- The assessment's tab bar (CP-22 round 1): the tabs are the emphasis ----
+   Overrides the design system's Tabs, whose spacing and weights are inline, for
+   this bar only; other screens keep the standard tabs. */
+.ws-tabs {
+  display: block !important;
+  margin: 0 calc(-1 * clamp(16px, 2vw, 28px));
+  padding: 0 clamp(16px, 2vw, 28px);
+}
+.ws-tabs .ds-tabs {
+  width: 100%;
+  gap: 0 !important;
+  /* Equal gaps between the tabs, whatever each label's length (Jesper, 31 Oct). */
+  justify-content: space-evenly;
+  border-bottom: 0 !important;
+}
+.ws-tabs [role='tab'] {
+  flex: 0 0 auto;
+  justify-content: center;
+  gap: 8px !important;
+  min-height: 48px;
+  padding: 0 14px !important;
+  margin-bottom: 0 !important;
+  border-bottom-width: 3px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  color: var(--text-secondary) !important;
+}
+.ws-tabs [role='tab'][aria-selected='true'] {
+  border-bottom-color: var(--marsh-navy) !important;
+  color: var(--marsh-navy) !important;
+  font-weight: 600 !important;
+}
+/* The observation count: normal text size in a quiet pill beside the label. */
+.ws-tabs [role='tab'] > span:last-child:not(.ds-tab-label) {
+  min-width: 24px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.ws-tabs [role='tab'][aria-selected='true'] > span:last-child:not(.ds-tab-label) {
+  background: var(--ink-100);
+  color: var(--marsh-navy) !important;
+}
+/* A phone: icons and counts only, scrolling sideways if they do not fit. */
+@media (max-width: 760px) {
+  .ws-tabs [role='tab'] {
+    flex: 1 0 auto;
+    min-width: 56px;
+    padding: 0 12px !important;
+  }
 }

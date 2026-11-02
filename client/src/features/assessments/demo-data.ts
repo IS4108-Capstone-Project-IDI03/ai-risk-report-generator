@@ -105,6 +105,7 @@ export const initialState: WorkflowState = {
   tab: 'overview',
   toast: null,
   toastTone: 'success',
+  toastView: null,
   q: '',
   fStatus: 'All statuses',
   fDate: null,
@@ -175,7 +176,8 @@ export const initialState: WorkflowState = {
     {
       icon: 'camera',
       color: '#4f9aee',
-      cats: ['Protection'],
+      // Filed under two categories, to show how several look in the list and on its page.
+      cats: ['Occupancy', 'Protection'],
       time: '11 Apr 2026 09:22',
       text: 'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.',
       locationName: 'Bay 3 — north aisle',
@@ -339,11 +341,8 @@ export const initialState: WorkflowState = {
   obsLocForm: false,
   obsReturn: null,
   obsDialog: null,
-  tagEdit: null,
-  tagBusy: false,
   archiveOpen: false,
   archiveBusy: false,
-  tagError: null,
   reviewHistory: 0,
 }
 
@@ -436,14 +435,6 @@ export const DEMO_LOCATIONS: SiteLocation[] = [
   { id: 'demo-yard', building: null, floor: null, name: 'External yard' },
   { id: 'demo-access-route', building: null, floor: null, name: 'Fire access route' },
 ]
-// Standards an observation can be tied to. The draft finds the clause itself.
-export const STANDARD_REFERENCES = [
-  'NFPA 25 – 2026 Edition',
-  'NFPA 13 – 2022 Edition',
-  'FM 2.0 – Last published April 2026',
-  'FM 2.81 – Last published April 2026',
-]
-
 export const SEV: Record<string, { icon: string; color: string }> = {
   critical: {
     icon: 'octagon-alert',

@@ -164,6 +164,9 @@ export async function createNotification(input: NewNotification): Promise<Notifi
 // one (so those notifications are never deduped). Matched on the stored Map
 // fields with dotted paths.
 function dedupeKey(input: NewNotification): Record<string, unknown> | null {
+  // A site walk becomes ready once (CP-22), so its walk alone is the key.
+  if (input.purpose === 'site_walk_ready' && input.context?.walkId)
+    return { purpose: input.purpose, 'context.walkId': input.context.walkId }
   const documentId = input.context?.documentId
   const status = input.context?.status
   if (!documentId || !status) return null

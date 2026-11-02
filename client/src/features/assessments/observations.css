@@ -1,0 +1,1263 @@
+/* The Observations tab and the observation page (CP-22). Apple style as in
+   chat/chat.css and site-walk/site-walk.css: the system font, Marsh navy, quiet
+   colour, pill buttons, 44px taps. Used by screens/Observations.tsx,
+   screens/ObservationPage.tsx and their components. */
+
+.ob {
+  --ob-font: var(--font-sans);
+  --ob-hover: rgb(0 15 71 / 0.04); /* --marsh-navy at 4% */
+  --ob-fill: rgb(0 15 71 / 0.06); /* quiet grouped fill, like iOS's secondary background */
+  --ob-selected: rgb(0 15 71 / 0.08);
+  --ob-line: rgb(0 15 71 / 0.1);
+  --ob-shadow-sm: 0 1px 2px rgb(0 15 71 / 0.06), 0 1px 1px rgb(0 15 71 / 0.04);
+  --ob-shadow-md: 0 12px 40px rgb(0 15 71 / 0.16), 0 0 0 1px var(--ob-line);
+  --ob-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Each COPE category's colour; Protection avoids the severity reds. */
+  --ob-construction: var(--chart-orange-dark);
+  --ob-occupancy: var(--ink-600);
+  --ob-protection: var(--chart-magenta-dark);
+  --ob-exposure: var(--chart-aqua-dark);
+
+  padding: 16px clamp(16px, 2vw, 28px) 32px;
+  color: var(--text-primary);
+  font: 400 15px/1.45 var(--ob-font);
+  -webkit-font-smoothing: antialiased;
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.ob :is(button, input, textarea) {
+  font-family: var(--ob-font);
+}
+.ob ::selection {
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+}
+.ob :focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.ob-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Buttons ---- */
+.ob-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--marsh-navy);
+  font: 600 14px/1 var(--ob-font);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ob-ease),
+    transform 100ms var(--ob-ease);
+}
+.ob-button:hover:not(:disabled) {
+  background: var(--ob-hover);
+}
+/* Feedback on the press itself, not the release (apple-design §1). */
+.ob-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.ob-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.ob-button--primary,
+.ob-button--primary:hover:not(:disabled) {
+  background: var(--surface-nav);
+  color: var(--text-inverse);
+  box-shadow: var(--ob-shadow-sm);
+}
+.ob-button--tinted {
+  background: var(--ob-fill);
+}
+.ob-button--tinted:hover:not(:disabled) {
+  background: rgb(0 15 71 / 0.09);
+}
+.ob-button--danger {
+  color: var(--red-600);
+}
+.ob-button--small {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+.ob-icon-button {
+  flex: none; /* without this a crowded row squeezed the bin below 44px on a phone */
+  width: 40px;
+  padding: 0;
+}
+.ob-icon-button.ob-button--small {
+  width: 32px;
+}
+/* Fingers need 44px; a mouse is happy with less. */
+@media (pointer: coarse), (max-width: 559px) {
+  .ob-button,
+  .ob-button--small {
+    min-height: 44px;
+  }
+  .ob-icon-button,
+  .ob-icon-button.ob-button--small {
+    width: 44px;
+  }
+}
+
+/* ---- Site walks and the two ways to capture, at the right of the list toolbar ---- */
+.ob-head-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ---- Layout: navigator beside the list, from 900px ---- */
+.ob-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .ob-layout {
+    grid-template-columns: 248px minmax(0, 1fr);
+  }
+}
+.ob-card {
+  min-width: 0;
+  /* The toolbar shortens its labels by the card's own width (below). */
+  container-type: inline-size;
+  background: var(--surface-card);
+  border-radius: 14px;
+  box-shadow:
+    var(--ob-shadow-sm),
+    0 0 0 1px var(--ob-line);
+}
+/* A strip with its own background at the card's top or bottom (a toolbar, the
+   walk tabs, a hovered last row's list) follows the card's rounded corners;
+   without this its square corner paints over the curve (round 6). */
+.ob-card > :first-child {
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+.ob-card > :last-child {
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+}
+
+/* ---- Fitted panes: sidebar and table card end at the screen's bottom ---- */
+/* From 900px the layout is as tall as the room below it (--ob-room, set by
+   useFitPane.ts), so the title above and the sidebar never move and the page
+   does not scroll. The table card scrolls inside itself, its toolbar with it,
+   as the page did before (Jesper, round 3: only the title stays put); its
+   column heads stick to the card's top. Never under 360px, so a tall alert
+   above cannot squeeze it to nothing. dvh is the fallback. */
+@media (min-width: 900px) {
+  .ob-layout[data-fit] {
+    height: max(calc(var(--ob-room, 100dvh) - 16px), 360px);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .ob-layout[data-fit] > .ob-card {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* The sidebar scrolls its tree only, so its foot stays pinned. */
+  .ob-layout[data-fit] > .ob-nav {
+    overflow: hidden;
+  }
+}
+
+/* ---- Location navigator ---- */
+/* The tree scrolls inside it and the foot rows stay pinned at its bottom. */
+.ob-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+/* The list scrolls; the foot below it stays in view. */
+.ob-nav-tree {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.ob-nav-tree ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Each level indents 16px; inside the row so the highlight spans the panel. */
+.ob-nav-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: calc(var(--depth, 0) * 16px);
+  border-radius: 9px;
+}
+.ob-nav-row:hover {
+  background: var(--ob-hover);
+}
+.ob-nav-row[data-selected] {
+  background: var(--ob-selected);
+}
+.ob-nav-fold {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ob-nav-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 8px 0 4px;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.ob-nav-pick > span:not([class]) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ob-nav-row[data-selected] .ob-nav-pick {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
+/* A row with nothing to fold keeps the fold's 24px, so labels at one depth line up. */
+.ob-nav-pick:first-child {
+  padding-left: 28px;
+}
+/* A location's own actions float over the row's right end, so names keep their
+   width: shown on hover or keyboard focus with a mouse, and on the tapped row on
+   touch. Keyboard focus only (:focus-visible): a click also focuses the row, and
+   with :focus-within the actions stayed on the picked row (Jesper, round 3). */
+.ob-nav-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 0 18px;
+  border-radius: 0 9px 9px 0;
+  background: linear-gradient(90deg, transparent, var(--surface-card) 18px);
+  /* Clicks between the icons reach the row; without this they did nothing. */
+  pointer-events: none;
+}
+.ob-nav-row:has(:focus-visible) .ob-nav-actions {
+  display: flex;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ob-nav-row:hover .ob-nav-actions {
+    display: flex;
+  }
+}
+@media (hover: none), (pointer: coarse) {
+  .ob-nav-row[data-selected] .ob-nav-actions {
+    display: flex;
+  }
+}
+.ob-nav-action {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.ob-nav-action:hover {
+  background: var(--surface-card);
+}
+@media (pointer: coarse), (max-width: 559px) {
+  .ob-nav-fold,
+  .ob-nav-pick {
+    min-height: 44px;
+    height: 44px;
+  }
+  .ob-nav-fold {
+    flex-basis: 44px;
+  }
+  /* Keeps the labels of rows with nothing to fold lined up with the wider fold. */
+  .ob-nav-pick:first-child {
+    padding-left: 48px;
+  }
+  .ob-nav-action {
+    width: 44px;
+    height: 44px;
+  }
+}
+/* Clear tinted buttons with an icon: add a location, photos, pages, deleted. */
+.ob-nav-foot {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ob-line);
+  background: var(--surface-card);
+}
+.ob-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--ob-fill);
+  color: var(--marsh-navy);
+  font: 600 14px/1.2 var(--ob-font);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ob-ease),
+    transform 100ms var(--ob-ease);
+}
+.ob-foot-row:active {
+  transform: scale(0.98);
+}
+.ob-foot-row[data-primary] {
+  /* The app's ink blue, light: Add location is the one action, not a dark slab. */
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ob-foot-row:hover {
+    background: var(--ob-selected);
+  }
+  .ob-foot-row[data-primary]:hover {
+    background: var(--ink-200);
+  }
+}
+@media (pointer: coarse), (max-width: 559px) {
+  .ob-foot-row {
+    min-height: 44px;
+  }
+}
+
+/* ---- Site walks screen: one row per walk, with what it holds and where it stands ---- */
+.ob-walks ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ob-walks-waiting {
+  margin: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--ob-line);
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-wrap: pretty;
+}
+/* A count in a quiet pill, as on the workspace tabs (workflow.css .ws-tabs):
+   graphite, or navy on ink where it marks the one to act on. */
+.ob-pill {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--text-secondary);
+  font: 600 13px/1 var(--ob-font);
+  font-variant-numeric: tabular-nums;
+}
+.ob-pill[data-tone='navy'] {
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+}
+/* In the phone sheet the whole sheet scrolls, so the foot sticks to its bottom. */
+.ds-dialog-sheet .ob-nav-foot {
+  position: sticky;
+  bottom: 0;
+}
+/* On a phone the navigator is a button that opens it in a sheet. */
+.ob-nav-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ob-fill);
+  color: var(--text-primary);
+  font: 600 15px/1.2 var(--ob-font);
+  text-align: left;
+  cursor: pointer;
+}
+.ob-nav-button > span:nth-child(2) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Filters: our own menus, each showing what it is set to ---- */
+.ob-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ob-line);
+}
+.ob-filter-set {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+/* A card too narrow for the full labels (a 1280 laptop, a phone): "Record",
+   "Add" and Walks as its icon and count, so filters and buttons keep one row.
+   The buttons' aria-labels still say them in full. */
+@container (max-width: 1040px) {
+  .ob-head-actions .ob-more {
+    display: none;
+  }
+}
+/* Wider than a phone: one toolbar row. When room runs short the filters wrap
+   among themselves; the buttons never drop to a row of their own. */
+@media (min-width: 560px) {
+  .ob-filters {
+    flex-wrap: nowrap;
+  }
+  .ob-filter-set {
+    flex: 1 1 auto;
+  }
+}
+.ob-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--ob-fill);
+}
+.ob-chip[data-set] {
+  background: var(--ink-100);
+}
+.ob-chip-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  /* The buttons' height, so the toolbar row lines up. */
+  min-height: 40px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-primary);
+  font: 500 13px/1 var(--ob-font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ob-chip[data-set] .ob-chip-main {
+  color: var(--marsh-navy);
+  font-weight: 600;
+  padding-right: 4px;
+}
+.ob-chip-clear {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--marsh-navy);
+  cursor: pointer;
+}
+.ob-chip-clear:hover {
+  background: rgb(0 15 71 / 0.08);
+}
+@media (pointer: coarse), (max-width: 559px) {
+  .ob-chip-main {
+    min-height: 44px;
+  }
+  .ob-chip-clear {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* A phone: the buttons lead, Site walk proposals on its own full-width row
+   (it keeps its label), Record and Add sharing the next; then the four filters
+   in two even rows, not three and a stray. */
+@media (max-width: 559px) {
+  .ob-head-actions {
+    order: -1;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+  .ob-head-actions > * {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 8px;
+  }
+  .ob-head-actions > .ob-walks-button {
+    flex-basis: 100%;
+  }
+  .ob-filter-set {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  .ob-filter-set > .ob-button {
+    grid-column: 1 / -1;
+  }
+  /* The menu's wrappers stretch too, so the whole pill is the button. */
+  .ob-chip > :first-child,
+  .ob-chip > :first-child > :first-child {
+    display: flex;
+    flex: 1 1 auto;
+  }
+  .ob-chip-main {
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+}
+
+/* ---- Menus (never a native select) ---- */
+.ob-menu-surface {
+  min-width: 220px;
+  max-width: min(calc(100vw - 32px), 360px);
+}
+.ob-menu {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+.ob-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+.ob-menu-item:hover,
+.ob-menu-item:focus-visible {
+  background: var(--surface-hover);
+}
+.ob-menu-item > span:nth-child(2) {
+  flex: 1 1 auto;
+}
+.ob-menu-item[aria-checked='true'] {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
+.ob-menu-heading {
+  padding: 10px 10px 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ob-menu-hint {
+  margin: 4px 10px 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-wrap: pretty;
+}
+@media (pointer: coarse), (max-width: 559px) {
+  .ob-menu-item {
+    min-height: 44px;
+  }
+}
+
+/* ---- The list ---- */
+.ob-colhead,
+.ob-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 150px 130px 80px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+}
+/* Sticky at the top of the scrolling tab, so the column names stay in view. */
+.ob-colhead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 36px;
+  border-bottom: 1px solid var(--ob-line);
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ob-colhead > :nth-child(n + 3),
+.ob-row > :nth-child(n + 3) {
+  justify-self: center;
+  text-align: center;
+}
+.ob-group-head {
+  margin: 0;
+  padding: 14px 14px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ob-row {
+  width: 100%;
+  min-height: 52px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border: 0;
+  border-top: 1px solid var(--ob-line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms var(--ob-ease);
+}
+.ob-row:hover {
+  background: var(--ob-hover);
+}
+.ob-row[data-new] {
+  background: var(--ink-50);
+}
+.ob-row-text {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-body);
+}
+.ob-row-cat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+/* In red, what a proposed observation still needs, on its own line above the
+   note (site-walk/components/ProposalRow.tsx). */
+.ob-needs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 2px;
+  color: var(--red-600);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+/* A status badge (components/ObservationBadge.tsx): a small tinted capsule with
+   its icon. Ink blue for "From site walk" (a real observation that came from a
+   walk); violet, the AI colour, for a proposal not yet in the assessment. */
+.ob-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  background: var(--ink-50);
+  box-shadow: inset 0 0 0 1px var(--ink-100);
+  color: var(--ink-600);
+  font: 650 12px/1 var(--ob-font);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.ob-badge[data-kind='proposal'] {
+  background: var(--ai-bg);
+  box-shadow: inset 0 0 0 1px var(--ai-border);
+  color: var(--ai-fg);
+}
+/* In a row it sits on its own line above the note. */
+.ob-row-text > .ob-badge {
+  display: flex;
+  margin-bottom: 4px;
+}
+/* An empty cell: a quiet dash where a value would sit. */
+.ob-none {
+  color: var(--text-muted);
+}
+/* Restore sits in the header's last 80px column, so Category and Severity line up with their heads. */
+.ob-deleted {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px;
+  align-items: center;
+  gap: 12px;
+  padding-right: 14px;
+  border-top: 1px solid var(--ob-line);
+}
+.ob-deleted > .ob-button {
+  justify-self: center;
+  white-space: nowrap;
+}
+.ob-deleted .ob-row {
+  min-width: 0;
+  border-top: 0;
+  padding-right: 0;
+  grid-template-columns: 40px minmax(0, 1fr) 150px 130px;
+}
+@media (max-width: 639px) {
+  .ob-deleted {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ob-deleted .ob-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+  }
+}
+/* A phone: icon, text, severity symbol. Category and status read from the icon. */
+@media (max-width: 639px) {
+  .ob-colhead {
+    display: none;
+  }
+  .ob-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    padding: 10px 12px;
+  }
+  .ob-row-cat,
+  .ob-row .ob-status {
+    display: none;
+  }
+  /* Rows only: the observation page's severity picker keeps its word. */
+  .ob-row .ob-sev-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+.ob-foot {
+  padding: 12px 14px;
+  border-top: 1px solid var(--ob-line);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.ob-empty {
+  padding: 40px 18px;
+}
+
+/* ---- Marks: category tile, severity symbol, status icon ---- */
+.ob-cat {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  overflow: hidden;
+}
+/* The tile's parts: halves side by side, thirds as three strips, quadrants as
+   2 × 2, with a white hairline between them (ObservationMarks.tsx). */
+.ob-cat[data-count] {
+  place-items: stretch;
+  gap: 1px;
+  background: white;
+}
+.ob-cat[data-count='2'] {
+  grid-template-columns: 1fr 1fr;
+}
+.ob-cat[data-count='3'] {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.ob-cat[data-count='4'] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.ob-cat-part {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ob-tint) 12%, white);
+  color: var(--ob-tint);
+}
+.ob-cat[data-none] {
+  background: none;
+  outline: 1.5px dashed var(--graphite-300);
+  outline-offset: -1.5px;
+}
+.ob-sev {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ob-status {
+  display: grid;
+  place-items: center;
+}
+.ob-spin {
+  animation: ob-spin 1.2s linear infinite;
+}
+@keyframes ob-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob,
+  .ob-spin {
+    animation: none;
+  }
+  .ob-button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ---- Observation page ---- */
+.ob-saved {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+/* On a phone the bar is scrolled out of sight while editing lower down, so the
+   save outcome floats at the bottom instead. The inner span is re-created on each
+   state (key in ObservationPage.tsx), which restarts the fade of "Saved". */
+@media (max-width: 559px) {
+  .ob-saved {
+    position: fixed;
+    left: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 20;
+    pointer-events: none;
+  }
+  .ob-saved > span {
+    display: block;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--marsh-navy);
+    color: #fff;
+    font-weight: 500;
+    animation: ob-saved-fade 2.4s forwards;
+  }
+}
+@keyframes ob-saved-fade {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.ob-section {
+  padding: 16px;
+}
+.ob-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ob-section-head > span:first-child {
+  flex: 1 1 auto;
+}
+.ob-required {
+  color: var(--red-600);
+  margin-left: 2px;
+}
+.ob-note {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 112px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--ob-fill);
+  color: var(--text-body);
+  font: 400 15px/1.55 var(--ob-font);
+  resize: vertical;
+  field-sizing: content;
+  transition:
+    background-color 160ms var(--ob-ease),
+    border-color 160ms var(--ob-ease);
+}
+.ob-note:hover {
+  background: rgb(0 15 71 / 0.075);
+}
+.ob-note:focus {
+  /* The same 2px ring as every other control. */
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-color: var(--border-focus);
+  background: var(--surface-card);
+}
+.ob-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.ob-line--problem {
+  color: var(--red-600);
+}
+.ob-line--problem > span {
+  flex: 1 1 180px;
+}
+.ob-stamp {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ob-item + .ob-item {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ob-line);
+}
+.ob-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ob-item-head > span:nth-child(2) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ob-transcript {
+  margin: 4px 0 0;
+  max-width: 68ch;
+  color: var(--text-body);
+  font-size: 15px;
+  line-height: 1.55;
+  text-wrap: pretty;
+  white-space: pre-wrap;
+}
+.ob-audio {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: 8px;
+}
+.ob-tag-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ob-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ob-fill);
+  color: var(--text-primary);
+  font: 500 14px/1.3 var(--ob-font);
+  text-align: left;
+  cursor: pointer;
+}
+.ob-picker:hover:not(:disabled) {
+  background: rgb(0 15 71 / 0.09);
+}
+.ob-picker:disabled {
+  cursor: default;
+}
+.ob-picker > span:nth-child(2) {
+  min-width: 0;
+  text-wrap: pretty;
+}
+.ob-proposal {
+  padding: 16px;
+}
+.ob-proposal-text {
+  margin: 6px 0 0;
+  max-width: 68ch;
+  color: var(--text-body);
+  font-size: 15px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.ob-suggest {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+
+@media (pointer: coarse), (max-width: 559px) {
+  .ob-button {
+    min-height: 44px;
+  }
+}
+
+/* ---- Round 3: list header, selected place, counts, photo tables ---- */
+.ob-title {
+  margin: 0;
+  padding-bottom: 12px;
+  color: var(--marsh-navy);
+  font: 700 24px/1.2 var(--ob-font);
+  letter-spacing: -0.02em;
+}
+/* "All locations", the default, stands out from the buildings under it. */
+.ob-nav-all .ob-nav-pick {
+  font-weight: 700;
+  color: var(--marsh-navy);
+}
+.ob-nav-all {
+  margin-bottom: 4px;
+  background: var(--ob-fill);
+}
+.ob-nav-all[data-selected] {
+  background: var(--graphite-100);
+}
+/* The place picked, above the table. */
+.ob-where {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ob-line);
+  background: var(--ob-hover);
+  color: var(--marsh-navy);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+/* A count in a toolbar, next to the table it counts. */
+.ob-count {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.ob-filters:has(> .ob-count:only-child) {
+  min-height: 48px;
+}
+/* The Site walks button keeps its label ahead of the count. */
+.ob-walks-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* All Photos and All Handwritten Pages: thumbnail, observation, location, category. */
+.ob-pt-grid {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 170px) 16px;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+}
+.ob-pt-head {
+  height: 36px;
+  border-bottom: 1px solid var(--ob-line);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ob-pt-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ob-pt-row {
+  min-height: 80px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.ob-pt-row + .ob-pt-row {
+  border-top: 1px solid var(--ob-line);
+}
+.ob-pt-thumb {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 56px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ob-fill);
+  cursor: zoom-in;
+}
+.ob-pt-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ob-pt-text {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--marsh-navy);
+  font: 600 14px/1.4 var(--ob-font);
+  text-align: left;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  cursor: pointer;
+}
+/* The whole row opens its observation (round 6): the text's button stretches
+   over the row; the thumbnail sits above it and zooms the photo instead. */
+.ob-pt-row {
+  position: relative;
+  transition: background-color 140ms var(--ob-ease);
+}
+.ob-pt-text::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.ob-pt-text:focus-visible {
+  outline: none;
+}
+.ob-pt-row:has(.ob-pt-text:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ob-pt-row:has(.ob-pt-text:hover) {
+    background: var(--ob-hover);
+  }
+  .ob-pt-row:has(.ob-pt-text:hover) .ob-pt-go {
+    color: var(--marsh-navy);
+    transform: translateX(2px);
+  }
+}
+.ob-pt-row:has(.ob-pt-text:active) {
+  background: var(--ob-fill);
+}
+/* Only a real picture zooms; a placeholder lets the row's link through. */
+button.ob-pt-thumb {
+  position: relative;
+  z-index: 1;
+}
+span.ob-pt-thumb {
+  cursor: inherit;
+}
+/* A small magnifier on the thumbnail: it zooms, unlike the rest of the row. */
+
+.ob-pt-go {
+  display: flex;
+  color: var(--text-muted);
+  transition:
+    color 140ms var(--ob-ease),
+    transform 160ms var(--ob-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-pt-row,
+  .ob-pt-go {
+    transition: none;
+  }
+}
+.ob-pt-where {
+  min-width: 0;
+  font-size: 14px;
+}
+.ob-pt-cat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.ob-pt-cat > span:last-child {
+  min-width: 0;
+}
+.ob-pt-cat .ob-cat {
+  flex: none;
+}
+/* A phone: each row stacks beside its thumbnail, no sideways scroll. */
+@media (max-width: 639px) {
+  .ob-pt-head {
+    display: none;
+  }
+  .ob-pt-grid {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 4px 12px;
+    padding: 0 12px;
+  }
+  .ob-pt-row {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .ob-pt-thumb {
+    grid-row: 1 / span 3;
+    width: 72px;
+    height: 72px;
+    align-self: start;
+  }
+  .ob-pt-text {
+    min-height: 44px;
+    align-content: center;
+  }
+  .ob-pt-go {
+    display: none;
+  }
+}

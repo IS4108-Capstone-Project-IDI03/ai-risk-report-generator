@@ -105,6 +105,9 @@ export type SavedRecording = {
   }
   // Who added it after the observation was saved (CP-08).
   added: Stamp | null
+  // Set when it is the part of a site walk's recording this observation came
+  // from (CP-22): seconds into that recording.
+  clip?: { start: number; end: number } | null
 }
 // A site photograph saved with an observation (CP-04); url opens the original.
 export type SavedPhoto = {
@@ -230,6 +233,8 @@ export type SavedObservation = {
   // The checklist item it answers (CP-31), with the item's text then. Older
   // stand-ins for a saved observation have none.
   checklistItem?: { itemId: string; result: 'confirmed' | 'differs'; text: string } | null
+  // Created from a site walk proposal (CP-22 round 3); older stand-ins have none.
+  fromSiteWalk?: boolean
   recordedAt: string
   // The latest change to its tags, note, a transcript, or its recordings and
   // photos (CP-08).

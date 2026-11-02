@@ -8,10 +8,8 @@
 
 /* Screen-wide values. Each is a design-system token or a tint of one. */
 .knowledge-assistant {
-  /* San Francisco on Apple devices, Segoe UI on Windows. */
-  --chat-font:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto,
-    'Helvetica Neue', sans-serif;
+  /* The app's system font stack (design-system/tokens/fonts.css). */
+  --chat-font: var(--font-sans);
   --chat-sidebar: #f2f6fc; /* between --ink-50 and white */
   --chat-hover: rgb(0 15 71 / 0.04); /* --marsh-navy at 4% */
   --chat-selected: rgb(0 15 71 / 0.07); /* --marsh-navy at 7% */
@@ -136,7 +134,7 @@
   padding: 0 6px;
   color: var(--text-primary);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
 }
 /* OpenUI pads chat rows 10px in the phone drawer. */
 .knowledge-assistant .openui-agent-container--mobile .chat-sidebar-heading {
@@ -339,7 +337,7 @@
 .chat-statement strong,
 .chat-table strong {
   color: var(--marsh-navy);
-  font-weight: 650;
+  font-weight: 600;
 }
 /* A declined answer (CB-07): the reply's two sentences, then one clear next step. */
 .chat-decline {
@@ -364,7 +362,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--marsh-navy);
-  font: 590 14.5px/1 var(--chat-font);
+  font: 600 14.5px/1 var(--chat-font);
   letter-spacing: -0.01em;
   cursor: pointer;
   transition:
@@ -435,7 +433,7 @@
 .chat-dialog h2 {
   font-size: 19px;
   line-height: 1.3;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.018em;
   color: var(--marsh-navy);
 }
@@ -910,7 +908,7 @@
   margin: 0;
   color: var(--text-primary);
   font-size: 17px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
@@ -930,7 +928,7 @@
   font-size: var(--text-caption-size);
 }
 .chat-check strong {
-  font-weight: 650;
+  font-weight: 600;
 }
 /* The quoted words wear a highlighter yellow, in the passage and on the PDF page. */
 .chat-source mark {

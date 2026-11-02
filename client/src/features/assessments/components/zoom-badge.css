@@ -1,0 +1,29 @@
+/* The magnifier on a zoomable picture (ZoomBadge.tsx): a frosted white chip in
+   the bottom right corner, lifted just off the image. */
+.zoom-badge {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: 0 1px 3px rgb(0 15 71 / 0.22);
+  color: var(--marsh-navy);
+  pointer-events: none;
+}
+.zoom-badge[data-small] {
+  right: 3px;
+  bottom: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+@supports (backdrop-filter: blur(4px)) {
+  .zoom-badge {
+    background: rgb(255 255 255 / 0.78);
+    backdrop-filter: blur(6px) saturate(160%);
+  }
+}

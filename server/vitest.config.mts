@@ -25,5 +25,7 @@ export default defineConfig({
     },
     // Downloads the in-memory MongoDB binary once, before test files run.
     globalSetup: ['src/test/global-setup.ts'],
+    // Keeps supertest's requests on the test server, not another local app.
+    setupFiles: ['src/test/supertest-loopback.ts'],
   },
 })

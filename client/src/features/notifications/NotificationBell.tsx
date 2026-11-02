@@ -6,6 +6,7 @@ import { NotificationList } from './NotificationList'
 import type { Notification } from './api'
 import { KNOWLEDGE_REVIEW_PATH, SCREEN_PATHS } from '../auth/access'
 import { openKnowledgeTab } from '../knowledge-base/openTab'
+import { openSiteWalkReview } from '../site-walk/openReview'
 
 export type NotificationBellProps = {
   // Counts from the session, so the badge is right before the dropdown opens.
@@ -109,6 +110,11 @@ export function NotificationBell({
 // tells the app and the knowledge base to follow it, as the browser's Back does.
 function openSubject(notification: Notification) {
   if (notification.purpose === 'knowledge_gap_request') return openKnowledgeRequest(notification)
+  // A site walk proposal is ready (CP-22): its assessment's Observations tab, on the review.
+  if (notification.purpose === 'site_walk_ready') {
+    const { reference, walkId } = notification.context ?? {}
+    return reference && walkId ? openSiteWalkReview(reference, walkId) : undefined
+  }
   const { documentId, status } = notification.context ?? {}
   if (status !== 'needs_review' || !documentId) return
   const path = KNOWLEDGE_REVIEW_PATH + encodeURIComponent(documentId)

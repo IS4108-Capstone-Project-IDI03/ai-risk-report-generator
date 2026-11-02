@@ -63,6 +63,8 @@ export type Observation = {
   id?: string
   // The checklist item it answers (CP-31), with the item's text then.
   checklist?: { text: string; result: 'confirmed' | 'differs' } | null
+  // Created from a site walk proposal (CP-22 round 3), marked "From site walk".
+  fromSiteWalk?: boolean
   // What is attached, e.g. "Note · 2 recordings".
   attached?: string
   // Shown while a recording is transcribing or after one failed.
@@ -161,6 +163,8 @@ export type WorkflowState = {
   tab: string
   toast: string | null
   toastTone: string
+  // The observation a toast's View opens, e.g. the one just saved in capture (CP-22).
+  toastView: string | null
   q: string
   fStatus: string
   // The dashboard box filtering the list by date, or null for none.
@@ -289,6 +293,8 @@ export type WorkflowState = {
   navCollapsed?: boolean
   // The expanded row on the Observations tab, by its key.
   obsOpen?: string | null
+  // Where an open observation came from when not the list: Back returns there.
+  obsFrom?: 'photos' | 'scans' | null
   // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).
@@ -314,20 +320,8 @@ export type WorkflowState = {
     recordingId?: string
     media?: { kind: MediaKind; id: string; name: string }
   } | null
-  // The observation in the Edit dialog, by row key, with the dialog's values:
-  // its tags (CP-06) and note (CP-08); and why the last save failed.
-  tagEdit: {
-    key: string
-    cats: string[]
-    sev: string
-    locationId: string
-    std: string
-    note: string
-  } | null
-  tagBusy: boolean
   archiveOpen: boolean
   archiveBusy: boolean
-  tagError: string | null
   // Counts each choice of Version history in the ⋯ menu (RV-06), which opens
   // it in the Review tab; 0 again once the engineer leaves that tab.
   reviewHistory: number

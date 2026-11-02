@@ -1,7 +1,7 @@
-import { Badge, Button, Callout, Icon, IconRegistry } from '../../../design-system'
+import { Icon, IconRegistry } from '../../../design-system'
 import type { TranscriptionStatus } from '../api'
-import { TRANSCRIPTION_BADGE } from '../transcription'
 import { PageTranscript } from './PageTranscript'
+import { ZoomBadge } from './ZoomBadge'
 
 // A handwritten page as the Observations tab and the Scans view show it.
 export type PageView = {
@@ -60,29 +60,30 @@ export function PageEntry({
           color="var(--text-secondary)"
         ></Icon>
         <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{p.name}</span>
-        <Badge tone="neutral">Scan</Badge>
-        {p.status && (
-          <Badge tone={TRANSCRIPTION_BADGE[p.status].tone}>
-            {TRANSCRIPTION_BADGE[p.status].label}
-          </Badge>
-        )}
       </div>
       {p.status === 'failed' ? (
-        <div role="status" style={{ marginTop: '8px' }}>
-          <Callout
-            tone="warning"
-            title="Transcription failed"
-            actions={
-              p.retry && (
-                <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={p.retry}>
-                  {'Retry transcription'}
-                </Button>
-              )
-            }
-          >
-            {p.error}
-          </Callout>
-        </div>
+        // One small line: what went wrong, and Retry (CP-22).
+        <p
+          role="status"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '4px 8px',
+            margin: '6px 0 0',
+            fontSize: '13px',
+            color: 'var(--red-600)',
+          }}
+        >
+          <Icon name="circle-alert" size={14} />
+          <span style={{ flex: '1 1 180px' }}>{p.error}</span>
+          {p.retry && (
+            <button type="button" className="ob-button ob-button--small" onClick={p.retry}>
+              <Icon name="refresh-cw" size={13} />
+              {'Retry'}
+            </button>
+          )}
+        </p>
       ) : p.note ? (
         <p style={{ margin: '6px 0 0', fontSize: '15px', color: 'var(--text-secondary)' }}>
           {p.note}
@@ -95,6 +96,7 @@ export function PageEntry({
         aria-label={'Open ' + p.name}
         onClick={onView}
         style={{
+          position: 'relative',
           display: 'block',
           width: '132px',
           marginTop: '8px',
@@ -112,17 +114,18 @@ export function PageEntry({
           loading="lazy"
           style={{ display: 'block', width: '100%', height: 'auto' }}
         />
+        <ZoomBadge />
       </button>
       {!!p.again && (
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft="refresh-cw"
+        <button
+          type="button"
+          className="ob-button ob-button--tinted ob-button--small"
           onClick={p.again}
           style={{ marginTop: '8px' }}
         >
+          <Icon name="refresh-cw" size={13} />
           {'Transcribe again'}
-        </Button>
+        </button>
       )}
     </section>
   )

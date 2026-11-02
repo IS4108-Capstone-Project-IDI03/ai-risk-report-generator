@@ -1,8 +1,8 @@
 // Maps the design system's colour tokens onto OpenUI's theme names, so the chat
 // screen keeps Marsh's colours (docs/design-system.md). Values are our CSS
 // variables, so a token change reaches the chat screen too.
-// Apple-style trial (Jesper, 15 Oct), chat screen only: the system font and rounder
-// corners replace the design system's Plex Sans and 8px cap here; see chat.css.
+// Apple-style trial (Jesper, 15 Oct): rounder corners replace the design system's
+// 8px cap here; see chat.css.
 import { createTheme } from '@openuidev/react-ui'
 
 /** OpenUI theme overrides: design-system colours, Apple-style type and corners. */

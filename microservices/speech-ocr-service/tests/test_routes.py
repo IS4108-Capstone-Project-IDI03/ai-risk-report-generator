@@ -36,19 +36,24 @@ class FakeOpenAI:
     file = None
     response_format = None
     language = None
+    prompt = None
+    segments = None  # None means the mock returns no segments
     duration = 4.2  # None means the mock returns no duration
 
     def __init__(self):
         self.audio = self
         self.transcriptions = self
 
-    def create(self, model, file, response_format, language=None):
+    def create(self, model, file, response_format, language=None, **extra):
         if FakeOpenAI.error:
             raise FakeOpenAI.error
         FakeOpenAI.file = file
         FakeOpenAI.response_format = response_format
         FakeOpenAI.language = language
+        FakeOpenAI.prompt = extra
         attrs = {"text": "Sprinkler valve chained open."}
+        if FakeOpenAI.segments is not None:
+            attrs["segments"] = FakeOpenAI.segments
         if FakeOpenAI.duration is not None:
             attrs["duration"] = FakeOpenAI.duration
         return type("Result", (), attrs)()
@@ -57,6 +62,7 @@ class FakeOpenAI:
 def use_fakes(monkeypatch, s3, duration=4.2):
     FakeOpenAI.error = None
     FakeOpenAI.duration = duration
+    FakeOpenAI.segments = None
     monkeypatch.setattr(stt.boto3, "client", lambda *args, **kwargs: s3)
     monkeypatch.setattr(stt, "OpenAI", FakeOpenAI)
 
@@ -117,3 +123,36 @@ def test_transcribe_reports_a_missing_recording(monkeypatch):
 
 def test_transcribe_requires_s3_key():
     assert client.post("/transcribe", json={}).status_code == 422
+
+
+def test_transcribe_returns_timed_segments(monkeypatch):
+    use_fakes(monkeypatch, FakeS3())
+    # Whisper's segments carry more fields (id, tokens...); only these three are passed on.
+    FakeOpenAI.segments = [
+        {"id": 0, "start": 0.0, "end": 4.2, "text": " Sprinkler valve"},
+        {"id": 1, "start": 4.2, "end": 6.0, "text": " chained open."},
+    ]
+
+    body = client.post("/transcribe", json={"s3_key": "audio/a.webm"}).json()
+
+    assert body["segments"] == [
+        {"start": 0.0, "end": 4.2, "text": "Sprinkler valve"},
+        {"start": 4.2, "end": 6.0, "text": "chained open."},
+    ]
+
+
+def test_transcribe_segments_are_empty_when_whisper_gives_none(monkeypatch):
+    use_fakes(monkeypatch, FakeS3())
+
+    body = client.post("/transcribe", json={"s3_key": "audio/a.webm"}).json()
+
+    assert body["segments"] == []
+
+
+def test_transcribe_never_sends_a_prompt_to_whisper(monkeypatch):
+    # Client text must not reach an external AI unmasked, and speech-to-text is not masked.
+    use_fakes(monkeypatch, FakeS3())
+
+    client.post("/transcribe", json={"s3_key": "audio/a.webm", "prompt": "Acme, AHU-3"})
+
+    assert FakeOpenAI.prompt == {}

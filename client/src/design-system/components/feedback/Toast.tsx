@@ -7,6 +7,8 @@ export type ToastProps = {
   message?: React.ReactNode
   action?: React.ReactNode
   onDismiss?: () => void
+  // How long good news stays up; an Undo needs longer than the default.
+  autoCloseMs?: number
   style?: React.CSSProperties
 }
 const ICONS: Record<string, string> = {
@@ -43,8 +45,15 @@ const TONES: Record<string, { bg: string; border: string; fill: string }> = {
 const AUTO_CLOSE_MS = 5000
 const EXIT_MS = 200 // the fade-out before the toast is removed
 const AUTO_CLOSE_TONES = ['success', 'info']
-function Toast({ tone = 'info', message, action, onDismiss, style = {} }: ToastProps) {
-  // Hover or keyboard focus pauses the countdown; leaving restarts the full 5s.
+function Toast({
+  tone = 'info',
+  message,
+  action,
+  onDismiss,
+  autoCloseMs = AUTO_CLOSE_MS,
+  style = {},
+}: ToastProps) {
+  // Hover or keyboard focus pauses the countdown; leaving restarts the full time.
   const [paused, setPaused] = useState(false)
   const autoClose = AUTO_CLOSE_TONES.includes(tone)
   // Held in a ref so a parent that re-renders (new onDismiss each time) does not restart the countdown.
@@ -61,9 +70,9 @@ function Toast({ tone = 'info', message, action, onDismiss, style = {} }: ToastP
   }, [leaving])
   useEffect(() => {
     if (!autoClose || paused) return
-    const timer = setTimeout(() => setLeaving(true), AUTO_CLOSE_MS)
+    const timer = setTimeout(() => setLeaving(true), autoCloseMs)
     return () => clearTimeout(timer)
-  }, [autoClose, paused, message])
+  }, [autoClose, paused, message, autoCloseMs])
   const t = TONES[tone] || TONES.info
   return (
     <div
@@ -139,7 +148,7 @@ function Toast({ tone = 'info', message, action, onDismiss, style = {} }: ToastP
           aria-hidden="true"
           style={{
             background: t.fill,
-            animation: paused ? 'none' : `toast-countdown ${AUTO_CLOSE_MS}ms linear forwards`,
+            animation: paused ? 'none' : `toast-countdown ${autoCloseMs}ms linear forwards`,
           }}
         />
       ) : null}

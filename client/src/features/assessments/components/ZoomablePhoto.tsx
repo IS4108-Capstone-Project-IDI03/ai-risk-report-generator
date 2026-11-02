@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
-import { IconButton } from '../../../design-system'
+import { Icon } from '../../../design-system'
+import '../capture.css'
 
 const MIN = 1
 const MAX = 8
@@ -53,9 +54,11 @@ export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
     if (!element) return
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
-      const [px, py] = fromCentre(event.clientX, event.clientY)
+      const r = element.getBoundingClientRect()
+      const px = event.clientX - r.left - r.width / 2
+      const py = event.clientY - r.top - r.height / 2
       const factor = Math.exp(-event.deltaY * 0.002)
-      setView((v) => zoomAt(v, v.scale * factor, px, py, rect()))
+      setView((v) => zoomAt(v, v.scale * factor, px, py, r))
     }
     element.addEventListener('wheel', onWheel, { passive: false })
     return () => element.removeEventListener('wheel', onWheel)
@@ -118,14 +121,16 @@ export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
           marginBottom: 'var(--space-4)',
         }}
       >
-        <IconButton
-          icon="zoom-out"
-          label="Zoom out"
-          size="sm"
-          variant="outline"
+        <button
+          type="button"
+          className="cap-btn cap-btn--secondary"
+          style={{ width: '44px', padding: 0 }}
+          aria-label="Zoom out"
           disabled={view.scale <= MIN}
           onClick={() => zoomBy(1 / STEP)}
-        />
+        >
+          <Icon name="zoom-out" size={18} />
+        </button>
         <span
           aria-live="polite"
           style={{
@@ -138,24 +143,29 @@ export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
         >
           {Math.round(view.scale * 100) + '%'}
         </span>
-        <IconButton
-          icon="zoom-in"
-          label="Zoom in"
-          size="sm"
-          variant="outline"
+        <button
+          type="button"
+          className="cap-btn cap-btn--secondary"
+          style={{ width: '44px', padding: 0 }}
+          aria-label="Zoom in"
           disabled={view.scale >= MAX}
           onClick={() => zoomBy(STEP)}
-        />
-        <IconButton
-          icon="scan"
-          label="Fit to window"
-          size="sm"
-          variant="outline"
+        >
+          <Icon name="zoom-in" size={18} />
+        </button>
+        <button
+          type="button"
+          className="cap-btn cap-btn--secondary"
+          style={{ width: '44px', padding: 0 }}
+          aria-label="Fit to window"
           disabled={view.scale === MIN}
           onClick={() => setView(FIT)}
-        />
-        <span style={{ marginLeft: 'auto', fontSize: '13px', color: 'var(--text-muted)' }}>
-          {view.scale > 1 ? 'Drag to move' : 'Scroll or double-click to zoom'}
+        >
+          <Icon name="scan" size={18} />
+        </button>
+        {/* Says how to zoom, plainly, until the photo is zoomed. */}
+        <span style={{ marginLeft: 'auto', fontSize: '14px', color: 'var(--text-secondary)' }}>
+          {view.scale > 1 ? 'Drag to move' : 'Pinch, scroll or double-click to zoom in'}
         </span>
       </div>
       <div
@@ -170,7 +180,7 @@ export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
         onKeyDown={onKeyDown}
         style={{
           position: 'relative',
-          height: 'min(70svh, 720px)',
+          height: 'min(78svh, 960px)',
           overflow: 'hidden',
           borderRadius: 'var(--radius-md)',
           background: 'var(--surface-sunken)',

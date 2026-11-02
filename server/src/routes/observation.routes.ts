@@ -28,6 +28,7 @@ import {
 } from '../services/observation.service'
 import { fieldErrors } from './field-errors'
 import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
+import { sendFile } from './byte-range'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
@@ -259,8 +260,7 @@ router.get(
   async (req, res) => {
     try {
       const audio = await getRecordingAudio(req.params.id, req.params.recordingId)
-      res.set({ 'Content-Type': audio.contentType, 'Content-Length': String(audio.size) })
-      audio.stream.pipe(res)
+      await sendFile(req, res, audio)
     } catch (error: unknown) {
       refuse(error, res)
     }
@@ -275,12 +275,7 @@ router.get(
   async (req, res) => {
     try {
       const photo = await getPhotoImage(req.params.id, req.params.photoId)
-      res.set({
-        'Content-Type': photo.contentType,
-        'Content-Length': String(photo.size),
-        'Cache-Control': 'private, max-age=31536000, immutable',
-      })
-      photo.stream.pipe(res)
+      await sendFile(req, res, photo, { 'Cache-Control': 'private, max-age=31536000, immutable' })
     } catch (error: unknown) {
       refuse(error, res)
     }

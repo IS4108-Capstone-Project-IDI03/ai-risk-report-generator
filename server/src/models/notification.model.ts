@@ -5,7 +5,7 @@ import { USER_ROLES, type UserRole } from './user.model'
 // audience and a known screen to open. Only `ingestion_status` has a producer
 // today; the rest are the agreed next purposes, each grounded in an event the
 // code already records:
-//   transcription_status        runTranscription / failInterruptedTranscriptions
+//   transcription_status        runTranscription / resumeInterruptedTranscriptions
 //   drafting_status             draftSection's guardrail and open questions
 //   knowledge_document_status   correct / withdraw / reinstate (KB-01)
 //   account_status              createUser, and updateUser changing role or active
@@ -21,6 +21,8 @@ export const NOTIFICATION_PURPOSES = [
   'account_status',
   'assessment_status',
   'knowledge_gap_request',
+  // A site walk proposal is ready to review (CP-22).
+  'site_walk_ready',
 ] as const
 export type NotificationPurpose = (typeof NOTIFICATION_PURPOSES)[number]
 

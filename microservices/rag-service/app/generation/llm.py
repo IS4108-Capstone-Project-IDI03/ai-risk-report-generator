@@ -28,13 +28,15 @@ def _anthropic_client():
     return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
 
 
-def _complete_anthropic(system: str, user: str, schema: type[T], effort: str) -> tuple[T, str]:
+def _complete_anthropic(
+    system: str, user: str, schema: type[T], effort: str, feature: str, model: str
+) -> tuple[T, str]:
     import anthropic
 
     started = time.perf_counter()
     try:
         response = _anthropic_client().beta.messages.parse(
-            model=config.LLM_MODEL,
+            model=model,
             max_tokens=16000,
             system=system,
             messages=[{"role": "user", "content": user}],
@@ -54,7 +56,7 @@ def _complete_anthropic(system: str, user: str, schema: type[T], effort: str) ->
     usage = response.usage
     # Recorded before the refusal check below: a refused or cut-off call is still billed.
     usage_log.record(
-        "draft-section",
+        feature,
         "anthropic",
         response.model,
         started,
@@ -78,19 +80,37 @@ def _complete_anthropic(system: str, user: str, schema: type[T], effort: str) ->
     return response.parsed_output, response.model
 
 
+def _complete_openai(
+    system: str, user: str, schema: type[T], effort: str, feature: str, model: str
+) -> tuple[T, str]:
+    # The chat parser: lets a model comparison run a drafting step on OpenAI.
+    return _parse_openai(system, user, schema, model, effort, feature), model
+
+
+# Filled in below once the OpenAI parser exists.
 _PROVIDERS = {"anthropic": _complete_anthropic}
 # ponytail: Gemini is not wired up. Add it to _PROVIDERS when someone needs it.
 
 
-def complete(system: str, user: str, schema: type[T], effort: str) -> tuple[T, str]:
-    """Return the model's answer parsed into `schema`, and the model that wrote it."""
+def complete(
+    system: str,
+    user: str,
+    schema: type[T],
+    effort: str,
+    feature: str = "draft-section",
+    model: str | None = None,
+) -> tuple[T, str]:
+    """Return the model's answer parsed into `schema`, and the model that wrote it.
+
+    `feature` names the call in the usage record (ai_calls), e.g. "site-walk". `model`
+    is a step's own model setting (e.g. SITE_WALK_MODEL); LLM_MODEL when not given."""
     try:
         provider = _PROVIDERS[config.LLM_PROVIDER]
     except KeyError:
         raise NotImplementedError(
             f"LLM_PROVIDER {config.LLM_PROVIDER!r} is not supported"
         ) from None
-    return provider(system, user, schema, effort)
+    return provider(system, user, schema, effort, feature, model or config.LLM_MODEL)
 
 
 # ---- Chat (streaming answer + JSON plan) ----------------------------------------------------
@@ -264,6 +284,7 @@ def _parse_openai(system, user, schema, model, effort, feature):
 
 _STREAMERS = {"anthropic": _stream_anthropic, "openai": _stream_openai}
 _PARSERS = {"anthropic": _parse_anthropic, "openai": _parse_openai}
+_PROVIDERS["openai"] = _complete_openai
 
 
 def _lookup(table: dict, provider: str):

@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { openProposalCapture } from '../site-walk/proposalCapture'
 import type { SavedObservation, SavedRecording } from './api'
 
 const REF = 'RPT-2026-0411'
@@ -153,15 +154,20 @@ async function openApp() {
 // Opens capture and picks the location, as the engineer does first.
 async function openCapture() {
   await openApp()
-  // Open the assessment from the work list; Add observation is its header's action.
+  // Open the assessment from the work list; Add manually is on its Observations tab.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  addManually()
   await screen.findByRole('img', { name: 'live' })
   fireEvent.click(
-    await screen.findByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+    await screen.findByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
   )
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
+// Capture starts from the Observations tab's Add manually button.
+function addManually() {
+  fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+  click('Add manually')
+}
 // The Note, Voice and Photo modes, named with what each holds ("Voice, 2 recordings").
 const mode = (name: 'Note' | 'Voice' | 'Photo') => click(new RegExp('^' + name))
 const write = (text: string) =>
@@ -177,7 +183,7 @@ const photoList = () => screen.getByRole('region', { name: 'Photos' })
 const grade = (severity: string) => fireEvent.click(screen.getByRole('radio', { name: severity }))
 const save = () => click('Save observation')
 // The back button over the form, to the assessment's Observations tab.
-const leave = () => click('Back to observations')
+const leave = () => click('Back to Observations')
 // A photo as the device hands it over, taken or chosen (CP-04 AC6).
 const photo = (name = 'IMG_0460.jpg', type = 'image/jpeg') => new File(['jpeg'], name, { type })
 const addPhotos = (...files: File[]) =>
@@ -240,7 +246,7 @@ describe('Capturing site photographs (CP-04)', () => {
     grade('Moderate')
     save()
 
-    expect(await screen.findByText('Observation saved to RPT-2026-0411.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
     expect(saves[0].photos.map((f) => f.name)).toEqual(['image.jpg', 'image.jpg'])
     expect(saves[0].details).not.toHaveProperty('note')
     expect(screen.queryByRole('region', { name: 'Photos' })).not.toBeInTheDocument()
@@ -253,9 +259,7 @@ describe('Capturing site photographs (CP-04)', () => {
 
     addPhotos(photo('IMG_0461.HEIC', 'image/heic'), photo())
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'IMG_0461.HEIC is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
-    )
+    expect(screen.getByRole('alert')).toHaveTextContent('IMG_0461.HEIC isn’t a JPG or PNG.')
     expect(within(photoList()).queryByText('IMG_0461.HEIC')).not.toBeInTheDocument()
     expect(within(photoList()).getByText('IMG_0460.jpg')).toBeInTheDocument()
     // The next good choice clears the reason.
@@ -289,30 +293,29 @@ describe('Reading an observation only when asked (CP-05, CP-21)', () => {
       return Promise.reject(new TypeError('Failed to fetch'))
     })
     await openApp()
-    // Open the assessment from the work list; Add observation is its header's action.
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    addManually()
     await screen.findByText('Showing sample data')
     // The sample site has several buildings; each opens to list its locations (CP-16).
     fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
     fireEvent.click(
-      screen.getByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+      screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
     )
     mode('Photo')
     addPhotos(photo('IMG_0470.jpg'))
     grade('Low')
     save()
-    expect(await screen.findByText(/kept in this demo only/)).toBeInTheDocument()
+    expect(await screen.findByText(/saved in this demo only/)).toBeInTheDocument()
 
-    leave()
-    fireEvent.click(screen.getByRole('button', { name: /1 photograph captured at Bay 3/ }))
-    const proposal = screen.getByRole('region', { name: 'Proposal from this observation' })
-    expect(within(proposal).getByText(/^Not read yet\./)).toBeInTheDocument()
-    click('Get AI proposal')
+    // The toast's View button opens the saved observation.
+    click('View')
+    // The card waits with Get AI proposal; nothing is read until it is pressed.
+    const card = screen.getByRole('region', { name: 'AI suggestions' })
+    expect(within(card).queryByText('Reading…')).not.toBeInTheDocument()
+    fireEvent.click(within(card).getByRole('button', { name: 'Get AI proposal' }))
 
-    const reading = screen.getByRole('region', { name: 'Proposal from this observation' })
-    expect(within(reading).getByText('Sample proposal')).toBeInTheDocument()
-    expect(within(reading).getByText('Reading this observation…')).toBeInTheDocument()
+    const reading = screen.getByRole('region', { name: 'AI suggestions' })
+    expect(within(reading).getAllByText('Reading…').length).toBeGreaterThan(0)
     expect(
       await screen.findByText(/it was observed that/, {}, { timeout: 4000 }),
     ).toBeInTheDocument()
@@ -342,7 +345,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     save()
 
     expect(
-      await screen.findByText('Observation saved to RPT-2026-0411. Transcribing 1 recording now.'),
+      await screen.findByText('Observation saved. Transcribing 1 recording now.'),
     ).toBeInTheDocument()
     expect(saves).toHaveLength(1)
     // The note exactly as typed, filed under the tags chosen. The standard is
@@ -380,7 +383,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     save()
 
-    expect(await screen.findByText('Observation saved to RPT-2026-0411.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
     expect(saves[0].details.note).toBe('Hose reel H3 blocked by pallets.')
     expect(saves[0].recordings).toEqual([])
     expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue('')
@@ -562,15 +565,13 @@ describe('Leaving capture', () => {
     leave()
 
     const dialog = screen.getByRole('dialog', { name: 'Leave without saving?' })
-    expect(dialog).toHaveTextContent(
-      'Not saved yet: a note and 1 photo. Leaving discards this observation.',
-    )
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }))
+    expect(dialog).toHaveTextContent('Not saved: a note and 1 photo.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stay' }))
     expect(screen.queryByRole('dialog', { name: 'Leave without saving?' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Note, written' })).toBeInTheDocument()
 
     leave()
-    fireEvent.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
 
     expect(capturing()).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
@@ -579,12 +580,12 @@ describe('Leaving capture', () => {
     )
     expect(saves).toHaveLength(0)
     // Capture opens again empty, in the location the engineer is still in.
-    click('Add observation')
+    addManually()
     await screen.findByRole('img', { name: 'live' })
     expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /^Location: Warehouse · Ground · Bay 3/ }),
+      screen.getByRole('button', { name: /^Location: Warehouse › Ground › Bay 3/ }),
     ).toBeInTheDocument()
   })
 
@@ -593,11 +594,11 @@ describe('Leaving capture', () => {
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
     await openApp()
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    addManually()
     await screen.findByText('Showing sample data')
     fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
     fireEvent.click(
-      screen.getByRole('button', { name: /^Warehouse · Ground · Bay 3 — north aisle/ }),
+      screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
     )
     for (const note of ['Exit sign E4 unlit.', 'Hose reel H2 blocked.']) {
       write(note)
@@ -610,12 +611,10 @@ describe('Leaving capture', () => {
     // Newest first, so it lands on the newest one saved.
     const newest = await screen.findByRole('button', { name: /Hose reel H2 blocked/ })
     await vi.waitFor(() => expect(newest).toHaveFocus())
+    // The row's hidden text starts "New. " for what was just saved; the samples were there before.
     for (const note of [/Exit sign E4 unlit/, /Hose reel H2 blocked/])
-      expect(
-        within(screen.getByRole('button', { name: note })).getByText('New'),
-      ).toBeInTheDocument()
-    // The samples were there before.
-    expect(screen.getAllByText('New')).toHaveLength(2)
+      expect(screen.getByRole('button', { name: note })).toHaveAccessibleName(/^New\./)
+    expect(screen.getAllByRole('button', { name: /^New\./ })).toHaveLength(2)
   })
 
   it('leaves for any workspace tab, which stays on show with Observations chosen', async () => {
@@ -628,7 +627,7 @@ describe('Leaving capture', () => {
     write('Exit sign E4 unlit.')
 
     fireEvent.click(screen.getByRole('tab', { name: /^Generation/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
 
     expect(capturing()).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Generation/ })).toHaveAttribute(
@@ -647,7 +646,7 @@ describe('Leaving capture', () => {
     // Left by the navigation rather than the back button.
     fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    addManually()
 
     expect(await screen.findByRole('button', { name: 'Voice, 1 recording' })).toBeInTheDocument()
     expect(within(recordingList()).getByText('Recording 1')).toBeInTheDocument()
@@ -660,15 +659,15 @@ describe('Leaving capture', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
     fireEvent.click(screen.getAllByRole('button', { name: /^Leeds Cold Store/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    addManually()
 
     expect(await screen.findByRole('textbox', { name: 'Note' })).toHaveValue('')
   })
 })
 
 describe('Capture layout', () => {
-  // The card holding the tags: the side panel, or the one card of a single column.
-  const tagsCard = () => screen.getByRole('region', { name: 'Observation detail' }).parentElement!
+  // The details panel: the location, tags and (on a wide screen) Save.
+  const tagsCard = () => screen.getByRole('region', { name: 'Details' }).parentElement!
   async function atWidth(width: number, test: () => Promise<void>) {
     const previous = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -685,19 +684,43 @@ describe('Capture layout', () => {
 
       const panel = tagsCard()
       expect(within(panel).getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
-      expect(within(panel).getByRole('group', { name: 'Severity' })).toBeInTheDocument()
+      expect(within(panel).getByRole('group', { name: /^Severity/ })).toBeInTheDocument()
       expect(within(panel).queryByRole('textbox', { name: 'Note' })).not.toBeInTheDocument()
-      // Leaving is the back button's, above the form, not a button beside Save.
+      // The media panel sits beside it, and the back button is above both.
+      expect(
+        within(screen.getByRole('region', { name: 'What you saw' })).getByRole('textbox', {
+          name: 'Note',
+        }),
+      ).toBeInTheDocument()
       expect(within(panel).queryByRole('button', { name: /Back|Done/ })).not.toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'New observation' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'New Observation' })).toBeInTheDocument()
     }))
+
+  it('only picks a location in capture: no edit or remove, and Add a location is last', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    addManually()
+    await screen.findByText('Showing sample data')
+    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
+
+    const locations = screen.getByRole('group', { name: 'Locations' })
+    expect(
+      within(locations).getAllByRole('button', { name: /^Warehouse › /i }).length,
+    ).toBeGreaterThan(0)
+    // The sidebar manages locations; the picker only chooses one.
+    expect(screen.queryByRole('button', { name: /^Edit / })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Remove / })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add a location' })).toBeInTheDocument()
+  })
 
   it('keeps one column under the workspace header on a narrower screen', async () => {
     await openCapture()
 
-    const card = tagsCard()
-    expect(within(card).getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
-    expect(within(card).getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
+    // Stacked: the media panel under the details, and Save pinned under both.
+    expect(within(tagsCard()).getByRole('group', { name: /^Severity/ })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Tilbury Distribution Centre',
     )
@@ -708,7 +731,7 @@ describe('Capture layout', () => {
     atWidth(390, async () => {
       await openApp()
       fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-      click('Add observation')
+      addManually()
 
       // The location picker is a bottom sheet here, which can be closed.
       const sheet = await screen.findByRole('dialog', { name: 'Where are you?' })
@@ -718,16 +741,17 @@ describe('Capture layout', () => {
       // Once the assessment's locations have loaded.
       fireEvent.click(
         await within(sheet).findByRole('button', {
-          name: /^Warehouse · Ground · Bay 3 — north aisle/,
+          name: /^Warehouse › Ground › Bay 3 — north aisle/,
         }),
       )
 
       // The top bar names the page, with ← in place of the menu; no workspace
       // header or tabs take the screen.
       expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New observation')
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New Observation')
       expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument()
-      leave()
+      // The top bar's ←, not the page's own back button, which a phone leaves out.
+      click('Back to observations')
       expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
         'aria-selected',
         'true',
@@ -775,7 +799,7 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
     leave()
     expect(
       await screen.findByRole('button', { name: /Shared wall with the neighbouring paint store/ }),
-    ).toHaveTextContent('Construction, Protection, Exposure')
+    ).toHaveTextContent(/Construction\s*Protection\s*Exposure/)
   })
 })
 
@@ -796,12 +820,12 @@ describe('Observations tab (CP-03)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Transcription failed/ }))
     expect(screen.getByText('Whisper timed out.')).toBeInTheDocument()
-    click('Retry transcription')
+    click('Retry')
 
     await vi.waitFor(() =>
       expect(retries).toEqual(['/api/observations/o1/recordings/r9/transcription/retry']),
     )
-    expect((await screen.findAllByText('Transcribing')).length).toBeGreaterThan(0)
+    expect(await screen.findByText('Transcribing the recording…')).toBeInTheDocument()
     expect(screen.queryByText(/Unexpected end of JSON/)).not.toBeInTheDocument()
   })
 
@@ -817,17 +841,12 @@ describe('Observations tab (CP-03)', () => {
     await openObservations()
 
     const row = await screen.findByRole('button', { name: /Racking is new\./ })
-    // Severity and location are what the engineer picked; newest first, the
-    // row names its location (CP-16).
+    // Severity is what the engineer picked; the location is the navigator's grouping now.
     expect(row).toHaveTextContent('High')
-    expect(row).toHaveTextContent('Warehouse · Ground · Bay 3 — north aisle')
     fireEvent.click(row)
 
     const clip = screen.getByRole('region', { name: 'Recording 1' })
     expect(within(clip).getByText('Racking sits under two heads.')).toBeInTheDocument()
-    expect(within(clip).getByText('Voice')).toBeInTheDocument()
-    expect(within(clip).getByText('Transcribed')).toBeInTheDocument()
-    expect(screen.getByText('Text')).toBeInTheDocument()
     expect(within(clip).getByLabelText('Play Recording 1')).toHaveAttribute(
       'src',
       '/api/observations/o1/recordings/r1/audio',
@@ -839,5 +858,107 @@ describe('Observations tab (CP-03)', () => {
     await openObservations()
 
     expect(await screen.findByText('Transcribing')).toBeInTheDocument()
+  })
+})
+
+// CP-22 round 3: a site walk proposal's Add observation reuses this screen;
+// Save adds to the proposal through the walk's routes, not to the assessment.
+describe('Adding to a site walk proposal', () => {
+  const WALKS = `/api/assessments/${REF}/site-walks`
+  const proposal = {
+    locations: [
+      {
+        ref: 'loc-1',
+        existingId: null,
+        kind: 'building',
+        building: 'Block A',
+        floor: 'Level 1',
+        name: 'Chiller room',
+      },
+    ],
+    observations: [],
+  }
+  const put: { url: string; body: unknown }[] = []
+  beforeEach(() => {
+    put.length = 0
+    const gateway = globalThis.fetch
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+      if (!url.startsWith(WALKS)) return gateway(url, init)
+      if (init.method === 'PUT') put.push({ url, body: init.body })
+      const walk = {
+        id: 'w1',
+        status: 'ready',
+        createdAt: '2026-11-02T08:00:00.000Z',
+        recordings: [],
+        photos: [],
+        notes: [],
+        typedText: null,
+        proposal,
+        error: null,
+      }
+      return json(200, url === WALKS ? [walk] : walk)
+    })
+  })
+
+  it('opens on the proposal’s locations and adds the observation to the proposal', async () => {
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    act(() =>
+      openProposalCapture({
+        reference: REF,
+        walkId: 'w1',
+        locationId: null,
+        locations: [{ id: 'loc-1', building: 'Block A', floor: 'Level 1', name: 'Chiller room' }],
+      }),
+    )
+    await screen.findByRole('img', { name: 'live' })
+    // Only the site walk's locations, and nothing to add one with.
+    expect(screen.queryByRole('button', { name: /Bay 3/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add a location' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Block A › Level 1 › Chiller room/ }))
+    write('Coils iced over.')
+    mode('Photo')
+    addPhotos(photo())
+    // One category: a second pick replaces the first.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Protection' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Occupancy' }))
+    grade('Moderate')
+
+    click('Add to site walk')
+
+    await vi.waitFor(() => expect(put.some((p) => p.url.endsWith('/proposal'))).toBe(true))
+    const media = put.filter((p) => p.url.includes('/media/'))
+    expect(media).toHaveLength(1)
+    expect((media[0].body as FormData).get('photo')).toBeInstanceOf(Blob)
+    const sent = JSON.parse(String(put.at(-1)!.body))
+    expect(sent.observations).toEqual([
+      expect.objectContaining({
+        note: 'Coils iced over.',
+        copeDimension: 'Occupancy',
+        severity: 'moderate',
+        locationRef: 'loc-1',
+        mediaIds: [media[0].url.split('/').at(-1)],
+      }),
+    ])
+    // Nothing went to the assessment's observations; the review is back on show.
+    expect(saves).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'Add to site walk' })).not.toBeInTheDocument()
+  })
+
+  it('leads Back from Add manually to the site walk review it was opened from', async () => {
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    act(() =>
+      openProposalCapture({
+        reference: REF,
+        walkId: 'w1',
+        locationId: null,
+        locations: [{ id: 'loc-1', building: 'Block A', floor: 'Level 1', name: 'Chiller room' }],
+      }),
+    )
+    click('Back to Site walk proposal')
+    expect(await screen.findByRole('heading', { name: 'Chiller room' })).toBeInTheDocument()
   })
 })

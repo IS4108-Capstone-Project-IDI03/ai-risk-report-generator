@@ -13,6 +13,16 @@ class TranscriptionError(Exception):
     """The reason a recording could not be transcribed, shown to the engineer."""
 
 
+def _segments(result) -> list[dict]:
+    """Whisper's timed pieces as {start, end, text}; [] when it returns none."""
+    # The SDK gives objects, a plain dict gives keys; take either.
+    get = lambda s, k: s[k] if isinstance(s, dict) else getattr(s, k)  # noqa: E731
+    return [
+        {"start": get(s, "start"), "end": get(s, "end"), "text": get(s, "text").strip()}
+        for s in getattr(result, "segments", None) or []
+    ]
+
+
 def transcribe(s3_key: str) -> dict:
     try:
         stored = boto3.client("s3", region_name=AWS_REGION).get_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -56,4 +66,4 @@ def transcribe(s3_key: str) -> dict:
         "audio_seconds": audio_seconds,
         "usage_status": "recorded" if audio_seconds is not None else "unavailable",
     }
-    return {"transcript": result.text.strip(), "usage": [usage]}
+    return {"transcript": result.text.strip(), "segments": _segments(result), "usage": [usage]}

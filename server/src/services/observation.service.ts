@@ -28,8 +28,18 @@ import { recordAiCalls, visionUsageToWire } from './ai-usage.service'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { locationText, toLocationDto, type LocationDto } from './location.service'
-import { interpret, transcribe, transcribeHandwriting } from './speech.service'
+import { onTranscriptionJob, transcriptionQueue } from './background-queues.service'
+import { retryJobId, type JobContext } from './job-queue.service'
+import { duplicateKeyField } from './mongo-errors'
+import {
+  interpret,
+  SpeechServiceError,
+  transcribe,
+  transcribeHandwriting,
+  transcriptionFailureReason,
+} from './speech.service'
 import * as storage from './storage.service'
+import type { ByteRange } from './storage.service'
 
 export class NoActiveSessionError extends Error {
   constructor(reference: string) {
@@ -222,6 +232,9 @@ type RecordingDto = {
   }
   // Who added it after the observation was saved (CP-08).
   added: StampDto | null
+  // Present when this is the part of a site walk recording it came from
+  // (CP-22); play `url` with the media fragment #t=start,end.
+  clip?: { siteWalk: string; start: number; end: number }
 }
 // Each links to its original image (CP-04 AC2).
 type PhotoDto = {
@@ -325,6 +338,8 @@ export type ObservationDto = {
   // when it was captured on its own.
   checklistItem: { itemId: string; result: CheckResult; text: string } | null
   // When it was captured (CP-02 AC2).
+  // Created from a site walk proposal (CP-22 round 3), for the "From site walk" mark.
+  fromSiteWalk: boolean
   recordedAt: Date
   // The latest change to its tags, note, a transcript, or its recordings and
   // photos (CP-08).
@@ -334,20 +349,6 @@ export type ObservationDto = {
 }
 
 type StoredObservation = IObservation & { _id: Types.ObjectId }
-
-// Keep diagnostic detail in the saved attempt, but return a readable reason
-// to every observation view, including recordings saved before this change.
-function transcriptionFailureReason(error?: string): string | null {
-  if (!error) return null
-  if (error.startsWith('The recording could not be read from storage:')) {
-    return /SSL|certificate/i.test(error)
-      ? 'Could not securely connect to audio storage.'
-      : 'The recording could not be read from storage.'
-  }
-  if (error.startsWith('Whisper could not transcribe the recording:'))
-    return 'The speech service could not transcribe the recording.'
-  return error.length > 200 ? 'Transcription failed. Please retry or contact support.' : error
-}
 
 // The same for a handwritten page (CP-19), from S5's message prefixes
 // (microservices/speech-ocr-service/app/processors/handwriting.py).
@@ -594,6 +595,9 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
       attempts: r.transcription.attempts.length,
     },
     added: stampDto(r.added),
+    ...(r.clip && {
+      clip: { siteWalk: String(r.clip.siteWalk), start: r.clip.start, end: r.clip.end },
+    }),
   })
   const photo = (p: IPhoto): PhotoDto => ({
     type: 'Photo',
@@ -648,6 +652,8 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
           text: o.checklistItem.text,
         }
       : null,
+    // Older walk observations predate the field; their clip still names the walk.
+    fromSiteWalk: Boolean(o.siteWalk) || o.recordings.some((r) => r.clip),
     recordedAt: o.createdAt,
     edited: stampDto(o.edited),
     deleted: stampDto(o.deleted),
@@ -732,7 +738,7 @@ export async function saveObservation(
     )
   }
 
-  for (const r of media.recordings) void runTranscription(String(id), String(r._id))
+  for (const r of media.recordings) queueTranscription(String(id), String(r._id))
   for (const p of media.pages) void runPageTranscription(String(id), String(p._id))
   return toDto(observation.toObject(), locations)
 }
@@ -980,7 +986,7 @@ export async function addMedia(
     if (!saved) throw new ObservationStateError(DELETED)
     return saved
   })
-  for (const r of media.recordings) void runTranscription(id, String(r._id))
+  for (const r of media.recordings) queueTranscription(id, String(r._id))
   return toDto(updated, locations)
 }
 
@@ -1212,23 +1218,62 @@ export async function retryTranscription(id: string, recordingId: string): Promi
     if (found) throw new NotRetryableError()
     throw new ObservationNotFoundError('recording')
   }
-  void runTranscription(id, recordingId)
+  queueTranscription(id, recordingId, true)
 }
 
-// Runs the recording's latest attempt and records its outcome. Never throws: a
-// failure is stored as the reason the engineer sees (CP-03 AC6). Updates only
-// this recording, so the observation's other recordings can finish alongside.
-// ponytail: runs in the gateway process with no broker (DECISIONS 2026-09-07);
-// move to a job collection and worker once volume or restarts matter.
-export async function runTranscription(id: string, recordingId: string): Promise<void> {
+// Puts a voice note's transcription on the queue (CP-22). The job id is the
+// recording's, so queueing it twice (a restart resuming it) runs it once; a
+// retry gets a fresh one (see retryJobId). If Redis is down the recording is marked failed so the engineer can press Retry;
+// without this it would stay Transcribing with no job until the next restart.
+// Callers don't wait for it, so it never throws.
+async function queueTranscription(observationId: string, recordingId: string, retry = false) {
+  try {
+    const jobId = `vn-${observationId}-${recordingId}`
+    await transcriptionQueue.add(retry ? retryJobId(jobId) : jobId, {
+      kind: 'voice-note',
+      observationId,
+      recordingId,
+    })
+  } catch (error) {
+    console.error('Queueing transcription failed:', error)
+    const reason = 'The recording could not be queued for transcription.'
+    await ObservationModel.updateOne(
+      { _id: observationId, 'recordings._id': recordingId },
+      {
+        $set: {
+          'recordings.$.transcription.status': 'failed',
+          'recordings.$.transcription.error': reason,
+        },
+      },
+    ).catch((saveError) => console.error('Saving transcription failed:', saveError))
+  }
+}
+
+onTranscriptionJob('voice-note', (job, context) =>
+  runTranscription(job.observationId, job.recordingId, context),
+)
+
+// Runs the recording's latest attempt and records its outcome. A busy,
+// rate-limited or timed-out speech service throws instead, so the queue retries
+// it; without this the recording would be marked failed at the first "busy".
+// On the last attempt, or for any other failure, the reason is stored for the
+// engineer to see (CP-03 AC6). Updates only this recording, so the
+// observation's other recordings can finish alongside. A database read or
+// write that fails throws too, so the queue retries; without this the job
+// would count as done and the recording would stay Transcribing.
+export async function runTranscription(
+  id: string,
+  recordingId: string,
+  context: JobContext = { isLastAttempt: true },
+): Promise<void> {
   const observation = await ObservationModel.findOne(
     { _id: id, 'recordings._id': recordingId },
     { 'recordings.$': 1, assessment: 1 },
-  )
-    .lean<StoredObservation>()
-    .catch(() => null)
+  ).lean<StoredObservation>()
   const recording = observation?.recordings[0]
   if (!recording) return
+  // Already done (a job re-queued after a restart), so don't transcribe twice.
+  if (recording.transcription.status !== 'transcribing') return
   // The assessment reference tags the Whisper usage record (EV-03).
   const reportId = (
     await AssessmentModel.findById(observation!.assessment, { reference: 1 })
@@ -1243,6 +1288,8 @@ export async function runTranscription(id: string, recordingId: string): Promise
       'recordings.$.transcription.status': 'transcribed',
     }
   } catch (error) {
+    if (error instanceof SpeechServiceError && error.retryable && !context.isLastAttempt)
+      throw error
     const reason = error instanceof Error ? error.message : 'Transcription failed.'
     outcome = {
       'recordings.$.transcription.status': 'failed',
@@ -1253,7 +1300,7 @@ export async function runTranscription(id: string, recordingId: string): Promise
   await ObservationModel.updateOne(
     { _id: id, 'recordings._id': recordingId },
     { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
-  ).catch((error) => console.error('Saving transcription failed:', error))
+  )
 }
 
 // Starts a new attempt for the same handwritten page (CP-19 AC11), as for a
@@ -1374,23 +1421,30 @@ export async function runPageTranscription(id: string, pageId: string): Promise<
   ).catch((error) => console.error('Saving page transcription failed:', error))
 }
 
-// A restart loses any attempt still running in memory, a recording's or a
-// handwritten page's; mark it failed so the engineer sees why and can retry,
-// rather than waiting on Transcribing forever.
-export async function failInterruptedTranscriptions() {
-  for (const kind of ['recordings', 'pages'] as const) {
-    await ObservationModel.updateMany(
-      { [`${kind}.transcription.status`]: 'transcribing' },
-      {
-        $set: {
-          [`${kind}.$[r].transcription.status`]: 'failed',
-          [`${kind}.$[r].transcription.error`]:
-            'Transcription was interrupted by a gateway restart. Retry it.',
-        },
+// After a restart: a voice note still Transcribing goes back on the queue
+// (CP-22; the job id makes this a no-op when Redis kept the job), while a
+// handwritten page's attempt, which ran in memory, is marked failed so the
+// engineer sees why and can retry, rather than waiting on Transcribing forever.
+export async function resumeInterruptedTranscriptions() {
+  const waiting = await ObservationModel.find(
+    { 'recordings.transcription.status': 'transcribing' },
+    { recordings: 1 },
+  ).lean<StoredObservation[]>()
+  for (const o of waiting)
+    for (const r of o.recordings)
+      if (r.transcription.status === 'transcribing')
+        queueTranscription(String(o._id), String(r._id))
+  await ObservationModel.updateMany(
+    { 'pages.transcription.status': 'transcribing' },
+    {
+      $set: {
+        'pages.$[r].transcription.status': 'failed',
+        'pages.$[r].transcription.error':
+          'Transcription was interrupted by a gateway restart. Retry it.',
       },
-      { arrayFilters: [{ 'r.transcription.status': 'transcribing' }] },
-    )
-  }
+    },
+    { arrayFilters: [{ 'r.transcription.status': 'transcribing' }] },
+  )
 }
 
 // The parts of a proposal that can be read again one at a time (CP-21).
@@ -1642,6 +1696,7 @@ export async function failInterruptedInterpretations() {
     )
 }
 
+// The recording's type, size and `open`, which streams all of it or a byte range.
 export async function getRecordingAudio(id: string, recordingId: string) {
   if (!isValidObjectId(id) || !isValidObjectId(recordingId)) throw new ObservationNotFoundError()
   const observation = await ObservationModel.findOne(
@@ -1653,7 +1708,7 @@ export async function getRecordingAudio(id: string, recordingId: string) {
   return {
     contentType: recording.contentType,
     size: recording.size,
-    stream: await storage.getObjectStream(recording.key),
+    open: (range?: ByteRange) => storage.getObjectStream(recording.key, range),
   }
 }
 
@@ -1669,7 +1724,7 @@ export async function getPhotoImage(id: string, photoId: string) {
   return {
     contentType: photo.contentType,
     size: photo.size,
-    stream: await storage.getObjectStream(photo.key),
+    open: (range?: ByteRange) => storage.getObjectStream(photo.key, range),
   }
 }
 
@@ -1687,4 +1742,149 @@ export async function getPageImage(id: string, pageId: string) {
     size: page.size,
     stream: await storage.getObjectStream(page.key),
   }
+}
+
+// What createWalkObservation needs of the walk's recording and photos (CP-22).
+export type WalkEvidence = {
+  clip: {
+    siteWalk: Types.ObjectId
+    seq: number
+    key: string
+    contentType: string
+    size: number
+    start: number
+    end: number
+    text: string
+  } | null
+  photos: { photoId: string; key: string; contentType: 'image/jpeg' | 'image/png'; size: number }[]
+  // Voice clips and handwritten pages added to the proposal by hand (round 3),
+  // kept at the walk's own S3 keys. A clip's transcript is null when the walk
+  // had none yet; it is transcribed here instead.
+  voices?: { key: string; contentType: string; size: number; transcript: string | null }[]
+  pages?: { key: string; contentType: 'image/jpeg' | 'image/png'; size: number }[]
+}
+
+// Saves one observation from a reviewed site walk (CP-22), under a chosen id so
+// Create all can be repeated: if that id is saved already, nothing happens.
+// Its one recording entry points at the walk recording's own S3 key with a clip
+// (start, end) and the clip's text as a finished transcript, so drafting reads
+// it as evidence and the page can play just that part. Its photos are copied
+// into the observation's own folder, so deleting the walk keeps them.
+export async function createWalkObservation(input: {
+  reference: string
+  id: Types.ObjectId
+  assessmentId: Types.ObjectId
+  sessionId: Types.ObjectId
+  site: ISite | null
+  user: SessionUser
+  locationId: Types.ObjectId
+  note: string
+  severity: IObservation['severity']
+  copeDimensions: CopeDimension[] | null
+  evidence: WalkEvidence
+  siteWalk: Types.ObjectId
+}): Promise<void> {
+  // Same id from the same walk = already created. Not keyed on the session or
+  // engineer: a retry after the session ended or a reassignment would 500 forever.
+  const identity = { _id: input.id, assessment: input.assessmentId, siteWalk: input.siteWalk }
+  if (await ObservationModel.exists(identity)) return
+  const now = new Date()
+  const { clip, voices = [], pages = [] } = input.evidence
+  const voiceRecordings = voices.map((v, i) => ({
+    _id: new Types.ObjectId(),
+    name: `Recording ${i + 1}`,
+    key: v.key,
+    contentType: v.contentType,
+    size: v.size,
+    transcription:
+      v.transcript === null
+        ? { status: 'transcribing' as const, attempts: [{ startedAt: now }] }
+        : {
+            status: 'transcribed' as const,
+            transcript: v.transcript,
+            attempts: [{ startedAt: now, finishedAt: now }],
+          },
+  }))
+  const storedPages = pages.map((p, i) => ({
+    _id: new Types.ObjectId(),
+    name: `Page ${i + 1}`,
+    ...p,
+    transcription: { status: 'transcribing' as const, attempts: [{ startedAt: now }] },
+  }))
+  let created = true
+  const photos = await Promise.all(
+    input.evidence.photos.map(async (p, i) => {
+      const photoId = new Types.ObjectId()
+      const extension = p.contentType === 'image/png' ? 'png' : 'jpg'
+      const chunks: Buffer[] = []
+      for await (const chunk of await storage.getObjectStream(p.key))
+        chunks.push(Buffer.from(chunk))
+      return {
+        stored: {
+          _id: photoId,
+          name: `Photo ${i + 1}`,
+          key: `photos/${input.reference}/${input.id}/${photoId}.${extension}`,
+          contentType: p.contentType,
+          size: p.size,
+        },
+        body: Buffer.concat(chunks),
+      }
+    }),
+  )
+  await withUploads(
+    photos.map((p) => ({ key: p.stored.key, body: p.body, type: p.stored.contentType })),
+    () =>
+      ObservationModel.create({
+        _id: input.id,
+        assessment: input.assessmentId,
+        session: input.sessionId,
+        engineer: input.user.name,
+        engineerId: input.user.id,
+        // A blank note counts as none, as in saveObservation.
+        note: input.note.trim() ? input.note : undefined,
+        recordings: [
+          ...(clip
+            ? [
+                {
+                  name: `Site walk, recording ${clip.seq}`,
+                  key: clip.key,
+                  contentType: clip.contentType,
+                  size: clip.size,
+                  clip: { siteWalk: clip.siteWalk, start: clip.start, end: clip.end },
+                  transcription: {
+                    status: 'transcribed' as const,
+                    transcript: clip.text,
+                    attempts: [{ startedAt: now, finishedAt: now }],
+                  },
+                },
+              ]
+            : []),
+          ...voiceRecordings,
+        ],
+        photos: photos.map((p) => p.stored),
+        pages: storedPages,
+        severity: input.severity,
+        location: input.locationId,
+        siteWalk: input.siteWalk,
+        metadata: {
+          source_type: 'observation',
+          jurisdiction: input.site?.jurisdiction ?? 'unknown',
+          facility_type: input.site?.facilityType ?? 'unknown',
+          COPE_dimension: input.copeDimensions,
+          effective_date: now,
+        },
+      }),
+  ).catch(async (error: unknown) => {
+    // A simultaneous Create all may win the insert. Its identity must match, and
+    // withUploads must remove this attempt's unused photos before accepting it.
+    if (duplicateKeyField(error) !== '_id' || !(await ObservationModel.exists(identity)))
+      throw error
+    created = false
+  })
+  // Only the call that made it starts the transcriptions, so a repeat runs none twice.
+  if (!created) return
+  for (const r of voiceRecordings)
+    if (r.transcription.status === 'transcribing')
+      queueTranscription(String(input.id), String(r._id))
+  for (const p of storedPages) void runPageTranscription(String(input.id), String(p._id))
 }

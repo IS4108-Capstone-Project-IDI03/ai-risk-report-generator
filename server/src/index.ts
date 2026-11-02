@@ -13,9 +13,12 @@ import authRoutes from './routes/auth.routes'
 import ragRoutes from './routes/rag.routes'
 import chatRoutes from './routes/chat.routes'
 import observationRoutes from './routes/observation.routes'
+import siteWalkRoutes from './routes/site-walk.routes'
+import { startWorkers } from './services/job-queue.service'
+import { resumeInterruptedSiteWalks } from './services/site-walk.service'
 import {
   failInterruptedInterpretations,
-  failInterruptedTranscriptions,
+  resumeInterruptedTranscriptions,
 } from './services/observation.service'
 import usageRoutes from './routes/usage.routes'
 import userRoutes from './routes/user.routes'
@@ -35,6 +38,11 @@ app.use(cors({ origin: true, credentials: true }))
 const documentSave = /^\/api\/assessments\/[^/]+\/sections\/[^/]+\/document$/
 const documentBody = express.json({ limit: '1mb' })
 app.use((req, res, next) => (documentSave.test(req.path) ? documentBody(req, res, next) : next()))
+// A whole site walk proposal (CP-22) holds up to 500 observations of 5,000
+// characters, about 3 MB; without this, autosave and Create all get 413.
+const proposalSave = /^\/api\/assessments\/[^/]+\/site-walks\/[^/]+\/proposal$/
+const proposalBody = express.json({ limit: '5mb' })
+app.use((req, res, next) => (proposalSave.test(req.path) ? proposalBody(req, res, next) : next()))
 app.use(express.json())
 app.use(cookieParser())
 
@@ -43,6 +51,8 @@ app.use('/api/health', healthRoutes)
 app.use('/api/auth', authRoutes)
 // Everything else needs a session (401 without one, F-04); each route then
 // checks its own permission from the role matrix (403, F-05).
+// Before the general assessments router, which would otherwise answer first.
+app.use('/api/assessments/:reference/site-walks', requireAuth, siteWalkRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)
@@ -66,8 +76,10 @@ app.use('/api/internal/ai-usage', requireServiceKey, internalAiUsageRoutes)
 
 async function start() {
   await connectDb()
-  await failInterruptedTranscriptions()
   await failInterruptedInterpretations()
+  startWorkers()
+  await resumeInterruptedTranscriptions()
+  await resumeInterruptedSiteWalks()
   app.listen(config.port, () => {
     console.log(`Gateway listening on port ${config.port}`)
   })

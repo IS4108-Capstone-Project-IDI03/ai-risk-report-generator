@@ -52,6 +52,14 @@
 .ds-dialog-header > div {
   flex: 1;
 }
+/* A finger needs 44px; IconButton sets its size inline, hence !important. */
+@media (pointer: coarse) {
+  .ds-dialog-header > button,
+  .ds-dialog-close {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
 .ds-dialog h2 {
   margin: 0;
   font-size: var(--text-h2-size);

@@ -23,8 +23,13 @@ def billed(response, field: str):
     return getattr(getattr(getattr(response, "meta", None), "billed_units", None), field, None)
 
 
-def record(feature: str, billed_service: str, model: str, started: float, **amounts) -> None:
-    """Add one usage item. No amount given means the provider sent none: 'unavailable', not 0."""
+def record(
+    feature: str, billed_service: str, model: str, started: float, priced=None, **amounts
+) -> None:
+    """Add one usage item. No amount given means the provider sent none: 'unavailable', not 0.
+
+    `priced` holds a cost this service worked out itself (Jev: cost_usd, rates, basis);
+    the gateway stores it instead of pricing the call (ai-usage.service.ts usageCost)."""
     items = _items.get()
     if items is None:
         return
@@ -40,5 +45,6 @@ def record(feature: str, billed_service: str, model: str, started: float, **amou
             "usage_status": "recorded"
             if any(amounts.get(f) is not None for f in fields)
             else "unavailable",
+            **(priced or {}),
         }
     )

@@ -4,12 +4,13 @@
 // together. A failed save keeps the list and says why (AC18). Opened by
 // screens/Observations.tsx; the save is addMedia in useAssessmentWorkflow.tsx.
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Button, Callout, Dialog, IconRegistry } from '../../../design-system'
+import { Callout, Dialog } from '../../../design-system'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from '../media'
 import type { PhotoFile, VoiceClip } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
-import { AudioPickers, PhotoPickers, PhotoThumb, ReadyItem } from './MediaPickers'
+import { AudioPickers, PhotoPickers, PhotoThumb, ReadyItem, RemoveButton } from './MediaPickers'
 import { useSave } from './useSave'
+import '../capture.css'
 
 type Props = { v: AssessmentWorkflow; dialog: NonNullable<AssessmentWorkflow['obsDialog']> }
 
@@ -72,9 +73,7 @@ export function AddMediaDialog({ v, dialog }: Props) {
   const addPhotos = (event: ChangeEvent<HTMLInputElement>) => {
     const { photos: chosen, refused } = choosePhotos([...(event.target.files ?? [])])
     event.target.value = ''
-    setProblem(
-      refused.length ? { title: 'Not a JPG or PNG', message: unsupportedPhotos(refused) } : null,
-    )
+    setProblem(refused.length ? { title: 'Not added', message: unsupportedPhotos(refused) } : null)
     setPhotos((list) => [
       ...list,
       ...chosen.map((file) => {
@@ -104,24 +103,29 @@ export function AddMediaDialog({ v, dialog }: Props) {
         dialog.where +
         '. ' +
         (dialog.saved
-          ? 'Each recording and photo is kept as captured, with your name and the time. Recordings are transcribed; photos are read only when you ask.'
+          ? 'Kept as captured, with your name and the time.'
           : 'No capture session, so these stay in this browser and are not uploaded.')
       }
       width={560}
       onClose={busy ? undefined : cancel}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={cancel}>
+          <button
+            type="button"
+            className="cap-btn cap-btn--secondary"
+            disabled={busy}
+            onClick={cancel}
+          >
             {'Cancel'}
-          </Button>
-          <Button
-            variant="primary"
-            loading={busy}
-            disabled={!listed || recording}
+          </button>
+          <button
+            type="button"
+            className="cap-btn cap-btn--primary"
+            disabled={busy || !listed || recording}
             onClick={() => run(() => v.addMedia(clips, photos))}
           >
             {'Add to observation'}
-          </Button>
+          </button>
         </>
       }
     >
@@ -186,11 +190,8 @@ export function AddMediaDialog({ v, dialog }: Props) {
                   aria-label={'Play ' + clip.name}
                   style={{ height: '32px', flex: '1 1 180px', minWidth: 0 }}
                 />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconLeft={IconRegistry.action.discard}
-                  aria-label={'Remove ' + clip.name}
+                <RemoveButton
+                  label={'Remove ' + clip.name}
                   disabled={busy}
                   onClick={() => drop(clip)}
                 />
@@ -199,11 +200,8 @@ export function AddMediaDialog({ v, dialog }: Props) {
             {photos.map((photo) => (
               <ReadyItem key={photo.id} icon="image" title={photo.name}>
                 <PhotoThumb url={photo.url} />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconLeft={IconRegistry.action.discard}
-                  aria-label={'Remove ' + photo.name}
+                <RemoveButton
+                  label={'Remove ' + photo.name}
                   disabled={busy}
                   onClick={() => drop(photo)}
                 />

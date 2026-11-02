@@ -1,0 +1,509 @@
+/* The Recording screen and camera of a site walk (CP-22). Shared pieces are in
+   site-walk.css. One centred column on every width: the phone layout is the layout. */
+
+.sw-bar > .back-button {
+  justify-self: start;
+}
+
+.sw-recording-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 20px 16px 24px;
+}
+
+/* The recorder, photos and notes: one column, and the left column on a wide screen. */
+.sw-rec-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+.sw-list-empty {
+  display: none;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ---- The clock ---- */
+.sw-record {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.sw-record-state {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+}
+.sw-record-idle {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.sw-rec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgb(229 55 43 / 0.1);
+  color: var(--red-600);
+  font-size: 13px;
+  font-weight: 600;
+}
+.sw-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sw-rec);
+  animation: sw-pulse 1.6s ease-in-out infinite;
+}
+.sw-rec-pill--paused {
+  background: var(--sw-fill);
+  color: var(--text-secondary);
+}
+.sw-rec-pill--paused .sw-rec-dot {
+  background: var(--text-muted);
+  animation: none;
+}
+@keyframes sw-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.sw-clock {
+  margin: 8px 0 0;
+  color: var(--marsh-navy);
+  font-size: clamp(56px, 18vw, 76px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.sw-clock-cap {
+  font-variant-numeric: tabular-nums;
+}
+.sw-record .sw-alert {
+  align-self: stretch;
+  margin-top: 16px;
+  text-align: left;
+}
+.sw-record .sw-alert .sw-button {
+  align-self: flex-start;
+}
+
+/* ---- Controls: a large main button between two smaller ones ---- */
+.sw-controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+  margin-top: 28px;
+}
+.sw-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-body);
+  font: 500 13px/1.2 var(--sw-font);
+  cursor: pointer;
+}
+.sw-control-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--sw-fill);
+  color: var(--marsh-navy);
+  transition:
+    background-color 160ms var(--sw-ease),
+    transform 100ms var(--sw-ease);
+}
+/* Side buttons: centred on the main one, with all three labels on one line. */
+.sw-control:not(.sw-control--main) .sw-control-icon {
+  margin-block: 10px; /* (76px - 56px) / 2 */
+}
+.sw-control:hover:not(:disabled) .sw-control-icon {
+  background: rgb(0 15 71 / 0.1);
+}
+.sw-control:active:not(:disabled) .sw-control-icon {
+  transform: scale(0.94);
+}
+.sw-control:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+/* Keeps its slot so the controls don't jump when recording starts. */
+.sw-control--idle {
+  visibility: hidden;
+}
+.sw-control--main .sw-control-icon,
+.sw-control--main:hover:not(:disabled) .sw-control-icon {
+  width: 76px;
+  height: 76px;
+  background: var(--surface-nav);
+  color: var(--text-inverse);
+  box-shadow: var(--sw-shadow-md);
+}
+.sw-control--main {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
+
+/* ---- The one-minute warning: calm, not an alarm ---- */
+.sw-warning {
+  align-self: stretch;
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--sw-fill);
+  color: var(--text-primary);
+  text-align: left;
+  text-wrap: pretty;
+}
+
+/* ---- Finish, pinned at the bottom ---- */
+.sw-finish {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+}
+.sw-finish .sw-note {
+  margin: 8px 0 0;
+  text-align: center;
+}
+
+/* ---- Finished, starting, or could not start ---- */
+.sw-finished {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.sw-finished h1 {
+  margin: 0;
+  color: var(--marsh-navy);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.sw-finished .sw-note {
+  max-width: 34ch;
+}
+.sw-finished-mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--ink-50);
+  color: var(--marsh-navy);
+}
+
+/* ---- Camera: black, full screen, over everything ---- */
+.sw-camera {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+}
+.sw-camera video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sw-camera-none {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  color: rgb(255 255 255 / 0.8);
+  text-align: center;
+}
+.sw-camera-flash {
+  position: absolute;
+  inset: 0;
+  background: var(--graphite-0);
+  pointer-events: none;
+  animation: sw-flash 220ms ease-out forwards;
+}
+@keyframes sw-flash {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.sw-camera-top,
+.sw-camera-bottom {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px 16px;
+}
+.sw-camera-top .sw-rec-pill {
+  background: rgb(0 0 0 / 0.55);
+  color: var(--text-inverse);
+  backdrop-filter: blur(12px);
+}
+.sw-camera-bottom {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  padding: 24px 20px max(28px, env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.45));
+}
+.sw-camera-thumb {
+  justify-self: start;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.12);
+}
+.sw-camera-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sw-shutter {
+  width: 76px;
+  height: 76px;
+  border: 4px solid var(--graphite-0);
+  border-radius: 50%;
+  background: var(--graphite-0);
+  background-clip: content-box;
+  padding: 3px;
+  cursor: pointer;
+  transition: transform 100ms var(--sw-ease);
+}
+.sw-shutter:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.sw-shutter:disabled {
+  opacity: 0.4;
+}
+.sw-camera .sw-camera-done {
+  justify-self: end;
+  color: var(--text-inverse);
+}
+.sw-camera .sw-camera-done:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+/* ---- Round 3: a louder recording state, bolder layout ---- */
+/* The panel is a card; while recording it turns red-tinted with a ring, so the state
+   is obvious from across a room. */
+.sw-record {
+  padding: 20px 16px 22px;
+  border-radius: 28px;
+  background: var(--graphite-0);
+  box-shadow: var(--sw-shadow-md);
+  transition:
+    background-color 240ms var(--sw-ease),
+    box-shadow 240ms var(--sw-ease);
+}
+.sw-record--live {
+  background: linear-gradient(180deg, rgb(229 55 43 / 0.14), rgb(229 55 43 / 0.04));
+  box-shadow:
+    0 0 0 2px var(--sw-rec),
+    var(--sw-shadow-md);
+}
+.sw-record--paused {
+  background: var(--sw-fill);
+}
+.sw-record .sw-rec-pill {
+  padding: 6px 14px;
+  background: var(--sw-rec);
+  color: var(--text-inverse);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.sw-record .sw-rec-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--text-inverse);
+  box-shadow: 0 0 0 0 rgb(255 255 255 / 0.7);
+  animation: sw-ring 1.4s ease-out infinite;
+}
+.sw-record .sw-rec-pill--paused {
+  background: var(--sw-line);
+  color: var(--text-primary);
+}
+.sw-record .sw-rec-pill--paused .sw-rec-dot {
+  background: var(--text-muted);
+  box-shadow: none;
+  animation: none;
+}
+@keyframes sw-ring {
+  to {
+    box-shadow: 0 0 0 10px rgb(255 255 255 / 0);
+  }
+}
+.sw-record--live .sw-clock {
+  color: var(--red-600);
+}
+.sw-clock {
+  font-weight: 200;
+  font-size: clamp(64px, 22vw, 96px);
+}
+/* Idle: the main button is a big red record button, the convention for "record". */
+.sw-control--main.sw-control--rec .sw-control-icon,
+.sw-control--main.sw-control--rec:hover:not(:disabled) .sw-control-icon {
+  width: 88px;
+  height: 88px;
+  background: var(--sw-rec);
+  box-shadow: 0 10px 28px rgb(229 55 43 / 0.35);
+}
+.sw-control--main.sw-control--rec {
+  color: var(--sw-rec);
+}
+.sw-control--main .sw-control-icon {
+  transition:
+    width 200ms var(--sw-ease),
+    height 200ms var(--sw-ease);
+}
+
+/* Photo strip: bigger thumbnails and a heading with an icon */
+.sw-photostrip h2,
+.sw-composer h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--marsh-navy);
+  font-size: 14px;
+}
+.sw-composer h2 {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+.sw-photostrip button {
+  width: 88px;
+  height: 88px;
+  border-radius: 16px;
+  box-shadow: var(--sw-shadow-sm);
+}
+.sw-composer {
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--graphite-0);
+  box-shadow: var(--sw-shadow-sm);
+}
+
+/* Walk list: a card; the status icon sits on the right */
+.sw-list {
+  border-radius: 20px;
+  background: var(--graphite-0);
+  box-shadow: var(--sw-shadow-sm);
+  overflow: hidden;
+}
+.sw-status-time {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.sw-transcript {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sw-fill);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.sw-state {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--sw-fill);
+  color: var(--text-secondary);
+}
+.sw-state--done {
+  background: var(--status-low-bg);
+  color: var(--status-low-fg);
+}
+.sw-state--failed {
+  background: rgb(229 55 43 / 0.12);
+  color: var(--red-600);
+}
+.sw-state--device {
+  color: var(--marsh-navy);
+}
+.sw-state--sending > svg,
+.sw-state--transcribing > svg {
+  animation: sw-spin 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-record .sw-rec-dot,
+  .sw-state--sending > svg,
+  .sw-state--transcribing > svg {
+    animation: none;
+  }
+  .sw-record,
+  .sw-control--main .sw-control-icon {
+    transition: none;
+  }
+}
+
+/* Wide (a laptop or bigger, with the app's menu open or shut): the recorder
+   beside the walk so far, instead of one 520px strip with empty sides. */
+@media (min-width: 1000px) {
+  .sw-recording-body {
+    display: grid;
+    grid-template-columns: minmax(380px, 460px) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px 32px;
+    max-width: 1200px;
+    padding-top: 28px;
+  }
+  .sw-recording-body > .sw-alert {
+    grid-column: 1 / -1;
+  }
+  .sw-list {
+    max-width: 72ch;
+  }
+  .sw-list-empty {
+    display: block;
+    padding: 24px;
+    border-radius: 14px;
+    background: var(--sw-fill);
+    text-align: center;
+  }
+  .sw-finish {
+    display: grid;
+    grid-template-columns: minmax(380px, 460px);
+    max-width: 1200px;
+  }
+}

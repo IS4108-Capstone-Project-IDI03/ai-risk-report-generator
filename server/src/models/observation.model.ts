@@ -56,6 +56,9 @@ export interface IRecording {
   // Present only while it is removed (CP-08), a soft removal: the audio stays
   // in S3 and restoring removes this. A removed recording is not evidence.
   removed?: IStamp
+  // Set when `key` is a site walk's recording (CP-22) and this observation is
+  // the part from `start` to `end` seconds; the page plays it with #t=start,end.
+  clip?: { siteWalk: Types.ObjectId; start: number; end: number }
 }
 
 // A photographed page of the engineer's handwritten notes (CP-19), JPG or PNG.
@@ -237,6 +240,8 @@ export interface IObservation {
   location: Types.ObjectId
   // Present when it was saved from the checklist (CP-31).
   checklistItem?: IChecklistLink
+  // The site walk whose proposal created it (CP-22 round 3).
+  siteWalk?: Types.ObjectId
   // Required on every document (see CLAUDE.md). The COPE dimension holds the
   // categories the engineer picks when capturing, one or more; null means not
   // categorised yet (CP-02 AC4). Read it through copeDimensionsOf, since older
@@ -285,6 +290,16 @@ const recordingSchema = new Schema<IRecording>({
   },
   added: { type: stampSchema },
   removed: { type: stampSchema },
+  clip: {
+    type: new Schema(
+      {
+        siteWalk: { type: Schema.Types.ObjectId, required: true },
+        start: { type: Number, required: true },
+        end: { type: Number, required: true },
+      },
+      { _id: false },
+    ),
+  },
 })
 
 const pageSchema = new Schema<IPage>({
@@ -423,6 +438,7 @@ const observationSchema = new Schema<IObservation>(
     standard: { type: String, trim: true, maxlength: 100 },
     severity: { type: String, enum: SEVERITIES, required: true },
     location: { type: Schema.Types.ObjectId, required: true },
+    siteWalk: { type: Schema.Types.ObjectId },
     checklistItem: {
       type: new Schema<IChecklistLink>(
         {

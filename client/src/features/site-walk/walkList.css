@@ -1,0 +1,245 @@
+/* The Recording screen's photo strip, note box, walk list and toast (CP-22 round 1).
+   The clock and controls are in recording.css. */
+
+/* ---- Photo strip ---- */
+.sw-photostrip h2,
+.sw-composer-row .sw-note {
+  margin: 0;
+}
+/* "Add note" stays on one line; the hint beside it wraps instead. */
+.sw-composer-row > .sw-button {
+  flex: none;
+  white-space: nowrap;
+}
+.sw-photostrip h2 {
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.sw-photostrip ul {
+  display: flex;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 0 16px 4px;
+  overflow-x: auto; /* the strip scrolls, never the page */
+  list-style: none;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.sw-photostrip li {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+.sw-photostrip button {
+  display: block;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sw-fill);
+  cursor: pointer;
+}
+.sw-photostrip img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sw-photo-large {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+/* ---- Note composer ---- */
+.sw-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sw-composer textarea,
+.sw-item--editing textarea {
+  min-height: 88px;
+  padding: 12px 14px;
+  border: 1px solid var(--sw-line);
+  border-radius: 14px;
+  background: var(--graphite-0);
+  color: var(--text-primary);
+  font: 400 16px/1.45 var(--sw-font); /* 16px stops iOS zooming in on focus */
+  resize: vertical;
+}
+.sw-composer textarea:focus,
+.sw-item--editing textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+.sw-composer textarea:disabled {
+  background: var(--sw-fill);
+  opacity: 0.6;
+}
+.sw-composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ---- The walk, in order ---- */
+.sw-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--sw-fill);
+}
+.sw-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 8px 10px 14px;
+}
+.sw-item + .sw-item {
+  border-top: 1px solid var(--sw-line);
+}
+.sw-item--editing {
+  flex-direction: column;
+  align-items: stretch;
+}
+.sw-item-icon,
+.sw-play {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--graphite-0);
+  color: var(--marsh-navy);
+}
+.sw-play {
+  position: relative;
+  border: 0;
+  background: var(--surface-nav);
+  color: var(--text-inverse);
+  cursor: pointer;
+}
+/* The circle stays 36px; the tap area reaches 44px. */
+.sw-play::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.sw-item-main {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+.sw-item-name,
+.sw-note-text {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.sw-note-text {
+  font-weight: 400;
+  white-space: pre-wrap;
+}
+.sw-note-text--short {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sw-more {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--marsh-navy);
+  font: 600 14px/1 var(--sw-font);
+  cursor: pointer;
+}
+.sw-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.sw-status--failed {
+  color: var(--red-600);
+}
+.sw-status--transcribing > span:first-child {
+  animation: sw-spin 1.2s linear infinite;
+}
+@keyframes sw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.sw-status-time {
+  font-variant-numeric: tabular-nums;
+}
+.sw-transcript {
+  margin: 8px 0 0;
+  color: var(--text-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sw-item-tools {
+  display: flex;
+  flex: 0 0 auto;
+}
+.sw-item-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.sw-item > .sw-icon-button {
+  flex: 0 0 auto;
+}
+
+/* ---- Toast: the design system's, above Finish and the camera ---- */
+.sw-toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 90;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  animation: toast-in 360ms var(--sw-ease) both;
+}
+.sw-toast > div {
+  pointer-events: auto;
+}
+.sw-toast .toast-bar {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  opacity: 0.35;
+  transform-origin: left;
+}
+/* The toast-in and toast-countdown keyframes come from assessments/workflow.css,
+   which is always loaded, as the site walk screens render inside the workspace. */
+
+@media (pointer: coarse), (max-width: 559px) {
+  button.sw-play {
+    width: 44px;
+    height: 44px;
+  }
+  .sw-more {
+    min-height: 44px;
+  }
+}

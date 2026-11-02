@@ -82,7 +82,11 @@ function mockGateway() {
     const id = url.startsWith(LOCATIONS_URL + '/') ? url.slice(LOCATIONS_URL.length + 1) : null
     if (id && init.method === 'DELETE') {
       removed.push(id)
-      return removeReply()
+      // A removed location is gone from the next listing, as the gateway would show it.
+      return removeReply().then((reply) => {
+        if (reply.ok) stored = stored.filter((l) => l.id !== id)
+        return reply
+      })
     }
     if (id && init.method === 'PATCH') {
       const body = JSON.parse(String(init.body))
@@ -113,22 +117,39 @@ function mockGateway() {
 async function openCapture() {
   render(<App />)
   await signIn()
-  // Open the assessment from the work list; Add observation is its header's action.
+  // Open the assessment from the work list; capture starts from the
+  // Observations tab's Add manually.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
   await screen.findByRole('img', { name: 'live' })
 }
 const sheet = () => screen.getByRole('dialog', { name: 'Where are you?' })
 // A field of the picker's form, by label; each suggests names as you type
 // (a combobox).
-const field = (label: 'Building' | 'Level' | 'Location') =>
-  within(sheet()).getByRole('combobox', { name: new RegExp('^' + label) })
-function fill(fields: Partial<Record<'Building' | 'Level' | 'Location', string>>) {
+const field = (label: 'Building' | 'Level' | 'Location', root = sheet) =>
+  within(root()).getByRole('combobox', { name: new RegExp('^' + label) })
+function fill(fields: Partial<Record<'Building' | 'Level' | 'Location', string>>, root = sheet) {
   for (const [label, value] of Object.entries(fields))
-    fireEvent.change(field(label as 'Building'), { target: { value } })
+    fireEvent.change(field(label as 'Building', root), { target: { value } })
 }
-const press = (name: string | RegExp) =>
-  fireEvent.click(within(sheet()).getByRole('button', { name }))
+const press = (name: string | RegExp, root = sheet) =>
+  fireEvent.click(within(root()).getByRole('button', { name }))
+// Locations are edited and removed from the Observations sidebar, not the
+// capture picker: open the tab and return the sidebar's pieces.
+const navigator = () => screen.getByRole('navigation', { name: 'Locations' })
+const editDialog = () => screen.getByRole('dialog', { name: 'Edit location' })
+async function openNavigator() {
+  render(<App />)
+  await signIn()
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
+  await within(await screen.findByRole('navigation', { name: 'Locations' })).findByRole('button', {
+    name: 'All locations',
+  })
+}
+const pressNav = async (name: string) =>
+  fireEvent.click(await within(navigator()).findByRole('button', { name }))
 // A building's (or Elsewhere on site's) heading, which folds its locations.
 const group = (title: string) =>
   within(sheet()).getByRole('button', { name: new RegExp('^' + title + ', \\d+ locations?$') })
@@ -200,6 +221,26 @@ afterEach(() => {
 })
 
 describe('Choosing where observations are captured', () => {
+  it.each([
+    place('l1', 'Lift · east', 'Ground', 'Block · A'),
+    place('l1', 'Lift · east', 'Level · 2'),
+    place('l1', 'Yard · east'),
+  ])('keeps literal separators inside each location part: $name', async (location) => {
+    stored = [location]
+    await openNavigator()
+    await pressNav('Add observation at ' + locationLabel(location))
+    const bar = await screen.findByRole('button', { name: /^Location:/ })
+    const parts = [
+      location.building || (location.floor ? null : 'Elsewhere on site'),
+      location.floor,
+      location.name,
+    ].filter(Boolean)
+    expect(within(bar).getByRole('text')).toHaveAccessibleName(parts.join(', '))
+    expect(
+      [...bar.querySelectorAll('.location-path-part')].map((part) => part.textContent),
+    ).toEqual(parts)
+  })
+
   it('starts capture by adding a location in a building, then captures in it', async () => {
     await openCapture()
 
@@ -211,7 +252,7 @@ describe('Choosing where observations are captured', () => {
     fill({ Building: 'Block A', Level: 'Level 2', Location: 'Stairwell B' })
     press('Add location')
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 2 · Stairwell B/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 2 › Stairwell B/ }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(added).toEqual([{ building: 'Block A', floor: 'Level 2', name: 'Stairwell B' }])
   }, 10000)
@@ -234,7 +275,7 @@ describe('Choosing where observations are captured', () => {
 
     expect(
       await screen.findByRole('button', {
-        name: /Location: Elsewhere on site · Fire access route/,
+        name: /Location: Elsewhere on site › Fire access route/,
       }),
     )
     expect(added).toEqual([{ name: 'Fire access route' }])
@@ -247,7 +288,7 @@ describe('Choosing where observations are captured', () => {
     fill({ Building: 'Block A', Location: 'Facade' })
     press('Add location')
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Facade/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Facade/ }))
     expect(added).toEqual([{ building: 'Block A', name: 'Facade' }])
   })
 
@@ -305,7 +346,7 @@ describe('Choosing where observations are captured', () => {
     await openCapture()
     await within(sheet()).findByText('Block B')
     fireEvent.click(group('Block B'))
-    press(/^Block B · Level 2 · Lobby/)
+    press(/^Block B › Level 2 › Lobby/)
 
     fireEvent.click(locationBar())
     expect(group('Block B')).toHaveAttribute('aria-expanded', 'true')
@@ -325,17 +366,17 @@ describe('Choosing where observations are captured', () => {
     await openCapture()
     await within(sheet()).findByText('Block A')
     fireEvent.click(group('Block A'))
-    press(/^Block A · Level 2 · Stairwell B/)
+    press(/^Block A › Level 2 › Stairwell B/)
 
     fireEvent.click(locationBar())
     fireEvent.click(group('Elsewhere on site'))
-    press(/^Elsewhere on site · Pump house/)
-    expect(locationBar()).toHaveAccessibleName(/Location: Elsewhere on site · Pump house/)
+    press(/^Elsewhere on site › Pump house/)
+    expect(locationBar()).toHaveAccessibleName(/Location: Elsewhere on site › Pump house/)
 
     fireEvent.click(locationBar())
     // Block A stays open as the engineer left it this visit.
     expect(group('Block A')).toHaveAttribute('aria-expanded', 'true')
-    press(/^Block A · Level 2 · Stairwell B/)
+    press(/^Block A › Level 2 › Stairwell B/)
     fireEvent.click(locationBar())
     press('Add a location')
     // The building and level the engineer is on; only the location to type.
@@ -345,7 +386,7 @@ describe('Choosing where observations are captured', () => {
     fill({ Location: 'Lift lobby' })
     press('Add location')
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 2 · Lift lobby/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 2 › Lift lobby/ }))
     expect(added).toEqual([{ building: 'Block A', floor: 'Level 2', name: 'Lift lobby' }])
   })
 
@@ -438,80 +479,147 @@ describe('Choosing where observations are captured', () => {
     expect(screen.getByText('Choose a location first.')).toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Where are you?' })).toBeInTheDocument()
     // The back link above the form leaves, as from any capture.
-    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
   })
+})
+
+describe('Saved evidence location paths (CP-22)', () => {
+  it.each([
+    place('l1', 'Lift · east', 'Ground', 'Block · A'),
+    place('l1', 'Lift · east', 'Level · 2'),
+    null,
+  ])(
+    'keeps the saved location intact on the observation and media collections: %j',
+    async (location) => {
+      const parts = location
+        ? [
+            location.building || (location.floor ? null : 'Elsewhere on site'),
+            location.floor,
+            location.name,
+          ].filter(Boolean)
+        : ['Location not recorded']
+      observations = [
+        {
+          ...observationAt(place('l1', 'unused')),
+          location,
+          photos: [
+            {
+              id: 'p1',
+              name: 'Photo',
+              contentType: 'image/jpeg',
+              size: 4,
+              url: '/photo',
+              added: null,
+            },
+          ],
+          pages: [
+            {
+              id: 'pg1',
+              name: 'Page',
+              contentType: 'image/jpeg',
+              size: 4,
+              url: '/page',
+              transcription: {
+                status: 'transcribing',
+                transcript: null,
+                uncertain: [],
+                error: null,
+                attempts: 1,
+                model: null,
+              },
+            },
+          ],
+        },
+      ]
+      await openNavigator()
+      fireEvent.click(await screen.findByRole('button', { name: /Pump test certificate missing/ }))
+      const heading = await screen.findByRole('heading', { name: parts.join(', ') })
+      // The page title shows the place's own name large, after its building and level (round 1).
+      expect(
+        [...heading.querySelectorAll('.location-path-part, .op-path-name')].map(
+          (part) => part.textContent,
+        ),
+      ).toEqual(parts)
+      fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
+      for (const [button, label] of [
+        ['All photos', 'Site photographs'],
+        ['All handwritten pages', 'Handwritten pages'],
+      ]) {
+        fireEvent.click(await screen.findByRole('button', { name: button }))
+        const collection = await screen.findByRole('group', { name: label })
+        const path = within(collection).getByLabelText(parts.join(', '))
+        expect(
+          [...path.querySelectorAll('.location-path-part')].map((part) => part.textContent),
+        ).toEqual(parts)
+        fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
+      }
+    },
+  )
 })
 
 describe('Changing a location (CP-16)', () => {
   it('changes a location in place, and its observations follow it', async () => {
     stored = [place('l1', 'Stiarcase', 'Level 2', 'Block A')]
     observations = [observationAt(stored[0])]
-    await openCapture()
-    await within(sheet()).findByText('1 observation')
+    await openNavigator()
 
-    press('Edit Block A · Level 2 · Stiarcase')
-    const form = within(sheet()).getByRole('region', { name: 'Edit location' })
-    // It opens in the location's own row, ready to type in.
-    expect(within(sheet()).getByRole('list', { name: 'Block A · Level 2' })).toContainElement(form)
-    expect(within(form).getByRole('combobox', { name: /^Building/ })).toHaveFocus()
+    await pressNav('Edit Block A › Level 2 › Stiarcase')
+    const form = within(editDialog()).getByRole('region', { name: 'Edit location' })
     expect(within(form).getByRole('combobox', { name: /^Building/ })).toHaveValue('Block A')
     expect(within(form).getByRole('combobox', { name: /^Level/ })).toHaveValue('Level 2')
-    fill({ Location: 'Staircase' })
+    fill({ Location: 'Staircase' }, editDialog)
     observations = [observationAt(place('l1', 'Staircase', 'Level 2', 'Block A'))]
-    press('Save location')
+    press('Save location', editDialog)
 
-    expect(await within(sheet()).findByText('Staircase')).toBeInTheDocument()
+    // The navigator lists it under the new name.
+    expect(
+      await within(navigator()).findByRole('button', { name: 'Staircase' }),
+    ).toBeInTheDocument()
     expect(edited).toEqual([
       { id: 'l1', body: { building: 'Block A', floor: 'Level 2', name: 'Staircase' } },
     ])
-    expect(within(sheet()).queryByRole('region', { name: 'Edit location' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Edit location' })).toBeNull()
     // The observation saved there now reads the new name.
-    fireEvent.keyDown(document, { key: 'Escape' })
-    fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
     expect(
       await screen.findByRole('button', { name: /Pump test certificate missing/ }),
-    ).toHaveTextContent('Block A · Level 2 · Staircase')
+    ).toBeVisible()
   })
 
   it('moves a location without a building into one, and keeps a clash out', async () => {
     stored = [place('l1', 'Lobby', 'Level 1'), place('l2', 'Lobby', 'Level 1', 'Block A')]
-    await openCapture()
-    fireEvent.click(await within(sheet()).findByRole('button', { name: /^Building not recorded/ }))
+    await openNavigator()
 
-    press('Edit Level 1 · Lobby')
+    await pressNav('Edit Level 1 › Lobby')
     // A level with no building: the building is asked for.
-    expect(within(sheet()).getByRole('radio', { name: 'In a building' })).toBeChecked()
-    press('Save location')
-    expect(field('Building')).toHaveAccessibleDescription(/Name the building\./)
-    fill({ Building: 'Block A' })
-    press('Save location')
-    expect(await within(sheet()).findByText('This location is already on the list.'))
+    expect(within(editDialog()).getByRole('radio', { name: 'In a building' })).toBeChecked()
+    press('Save location', editDialog)
+    expect(field('Building', editDialog)).toHaveAccessibleDescription(/Name the building\./)
+    fill({ Building: 'Block A' }, editDialog)
+    press('Save location', editDialog)
+    expect(await within(editDialog()).findByText('This location is already on the list.'))
 
-    fill({ Building: 'Block B' })
-    press('Save location')
+    fill({ Building: 'Block B' }, editDialog)
+    press('Save location', editDialog)
     await vi.waitFor(() =>
       expect(edited).toEqual([
         { id: 'l1', body: { building: 'Block B', floor: 'Level 1', name: 'Lobby' } },
       ]),
     )
-    await vi.waitFor(() =>
-      expect(within(sheet()).queryByRole('button', { name: /^Building not recorded/ })).toBeNull(),
-    )
-    expect(within(sheet()).getByRole('button', { name: 'Block B, 1 location' })).toBeInTheDocument()
+    // It now sits under its own building in the navigator.
+    expect(await within(navigator()).findByRole('button', { name: 'Block B' })).toBeInTheDocument()
   })
 
   it('cancels a change, leaving the location as it was', async () => {
     stored = [place('l1', 'Guardhouse')]
-    await openCapture()
-    await within(sheet()).findByText('Guardhouse')
-    press('Edit Elsewhere on site · Guardhouse')
+    await openNavigator()
+    await pressNav('Edit Elsewhere on site › Guardhouse')
 
-    fill({ Location: 'Gatehouse' })
-    press('Cancel')
+    fill({ Location: 'Gatehouse' }, editDialog)
+    press('Cancel', editDialog)
 
-    expect(within(sheet()).getByText('Guardhouse')).toBeInTheDocument()
-    expect(within(sheet()).queryByRole('region', { name: 'Edit location' })).toBeNull()
+    expect(within(navigator()).getByRole('button', { name: 'Guardhouse' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Edit location' })).toBeNull()
     expect(edited).toEqual([])
   })
 
@@ -542,10 +650,11 @@ describe('Changing a location (CP-16)', () => {
         },
       },
     ]
-    await openCapture()
+    // Locations are edited from the sidebar now (CP-22), so that is where Edit must be missing.
+    await openNavigator()
 
-    expect(await within(sheet()).findByText('Guardhouse')).toBeInTheDocument()
-    expect(within(sheet()).queryByRole('button', { name: /^Edit / })).toBeNull()
+    expect(await within(navigator()).findByText('Guardhouse')).toBeInTheDocument()
+    expect(within(navigator()).queryByRole('button', { name: /^Edit / })).toBeNull()
   })
 })
 
@@ -553,29 +662,29 @@ describe('Removing a location', () => {
   it('removes a location added by mistake, but not one with observations', async () => {
     stored = [place('l1', 'Stairwel B'), place('l2', 'Boiler room')]
     observations = [observationAt(stored[1])]
-    await openCapture()
-    await within(sheet()).findByText('1 observation')
+    await openNavigator()
 
     // Only the unused one offers removal, once confirmed in its own dialog.
     expect(
-      within(sheet()).queryByRole('button', { name: 'Remove Elsewhere on site · Boiler room' }),
+      within(navigator()).queryByRole('button', { name: 'Remove Elsewhere on site › Boiler room' }),
     ).toBeNull()
-    press('Remove Elsewhere on site · Stairwel B')
-    expect(await removeDialog()).toHaveTextContent('Elsewhere on site · Stairwel B')
+    await pressNav('Remove Elsewhere on site › Stairwel B')
+    expect(await removeDialog()).toHaveTextContent('Stairwel B')
     await confirmRemove()
 
-    await vi.waitFor(() => expect(within(sheet()).queryByText('Stairwel B')).toBeNull())
+    await vi.waitFor(() =>
+      expect(within(navigator()).queryByRole('button', { name: 'Stairwel B' })).toBeNull(),
+    )
     expect(screen.queryByRole('dialog', { name: 'Remove this location?' })).toBeNull()
     expect(removed).toEqual(['l1'])
-    expect(within(sheet()).getByText('Boiler room')).toBeInTheDocument()
+    expect(within(navigator()).getByRole('button', { name: 'Boiler room' })).toBeInTheDocument()
   })
 
   it('keeps the location when removal is cancelled or refused', async () => {
     stored = [place('l1', 'Lift A', 'Ground', 'Block A')]
-    await openCapture()
-    await within(sheet()).findByText('Lift A')
+    await openNavigator()
 
-    press('Remove Block A · Ground · Lift A')
+    await pressNav('Remove Block A › Ground › Lift A')
     fireEvent.click(within(await removeDialog()).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog', { name: 'Remove this location?' })).toBeNull()
     expect(removed).toEqual([])
@@ -587,28 +696,38 @@ describe('Removing a location', () => {
         error:
           "Lift A, Ground, Block A has 1 observation. It can't be removed while they are saved there.",
       })
-    press('Remove Block A · Ground · Lift A')
+    await pressNav('Remove Block A › Ground › Lift A')
     const dialog = await confirmRemove()
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       "Lift A, Ground, Block A has 1 observation. It can't be removed while they are saved there.",
     )
-    expect(within(sheet()).getByText('Lift A')).toBeInTheDocument()
+    expect(within(navigator()).getByRole('button', { name: 'Lift A' })).toBeInTheDocument()
   })
 
   it('asks for another location after removing the one in use', async () => {
     stored = [place('l1', 'Lift A', 'Ground', 'Block A'), place('l2', 'Roof', null, 'Block A')]
-    await openCapture()
-    await within(sheet()).findByText('Lift A')
-    press(/^Block A · Ground · Lift A/)
-    fireEvent.click(locationBar())
+    await openNavigator()
+    // Start capture at Lift A (the location in use), then go back and remove it.
+    await pressNav('Add observation at Block A › Ground › Lift A')
+    await screen.findByRole('button', { name: /^Location: Block A › Ground › Lift A/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
+    await within(await screen.findByRole('navigation', { name: 'Locations' })).findByRole(
+      'button',
+      {
+        name: 'Remove Block A › Ground › Lift A',
+      },
+    )
 
-    press('Remove Block A · Ground · Lift A')
+    await pressNav('Remove Block A › Ground › Lift A')
     await confirmRemove()
 
-    // No location is chosen now, so the picker stays open, asking for one.
+    // Capture opened at the removed location has no location chosen now, so
+    // the picker asks for one.
+    await vi.waitFor(() => expect(removed).toEqual(['l1']))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add manually' }))
+    expect(await screen.findByRole('dialog', { name: 'Where are you?' })).toBeInTheDocument()
     await vi.waitFor(() => expect(locationBar()).toHaveAccessibleName('Choose a location'))
-    expect(removed).toEqual(['l1'])
     expect(within(sheet()).getByText('Roof')).toBeInTheDocument()
   })
 })
@@ -624,7 +743,7 @@ describe('Checking building and level names (CP-16)', () => {
     fill({ Building: 'Block A', Level: 'L2', Location: 'Lobby' })
     press('Add location')
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 2 · Lobby/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 2 › Lobby/ }))
     expect(added).toEqual([{ building: 'Block A', floor: 'Level 2', name: 'Lobby' }])
   })
 
@@ -640,7 +759,7 @@ describe('Checking building and level names (CP-16)', () => {
     expect(added).toEqual([])
     fireEvent.click(within(check()!).getByRole('button', { name: 'Use Level 2' }))
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 2 · Lobby/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 2 › Lobby/ }))
     expect(added).toEqual([{ building: 'Block A', floor: 'Level 2', name: 'Lobby' }])
   })
 
@@ -653,7 +772,7 @@ describe('Checking building and level names (CP-16)', () => {
     expect(check()).toHaveTextContent('Check the level')
     expect(check()).toHaveTextContent('“Podium” isn’t a standard level name.')
     fireEvent.click(within(check()!).getByRole('button', { name: 'Keep “Podium”' }))
-    await screen.findByRole('button', { name: /Location: Block A · Podium · Garden/ })
+    await screen.findByRole('button', { name: /Location: Block A › Podium › Garden/ })
 
     // Now on the site, the same level is not questioned again.
     fireEvent.click(locationBar())
@@ -661,7 +780,7 @@ describe('Checking building and level names (CP-16)', () => {
     fill({ Location: 'Pool deck' })
     press('Add location')
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Podium · Pool deck/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Podium › Pool deck/ }))
     expect(added.map((l) => l.floor)).toEqual(['Podium', 'Podium'])
   })
 
@@ -690,13 +809,13 @@ describe('Checking building and level names (CP-16)', () => {
     expect(check()).toHaveTextContent('Check the spelling of “Blcok A”.')
     fireEvent.click(within(check()!).getByRole('button', { name: 'Use Block A' }))
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 1 · Lobby/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 1 › Lobby/ }))
     // Block B is another building, not a slip for Block A.
     fireEvent.click(locationBar())
     press('Add a location')
     fill({ Building: 'Block B', Location: 'Lobby' })
     press('Add location')
-    expect(await screen.findByRole('button', { name: /Location: Block B · Level 1 · Lobby/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block B › Level 1 › Lobby/ }))
     expect(added.map((l) => l.building)).toEqual(['Block A', 'Block B'])
   })
 })
@@ -713,7 +832,7 @@ describe('Checking building and location names against the usual ones (CP-16)', 
     expect(check()).toHaveTextContent('Did you mean Block A?')
     fireEvent.click(within(check()!).getByRole('button', { name: 'Use Block A' }))
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 1 · Lobby/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 1 › Lobby/ }))
     expect(added).toEqual([{ building: 'Block A', floor: 'Level 1', name: 'Lobby' }])
   })
 
@@ -722,19 +841,18 @@ describe('Checking building and location names against the usual ones (CP-16)', 
       place('l1', 'Stair', 'Level 3', 'blcok a'),
       place('l2', 'Lobby', 'Level 3', 'blcok a'),
     ]
-    await openCapture()
-    await within(sheet()).findByText('Stair')
+    await openNavigator()
 
-    press('Edit blcok a · Level 3 · Stair')
-    fill({ Building: 'Block A' })
-    press('Save location')
+    await pressNav('Edit blcok a › Level 3 › Stair')
+    fill({ Building: 'Block A' }, editDialog)
+    press('Save location', editDialog)
 
     await vi.waitFor(() =>
       expect(edited).toEqual([
         { id: 'l1', body: { building: 'Block A', floor: 'Level 3', name: 'Stair' } },
       ]),
     )
-    expect(check()).toBeNull()
+    expect(within(editDialog()).queryByRole('alert')).toBeNull()
   })
 
   it('asks about a mistyped location name, suggesting the usual one', async () => {
@@ -747,7 +865,7 @@ describe('Checking building and location names against the usual ones (CP-16)', 
     expect(check()).toHaveTextContent('Check the spelling of “stiarcase”.')
     fireEvent.click(within(check()!).getByRole('button', { name: 'Use Staircase' }))
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 1 · Staircase/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 1 › Staircase/ }))
     expect(added).toEqual([{ building: 'Block A', floor: 'Level 1', name: 'Staircase' }])
   })
 
@@ -760,13 +878,13 @@ describe('Checking building and location names against the usual ones (CP-16)', 
     // Not taken for Riser B: a different mark is a different place.
     fill({ Building: 'Block A', Level: 'Level 1', Location: 'Riser C' })
     press('Add location')
-    await screen.findByRole('button', { name: /Location: Block A · Level 1 · Riser C/ })
+    await screen.findByRole('button', { name: /Location: Block A › Level 1 › Riser C/ })
     fireEvent.click(locationBar())
     press('Add a location')
     fill({ Location: 'Atrium' })
     press('Add location')
 
-    expect(await screen.findByRole('button', { name: /Location: Block A · Level 1 · Atrium/ }))
+    expect(await screen.findByRole('button', { name: /Location: Block A › Level 1 › Atrium/ }))
     expect(added.map((l) => l.name)).toEqual(['Riser C', 'Atrium'])
   })
 
@@ -791,13 +909,13 @@ describe('The Observations tab by location (CP-16)', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
     return screen.findByRole('button', { name: /Pump test certificate missing/ })
   }
-  // The tab by building, level and location.
+  // The navigator: Block → Level → Area.
+  const nav = () => screen.getByRole('navigation', { name: 'Locations' })
+  const navRows = () => [...nav().querySelectorAll('.ob-nav-pick')].map((b) => b.textContent)
   async function openObservations() {
     await openTab()
-    fireEvent.click(screen.getByRole('button', { name: 'Group by location' }))
-    await screen.findByRole('group', { name: 'Elsewhere on site · Guardhouse' })
+    await within(nav()).findByRole('button', { name: 'Guardhouse' })
   }
-  const placeGroup = (name: string) => screen.getByRole('group', { name })
   beforeEach(() => {
     stored = [
       place('l1', 'Staircase', 'Level 2', 'Block A'),
@@ -807,36 +925,42 @@ describe('The Observations tab by location (CP-16)', () => {
     observations = [observationAt(stored[0])]
   })
 
+  it('shows an observation without a location as Location not recorded', async () => {
+    observations = [{ ...observationAt(stored[0]), location: null }]
+    const row = await openTab()
+    fireEvent.click(row)
+    const heading = await screen.findByRole('heading', { name: 'Location not recorded' })
+    expect(heading.querySelector('.op-path-name')).toHaveTextContent('Location not recorded')
+    expect(heading.querySelectorAll('.location-path-part')).toHaveLength(0)
+  })
+
   it('lists observations by building, level and location, empty locations too', async () => {
     await openObservations()
 
-    expect(screen.getByRole('button', { name: 'Block A, 1 observation' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
+    // Levels lowest first, empty locations too.
+    expect(navRows().slice(0, 6)).toEqual([
+      'All locations',
+      'Block A',
+      'Level 1',
+      'Lobby',
+      'Level 2',
+      'Staircase',
+    ])
+    // The sample assessment's own sample observation is listed where it was
+    // saved, though that location is not on the gateway's list.
+    expect(navRows().slice(-3)).toEqual(['Elsewhere on site', 'Guardhouse', 'Pump house'])
     expect(
-      within(placeGroup('Block A · Level 2 · Staircase')).getByText(
+      within(screen.getByRole('region', { name: 'Block A › Level 2 › Staircase' })).getByText(
         'Pump test certificate missing.',
       ),
     ).toBeInTheDocument()
-    expect(placeGroup('Block A · Level 1 · Lobby')).toHaveTextContent('No observations')
-    // Levels lowest first, and the headings say where, so no Location column.
-    const names = (title: string) =>
-      within(screen.getByRole('region', { name: title }))
-        .getAllByRole('heading', { level: 3 })
-        .map((h) => h.textContent)
-    expect(names('Block A')).toEqual(['Lobby', 'Staircase'])
-    // The sample assessment's own sample observation is listed where it was
-    // saved, though that location is not on the gateway's list.
-    expect(names('Elsewhere on site')).toEqual(['Guardhouse', 'Pump house'])
-    expect(screen.queryByText('Location', { selector: 'span' })).toBeNull()
 
     // A building folds away.
-    fireEvent.click(screen.getByRole('button', { name: 'Block A, 1 observation' }))
-    expect(screen.queryByRole('group', { name: /^Block A · / })).toBeNull()
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Fold Block A' }))
+    expect(within(nav()).queryByRole('button', { name: 'Staircase' })).toBeNull()
   })
 
-  it('opens newest first, naming each location in its row, and groups them on request', async () => {
+  it('lists observations before the separate request for empty locations arrives', async () => {
     // Observations can arrive before the separate request for empty locations.
     const gateway = fetch
     let releaseLocations!: () => void
@@ -846,29 +970,35 @@ describe('The Observations tab by location (CP-16)', () => {
     vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
       url === LOCATIONS_URL ? locationsReady.then(() => gateway(url, init)) : gateway(url, init),
     )
-    const row = await openTab()
+    await openTab()
 
-    expect(row).toHaveTextContent('Block A · Level 2 · Staircase')
-    expect(screen.queryByRole('group', { name: 'Elsewhere on site · Guardhouse' })).toBeNull()
-
-    // One button, its text saying what pressing it does.
-    const order = screen.getByRole('button', { name: 'Group by location' })
-    expect(order).not.toHaveAttribute('aria-pressed')
-    fireEvent.click(order)
-    expect(order).toHaveAccessibleName('Show newest first')
-    releaseLocations()
+    // Grouped by location from the start: the observation's own location, no empty ones yet.
     expect(
-      await screen.findByRole('group', { name: 'Elsewhere on site · Guardhouse' }),
-    ).toHaveTextContent('No observations')
-    fireEvent.click(order)
-    expect(order).toHaveAccessibleName('Group by location')
-    expect(screen.queryByRole('group', { name: 'Elsewhere on site · Guardhouse' })).toBeNull()
+      within(screen.getByRole('region', { name: 'Block A › Level 2 › Staircase' })).getByText(
+        'Pump test certificate missing.',
+      ),
+    ).toBeInTheDocument()
+    expect(within(nav()).queryByRole('button', { name: 'Guardhouse' })).toBeNull()
+
+    releaseLocations()
+    expect(await within(nav()).findByRole('button', { name: 'Guardhouse' })).toBeInTheDocument()
+  })
+
+  it('picking a location in the navigator lists only its observations', async () => {
+    await openObservations()
+
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Lobby' }))
+    expect(screen.getByText('Nothing recorded here yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Pump test certificate missing/ })).toBeNull()
+
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Staircase' }))
+    expect(screen.getByRole('button', { name: /Pump test certificate missing/ })).toBeVisible()
   })
 
   it('adds a location without capturing', async () => {
     await openObservations()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add location' }))
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Add location' }))
     const dialog = screen.getByRole('dialog', { name: 'Add a location' })
     for (const [label, value] of [
       [/^Building/, 'Block A'],
@@ -880,9 +1010,7 @@ describe('The Observations tab by location (CP-16)', () => {
       })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add location' }))
 
-    expect(
-      await screen.findByRole('group', { name: 'Block A · Level 1 · Store room' }),
-    ).toHaveTextContent('No observations')
+    expect(await within(nav()).findByRole('button', { name: 'Store room' })).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Add a location' })).toBeNull()
     expect(added).toEqual([{ building: 'Block A', floor: 'Level 1', name: 'Store room' }])
     expect(captureStarts).toBe(0)
@@ -892,19 +1020,31 @@ describe('The Observations tab by location (CP-16)', () => {
     await openObservations()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Add observation at Block A · Level 1 · Lobby' }),
+      screen.getByRole('button', { name: 'Add observation at Block A › Level 1 › Lobby' }),
     )
 
     expect(
-      await screen.findByRole('button', { name: /^Location: Block A · Level 1 · Lobby/ }),
+      await screen.findByRole('button', { name: /^Location: Block A › Level 1 › Lobby/ }),
     ).toBeInTheDocument()
     // Where is already chosen, so the picker stays closed.
     expect(screen.queryByRole('dialog', { name: 'Where are you?' })).toBeNull()
   })
 
-  // Capture from the header's Add observation, choosing where in the picker.
+  it('adds manually at the location picked in the navigator', async () => {
+    await openObservations()
+
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Lobby' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+
+    expect(
+      await screen.findByRole('button', { name: /^Location: Block A › Level 1 › Lobby/ }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Where are you?' })).toBeNull()
+  })
+
+  // Capture from Add manually with no location picked, choosing where in the picker.
   async function captureAt(building: string, location: RegExp) {
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
     await screen.findByRole('dialog', { name: 'Where are you?' })
     fireEvent.click(group(building))
     press(location)
@@ -915,97 +1055,84 @@ describe('The Observations tab by location (CP-16)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: note } })
     fireEvent.click(screen.getByRole('radio', { name: 'High' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    await screen.findByText('Observation saved to ' + REF + '.')
+    await screen.findByText(/Observation saved/)
   }
-  const back = () => fireEvent.click(screen.getByRole('button', { name: 'Back to observations' }))
+  const back = () => fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
 
   it('returns from capture to the location, with what was saved there marked New', async () => {
     await openObservations()
     fireEvent.click(
-      screen.getByRole('button', { name: 'Add observation at Block A · Level 1 · Lobby' }),
+      screen.getByRole('button', { name: 'Add observation at Block A › Level 1 › Lobby' }),
     )
     await saveNote('Fire door wedged open.')
     back()
 
-    const lobby = await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
-    await vi.waitFor(() => expect(lobby).toHaveFocus())
-    expect(scrolled).toEqual([lobby])
-    const saved = within(lobby).getByRole('button', { name: /Fire door wedged open/ })
-    expect(within(saved).getByText('New')).toBeInTheDocument()
-    // Saved before this visit, so not marked.
-    expect(within(placeGroup('Block A · Level 2 · Staircase')).queryByText('New')).toBeNull()
+    // The list opens on the location saved in, focused on the new row.
+    const saved = await screen.findByRole('button', { name: /Fire door wedged open/ })
+    await vi.waitFor(() => expect(saved).toHaveFocus())
+    expect(scrolled).toEqual([saved])
+    expect(saved).toHaveTextContent('New')
+    expect(within(nav()).getByRole('button', { name: 'Lobby' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
 
     // Marked only until the engineer leaves the tab.
     fireEvent.click(screen.getByRole('tab', { name: /^Overview/ }))
     fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
-    await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
-    expect(screen.queryByText('New')).toBeNull()
+    await screen.findByRole('button', { name: /Fire door wedged open/ })
+    expect(screen.queryByText(/^New/)).toBeNull()
     expect(scrolled).toHaveLength(1)
   })
 
   it('returns to the location last saved in, opening its folded building', async () => {
     await openObservations()
-    fireEvent.click(screen.getByRole('button', { name: 'Block A, 1 observation' }))
-    await captureAt('Block A', /^Block A · Level 1 · Lobby/)
-    await saveNote('Fire door wedged open.')
-    back()
-
-    const lobby = await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
-    expect(screen.getByRole('button', { name: 'Block A, 2 observations' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
-    await vi.waitFor(() => expect(lobby).toHaveFocus())
-    expect(within(lobby).getByText('New')).toBeInTheDocument()
-  })
-
-  it('newest first, returns to the newest observation saved', async () => {
-    await openTab()
-    await captureAt('Block A', /^Block A · Level 1 · Lobby/)
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Fold Block A' }))
+    await captureAt('Block A', /^Block A › Level 1 › Lobby/)
     await saveNote('Fire door wedged open.')
     back()
 
     const saved = await screen.findByRole('button', { name: /Fire door wedged open/ })
+    // The building is open again, so the location can be seen.
+    expect(within(nav()).getByRole('button', { name: 'Block A' })).toBeInTheDocument()
+    expect(within(nav()).getByRole('button', { name: 'Lobby' })).toBeInTheDocument()
     await vi.waitFor(() => expect(saved).toHaveFocus())
-    expect(scrolled).toEqual([saved])
-    expect(within(saved).getByText('New')).toBeInTheDocument()
+    expect(saved).toHaveTextContent('New')
   })
 
-  it('stays at the top when capture was opened from the header and saved nothing', async () => {
+  it('stays at the top when capture was opened from Add manually and saved nothing', async () => {
     await openObservations()
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
     await screen.findByRole('dialog', { name: 'Where are you?' })
     back()
 
-    await screen.findByRole('group', { name: 'Block A · Level 1 · Lobby' })
+    await within(nav()).findByRole('button', { name: 'Guardhouse' })
     expect(scrolled).toEqual([])
-    expect(screen.queryByText('New')).toBeNull()
+    expect(screen.queryByText(/^New/)).toBeNull()
   })
 
-  it('changes and removes a location from the list', async () => {
+  it('changes and removes a location from the navigator', async () => {
     await openObservations()
 
     // One with an observation saved there cannot be removed.
     expect(
-      screen.queryByRole('button', { name: 'Remove Block A · Level 2 · Staircase' }),
+      screen.queryByRole('button', { name: 'Remove Block A › Level 2 › Staircase' }),
     ).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Block A · Level 1 · Lobby' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Block A › Level 1 › Lobby' }))
     const dialog = screen.getByRole('dialog', { name: 'Edit location' })
     fireEvent.change(within(dialog).getByRole('combobox', { name: /^Location/ }), {
       target: { value: 'Lift lobby' },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save location' }))
-    expect(
-      await screen.findByRole('group', { name: 'Block A · Level 1 · Lift lobby' }),
-    ).toBeInTheDocument()
+    expect(await within(nav()).findByRole('button', { name: 'Lift lobby' })).toBeInTheDocument()
     expect(edited).toEqual([
       { id: 'l2', body: { building: 'Block A', floor: 'Level 1', name: 'Lift lobby' } },
     ])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Elsewhere on site · Guardhouse' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Elsewhere on site › Guardhouse' }))
     await confirmRemove()
     await vi.waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Elsewhere on site · Guardhouse' })).toBeNull(),
+      expect(within(nav()).queryByRole('button', { name: 'Guardhouse' })).toBeNull(),
     )
     expect(removed).toEqual(['l3'])
   })
@@ -1060,10 +1187,10 @@ describe('Locations by building and level (CP-16)', () => {
 
   it('labels a place general to specific on screen, and most specific first for reports', () => {
     const staircase = place('l1', 'Staircase', 'Level 2', 'Block A')
-    expect(locationLabel(staircase)).toBe('Block A · Level 2 · Staircase')
+    expect(locationLabel(staircase)).toBe('Block A › Level 2 › Staircase')
     expect(locationText(staircase)).toBe('Staircase, Level 2, Block A')
     expect(locationLabel(place('l2', 'Fire access route'))).toBe(
-      'Elsewhere on site · Fire access route',
+      'Elsewhere on site › Fire access route',
     )
     // One saved before buildings keeps the report wording it had.
     expect(locationText(place('l3', 'Pump room', 'B1'))).toBe('Pump room, B1')
