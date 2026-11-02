@@ -829,6 +829,96 @@ list. No loss figure comes from a model.
 | `POST /api/assessments/:reference/ofis/draft` | Drafts OFIs from the assessment's usable observations and replaces the unaccepted suggestions (`reports:generate`, assigned engineer only). 201 with the list, 403, 404, 409 (a transcription in progress, or archived), 503 (drafting failed, with the reason). |
 | `POST /api/assessments/:reference/ofis/:id/accept` | Accepts a suggestion into the report (assigned engineer only). 200 with the list; accepting twice changes nothing. 403, 404. |
 
+## Site walks (CP-22)
+
+`site_walks` holds one document per site walk: the engineer narrates or types a
+whole visit, and the gateway turns it into a proposal of locations and
+observations to review. Nothing reaches `assessments` or `observations` until
+Create all. Each document has:
+
+- `assessment`, `engineerId` (who started it; only they may change it) and
+  `status`: `recording` -> `transcribing` (after Finish walk) -> `proposing` ->
+  `ready` -> `created`, or `failed` (a step ran out of retries; Retry restarts
+  it). A walk with no recordings skips `transcribing`. `error` is the plain-English reason
+  when `failed`.
+- `recordings[]`: `seq` (one per (walk, seq); a repeat upload changes nothing),
+  `key` (S3), `contentType`, `size`, `durationSec`, and `transcription`
+  (`status`: `queued`, `transcribing`, `transcribed` or `failed`; `text`;
+  `segments`: Whisper's `[start, end, text]`; `attempts`; `error`).
+- `photos[]`: `photoId` (the client's UUID, so a repeat is recognised), `key`,
+  `contentType`, `size`, `recordingSeq` and `offsetSec` (seconds into that
+  recording; null if none), and `description` (S5's reading, set while the
+  proposal is made).
+- `notes[]`: typed notes, `{ seq, text }`. `seq` is shared with `recordings[]`
+  (one number is a recording or a note, never both), so the two read in the
+  order they were made. Blank text removes a note. Only while `recording`.
+- `media[]`: photos, handwritten pages and voice clips the engineer added to
+  the proposal by hand (Add observation on the review reuses the Add manually
+  screen): `mediaId` (the client's UUID; a repeat changes nothing), `kind`
+  (`photo`, `page` or `voice`), `key`, `contentType`, `size`, and for a voice
+  clip `transcription` (`status`, `text`, `error`), transcribed on the
+  `transcription` queue like a recording. Only while `ready` and Create all has
+  not started. Absent on older walks.
+- `typedText`: the whole-walk text of walks made before notes existed. Read
+  only, no new writes. A walk may hold recordings and notes together; Finish
+  needs at least one recording, note or legacy `typedText`.
+- `proposal`: `{ locations, observations }`, replaced whole on each save and
+  checked against the walk and the assessment first. A location has `ref`,
+  `existingId` (an assessment location, or `null` for a new one), `kind`
+  (`building` or `elsewhere`), `building`, `floor` and `name`. An observation
+  has `ref`, `note`, `copeDimension` (one category or `null`), `severity` (or
+  `null` after the engineer clears it), `locationRef` (`null` = needs a
+  location), `recordingSeq`, `start`, `end`, `photoIds`, `mediaIds` (its
+  `media[]` items; `[]` when none or absent on older proposals) and `check`
+  (`severity`, `category`, `location`: Jev was unsure, under 0.70).
+- `created`: `observationIds` and `locationIds` (proposal `ref` -> `_id`). The
+  observation ids are chosen before anything is created, so a repeated Create
+  all makes nothing twice.
+- `metadata` with the five required fields: `source_type: 'site_walk'`,
+  `jurisdiction` and `facility_type` from the site, `COPE_dimension: null`
+  (a walk has none; each proposed observation carries its own) and
+  `effective_date` (when it was started).
+
+At most one walk per engineer and assessment is `recording` at a time (a unique
+partial index), so a second tap or device carries on with the same walk.
+
+An observation made by Create all stores `siteWalk` (the walk's `_id`);
+responses say `fromSiteWalk: true` for it (or for an older one whose recording
+has a `clip`), which the Observations tab marks "From site walk". It has one entry in `recordings[]` that points at
+the walk recording's own S3 key and carries `clip: { siteWalk, start, end }`; its
+`transcription` is `transcribed` with the text of that part. The page plays it
+with the media fragment `#t=start,end`. Its photos are copied into the
+observation's own folder in S3, so they outlive the walk. An observation added
+by hand may have media and no note; its `media[]` become its own entries: photos
+copied like the walk's, voice clips as `recordings[]` at the walk's S3 key
+(`transcribed` with the walk's text, or transcribed now if the walk had none),
+and pages as `pages[]`, transcribed when created (as Add manually does).
+
+Two BullMQ queues in Redis, worked by the gateway: `transcription` (concurrency
+3, 5 attempts, exponential backoff from 5 s; site walk recordings and voice
+notes alike, so a busy speech service is retried rather than failed) and
+`site-walk-proposal` (concurrency 2, 3 attempts). Job ids are fixed per
+recording or walk, so queueing twice runs once.
+
+| Route (under `/api/assessments/:reference/site-walks`) | Does |
+| --- | --- |
+| `POST /` | Starts the engineer's walk, or returns the one still `recording` (200 / 201). |
+| `GET /`, `GET /:walkId` | The walks (newest first, `created` ones too, which the list folds away), or one. |
+| `PUT /:walkId/recordings/:seq` | Multipart `recording` and `durationSec`; idempotent; queues transcription. |
+| `PUT /:walkId/photos/:photoId` | Multipart `photo`, `recordingSeq`, `offsetSec`; idempotent. |
+| `GET /:walkId/photos/:photoId` | The photo's image. |
+| `PUT /:walkId/media/:mediaId` | Multipart: exactly one `photo`, `page` or `recording`, added to the proposal by hand; idempotent; only while `ready`; queues a voice clip's transcription. |
+| `GET /:walkId/media/:mediaId` | That item's file (Range supported). |
+| `PUT /:walkId/text` | `{ text }`: the typed walk. |
+| `POST /:walkId/finish`, `/retry` | Ends recording; re-runs what failed. |
+| `PUT /:walkId/proposal` | Saves the reviewed proposal (only while `ready`). |
+| `POST /:walkId/create` | Create all: `{ locationIds, observationIds }`; idempotent. |
+| `DELETE /:walkId` | Discards a walk not yet `created`. |
+
+Writes need `assessments:edit` and the walk's own engineer; reads need
+`assessments:view`. Ready walks notify the engineer (`notifications` purpose
+`site_walk_ready`, `context: { reference, walkId }`).
+
 ## Pre-survey checklists (CP-30)
 
 `checklists` holds one document per generated checklist. Generating again adds
@@ -1126,7 +1216,7 @@ it as lists of user ids.
 
 Fields: `purpose` (one of `ingestion_status`, `transcription_status`,
 `drafting_status`, `knowledge_document_status`, `account_status`,
-`assessment_status`, `knowledge_gap_request`), `message` (the line shown in the dropdown), `details` (the
+`assessment_status`, `knowledge_gap_request`, `site_walk_ready`), `message` (the line shown in the dropdown), `details` (the
 longer text behind the row's expand control, e.g. a failure reason),
 `targetRole` (a `USER_ROLES` value), `targetUserIds`, `readBy`, `dismissedBy`,
 `createdBy` and `createdByService`, and `context`.

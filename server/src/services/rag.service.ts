@@ -308,3 +308,91 @@ export async function requestSummaryDraft(body: unknown): Promise<SummaryDraftRe
     body: JSON.stringify(body),
   })
 }
+
+// What the gateway sends rag-service to read a site walk (CP-22), in camelCase;
+// proposeSiteWalk turns it into the snake_case body of POST /site-walks/propose
+// and the answer back. Recordings and notes must already be sorted by seq.
+export type SiteWalkProposeInput = {
+  reportId: string
+  transcript:
+    | {
+        kind: 'recordings'
+        // Recordings and typed notes together, sorted by seq.
+        recordings: (
+          | {
+              seq: number
+              durationSec: number
+              segments: { start: number; end: number; text: string }[]
+            }
+          | { seq: number; kind: 'typed'; text: string }
+        )[]
+      }
+    | { kind: 'typed'; text: string }
+  existingLocations: { id: string; building: string | null; floor: string | null; name: string }[]
+  photos: {
+    id: string
+    recordingSeq: number | null
+    offsetSec: number | null
+    description: string
+  }[]
+  siteName: string | null
+  privacy: { enabled: boolean; known_entities: unknown[] }
+}
+
+/** Asks rag-service for a site walk proposal; returns it in camelCase, unchecked. */
+export async function proposeSiteWalk(
+  input: SiteWalkProposeInput,
+): Promise<{ proposal: unknown; usage: unknown }> {
+  const body = await callRag<{
+    locations?: Record<string, unknown>[]
+    observations?: Record<string, unknown>[]
+    usage?: unknown
+  }>('/site-walks/propose', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      report_id: input.reportId,
+      transcript:
+        input.transcript.kind === 'recordings'
+          ? {
+              kind: 'recordings',
+              recordings: input.transcript.recordings.map((r) =>
+                'kind' in r ? r : { seq: r.seq, duration_sec: r.durationSec, segments: r.segments },
+              ),
+            }
+          : input.transcript,
+      existing_locations: input.existingLocations,
+      photos: input.photos.map((p) => ({
+        id: p.id,
+        recording_seq: p.recordingSeq,
+        offset_sec: p.offsetSec,
+        description: p.description,
+      })),
+      site_name: input.siteName,
+      privacy: input.privacy,
+    }),
+  })
+  const proposal = {
+    locations: (body.locations ?? []).map((l) => ({
+      ref: l.ref,
+      existingId: l.existing_id ?? null,
+      kind: l.kind,
+      building: l.building ?? null,
+      floor: l.floor ?? null,
+      name: l.name,
+    })),
+    observations: (body.observations ?? []).map((o) => ({
+      ref: o.ref,
+      note: o.note,
+      copeDimension: o.cope_dimension ?? null,
+      severity: o.severity ?? null,
+      locationRef: o.location_ref ?? null,
+      recordingSeq: o.recording_seq ?? null,
+      start: o.start ?? null,
+      end: o.end ?? null,
+      photoIds: o.photo_ids ?? [],
+      check: o.check,
+    })),
+  }
+  return { proposal, usage: body.usage }
+}

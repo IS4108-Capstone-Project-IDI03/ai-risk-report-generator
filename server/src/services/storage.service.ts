@@ -23,8 +23,18 @@ export async function putObject(key: string, body: Buffer, contentType: string) 
   )
 }
 
-export async function getObjectStream(key: string): Promise<Readable> {
-  const result = await s3.send(new GetObjectCommand({ Bucket: config.s3Bucket, Key: key }))
+// Bytes start..end of a file, both included.
+export type ByteRange = { start: number; end: number }
+
+// Returns the file as a stream, or only the bytes in `range`.
+export async function getObjectStream(key: string, range?: ByteRange): Promise<Readable> {
+  const result = await s3.send(
+    new GetObjectCommand({
+      Bucket: config.s3Bucket,
+      Key: key,
+      ...(range && { Range: `bytes=${range.start}-${range.end}` }),
+    }),
+  )
   return result.Body as Readable
 }
 

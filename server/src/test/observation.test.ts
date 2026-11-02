@@ -7,10 +7,13 @@ import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteModel } from '../models/site.model'
+import { transcriptionQueue } from '../services/background-queues.service'
 import {
   failInterruptedInterpretations,
-  failInterruptedTranscriptions,
+  resumeInterruptedTranscriptions,
+  runTranscription,
   listCategoryObservations,
+  createWalkObservation,
 } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
@@ -19,7 +22,8 @@ import { signedInAs, signedInAsRole } from './auth-test-helpers'
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
 vi.mock('../services/storage.service', () => ({
   putObject: async (key: string, body: Buffer) => void s3.set(key, body),
-  getObjectStream: async (key: string) => Readable.from([s3.get(key)]),
+  getObjectStream: async (key: string, range?: { start: number; end: number }) =>
+    Readable.from([range ? s3.get(key)!.subarray(range.start, range.end + 1) : s3.get(key)]),
   deleteObject: async (key: string) => void s3.delete(key),
 }))
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
@@ -141,6 +145,82 @@ async function settled(id: string) {
   return (await ObservationModel.findById(id).lean())!
 }
 
+describe('creating a reviewed site walk observation', () => {
+  async function walkObservationInput() {
+    const assessment = await assessmentWithSession()
+    const session = await CaptureSessionModel.findOne({ assessment: assessment._id })
+    return {
+      reference: assessment.reference,
+      id: new Types.ObjectId(),
+      assessmentId: assessment._id,
+      sessionId: session!._id,
+      site: null,
+      user: { id: String(actor._id), role: actor.role, name: actor.name },
+      locationId: BAY_3,
+      note: 'Pallets block the hose reel.',
+      severity: 'high' as const,
+      copeDimensions: ['Protection' as const],
+      evidence: {
+        clip: null,
+        photos: [
+          { photoId: 'p1', key: 'walk/photo.jpg', contentType: 'image/jpeg' as const, size: 5 },
+        ],
+      },
+      siteWalk: new Types.ObjectId(),
+    }
+  }
+
+  it('accepts concurrent creates of the same finding and keeps only its saved photos', async () => {
+    const input = await walkObservationInput()
+    s3.set('walk/photo.jpg', Buffer.from('photo'))
+    // Both requests saw no observation before either could insert it.
+    const exists = vi
+      .spyOn(ObservationModel, 'exists')
+      .mockImplementationOnce(() => Promise.resolve(null) as never)
+      .mockImplementationOnce(() => Promise.resolve(null) as never)
+    try {
+      await expect(
+        Promise.all([createWalkObservation(input), createWalkObservation(input)]),
+      ).resolves.toEqual([undefined, undefined])
+    } finally {
+      exists.mockRestore()
+    }
+
+    expect(await ObservationModel.countDocuments()).toBe(1)
+    const saved = await ObservationModel.findById(input.id).lean()
+    expect(saved?.photos).toHaveLength(1)
+    const photoKey = saved!.photos![0].key
+    expect([...s3.keys()].sort()).toEqual(['walk/photo.jpg', photoKey].sort())
+    expect(s3.get(photoKey)).toEqual(Buffer.from('photo'))
+  })
+
+  it.each(['assessmentId', 'siteWalk'] as const)(
+    'refuses an existing id belonging to another %s',
+    async (field) => {
+      const input = await walkObservationInput()
+      s3.set('walk/photo.jpg', Buffer.from('photo'))
+      await createWalkObservation(input)
+      const other = { ...input, [field]: new Types.ObjectId() }
+
+      await expect(createWalkObservation(other)).rejects.toMatchObject({ code: 11000 })
+      expect(await ObservationModel.countDocuments()).toBe(1)
+    },
+  )
+
+  it('still reports an unrelated database failure and removes its uploaded photos', async () => {
+    const input = await walkObservationInput()
+    s3.set('walk/photo.jpg', Buffer.from('photo'))
+    const failure = new Error('Mongo is down.')
+    const create = vi.spyOn(ObservationModel, 'create').mockRejectedValueOnce(failure)
+    try {
+      await expect(createWalkObservation(input)).rejects.toBe(failure)
+    } finally {
+      create.mockRestore()
+    }
+    expect([...s3.keys()]).toEqual(['walk/photo.jpg'])
+  })
+})
+
 describe('POST /api/assessments/:reference/observations', () => {
   it('saves a note and recordings as one observation, with each recording in S3', async () => {
     speech.mockReturnValue(s5(200, { transcript: 'Sprinkler valve chained open.' }))
@@ -183,6 +263,8 @@ describe('POST /api/assessments/:reference/observations', () => {
       COPE_dimension: ['Protection'],
     })
     expect(new Date(response.body.recordedAt)).toEqual(stored!.createdAt)
+    // Saved by hand, so not marked as from a site walk (CP-22 round 3).
+    expect(response.body.fromSiteWalk).toBe(false)
     // Saving adds to the session without ending it.
     const session = await CaptureSessionModel.findOne({ assessment: assessment._id }).lean()
     expect(String(stored?.session)).toBe(String(session?._id))
@@ -385,6 +467,74 @@ describe('POST /api/observations/:id/recordings/:recordingId/transcription/retry
     expect(done.transcription.attempts).toHaveLength(2)
     expect(done.transcription.attempts[1].finishedAt).toBeInstanceOf(Date)
     expect(speech).toHaveBeenLastCalledWith({ s3_key: recording.key })
+  })
+
+  it('fails a recording whose job cannot be queued, so Retry works', async () => {
+    await assessmentWithSession()
+    const down = vi.spyOn(transcriptionQueue, 'add').mockRejectedValue(new Error('redis down'))
+    const { id } = (await save()).body
+    await vi.waitFor(async () => {
+      const o = await ObservationModel.findById(id).lean()
+      expect(o?.recordings[0].transcription.status).toBe('failed')
+    })
+    down.mockRestore()
+
+    const failed = (await ObservationModel.findById(id).lean())!.recordings[0]
+    expect(failed.transcription.error).toContain('could not be queued')
+    speech.mockReturnValueOnce(s5(200, { transcript: 'Back up.' }))
+    expect((await retry(id, failed._id)).status).toBe(202)
+    expect((await settled(id)).recordings[0].transcription.status).toBe('transcribed')
+  })
+
+  it('queues a retry under a new job id, so BullMQ cannot drop it as the failed job', async () => {
+    const add = vi.spyOn(transcriptionQueue, 'add')
+    speech.mockReturnValueOnce(s5(502, { detail: 'Whisper timed out.' }))
+    await assessmentWithSession()
+    const failed = await settled((await save()).body.id)
+    speech.mockReturnValue(s5(200, { transcript: 'Done.' }))
+
+    await retry(failed._id, failed.recordings[0]._id)
+    await settled(String(failed._id))
+
+    const [first, again] = add.mock.calls.map(([jobId]) => jobId)
+    add.mockRestore()
+    expect(first).toBe(`vn-${failed._id}-${failed.recordings[0]._id}`)
+    expect(again).toMatch(new RegExp(`^${first}-retry-`))
+  })
+
+  it('throws when the observation cannot be read, so the queue retries the job', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'Done.' }))
+    await assessmentWithSession()
+    const saved = await settled((await save()).body.id)
+    const down = vi
+      .spyOn(ObservationModel, 'findOne')
+      .mockImplementationOnce(
+        () => ({ lean: () => Promise.reject(new Error('Mongo is down.')) }) as never,
+      )
+
+    await expect(
+      runTranscription(String(saved._id), String(saved.recordings[0]._id)),
+    ).rejects.toThrow('Mongo is down.')
+    down.mockRestore()
+  })
+
+  it('throws when the outcome cannot be saved, so the queue retries the job', async () => {
+    speech.mockReturnValueOnce(s5(502, { detail: 'Whisper timed out.' }))
+    await assessmentWithSession()
+    const failed = await settled((await save()).body.id)
+    await ObservationModel.updateOne(
+      { _id: failed._id },
+      { 'recordings.0.transcription.status': 'transcribing' },
+    )
+    speech.mockReturnValue(s5(200, { transcript: 'Done.' }))
+    const down = vi
+      .spyOn(ObservationModel, 'updateOne')
+      .mockRejectedValueOnce(new Error('Mongo is down.'))
+
+    await expect(
+      runTranscription(String(failed._id), String(failed.recordings[0]._id)),
+    ).rejects.toThrow('Mongo is down.')
+    down.mockRestore()
   })
 
   it('starts only one attempt when retry is sent twice at once', async () => {
@@ -739,6 +889,24 @@ describe('who can change an observation (CP-08 AC17)', () => {
 })
 
 describe('observation list, audio and restarts', () => {
+  it.each([
+    ['Error code: 413 - Maximum content size limit (26214400) exceeded', /too long or too large/],
+    ['Invalid file format. Supported formats: flac, mp3, wav', /format is not supported/],
+    ['Audio file is too short. Minimum audio length is 0.1 seconds.', /No speech was heard/],
+    ['Error code: 429 - rate limit reached', /usage limit.*Try again later/],
+    ['Error code: 503 - the server is overloaded', /busy.*Try again later/],
+    ['Request timed out.', /took too long.*Try again later/],
+    ['The speech service could not be reached.', /could not be reached.*Try again later/],
+  ])('shows a short reason for a failed recording: %s', async (detail, reason) => {
+    speech.mockReturnValue(
+      s5(502, { detail: `Whisper could not transcribe the recording: ${detail}` }),
+    )
+    await assessmentWithSession()
+    await settled((await save()).body.id)
+    const response = await api.get('/api/assessments/RPT-2026-0411/observations')
+    expect(response.body[0].recordings[0].transcription.error).toMatch(reason)
+  })
+
   it('shows a short storage failure reason while retaining technical details for diagnosis', async () => {
     const detail =
       'The recording could not be read from storage: SSL validation failed for https://example-bucket.s3.amazonaws.com/audio/private-recording.webm [Errno 2] No such file or directory'
@@ -801,18 +969,32 @@ describe('observation list, audio and restarts', () => {
     await settled(id)
   })
 
-  it('marks transcriptions interrupted by a restart as failed so they can be retried', async () => {
+  it('plays the recording in parts when asked with a Range header', async () => {
+    speech.mockReturnValue(s5(200, { transcript: 'x' }))
+    await assessmentWithSession()
+    const { id, recordings } = (await save()).body
+
+    const part = await api.get(recordings[0].url).set('Range', 'bytes=2-5').buffer(true)
+
+    expect(part.status).toBe(206)
+    expect(part.headers['content-range']).toBe(`bytes 2-5/${AUDIO.length}`)
+    expect(part.headers['accept-ranges']).toBe('bytes')
+    expect(Buffer.from(part.body)).toEqual(AUDIO.subarray(2, 6))
+    await settled(id)
+  })
+
+  it('puts transcriptions interrupted by a restart back on the queue instead of failing them (CP-22)', async () => {
     speech.mockReturnValue(new Promise<Response>(() => {}))
     await assessmentWithSession()
     const { id } = (await save({}, [{}, {}])).body
+    await vi.waitFor(() => expect(speech).toHaveBeenCalledTimes(2))
+    speech.mockClear()
 
-    await failInterruptedTranscriptions()
+    await resumeInterruptedTranscriptions()
 
+    await vi.waitFor(() => expect(speech).toHaveBeenCalledTimes(2))
     const stored = await ObservationModel.findById(id).lean()
-    for (const r of stored!.recordings) {
-      expect(r.transcription.status).toBe('failed')
-      expect(r.transcription.error).toMatch(/interrupted by a gateway restart/)
-    }
+    for (const r of stored!.recordings) expect(r.transcription.status).toBe('transcribing')
   })
 })
 
@@ -2271,7 +2453,7 @@ describe('handwritten pages (CP-19)', () => {
     await assessmentWithSession()
     const { id } = (await savePages([{ image: JPG }, { image: PNG }])).body
 
-    await failInterruptedTranscriptions()
+    await resumeInterruptedTranscriptions()
 
     const stored = await ObservationModel.findById(id).lean()
     for (const p of stored!.pages!) {

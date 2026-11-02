@@ -17,6 +17,9 @@ export const AI_FEATURES = [
   'chat',
   // A pre-survey checklist (CP-30): its Claude call and its Cohere searches.
   'checklist',
+  // A site walk (CP-22): S5 describing a photo, and the proposal step in rag-service.
+  'describe-photo',
+  'site-walk',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

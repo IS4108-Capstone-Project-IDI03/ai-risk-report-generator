@@ -112,6 +112,9 @@ used and which usually repeats the name ("Stairwell B"); and storing the locatio
 which a later rename would split. Reason: engineers walk a site area by area on
 a phone, so switching location should take one tap.
 Stories: CP-02, CP-03.
+Partly superseded 2026-10-29: the location navigator on the Observations tab now
+filters the list (see "Site walks: proposal first"); the sheet on the capture
+screen remains.
 
 ## 2026-09-30 — Tags are edited in place, and a location's name is its zone
 
@@ -1925,3 +1928,22 @@ Reason: the page-based pipeline and citations already work for PDFs, and convert
 Known limits: Microsoft fonts are not in the image, so LibreOffice uses look-alikes of the same size and a page break can move. A document is only as good as its conversion, and the original is not kept to convert again. Spreadsheets, HTML pages, emails and images are refused for now.
 
 Stories: IN-16, IN-01, IN-07.
+
+## 2026-10-29 — Site walks: proposal first, BullMQ transcription queue in the gateway
+
+Chose: an engineer records a whole site walk (talking, photographing) and the
+platform proposes the observations from it, each accepted, changed or dropped
+in a review screen before it becomes an observation. Recordings are
+transcribed by a BullMQ `transcription` queue in the gateway, which retries a
+busy, timed-out or unreachable speech service and marks the recording failed,
+with a short reason, only after the last attempt. The ADR "Locations on the
+assessment, chosen from a sheet on the capture screen" is partly superseded:
+the Observations tab now has a location navigator, a compact list and a page
+per observation. Rejected: creating observations straight from the transcript,
+which would put unchecked AI text into the record; transcribing in S5 itself
+or in the request, which holds a phone connection open for minutes and loses
+the work on a restart. Reason: engineers want to walk and talk, not fill in
+forms, and the review step keeps a person in charge of what is saved; a queue
+in the gateway survives restarts and keeps S5 stateless (it writes nothing to
+MongoDB).
+Stories: CP-22.

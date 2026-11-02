@@ -12,6 +12,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | OFI drafting (Section 3) | Yes | PV-02 | As for sections; accepted OFI titles are masked too. |
 | Executive Summary (Section 2) | Yes | PV-02 | The saved section text is masked. |
 | Knowledge-base chat | Yes | PV-03 | The conversation, context (the engineer's remembered facts, CB-05, travel as context), document names, passages, Cohere queries and rerank documents are masked; the answer streams back with real names. |
+| Site walk proposal (CP-22) | Yes | CP-22 | The transcript, existing location names and photo descriptions are masked before the walk-reading model and Jev. The photo itself and the audio are not (speech-to-text and photo description, rows below). |
 | Pre-survey checklist (CP-30) | Not needed | CP-30 | Only the facility type, country and standard ids are sent; S4's request has no field for client text. |
 | Proposed figures for Sections 4 and 5 (GN-03) | **No** | (PV-02 follow-up) | `POST /figures/propose` sends observations and sections to the model unmasked. |
 | Observation reading: photos, and since CP-21 any observation's text (Gemini) | **No** | PV-04 | |
@@ -50,6 +51,17 @@ In rag-service (`app/chat/answer.py`):
 
 If privacy-service fails, chat answers "Sorry, the chat couldn't answer: Client details couldn't be protected because the privacy service…" and calls no model or search.
 
+### Site walk proposal (CP-22)
+
+The gateway's `site-walk-proposal` worker sends the walk to rag-service's `POST /site-walks/propose` with `privacy` from `privacyFor`, like drafting.
+
+In rag-service (`app/site_walk/propose.py`):
+1. **One `/mask` call** covers every transcript segment (or the typed walk), each existing location's building, level and name, and each photo's description.
+2. The walk-reading model (`complete`) and every Jev question read only masked text. Places are matched in masked text too; one mapping covers the request, so the same name has the same placeholder everywhere.
+3. **Unmask before returning:** each note and each new location's building, level and name. A location matched to an existing one is returned with the gateway's own values.
+
+If privacy-service fails, the step fails with rag 502 and nothing is sent to the model or Jev. The worker retries, then marks the walk `failed` with the reason.
+
 **Placeholder-shaped input.** Text that already contains something like `[PERSON_1]` (typed by an engineer, or from a past report) is swapped for `[LITERAL_n]` before masking, and restored after unmasking. Without that swap, unmasking would put a real name where the input never had one. A bracketed escape such as `[ PERSON_1 ]` does not work, because the unmask pattern accepts placeholders without brackets.
 
 ## What is detected
@@ -69,6 +81,7 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 
 - **Other clients in past reports.** Known entities cover only the current assessment's client. A different client's company name or address in a stored past report is not detected, because organisation and location recognition is off. PV-05 redacts past reports at ingestion.
 - **Figure proposals, observation reading, handwriting and ingestion** are not protected yet (see the table above).
+- **Site walks:** the audio (Whisper) and the photos (`/describe-photo`) go out unmasked, as for voice notes and observation reading (PV-08, PV-04). Only the AI step that reads their text is protected.
 - **Chat's known names are read once a minute.** A client or user added in the last minute is not masked by name in chat (spaCy may still catch a person's name).
 - **Windows, outside Docker:** `localhost` costs about 2 s per `/mask` call (IPv6 is tried first). Set `PRIVACY_SERVICE_URL=http://127.0.0.1:8004`. Docker uses the service name and is unaffected.
 - From PV-01: a surname written before the full name gets two placeholders, and `[PERSON 1]` (with a space) is not restored.
