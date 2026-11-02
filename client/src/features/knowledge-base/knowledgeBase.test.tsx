@@ -347,7 +347,7 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     choose(pdf('broken.pdf'))
     await screen.findByText(refused)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /^Assessment dashboard/ })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Assessments/ })[0])
     fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
 
     expect(await screen.findByText(refused)).toBeInTheDocument()
