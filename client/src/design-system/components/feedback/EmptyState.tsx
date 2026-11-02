@@ -58,7 +58,7 @@ function EmptyState({
             fontSize: 'var(--text-body-size)',
             lineHeight: 'var(--text-body-lh)',
             color: 'var(--text-muted)',
-            maxWidth: 380,
+            maxWidth: 'min(65ch, 100%)',
           }}
         >
           {description}

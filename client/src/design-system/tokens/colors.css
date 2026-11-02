@@ -78,9 +78,10 @@
   --border-strong: var(--graphite-300);
   --border-focus: var(--ink-500);
 
-  --action-primary: var(--ink-600);
-  --action-primary-hover: var(--ink-700);
-  --action-primary-active: var(--ink-800);
+  /* One navy for every filled button and selected state (CP-22). */
+  --action-primary: var(--marsh-navy);
+  --action-primary-hover: var(--ink-800);
+  --action-primary-active: var(--ink-700);
   --action-danger: var(--red-600);
 
   /* Status — used for risk severity, review state, AI confidence */
