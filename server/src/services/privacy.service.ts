@@ -10,6 +10,22 @@ import { AssessmentNotFoundError } from './capture-session.service'
 // the first name.
 export type KnownEntity = { type: 'CLIENT' | 'SITE' | 'ADDRESS' | 'PERSON'; names: string[] }
 
+// A client's, site's or address's names: the current one first, as a
+// placeholder restores to the first name, then those it had before it was
+// corrected (CP-18), so notes written with an old name are still masked and
+// read back with the current one.
+function namesOf(current: string | null | undefined, former: string[] = []) {
+  return [...(current ? [current] : []), ...former]
+}
+type NamedSite = Pick<ISite, 'name' | 'code' | 'address' | 'formerNames' | 'formerAddresses'>
+function siteEntities(site: NamedSite): KnownEntity[] {
+  const addresses = namesOf(site.address, site.formerAddresses)
+  return [
+    { type: 'SITE', names: [site.name, site.code, ...(site.formerNames ?? [])] },
+    ...(addresses.length ? [{ type: 'ADDRESS' as const, names: addresses }] : []),
+  ]
+}
+
 // The details an assessment's notes and drafts may name: its client, its site
 // and the site's address, and the team's people. Sent with every masking call,
 // so privacy-service finds them by name rather than leaving them to its model.
@@ -17,8 +33,8 @@ export async function knownEntities(reference: string): Promise<KnownEntity[]> {
   const assessment = await AssessmentModel.findOne({ reference }, 'site client')
     .populate<{ site: (ISite & { client?: IClient | null }) | null }>({
       path: 'site',
-      select: 'name code address client',
-      populate: { path: 'client', select: 'name' },
+      select: 'name code address formerNames formerAddresses client',
+      populate: { path: 'client', select: 'name formerNames' },
     })
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
@@ -27,10 +43,11 @@ export async function knownEntities(reference: string): Promise<KnownEntity[]> {
 
   const entities: KnownEntity[] = []
   // An assessment from before CP-17 holds the client's name as typed.
-  const client = site?.client?.name ?? assessment.client
-  if (client) entities.push({ type: 'CLIENT', names: [client] })
-  if (site) entities.push({ type: 'SITE', names: [site.name, site.code] })
-  if (site?.address) entities.push({ type: 'ADDRESS', names: [site.address] })
+  const client = site?.client
+    ? namesOf(site.client.name, site.client.formerNames)
+    : namesOf(assessment.client)
+  if (client.length) entities.push({ type: 'CLIENT', names: client })
+  if (site) entities.push(...siteEntities(site))
   for (const { name } of users) entities.push({ type: 'PERSON', names: [name] })
   return entities
 }
@@ -54,21 +71,20 @@ export function chatKnownEntities(): Promise<KnownEntity[]> {
   return chatEntities.entities
 }
 
+// Every client and site, removed ones included (CP-18): a removed site's name
+// is still a client detail, so it stays masked.
 async function readChatEntities(): Promise<KnownEntity[]> {
   const [clients, typed, sites, users] = await Promise.all([
-    ClientModel.find({}, 'name').lean(),
+    ClientModel.find({}, 'name formerNames').lean(),
     // Assessments from before CP-17 hold the client's name as typed.
     AssessmentModel.distinct('client', { client: { $nin: [null, ''] } }),
-    SiteModel.find({}, 'name code address').lean(),
+    SiteModel.find({}, 'name code address formerNames formerAddresses').lean(),
     UserModel.find({ active: true }, 'name').lean(),
   ])
   return [
-    ...clients.map(({ name }) => ({ type: 'CLIENT' as const, names: [name] })),
+    ...clients.map((c) => ({ type: 'CLIENT' as const, names: namesOf(c.name, c.formerNames) })),
     ...typed.map((name) => ({ type: 'CLIENT' as const, names: [name] })),
-    ...sites.map(({ name, code }) => ({ type: 'SITE' as const, names: [name, code] })),
-    ...sites.flatMap(({ address }) =>
-      address ? [{ type: 'ADDRESS' as const, names: [address] }] : [],
-    ),
+    ...sites.flatMap(siteEntities),
     ...users.map(({ name }) => ({ type: 'PERSON' as const, names: [name] })),
   ]
 }
