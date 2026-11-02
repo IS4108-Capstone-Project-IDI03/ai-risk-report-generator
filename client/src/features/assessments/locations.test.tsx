@@ -126,26 +126,12 @@ async function openCapture() {
 }
 const sheet = () => screen.getByRole('dialog', { name: 'Where are you?' })
 // A field of the picker's form, by label; each suggests names as you type
-// (a textbox).
+// (a combobox).
 const field = (label: 'Building' | 'Level' | 'Location', root = sheet) =>
-  within(root()).getByRole('textbox', { name: new RegExp('^' + label) })
+  within(root()).getByRole('combobox', { name: new RegExp('^' + label) })
 function fill(fields: Partial<Record<'Building' | 'Level' | 'Location', string>>, root = sheet) {
   for (const [label, value] of Object.entries(fields))
     fireEvent.change(field(label as 'Building', root), { target: { value } })
-}
-// The names suggested under a field: a list of buttons shown while it has focus.
-function suggested(input: HTMLElement) {
-  // The form puts the cursor in its first box; move it so one list shows.
-  fireEvent.blur(document.activeElement!)
-  fireEvent.focus(input)
-  const list = within(sheet()).queryByRole('list', { name: 'Suggestions' })
-  const names = list
-    ? within(list)
-        .getAllByRole('button')
-        .map((b) => b.textContent)
-    : []
-  fireEvent.blur(input)
-  return names
 }
 const press = (name: string | RegExp, root = sheet) =>
   fireEvent.click(within(root()).getByRole('button', { name }))
@@ -173,6 +159,15 @@ const lists = () =>
     .queryAllByRole('list')
     .map((l) => l.getAttribute('aria-label'))
 const locationBar = () => screen.getByRole('button', { name: /^(Location:|Choose a location)/ })
+// Every name a field suggests, listed from its chevron, then closed again.
+function suggested(input: HTMLElement) {
+  fireEvent.click(within(input.parentElement!).getByRole('button', { name: 'Show suggestions' }))
+  const names = within(document.getElementById(input.getAttribute('aria-controls')!)!)
+    .getAllByRole('option')
+    .map((o) => o.textContent)
+  fireEvent.keyDown(input, { key: 'Escape' })
+  return names
+}
 // The Remove this location? dialog the bin button opens.
 const removeDialog = () => screen.findByRole('dialog', { name: 'Remove this location?' })
 async function confirmRemove() {
@@ -273,8 +268,8 @@ describe('Choosing where observations are captured', () => {
 
     fireEvent.click(within(sheet()).getByRole('radio', { name: 'Elsewhere on site' }))
     // Elsewhere on site has no building or level.
-    expect(within(sheet()).queryByRole('textbox', { name: /^Building/ })).toBeNull()
-    expect(within(sheet()).queryByRole('textbox', { name: /^Level/ })).toBeNull()
+    expect(within(sheet()).queryByRole('combobox', { name: /^Building/ })).toBeNull()
+    expect(within(sheet()).queryByRole('combobox', { name: /^Level/ })).toBeNull()
     fill({ Location: 'Fire access route' })
     press('Add location')
 
@@ -404,17 +399,18 @@ describe('Choosing where observations are captured', () => {
     await within(sheet()).findByText('Block A')
     press('Add a location')
 
-    const options = suggested
-    expect(options(field('Building'))).toEqual(['Block A', 'Block B'])
+    expect(suggested(field('Building'))).toEqual(['Block A', 'Block B'])
     fill({ Building: 'block b' })
-    // The list shows the first six: the site's own levels, then the usual ones.
-    expect(options(field('Level'))).toEqual([
+    expect(suggested(field('Level'))).toEqual([
       'G',
       'Mezzanine',
       'Basement 2',
       'Basement 1',
       'Ground',
       'Level 1',
+      'Level 2',
+      'Level 3',
+      'Roof',
     ])
   })
 
@@ -570,8 +566,8 @@ describe('Changing a location (CP-16)', () => {
 
     await pressNav('Edit Block A › Level 2 › Stiarcase')
     const form = within(editDialog()).getByRole('region', { name: 'Edit location' })
-    expect(within(form).getByRole('textbox', { name: /^Building/ })).toHaveValue('Block A')
-    expect(within(form).getByRole('textbox', { name: /^Level/ })).toHaveValue('Level 2')
+    expect(within(form).getByRole('combobox', { name: /^Building/ })).toHaveValue('Block A')
+    expect(within(form).getByRole('combobox', { name: /^Level/ })).toHaveValue('Level 2')
     fill({ Location: 'Staircase' }, editDialog)
     observations = [observationAt(place('l1', 'Staircase', 'Level 2', 'Block A'))]
     press('Save location', editDialog)
@@ -642,7 +638,6 @@ describe('Changing a location (CP-16)', () => {
         status: 'capturing',
         captureStartedAt: '2026-04-11T08:00:00.000Z',
         createdAt: '2026-04-01T00:00:00.000Z',
-        siteShared: false,
         site: {
           id: 'site1',
           code: 'SITE-0001',
@@ -650,6 +645,8 @@ describe('Changing a location (CP-16)', () => {
           address: null,
           jurisdiction: 'GB',
           facilityType: 'Warehouse',
+          removed: false,
+          change: { allowed: true, reason: null, assessments: 1 },
         },
       },
     ]
@@ -899,9 +896,7 @@ describe('Checking building and location names against the usual ones (CP-16)', 
 
     const options = suggested(field('Location'))
     expect(options.slice(0, 4)).toEqual(['Atrium', 'Staircase', 'Stairwell', 'Lobby'])
-    // Typing narrows the list to the names containing it.
-    fill({ Location: 'fire' })
-    expect(suggested(field('Location'))).toContain('Fire access route')
+    expect(options).toContain('Fire access route')
   })
 })
 
@@ -1010,7 +1005,7 @@ describe('The Observations tab by location (CP-16)', () => {
       [/^Level/, 'Level 1'],
       [/^Location/, 'Store room'],
     ] as const)
-      fireEvent.change(within(dialog).getByRole('textbox', { name: label }), {
+      fireEvent.change(within(dialog).getByRole('combobox', { name: label }), {
         target: { value },
       })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add location' }))
@@ -1125,7 +1120,7 @@ describe('The Observations tab by location (CP-16)', () => {
     ).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Block A › Level 1 › Lobby' }))
     const dialog = screen.getByRole('dialog', { name: 'Edit location' })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: /^Location/ }), {
+    fireEvent.change(within(dialog).getByRole('combobox', { name: /^Location/ }), {
       target: { value: 'Lift lobby' },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save location' }))

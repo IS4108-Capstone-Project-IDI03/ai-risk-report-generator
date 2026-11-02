@@ -161,8 +161,16 @@ function toEvidence(o: ObservationDto): Evidence {
 // and ones the draft was given that are no longer evidence, e.g. deleted or
 // uncategorised (CP-08 AC15).
 // `figures` (GN-03): 1 when Section 4 or 5's figures changed since the draft;
-// present only then.
-export type ChangeCounts = { added: number; changed: number; removed: number; figures?: number }
+// present only then. `scope` (CP-18): 1 when the site's jurisdiction or
+// facility type was corrected since, so the draft's standards were retrieved
+// for another scope; present only then.
+export type ChangeCounts = {
+  added: number
+  changed: number
+  removed: number
+  figures?: number
+  scope?: number
+}
 const NO_CHANGES: ChangeCounts = { added: 0, changed: 0, removed: 0 }
 // A draft's evidence as it is compared with now: drafts saved before an
 // observation could have several categories hold one string, read here as a
@@ -297,9 +305,15 @@ export type LoadedSection = {
 export async function loadSections(reference: string): Promise<LoadedSection[]> {
   const assessment = await AssessmentModel.findOne(
     { reference },
-    '_id riskQuality lossEstimates',
-  ).lean()
+    '_id riskQuality lossEstimates site',
+  )
+    .populate<{ site: Pick<ISite, 'jurisdiction' | 'facilityType'> | null }>(
+      'site',
+      'jurisdiction facilityType',
+    )
+    .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
+  const site = assessment.site
   const [sections, observations, drafts] = await Promise.all([
     listTemplateSections(),
     listObservations(reference),
@@ -314,7 +328,15 @@ export async function loadSections(reference: string): Promise<LoadedSection[]> 
     // Figures changed since the draft was written, or since cleared, make it out of
     // date too (GN-03). Sections 6-12 have neither facts nor missing figures.
     const figuresChanged = (facts !== undefined && latest?.facts !== facts) || missing !== undefined
-    const changeCounts = latest && figuresChanged ? { ...counts, figures: 1 } : counts
+    // The site's scope was corrected since (CP-18): the draft's standards were
+    // retrieved for the jurisdiction and facility type it was drafted with.
+    const scopeChanged =
+      !!site &&
+      (latest?.metadata.jurisdiction !== site.jurisdiction ||
+        latest?.metadata.facility_type !== site.facilityType)
+    const changeCounts: ChangeCounts = latest
+      ? { ...counts, ...(figuresChanged && { figures: 1 }), ...(scopeChanged && { scope: 1 }) }
+      : counts
     return {
       section,
       usableObservations: usable.filter(isFiledUnder(section)).length,
@@ -324,7 +346,8 @@ export async function loadSections(reference: string): Promise<LoadedSection[]> 
         changeCounts.added +
         changeCounts.changed +
         changeCounts.removed +
-        (changeCounts.figures ?? 0),
+        (changeCounts.figures ?? 0) +
+        (changeCounts.scope ?? 0),
       changeCounts,
       inputsMissing: missing ?? null,
     }

@@ -97,16 +97,18 @@ Sample microcopy, in register:
 
 ## Migrated inventory
 
-All 29 shared exports have a typed source module under `design-system/components` and a public export in `design-system/index.ts`.
+All 30 shared exports have a typed source module under `design-system/components` and a public export in `design-system/index.ts`.
 
 | Group      | Exports                                                     |
 | ---------- | ----------------------------------------------------------- |
 | Core       | Icon, IconRegistry, Button, IconButton                      |
-| Forms      | Input, Textarea, Select, Checkbox, Radio, Switch            |
+| Forms      | Input, Textarea, Select, Combobox, Checkbox, Radio, Switch  |
 | Display    | Card, Badge, Tag, Table, StatusIcon, PageHeader, MetricStat |
 | Navigation | SideNav, Tabs, Breadcrumb                                   |
 | Feedback   | Callout, Dialog, Toast, EmptyState, ProgressBar, Tooltip    |
 | AI         | AIDraftBlock, EvidenceCitation, ConfidenceIndicator         |
+
+Combobox is a text field that suggests values as it is typed into (a client, a building), drawn like Select with its chevron, its suggestions in a list under it. Use it rather than a native `<datalist>`, whose list the browser draws in its own style.
 
 The seven token stylesheets are fonts, colors, typography, spacing, elevation, motion and base. `styles.css` imports them and supplies shared accessibility/layout styles.
 

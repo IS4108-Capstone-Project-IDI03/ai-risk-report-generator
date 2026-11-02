@@ -3,8 +3,7 @@
 // in a dialog. In a building (building, optional level, name) or elsewhere on
 // site (name only), with the rules in proposal.ts. Used by screens/Review.tsx.
 import { useState, type FormEvent } from 'react'
-import { Dialog } from '../../../design-system'
-import { SuggestField } from '../../assessments/components/SuggestField'
+import { Combobox, Dialog } from '../../../design-system'
 import {
   LEVEL_SUGGESTIONS,
   LOCATION_NAMES,
@@ -86,27 +85,27 @@ export function LocationForm({
         </fieldset>
         {inBuilding && (
           <div className="cap-form-row">
-            <SuggestField
+            <Combobox
               label="Building"
               required
               size="lg"
               placeholder="e.g. Block A"
               maxLength={100}
-              suggestions={suggestions(known.map((l) => l.building))}
+              options={suggestions(known.map((l) => l.building))}
               value={input.building}
-              onChange={(e) => set({ building: e.target.value })}
+              onValueChange={(value) => set({ building: value })}
             />
-            <SuggestField
+            <Combobox
               label="Level"
               size="lg"
               placeholder="e.g. Level 2"
               maxLength={40}
-              suggestions={suggestions(
+              options={suggestions(
                 known.map((l) => l.floor),
                 LEVEL_SUGGESTIONS,
               )}
               value={input.floor}
-              onChange={(e) => set({ floor: e.target.value })}
+              onValueChange={(value) => set({ floor: value })}
             />
           </div>
         )}
@@ -115,7 +114,7 @@ export function LocationForm({
             Leave the level blank if the location is the whole building, such as its roof.
           </p>
         )}
-        <SuggestField
+        <Combobox
           label="Location"
           required
           size="lg"
@@ -123,12 +122,12 @@ export function LocationForm({
             inBuilding ? 'e.g. Staircase, Store room, Lobby' : 'e.g. Fire access route, Guardhouse'
           }
           maxLength={100}
-          suggestions={suggestions(
+          options={suggestions(
             known.map((l) => l.name),
             LOCATION_NAMES,
           )}
           value={input.name}
-          onChange={(e) => set({ name: e.target.value })}
+          onValueChange={(value) => set({ name: value })}
         />
         {problem && (
           <p className="swr-problem" role="alert">

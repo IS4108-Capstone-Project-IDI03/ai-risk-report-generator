@@ -3,9 +3,8 @@
 // the one navy button, bottom right. Also changes a location (the sidebar's
 // pencil). Used by LocationSheet.tsx's picker and screens/Observations.tsx's dialog.
 import { useEffect, useId, useRef } from 'react'
-import { Callout } from '../../../design-system'
+import { Callout, Combobox } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
-import { SuggestField } from './SuggestField'
 import '../capture.css'
 
 // Asks about a building, level or location name new to the site that looks
@@ -67,8 +66,8 @@ function NameCheckCallout({ v }: { v: AssessmentWorkflow }) {
 
 // Adds a location, or changes the one being edited: in a building, with an
 // optional level (none for the whole building), or elsewhere on site, with a
-// name only. Building and Level suggest the names already used, in our own
-// list (SuggestField.tsx), not the browser's.
+// name only. Building and Level suggest the names already used, in
+// the shared Combobox (CP-18), not the browser's.
 export function LocationForm({ v }: { v: AssessmentWorkflow }) {
   const id = useId()
   const inBuilding = v.lf.kind === 'building'
@@ -114,25 +113,25 @@ export function LocationForm({ v }: { v: AssessmentWorkflow }) {
       {inBuilding && (
         <>
           <div className="cap-form-row">
-            <SuggestField
+            <Combobox
               label="Building"
               required
               size="lg"
               placeholder="e.g. Block A"
               maxLength={100}
-              suggestions={v.buildingSuggestions}
+              options={v.buildingSuggestions}
               value={v.lf.building}
-              onChange={v.setLf('building')}
+              onValueChange={v.setLf('building')}
               error={v.lfErrors.building}
             />
-            <SuggestField
+            <Combobox
               label="Level"
               size="lg"
               placeholder="e.g. Level 2"
               maxLength={40}
-              suggestions={v.levelSuggestions}
+              options={v.levelSuggestions}
               value={v.lf.floor}
-              onChange={v.setLf('floor')}
+              onValueChange={v.setLf('floor')}
               error={v.lfErrors.floor}
             />
           </div>
@@ -143,7 +142,7 @@ export function LocationForm({ v }: { v: AssessmentWorkflow }) {
           {v.lfCheck?.field === 'floor' && <NameCheckCallout v={v} />}
         </>
       )}
-      <SuggestField
+      <Combobox
         label="Location"
         required
         size="lg"
@@ -151,9 +150,9 @@ export function LocationForm({ v }: { v: AssessmentWorkflow }) {
           inBuilding ? 'e.g. Staircase, Store room, Lobby' : 'e.g. Fire access route, Guardhouse'
         }
         maxLength={100}
-        suggestions={v.locationNameSuggestions}
+        options={v.locationNameSuggestions}
         value={v.lf.name}
-        onChange={v.setLf('name')}
+        onValueChange={v.setLf('name')}
         error={v.lfErrors.name}
       />
       {v.lfCheck?.field === 'name' && <NameCheckCallout v={v} />}

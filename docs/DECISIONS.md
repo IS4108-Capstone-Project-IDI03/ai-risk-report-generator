@@ -1291,7 +1291,9 @@ Chose:
 - A site's details are locked on its assessments once another one not
   archived shares it; an archived one doesn't count, so a mistaken create
   doesn't freeze the site. An assessment's client and site can't be changed
-  after it is created: a wrong pick is archived and created again.
+  after it is created: a wrong pick is archived and created again. (The lock
+  is replaced by CP-18's rule, 2026-11-02: a site or client changes for all
+  its assessments when every one of them is the engineer's.)
 - One client can't have two sites of one name, whatever the case, and a new
   client or site name close to a listed one is asked about, as CP-16 does for
   locations. Sites saved before with the same name stay.
@@ -1947,3 +1949,43 @@ forms, and the review step keeps a person in charge of what is saved; a queue
 in the gateway survives restarts and keeps S5 stateless (it writes nothing to
 MongoDB).
 Stories: CP-22.
+
+## 2026-11-02 — An engineer manages a client and its sites from the client's page, where every assessment is theirs
+
+Chose:
+- A client page, `/clients/<id>` (CP-18), opened from Clients in the side menu, from View client on Group by client and from the client's name on an assessment's Overview. It shows the engineer's own sites at the client and their own visits there, in the work list's columns and with its status and due-date signs, filtered by site name or address, by status, Archived and Removed sites. Group by client now works in the Archived view too, so a client whose visits are all archived can still be opened. Its Rename client and Remove client sit behind the header's ⋯, as an assessment's Archive does, disabled with the reason when they aren't the engineer's.
+- Clients (`/clients`) lists the engineer's own clients, one row each with how many sites, open and archived visits, found by name or site. A client whose sites are all removed waits under Removed clients (n), as removed sites wait under Removed sites (n) on its page and archived visits under Archived (n), rather than mixed into the list with a badge. It is drawn from the work list, so it lists exactly the clients whose pages the engineer may open. The page was first reachable only from Group by client and the Overview, to avoid a list repeating Group by client, but it proved hard to find; Clients lists clients, not visits, so it repeats little.
+- One rule for every change: a client or site is renamed, corrected, removed or restored only when every assessment it has, archived or not, is the engineer's (assigned to them now, so a reassignment under RV-11 moves the right with it), and none is finalised. Removing also needs every assessment archived. An assessment with no engineer is no one's, so it blocks. Refusals say "another engineer's assessment" without naming whose.
+- A colleague's archived assessment blocks too. Archive is mostly for mistakes, but until sign-off (RV-04) sets `finalised`, a colleague may have archived a finished report, and the finalised rule can't protect it yet.
+- A finalised report locks its site and client: Section 1 and the headers read the site live, and a signed-off report must keep the details it was signed with.
+- One Edit site dialog, opened from the client page and from the Site card on an assessment's Overview alike, so a change follows the same rule and warning wherever it is made; when the site isn't the engineer's to change, the card says why instead. Rename client is on the client page only, where every site and visit it reaches is in view. Edit details is a dialog over the Overview with only the visit's own details (assessment type, site visit date, report due); the create form no longer has an edit mode. Correcting a jurisdiction or facility type asks first, saying how many assessments it changes.
+- The create form's Client, and capture's Building, Level and Location, suggest names in the shared Combobox, drawn like Select, instead of the browser's `<datalist>`, whose list and arrow looked unlike the rest of the app.
+- The create form opens blank each time, however it was left, instead of keeping what was typed before: a half-filled client and site from an abandoned form read as if they were the next assessment's.
+- The side menu's Assessment dashboard reads Assessments, as its page title does, and Usage and costs is Usage and Costs, in the side menu and its page title alike, on request: an exception to sentence case (docs/areas/ui.md).
+- A client page's header offers Add site, its one main action as Add observation is the workspace's, beside the ⋯ menu: it opens the create form with the client chosen and Add a new site picked, so a site still comes with its first visit (CP-17). The Clients list has no New assessment of its own, as it would only repeat the work list's without choosing anything.
+- The shared Popover keeps itself on screen, moving sideways where its side of the trigger has too little room, as a phone's header has once its actions wrap to the left.
+- Each screen opens at the top: the page's one scroll area is reset whenever the screen, workspace tab or client changes, before a screen scrolls itself to where it means to open (the Observations tab back from capture, the document editor on its section). Before, a screen opened wherever the last one had been scrolled to.
+- CP-18's controls match their twins on the Observations tab (CP-08): Remove is a danger-tonal button with the discard bin, Restore has the reinstate icon, each names what it acts on for screen readers, edits save with Save changes, and a change is stamped "Edited by Alex Rowe · 02 Nov 2026 14:02". The client page leads back with ← Back to clients, as Photos and Scans lead back to the Observations tab. A site card puts New visit first, then Edit and Remove, as a location's heading puts Add observation first; and a client reads the same in Clients and under its page's title ("4 sites · 5 open · 1 archived").
+- Site routes are `/api/sites/:id`, not under a client, so a site saved before CP-17 (no client yet) can still be corrected from its assessment.
+- Corrections keep a site's former names and addresses, and a client's former names, and privacy masking sends them after the current one (PV-02, PV-03): notes written with an old name are still masked, and read back as the current name, since a placeholder restores to the first. This also closes a leak from before CP-18, when renaming a site from Edit details left the old name unmasked. Removed sites stay on the chat's masking list.
+- A section draft shows as out of date (`changeCounts.scope`) when the site's jurisdiction or facility type differs from what it was drafted with, as `figures` does for Sections 4 and 5; drafts of an unchanged site read exactly as before.
+- Removing is soft (`removed: { at, by, withClient }`). A removed site leaves the create form and is read-only until restored. A client is not marked: it counts as removed once it has no listed site, so removing a client removes its listed sites as one batch, and restoring it restores that batch. Typing a removed client's name on the create form finds it again.
+- A removed site's name is free, as a colleague can't see the removed site to restore it. Restoring never makes two listed sites of one name: it asks for a new one, and restoring an archived assessment on such a site is refused until the site is restored under a new name. A client's name is all it is, so typing a removed client's name brings it back; a site has details, so a new site of a removed one's name is a second site, which CP-44's merge can join.
+- Every change records `edited: { at, by }`, shown on the client page.
+
+Rejected:
+- Editing on Group by client: it would crowd the work list, and it only holds the engineer's assessments that pass its filters.
+- A Clients and sites list of every client: a colleague's clients and visits are not the engineer's to see; the knowledge admin's view of them is CP-44.
+- Knowledge-admin-only editing: the engineer who walked the site knows the right details, and a wrong facility type should be fixed before the next checklist and draft, not when an admin gets to it. Changes a colleague's work depends on go to the admin instead (CP-44).
+- Editing a site in two places with two rules (Edit details for a site no one else uses, the client page otherwise): the same change would be allowed, warned about or refused depending on the screen, and every protection would be built twice.
+- A separate Remove client flag: it would be a second way to reach "no listed site", with its own restore rules.
+- Edit site and Rename client inside Edit details, as first built: one screen then held two kinds of save, a dialog's that changed every assessment at once and Save's that changed only this visit's dates, and one note explaining why Rename was missing sat under Edit site, reading as if the site couldn't be changed.
+- Permanently deleting a site: assessments, reports, cost records and masking point to it; soft removal covers the need.
+- Moving a site to another client: a sold property's last reports must still name the old owner, so a new owner is a new site; a wrong pick is archived, created again and the stray site removed.
+- Flagging OFIs on a scope change: OFIs have no out-of-date tracking yet.
+
+Reason: CP-17's lock kept one assessment from changing another's site, but also stopped an engineer fixing a typo across their own repeat visits, and left a wrong facility type, which drives the checklist's hazards and the standards drafting retrieves, uncorrectable once a site had two visits.
+
+Known limits: a site or client a colleague's assessment uses can't be changed by anyone until CP-44, and an engineer who leaves locks their sites until RV-11 reassigns their assessments. Corrections read live everywhere, the usage report included, so past costs show under the new name; prose already drafted keeps any old name until redrafted. Former names stay masked for good, so a generic old name (e.g. "Main building") is masked in the chat for everyone. The ownership check reads, then writes, with no transaction: a colleague creating a visit at the site in between is not refused. The chat reads its masking list once a minute, so a new name can reach it unmasked for up to a minute after a rename, as a new client's name already can. A site with no client yet can be corrected but not removed, as it has no client page; `migrate:clients` gives it one.
+
+Stories: CP-18, CP-17, PV-02, PV-03, RV-10, RV-11, CP-44.

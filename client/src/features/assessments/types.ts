@@ -10,7 +10,7 @@ import type {
 
 export type AssessmentRow = {
   engineerId?: string | null
-  // The saved assessment the row came from, which the edit form starts from.
+  // The saved assessment the row came from, which Edit details starts from.
   record?: Assessment
   id: string
   site: string
@@ -156,6 +156,10 @@ export type GenerationSection = {
 export type DateFilter = 'overdue' | 'due-soon' | 'visit-soon'
 export type WorkflowState = {
   screen: string
+  // The client whose page is open (CP-18), from '/clients/<id>'.
+  clientPage: string | null
+  // The client dialog opened from the client page's ⋯ menu (CP-18).
+  clientDialog: 'rename' | 'remove' | null
   tab: string
   toast: string | null
   toastTone: string
@@ -200,8 +204,6 @@ export type WorkflowState = {
     // Create: use the listed one, or keep it as typed.
     check: { field: 'client' | 'site'; typed: string; suggestion: string } | null
   }
-  // The assessment whose details the form is editing, or null when creating.
-  cfEdit: string | null
   cfErr: boolean
   cfBusy: boolean
   cfServerError: string | null

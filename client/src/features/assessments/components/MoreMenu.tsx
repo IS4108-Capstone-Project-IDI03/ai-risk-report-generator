@@ -1,11 +1,18 @@
 import { useState } from 'react'
 import { Icon, IconButton, Popover } from '../../../design-system'
 
-export type MoreMenuItem = { label: string; icon: string; onSelect: () => void }
+export type MoreMenuItem = {
+  label: string
+  icon: string
+  onSelect: () => void
+  disabled?: boolean
+}
 
-// The assessment's occasional actions (version history, archiving), kept out of
-// the header behind one ⋯ button so the main action stands alone.
-export function MoreMenu({ items }: { items: MoreMenuItem[] }) {
+// A screen's occasional actions (an assessment's version history and
+// archiving, a client's rename and removal), kept out of the header behind
+// one ⋯ button so the main action stands alone. An action the user can't take
+// shows disabled, with the reason in `notes` below.
+export function MoreMenu({ items, notes = [] }: { items: MoreMenuItem[]; notes?: string[] }) {
   const [open, setOpen] = useState(false)
   if (!items.length) return null
   return (
@@ -14,7 +21,7 @@ export function MoreMenu({ items }: { items: MoreMenuItem[] }) {
       onOpenChange={setOpen}
       ariaLabel="More actions"
       align="right"
-      surfaceClassName="om-more-menu"
+      surfaceClassName={notes.length ? 'om-more-menu has-notes' : 'om-more-menu'}
       trigger={
         <IconButton
           icon="ellipsis"
@@ -31,6 +38,7 @@ export function MoreMenu({ items }: { items: MoreMenuItem[] }) {
             <button
               type="button"
               className="om-more-item"
+              disabled={item.disabled}
               onClick={() => {
                 setOpen(false)
                 item.onSelect()
@@ -42,6 +50,12 @@ export function MoreMenu({ items }: { items: MoreMenuItem[] }) {
           </li>
         ))}
       </ul>
+      {notes.map((note) => (
+        <p key={note} className="om-more-note">
+          <Icon name="info" size={16} color="var(--text-muted)" />
+          <span>{note}</span>
+        </p>
+      ))}
     </Popover>
   )
 }

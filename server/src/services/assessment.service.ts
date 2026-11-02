@@ -10,28 +10,17 @@ import { SiteModel, type ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
 import { FACILITY_TYPES } from './knowledge-document.service'
 import {
+  changeRights,
   clientNameOf,
+  FACILITY_TYPE_RULE,
   findOrCreateClient,
   getClient,
-  isSiteShared,
   latestVisit,
-  liveVisitCounts,
   refuseDuplicateSite,
-  SiteSharedError,
+  restoreSiteOf,
   UnknownSiteError,
+  type Allowed,
 } from './client.service'
-
-// A new or changed facility type must be one the forms offer, since the
-// knowledge base's labels and the checklist's hazards (CP-30) use only those.
-// An older site's type, kept unchanged, is not refused, so its assessments can
-// still be edited.
-const FACILITY_TYPE_RULE = 'Choose a facility type from the list.'
-export class UnknownFacilityTypeError extends Error {
-  constructor() {
-    super(FACILITY_TYPE_RULE)
-    this.name = 'UnknownFacilityTypeError'
-  }
-}
 
 export class InvalidEngineersError extends Error {
   constructor() {
@@ -76,9 +65,8 @@ const optionalDate = (label: string) =>
 const objectId = (message: string) => z.string(message).refine(isValidObjectId, message)
 
 // A site's details: what a new site is created with, and what PUT
-// /api/assessments/:reference corrects while the site is not shared (RV-10
-// AC10, CP-17 AC8).
-const siteDetails = z.object(
+// /api/sites/:id corrects (CP-18).
+export const siteDetailsSchema = z.object(
   {
     name: required('Site name'),
     address: optional('Site address'),
@@ -110,7 +98,7 @@ export const newAssessmentSchema = z
     clientId: objectId('Choose one of the listed clients, or name a new one.').optional(),
     client: required('Client').optional(),
     siteId: objectId("Choose one of this client's sites, or add a new one.").optional(),
-    site: siteDetails
+    site: siteDetailsSchema
       .extend({
         facilityType: required('Facility type').refine(
           (type) => FACILITY_TYPES.includes(type),
@@ -136,10 +124,12 @@ export const newAssessmentSchema = z
   })
   .refine(dueOnOrAfterVisit, dueDateRule)
 
-// Request body for PUT /api/assessments/:reference. The engineer, client and
-// site stay as created (CP-17 AC8); only the site's details can be corrected.
+// Request body for PUT /api/assessments/:reference: the visit's own details.
+// The engineer, client and site stay as created (CP-17 AC8), and the site's and
+// client's details change for all their assessments at once, through PUT
+// /api/sites/:id and /api/clients/:id (CP-18); a `site` sent here is ignored.
 export const assessmentDetailsSchema = z
-  .object({ site: siteDetails, ...assessmentFields })
+  .object(assessmentFields)
   .refine(dueOnOrAfterVisit, dueDateRule)
 
 export type NewAssessment = z.infer<typeof newAssessmentSchema>
@@ -177,9 +167,6 @@ export type AssessmentDto = {
   // dashboard continues the engineer's most recently started capture.
   captureStartedAt: Date | null
   createdAt: Date
-  // Whether the site has another assessment that is not archived: its details
-  // are then shared, and can't be changed here (CP-17 AC8).
-  siteShared: boolean
   site: {
     id: string
     code: string
@@ -187,6 +174,11 @@ export type AssessmentDto = {
     address: string | null
     jurisdiction: string
     facilityType: string
+    // Removed from its client (CP-18): it takes no new visit.
+    removed: boolean
+    // Whether the signed-in engineer may correct it (CP-18), and how many
+    // assessments a correction changes, for its confirm step.
+    change: Allowed & { assessments: number }
   }
 }
 
@@ -195,12 +187,18 @@ type ListedSite = Omit<ISite, 'client'> & {
   _id: Types.ObjectId
   client?: { _id: Types.ObjectId; name: string } | null
 }
+// Whether the engineer may correct an assessment's site (CP-18).
+type Rights = ReturnType<Awaited<ReturnType<typeof changeRights>>>
 
 // Creates the assessment on a listed site of a listed client, or adds the
 // client and the site first (CP-17), allocating the site code and the report
 // reference (RPT-<year>-<nnnn>) on the server. On a listed site, it starts with
-// a copy of the latest visit's locations unless the engineer said not to.
-export async function createAssessment(input: NewAssessment): Promise<AssessmentDto> {
+// a copy of the latest visit's locations unless the engineer said not to. A
+// removed site (CP-18) is not listed, so it is refused.
+export async function createAssessment(
+  input: NewAssessment,
+  user?: SessionUser,
+): Promise<AssessmentDto> {
   const engineer = await UserModel.findOne({
     _id: input.engineerId,
     role: 'risk_engineer',
@@ -214,8 +212,8 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
   let site: ISite & { _id: Types.ObjectId }
   if (input.siteId) {
     const listed = await SiteModel.findById(input.siteId).lean()
-    // A site of another client is refused.
-    if (!listed || !client._id.equals(listed.client)) throw new UnknownSiteError()
+    // A site of another client is refused, and a removed one (CP-18).
+    if (!listed || !client._id.equals(listed.client) || listed.removed) throw new UnknownSiteError()
     site = listed
   } else {
     await refuseDuplicateSite(client._id, input.site!.name)
@@ -250,8 +248,9 @@ export async function createAssessment(input: NewAssessment): Promise<Assessment
           locations,
         }),
     )
-    const shared = !!input.siteId && (await isSiteShared(site._id, assessment._id))
-    return toDto(assessment, { ...site, client }, engineer, shared)
+    const shown = { ...site, client }
+    const rights = await changeRights([shown], user?.id ?? String(engineer._id))
+    return toDto(assessment, shown, engineer, rights(shown))
   } catch (error: unknown) {
     // No transaction (dev and test MongoDB are standalone servers), so remove
     // a new site by hand rather than leave it without an assessment.
@@ -274,11 +273,14 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
     .populate<{ site: ListedSite }>({ path: 'site', populate: { path: 'client', select: 'name' } })
     .populate<{ engineer: AssignedEngineer | null }>('engineer', 'name')
     .lean()
-  const [sessions, visits] = await Promise.all([
+  const [sessions, rights] = await Promise.all([
     CaptureSessionModel.find({ assessment: { $in: assessments.map((a) => a._id) } })
       .sort({ createdAt: 1 })
       .lean(),
-    liveVisitCounts(assessments.map((a) => a.site._id)),
+    changeRights(
+      assessments.map((a) => a.site),
+      user.id,
+    ),
   ])
   // Later sessions overwrite earlier ones, so each assessment keeps its latest.
   const latest = new Map(sessions.map((s) => [String(s.assessment), s]))
@@ -287,9 +289,7 @@ export async function listAssessments(user: SessionUser): Promise<AssessmentDto[
     const status = a.archivedAt
       ? 'archived'
       : (a.reportStatus ?? (session ? CAPTURE_STATUS[session.status] : 'not_started'))
-    // Its site's assessments not archived, less itself when it counts.
-    const others = (visits.get(String(a.site._id)) ?? 0) - (a.archivedAt ? 0 : 1)
-    return toDto(a, a.site, a.engineer, others > 0, status, session?.createdAt ?? null)
+    return toDto(a, a.site, a.engineer, rights(a.site), status, session?.createdAt ?? null)
   })
 }
 
@@ -313,46 +313,20 @@ async function assignedAssessment(reference: string, user: SessionUser) {
   return assessment._id
 }
 
-// Corrects an assessment's details and its site's (RV-10 AC10): only its
-// assigned engineer can, and not once it is archived, which keeps it read-only.
-// A date left empty is cleared. The engineer, report reference, client and
-// site never change (CP-17 AC8). Once the site has another assessment not
-// archived, its details are shared and can't be changed here (AC8); sending
-// them unchanged is fine.
+// Corrects an assessment's own details (RV-10 AC10): its type and dates. Only
+// its assigned engineer can, and not once it is archived, which keeps it
+// read-only. A date left empty is cleared. The engineer, report reference,
+// client and site never change (CP-17 AC8); the site's details, and the
+// client's name, are corrected for all their assessments at once (CP-18).
 export async function updateAssessment(
   reference: string,
   input: AssessmentDetails,
   user: SessionUser,
 ): Promise<void> {
-  const assessment = await AssessmentModel.findOne({ reference }, 'site engineer archivedAt').lean()
+  const assessment = await AssessmentModel.findOne({ reference }, 'engineer archivedAt').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
   if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
-  const site = await SiteModel.findById(assessment.site).lean()
-  const { address, ...details } = input.site
-  const changed =
-    site &&
-    (site.name !== details.name ||
-      (site.address ?? undefined) !== address ||
-      site.jurisdiction !== details.jurisdiction ||
-      site.facilityType !== details.facilityType)
-  if (changed) {
-    if (
-      site.facilityType !== details.facilityType &&
-      !FACILITY_TYPES.includes(details.facilityType)
-    )
-      throw new UnknownFacilityTypeError()
-    if (await isSiteShared(site._id, assessment._id)) throw new SiteSharedError()
-    if (site.client && site.name !== details.name)
-      await refuseDuplicateSite(site.client, details.name, site._id)
-    await SiteModel.updateOne(
-      { _id: site._id },
-      {
-        $set: { ...details, ...(address && { address }) },
-        ...(!address && { $unset: { address: 1 } }),
-      },
-    )
-  }
   // 'YYYY-MM-DD' parses as UTC midnight, so the calendar day is kept.
   const optional = {
     siteVisitDate: input.siteVisitDate && new Date(input.siteVisitDate),
@@ -383,10 +357,18 @@ export async function archiveAssessment(reference: string, user: SessionUser): P
 }
 
 // Restores an archived assessment (RV-10 AC9). Its report status was kept, so
-// clearing archivedAt returns it with the status it had.
+// clearing archivedAt returns it with the status it had. A removed site comes
+// back with it (CP-18), so a restored assessment never sits on a removed site;
+// when its name has since been taken, it is refused until the site is restored
+// under a new name.
 export async function restoreAssessment(reference: string, user: SessionUser): Promise<void> {
+  const assessment = await AssessmentModel.findOne({ reference }, 'engineer archivedAt site').lean()
+  if (!assessment) throw new AssessmentNotFoundError(reference)
+  if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
+  if (!assessment.archivedAt) throw new NotArchivedError(reference)
+  await restoreSiteOf(assessment.site)
   const restored = await AssessmentModel.updateOne(
-    { _id: await assignedAssessment(reference, user), archivedAt: { $exists: true } },
+    { _id: assessment._id, archivedAt: { $exists: true } },
     { $unset: { archivedAt: 1 } },
   )
   if (!restored.modifiedCount) throw new NotArchivedError(reference)
@@ -424,7 +406,7 @@ function toDto(
   assessment: Omit<IAssessment, 'site' | 'engineer'> & { _id: unknown },
   site: ListedSite,
   engineer: AssignedEngineer | null | undefined,
-  siteShared: boolean,
+  rights: Rights,
   status: AssessmentStatus = 'not_started',
   captureStartedAt: Date | null = null,
 ): AssessmentDto {
@@ -440,7 +422,6 @@ function toDto(
     status,
     captureStartedAt,
     createdAt: assessment.createdAt,
-    siteShared,
     site: {
       id: String(site._id),
       code: site.code,
@@ -448,6 +429,8 @@ function toDto(
       address: site.address ?? null,
       jurisdiction: site.jurisdiction,
       facilityType: site.facilityType,
+      removed: !!site.removed,
+      change: { ...rights.change, assessments: rights.assessments },
     },
   }
 }

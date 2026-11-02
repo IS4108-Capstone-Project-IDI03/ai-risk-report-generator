@@ -183,7 +183,6 @@ function assessment(engineer: { id: string; name: string }): Assessment {
     status: 'capturing',
     captureStartedAt: '2026-04-11T08:00:00.000Z',
     createdAt: '2026-04-01T00:00:00.000Z',
-    siteShared: false,
     site: {
       id: 'site1',
       code: 'SITE-0001',
@@ -191,6 +190,8 @@ function assessment(engineer: { id: string; name: string }): Assessment {
       address: null,
       jurisdiction: 'GB',
       facilityType: 'Warehouse',
+      removed: false,
+      change: { allowed: true, reason: null, assessments: 1 },
     },
   }
 }

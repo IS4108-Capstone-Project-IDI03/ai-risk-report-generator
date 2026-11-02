@@ -75,6 +75,14 @@ export const JURISDICTIONS = [
   { value: 'UK', label: 'United Kingdom' },
 ]
 
+// The kinds of assessment offered when creating one and in Edit details.
+export const SURVEY_TYPES = [
+  'Property risk survey',
+  'Follow-up visit',
+  'Business interruption',
+  'Natural hazard review',
+]
+
 // The gateway checks knowledge documents against a copy of this list: keep
 // FACILITY_TYPES in server/src/services/knowledge-document.service.ts matching.
 export const FACILITY_TYPES = [
@@ -92,6 +100,8 @@ export const FACILITY_TYPES = [
 
 export const initialState: WorkflowState = {
   screen: 'dashboard',
+  clientPage: null,
+  clientDialog: null,
   tab: 'overview',
   toast: null,
   toastTone: 'success',
@@ -122,7 +132,6 @@ export const initialState: WorkflowState = {
     kept: [],
     check: null,
   },
-  cfEdit: null,
   cfErr: false,
   cfBusy: false,
   cfServerError: null,

@@ -1,7 +1,9 @@
-import { Fragment } from 'react'
+import { useState } from 'react'
 import type * as React from 'react'
-import { Badge, Button } from '../../../design-system'
+import { Badge, Button, Icon } from '../../../design-system'
+import { EditSiteDialog } from '../../clients/ClientDialogs'
 import type { ReportSection, ReviewSection } from '../api'
+import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { StatBox, type BoxContent } from '../components/StatBox'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { reportProgress } from '../reviewDisplay'
@@ -23,7 +25,7 @@ type Report = {
 } | null
 
 // The assessment at a glance: four boxes that follow the report from capture to
-// its due date, its record, and where each report section stands.
+// its due date, its site and its record, and where each report section stands.
 export function Overview({ v }: { v: AssessmentWorkflow }) {
   return v.liveReference ? (
     <LiveOverview v={v} reference={v.liveReference} />
@@ -180,10 +182,65 @@ function sectionState(s: ReportSection) {
   }
 }
 
+type Fact = AssessmentWorkflow['ovSiteFacts'][number]
+
+// A card's label and value rows. A value that opens something, the client's
+// page (CP-18), reads as a link.
+function Facts({ facts }: { facts: Fact[] }) {
+  return (
+    <div style={{ padding: '6px 20px 14px' }}>
+      {facts.map((ff) => (
+        <div
+          key={ff.label}
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: '16px',
+            padding: '10px 0',
+            borderBottom: '1px solid var(--border-subtle)',
+          }}
+        >
+          <span
+            style={{
+              flex: '0 0 auto',
+              width: '150px',
+              fontSize: '14px',
+              color: 'var(--text-muted)',
+            }}
+          >
+            {ff.label}
+          </span>
+          <span
+            style={{
+              flex: '1',
+              minWidth: '0',
+              fontSize: '15px',
+              lineHeight: '22px',
+              color: 'var(--text-body)',
+              textWrap: 'pretty',
+            }}
+          >
+            {ff.open ? (
+              <button type="button" className="text-link" onClick={ff.open}>
+                {ff.value}
+              </button>
+            ) : (
+              ff.value
+            )}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function OverviewLayout({ v, report }: { v: AssessmentWorkflow; report: Report }) {
   const capture = v.ovCapture
   const drafting = draftingBox(report)
   const review = reviewBox(report)
+  // Edit site and Edit details open over the Overview (CP-18).
+  const [dialog, setDialog] = useState<'site' | 'details' | null>(null)
+  const edit = v.ovEdit
   return (
     <>
       <div
@@ -236,65 +293,85 @@ function OverviewLayout({ v, report }: { v: AssessmentWorkflow; report: Report }
               alignItems: 'start',
             }}
           >
-            <div style={{ ...card, overflow: 'hidden' }}>
-              <div style={cardHead}>
-                {'Assessment record'}
-                {/* Edits the details this card shows (RV-10 AC10). */}
-                {v.canEditDetails && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    iconLeft="pencil"
-                    aria-label="Edit details"
-                    onClick={v.goEditDetails}
-                  >
-                    {'Edit'}
-                  </Button>
-                )}
-              </div>
-              <div style={{ padding: '6px 20px 14px' }}>
-                {v.ovFacts.map((ff, index) => (
-                  <Fragment key={index}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'baseline',
-                        gap: '16px',
-                        padding: '10px 0',
-                        borderBottom: '1px solid var(--border-subtle)',
-                      }}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+              {/* The site, and Edit site, which changes it for every
+                  assessment at it (CP-18); or why it can't be changed. */}
+              <section aria-label="Site" style={{ ...card, overflow: 'hidden' }}>
+                <div style={cardHead}>
+                  {'Site'}
+                  {edit?.site.allowed && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      iconLeft="pencil"
+                      onClick={() => setDialog('site')}
                     >
-                      <span
-                        style={{
-                          flex: '0 0 auto',
-                          width: '150px',
-                          fontSize: '14px',
-                          color: 'var(--text-muted)',
-                        }}
-                      >
-                        {ff.label}
-                      </span>
-                      <span
-                        style={{
-                          flex: '1',
-                          minWidth: '0',
-                          fontSize: '15px',
-                          lineHeight: '22px',
-                          color: 'var(--text-body)',
-                          textWrap: 'pretty',
-                        }}
-                      >
-                        {ff.value}
-                      </span>
-                    </div>
-                  </Fragment>
-                ))}
-              </div>
+                      {'Edit site'}
+                    </Button>
+                  )}
+                </div>
+                <Facts facts={v.ovSiteFacts} />
+                {edit && !edit.site.allowed && !!edit.site.reason && (
+                  <p
+                    style={{
+                      margin: 0,
+                      padding: '0 20px 16px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '6px',
+                      fontSize: '14px',
+                      lineHeight: '20px',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <Icon name="info" size={16} color="var(--text-muted)" />
+                    <span>{edit.site.reason}</span>
+                  </p>
+                )}
+              </section>
+              {/* This assessment's own details, and Edit details (RV-10 AC10). */}
+              <section aria-label="Assessment record" style={{ ...card, overflow: 'hidden' }}>
+                <div style={cardHead}>
+                  {'Assessment record'}
+                  {edit && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      iconLeft="pencil"
+                      onClick={() => setDialog('details')}
+                    >
+                      {'Edit details'}
+                    </Button>
+                  )}
+                </div>
+                <Facts facts={v.ovRecordFacts} />
+              </section>
             </div>
             <ReportSections v={v} report={report} />
           </div>
         </div>
       </div>
+      {dialog === 'site' && edit && (
+        <EditSiteDialog
+          site={edit.record.site}
+          assessments={edit.site.assessments}
+          onClose={() => setDialog(null)}
+          onSaved={(message) => {
+            setDialog(null)
+            void v.siteSaved(message)
+          }}
+        />
+      )}
+      {dialog === 'details' && edit && (
+        <EditDetailsDialog
+          record={edit.record}
+          onClose={() => setDialog(null)}
+          onSaved={(message) => {
+            setDialog(null)
+            void v.detailsSaved(message)
+          }}
+        />
+      )}
     </>
   )
 }

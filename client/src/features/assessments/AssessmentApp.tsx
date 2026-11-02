@@ -1,10 +1,20 @@
-import { lazy, Suspense, useEffect } from 'react'
-import { Button, Dialog, EmptyState, Icon, SideNav, Tabs, Toast } from '../../design-system'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react'
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  Icon,
+  IconRegistry,
+  SideNav,
+  Tabs,
+  Toast,
+} from '../../design-system'
 import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import { guardLeave } from './leaveGuard'
 import { AssessmentActions } from './components/AssessmentActions'
+import { MoreMenu } from './components/MoreMenu'
 import { siteWalkReview } from '../site-walk/openReview'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
@@ -21,6 +31,8 @@ import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
 import { UserAccounts } from '../accounts/UserAccounts'
+import { ClientList } from '../clients/ClientList'
+import { ClientPage } from '../clients/ClientPage'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
 // brings the chart library, which every other screen can skip.
@@ -48,6 +60,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
     window.addEventListener(siteWalkReview.event, open)
     return () => window.removeEventListener(siteWalkReview.event, open)
   })
+  // Each screen opens at the top, not where the last one was scrolled to. A
+  // layout effect, so a screen that scrolls itself on opening (the
+  // Observations tab back from capture, the document editor) still does,
+  // from its own effects, afterwards.
+  const scroller = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = 0
+  }, [v.viewKey])
   return (
     <>
       {/* data-sidenav lets fixed overlays centre on the content, not the window. */}
@@ -286,6 +306,17 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           New assessment
                         </Button>
                       )}
+                      {/* A client page's main action, Add site, then its
+                        occasional ones, Rename and Remove, behind ⋯, as an
+                        assessment's are (CP-18). */}
+                      {!!v.clientAddSite && !v.routeBlocked && (
+                        <Button variant="primary" iconLeft="plus" onClick={v.clientAddSite}>
+                          {'Add site'}
+                        </Button>
+                      )}
+                      {!!v.clientMenu && !v.routeBlocked && (
+                        <MoreMenu items={v.clientMenu.items} notes={v.clientMenu.notes} />
+                      )}
                       {/* Restore stays visible: it is the one thing to do with an
                         archived assessment. Capturing starts from the
                         Observations tab's own buttons (CP-22). */}
@@ -294,7 +325,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           {v.canRestore && (
                             <Button
                               variant="secondary"
-                              iconLeft="refresh-cw"
+                              iconLeft={IconRegistry.action.reinstate}
                               onClick={v.restoreAssessment}
                               disabled={v.archiveBusy}
                             >
@@ -349,6 +380,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
               )}
 
               <main
+                ref={scroller}
                 className="om-scroll"
                 style={{
                   flex: '1',
@@ -368,6 +400,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     {v.isField && <SiteObservation v={v} />}
 
                     {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
+
+                    {v.isClients && <ClientList {...v.clientList} />}
+
+                    {v.isClient && <ClientPage {...v.clientPage} />}
 
                     {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
 

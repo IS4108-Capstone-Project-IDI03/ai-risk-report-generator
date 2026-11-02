@@ -5,7 +5,6 @@ import {
   archiveAssessment as requestArchive,
   restoreAssessment as requestRestore,
   createAssessment as requestCreateAssessment,
-  updateAssessment as requestUpdateAssessment,
   GatewayError,
   listAssessments,
   listAssignableEngineers,
@@ -29,13 +28,12 @@ import {
   type MediaKind,
   type ReadingPart,
   type Assessment,
-  type AssessmentStatus,
   type ChecklistItem,
   type SavedObservation,
   type SiteLocation,
   type Stamp,
 } from './api'
-import { formatDayYearTime } from './format'
+import { formatDayYearTime, STATUS_LABEL } from './format'
 import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
@@ -101,6 +99,7 @@ import {
   initialState,
   CAPTURE_ASSESSMENT,
   FACILITY_TYPES,
+  SURVEY_TYPES,
   JURISDICTIONS,
   ROWS,
   CAT_ICON,
@@ -118,12 +117,15 @@ import {
   can,
   canOpen,
   canOpenTab,
+  CLIENT_PATH,
+  clientIdForPath,
   homeScreen,
   reviewIdForPath,
   SCREEN_PATHS,
   screenForPath,
   type Screen,
 } from '../auth/access'
+import { useClientPage } from '../clients/useClientPage'
 export type AssessmentWorkflow = ReturnType<typeof useAssessmentWorkflow>
 // A change to an observation made in place on its page (CP-06, CP-08).
 export type ObservationChange = {
@@ -131,15 +133,6 @@ export type ObservationChange = {
   sev?: string
   locationId?: string
   note?: string
-}
-const STATUS_LABEL: Record<AssessmentStatus, string> = {
-  not_started: 'Not started',
-  capturing: 'Capturing',
-  ready_to_generate: 'Ready to generate',
-  draft: 'Draft',
-  under_review: 'Under review',
-  finalised: 'Finalised',
-  archived: 'Archived',
 }
 // A new assessment's report is due this many days after its site visit.
 const REPORT_DUE_DAYS = 14
@@ -317,6 +310,16 @@ const BLANK_LOCATION: LocationForm = { kind: 'building', building: '', floor: ''
 // The form with nothing refused, asked about or kept as typed.
 const FORM_CLEAR = { lfErrors: {}, lfCheck: null, lfKept: {} } satisfies Partial<WorkflowState>
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
+// A client's listed sites and the engineer's visits there, in one wording for
+// the Clients list and the client's page (CP-18): "4 sites · 5 open · 1 archived".
+const clientSummary = (sites: number, open: number, archived: number) =>
+  [
+    sites ? plural(sites, 'site') : 'All sites removed',
+    open && open + ' open',
+    archived && archived + ' archived',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 // The most engineers one search on the create form lists.
 const ENGINEER_MATCH_LIMIT = 8
 // "Alex Rowe · 07 Oct 2026 14:02", who changed something and when (CP-08).
@@ -515,6 +518,14 @@ export const NEW_SITE = 'new'
 // A client name as the gateway matches it (CP-17): lowercased, with its
 // spacing tidied, so "NUS" and "nus " are one client.
 const clientKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
+// The create form as it opens: assigned to the signed-in engineer, visited
+// today (or on the given day), its report due REPORT_DUE_DAYS later.
+const blankCreateForm = (engineerId: string, visit = localToday()) => ({
+  ...structuredClone(initialState.cf),
+  eng: engineerId,
+  date: visit,
+  due: addDays(visit, REPORT_DUE_DAYS),
+})
 
 // Where in an assessment the engineer is, kept in the URL so a refresh (or a
 // shared link) reopens the same assessment, tab and observation. Without it a
@@ -557,21 +568,15 @@ function placeFromUrl(): Partial<WorkflowState> {
 }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
-  // The create form as it first opens: assigned to the signed-in engineer,
-  // visited today (or on the given day), its report due REPORT_DUE_DAYS later.
-  const blankCreateForm = (visit = localToday()) => ({
-    ...structuredClone(initialState.cf),
-    eng: session.user.id,
-    date: visit,
-    due: addDays(visit, REPORT_DUE_DAYS),
-  })
+  const engineerId = session.user.id
   // The screen comes from the URL (F-05), so a screen can be linked to and
   // reopened after signing in; '/' opens the role's home screen.
   const [state, updateState] = useState<WorkflowState>(() => ({
     ...structuredClone(initialState),
-    cf: blankCreateForm(),
+    cf: blankCreateForm(engineerId),
     screen: screenForPath(window.location.pathname, session),
     ...placeFromUrl(),
+    clientPage: clientIdForPath(window.location.pathname),
   }))
   // The URL follows the screen. The first update replaces '/' (or the path
   // opened) rather than adding a history entry.
@@ -581,7 +586,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const [proposalTarget, setProposalTarget] = useState<ProposalCaptureTarget | null>(null)
   const place = placeQuery(state, !!proposalTarget)
   useEffect(() => {
-    const path = SCREEN_PATHS[state.screen as Screen]
+    // A client's page (CP-18) has the client in its path.
+    const path =
+      state.screen === 'client' && state.clientPage
+        ? CLIENT_PATH + encodeURIComponent(state.clientPage)
+        : SCREEN_PATHS[state.screen as Screen]
     // A knowledge document's Review page is part of the knowledge screen, so
     // its own path stays (IN-07).
     const onReviewPage = state.screen === 'knowledge' && reviewIdForPath(window.location.pathname)
@@ -596,7 +605,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       else window.history.replaceState(null, '', url)
     }
     urlSynced.current = true
-  }, [state.screen, place])
+  }, [state.screen, state.clientPage, place])
   // Back and forward move between screens.
   useEffect(() => {
     const follow = () =>
@@ -604,6 +613,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ...previous,
         screen: screenForPath(window.location.pathname, session),
         ...placeFromUrl(),
+        clientPage: clientIdForPath(window.location.pathname),
         navOpen: false,
         toast: null,
         // Back from capture is a way of leaving it too.
@@ -683,9 +693,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
   const [listFailed, setListFailed] = useState(false)
+  // The Clients list is drawn from the work list, and a client page (CP-18)
+  // opens the engineer's assessments, so both need it too, even when one is
+  // the first screen opened.
+  const onClientScreen = state.screen === 'client' && canOpen('client', session)
+  const onClientsScreen = state.screen === 'clients' && canOpen('clients', session)
   const onDashboard = state.screen === 'dashboard' && canOpen('dashboard', session)
+  const listScreen = onDashboard
+    ? 'dashboard'
+    : onClientScreen
+      ? 'client'
+      : onClientsScreen
+        ? 'clients'
+        : null
+  const clientPage = useClientPage(onClientScreen ? state.clientPage : null)
   // A refresh inside a workspace needs the list too, for the assessment's own record.
-  const needsRows = onDashboard || ((onWorkspace || onField) && serverRows === null)
+  const needsRows =
+    listScreen ?? ((onWorkspace || onField) && serverRows === null ? 'workspace' : null)
   useEffect(() => {
     // Refetched on every return to the dashboard, so capture progress shows.
     if (!needsRows) return
@@ -714,6 +738,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     )
     return () => controller.abort()
   }, [needsRows])
+  // Reads the work list again after a change elsewhere, e.g. a site corrected
+  // from the Overview or a client page (CP-18).
+  async function reloadRows() {
+    const list = await listAssessments().catch(() => null)
+    if (list) setServerRows(list.map(toRow))
+    return list
+  }
   const [directory, setDirectory] = useState<AssignableEngineer[]>([])
   const [directoryStatus, setDirectoryStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const onCreate = state.screen === 'create' && canOpen('create', session)
@@ -740,10 +771,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // Every client, for the create form's Client field and its typo check
   // (CP-17). Without them a typed name still reaches the right client: the
   // gateway matches it whatever its case, and adds a new site for it.
-  const creating = onCreate && !state.cfEdit
   const [clients, setClients] = useState<Client[] | null>(null)
   useEffect(() => {
-    if (!creating) return
+    if (!onCreate) return
     const controller = new AbortController()
     listClients(controller.signal).then(
       (list) => {
@@ -754,10 +784,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
     )
     return () => controller.abort()
-  }, [creating])
+  }, [onCreate])
   // The listed client typed in, or chosen by a site's New visit, and its
-  // sites, loaded once each.
-  const listedClient = creating
+  // sites, loaded once each while the form is open.
+  const listedClient = onCreate
     ? (clients?.find((c) => clientKey(c.name) === clientKey(state.cf.client)) ??
       (state.cf.clientId
         ? { id: state.cf.clientId, name: state.cf.client.trim(), sites: 0 }
@@ -766,6 +796,21 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const [clientSites, setClientSites] = useState<Record<string, ClientSite[]>>({})
   const listedClientId = listedClient?.id
   const sitesLoaded = !!listedClientId && !!clientSites[listedClientId]
+  useEffect(() => {
+    // Forgotten when the form closes, however it is left: what was typed, so
+    // it opens blank next time, and the clients' sites, as a client page may
+    // since have removed, restored or renamed one (CP-18).
+    if (!onCreate) return
+    return () => {
+      setClientSites({})
+      updateState((previous) => ({
+        ...previous,
+        cf: blankCreateForm(engineerId),
+        cfErr: false,
+        cfServerError: null,
+      }))
+    }
+  }, [onCreate, engineerId])
   useEffect(() => {
     if (!listedClientId || sitesLoaded) return
     const controller = new AbortController()
@@ -863,10 +908,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     })
   }
   // The workspace and capture both act on the assessment last opened from the list.
-  // A blank create form, preselecting the signed-in engineer.
-  function blankForm(): Partial<WorkflowState> {
-    return { cfEdit: null, cf: blankCreateForm() }
-  }
   function navigate(screen: string): Partial<WorkflowState> {
     return { screen }
   }
@@ -922,8 +963,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     releaseDraft(target.reference)
     return openAssessment(target, state)
   }
-  // A created assessment clears the form, so the next one starts blank. A form
-  // left without creating keeps its draft.
+  // A created assessment clears the form, so the next one starts blank, as
+  // leaving it does.
   // A new assessment opens on its Overview when it is the creator's own; one
   // assigned to someone else is not on their list, so they return to it.
   function addCreatedRow(row: AssessmentRow, open: boolean) {
@@ -931,7 +972,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     updateState((previous) => ({
       ...previous,
       createdRows: [row, ...previous.createdRows],
-      cf: blankCreateForm(),
+      cf: blankCreateForm(engineerId),
       cfBusy: false,
       cfErr: false,
       ...(open
@@ -1917,8 +1958,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       {
         label: 'Assessments',
         items: [
-          { value: 'dashboard', label: 'Assessment dashboard', icon: 'inbox', count: rows.length },
-          { value: 'usage', label: 'Usage and costs', icon: 'files' },
+          { value: 'dashboard', label: 'Assessments', icon: 'inbox', count: rows.length },
+          // The engineer's clients and their pages (CP-18).
+          { value: 'clients', label: 'Clients', icon: IconRegistry.object.client },
+          { value: 'usage', label: 'Usage and Costs', icon: 'files' },
         ],
       },
       { label: 'Recent', items: recentItems },
@@ -1976,7 +2019,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         >
       }
     >()
-    for (const r of s.workByClient && !s.showArchived ? filtered : []) {
+    // The archived list groups too (CP-18), so a client whose visits are all
+    // archived can still be opened, to correct or restore its sites.
+    for (const r of s.workByClient ? filtered : []) {
       const key = r.record?.clientId ?? 'name:' + clientKey(r.client)
       const client = workClients.get(key) ?? { key, title: r.client, sites: new Map() }
       workClients.set(key, client)
@@ -1991,36 +2036,133 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       site.rows.push(r)
     }
     // A site on the gateway, with a client, can be visited again (AC6): the
-    // create form opens on it, its copy ticked.
-    const newVisit = (a: Assessment) => () =>
+    // create form opens on it, its copy ticked. From the work list or a
+    // client page (CP-18).
+    const visitSite = (
+      client: { id: string; name: string },
+      site: Pick<Assessment['site'], 'id' | 'name' | 'address' | 'jurisdiction' | 'facilityType'>,
+    ) =>
       setState({
         screen: 'create',
-        cfEdit: null,
         cfErr: false,
         cfServerError: null,
         cf: {
-          ...blankCreateForm(),
-          client: a.client,
-          clientId: a.clientId ?? '',
-          siteId: a.site.id,
-          site: a.site.name,
-          addr: a.site.address ?? '',
-          jurisdiction: a.site.jurisdiction,
-          type: a.site.facilityType,
+          ...blankCreateForm(engineerId),
+          client: client.name,
+          clientId: client.id,
+          siteId: site.id,
+          site: site.name,
+          addr: site.address ?? '',
+          jurisdiction: site.jurisdiction,
+          type: site.facilityType,
         },
       })
+    // A new site for a client, from its page (CP-18): the create form with the
+    // client chosen and Add a new site picked, as a site comes with its first
+    // visit (CP-17).
+    const addSiteTo = (client: { id: string; name: string }) =>
+      setState({
+        screen: 'create',
+        cfErr: false,
+        cfServerError: null,
+        cf: {
+          ...blankCreateForm(engineerId),
+          client: client.name,
+          clientId: client.id,
+          siteId: NEW_SITE,
+        },
+      })
+    // A client's page (CP-18), opened from the Clients list, the work list or
+    // an assessment.
+    const openClient = (id: string) =>
+      setState({ screen: 'client', clientPage: id, clientDialog: null, toast: null })
+    // Under its name: its sites and the engineer's visits, as the Clients list
+    // has them, and who last renamed it.
+    const clientPageMeta = (() => {
+      const page = clientPage.page
+      if (!page) return ''
+      const visits = page.sites.flatMap((x) => x.visits)
+      const archived = visits.filter((x) => x.status === 'archived').length
+      return [
+        clientSummary(
+          page.sites.filter((x) => !x.removed).length,
+          visits.length - archived,
+          archived,
+        ),
+        page.edited &&
+          'Renamed by ' + page.edited.by.name + ' · ' + formatDayYearTime(new Date(page.edited.at)),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    })()
+    // The engineer's clients (CP-18): each client of their assessments on the
+    // gateway, with how many of its sites they visit, and their visits there,
+    // open and archived. One whose sites are all removed is marked so.
+    const myClients = (() => {
+      const byId = new Map<
+        string,
+        {
+          id: string
+          name: string
+          sites: Map<string, { name: string; removed: boolean }>
+          open: number
+          archived: number
+          lastVisit: string | null
+        }
+      >()
+      for (const r of rows) {
+        const a = r.record
+        if (!r.persisted || !a?.clientId) continue
+        const c = byId.get(a.clientId) ?? {
+          id: a.clientId,
+          name: a.client,
+          sites: new Map(),
+          open: 0,
+          archived: 0,
+          lastVisit: null,
+        }
+        byId.set(a.clientId, c)
+        c.sites.set(a.site.id, { name: a.site.name, removed: a.site.removed })
+        if (a.status === 'archived') c.archived++
+        else c.open++
+        if (a.siteVisitDate && (!c.lastVisit || a.siteVisitDate > c.lastVisit))
+          c.lastVisit = a.siteVisitDate
+      }
+      return [...byId.values()]
+        .sort((a, b) => byName(a.name, b.name))
+        .map((c) => {
+          const sites = [...c.sites.values()]
+          const listed = sites.filter((x) => !x.removed).length
+          return {
+            id: c.id,
+            name: c.name,
+            removed: listed === 0,
+            summary: clientSummary(listed, c.open, c.archived),
+            lastVisit: c.lastVisit ? 'Last visit ' + formatDay(c.lastVisit) : null,
+            // Found by its name or one of its sites'.
+            search: [c.name, ...sites.map((x) => x.name)].join(' ').toLowerCase(),
+            open: () => openClient(c.id),
+          }
+        })
+    })()
     const workGroups = [...workClients.values()]
       .sort((a, b) => byName(a.title, b.title))
       .map((client) => {
         const sites = [...client.sites.values()].sort((a, b) => byName(a.name, b.name))
         const count = sites.reduce((n, site) => n + site.rows.length, 0)
         const open = !!q || !s.workFolded[client.key]
+        // Only a client on the gateway has a page; sample rows have none.
+        const clientId = sites
+          .flatMap((site) => site.rows)
+          .find((r) => r.persisted && r.record?.clientId)?.record?.clientId
         return {
           key: client.key,
           title: client.title,
           countLabel: plural(sites.length, 'site') + ' · ' + plural(count, 'assessment'),
           open,
           toggle: () => setState({ workFolded: { ...s.workFolded, [client.key]: open } }),
+          viewClient:
+            clientId && canOpen('client', session) ? () => openClient(clientId) : undefined,
           sites: sites.map((site) => {
             const record = site.rows.find((r) => r.record?.clientId)?.record
             return {
@@ -2029,7 +2171,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               address: site.address,
               countLabel: plural(site.rows.length, 'visit'),
               rows: site.rows,
-              newVisit: record && canOpen('create', session) ? newVisit(record) : undefined,
+              // A removed site (CP-18) takes no new visit.
+              newVisit:
+                record && !record.site.removed && canOpen('create', session)
+                  ? () => visitSite({ id: record.clientId!, name: record.client }, record.site)
+                  : undefined,
             }
           }),
         }
@@ -2235,20 +2381,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const assignedEng = directory.find((e) => e.id === s.cf.eng)
     // The client and site (CP-17): a listed client offers its sites, the one
     // chosen bringing its details and its latest visit's locations; a new
-    // client, or Add a new site, takes new details. Editing keeps both, and
-    // the site's details are locked once another assessment shares it.
-    const editedRecord = s.cfEdit ? rows.find((r) => r.id === s.cfEdit)?.record : undefined
+    // client, or Add a new site, takes new details.
     const clientSitesNow = listedClient ? clientSites[listedClient.id] : undefined
     const chosenSite = clientSitesNow?.find((x) => x.id === s.cf.siteId)
     // A site chosen by New visit, shown as it is while the client's sites load.
     const awaitingSite =
-      !s.cfEdit && !!s.cf.siteId && s.cf.siteId !== NEW_SITE && !!listedClient && !clientSitesNow
-    const pickingSite = !s.cfEdit && !!clientSitesNow?.length
-    const newSite =
-      !s.cfEdit && !chosenSite && !awaitingSite && (!pickingSite || s.cf.siteId === NEW_SITE)
-    const siteLocked = s.cfEdit ? !!editedRecord?.siteShared : !!chosenSite || awaitingSite
+      !!s.cf.siteId && s.cf.siteId !== NEW_SITE && !!listedClient && !clientSitesNow
+    const pickingSite = !!clientSitesNow?.length
+    const newSite = !chosenSite && !awaitingSite && (!pickingSite || s.cf.siteId === NEW_SITE)
+    const siteLocked = !!chosenSite || awaitingSite
     const siteTaken = newSite ? clientSitesNow?.find((x) => sameName(x.name, s.cf.site)) : undefined
-    const needsSiteName = !!s.cfEdit || newSite
+    const needsSiteName = newSite
     const cfProblems = [
       !s.cf.client.trim() && 'Name the client.',
       awaitingSite &&
@@ -2608,8 +2751,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       /* chrome */
       navSections,
-      // The workspace and capture both highlight the assessment they are for.
-      navValue: isAssessment || sc === 'field' ? RECENT_PREFIX + s.captureTarget.reference : sc,
+      // The workspace and capture both highlight the assessment they are for;
+      // a client's page (CP-18), the Clients list.
+      navValue:
+        isAssessment || sc === 'field'
+          ? RECENT_PREFIX + s.captureTarget.reference
+          : sc === 'client'
+            ? 'clients'
+            : sc,
+      // What is on screen: a new screen, workspace tab, client or assessment
+      // opens at the top.
+      viewKey: [sc, s.tab, s.clientPage, s.captureTarget.reference].join('|'),
       navFooter: userFooter(),
       showSideNav: !phone && !s.navCollapsed,
       phone,
@@ -2692,53 +2844,43 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           screen: 'create',
           cfErr: false,
           cfServerError: null,
-          // Coming from an edit, start a new assessment from a blank form.
-          ...(s.cfEdit && blankForm()),
-          // A blank form from an earlier day (a tab left open overnight)
-          // opens on today's dates; one the engineer has filled in is kept.
-          ...(!s.cfEdit &&
-            !!s.cf.date &&
-            s.cf.date !== localToday() &&
-            JSON.stringify(s.cf) === JSON.stringify(blankCreateForm(s.cf.date)) && {
-              cf: blankCreateForm(),
-            }),
+          // Always blank, on today's dates, even in a tab left open overnight.
+          cf: blankCreateForm(engineerId),
         }),
-      // Cancel leaves an edit for the workspace it came from, and a new
-      // assessment for the work list.
-      cancelForm: () =>
-        setState(
-          s.cfEdit
-            ? { ...blankForm(), screen: 'assessment', tab: 'overview', cfServerError: null }
-            : { screen: 'dashboard' },
-        ),
-      // Opens the form on this assessment's saved details (RV-10 AC10).
-      canEditDetails: isMine && canCapture && !!targetRow?.record,
-      goEditDetails: () => {
-        const a = targetRow?.record
-        if (!a) return
-        setState({
-          screen: 'create',
-          cfEdit: a.reference,
-          cfErr: false,
-          cfServerError: null,
-          cf: {
-            ...s.cf,
-            site: a.site.name,
-            addr: a.site.address ?? '',
-            jurisdiction: a.site.jurisdiction,
-            type: a.site.facilityType,
-            client: a.client,
-            survey: a.surveyType,
-            date: a.siteVisitDate ?? '',
-            due: a.reportDueDate ?? '',
-            eng: a.engineer?.id ?? '',
-            clientId: '',
-            siteId: '',
-            check: null,
-          },
-        })
+      cancelForm: () => setState({ screen: 'dashboard' }),
+      // The Overview's Edit details (RV-10 AC10) and Edit site (CP-18), for
+      // the engineer's own assessment on the gateway, with whether its site
+      // is theirs to change and how many assessments a change reaches.
+      // A record from a gateway before CP-18 has no site rights: then Edit
+      // site isn't offered.
+      ovEdit:
+        isMine && canCapture && targetRow?.record
+          ? {
+              record: targetRow.record,
+              site: targetRow.record.site.change ?? {
+                allowed: false,
+                reason: null,
+                assessments: 0,
+              },
+            }
+          : null,
+      // A site corrected from the Overview: the work list reads it again, and
+      // the header takes its name.
+      siteSaved: async (message: string) => {
+        const list = await reloadRows()
+        const now = list?.find((a) => a.reference === s.captureTarget.reference)
+        if (now)
+          updateState((previous) => ({
+            ...previous,
+            captureTarget: { ...previous.captureTarget, site: now.site.name },
+          }))
+        toast(message)
       },
-      isEditing: !!s.cfEdit,
+      // The work list reloads only on the dashboard, so reload it here.
+      detailsSaved: async (message: string) => {
+        await reloadRows()
+        toast(message)
+      },
       // Each visit to capture starts by asking where, until a location is chosen.
       goField: () =>
         setState({
@@ -2758,7 +2900,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           // Back to the work list, not the archived one, which reloads with
           // the status it had.
           setState({ ...navigate('dashboard'), archiveBusy: false, showArchived: false })
-          toast(reference + ' restored to your work list.')
+          // A removed site comes back with it (CP-18).
+          const site = targetRow?.record?.site
+          toast(
+            reference +
+              ' restored to your work list' +
+              (site?.removed ? ', with its site ' + site.name + '.' : '.'),
+          )
         } catch (error: unknown) {
           setState({ archiveBusy: false })
           toast(
@@ -2814,6 +2962,47 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isKnowledge: sc === 'knowledge',
       isUsage: sc === 'usage',
       isChat: sc === 'chat',
+      // The engineer's clients (CP-18), from the work list: loading until it
+      // loads, and unavailable when the gateway can't be reached.
+      isClients: sc === 'clients',
+      clientList: {
+        clients: myClients,
+        loading: !serverRows && !listFailed,
+        failed: !serverRows && listFailed,
+      },
+      // A client's page (CP-18) and what it does: open one of the engineer's
+      // assessments, start a new visit, and reload the work list after a change.
+      isClient: sc === 'client',
+      clientPage: {
+        ...clientPage,
+        onClients: () => setState({ screen: 'clients', clientDialog: null, toast: null }),
+        // A visit as the work list shows it: its status, dates and countdown.
+        visit: (reference: string) => {
+          const r = rows.find((x) => x.id === reference)
+          return r
+            ? {
+                status: r.status,
+                date: r.date,
+                dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
+                overdue: isOverdue(r),
+                countdown: dueCountdown(r),
+              }
+            : null
+        },
+        // Rename client or Remove client, opened from the header's ⋯ menu.
+        dialog: s.clientDialog,
+        closeDialog: () => setState({ clientDialog: null }),
+        onOpen: (reference: string, site: string) => {
+          releaseDraft(reference)
+          setState({ ...openAssessment({ reference, site }, s), toast: null })
+        },
+        onNewVisit: visitSite,
+        onChanged: (message: string) => {
+          void reloadRows()
+          toast(message)
+        },
+        notify: (message: string, tone?: string) => toast(message, tone),
+      },
       isAssessment,
       isOverview: isAssessment && s.tab === 'overview',
       isObservations: isAssessment && s.tab === 'observations',
@@ -2841,11 +3030,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       ovDue: dueSummary(openRow),
       canOpenGenerate: canOpenTab('generate', session),
       canOpenReview: canOpenTab('review', session),
-      ovFacts: openRow
+      // The Overview's Site card: the site, shared by every assessment at it,
+      // and its client, whose name opens the client's page (CP-18) for a
+      // client on the gateway the engineer may manage.
+      ovSiteFacts: (openRow
         ? [
-            { label: 'Report', value: openRow.id },
-            { label: 'Site', value: openRow.site },
-            { label: 'Site address', value: openRow.record?.site.address ?? 'Not recorded' },
+            { label: 'Name', value: openRow.site },
+            { label: 'Address', value: openRow.record?.site.address ?? 'Not recorded' },
             {
               label: 'Jurisdiction',
               value:
@@ -2854,7 +3045,24 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 'Not recorded',
             },
             { label: 'Facility type', value: openRow.record?.site.facilityType ?? 'Not recorded' },
-            { label: 'Client', value: openRow.client },
+            {
+              label: 'Client',
+              value: openRow.client,
+              open:
+                openRow.persisted && openRow.record?.clientId && canOpen('client', session)
+                  ? () => openClient(openRow.record!.clientId!)
+                  : undefined,
+            },
+          ]
+        : [{ label: 'Name', value: s.captureTarget.site }]) as {
+        label: string
+        value: string
+        open?: () => void
+      }[],
+      // Its Assessment record card: this assessment's own details.
+      ovRecordFacts: openRow
+        ? [
+            { label: 'Report', value: openRow.id },
             { label: 'Assessment type', value: openRow.type },
             { label: 'Status', value: openRow.status },
             { label: 'Site visit', value: openRow.date },
@@ -2864,10 +3072,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             },
             { label: 'Engineer', value: openRow.eng },
           ]
-        : [
-            { label: 'Report', value: s.captureTarget.reference },
-            { label: 'Site', value: s.captureTarget.site },
-          ],
+        : [{ label: 'Report', value: s.captureTarget.reference }],
       obsList,
       obsReturning: !!s.obsReturn,
       obsLandingRow: landingRow,
@@ -3048,52 +3253,94 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Capture is part of the workspace, so it keeps the workspace's header,
       // named from the capture session when one is live.
       eyebrow:
-        sc === 'dashboard'
+        sc === 'dashboard' || sc === 'clients'
           ? 'Risk engineering'
           : sc === 'create'
-            ? s.cfEdit
-              ? 'Assessment workspace'
-              : 'New assessment'
+            ? 'New assessment'
             : sc === 'users' || sc === 'knowledge'
               ? 'Administration'
               : sc === 'usage'
                 ? 'Reporting'
                 : sc === 'chat'
                   ? 'Knowledge'
-                  : 'Assessment workspace',
+                  : sc === 'client'
+                    ? 'Client'
+                    : 'Assessment workspace',
       title:
         sc === 'dashboard'
           ? 'Assessments'
-          : sc === 'create'
-            ? s.cfEdit
-              ? 'Edit assessment details'
-              : 'Create assessment'
-            : sc === 'field'
-              ? captureSite
-              : sc === 'users'
-                ? 'User accounts'
-                : sc === 'knowledge'
-                  ? 'Knowledge base'
-                  : sc === 'usage'
-                    ? 'Usage and costs'
-                    : sc === 'chat'
-                      ? 'Ask the knowledge base'
-                      : s.captureTarget.site,
+          : sc === 'clients'
+            ? 'Clients'
+            : sc === 'create'
+              ? 'Create assessment'
+              : sc === 'field'
+                ? captureSite
+                : sc === 'users'
+                  ? 'User accounts'
+                  : sc === 'knowledge'
+                    ? 'Knowledge base'
+                    : sc === 'usage'
+                      ? 'Usage and Costs'
+                      : sc === 'chat'
+                        ? 'Ask the knowledge base'
+                        : sc === 'client'
+                          ? (clientPage.page?.name ?? 'Client')
+                          : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? rows.length + ' assessments · ' + session.user.name
-          : sc === 'create'
-            ? 'Opening an assessment creates the report record and its drafting set.'
-            : sc === 'users'
-              ? 'Add your team’s accounts, and keep their details and roles up to date.'
-              : sc === 'knowledge'
-                ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
-                : sc === 'usage'
-                  ? 'What the AI calls cost, how much they were used, and how fast they ran.'
-                  : sc === 'chat'
-                    ? 'Answers come from the standards and past reports in the knowledge base.'
-                    : // An assessment shows only its name; its details are in its Overview.
-                      '',
+          : sc === 'clients'
+            ? plural(myClients.filter((c) => !c.removed).length, 'client') +
+              ' · ' +
+              session.user.name
+            : sc === 'create'
+              ? 'Opening an assessment creates the report record and its drafting set.'
+              : sc === 'users'
+                ? 'Add your team’s accounts, and keep their details and roles up to date.'
+                : sc === 'knowledge'
+                  ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
+                  : sc === 'usage'
+                    ? 'What the AI calls cost, how much they were used, and how fast they ran.'
+                    : sc === 'chat'
+                      ? 'Answers come from the standards and past reports in the knowledge base.'
+                      : sc === 'client'
+                        ? clientPageMeta
+                        : // An assessment shows only its name; its details are in its Overview.
+                          '',
+      // A client page's occasional actions (CP-18), behind the header's ⋯:
+      // each disabled, with its reason, when it isn't the engineer's to take.
+      // A removed client has none; its page offers Restore instead.
+      // A client page's main action (CP-18): Add site, for a client still in
+      // use; a removed one is restored first.
+      clientAddSite:
+        sc === 'client' && clientPage.page && !clientPage.page.removed && canOpen('create', session)
+          ? () => addSiteTo(clientPage.page!)
+          : null,
+      clientMenu: (() => {
+        const page = clientPage.page
+        if (sc !== 'client' || !page || page.removed) return null
+        return {
+          items: [
+            {
+              label: 'Rename client',
+              icon: 'pencil',
+              disabled: !page.rename.allowed,
+              onSelect: () => setState({ clientDialog: 'rename' }),
+            },
+            {
+              label: 'Remove client',
+              icon: IconRegistry.action.discard,
+              disabled: !page.remove.allowed,
+              onSelect: () => setState({ clientDialog: 'remove' }),
+            },
+          ],
+          notes: [
+            ...new Set(
+              [page.rename, page.remove].flatMap((x) => (!x.allowed && x.reason ? [x.reason] : [])),
+            ),
+          ],
+        }
+      })(),
       showSeverity: isAssessment,
       tab: s.tab,
       setTab: (v: string) =>
@@ -3191,8 +3438,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         'All statuses',
         ...Object.values(STATUS_LABEL).filter((label) => label !== STATUS_LABEL.archived),
       ],
-      // Group by client, then site (CP-17 AC9); the button says what pressing it does.
-      workByClient: s.workByClient && !s.showArchived,
+      // Group by client, then site (CP-17 AC9); the button says what pressing
+      // it does. The archived list groups too (CP-18).
+      workByClient: s.workByClient,
       toggleWorkByClient: () => setState({ workByClient: !s.workByClient }),
       workGroups,
       // The archived assessments, a list of their own.
@@ -3246,11 +3494,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       errSiteChoice:
         s.cfErr && pickingSite && !s.cf.siteId ? 'Choose a site, or add a new one' : '',
       hasCfError: s.cfErr && cfProblems.length > 0,
-      cfProblems:
-        cfProblems.join(' ') +
-        (s.cfEdit
-          ? ' Correct the fields above, then save again.'
-          : ' Correct the fields above, then create the assessment.'),
+      cfProblems: cfProblems.join(' ') + ' Correct the fields above, then create the assessment.',
       setCfSite: (
         e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
       ) =>
@@ -3262,14 +3506,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
         }),
       // A different client clears a listed site chosen for the last one.
-      setCfClient: (
-        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) => {
-        const next = clients?.find((c) => clientKey(c.name) === clientKey(e.target.value))
+      setCfClient: (client: string) => {
+        const next = clients?.find((c) => clientKey(c.name) === clientKey(client))
         setState({
           cf: {
             ...s.cf,
-            client: e.target.value,
+            client,
             clientId: '',
             check: null,
             ...(next?.id !== listedClient?.id && {
@@ -3281,17 +3523,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
       // Every client, whoever added it (CP-17 AC3), offered as the engineer types.
       clientNames: clients?.map((c) => c.name) ?? [],
-      clientLocked: !!s.cfEdit,
-      clientHint: s.cfEdit
-        ? 'An assessment’s client can’t be changed.'
-        : listedClient
-          ? 'Listed client'
-          : s.cf.client.trim() && clients
-            ? 'New client: it will be added to the list.'
-            : '',
+      clientHint: listedClient
+        ? 'Listed client'
+        : s.cf.client.trim() && clients
+          ? 'New client: it will be added to the list.'
+          : '',
       // A listed client's sites, then Add a new site (AC4).
       pickingSite,
-      sitesLoading: !s.cfEdit && !!listedClient && !clientSitesNow,
+      sitesLoading: !!listedClient && !clientSitesNow,
       cfSiteId: s.cf.siteId,
       siteOptions: [
         { value: '', label: 'Choose a site…' },
@@ -3314,12 +3553,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
         })
       },
-      // A listed site's details are its own, and a shared site's are locked
-      // on its assessments (AC8).
+      // A listed site's details are its own: they change through Edit site,
+      // for every assessment at the site (CP-18).
       siteLocked,
-      siteLockedHint: s.cfEdit
-        ? 'Other assessments share this site, so its details can’t be changed here.'
-        : 'From the listed site.',
       // The copy offered for a listed site with locations (AC5).
       copyOffer:
         chosenSite?.latest && chosenSite.latest.locations > 0
@@ -3424,21 +3660,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       jurisdictionOptions: JURISDICTIONS,
       cfBusy: s.cfBusy,
       cfServerError: s.cfServerError,
-      createLabel: s.cfEdit
-        ? s.cfBusy
-          ? 'Saving changes…'
-          : 'Save changes'
-        : s.cfBusy
-          ? 'Creating assessment…'
-          : 'Create assessment',
-      cfErrorTitle: s.cfEdit ? 'Changes not saved' : 'Assessment not created',
+      createLabel: s.cfBusy ? 'Creating assessment…' : 'Create assessment',
+      cfErrorTitle: 'Assessment not created',
       facilityOptions: FACILITY_TYPES,
-      surveyOptions: [
-        'Property risk survey',
-        'Follow-up visit',
-        'Business interruption',
-        'Natural hazard review',
-      ],
+      surveyOptions: SURVEY_TYPES,
       directoryError: directoryStatus === 'error',
       directoryLoading: directoryStatus === 'loading',
       hasDirectory: directory.length > 0,
@@ -3470,44 +3695,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })
           return
         }
-        const check = s.cfEdit ? null : nameCheck(kept)
+        const check = nameCheck(kept)
         if (check) {
           setState({ cf: { ...s.cf, kept, check }, cfErr: false })
           return
         }
         setState({ cfBusy: true, cfErr: false, cfServerError: null })
-        if (s.cfEdit) {
-          const reference = s.cfEdit
-          try {
-            await requestUpdateAssessment(reference, {
-              site: {
-                name: s.cf.site,
-                address: s.cf.addr,
-                jurisdiction: s.cf.jurisdiction,
-                facilityType: s.cf.type,
-              },
-              surveyType: s.cf.survey,
-              siteVisitDate: s.cf.date,
-              reportDueDate: s.cf.due,
-            })
-            // The work list reloads only on the dashboard, so reload it here.
-            const list = await listAssessments().catch(() => null)
-            if (list) setServerRows(list.map(toRow))
-            setState({ ...blankForm(), cfBusy: false, screen: 'assessment', tab: 'overview' })
-            toast('Details saved for ' + reference + '.')
-          } catch (error: unknown) {
-            const problems = error instanceof GatewayError ? Object.values(error.fields) : []
-            setState({
-              cfBusy: false,
-              cfServerError: problems.length
-                ? problems.join(' ') + ' Correct the details above, then save again.'
-                : error instanceof GatewayError && error.status !== null
-                  ? error.message
-                  : 'The gateway could not be reached. Your changes are still here; save again.',
-            })
-          }
-          return
-        }
         try {
           const created = await requestCreateAssessment({
             ...(chosenSite
@@ -3868,9 +4061,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setLfKind: (kind: LocationForm['kind']) =>
         setState({ lf: { ...s.lf, kind }, lfErrors: {}, lfCheck: null }),
       // Typing again drops the question about that field, and any choice to keep it.
-      setLf: (field: 'building' | 'floor' | 'name') => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setLf: (field: 'building' | 'floor' | 'name') => (value: string) =>
         setState({
-          lf: { ...s.lf, [field]: e.target.value },
+          lf: { ...s.lf, [field]: value },
           lfErrors: {},
           lfCheck: null,
           lfKept: { ...s.lfKept, [field]: undefined },

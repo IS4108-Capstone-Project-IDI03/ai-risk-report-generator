@@ -946,9 +946,9 @@ argument, `Meta([...], [...], true)`, which shows the "Ask an admin" or "Add doc
 button (CB-07). Errors and an empty question get a random friendly phrasing instead of
 a fixed sentence; the technical reason stays in `chat_result.error`.
 
-## Usage and costs report (EV-04)
+## Usage and Costs report (EV-04)
 
-`GET /api/usage/summary?reportId=` and `GET /api/usage/export.csv?reportId=&groupBy=feature|service` (`server/src/routes/usage.routes.ts`, `usage-report.service.ts`), shown on the **Usage and costs** screen (`/usage-costs`, `client/src/features/usage/`). Both read the `ai_calls` collection written by EV-03 and need `usage:view`.
+`GET /api/usage/summary?reportId=` and `GET /api/usage/export.csv?reportId=&groupBy=feature|service` (`server/src/routes/usage.routes.ts`, `usage-report.service.ts`), shown on the **Usage and Costs** screen (`/usage-costs`, `client/src/features/usage/`). Both read the `ai_calls` collection written by EV-03 and need `usage:view`.
 
 The screen (loaded on first open, as it brings the chart library) opens on the report-generation overview for the last 30 days: a Period, Group by (knowledge admins) and Split each bar by row, totals (with calls without a cost, and an Estimated badge when a price is an estimate), a stacked bar per assessment or engineer, and a table of every group below it, searchable by reference, client or site and filterable by engineer. Choosing an engineer's bar or row narrows the overview to their assessments; choosing an assessment opens its drill-in (feature × service chart, cost per report section, the cost breakdown, usage and rates, and speed), which has its own CSV. A risk engineer sees the same overview, limited by the gateway to their own assessments and chat, without the engineer controls.
 
