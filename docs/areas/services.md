@@ -82,8 +82,10 @@ after that each can be regenerated on its own.
    changed. With the gateway's `privacy` enabled (PV-04), it then has
    privacy-service blur the faces in every photo (`POST /redact-image`, one
    call) and mask the texts and location (`POST /mask`, one call), fails
-   closed if either fails, and restores real values in the answer; see
-   docs/areas/privacy.md. It sends each photo after its label, then the texts, to the
+   closed if either fails, and restores real values in the answer. With
+   `check_answers` (the gateway's `PII_CHECK_ANSWERS`, on by default), it
+   first takes details the model added out of the description and reasons
+   (one more `/mask` call); see docs/areas/privacy.md. It sends each photo after its label, then the texts, to the
    provider named by `VISION_PROVIDER` (only Gemini is implemented:
    `VISION_MODEL`, default `gemini-3.8-flash`, needs a paid-tier
    `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer with

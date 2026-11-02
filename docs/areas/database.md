@@ -521,10 +521,12 @@ one with no reason.
 `attempts` records each run as for a recording, and `provenance` records the
 `provider`, `model`, `promptVersion`, token `usage` (`inputTokens`,
 `outputTokens`, `thoughtTokens`, or null when not reported, EV-03),
-`interpretedAt`, and `privacy` (PV-04): `{ enabled, maskedCount, facesBlurred }`,
-whether client details were masked and faces blurred before the model saw the
-reading, and how many. It never holds the details. Absent on readings from
-before PV-04. Asking creates it with one attempt on each part, or adds one
+`interpretedAt`, and `privacy` (PV-04): `{ enabled, maskedCount, facesBlurred,
+removedFromAnswer }`, whether client details were masked and faces blurred
+before the model saw the reading, and how many, and how many details the model
+added to its answer were taken out (`removedFromAnswer`, absent on readings
+from before the answer check). It never holds the details. Absent on readings
+from before PV-04. Asking creates it with one attempt on each part, or adds one
 to the part asked for, whenever the engineer asks, matched atomically on that
 part's status so two clicks start one reading;
 it is refused while a recording or page is still transcribing, or when there

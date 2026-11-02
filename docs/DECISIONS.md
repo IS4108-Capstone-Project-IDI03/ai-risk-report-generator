@@ -2035,3 +2035,21 @@ Rejected:
 Open: whether site photos and notes may go to Google at all (G3) is still with Marsh. Blurring and masking may be enough for them.
 
 Stories: PV-04, PV-01, PV-02, CP-05, CP-21, CP-19.
+
+## 2026-11-02 — Photo reading's answer is checked for details the AI added
+
+Chose:
+- (PV-04) Text inside a photo is never masked, so Gemini may write a name or number it read off a sign into its answer, and that would be saved. With protection on, S5 checks the description and each category's reason before unmasking: one more `/mask` call with the reading's mapping. What the reading sent is a placeholder by then, so whatever is found is new, and is replaced by its kind ("[name removed]"). Known clients, sites and people are kept. Quotes are not checked, since they are copied from masked items.
+- On by default, and switchable in the backend: `PII_CHECK_ANSWERS=on|off` on the gateway, sent to S5 as `privacy.check_answers` (Rule 1: S5 reads no env var for it). A typo stops the gateway starting, as for `PII_PROTECTION`.
+- If privacy-service fails at the check, the reading fails and nothing is saved. Gemini has already answered by then, so the message says the answer couldn't be checked rather than that nothing was sent.
+- Provenance counts the details taken out (`removedFromAnswer`), never which.
+
+Reason: the goal is not to store PII in the database. The check is local and cheap, and catches what face blurring and text masking can't reach until text in photos is redacted.
+
+Rejected:
+- Telling the model not to write personal details: the prompt can be ignored, and the output still needs checking.
+- Keeping the removed values for the engineer to restore: that would store the PII the check exists to keep out.
+
+Known limits: street addresses are not detected, only a postal code after "Singapore". A second `/mask` call per reading bends Rule 2 (one call per request); it adds nothing to the mapping.
+
+Stories: PV-04.
