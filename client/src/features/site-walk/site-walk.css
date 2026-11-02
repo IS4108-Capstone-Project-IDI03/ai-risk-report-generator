@@ -1,0 +1,180 @@
+/* Site walk screens (CP-22): shared look for Recording and Review. Apple style as in
+   chat/chat.css: the system font, Marsh navy, quiet colour, pill buttons, 44px taps.
+   Recording's own rules are in recording.css, Review's in review.css. */
+
+.sw {
+  --sw-font: var(--font-sans);
+  --sw-hover: rgb(0 15 71 / 0.04); /* --marsh-navy at 4% */
+  --sw-fill: rgb(0 15 71 / 0.06); /* quiet grouped fill, like iOS's secondary background */
+  --sw-line: rgb(0 15 71 / 0.1);
+  --sw-shadow-sm: 0 1px 2px rgb(0 15 71 / 0.06), 0 1px 1px rgb(0 15 71 / 0.04);
+  --sw-shadow-md: 0 8px 28px rgb(0 15 71 / 0.1), 0 2px 6px rgb(0 15 71 / 0.06);
+  --sw-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --sw-rec: var(
+    --red-600
+  ); /* the recording dot: red means "recording" everywhere, never severity */
+
+  /* Full screen above the app, so the engineer looks at the walk and nothing else. */
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: 400 15px/1.45 var(--sw-font);
+  -webkit-font-smoothing: antialiased;
+}
+.sw ::selection {
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+}
+.sw :focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* ---- Top bar: back, title, one action ---- */
+.sw-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 60px;
+  /* The same side and top spacing as the workspace sub-screens (New
+     Observation, Site Walks), so Back sits in the same place everywhere. */
+  padding: 8px max(clamp(16px, 2vw, 28px), env(safe-area-inset-right)) 8px
+    max(clamp(16px, 2vw, 28px), env(safe-area-inset-left));
+  padding-top: max(8px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--sw-line);
+}
+.sw-bar h1,
+.sw-bar h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--marsh-navy);
+}
+.sw-bar > :last-child {
+  justify-self: end;
+}
+
+/* ---- Buttons ---- */
+.sw-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--marsh-navy);
+  font: 600 15px/1 var(--sw-font);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--sw-ease),
+    transform 100ms var(--sw-ease);
+}
+.sw-button:hover:not(:disabled) {
+  background: var(--sw-hover);
+}
+/* Feedback on the press itself, not the release (apple-design §1). */
+.sw-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.sw-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.sw-button--primary,
+.sw-button--primary:hover:not(:disabled) {
+  background: var(--surface-nav);
+  color: var(--text-inverse);
+  box-shadow: var(--sw-shadow-sm);
+}
+.sw-button--primary:hover:not(:disabled) {
+  box-shadow: var(--sw-shadow-md);
+}
+.sw-button--tinted {
+  background: var(--sw-fill);
+}
+.sw-button--danger {
+  color: var(--red-600);
+}
+.sw-button--wide {
+  width: 100%;
+  min-height: 50px;
+  font-size: 16px;
+}
+.sw-icon-button {
+  width: 44px;
+  padding: 0;
+}
+
+/* ---- Messages ---- */
+.sw-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-wrap: pretty;
+}
+.sw-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--sw-fill);
+  color: var(--text-body);
+}
+.sw-alert p {
+  margin: 0;
+  text-wrap: pretty;
+}
+.sw-alert--problem {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+/* A tinted pill would vanish into the pink alert, so its button is white. */
+.sw-alert--problem .sw-button {
+  background: var(--surface-card);
+  color: var(--marsh-navy);
+  box-shadow: var(--sw-shadow-sm);
+}
+
+/* ---- Help sheet: the design system's dialog, rounder, as in chat ---- */
+.sw-sheet.ds-dialog {
+  border: 0;
+  border-radius: 18px;
+  box-shadow:
+    0 24px 64px rgb(0 15 71 / 0.18),
+    0 2px 8px rgb(0 15 71 / 0.08);
+  font-family: var(--sw-font);
+  color: var(--text-body);
+}
+.sw-sheet h2 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: var(--marsh-navy);
+}
+.sw-sheet ul {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw *,
+  .sw *::before,
+  .sw *::after {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+}

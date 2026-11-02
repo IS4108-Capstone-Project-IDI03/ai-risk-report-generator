@@ -1,0 +1,339 @@
+/* Site Walk Proposals (CP-22 round 3, round 4): a tab bar across the top of one
+   full-width card, then the compact walk rows in fixed columns. Uses the .ob
+   screen's tokens. The rows' columns follow the list's own width (a container
+   query), so they hold with the app sidebar open or shut. */
+
+.wr-screen > .sh {
+  margin-bottom: 4px;
+}
+/* One card the full width: no sidebar column. */
+@media (min-width: 900px) {
+  .wr-screen .ob-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Tab bar: icon, name and a count in each tab's own colour ---- */
+.wr-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  padding: 0 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ob-line);
+  background: var(--surface-card);
+  scrollbar-width: none;
+}
+.wr-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--text-secondary);
+  font: 500 15px/1 var(--ob-font);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 120ms var(--ob-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .wr-tab:hover {
+    color: var(--marsh-navy);
+  }
+}
+.wr-tab[aria-current] {
+  border-bottom-color: var(--marsh-navy);
+  color: var(--marsh-navy);
+  font-weight: 650;
+}
+.wr-tab:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -4px;
+  border-radius: 8px;
+}
+/* Each count keeps its colour whichever tab is picked (Jesper, round 4). */
+.wr-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font: 650 13px/1 var(--ob-font);
+  font-variant-numeric: tabular-nums;
+}
+.wr-tab[data-tab='ready'] .wr-count {
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+}
+.wr-tab[data-tab='working'] .wr-count {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+.wr-tab[data-tab='added'] .wr-count {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+.wr-tab-icon {
+  display: flex;
+}
+.wr-tab-short {
+  display: none;
+}
+/* A phone: short names and no icons, so the three tabs share one line. */
+@media (max-width: 559px) {
+  .wr-tabs {
+    gap: 0;
+    padding: 0 4px;
+  }
+  .wr-tab {
+    flex: 1 1 0;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 6px;
+    font-size: 14px;
+  }
+  .wr-tab-icon,
+  .wr-tab-label {
+    display: none;
+  }
+  .wr-tab-short {
+    display: inline;
+  }
+}
+
+/* ---- Rows: name | photos | status, centred | actions | chevron ---- */
+.wr-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  container-type: inline-size;
+  /* Clips the last row's hover fill to the card's rounded bottom corners. */
+  overflow: hidden;
+}
+.wr {
+  position: relative;
+  display: grid;
+  /* Photos: four 44px thumbs and their gaps; status: the widest pill. */
+  grid-template-columns: minmax(0, 1fr) 192px 140px 76px 20px;
+  align-items: center;
+  column-gap: 24px;
+  min-height: 64px;
+  padding: 10px 14px 10px 20px;
+  border-top: 1px solid var(--ob-line);
+  transition: background-color 120ms var(--ob-ease);
+}
+.wr:first-child {
+  border-top: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .wr:has(.wr-open):hover {
+    background: var(--ob-hover);
+  }
+}
+.wr:has(.wr-open:active) {
+  background: var(--ob-selected);
+}
+.wr:has(.wr-open:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+.wr-name {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.wr-open,
+.wr-title {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: 600 15px/1.3 var(--ob-font);
+  letter-spacing: -0.01em;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.wr-title {
+  cursor: default;
+}
+.wr-open:focus-visible {
+  outline: none;
+}
+/* Stretches the opening button over the whole row: a tap anywhere opens it. */
+.wr-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.wr-when {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.wr-problem {
+  color: var(--red-600);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Photos at one small size, from the column's left edge; "+N" past four. */
+.wr-seen {
+  display: flex;
+  gap: 4px;
+}
+.wr-seen img,
+.wr-more {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--ob-fill);
+  object-fit: cover;
+}
+.wr-more {
+  display: grid;
+  place-items: center;
+  color: var(--marsh-navy);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+/* ---- Status: a tinted pill, centred in its column ---- */
+.wr-status-cell {
+  display: flex;
+  justify-content: center;
+}
+.wr-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--ob-fill);
+  color: var(--marsh-navy);
+  font: 600 13px/1 var(--ob-font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.wr-state[data-tone='red'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.wr-state[data-tone='green'] {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+.wr-state[data-tone='grey'] {
+  color: var(--text-secondary);
+}
+.wr-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red-600);
+  animation: wr-pulse 1.6s ease-in-out infinite;
+}
+@keyframes wr-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wr-dot {
+    animation: none;
+  }
+}
+
+/* ---- Retry and Delete: icon buttons above the row's stretched open button ---- */
+.wr-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.wr-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--marsh-navy);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.wr-delete {
+  color: var(--red-600);
+}
+@media (hover: hover) and (pointer: fine) {
+  .wr-icon:hover {
+    background: var(--surface-card);
+    box-shadow: 0 0 0 1px var(--ob-line);
+  }
+  /* Delete only on hover or keyboard focus, as the sidebars' row actions. */
+  .wr-delete {
+    visibility: hidden;
+  }
+  .wr:hover .wr-delete,
+  .wr:has(:focus-visible) .wr-delete {
+    visibility: visible;
+  }
+}
+@media (pointer: coarse) {
+  .wr-icon {
+    width: 44px;
+    height: 44px;
+  }
+}
+.wr-chevron {
+  display: flex;
+  color: var(--text-muted);
+}
+
+/* A narrow list (a phone): the name and chevron on the first line, then the
+   status, photos and actions on the second. */
+@container (max-width: 639px) {
+  .wr {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'name name name chevron'
+      'status seen actions actions';
+    gap: 8px 10px;
+    padding: 12px 8px 12px 14px;
+  }
+  .wr-name {
+    grid-area: name;
+  }
+  .wr-chevron {
+    grid-area: chevron;
+  }
+  .wr-status-cell {
+    grid-area: status;
+  }
+  .wr-seen {
+    grid-area: seen;
+  }
+  .wr-actions {
+    grid-area: actions;
+  }
+  .wr-seen img,
+  .wr-more {
+    width: 32px;
+    height: 32px;
+  }
+}

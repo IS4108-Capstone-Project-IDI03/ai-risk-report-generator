@@ -14,6 +14,7 @@ const ICON_FOR_PURPOSE: Record<Notification['purpose'], string> = {
   account_status: 'user',
   assessment_status: 'clipboard-list',
   knowledge_gap_request: 'inbox',
+  site_walk_ready: 'sparkles',
 }
 
 export function NotificationIcon({ notification }: { notification: Notification }) {
