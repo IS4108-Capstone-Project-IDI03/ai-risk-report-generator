@@ -13,9 +13,10 @@ from PIL import Image
 class FakePrivacy:
     """Stands in for privacy-service (PV-01's and PV-04's contracts).
 
-    `/mask` swaps each known entity's names, a +65 number and an NRIC for typed placeholders,
-    extending the mapping it is sent. `/redact-image` turns every photo black, as a stand-in
-    for a blurred face, and counts one face in each. `failure` makes both fail: an httpx
+    `/mask` swaps each known entity's names, a +65 number, an NRIC, a Lower Kent Ridge Rd
+    address and the plate PU 104 J for typed placeholders, extending the mapping it is sent.
+    `/redact-image` turns every photo black, as a stand-in for a blurred face, and counts one
+    face in each. `failure` makes both fail: an httpx
     exception to raise, or a status code. `.requests` holds each request, by path.
     """
 
@@ -56,6 +57,10 @@ class FakePrivacy:
                         text = text.replace(name, placeholder(entity["type"], entity["names"][0]))
             text = re.sub(r"\+65 \d{4} \d{4}", lambda m: placeholder("PHONE", m[0]), text)
             text = re.sub(r"\bS\d{7}[A-Z]\b", lambda m: placeholder("NRIC", m[0]), text)
+            text = re.sub(
+                r"\b\d+ Lower Kent Ridge Rd\b", lambda m: placeholder("ADDRESS", m[0]), text
+            )
+            text = re.sub(r"\bPU 104 J\b", lambda m: placeholder("VEHICLE", m[0]), text)
             texts.append(text)
         return httpx.Response(200, json={"texts": texts, "mapping": mapping})
 

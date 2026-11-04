@@ -345,3 +345,33 @@ def test_records_how_many_details_the_answer_lost_never_which(monkeypatch, fake_
         "faces_blurred": 1,
         "removed_from_answer": 2,
     }
+
+
+def test_removes_an_address_and_a_plate_the_answer_adds(monkeypatch, fake_privacy):
+    answer = {
+        "description": "A notice gives 21 Lower Kent Ridge Rd; lorry PU 104 J is parked.",
+        "hazard_type": "Other",
+    }
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+
+    response = client.post(
+        "/interpret",
+        json={"photos": photos("k"), "parts": ["description"], "privacy": CHECKED},
+    )
+
+    assert response.json()["description"] == (
+        "A notice gives [address removed]; lorry [vehicle plate removed] is parked."
+    )
+
+
+def test_gives_a_plate_from_the_note_back_real(monkeypatch, fake_privacy):
+    answer = {"description": "Lorry [VEHICLE_1] blocks the hydrant.", "hazard_type": "Other"}
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
+    note = {"label": "Note", "kind": "note", "text": "Lorry PU 104 J blocks the hydrant."}
+
+    response = client.post(
+        "/interpret",
+        json={"photos": photos("k"), "texts": [note], "parts": ["description"], "privacy": PRIVACY},
+    )
+
+    assert response.json()["description"] == "Lorry PU 104 J blocks the hydrant."

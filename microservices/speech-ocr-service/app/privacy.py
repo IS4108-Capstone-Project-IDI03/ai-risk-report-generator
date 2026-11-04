@@ -7,7 +7,18 @@ import httpx
 from app import config
 
 # Copied from privacy-service/app/placeholders.py, as rag-service does (pure string work).
-TYPES = ("CLIENT", "SITE", "ADDRESS", "PERSON", "NRIC", "PHONE", "EMAIL", "UEN", "POSTAL")
+TYPES = (
+    "CLIENT",
+    "SITE",
+    "ADDRESS",
+    "PERSON",
+    "NRIC",
+    "PHONE",
+    "EMAIL",
+    "UEN",
+    "POSTAL",
+    "VEHICLE",
+)
 
 # Lenient: a model may drop the brackets or change the case ("person_1", "PERSON_1").
 _PLACEHOLDER = re.compile(rf"\[?\b({'|'.join(TYPES)})_(\d+)\b\]?", re.IGNORECASE)
@@ -28,6 +39,8 @@ _REMOVED = {
     "NRIC": "[ID number removed]",
     "UEN": "[UEN removed]",
     "POSTAL": "[postal code removed]",
+    "ADDRESS": "[address removed]",
+    "VEHICLE": "[vehicle plate removed]",
 }
 
 
