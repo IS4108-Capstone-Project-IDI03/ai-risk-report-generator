@@ -68,6 +68,8 @@ const json = (status: number, body: unknown) =>
 // the listed observations, as the gateway does, unless patchReply says otherwise.
 let listed: SavedObservation[] = []
 let reachable = true
+// Set once the app has read the locations reply (see openObservations).
+let locationsRead = false
 let patchReply: ((id: string, tags: Record<string, unknown>) => Promise<Response>) | null = null
 const patches: { id: string; tags: Record<string, unknown> }[] = []
 function mockGateway() {
@@ -75,7 +77,12 @@ function mockGateway() {
     if (!reachable) return Promise.reject(new TypeError('Failed to fetch'))
     // The workspace lists deleted ones too, for the Deleted button's count.
     if (url === OBS_URL || url === OBS_URL + '?include=deleted') return json(200, listed)
-    if (url === LOCATIONS_URL) return json(200, [BAY_3, STAIRWELL, PUMP_HOUSE])
+    if (url === LOCATIONS_URL)
+      return json(200, [BAY_3, STAIRWELL, PUMP_HOUSE]).then((res) => {
+        const read = res.text.bind(res)
+        res.text = () => read().finally(() => (locationsRead = true))
+        return res
+      })
     const patch = url.match(/^\/api\/observations\/(\w+)$/)
     if (patch && init.method === 'PATCH') {
       const id = patch[1]
@@ -111,7 +118,14 @@ async function openObservations() {
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
-  if (reachable && listed.length) await screen.findByText(listed[0].note!)
+  if (reachable && listed.length) {
+    await screen.findByText(listed[0].note!)
+    // The locations are asked for once the observations land. Until they
+    // render, the sample's places sit beside the gateway's (two Pump house
+    // rows), so a slow CI runner could click into a half-loaded list.
+    await vi.waitFor(() => expect(locationsRead).toBe(true))
+    await act(async () => {})
+  }
 }
 // Opens a filter's menu by its name ("Category", or "Category: Exposure" once
 // set) and picks an item by what it says.
@@ -168,6 +182,7 @@ beforeAll(() => {
 beforeEach(() => {
   listed = [HOSE_REEL, STAIRWELL_DOOR, VALVE]
   reachable = true
+  locationsRead = false
   patchReply = null
   patches.length = 0
   mockGateway()
