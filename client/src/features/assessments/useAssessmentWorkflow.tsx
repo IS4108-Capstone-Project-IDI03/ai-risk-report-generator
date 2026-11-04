@@ -2737,6 +2737,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // A saved assessment opens its real sections 7-12 on the Generate tab;
       // the demo assessment keeps the sample generation run (GN-01).
       liveReference: openRow?.persisted ? openRow.id : null,
+      // Its saved record, read again with the work list, so a corrected
+      // client, site or detail shows on the document's cover (RV-12 AC3).
+      liveRecord: openRow?.persisted ? (openRow.record ?? null) : null,
       canDraftSections: isMine && canCapture && can('reports:generate', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
