@@ -52,9 +52,7 @@ export function AddDocuments({
           <div>
             <h2 id="kb-add-title">Add documents</h2>
             <p>
-              PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT, up to 100 MB each; all but
-              PDFs are converted to PDF. Each file uploads as soon as you add it, and its details
-              are read from the document.
+              PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT, up to 100 MB each.
             </p>
           </div>
           <label className="kb-pick">

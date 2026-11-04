@@ -6,7 +6,8 @@ The backend runs in Docker Compose on one **m7i-flex.large** (2 vCPU, 8 GiB,
 free-tier eligible) and the client is served from the same box. Compose runs server,
 rag-service, speech-ocr-service, privacy-service, ingestion-service, ingestion-worker,
 converter (Gotenberg: Word and PowerPoint uploads to PDF, capped at 1 GB) and Redis,
-with nginx on the host serving the built client on port 80. Everything else is
+with nginx on the host serving the built client over HTTPS (port 443; port 80
+redirects). Everything else is
 a managed service or an API:
 
 | Piece | Where |
@@ -17,7 +18,7 @@ a managed service or an API:
 | Table/formula OCR | API (`OCR_PROVIDER`, default Claude Haiku 5.5) |
 | Embeddings, rerank, LLMs | Cohere, Anthropic, OpenAI APIs |
 | Redis (BullMQ queue) | container on the instance; server and worker share it |
-| Client | static build (`npm run build`) served by nginx on the host on port 80; nginx forwards `/api` to `server` on 4000 |
+| Client | static build (`npm run build`) served by nginx on the host over HTTPS; nginx forwards `/api` to `server` on 4000 |
 
 Docling parses on the instance's CPU with RapidOCR. Its models are built into
 the ingestion image, so nothing is downloaded at runtime.
@@ -36,7 +37,10 @@ that; the 4 GiB c7i-flex.large does not.
    - Key pair: create one and keep the `.pem` file. It is the only way in.
    - Storage **30 GB gp3**.
    - Security group (EC2 → Security groups → launch-wizard-1 → Inbound rules):
-     - **80 (HTTP)**, source **0.0.0.0/0**: the web app, through nginx.
+     - **443 (HTTPS)**, source **0.0.0.0/0**: the web app, through nginx.
+     - **80 (HTTP)**, source **0.0.0.0/0**: redirects to HTTPS, and Let's
+       Encrypt checks the certificate request over it. Keep it open, or
+       renewal fails.
      - **22 (SSH)** and **4000 (gateway API)**, source **My IP** for each team
        member. 4000 is only for laptops running the client against the box.
      - Never open 3000, 6379, 8001, 8002, 8003 or 27017. The services listen
@@ -110,8 +114,9 @@ AWS keys empty, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `OCR_PROVIDER=anthropic`.
 
 ### 4. nginx
 
-nginx on the host takes port 80. It serves the client's built files and
-forwards `/api` to `server` on 4000. The Vite dev server doesn't run on the
+nginx on the host takes ports 80 and 443. Over HTTPS it serves the client's
+built files and forwards `/api` to `server` on 4000. Port 80 only redirects
+to HTTPS and answers Let's Encrypt's certificate checks. The Vite dev server doesn't run on the
 instance: it's for development only and isn't safe to expose. Install nginx
 from nginx.org's stable repository:
 
@@ -140,8 +145,45 @@ by all releases:
 sudo mkdir -p /var/www/a2603 && sudo chown "$USER": /var/www/a2603
 ```
 
+#### HTTPS certificate
+
+The site has no domain name, so the certificate is issued for the Elastic IP
+itself. Let's Encrypt issues IP-address certificates only with its
+`shortlived` profile, and they last about 6 days, so renewal must run on its
+own. Ubuntu's apt certbot is too old for these, so install it from snap:
+
+```bash
+sudo snap install --classic certbot && sudo ln -sf /snap/bin/certbot /usr/bin/certbot
+certbot --help all | grep -E 'ip-address|preferred-profile'   # both must be listed
+sudo mkdir -p /var/www/certbot
+```
+
+Certbot proves the box owns the IP by putting a file under
+`/var/www/certbot`, which Let's Encrypt fetches over port 80. Before the first
+certificate exists, nginx can't load the HTTPS block below. So first make
+`a2603.conf` hold only the port-80 block below, with `location /` in place of the
+redirect so the old site keeps working, and reload nginx. Then request the
+certificate:
+
+```bash
+sudo certbot certonly --webroot -w /var/www/certbot \
+  --ip-address <elastic-ip> --preferred-profile shortlived \
+  --cert-name a2603 --deploy-hook "systemctl reload nginx"
+```
+
+The files go to `/etc/letsencrypt/live/a2603/`. The snap's systemd timer
+renews them, and the deploy hook reloads nginx after each renewal.
+
+`certbot renew --dry-run` doesn't work from this instance: it uses Let's
+Encrypt's staging server, which resets the box's connections, while
+production works. To test renewal, run `sudo certbot renew --force-renewal`
+once and check that `sudo certbot certificates` shows a fresh expiry date.
+Let's Encrypt allows 5 identical certificates a week, so don't repeat it.
+
+#### Site config
+
 Replace the default site with one that serves the client. Put the Elastic IP
-in `server_name`:
+in `server_name` (both blocks):
 
 ```bash
 sudo rm -f /etc/nginx/conf.d/default.conf
@@ -149,9 +191,30 @@ sudo nano /etc/nginx/conf.d/a2603.conf
 ```
 
 ```nginx
+# Port 80: Let's Encrypt's checks, and a redirect for everything else.
 server {
     listen 80;
     server_name <elastic-ip>;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# No HSTS header: with 6-day certificates, one failed renewal would lock
+# browsers out of the site until it's fixed.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name <elastic-ip>;
+
+    ssl_certificate     /etc/letsencrypt/live/a2603/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/a2603/privkey.pem;
+
     root /var/www/a2603/current;
 
     # Knowledge documents upload as one body of up to 100 MB (the gateway's
@@ -205,7 +268,10 @@ bash scripts/deploy-ec2.sh
 docker compose ps        # no client, mongo, chroma or ollama
 ```
 
-Open `http://<elastic-ip>` in a browser.
+Open `https://<elastic-ip>` in a browser. `http://` redirects there.
+
+The box's `.env` sets `APP_URL=https://<elastic-ip>`, the base of emailed
+password-reset and invitation links. After changing it, run `docker compose up -d server`.
 
 If the box ran the client container before, stop it once, after nginx is
 serving the build: `docker compose rm -sf client`.
@@ -291,6 +357,12 @@ never merges). `.env` is gitignored, so deploys never touch it. To remove it, ru
   ```bash
   docker compose logs ingestion-worker | grep -i "huggingface\|download"   # expect no output
   ```
+- HTTPS: `curl -I http://<elastic-ip>` gives a 301 to `https://`.
+  `curl -I https://<elastic-ip>` gives a 200 with no certificate error.
+  `sudo certbot certificates` shows the expiry date, which should stay a few
+  days ahead. If it doesn't, check `systemctl list-timers | grep certbot`,
+  the end of `/var/log/letsencrypt/letsencrypt.log`, and that port 80 is
+  still open.
 - Memory during a large document: `docker stats --no-stream` and `free -h`.
   If the worker plus swap nears the limit, lower `OCR_CONCURRENCY`.
 
