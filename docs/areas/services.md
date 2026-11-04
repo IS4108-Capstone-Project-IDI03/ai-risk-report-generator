@@ -770,6 +770,143 @@ uv run python -m eval.site_walk.run_eval [--only case-id,case-id]
 Results go to `eval/results/<date>-site-walk.json` (git-ignored). The scoring
 is unit-tested in `tests/test_site_walk_eval.py`.
 
+## Client intake (ingestion, S4, gateway, CP-23)
+
+Starting a new assessment from a client's documents. The reading is done in
+place, not by a queue: the engineer waits about 15-25 s on a progress view
+(a large pack of 12 files and 88,000 characters took about 11 s for the model
+step, plus about 3 s of local reading). Nothing is written by ingestion or
+rag-service; the gateway saves the result on a `client_intakes` document (see
+[database](database.md)).
+
+### Ingestion: `POST /extract-text`
+
+`app/extract_text.py`. The body is the file's raw bytes; the query `filename`
+(required) names it and gives its type by extension. The answer is
+`{"documents": [{"name", "text"}], "failed": [{"name", "size", "reason"}]}`:
+the file first, then each of an email's attachments that is a PDF, `.docx`,
+`.eml` or `.msg`, named `Attachment: <file> (from <email>)`. An attachment of
+those types, or a `.doc`, that can't be read (damaged, password-protected,
+empty, or a `.doc`, which only the gateway can convert) is listed in `failed`
+under the same name, with the same reason words as a top-level file's refusal;
+a `.doc` says "Can't read .doc attachments. Save it as .docx or PDF and add
+it." Other attachments (images, signatures) are skipped. An attached email's
+own attachments are not opened (one level only).
+
+| Format | How it is read |
+| --- | --- |
+| PDF | PyMuPDF text, page by page, joined with a blank line. A page with fewer than 20 non-space characters has no text layer, so it goes through the labelling OCR (`app/labelling/pages.py: ocr_page`, Docling's local engine, so it records no AI cost). At most `OCR_MAX_PAGES` (5) pages are OCR'd per file; the text then ends with `[Pages after N were not read: scanned]`. A page whose OCR fails is skipped (logged) and the rest are read. An attachment that can't be opened is listed in `failed`, and the email and its other attachments are still read. |
+| `.docx` | `python-docx` reads it directly: paragraphs, then table rows with cells joined by ` | `. |
+| `.eml` | Python's `email` package: From, To, Cc, Date and Subject, then the plain-text body (HTML stripped to text when there is none). |
+| `.msg` | `python-oxmsg` (MIT): the same header and body. |
+
+Legacy `.doc` is not read here. The gateway converts it to PDF with the converter
+first (`textOf` in `client-intake.service.ts`), then sends the PDF. Answers:
+**415** for an extension it does not read, **422** with a plain-English reason
+for a file it cannot open (corrupt, a password-protected PDF, not really an
+email). The gateway shows that reason on the file and still reads the others (AC3);
+the gateway answers 503 if ingestion is down, and 422 only when no file at all
+could be read.
+
+**OCR warm-up.** The OCR model takes about 45 s to load, so the lifespan loads it
+in a background thread when the service starts (startup is not blocked), and the
+first scanned page after a restart is not slow. Set `PRELOAD_OCR=0` to skip it;
+the tests do (`tests/conftest.py`), so they never load the model.
+
+### rag-service: `POST /client-intakes/read`
+
+`app/client_intake/read.py`. The gateway sends every document's text, every
+recorded client with its sites (`has_assessments` says whether a site was ever
+surveyed), the facility types and jurisdictions, and `privacy` with
+`detect: ["CLIENT", "SITE"]`. The answer is the proposal: the client (name,
+division), each site (name, address, jurisdiction, facility type), each
+assessment (visit type, dates, contacts) and where each document belongs, plus
+`usage`. Every value is `{ value, source: { document_id, quote } }`;
+`value: null` is Not sure (left empty). Steps:
+
+1. **Mask** every document's name and text in one `/mask` call (see
+   [privacy](privacy.md)); `CLIENT_INTAKE_PRIVACY_TIMEOUT` is 60 s. Fails
+   closed: rag 503 (`PrivacyUnavailable`), nothing sent.
+2. **Read the documents** with one `complete()` call: `LLM_PROVIDER` with
+   `CLIENT_INTAKE_MODEL` (default `claude-sonnet-5-5`) at `CLIENT_INTAKE_EFFORT`
+   (default `medium`). It returns the client, sites, the visits requested (each
+   with its dates, hints for the visit type and contacts) and what each document
+   is about. Every value carries the words it rests on and their document.
+3. **Check each quote** is in its document (case, spacing and placeholder
+   brackets ignored). A value whose quote is not found is emptied, as the
+   checklist checks citations. A date must also be `YYYY-MM-DD`.
+4. **Match to recorded clients and sites**, in code, after unmasking
+   (`difflib` similarity on names with case, punctuation and trailing "Pte Ltd",
+   "Inc", "Sdn Bhd" and the like dropped; a site matches on its name or address,
+   and an address only when its numbers are the same, so 5 Tuas Ave 1 is not 7
+   Tuas Ave 1). Sites are matched only among the matched client's own. At or
+   above `CLIENT_INTAKE_MATCH` (0.80) it is that recorded one (`existing_id`);
+   from `CLIENT_INTAKE_MATCH_MAYBE` (0.65) up to it, `existing_id` is null and
+   `match_not_sure` is true, so the form asks the engineer. A recorded site keeps
+   its own facility type and jurisdiction; they are not proposed.
+5. **Fixed choices** go to the classifier, `CLIENT_INTAKE_CLASSIFIER` (default
+   `jev`; the adapter in `app/site_walk/jev.py`, shared with CP-22), 20 questions
+   per call, on masked text: a new site's facility type (of the nine) and
+   jurisdiction (of the eight), the visit type, and each document's placement
+   (the whole client, a site or an assessment). A visit to a new site, or one
+   never surveyed, is a First survey by code, with no AI pick (AC17). Only a
+   recorded site that was surveyed before gets Resurvey or Follow-up visit.
+6. **Cutoffs.** Each decision type has its own, `CLIENT_INTAKE_CUTOFFS`. A pick
+   below it is left empty (Not sure); a document's placement falls back to the
+   whole client, flagged Not sure.
+7. **Unmask** every value and quote before returning.
+
+| Setting | Default | Why |
+| --- | --- | --- |
+| `CLIENT_INTAKE_MODEL` | `claude-sonnet-5-5` | Chosen by the evaluation (see DECISIONS). |
+| `CLIENT_INTAKE_EFFORT` | `medium` | Same output as low on the timing test, at a little more time. |
+| `CLIENT_INTAKE_CLASSIFIER` | `jev` | |
+| Cutoffs: facility type, jurisdiction, visit type | 0.5 | At most one wrong pick at any cutoff on the tuning packs, so 0.5 (Jev favours one option over all the others together) empties nothing. |
+| Cutoff: placement | 0.85 | Right 96% of the time at 0.85; 14% of documents go to the whole client. |
+| `CLIENT_INTAKE_MATCH`, `_MAYBE` | 0.80, 0.65 | Every cutoff from 0.65 to 0.95 matched all 54 tuning items with no false match (0.60 made 2). 0.80 sits inside that range, not at its edge, as a wrong client is worse than a Not sure. |
+
+The cutoffs and match thresholds were chosen by a sweep on the tuning packs and
+confirmed on held-out ones, not copied from another feature (the labelling
+cutoff, 0.70, was not reused). The prompt and the placement descriptions were
+tuned on the tuning packs only. rag 502 for any other AI failure.
+
+### Gateway flow
+
+`routes/client-intake.routes.ts`, `services/client-intake.service.ts`,
+`client-intake-create.service.ts`:
+1. `POST /api/client-intakes`: each file is checked by its extension and its
+   bytes together (PDF, `.docx`, `.doc`, `.msg`, `.eml`; 100 MB in all). Accepted
+   files go to S3 under `client-intakes/<id>/`; a refused file is listed with its
+   reason and the others go on.
+2. `POST /api/client-intakes/:id/read`: claims the intake (two taps read it once),
+   gets each file's text (`.doc` through the converter, then `/extract-text`),
+   adds pasted text as a document named "Pasted text", then calls rag-service.
+   An email's attachments that couldn't be read are saved on the intake
+   (`failedAttachments`) and listed in the answer's `files` after their email,
+   as `failed` with no id and the reason.
+   Its paid calls are saved to `ai_calls` (feature `client-intake`). A failed read
+   leaves the intake `failed`, so it can be read again.
+3. `POST /api/client-intakes/:id/create`: the engineer's checked form becomes the
+   client, sites and assessments (the same create as `POST /api/assessments`),
+   and each listed document is copied to
+   `client-documents/<client id>/` and recorded under its placement. The
+   assessments are assigned to the signed-in engineer; there is no picker. A
+   failure part-way removes everything it made (records, copies, documents) and
+   leaves the intake ready, so a retry starts clean; a repeat after success
+   returns the same records.
+4. `DELETE /api/client-intakes/:id`, or the daily cleanup, removes an intake that
+   was not used.
+
+**Evaluation** (`eval/client_intake/`): synthetic client packs built from the
+sample reports, scored against their answer keys in code, with a tuning set and a
+held-out set. See the CP-23 entry in [DECISIONS](../DECISIONS.md) for the results.
+It is paid, so run it by hand from `microservices/rag-service`; the scoring is
+unit-tested in `tests/test_client_intake_eval.py`.
+
+```
+uv run python -m eval.client_intake.run_eval --split tuning [--only p01,p02] [--privacy on]
+```
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for

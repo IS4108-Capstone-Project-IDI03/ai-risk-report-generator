@@ -36,7 +36,8 @@
   passages omit those keys and stay out of search until the admin fills them in;
   and knowledge documents have no `COPE_dimension`: each passage carries its
   own `section` instead (a template section, `Appendix`, `Not applicable` or
-  `Undefined`; IN-05).
+  `Undefined`; IN-05). A client intake and a client document (CP-23) also store
+  `null` for the fields they don't have (see docs/areas/database.md).
 - `review_audit_log` (RV-02) is append-only: never update or delete an entry.
   A finding's review state is read from it, and drafts in `report_sections`
   are never changed. See docs/areas/database.md.
@@ -69,6 +70,8 @@
 ## Pointers — read these before touching the relevant area
 - Database schema & vector index → docs/areas/database.md
 - UI conventions → docs/areas/ui.md
+- Design system (how every screen looks: colours, components, tables, statuses,
+  toasts, motion; one look across the whole app) → docs/design-system-v2.md
 - AWS / deployment → docs/areas/cloud.md
 - Service internals (ingestion, RAG, speech) → docs/areas/services.md
 - PII protection (masking before external AI calls) → docs/areas/privacy.md

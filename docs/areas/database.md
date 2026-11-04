@@ -45,36 +45,73 @@ Python service ports to loopback; do not expose them publicly as-is.
 
 `assessments` holds a unique `reference` (the report ID shown in the UI, e.g.
 `RPT-2026-0411`), a `site` reference, `surveyType`, optional
-`siteVisitDate` and `reportDueDate`, and `engineer`: the assigned engineer's user ID
+`siteVisitDate`, `siteVisitEndDate` (the last day of a visit over several days,
+CP-23) and `reportDueDate`, optional `siteContacts` (`[{ name, role? }]`, who to
+meet at the site, CP-23), and `engineer`: the assigned engineer's user ID
 (one per assessment). The engineer's name is read from their account, so a rename shows everywhere.
 Its client is read through its site (CP-17); an assessment saved before then
 also keeps the `client` name typed on it, unused once its site is migrated.
 Extend it rather than creating a parallel assessment schema.
 
-`POST /api/assessments` creates an assessment for a listed client
-(`clientId`) or a new one (`client`, a name), on one of that client's sites
-(`siteId`) or a new site (`site`, which has an optional `address`): exactly
-one of each pair (CP-17). A listed site of another client is refused, as is a
-new site named like one the client has, ignoring case (`site.name`). On a
-listed site the assessment starts with a copy of the locations of the site's
-latest assessment not archived, whatever its status (latest by visit date,
-then creation), each with a new `_id`, unless `copyLocations` is `false`; no
-observations are copied. The body is validated with Zod; a 400 returns
-`{ error, fields }`, where `fields` maps each invalid path (e.g. `site.name`) to
-its first problem. `jurisdiction` is a two-letter code (`SG`, `MY`, `UK`, …)
-because retrieval filters on it. The server allocates the reference
-`RPT-<year>-<nnnn>` and the site code `SITE-<nnnn>` from atomically incremented
-`counters` documents (`assessment:<year>`, `site`), skipping any code already
-in use, such as a seeded one. Dev and test MongoDB are standalone servers without
-transactions, so if the assessment insert fails, a new site is deleted by hand.
+`surveyType` is one of three visit types (CP-23, `VISIT_TYPES` in
+`assessment.model.ts`), checked by the server whenever an assessment is created or
+edited:
+
+| Visit type | Means |
+| --- | --- |
+| `First survey` | The site has never been surveyed by us. |
+| `Resurvey` | A periodic re-survey of a site surveyed before. |
+| `Follow-up visit` | A short visit to check the recommendations of an earlier survey. |
+
+The meanings are ours, from the sample reports and the template cover; to be
+confirmed with Marsh. The rule (AC17): a site with no earlier assessment, in
+the database or earlier in the same request, must start with a `First survey`,
+so `Follow-up visit` is refused there (`sites.<n>.assessments.0.visitType`).
+Before CP-23, `surveyType` held `Property risk survey`, `Business interruption`
+or `Natural hazard review`. Those are still read until `npm --prefix server run
+migrate:visit-types` converts them: a Property risk survey becomes the site's
+`First survey` when no assessment there came before it (by visit date, else when
+it was made) and a `Resurvey` otherwise; Business interruption and Natural hazard
+review become `Resurvey`; any other value is left as it is. It is safe to run
+more than once (a converted assessment is skipped).
+
+`POST /api/assessments` creates one client's sites and assessments together
+(CP-23): `client` (a listed `{ id }`, or a new `{ name, division? }`) and `sites`,
+each a listed site (`id`, with `copyLocations`) or a new one (`name`, `address`,
+`jurisdiction`, `facilityType`, all required), with at least one `assessments`
+entry each (`visitType`, optional `siteVisitDate`, `siteVisitEndDate`,
+`reportDueDate`, `siteContacts`). Every site and assessment has a `ref` (e.g.
+`site-1`), unique in the request, so a document can be placed under it before it
+has an id. There is no `engineerId`: each assessment is assigned to the signed-in
+engineer. The end date must be on or after the visit date, and the report due
+date too. A listed site of another client is refused, as is a new site named like
+one the client has, ignoring case, or two new sites of one name in the request
+(CP-17). On a listed site each assessment starts with a copy of the locations of
+the site's latest assessment not archived, whatever its status (latest by visit
+date, then creation), each with a new `_id`, unless `copyLocations` is `false`; no
+observations are copied. The body is validated with Zod and then against the
+records, before anything is written; a 400 returns `{ error, fields }`, where
+`fields` maps each invalid path (e.g. `sites.0.assessments.1.visitType`) to its
+first problem. The answer is 201 `{ clientId, assessments }`. `jurisdiction` is a
+two-letter code (`SG`, `MY`, `UK`, …) because retrieval filters on it. The server
+allocates the reference `RPT-<year>-<nnnn>` and the site code `SITE-<nnnn>` from
+atomically incremented `counters` documents (`assessment:<year>`, `site`),
+skipping any code already in use, such as a seeded one. Dev and test MongoDB are
+standalone servers without transactions, so ids are chosen first and a create
+that fails part-way removes what it made (its assessments, its new sites, and
+the client when it added it), from the form or from a client intake, so nothing
+is left half created and a retry starts clean.
 
 `clients` (CP-17) holds the clients the firm surveys for, each with a `name`
 (up to 200 characters) and a unique `key`: the name lowercased with its spacing
-tidied, so "Northgate  Logistics" and "northgate logistics" are one client.
+tidied, so "Northgate  Logistics" and "northgate logistics" are one client. A
+client may also have a `division` (up to 200 characters, CP-23), e.g. "Cold chain":
+set when the client is first created and returned by `GET /api/clients` and the
+client page (`null` when none).
 Every engineer sees every client. A site belongs to one client through its
 `client` reference; one client has many sites, and a site many assessments,
 one per visit. Creating an assessment with a new client name finds the client
-by key, or adds it with the name as typed. `GET /api/clients` lists every
+by key, or adds it with the name as typed (and its division). `GET /api/clients` lists every
 client in name order with its number of sites, and `GET
 /api/clients/:id/sites` a client's sites in name order, each with its latest
 assessment not archived (`reference`, `siteVisitDate`, and the `locations` and
@@ -204,14 +241,14 @@ archived), returning the inputs with the computed `result` and `updatedAt`.
 `GET /api/assessments` returns assessments assigned to the authenticated risk
 engineer's user ID; knowledge admins receive all assessments. The derived status
 and sort order (most recent site visit first) are unchanged. Site/client/report-ID
-search and status filtering happen in the browser. `GET /api/assessments/engineers`
-requires `assessments:edit` and returns only active risk engineers' IDs, names,
-staff IDs and job titles for assignment. Creating an assessment requires
-`engineerId`, the ID of one active risk engineer.
+search and status filtering happen in the browser. The create form no longer
+assigns an engineer (CP-23): an engineer's new assessments are their own, and
+admins assign under RV-11.
 
 `PUT /api/assessments/:reference` corrects an assessment's own details (RV-10
-AC10): its assessment type and dates, with the same validation as creating one
-(AC11). The engineer, client and site are not editable: they stay as the
+AC10): its visit type (`surveyType`, one of the three above, or its saved older
+type left unchanged, so an assessment not yet migrated can still be edited) and its site visit and
+report due dates, with the same validation as creating one (AC11). The engineer, client and site are not editable: they stay as the
 assessment was created (CP-17 AC8). The site's details and its client's name
 change for all their assessments at once, through `/api/sites` and
 `/api/clients` (CP-18, below); a `site` sent here is ignored. A new site's
@@ -249,7 +286,7 @@ changed until it is restored.
 Site routes go by the site's own id, so a site with no client yet can be
 corrected. A removed site's name doesn't stop a new site taking it (a
 colleague can't see the removed one); a restore then needs a new name.
-`POST /api/assessments` refuses a removed site (400, `siteId`), and a removed
+`POST /api/assessments` refuses a removed site (400, `sites.<n>.id`), and a removed
 client's name typed there finds it again. `POST
 /api/assessments/:reference/restore` restores the assessment's removed site
 with it, or refuses (409) while another listed site has that site's name.
@@ -267,6 +304,104 @@ shows only under the Archived filter, and refuses a new capture session (409).
 `POST /api/assessments/:reference/restore` (AC9) clears `archivedAt`, with the same
 rules (assigned engineer only; 409 when it is not archived). The `reportStatus` and
 capture sessions were kept, so the assessment returns with the status it had.
+
+## Client intakes and client documents (CP-23)
+
+An engineer can start a new assessment from the documents a client sent (PDF,
+Word, Outlook `.msg`, `.eml`, or pasted email text). `client_intakes` holds them
+while the form is read and checked; `client_documents` keeps them under the client
+once the records are created.
+
+### `client_intakes` (temporary)
+
+One document per start, kept for 24 hours. Each has:
+
+- `engineer`: who started it. Only they may read, create from or discard it (anyone
+  else gets 404).
+- `files[]`: `name`, `contentType`, `ext` (its type read from its bytes: `pdf`,
+  `docx`, `doc`, `msg` or `eml`), `size`, `sha256` (a fingerprint of its bytes),
+  `key` (S3: `client-intakes/<intake id>/<file id>.<ext>`), `status` (`accepted`;
+  `read` or `failed` once its text was asked for) and `reason` (why it could not
+  be read, in plain English). A refused file (wrong type, empty) is never stored.
+- `pastedText`: email text pasted instead of saved as a file. It is read as a
+  document named "Pasted text".
+- `status`: `uploaded` -> `reading` -> `ready`, or `failed` (can be read again), then
+  `creating` (Create claims it, so two Create clicks make the records once; a second
+  gets 409, and so does a discard) -> `created`. A failed Create goes back to the
+  status it had (`ready` for a read intake). A read or create stuck for two minutes
+  (the gateway restarted) can be tried again.
+- `result`: rag-service's proposal (client, sites, assessments, and where each
+  document belongs), in camelCase. A repeat read of a `ready` intake returns it.
+  `sources[]` names each document read (`documentId`, `name`, `fileId`), so a
+  source quote can name the email attachment it came from.
+  `failedAttachments[]` lists an email's attachments that couldn't be read
+  (`fileId` of the email, `name`, `size`, `reason`), shown as failed files.
+- `created`: what a successful Create made, so a repeat (its response was lost)
+  returns the same records: `clientId`, `siteIds` and `assessmentIds` (form `ref`
+  -> `_id`) and `documentIds` (file id -> `_id`). Saved only once everything is
+  made; a Create that fails removes its records, document copies and kept
+  documents, and leaves no `created`.
+- `expiresAt`: 24 hours after it started (indexed).
+- `metadata` with the five required fields: `source_type: 'client_intake'`,
+  `effective_date` (when it was started), and `jurisdiction`, `facility_type` and
+  `COPE_dimension` all `null`. See the exception below.
+
+Discarding an intake (the engineer closes the form, AC13) deletes it and its files;
+409 once Create has claimed it (`creating` or `created`). The status check and
+the delete are one step, so a Create claiming it in between keeps its files. Create deletes the intake's own files, because the kept
+documents are copies. A daily job in the gateway (BullMQ repeatable
+`client-intake-cleanup-daily`, 03:00 UTC, 3 attempts) deletes every intake past
+`expiresAt` and its files, so a form that was abandoned leaves nothing behind. A
+file that fails to delete is logged and left: an orphan costs a little storage,
+while failing would keep the intake.
+
+### `client_documents` (kept)
+
+One document per kept file, under a client. Each has:
+
+- `client`, and `placement`: `{ kind, site?, assessment? }`. `kind` is `client`
+  (the whole client), `site` or `assessment`. `site` is set for a site's
+  document and for an assessment's (its site); `assessment` only for an
+  assessment's.
+- `name`, `contentType`, `size`, `sha256`, and `key`: the original file in S3 at
+  `client-documents/<client id>/<document id>.<ext>`. The original is kept as it
+  came; no PDF copy is stored.
+- `uploaded: { at, by: { id, name } }`, and `origin`: `intake` (created from client
+  documents) or `upload` (uploaded on the client page). Older documents without it
+  read as `intake`.
+- `metadata` with the five required fields: `source_type: 'client_document'`,
+  `effective_date` (the day it was added; CP-40 may add the document's own issue
+  date), `jurisdiction` and `facility_type` (the placed site's, or `null` for a
+  whole-client document) and `COPE_dimension: null`.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/client-intakes` | Multipart `file` parts and an optional `pastedText`. 201 `{ id, files }`, each file `accepted` or `refused` with its reason; 400 when none is kept and no text was pasted; 413 over 100 MB in all. |
+| `POST /api/client-intakes/:id/read` | Reads the documents into the proposal, in place (about 15-25 s). 200 `{ id, status, files, result }`, `files` listing after each email its attachments that couldn't be read (`failed`, `id: null`, with the reason); 422 when no file could be read; 503 when masking or ingestion is unavailable; 502 other AI failure; 409 while being read or once created. |
+| `POST /api/client-intakes/:id/create` | The checked form (as `POST /api/assessments`) plus `documents: [{ fileId, placement }]`, each placed under the whole client, a form site or a form assessment by `ref` (whole client when `placement` is left out). 201 `{ clientId, assessments }`; a repeat after success returns the same; a failure removes everything it made (the intake can be created from again). A file left out is not kept. |
+| `DELETE /api/client-intakes/:id` | Discards it and its files. 204, or 409 while it is being created or once created. |
+| `GET /api/clients/:id/documents` | The client's documents, oldest first, each with its placement (site and assessment names and reference), its `tag` label, `origin` and `originLabel`, and who added it. |
+| `POST /api/clients/:id/documents` | Uploads documents to an existing client: multipart `file` parts and an optional `placement` (JSON) for all of them, whole client when left out. Same types and limits as an intake. 201 `{ files }`, each `kept` with its document or `refused` with the reason (a file that couldn't be saved is refused with "Couldn't save it. Try again." and the rest still go in); 400 when none is kept; 413 over 100 MB. |
+| `GET /api/clients/:id/document-tags` | The tags a document can have: whole client, then each site and assessment the client page shows the user (`<reference> · <site name>`), as `{ placement, label }`: their own assessments and those sites (all for a knowledge admin), never a removed site. |
+| `PATCH /api/client-documents/:id` | Changes a document's tag: `{ placement }`, one of the tags above (400 otherwise; uploads take the same rule). Updates `jurisdiction` and `facility_type`. 200 with the document. |
+| `GET /api/client-documents/:id/file` | The original file, shown inline, byte ranges supported. |
+| `DELETE /api/client-documents/:id` | Deletes the document's file in S3, then its record (after the engineer confirms, AC16). 204; 502 when S3 refuses, and the document stays. |
+
+The intake routes need `assessments:edit`. Listing and opening documents and their tags need
+`assessments:view`; uploading, retagging and deleting need `assessments:edit`.
+
+### Why the metadata has nulls
+
+This is a documented exception to the metadata rule (CLAUDE.md), like the
+observation and knowledge-document ones:
+
+- An intake has no jurisdiction, facility type or COPE category yet: the site does
+  not exist until Create. The same fields are on the proposed sites, in `result`.
+  Its metadata is `null`, present and never `[]`.
+- A client document has no `COPE_dimension`: it is about the client or a site, not
+  one finding. Its `jurisdiction` and `facility_type` come from the site it is
+  placed under, and are `null` for a whole-client document because a client has
+  none of its own.
 
 ## User accounts
 
