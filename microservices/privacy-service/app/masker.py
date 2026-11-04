@@ -20,6 +20,7 @@ from presidio_analyzer.predefined_recognizers import (
     SpacyRecognizer,
 )
 
+from app import detectors
 from app.allow_list import is_allowed
 
 # Presidio's entity names -> our placeholder types.
@@ -128,15 +129,19 @@ def _spans(text: str, known: list[KnownEntity]) -> list[_Span]:
         for name in entity.names
         for m in _name_pattern(name).finditer(text)
     ]
+    # Known names always count; other kinds only when detectors.json has them on.
+    on = detectors.enabled()
     found += [
         _Span(m.start("v"), m.end("v"), type_, m["v"])
         for type_, pattern in PATTERNS.items()
+        if type_ in on
         for m in pattern.finditer(text)
     ]
     found += [
         _Span(r.start, r.end, TYPES[r.entity_type], text[r.start : r.end])
         for r in sorted(detected, key=lambda r: r.entity_type == "PERSON")
-        if not (r.entity_type == "PERSON" and is_allowed(text[r.start : r.end]))
+        if TYPES[r.entity_type] in on
+        and not (r.entity_type == "PERSON" and is_allowed(text[r.start : r.end]))
     ]
     found = [span for span in found if _stands_as(span, text)]
     kept: list[_Span] = []
