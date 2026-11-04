@@ -101,6 +101,18 @@ export interface IPhoto {
   // As for a recording (CP-08): who added it after saving, and its removal.
   added?: IStamp
   removed?: IStamp
+  // How the photo last went to the model with protection on (PV-04).
+  redaction?: IPhotoRedaction
+}
+
+// A photo as the model last saw it with protection on (PV-04): the faces
+// blurred, and the copy in S3 (`key`, beside the original, which is never
+// changed), or a `key` of null when it had no face and went out as taken.
+export interface IPhotoRedaction {
+  key: string | null
+  faces: number
+  size?: number
+  at: Date
 }
 
 // Where reading an observation's photos stands (CP-05). Nothing reads them
@@ -146,6 +158,16 @@ export interface IReadingProvenance {
   model: string
   promptVersion: string
   usage: { inputTokens: number; outputTokens: number | null; thoughtTokens: number | null } | null
+  // Whether client details were masked and faces blurred before the model saw
+  // them, and how many (PV-04). Never the details. Absent before PV-04.
+  // removedFromAnswer: details the AI added to its answer (a name read off a
+  // photo) that were taken out; absent before the answer check.
+  privacy?: {
+    enabled: boolean
+    maskedCount: number
+    facesBlurred: number
+    removedFromAnswer?: number
+  }
   interpretedAt: Date
 }
 
@@ -336,6 +358,17 @@ const photoSchema = new Schema<IPhoto>({
   size: { type: Number, required: true },
   added: { type: stampSchema },
   removed: { type: stampSchema },
+  redaction: {
+    type: new Schema<IPhotoRedaction>(
+      {
+        key: { type: String, default: null },
+        faces: { type: Number, required: true },
+        size: Number,
+        at: { type: Date, required: true },
+      },
+      { _id: false },
+    ),
+  },
 })
 
 const provenanceSchema = new Schema<IReadingProvenance>(
@@ -349,6 +382,13 @@ const provenanceSchema = new Schema<IReadingProvenance>(
         { _id: false },
       ),
       default: null,
+    },
+    privacy: {
+      type: new Schema(
+        { enabled: Boolean, maskedCount: Number, facesBlurred: Number, removedFromAnswer: Number },
+        { _id: false },
+      ),
+      default: undefined,
     },
     interpretedAt: { type: Date, required: true },
   },

@@ -99,6 +99,15 @@ export async function privacyFor(reference: string): Promise<Privacy> {
   return { enabled: true, known_entities: await knownEntities(reference) }
 }
 
+// The `privacy` field sent with each observation reading (PV-04): also whether
+// S5 takes details the AI added out of its answer. Never with protection off.
+export type ReadingPrivacy = Privacy & { check_answers: boolean }
+
+export async function readingPrivacyFor(reference: string): Promise<ReadingPrivacy> {
+  const privacy = await privacyFor(reference)
+  return { ...privacy, check_answers: privacy.enabled && config.piiCheckAnswers }
+}
+
 // The `privacy` field the gateway sends with each chat message (PV-03).
 export async function chatPrivacy(): Promise<Privacy> {
   if (config.piiProtection === 'off') return { enabled: false, known_entities: [] }

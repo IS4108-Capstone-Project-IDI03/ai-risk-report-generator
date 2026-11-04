@@ -3,6 +3,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from app.privacy import PrivacyUnavailable
 from app.processors.handwriting import HandwritingError, transcribe_page
 from app.processors.stt import TranscriptionError, transcribe
 from app.processors.vision import InterpretationError, describe_photo, interpret
@@ -25,6 +26,21 @@ class TextItem(BaseModel):
     text: str = Field(min_length=1)
 
 
+# A detail privacy-service masks wherever it appears (PV-01): one client, site, address or person.
+class KnownEntity(BaseModel):
+    type: str
+    names: list[str] = Field(min_length=1)
+
+
+# Whether to protect client details before Gemini, as the gateway decided (PV-04). Left out,
+# S5 reads as it did before PV-04.
+class Privacy(BaseModel):
+    enabled: bool
+    known_entities: list[KnownEntity] = []
+    # Whether details Gemini adds to its answer (a name read off a photo) are taken out.
+    check_answers: bool = False
+
+
 # Everything the engineer captured about one finding, each item by the name the proposal cites
 # it by (CP-05, CP-21), with where it was found, and which parts of the proposal to write: the
 # categories, the photos' description, or (left out) both, or the categories alone without photos.
@@ -33,6 +49,7 @@ class InterpretRequest(BaseModel):
     texts: list[TextItem] = []
     location: str | None = None
     parts: list[Literal["categories", "description"]] | None = Field(default=None, min_length=1)
+    privacy: Privacy | None = None
 
     @model_validator(mode="after")
     def has_evidence(self):
@@ -69,8 +86,9 @@ def interpret_observation(request: InterpretRequest) -> dict:
             [t.model_dump() for t in request.texts],
             request.location,
             tuple(request.parts) if request.parts else None,
+            request.privacy.model_dump() if request.privacy else None,
         )
-    except InterpretationError as error:
+    except (InterpretationError, PrivacyUnavailable) as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 

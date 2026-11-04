@@ -62,10 +62,12 @@ def test_masks_a_uen_and_a_postal_code_next_to_singapore():
     note = "Owner UEN 201912345K, 21 Lower Kent Ridge Road, Singapore 119077. PD 119077 SGD."
     result = mask([note])
     assert result == {
-        "texts": [
-            "Owner UEN [UEN_1], 21 Lower Kent Ridge Road, Singapore [POSTAL_1]. PD 119077 SGD."
-        ],
-        "mapping": {"[UEN_1]": "201912345K", "[POSTAL_1]": "119077"},
+        "texts": ["Owner UEN [UEN_1], [ADDRESS_1], Singapore [POSTAL_1]. PD 119077 SGD."],
+        "mapping": {
+            "[UEN_1]": "201912345K",
+            "[ADDRESS_1]": "21 Lower Kent Ridge Road",
+            "[POSTAL_1]": "119077",
+        },
     }
 
 
@@ -129,3 +131,64 @@ def test_ids_are_masked_only_when_labelled():
     assert mask(["Owner's IC S1234567D, company reg 53123456A."])["texts"] == [
         "Owner's IC [NRIC_1], company reg [UEN_1]."
     ]
+
+
+def test_masks_a_street_address():
+    note = "21 Lower Kent Ridge Rd, University Hall, Singapore 119077"
+    assert mask([note]) == {
+        "texts": ["[ADDRESS_1], University Hall, Singapore [POSTAL_1]"],
+        "mapping": {"[ADDRESS_1]": "21 Lower Kent Ridge Rd", "[POSTAL_1]": "119077"},
+    }
+
+
+def test_masks_a_block_and_unit_number_and_a_jalan_or_lorong():
+    result = mask(
+        [
+            "Blk 123 Ang Mo Kio Avenue 3 #04-56 is the tenant's flat.",
+            "Stored at 5 Jalan Kilang Barat and 12 Lorong 3 Geylang.",
+        ]
+    )
+    assert result == {
+        "texts": ["[ADDRESS_1] is the tenant's flat.", "Stored at [ADDRESS_2] and [ADDRESS_3]."],
+        "mapping": {
+            "[ADDRESS_1]": "Blk 123 Ang Mo Kio Avenue 3 #04-56",
+            "[ADDRESS_2]": "5 Jalan Kilang Barat",
+            "[ADDRESS_3]": "12 Lorong 3 Geylang",
+        },
+    }
+
+
+def test_leaves_floors_rooms_and_roads_without_a_house_number_alone():
+    # A guard, passing when first run: none of these has a house number then a street word.
+    notes = [
+        "Level 3 Car Park and the L3 pump room; Tower 2 Lift Lobby.",
+        "The site is next to Kent Ridge Road, per BS EN 12845 Section 9.",
+        "Sprinkler valve 2 St. 4 is shut; hose reel 3 Dr. check overdue.",
+    ]
+    assert mask(notes) == {"texts": notes, "mapping": {}}
+
+
+def test_the_known_site_address_wins_over_the_pattern():
+    # A guard, passing when first run: known names are kept first where spans overlap.
+    site = {"type": "ADDRESS", "names": ["21 Lower Kent Ridge Road", "21 Lower Kent Ridge Rd"]}
+    result = mask(["Visited 21 Lower Kent Ridge Rd; the tenant is at 5 Jalan Kilang."], [site])
+    assert result == {
+        "texts": ["Visited [ADDRESS_1]; the tenant is at [ADDRESS_2]."],
+        "mapping": {"[ADDRESS_1]": "21 Lower Kent Ridge Road", "[ADDRESS_2]": "5 Jalan Kilang"},
+    }
+
+
+def test_masks_a_vehicle_plate_with_or_without_spaces():
+    # "PU 104 J" is a plate guide's worked example of the check letter.
+    assert mask(["Lorry PU 104 J blocks the hydrant."]) == {
+        "texts": ["Lorry [VEHICLE_1] blocks the hydrant."],
+        "mapping": {"[VEHICLE_1]": "PU 104 J"},
+    }
+    assert mask(["The lorry PU104J was moved."])["texts"] == ["The lorry [VEHICLE_1] was moved."]
+
+
+def test_a_plate_needs_its_check_letter():
+    # A model or part code shaped like a plate is kept: its last letter is not the check letter.
+    note = "Pump model PU 104 K, valve set FM 200 B."
+    assert mask([note]) == {"texts": [note], "mapping": {}}
+    assert mask(["Owner's IC S1234567D."])["texts"] == ["Owner's IC [NRIC_1]."]

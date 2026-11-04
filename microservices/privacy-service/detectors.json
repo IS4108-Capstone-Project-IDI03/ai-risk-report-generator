@@ -1,0 +1,10 @@
+{
+  "PERSON": true,
+  "PHONE": true,
+  "EMAIL": true,
+  "NRIC": true,
+  "UEN": true,
+  "POSTAL": true,
+  "ADDRESS": true,
+  "VEHICLE": true
+}

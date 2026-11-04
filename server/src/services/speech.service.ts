@@ -1,5 +1,6 @@
 import { config } from '../config'
 import { recordAiCalls } from './ai-usage.service'
+import type { ReadingPrivacy } from './privacy.service'
 
 // A speech-service failure. `retryable` is true when trying again can work: the
 // service could not be reached, timed out, or was busy or rate-limited (408,
@@ -228,18 +229,29 @@ export type InterpretationResult = {
     output_tokens: number | null
     thought_tokens: number | null
   } | null
+  // What S5 protected before the model saw the reading (PV-04).
+  privacy?: {
+    enabled: boolean
+    masked_count: number
+    faces_blurred: number
+    removed_from_answer: number
+  }
+  // With protection on, each photo as the model saw it (base64 JPEG), by label.
+  redacted_photos?: { label: string; faces: number; image: string }[]
 }
 
 // Asks S5 to read an observation: its photos already stored in S3 and its
 // texts (note and transcripts), each under the label the proposal cites it by,
 // with where it was found, for the parts asked for (CP-21). Like transcribe,
-// S5 stores nothing and the caller saves the result. Throws an Error whose
-// message is the reason to show.
+// S5 stores nothing and the caller saves the result. `privacy` says whether S5
+// masks the text and blurs faces before the model sees them (PV-04). Throws an
+// Error whose message is the reason to show.
 export async function interpret(request: {
   photos: { label: string; s3Key: string }[]
   texts: { label: string; kind: 'note' | 'recording' | 'page'; text: string }[]
   location: string | null
   parts: ('categories' | 'description')[]
+  privacy: ReadingPrivacy
 }): Promise<InterpretationResult> {
   let response: Response
   try {
@@ -251,6 +263,7 @@ export async function interpret(request: {
         texts: request.texts,
         location: request.location,
         parts: request.parts,
+        privacy: request.privacy,
       }),
     })
   } catch {

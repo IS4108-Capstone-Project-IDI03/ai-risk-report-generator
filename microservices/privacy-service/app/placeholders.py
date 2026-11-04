@@ -6,7 +6,18 @@ chunk without a call to this service (PV-03).
 
 import re
 
-TYPES = ("CLIENT", "SITE", "ADDRESS", "PERSON", "NRIC", "PHONE", "EMAIL", "UEN", "POSTAL")
+TYPES = (
+    "CLIENT",
+    "SITE",
+    "ADDRESS",
+    "PERSON",
+    "NRIC",
+    "PHONE",
+    "EMAIL",
+    "UEN",
+    "POSTAL",
+    "VEHICLE",
+)
 
 # Lenient: a model may drop the brackets or change the case ("person_1", "PERSON_1").
 _PLACEHOLDER = re.compile(rf"\[?\b({'|'.join(TYPES)})_(\d+)\b\]?", re.IGNORECASE)

@@ -1,10 +1,10 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
     "(python_full_version < '3.14' and sys_platform != 'emscripten') or (python_full_version < '3.12' and sys_platform == 'emscripten')",
 ]
 
@@ -1308,6 +1308,7 @@ dependencies = [
     { name = "boto3" },
     { name = "fastapi" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "openai" },
     { name = "pillow" },
     { name = "pydantic" },
@@ -1320,7 +1321,6 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "black" },
-    { name = "httpx" },
     { name = "pymupdf" },
     { name = "pytest" },
     { name = "ruff" },
@@ -1333,7 +1333,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "google-genai", specifier = ">=1.50" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "openai", specifier = ">=1.50" },
     { name = "pillow", specifier = ">=11" },
     { name = "pydantic", specifier = ">=2.9" },

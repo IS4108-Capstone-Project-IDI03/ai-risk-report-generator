@@ -157,3 +157,12 @@ def test_a_restored_name_keeps_the_answer_program_parseable(fake_privacy):
 
     literal = line[len("s1 = Statement(") : line.index(", [])")]
     assert json.loads(literal) == f"{awkward} agreed."
+
+
+def test_a_vehicle_plate_is_masked_and_restored(fake_privacy):
+    s = privacy.session(ON)
+
+    [masked] = s.mask(["Lorry PU 104 J blocks the hydrant"])
+
+    assert masked == "Lorry [VEHICLE_1] blocks the hydrant"
+    assert s.unmask("[VEHICLE_1] was moved") == ("PU 104 J was moved", [])

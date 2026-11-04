@@ -20,6 +20,7 @@ from presidio_analyzer.predefined_recognizers import (
     SpacyRecognizer,
 )
 
+from app import detectors
 from app.allow_list import is_allowed
 
 # Presidio's entity names -> our placeholder types.
@@ -42,12 +43,29 @@ LABELS = {
 }
 LABEL_WINDOW = 30  # characters before the detail
 
+# What a Singapore street name ends in.
+STREET_WORDS = (
+    "Road", "Rd", "Street", "St", "Avenue", "Ave", "Drive", "Dr", "Lane", "Crescent", "Cres",
+    "Close", "Way", "Boulevard", "Blvd", "Link", "Place", "Terrace", "Walk",
+)  # fmt: skip
+
 # Singapore details Presidio has no recogniser for. Only the `v` group is replaced.
 PATTERNS = {
     # Business (8 digits + letter), local company (year + 5 digits + letter), other entities.
     "UEN": re.compile(r"\b(?P<v>\d{8}[A-Z]|(?:19|20)\d{7}[A-Z]|[RST]\d{2}[A-Z]{2}\d{4}[A-Z])\b"),
     # Only after "Singapore": six digits alone are as likely a figure as a postal code.
     "POSTAL": re.compile(r"\bSingapore\s*\(?(?P<v>\d{6})\b", re.IGNORECASE),
+    # A house or block number, then a capitalised street name ending in a street word (and its
+    # number: "Avenue 3"), or a Jalan or Lorong; then any unit number. Without the house number,
+    # a road is as likely a landmark the report needs ("next to Kent Ridge Road").
+    "ADDRESS": re.compile(
+        r"\b(?P<v>(?:(?:Blk|Block)\s*)?\d{1,5}[A-Z]?\s+"
+        rf"(?:(?:[A-Z][a-z]+\s+){{1,4}}(?:{'|'.join(STREET_WORDS)})\b(?:\s+\d{{1,3}}[A-Z]?\b)?"
+        r"|(?:Jalan|Jln|Lorong|Lor)(?:\s+(?:[A-Z][a-z]+|\d{1,3}[A-Z]?)\b){1,3})"
+        r"(?:,?\s*#\d{1,3}-\d{1,5}[A-Z]?\b)?)"
+    ),
+    # A vehicle plate: two or three letters, up to four digits, a check letter.
+    "VEHICLE": re.compile(r"\b(?P<v>[A-Z]{2,3} ?\d{1,4} ?[A-Z])\b"),
 }
 
 
@@ -111,15 +129,19 @@ def _spans(text: str, known: list[KnownEntity]) -> list[_Span]:
         for name in entity.names
         for m in _name_pattern(name).finditer(text)
     ]
+    # Known names always count; other kinds only when detectors.json has them on.
+    on = detectors.enabled()
     found += [
         _Span(m.start("v"), m.end("v"), type_, m["v"])
         for type_, pattern in PATTERNS.items()
+        if type_ in on
         for m in pattern.finditer(text)
     ]
     found += [
         _Span(r.start, r.end, TYPES[r.entity_type], text[r.start : r.end])
         for r in sorted(detected, key=lambda r: r.entity_type == "PERSON")
-        if not (r.entity_type == "PERSON" and is_allowed(text[r.start : r.end]))
+        if TYPES[r.entity_type] in on
+        and not (r.entity_type == "PERSON" and is_allowed(text[r.start : r.end]))
     ]
     found = [span for span in found if _stands_as(span, text)]
     kept: list[_Span] = []
@@ -130,13 +152,25 @@ def _spans(text: str, known: list[KnownEntity]) -> list[_Span]:
 
 
 def _stands_as(span: _Span, text: str) -> bool:
-    """Whether a found phone number or ID is one, not a figure or part number of the same shape."""
+    """Whether a found phone number, ID or plate is one, not a figure or part number of the same
+    shape."""
+    if span.type == "VEHICLE":
+        return _plate_checks(span.original)
     if span.type not in LABELS:
         return True
     if span.type == "PHONE" and re.search(r"[+\s-]", span.original):
         return True
     before = text[max(0, span.start - LABEL_WINDOW) : span.start]
     return bool(LABELS[span.type].search(before))
+
+
+def _plate_checks(plate: str) -> bool:
+    """Whether a plate's last letter is its check letter: the last two prefix letters (A=1) and
+    the digits padded to four, weighted 9 4 5 4 3 2, summed, mod 19 ("PU 104 J")."""
+    letters, digits, check = re.fullmatch(r"([A-Z]+) ?(\d+) ?([A-Z])", plate).groups()
+    values = [ord(c) - ord("A") + 1 for c in letters[-2:]] + [int(d) for d in digits.zfill(4)]
+    total = sum(w * v for w, v in zip((9, 4, 5, 4, 3, 2), values, strict=True))
+    return "AZYXUTSRPMLKJHGEDCB"[total % 19] == check
 
 
 def _name_pattern(name: str) -> re.Pattern:

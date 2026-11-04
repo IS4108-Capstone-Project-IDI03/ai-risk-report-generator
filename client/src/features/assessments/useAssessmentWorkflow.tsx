@@ -427,7 +427,13 @@ function toEntry(o: SavedObservation): Observation {
       ? { text: o.checklistItem.text, result: o.checklistItem.result }
       : null,
     fromSiteWalk: !!o.fromSiteWalk,
-    media: photos.map((p) => ({ id: p.id, name: p.name, url: p.url, added: p.added })),
+    media: photos.map((p) => ({
+      id: p.id,
+      name: p.name,
+      url: p.url,
+      added: p.added,
+      redaction: p.redaction,
+    })),
     // Removed recordings and photos, kept to restore (CP-08).
     removedMedia: [
       ...o.removedRecordings.map((r) => ({
@@ -3936,6 +3942,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       pageHint: liveCapture
         ? 'JPG or PNG, one photo per page. Each page is transcribed once you save.'
         : 'No capture session, so pages stay in this browser and are not transcribed.',
+      // A page goes to the AI service as photographed: client details in it
+      // can't be masked, so the engineer is asked to leave them off (PV-04).
+      pagePrivacyHint: liveCapture
+        ? 'Leave names, phone numbers and ID numbers off the page: an external AI service reads it.'
+        : null,
       addPages: (e: React.ChangeEvent<HTMLInputElement>) => {
         const { photos, refused } = choosePhotos([...(e.target.files ?? [])])
         e.target.value = ''

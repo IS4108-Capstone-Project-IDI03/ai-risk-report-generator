@@ -28,6 +28,8 @@ export function CaptureScanPanel({
           chooseLabel="Choose pages"
         />
         <span className="cap-hint">{v.pageHint}</span>
+        {/* Pages go to the AI as photographed (PV-04, CP-19). */}
+        {!!v.pagePrivacyHint && <span className="cap-hint">{v.pagePrivacyHint}</span>}
         {!!v.fPageError && (
           <div role="alert">
             <Callout tone="warning" title="Not added">

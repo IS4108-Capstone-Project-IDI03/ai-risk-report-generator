@@ -487,6 +487,17 @@ have no `photos` field, which reads treat as none. Drafting does not read
 photos yet, so an observation that is only photos is not usable evidence and
 doesn't count toward a section's minimum.
 
+A photo read with PII protection on (PV-04) gains a `redaction`: how it last
+went to the model. `faces` is how many were blurred, and `at` when. With a face
+blurred, `key` names a copy in S3 beside the original,
+`<original key without extension>.redacted.jpg`, exactly as the model received
+it (shrunk, and with faces blurred), and `size` is its size. Without a face,
+`key` is null and nothing is stored: it went out as taken, only shrunk. Reading
+the photo again replaces the copy. The original is never changed. A photo never
+read with protection on has no `redaction`. Nothing deletes photo objects yet
+except a failed upload's cleanup; anything that later deletes a photo's object
+must delete its `redaction.key` too.
+
 An observation gains an `interpretation` (CP-05, CP-21) once an engineer asks
 for it to be read: what the model proposes from everything captured in it, for
 the engineer to review. Saving never reads it, so a client's notes and site
@@ -509,8 +520,13 @@ again moves them into `photoReading`. A reading from before CP-21 has one
 one with no reason.
 `attempts` records each run as for a recording, and `provenance` records the
 `provider`, `model`, `promptVersion`, token `usage` (`inputTokens`,
-`outputTokens`, `thoughtTokens`, or null when not reported, EV-03) and
-`interpretedAt`. Asking creates it with one attempt on each part, or adds one
+`outputTokens`, `thoughtTokens`, or null when not reported, EV-03),
+`interpretedAt`, and `privacy` (PV-04): `{ enabled, maskedCount, facesBlurred,
+removedFromAnswer }`, whether client details were masked and faces blurred
+before the model saw the reading, and how many, and how many details the model
+added to its answer were taken out (`removedFromAnswer`, absent on readings
+from before the answer check). It never holds the details. Absent on readings
+from before PV-04. Asking creates it with one attempt on each part, or adds one
 to the part asked for, whenever the engineer asks, matched atomically on that
 part's status so two clicks start one reading;
 it is refused while a recording or page is still transcribing, or when there

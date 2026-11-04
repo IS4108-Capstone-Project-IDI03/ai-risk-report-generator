@@ -8,7 +8,10 @@ same hazard is judged by reading them; the hazard type is compared exactly.
 
 Run from microservices/speech-ocr-service. It reads the root .env for the
 provider settings and GEMINI_API_KEY (a paid-tier key: these are Marsh's photos):
-    uv run --extra dev python -m eval.interpret_photos [case-id ...]
+    uv run --extra dev python -m eval.interpret_photos [--privacy] [case-id ...]
+
+`--privacy` reads each case with protection on (PV-04): privacy-service must be running
+(PRIVACY_SERVICE_URL) to mask the texts and blur faces, using a case's `known_entities`.
 
 Each run makes one model call per case. Results are appended to
 eval/results/<date>.jsonl with the provider, model and prompt version.
@@ -26,6 +29,7 @@ HERE = Path(__file__).parent
 REPO = HERE.parents[2]
 load_dotenv(REPO / ".env")
 
+from app.privacy import PrivacyUnavailable  # noqa: E402
 from app.processors.vision import InterpretationError, interpret_images  # noqa: E402
 
 
@@ -39,7 +43,7 @@ def photo_of(source: dict) -> bytes:
     return doc.extract_image(largest["xref"])["image"]
 
 
-def main(only: list[str]) -> None:
+def main(only: list[str], protect: bool = False) -> None:
     cases = json.loads((HERE / "cases" / "photos.json").read_text(encoding="utf-8"))["cases"]
     cases = [c for c in cases if not only or c["id"] in only]
     results = HERE / "results"
@@ -49,11 +53,14 @@ def main(only: list[str]) -> None:
     for case in cases:
         try:
             note = [{"label": "Note", "kind": "note", "text": case["note"]}] if case["note"] else []
+            privacy = {"enabled": protect, "known_entities": case.get("known_entities", [])}
             proposal = interpret_images(
-                [("Photo 1", photo_of(case["source"]))], note, case["location"]
+                [("Photo 1", photo_of(case["source"]))], note, case["location"], privacy=privacy
             )
-        except InterpretationError as error:
+        except (InterpretationError, PrivacyUnavailable) as error:
             proposal = {"error": str(error)}
+        # The photos as sent are large and only for the gateway to keep.
+        proposal.pop("redacted_photos", None)
         same_type = proposal.get("hazard_type") == case["marsh"]["type"]
         matched += same_type
         record = {"case": case["id"], "at": datetime.now(UTC).isoformat(), **proposal}
@@ -72,4 +79,5 @@ def main(only: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    args = sys.argv[1:]
+    main([a for a in args if a != "--privacy"], protect="--privacy" in args)

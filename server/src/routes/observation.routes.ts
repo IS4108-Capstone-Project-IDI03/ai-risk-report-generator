@@ -8,6 +8,7 @@ import {
   EmptyObservationError,
   getPageImage,
   getPhotoImage,
+  getRedactedPhotoImage,
   getRecordingAudio,
   NotRetryableError,
   observationChangesSchema,
@@ -276,6 +277,27 @@ router.get(
     try {
       const photo = await getPhotoImage(req.params.id, req.params.photoId)
       await sendFile(req, res, photo, { 'Cache-Control': 'private, max-age=31536000, immutable' })
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
+// Streams a photo as the model last saw it with protection on: its faces
+// blurred (PV-04). Reading the photo again replaces it, so the browser checks
+// before reusing it.
+router.get(
+  '/:id/photos/:photoId/redacted',
+  requirePermission('assessments:view'),
+  async (req, res) => {
+    try {
+      const photo = await getRedactedPhotoImage(req.params.id, req.params.photoId)
+      res.set({
+        'Content-Type': 'image/jpeg',
+        'Content-Length': String(photo.size),
+        'Cache-Control': 'private, no-cache',
+      })
+      photo.stream.pipe(res)
     } catch (error: unknown) {
       refuse(error, res)
     }
