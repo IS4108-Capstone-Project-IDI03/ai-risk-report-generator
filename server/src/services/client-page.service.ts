@@ -1,8 +1,9 @@
 import { isValidObjectId } from 'mongoose'
+import { ClientDocumentModel } from '../models/client-document.model'
 import { ClientModel } from '../models/client.model'
 import { SiteModel } from '../models/site.model'
 import type { SessionUser } from './auth.service'
-import { listAssessments, type AssessmentStatus } from './assessment.service'
+import { listAssessments, type AssessmentDto, type AssessmentStatus } from './assessment.service'
 import {
   ClientSiteError,
   clientRights,
@@ -18,6 +19,9 @@ import {
 export type ClientVisitDto = {
   reference: string
   siteVisitDate: string | null
+  // CP-23: the type and report due date the client page lists.
+  surveyType: string
+  reportDueDate: string | null
   status: AssessmentStatus
 }
 
@@ -47,6 +51,7 @@ export type ClientPageSiteDto = {
 export type ClientPageDto = {
   id: string
   name: string
+  division: string | null
   edited: StampDto | null
   // It has no listed site.
   removed: boolean
@@ -58,6 +63,11 @@ export type ClientPageDto = {
   restore: Allowed
   // Its sites the engineer has an assessment at, in name order.
   sites: ClientPageSiteDto[]
+  // The site contacts on those assessments, latest assessment first, each
+  // name once per site, at most 10 (CP-23's side panel).
+  contacts: { name: string; role: string | null; site: string }[]
+  // How many documents the client has, for the Documents tab (CP-23).
+  documents: number
 }
 
 // A client as the engineer sees it (CP-18): their sites at it, with their own
@@ -82,6 +92,7 @@ export async function getClientPage(id: string, user: SessionUser): Promise<Clie
   return {
     id: String(client._id),
     name: client.name,
+    division: client.division ?? null,
     edited: stampDto(client.edited),
     ...clientRights(sites, held),
     sites: await Promise.all(
@@ -102,9 +113,25 @@ export async function getClientPage(id: string, user: SessionUser): Promise<Clie
           .map((a) => ({
             reference: a.reference,
             siteVisitDate: a.siteVisitDate,
+            surveyType: a.surveyType,
+            reportDueDate: a.reportDueDate,
             status: a.status,
           })),
       })),
     ),
+    contacts: contactsOf(mine),
+    documents: await ClientDocumentModel.countDocuments({ client: client._id }),
   }
+}
+
+// The site contacts of the assessments (already latest first), unique by name
+// and site, at most 10.
+function contactsOf(assessments: AssessmentDto[]): ClientPageDto['contacts'] {
+  const seen = new Map<string, ClientPageDto['contacts'][number]>()
+  for (const a of assessments)
+    for (const c of a.siteContacts) {
+      const key = `${c.name.toLowerCase()}\0${a.site.id}`
+      if (!seen.has(key)) seen.set(key, { name: c.name, role: c.role, site: a.site.name })
+    }
+  return [...seen.values()].slice(0, 10)
 }

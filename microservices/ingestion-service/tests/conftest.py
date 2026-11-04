@@ -59,7 +59,12 @@ does *not* clear it before tests because model-loading tests intentionally
 share one converter instance across the module for speed.
 """
 
+import os
+
 import pytest
+
+# The app preloads the OCR model at startup; tests must never load it (see app/main.py).
+os.environ.setdefault("PRELOAD_OCR", "0")
 
 try:
     import truststore

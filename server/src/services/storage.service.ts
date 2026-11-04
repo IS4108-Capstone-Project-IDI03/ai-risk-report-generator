@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
@@ -40,4 +41,18 @@ export async function getObjectStream(key: string, range?: ByteRange): Promise<R
 
 export async function deleteObject(key: string) {
   await s3.send(new DeleteObjectCommand({ Bucket: config.s3Bucket, Key: key }))
+}
+
+/**
+ * Copies a stored file to a new key in the bucket, e.g. a client intake's file
+ * to the client's documents (CP-23); returns nothing.
+ */
+export async function copyObject(from: string, to: string) {
+  await s3.send(
+    new CopyObjectCommand({
+      Bucket: config.s3Bucket,
+      CopySource: `${config.s3Bucket}/${from}`,
+      Key: to,
+    }),
+  )
 }

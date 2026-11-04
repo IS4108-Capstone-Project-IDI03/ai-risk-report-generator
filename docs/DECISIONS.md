@@ -2013,6 +2013,46 @@ Known limits: a block taller than a page's text area (a very long paragraph, a r
 
 Stories: RV-12, RV-08, CP-17, CP-18, GN-03, GN-05, GN-07, GN-11, GN-12, EX-01.
 
+## 2026-11-03 — A new assessment can start from the client's documents, read in place, with recorded clients and sites matched in code
+
+Chose:
+- New assessment offers two starts on one screen: Fill in the form, or Start from client documents (PDF, Word, Outlook `.msg`, `.eml`, or pasted email text; attachments of an email are read too). The AI fills in the client, every site and every requested visit, quoting where each value came from; a value the documents don't state, or one it isn't sure of, stays empty and is marked Not sure. The engineer corrects it, then creates everything at once, and the documents are kept under the client, listed on its page (a Documents tab). The manual form takes several sites and assessments too, and shows required fields and what each visit type means.
+- Read in place, not by a queue. A timing test (3 Nov) put a large pack (12 files, 88,000 characters) at about 15-25 s end to end, so a progress view is enough: no notification, no separate proposal screen, no job to retry.
+- Recorded clients and sites are matched in code, after unmasking (`difflib`), not by the classifier. Masked names can't be compared (`[CLIENT_1]` is not "Acme"), and matching in the classifier would need the recorded names sent unmasked.
+- `.docx` is read directly by ingestion (`python-docx`); only legacy `.doc` goes through the converter first, to PDF. `.msg` is read with `python-oxmsg` (MIT), not `extract-msg` (GPL-3).
+- A recorded site's facility type and jurisdiction are not proposed: its address is masked whole as a known name, which left the classifier nothing to read the country from, and the form uses the recorded values anyway.
+- Each decision has its own cutoff, from a sweep on the tuning packs, confirmed on the held-out ones: placement 0.85, facility type, jurisdiction and visit type 0.5. A name matches a recorded one at 0.80 similarity, and from 0.65 up to that it is flagged Not sure for the engineer to decide. The labelling cutoff (0.70) was not reused.
+- Model: Claude Sonnet 5.5 at medium effort, with Jev choosing from the fixed lists. Evaluation on the held-out packs (12, masked as in production, Jev picks):
+
+  | Model | Fields right | Mean time per pack | Cost per pack |
+  | --- | --- | --- | --- |
+  | Sonnet 5.5 | 100% | 7.7 s | $0.015 |
+  | Opus 5.5 | 100% | 12.1 s | $0.038 |
+  | GPT-6.1 Sol | 100% | 12.5 s | $0.012 |
+
+  All three read every field right, so Sonnet is chosen for speed (the read happens while the engineer waits); Sol is a little cheaper but about 60% slower. Two general fixes came from mistakes first seen on held-out packs: tidying the edges of names spaCy detects (a span ran over a line break into a form label), and a site at an address with a different street number never matching a like-named recorded site. Both were also run on the tuning packs, but held-out is no longer fully unseen for those two rules. Document placement: 91% of Jev's picks right on held-out; at the 0.85 cutoff every kept placement was right and about a quarter of documents went to the whole client, marked Not sure. Jev against Sonnet picking the same values (held-out): facility type 100% vs 91%, placement 88% vs 94%; the LLM gives no confidence, so it can't mark a placement Not sure, and it added 2 s and $0.005 a pack. Jev stays.
+- The engineer is the signed-in user; there is no picker, so an engineer can't assign work to a colleague. Admins assign under RV-11.
+- Visit types become First survey, Resurvey and Follow-up visit, checked by the server; a site with no earlier assessment can only start with a First survey (AC17). `npm --prefix server run migrate:visit-types` converts older assessments.
+- `client_intakes` (temporary, 24 hours, cleaned daily) and `client_documents` (kept) are new collections; their null metadata is a documented exception (docs/areas/database.md).
+- Privacy: the intake sends privacy-service `detect: ["CLIENT", "SITE"]` so a client not yet recorded is masked too, with a never-mask list (Marsh, FM Global, NFPA and similar) and tidied spans. Masking has its own 60 s timeout. See docs/areas/privacy.md.
+- ingestion-service loads its OCR model when it starts (`PRELOAD_OCR=0` skips it), so the first scan after a restart doesn't wait about 45 s.
+
+Rejected:
+- A background job with a notification, as a site walk's proposal is: the wait is short, so a job and a place to find its result aren't needed.
+- Matching by the classifier or the LLM: it can't compare masked names, and an unmasked match would send recorded client names out.
+- Converting `.docx` to PDF first: it adds a converter call and a PDF step for a format `python-docx` reads directly (tables included).
+- `extract-msg`: GPL-3 would put the licence on the service.
+- Proposing a recorded site's facility type and jurisdiction: see above.
+- One cutoff for every decision, or reusing 0.70: the decisions differ in how often the classifier is right (placement is the hardest), and a single value would either empty easy fields or keep wrong placements.
+- Opus 5.5 and GPT-6.1 Sol: no better on accuracy, and slower; Opus cost about 2.7 times as much.
+- An engineer picker on the create form: it let anyone assign work to a colleague.
+
+Reason: a client's request email, engagement letter and site plans already hold the client, sites and visits, and typing them again for each assessment is slow and error-prone. Reading them in place with quotes keeps the engineer in charge: every value can be checked against its source, and the AI says Not sure rather than guess.
+
+Known limits: some names are still readable after masking. On the 24 synthetic packs (3 Nov 2026): 1 of 22 client names, 0 of 31 new site names, 2 of 48 contact names and 0 of 31 addresses (after adding patterns for building names and street addresses; before them, 11 site names and street names leaked). Recorded names are always masked. The model is Sonnet 5.5 on `LLM_PROVIDER`; changing it means re-running the evaluation. Visit type meanings are ours, to be confirmed with Marsh. Adding documents to an existing client later is CP-40.
+
+Stories: CP-23, CP-17, CP-18, PV-02, CP-40, RV-11.
+
 ## 2026-11-01 — Photo reading blurs faces and masks text before Gemini; the copy sent is kept beside the original
 
 Chose:

@@ -159,7 +159,7 @@ export type GenerationSection = {
   ev: number
   conf: string
 }
-// The dashboard's date filters: reports past due, reports due within 7 days,
+// The work list's Due filter: reports past due, reports due within 7 days,
 // and site visits within 7 days.
 export type DateFilter = 'overdue' | 'due-soon' | 'visit-soon'
 export type WorkflowState = {
@@ -175,46 +175,27 @@ export type WorkflowState = {
   toastView: string | null
   q: string
   fStatus: string
-  // The dashboard box filtering the list by date, or null for none.
+  // The Due pill's filter, or null for none.
   fDate: DateFilter | null
+  // The Visit type pill's filter (CP-23), or '' for none.
+  fVisitType: string
   workSort: string
-  // The work list grouped by client, then site (CP-17), instead of latest first.
+  // The work list grouped by client, then site (CP-17), instead of latest first;
+  // on by default (CP-23).
   workByClient: boolean
   // Clients folded away on the grouped work list, by group key.
   workFolded: Record<string, boolean>
   // The work list swapped for the archived assessments (CP-17).
   showArchived: boolean
   createdRows: AssessmentRow[]
-  cf: {
-    site: string
-    client: string
-    addr: string
-    type: string
-    survey: string
-    date: string
-    due: string
-    // The assigned engineer's user ID.
-    eng: string
-    // Narrows the engineer list; not sent.
-    engQuery: string
-    jurisdiction: string
-    // The listed client chosen by a site's New visit (AC6), so its sites load
-    // before the client list does; '' once the name is typed.
-    clientId: string
-    // The client's listed site the assessment is for, NEW_SITE to add one, or
-    // '' until one is chosen (CP-17 AC4).
-    siteId: string
-    // Copy the listed site's latest visit's locations (AC5).
-    copy: boolean
-    // Client and site names the engineer kept despite a likely typo (AC11).
-    kept: string[]
-    // A new client or site name that looks like a listed one, asked about on
-    // Create: use the listed one, or keep it as typed.
-    check: { field: 'client' | 'site'; typed: string; suggestion: string } | null
+  // How the New Assessment screen opens (CP-23): blank, or on a listed
+  // client (and site, or 'new' for Add a new site) from a client page or a site's New visit.
+  createStart: {
+    mode: 'form' | 'documents'
+    clientId?: string
+    clientName?: string
+    siteId?: string
   }
-  cfErr: boolean
-  cfBusy: boolean
-  cfServerError: string | null
   // The assessment the Site observation screen captures for.
   captureTarget: { reference: string; site: string }
   // The navigation's Recent list: assessments last opened, newest first.

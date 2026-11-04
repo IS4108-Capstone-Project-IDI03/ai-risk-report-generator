@@ -86,18 +86,21 @@ export function ProposalTree({
                                   icon="link"
                                   color="var(--marsh-navy)"
                                   label={'Use an existing location for ' + l.name}
+                                  tooltip="Use an existing location"
                                   onClick={() => actions.useExisting(l.ref)}
                                 />
                                 <NavAction
                                   icon="pencil"
                                   color="var(--ink-600)"
                                   label={'Rename ' + l.name}
+                                  tooltip="Rename location"
                                   onClick={() => actions.rename(l.ref)}
                                 />
                                 <NavAction
                                   icon="trash-2"
                                   color="var(--red-600)"
                                   label={'Delete ' + l.name}
+                                  tooltip="Delete location"
                                   onClick={() => actions.remove(l.ref)}
                                 />
                               </>

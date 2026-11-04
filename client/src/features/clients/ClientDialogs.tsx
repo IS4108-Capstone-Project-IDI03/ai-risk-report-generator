@@ -96,6 +96,7 @@ export function EditSiteDialog({
   }
   return (
     <Dialog
+      className="ds-dialog--v2"
       title={confirming ? 'Change this site’s scope?' : `Edit ${site.name}`}
       description={confirming ? undefined : everyAssessment(assessments)}
       width={520}
@@ -103,35 +104,39 @@ export function EditSiteDialog({
       footer={
         <>
           <Button
+            pill
             variant="secondary"
             disabled={busy}
             onClick={confirming ? () => setConfirming(false) : onClose}
           >
             {confirming ? 'Back' : 'Cancel'}
           </Button>
-          <Button variant="primary" loading={busy} disabled={!form.name.trim()} onClick={next}>
+          <Button pill variant="primary" loading={busy} disabled={!form.name.trim()} onClick={next}>
             {confirming ? 'Change scope' : 'Save changes'}
           </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Keyed by the step, so switching to the scope check crossfades (.ds-swap, kit.css). */}
+      <div
+        key={String(confirming)}
+        className="ds-swap"
+        style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+      >
         <Problem title="Site not saved" problem={problem} />
         {confirming ? (
           <>
             <p style={{ margin: 0 }}>
-              {`This changes ${plural(assessments, 'assessment')} at ${form.name.trim()}:`}
+              {`A new jurisdiction or facility type changes the ${plural(assessments, 'assessment')} at ${form.name.trim()}:`}
             </p>
             <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '24px' }}>
-              <li>{'Their checklists show as out of date, to generate again.'}</li>
+              <li>{'Their checklists are marked out of date, to generate again.'}</li>
               <li>
                 {
-                  'Their report drafts show as out of date until redrafted, as the standards drafting draws on depend on the jurisdiction and facility type.'
+                  'Their report drafts are marked out of date until redrafted, since the standards they draw on change.'
                 }
               </li>
-              <li>
-                {'Observations keep the jurisdiction and facility type they were saved with.'}
-              </li>
+              <li>{'Saved observations keep the jurisdiction and facility type they had.'}</li>
             </ul>
           </>
         ) : (
@@ -174,9 +179,11 @@ export function EditSiteDialog({
 
 // What a correction reaches, said before and after saving.
 const everyAssessment = (n: number) =>
-  n === 1
-    ? 'Its one assessment shows the change.'
-    : `All ${n} assessments at this site show the change.`
+  n === 0
+    ? 'No assessments at this site yet.'
+    : n === 1
+      ? 'Changes apply to the one assessment at this site.'
+      : `Changes apply to the ${n} assessments at this site.`
 
 // Renames a client for every assessment for it. It renames the client's own
 // record: which client an assessment is for never changes (CP-17).
@@ -200,16 +207,17 @@ export function RenameClientDialog({
         })
   return (
     <Dialog
+      className="ds-dialog--v2"
       title={`Rename ${client.name}`}
-      description="Every assessment for this client shows the new name."
-      width={480}
+      description="The new name appears on all of this client's assessments."
+      width={440}
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             {'Cancel'}
           </Button>
-          <Button variant="primary" loading={busy} disabled={!name.trim()} onClick={save}>
+          <Button pill variant="primary" loading={busy} disabled={!name.trim()} onClick={save}>
             {'Rename'}
           </Button>
         </>
@@ -254,28 +262,27 @@ export function RemoveDialog({
     })
   return (
     <Dialog
+      className="ds-dialog--v2"
       title={`Remove ${target.name}?`}
-      width={480}
+      description={
+        client
+          ? `Its ${plural(target.sites ?? 0, 'site')} won't be offered for new assessments. Existing assessments stay as they are, and you can restore the client later.`
+          : "It won't be offered for new assessments. Existing assessments stay as they are, and you can restore it from Removed sites."
+      }
+      width={440}
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             {'Cancel'}
           </Button>
-          <Button variant="danger" loading={busy} onClick={remove}>
+          <Button pill variant="danger" loading={busy} onClick={remove}>
             {client ? 'Remove client' : 'Remove site'}
           </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <Problem title={client ? 'Client not removed' : 'Site not removed'} problem={problem} />
-        <p style={{ margin: 0 }}>
-          {client
-            ? `Its ${plural(target.sites ?? 0, 'site')} will no longer be offered when creating an assessment. Its assessments stay as they are, and Restore brings the sites back together.`
-            : 'It will no longer be offered when creating an assessment. Its assessments stay as they are, and you can restore it from Removed sites.'}
-        </p>
-      </div>
+      <Problem title={client ? 'Client not removed' : 'Site not removed'} problem={problem} />
     </Dialog>
   )
 }
@@ -300,16 +307,17 @@ export function RestoreSiteDialog({
     })
   return (
     <Dialog
+      className="ds-dialog--v2"
       title={`Restore ${site.name}`}
-      description={`The client now has another site named ${site.name}, so this one needs a new name.`}
+      description={`Another site at this client is now called ${site.name}. Give this one a new name to restore it.`}
       width={480}
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             {'Cancel'}
           </Button>
-          <Button variant="primary" loading={busy} disabled={!name.trim()} onClick={restore}>
+          <Button pill variant="primary" loading={busy} disabled={!name.trim()} onClick={restore}>
             {'Restore'}
           </Button>
         </>

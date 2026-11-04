@@ -13,6 +13,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | Executive Summary (Section 2) | Yes | PV-02 | The saved section text is masked. |
 | Knowledge-base chat | Yes | PV-03 | The conversation, context (the engineer's remembered facts, CB-05, travel as context), document names, passages, Cohere queries and rerank documents are masked; the answer streams back with real names. |
 | Site walk proposal (CP-22) | Yes | CP-22 | The transcript, existing location names and photo descriptions are masked before the walk-reading model and Jev. The photo itself and the audio are not (speech-to-text and photo description, rows below). |
+| Client intake: reading a client's documents (CP-23) | Yes | CP-23 | Every document's name and text is masked before the reading model and Jev, including a client or site not yet recorded. See "Client intake" below. The files themselves are stored in S3 and never sent. |
 | Pre-survey checklist (CP-30) | Not needed | CP-30 | Only the facility type, country and standard ids are sent; S4's request has no field for client text. |
 | Proposed figures for Sections 4 and 5 (GN-03) | **No** | (PV-02 follow-up) | `POST /figures/propose` sends observations and sections to the model unmasked. |
 | Observation reading: photos, and since CP-21 any observation's text (Gemini) | Yes | PV-04 | Faces in photos are blurred; the note, transcripts and location are masked. Item labels ("Note", a photo's file name) are not. |
@@ -77,6 +78,23 @@ If privacy-service fails, the reading fails with "Client details couldn't be pro
 
 **Placeholder-shaped input.** Text that already contains something like `[PERSON_1]` (typed by an engineer, or from a past report) is swapped for `[LITERAL_n]` before masking, and restored after unmasking. Without that swap, unmasking would put a real name where the input never had one. A bracketed escape such as `[ PERSON_1 ]` does not work, because the unmask pattern accepts placeholders without brackets.
 
+### Client intake (CP-23)
+
+Starting an assessment from a client's documents has to protect a client nobody has recorded yet, so the known names alone are not enough. The gateway's `readIntake` sends rag-service's `POST /client-intakes/read` `privacy` from `chatPrivacy` (every recorded client, site and address, removed ones and former names too, and every active user), plus `detect: ["CLIENT", "SITE"]`. rag-service passes `detect` on to `/mask`; without it, `/mask` behaves exactly as before, so no other flow changes.
+
+In rag-service (`app/client_intake/read.py`):
+1. **One `/mask` call** covers every document's name and text. The intake has its own timeout, `CLIENT_INTAKE_PRIVACY_TIMEOUT` (60 s, against `PRIVACY_TIMEOUT`'s 10 s), because a pack of documents takes longer than a draft's notes: about 15 s for 10 documents and 40,000 characters.
+2. The reading model and every Jev question see only masked text. Matching the client and sites to recorded ones is done after unmasking, in code, so no recorded name is sent anywhere to be compared.
+3. Each value's source quote is checked against the masked document (as the checklist checks citations). Then real names go back into every value and quote before anything leaves rag-service.
+
+**What `detect` adds** in privacy-service (`app/masker.py`, `app/allow_list.py`):
+- `CLIENT` masks spaCy's organisations as `[CLIENT_n]`, and `SITE` masks its facilities (buildings, plants, warehouses) as `[SITE_n]`. Known names still win where spans overlap.
+- **A never-mask list** (`NEVER_MASK`) keeps Marsh, Marsh McLennan, FM Global, NFPA, SCDF (and Singapore Civil Defence Force), UL, VdS, LPCB, Munich Re and Swiss Re readable, whatever the model says. They are never a client, and the reading needs them. Matching is on the whole name, in any case.
+- **Span tidying** (`_unlisted_parts`): spaCy's spans are loose. They run over line breaks into a form label ("Crest Tower Central\nAddress"), start with "the", or join names ("Marsh and FM Global"). Each detected span is cut per line, split at "and", a comma or "&" when one part is on the never-mask list, trimmed of spaces and a leading "the", and dropped when it is a label (ends in a colon) or only a company form ("Pte Ltd"). Without this, a placeholder would restore to the loose text, and Marsh would be masked with a client it was written next to.
+- Countries and cities are never masked, so the jurisdiction can still be read.
+
+**Fail closed (AC19).** If privacy-service is down, errors or passes the 60 s timeout, rag-service answers 503 and the gateway answers the engineer 503 with the reason ("Client details couldn't be protected…"). Nothing is sent to the model or Jev, and raw text is never the fallback. When protection is off (`privacy.enabled` false), documents are read unmasked, as every other flow.
+
 ## What is detected
 
 The table below summarises PV-01; the epic, section C, has the details.
@@ -87,10 +105,11 @@ The table below summarises PV-01; the epic, section C, has the details.
 | Other person names | spaCy `en_core_web_lg`, PERSON only. |
 | Phone numbers, emails, NRIC/FIN | Presidio recognisers, plus a context label check for phone numbers and IDs. |
 | UEN; a postal code after "Singapore" | Hand-written patterns. |
+| Unrecorded client and site names (client intake only, `detect`) | spaCy organisations as `CLIENT` and facilities as `SITE`, minus the never-mask list, with tidied spans. |
 | Street addresses (PV-04) | A pattern: a house or block number, a capitalised street name and a street word ("21 Lower Kent Ridge Rd", "Ang Mo Kio Avenue 3"), or a Jalan or Lorong, then any unit number ("#04-56"). A road without a house number ("next to Kent Ridge Road") is kept. |
 | Vehicle plates (PV-04) | A pattern ("PU 104 J"), kept only when the last letter is the plate's check letter, so a model or part code of the same shape stays. |
 
-Kept as they are: jurisdiction, facility type, COPE category, severity, standard references, brands, floor and room names, building names ("University Hall"), figures and dates.
+Kept as they are: jurisdiction, facility type, COPE category, severity, standard references, brands, floor and room names, building names ("University Hall"), figures and dates. In a client intake, Marsh, the insurer and standards bodies on the never-mask list, countries and cities are kept too, and building names are masked (`detect: ["SITE"]`).
 
 ### Switching detection on or off
 
@@ -105,6 +124,7 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 ## Known gaps
 
 - **Other clients in past reports.** Known entities cover only the current assessment's client. A different client's company name or address in a stored past report is not detected, because organisation and location recognition is off. PV-05 redacts past reports at ingestion.
+- **Client intake: some names are still readable after masking (CP-23).** Recorded names are always masked (they are known entities). Names nobody recorded depend on spaCy and on patterns for building names ("<Name> Tower", "<Name> Hub", "Phase 2") and street addresses ("12 Kallang Road", "Jalan Seri Utama 2"), so an unusual name can slip through. Measured on the CP-23 eval's 24 synthetic packs (3 Nov 2026), after masking: 1 of 22 client names (a Thai "Co., Ltd" name), 0 of 31 new site names, 2 of 48 contact names (Malay and Thai names spaCy doesn't read as people) and 0 of 31 addresses were still readable in the text sent to the AI. The patterns over-mask a little (a heading or "Visit Lindenmoor Tower" masked as one name); each placeholder still restores to its text. The packs use invented names in the sample reports' shapes, so real documents may differ.
 - **Figure proposals and ingestion** are not protected yet (see the table above).
 - **Site walks:** the audio (Whisper) and the photos (`/describe-photo`) go out unmasked, as for voice notes (PV-08). Unlike observation reading (PV-04), a site walk's photos are not blurred. Only the AI step that reads their text is protected.
 - **Handwritten pages (CP-19) go to the AI as photographed.** The model must read the page, so its text can't be masked first. This is accepted for now: the risk is mostly in the *combination* of details (a name with an NRIC and a phone number), and the main goal is not to store PII in the database. Scan mode asks the engineer to leave names, phone numbers and ID numbers off the page. The transcript is masked later, like any text, whenever it feeds drafting or chat. A local handwriting model would close the gap.

@@ -368,9 +368,12 @@ async function openObservations() {
   window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  fireEvent.click(
-    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
-  )
+  // Grouped by client (CP-23), the list's rows are replaced when the gateway answers,
+  // so wait for that answer, then click the row once.
+  if (workList)
+    await screen.findByText(`${workList.length} assessment${workList.length === 1 ? '' : 's'}`)
+  else await screen.findByText('Showing sample assessments')
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
   if (!offline && listed.length)

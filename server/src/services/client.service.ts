@@ -13,11 +13,6 @@ export class UnknownClientError extends Error {
     super('Choose one of the listed clients, or name a new one.')
   }
 }
-export class UnknownSiteError extends Error {
-  constructor() {
-    super("Choose one of this client's sites, or add a new one.")
-  }
-}
 export class DuplicateSiteError extends Error {
   constructor(name: string) {
     super(`This client already has a site named ${name}. Choose it from the list instead.`)
@@ -42,7 +37,7 @@ export class UnknownFacilityTypeError extends Error {
 export class ClientSiteError extends Error {
   constructor(
     message: string,
-    readonly status: 403 | 404 | 409,
+    readonly status: 400 | 403 | 404 | 409,
   ) {
     super(message)
     this.name = 'ClientSiteError'
@@ -72,13 +67,13 @@ const tidy = (name: string) => name.trim().replace(/\s+/g, ' ')
 // name as given when there is none. Two adding the same name at once both get
 // the one saved: the loser's upsert hits the unique key and reads it instead.
 // A client whose sites are all removed (CP-18) is found too, which brings it
-// back once its new site is added.
-export async function findOrCreateClient(name: string) {
+// back once its new site is added. A division (CP-23) is kept only on a new client.
+export async function findOrCreateClient(name: string, division?: string) {
   const key = clientKey(name)
   const upsert = () =>
     ClientModel.findOneAndUpdate(
       { key },
-      { $setOnInsert: { name: tidy(name), key } },
+      { $setOnInsert: { name: tidy(name), key, ...(division && { division: tidy(division) }) } },
       { upsert: true, returnDocument: 'after' },
     ).lean()
   try {
@@ -106,34 +101,62 @@ export function clientNameOf(site: { client?: unknown } | null | undefined, type
 // A site still listed: not removed (CP-18).
 const LISTED = { removed: { $exists: false } }
 
-export type ClientDto = { id: string; name: string; sites: number }
+export type ClientDto = {
+  id: string
+  name: string
+  division: string | null
+  sites: number
+  // What the signed-in engineer may do, and why not, for the Clients list's menu (CP-23).
+  rename: Allowed
+  remove: Allowed
+}
 
 // Every client, whoever added it (CP-17 AC3), in name order, with how many
 // sites each has. The create form filters them as the engineer types and
 // checks a new name against them for a likely typo. A client whose sites are
 // all removed is left out (CP-18); typing its name brings it back.
 // ponytail: search on the server once the list outgrows one response.
-export async function listClients(): Promise<ClientDto[]> {
-  const [clients, counts] = await Promise.all([
-    ClientModel.find({}, 'name').collation({ locale: 'en', strength: 2 }).sort({ name: 1 }).lean(),
+export async function listClients(userId: string): Promise<ClientDto[]> {
+  const [clients, counts, allSites] = await Promise.all([
+    ClientModel.find({}, 'name division')
+      .collation({ locale: 'en', strength: 2 })
+      .sort({ name: 1 })
+      .lean(),
     SiteModel.aggregate<{ _id: Types.ObjectId; n: number }>([
       { $match: { client: { $exists: true }, ...LISTED } },
       { $group: { _id: '$client', n: { $sum: 1 } } },
     ]),
+    SiteModel.find({ client: { $exists: true } }, '_id client removed').lean(),
   ])
+  // One holdings query for every site, not one per client.
+  const held = await holdings(
+    allSites.map((s) => s._id),
+    userId,
+  )
+  const byClient = new Map<string, typeof allSites>()
+  for (const s of allSites) {
+    const key = String(s.client)
+    if (!byClient.has(key)) byClient.set(key, [])
+    byClient.get(key)!.push(s)
+  }
   const sites = new Map(counts.map((c) => [String(c._id), c.n]))
   return clients.flatMap((c) => {
     const n = sites.get(String(c._id)) ?? 0
-    return n ? [{ id: String(c._id), name: c.name, sites: n }] : []
+    if (!n) return []
+    const { rename, remove } = clientRights(byClient.get(String(c._id)) ?? [], held)
+    return [
+      { id: String(c._id), name: c.name, division: c.division ?? null, sites: n, rename, remove },
+    ]
   })
 }
 
 // A site's latest visit not archived: the one a new assessment there copies
 // its locations from (CP-17 AC5), whatever its status. Latest by visit date,
-// then by when it was created, as the work list orders them.
-export async function latestVisit(site: Types.ObjectId) {
+// then by when it was created, as the work list orders them. `except` leaves
+// out assessments being created alongside (CP-23), so they don't copy each other.
+export async function latestVisit(site: Types.ObjectId, except: Types.ObjectId[] = []) {
   return AssessmentModel.findOne(
-    { site, archivedAt: { $exists: false } },
+    { site, archivedAt: { $exists: false }, ...(except.length && { _id: { $nin: except } }) },
     'reference siteVisitDate locations',
   )
     .sort({ siteVisitDate: -1, createdAt: -1 })
@@ -299,19 +322,23 @@ function refusal(
   if (h.mine < h.total) {
     return new ClientSiteError(
       what === 'site'
-        ? "Another engineer's assessment uses this site, so it can't be changed."
-        : "Another engineer has assessments for this client, so it can't be changed.",
+        ? `Another engineer's assessment uses this site, so it can't be ${removing ? 'removed' : 'changed'}.`
+        : `Another engineer has assessments for this client, so ${removing ? "you can't remove it" : "it can't be changed"}.`,
       403,
     )
   }
   if (h.finalised) {
-    return new ClientSiteError(`This ${what} has a finalised report, so it can't be changed.`, 409)
+    return new ClientSiteError(
+      `This ${what} has a finalised report, so it can't be ${removing ? 'removed' : 'changed'}.`,
+      409,
+    )
   }
   const open = h.total - h.archived
   if (removing && open) {
     return new ClientSiteError(
-      `${open} of its assessments ${plural(open, 'is', 'are')} not archived. ` +
-        `Archive ${plural(open, 'it', 'them')} before removing this ${what}.`,
+      // No name: it shows in a hover box, where a long client name buried the advice (round 16).
+      `This ${what} has ${open} open ${plural(open, 'assessment', 'assessments')}. ` +
+        `Archive ${plural(open, 'it', 'them')}, then remove the ${what}.`,
       409,
     )
   }
@@ -643,7 +670,7 @@ export function clientRights(
 
 // The client page's rules for one site (CP-18).
 export function siteRights(
-  site: { _id: Types.ObjectId; removed?: unknown },
+  site: { _id: Types.ObjectId; name: string; removed?: unknown },
   held: Map<string, Holding>,
 ) {
   const h = holdingOf(held, site)

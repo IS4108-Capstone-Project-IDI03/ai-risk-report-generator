@@ -12,7 +12,16 @@ export type MoreMenuItem = {
 // archiving, a client's rename and removal), kept out of the header behind
 // one ⋯ button so the main action stands alone. An action the user can't take
 // shows disabled, with the reason in `notes` below.
-export function MoreMenu({ items, notes = [] }: { items: MoreMenuItem[]; notes?: string[] }) {
+// `label` names the ⋯ button, e.g. "More actions for NUS" on a list of many.
+export function MoreMenu({
+  items,
+  notes = [],
+  label = 'More actions',
+}: {
+  items: MoreMenuItem[]
+  notes?: string[]
+  label?: string
+}) {
   const [open, setOpen] = useState(false)
   if (!items.length) return null
   return (
@@ -25,7 +34,7 @@ export function MoreMenu({ items, notes = [] }: { items: MoreMenuItem[]; notes?:
       trigger={
         <IconButton
           icon="ellipsis"
-          label="More actions"
+          label={label}
           size="md"
           selected={open}
           onClick={() => setOpen(!open)}

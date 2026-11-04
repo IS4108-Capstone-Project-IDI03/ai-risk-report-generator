@@ -1,3 +1,5 @@
+import os
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +16,12 @@ async def lifespan(_app: FastAPI):
     closed explicitly rather than left to the garbage collector. Imported lazily
     so starting the app does not pull the chunking stack.
     """
+    # Warm the OCR model in the background so the first scanned upload is not slow. Set
+    # PRELOAD_OCR=0 to skip (tests do); without the thread, startup would block on the load.
+    if os.environ.get("PRELOAD_OCR", "1") != "0":
+        from app.labelling.pages import _converter
+
+        threading.Thread(target=_converter, daemon=True).start()
     yield
 
     from app.pipeline.chunking_helper.ocr_model import close_ocr_client

@@ -75,6 +75,7 @@ function Select({
         </span>
       ) : null}
       <span
+        className="ds-field"
         style={{
           position: 'relative',
           display: 'flex',
@@ -96,6 +97,7 @@ function Select({
         }}
       >
         <select
+          className="ds-field-input"
           aria-invalid={!!error}
           aria-describedby={error || hint ? descriptionId : undefined}
           required={required}

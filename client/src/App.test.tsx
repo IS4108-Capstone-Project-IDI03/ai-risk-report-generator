@@ -64,44 +64,32 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Request access' }))
     expect(screen.getByRole('status')).toHaveTextContent('No request was sent')
   })
-  it('filters the dashboard and creates an in-memory assessment', async () => {
+  it('filters the dashboard, and creates nothing without the gateway', async () => {
     render(<App />)
     await signIn()
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value: 'does-not-exist' },
     })
-    expect(screen.getByText(/0 of 6 assessments/)).toBeInTheDocument()
+    // The table footer counts the rows shown (CP-23).
+    expect(screen.getByText('0 assessments')).toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value: '' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(screen.getByText('Site name is required')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Demo Warehouse' } })
-    fireEvent.change(screen.getByRole('combobox', { name: /^Client/ }), {
-      target: { value: 'Demo Client' },
+    fireEvent.click(screen.getByRole('button', { name: /^Fill in the form/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(screen.getByText('Add the site name')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: 'Demo Client' } })
+    fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: 'Demo Warehouse' } })
+    fireEvent.change(screen.getByLabelText(/^Facility type/), {
+      target: { value: 'Distribution warehouse' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    // A new assessment opens on its Overview.
-    expect(await screen.findByRole('heading', { name: 'Demo Warehouse' })).toBeInTheDocument()
-    expect(screen.getByText(/exists only in this demo and is not saved/)).toBeInTheDocument()
-    // New assessment is the Dashboard's action.
+    fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '1 Demo Road' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    // CP-23 dropped the demo-only assessment: without the gateway nothing is created.
+    expect(await screen.findByText('Nothing created')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
-    fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-    // The next assessment starts from a blank form.
-    expect(screen.getByLabelText(/Site name/)).toHaveValue('')
-    expect(screen.getByRole('combobox', { name: /^Client/ })).toHaveValue('')
-    fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Second Warehouse' } })
-    fireEvent.change(screen.getByRole('combobox', { name: /^Client/ }), {
-      target: { value: 'Second Client' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(await screen.findByRole('heading', { name: 'Second Warehouse' })).toBeInTheDocument()
-    // Both are on the list.
-    fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
-    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
-    expect(screen.getByText('8 of 8 assessments')).toBeInTheDocument()
-    expect(screen.getAllByText('Demo Warehouse').length).toBeGreaterThan(0)
+    expect(screen.getByText('6 assessments')).toBeInTheDocument()
   })
   it('lists the last three assessments opened under Recent, newest first', async () => {
     render(<App />)
@@ -130,6 +118,32 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Leeds Cold Store' }))
     expect(screen.getByRole('heading', { name: 'Leeds Cold Store' })).toBeInTheDocument()
     expect(recent()).toEqual(['Leeds Cold Store', 'Bilbao Terminal', 'Rotterdam Plant 2'])
+  })
+  it('collapses the sidebar to a rail of labelled icons, and expands it again (CP-23)', async () => {
+    render(<App />)
+    await signIn()
+    const nav = () => screen.getAllByRole('navigation')[0]
+    openAssessment()
+    // Recent folds away under its heading.
+    const recent = () => within(nav()).getByRole('group', { name: 'Recent' })
+    expect(within(recent()).getAllByRole('button')).toHaveLength(1)
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Recent' }))
+    expect(within(recent()).queryAllByRole('button')).toHaveLength(0)
+
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Collapse sidebar' }))
+    // Every place stays, as an icon named by its label, with the label as a tooltip.
+    expect(within(nav()).queryByText('Clients')).not.toBeInTheDocument()
+    const clients = within(nav()).getByRole('button', { name: 'Clients' })
+    fireEvent.focus(clients)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Clients')
+    expect(within(nav()).getByRole('button', { name: /^Assessments/ })).toBeInTheDocument()
+    expect(within(nav()).getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+    // Recent is left off the rail.
+    expect(within(nav()).queryByRole('group', { name: 'Recent' })).not.toBeInTheDocument()
+
+    fireEvent.click(within(nav()).getByRole('button', { name: 'Expand sidebar' }))
+    expect(within(nav()).getByText('Clients')).toBeInTheDocument()
+    expect(within(nav()).getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument()
   })
   it('saves observations and displays them in the assessment', async () => {
     render(<App />)
@@ -211,11 +225,13 @@ describe('Marsh prototype integration', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
     render(<App />)
     await signIn()
-    if (width < 760) {
+    if (width < 768) {
       fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
       const drawer = screen.getByRole('dialog', { name: 'Navigation' })
       expect(within(drawer).queryByRole('heading', { name: 'Navigation' })).not.toBeInTheDocument()
-      fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+      // No × button: Esc closes it.
+      expect(within(drawer).queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+      fireEvent(drawer, new Event('cancel', { cancelable: true }))
       expect(screen.queryByRole('dialog', { name: 'Navigation' })).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
       // The drawer navigates, then closes.

@@ -1,5 +1,5 @@
 .workflow {
-  height: 100svh;
+  height: 100dvh;
   min-height: 420px;
   background: var(--surface-page);
 }
@@ -11,9 +11,9 @@
   background: var(--surface-page);
 }
 /* The toast sits bottom centre of the content column (Jesper, 21 Oct: the old place,
-   where the eye lands after an action). left is 264px wider when the sidebar is open so it
-   centres on the content, not the window (same offset as SideNav's width). Under 760px it
-   spans the screen with 12px insets. */
+   where the eye lands after an action). left grows by the sidebar's width, or the rail's when
+   collapsed, so it centres on the content, not the window. Under 760px it spans the screen
+   with 12px insets. */
 .workflow-toast {
   position: fixed;
   bottom: 20px;
@@ -26,8 +26,11 @@
   /* Rises and scales up into place on a long exponential settle (no bounce). */
   animation: toast-in 360ms var(--ease-out) both;
 }
-.workflow[data-sidenav] .workflow-toast {
-  left: 288px; /* 264px sidebar + 24px */
+.workflow[data-sidenav='open'] .workflow-toast {
+  left: calc(var(--sidebar-width) + 24px);
+}
+.workflow[data-sidenav='rail'] .workflow-toast {
+  left: calc(var(--nav-rail-width) + 24px);
 }
 .workflow-toast > div {
   max-width: 100%;
@@ -52,7 +55,7 @@
     transform: scaleX(0);
   }
 }
-@media (max-width: 759px) {
+@media (max-width: 767px) {
   .workflow-toast,
   .workflow[data-sidenav] .workflow-toast {
     bottom: 12px;
@@ -100,29 +103,45 @@
   line-height: 1.3;
 }
 .user-footer strong {
-  color: var(--text-inverse);
-  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
 }
 .user-footer small {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .user-footer button {
-  --surface-hover: rgba(255, 255, 255, 0.1);
-  --surface-active: rgba(255, 255, 255, 0.16);
-  color: var(--text-inverse) !important;
+  color: var(--text-muted) !important;
 }
 .user-avatar {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--text-inverse);
-  font-size: 13px;
+  background: rgb(0 15 71 / 0.08);
+  color: var(--marsh-navy);
+  font-size: 11px;
   font-weight: 600;
+}
+/* On the sidebar's rail: the avatar, Sign out beneath it. */
+.ds-sidenav[data-collapsed] .user-footer {
+  flex-direction: column;
+  gap: 4px;
+}
+.ds-sidenav[data-collapsed] .user-footer > div {
+  display: none;
+}
+@media (pointer: coarse), (max-width: 767px) {
+  .user-footer button {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 /* A blinking light beside Site observation while a capture session is live. */
 .live-dot {
@@ -185,15 +204,9 @@
   border-radius: var(--radius-lg);
   border: 3px solid var(--surface-card);
 }
-@media (max-width: 759px) {
+@media (max-width: 767px) {
   .workflow main {
     overflow-x: hidden !important;
-  }
-  /* The work list's search, at the toolbar's end on a wider screen, leads it
-     full width on a phone, above the buttons (CP-17). */
-  .om-work-search {
-    order: -1;
-    flex: 1 1 100% !important;
   }
 }
 /* Take photograph opens the camera on a phone or tablet (CP-04 AC6). A desktop
@@ -211,11 +224,10 @@
   max-height: 100svh;
   border: 0;
   border-radius: 0;
-  background: var(--surface-nav);
+  background: var(--report-navy);
 }
 .navigation-drawer .ds-dialog-close {
-  --text-secondary: var(--text-inverse);
-  --surface-hover: rgba(255, 255, 255, 0.1);
+  color: #fff;
   position: absolute;
   top: var(--space-6);
   right: var(--space-5);
@@ -225,7 +237,8 @@
   height: 100%;
 }
 .navigation-drawer nav {
-  max-width: 100%;
+  width: 100%;
+  border-right: 0;
 }
 /* Overview boxes and section rows that open the tab they summarise. */
 .om-overview-box:hover {
@@ -432,7 +445,7 @@
   color: var(--marsh-navy) !important;
 }
 /* A phone: icons and counts only, scrolling sideways if they do not fit. */
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .ws-tabs [role='tab'] {
     flex: 1 0 auto;
     min-width: 56px;

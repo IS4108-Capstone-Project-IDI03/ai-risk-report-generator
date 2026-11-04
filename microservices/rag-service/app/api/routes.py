@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 from app.chat.answer import answer_events
 from app.chat.passages import get_passage
+from app.client_intake.read import read_client_intake
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.generation.proposals import propose_figures
@@ -16,6 +17,7 @@ from app.orchestrator.orchestrator import (
     draft_summary_for,
     run,
 )
+from app.privacy import PrivacyUnavailable
 from app.retrieval.retriever import retrieve
 from app.site_walk.propose import propose_site_walk
 
@@ -89,6 +91,8 @@ class Privacy(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool
     known_entities: list[KnownEntity] = []
+    # Kinds privacy-service also finds on its own (CP-23 client intake only).
+    detect: list[Literal["CLIENT", "SITE"]] = []
 
 
 def _privacy(request) -> dict | None:
@@ -352,6 +356,64 @@ def propose_site_walk_route(request: ProposeSiteWalkRequest) -> dict:
             _privacy(request),
             request.site_name,
         )
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+# A client intake (CP-23), as the gateway sends it once each file's text is out. Must match
+# the rag-service section of the CP-23 contract (.local-docs/specs/sprint-4/CP-23/CP-23.md).
+class IntakeDocument(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    name: str
+    text: str
+
+
+class RecordedSite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    name: str
+    address: str | None = None
+    has_assessments: bool = False
+
+
+class RecordedClient(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    name: str
+    division: str | None = None
+    sites: list[RecordedSite] = []
+
+
+class Jurisdiction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str
+    name: str
+
+
+class ReadClientIntakeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    documents: Annotated[list[IntakeDocument], Field(min_length=1)]
+    clients: list[RecordedClient] = []
+    facility_types: list[str]
+    jurisdictions: list[Jurisdiction]
+    privacy: Privacy | None = None
+
+
+@router.post("/client-intakes/read")
+def read_client_intake_route(request: ReadClientIntakeRequest) -> dict:
+    """Read a client's documents into a proposed client, sites and assessments (CP-23)."""
+    try:
+        return read_client_intake(
+            request.documents,
+            request.clients,
+            request.facility_types,
+            request.jurisdictions,
+            _privacy(request),
+        )
+    # 503, not 502: the gateway tells the engineer client details couldn't be protected (AC19).
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 

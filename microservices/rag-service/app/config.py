@@ -52,3 +52,31 @@ SITE_WALK_CLASSIFIER = os.getenv("SITE_WALK_CLASSIFIER", "jev")
 # A pick below this probability is marked "Check" for the engineer; it is never hidden.
 # The cutoff the document labelling evaluation chose for Jev (IN-05, 2026-10-07).
 SITE_WALK_CHECK_BELOW = 0.70
+
+# The client intake reading step (CP-23). The documents are read on LLM_PROVIDER with this
+# model and effort; the fixed choices (facility type, jurisdiction, visit type, where each
+# document belongs) use this classifier, a key of app/site_walk/jev.py's adapter registry.
+CLIENT_INTAKE_MODEL = os.getenv("CLIENT_INTAKE_MODEL", "claude-sonnet-5-5")
+CLIENT_INTAKE_EFFORT = os.getenv("CLIENT_INTAKE_EFFORT", "medium")
+CLIENT_INTAKE_CLASSIFIER = os.getenv("CLIENT_INTAKE_CLASSIFIER", "jev")
+# Seconds to mask a whole pack: ~15 s for 10 documents / 40,000 characters (eval p04).
+CLIENT_INTAKE_PRIVACY_TIMEOUT = float(os.getenv("CLIENT_INTAKE_PRIVACY_TIMEOUT", "60"))
+# A classifier pick below its decision type's cutoff is left empty (Not sure); a document's
+# placement falls back to the whole client. Chosen by the eval sweep on the tuning packs
+# (eval/client_intake, 3 Nov 2026), confirmed on held-out. Facility type, jurisdiction and visit
+# type had at most one wrong pick at any cutoff, so 0.5 (Jev favours one option over all the
+# others together) empties nothing; placement is right 96% of the time at 0.85 and sends 14% of
+# documents to the whole client.
+CLIENT_INTAKE_CUTOFFS = {
+    "facility_type": 0.5,
+    "jurisdiction": 0.5,
+    "visit_type": 0.5,
+    "placement": 0.85,
+}
+# Name similarity (0-1, difflib) for matching a read client or site to a recorded one: at or
+# above MATCH it is that one; from MATCH_MAYBE up to MATCH it is flagged for the engineer.
+# Sweep: every cutoff from 0.65 to 0.95 matched all 54 tuning items with no false match (0.60
+# made 2); MATCH sits inside that range rather than at its edge, as a wrong client is worse
+# than a Not sure.
+CLIENT_INTAKE_MATCH = 0.80
+CLIENT_INTAKE_MATCH_MAYBE = 0.65

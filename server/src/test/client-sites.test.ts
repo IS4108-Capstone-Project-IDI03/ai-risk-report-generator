@@ -9,6 +9,8 @@ import { UserModel } from '../models/user.model'
 import { knownEntities } from '../services/privacy.service'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
 import { useMemoryMongo } from './memory-mongo'
+import { oneAssessment } from './new-assessments'
+import type request from 'supertest'
 
 useMemoryMongo()
 
@@ -33,6 +35,16 @@ beforeEach(async () => {
   await UserModel.create([alex, jide])
 })
 
+// Posts one assessment (CP-23's body) and answers with the one assessment it
+// made, or with the refusal.
+async function create(
+  payload: Record<string, unknown>,
+  as: { post: (url: string) => request.Test } = api,
+) {
+  const response = await as.post('/api/assessments').send(oneAssessment(payload))
+  return { status: response.status, body: response.body.assessments?.[0] ?? response.body }
+}
+
 const KENT_RIDGE = {
   name: 'Kent Ridge campus',
   address: '21 Lower Kent Ridge Road',
@@ -42,17 +54,13 @@ const KENT_RIDGE = {
 const BUKIT_TIMAH = { ...KENT_RIDGE, name: 'Bukit Timah campus', address: '1 Bukit Timah Road' }
 
 type Api = typeof api
-const idOf = (as: Api) => String((as === api ? alex : jide)._id)
 
 // A first visit to a new site of NUS, a new client unless one is given.
 async function firstVisit(as: Api = api, site = KENT_RIDGE, clientId?: string) {
-  const created = await as.post('/api/assessments').send({
-    ...(clientId ? { clientId } : { client: 'NUS' }),
-    site,
-    surveyType: 'Property risk survey',
-    siteVisitDate: '2025-03-10',
-    engineerId: idOf(as),
-  })
+  const created = await create(
+    { ...(clientId ? { clientId } : { client: 'NUS' }), site, siteVisitDate: '2025-03-10' },
+    as,
+  )
   expect(created.status).toBe(201)
   return {
     reference: created.body.reference as string,
@@ -63,13 +71,10 @@ async function firstVisit(as: Api = api, site = KENT_RIDGE, clientId?: string) {
 
 // A later visit to a listed site.
 async function revisit(as: Api, clientId: string, siteId: string, siteVisitDate = '2026-03-12') {
-  const created = await as.post('/api/assessments').send({
-    clientId,
-    siteId,
-    surveyType: 'Follow-up visit',
-    siteVisitDate,
-    engineerId: idOf(as),
-  })
+  const created = await create(
+    { clientId, siteId, surveyType: 'Follow-up visit', siteVisitDate },
+    as,
+  )
   expect(created.status).toBe(201)
   return created.body.reference as string
 }
@@ -101,6 +106,12 @@ describe('The client page (CP-18)', () => {
     const shown = await page(first.clientId)
     expect(shown).toMatchObject({ id: first.clientId, name: 'NUS', removed: false })
     expect(shown.sites).toHaveLength(1)
+    // CP-23: each visit also carries its type and report due date; the page counts its documents.
+    expect(shown.sites[0].visits[0]).toMatchObject({
+      surveyType: expect.any(String),
+      reportDueDate: null,
+    })
+    expect(shown.documents).toBe(0)
     expect(shown.sites[0]).toMatchObject({
       id: first.siteId,
       ...KENT_RIDGE,
@@ -116,6 +127,33 @@ describe('The client page (CP-18)', () => {
       allowed: false,
       reason: "Another engineer has assessments for this client, so it can't be changed.",
     })
+  })
+
+  it("lists the site contacts of the engineer's assessments there, latest first, each once", async () => {
+    const first = await create({
+      client: 'NUS',
+      site: KENT_RIDGE,
+      siteVisitDate: '2025-03-10',
+      siteContacts: [{ name: 'Mei Tan', role: 'Facilities manager' }, { name: 'Raj Kumar' }],
+    })
+    const { clientId, site } = first.body
+    await create({
+      clientId,
+      siteId: site.id,
+      surveyType: 'Follow-up visit',
+      siteVisitDate: '2026-03-12',
+      siteContacts: [{ name: 'Mei Tan', role: 'Site lead' }],
+    })
+    // Jide's contact at his own site of NUS is not Alex's to see.
+    await create(
+      { clientId, site: BUKIT_TIMAH, siteVisitDate: '2026-04-01', siteContacts: [{ name: 'Lim' }] },
+      jideApi,
+    )
+
+    expect((await page(clientId)).contacts).toEqual([
+      { name: 'Mei Tan', role: 'Site lead', site: 'Kent Ridge campus' },
+      { name: 'Raj Kumar', role: null, site: 'Kent Ridge campus' },
+    ])
   })
 
   it('is refused for a client the engineer has no assessment for, an unknown one, and admins', async () => {
@@ -255,22 +293,18 @@ describe('Renaming a client (CP-18)', () => {
       names: ['National University of Singapore', 'NUS'],
     })
     // Its new name finds it, so typing it on the create form adds no new client.
-    await api.post('/api/assessments').send({
+    await create({
       client: 'national university of singapore',
       site: BUKIT_TIMAH,
-      surveyType: 'Property risk survey',
-      engineerId: String(alex._id),
     })
     expect(await ClientModel.countDocuments()).toBe(1)
   })
 
   it("refuses another client's name, a colleague's assessment at any of its sites, and a finalised report", async () => {
     const first = await firstVisit()
-    await api.post('/api/assessments').send({
+    await create({
       client: 'SMU',
       site: KENT_RIDGE,
-      surveyType: 'Property risk survey',
-      engineerId: String(alex._id),
     })
     const rename = (name: string) => api.put(`/api/clients/${first.clientId}`).send({ name })
 
@@ -299,7 +333,7 @@ describe('Removing and restoring a site (CP-18)', () => {
     const open = await api.post(`/api/sites/${bukit.siteId}/remove`)
     expect(open.status).toBe(409)
     expect(open.body.error).toBe(
-      '1 of its assessments is not archived. Archive it before removing this site.',
+      'This site has 1 open assessment. Archive it, then remove the site.',
     )
 
     await archive(api, bukit.reference)
@@ -308,14 +342,13 @@ describe('Removing and restoring a site (CP-18)', () => {
 
     const sites = (await api.get(`/api/clients/${first.clientId}/sites`)).body
     expect(sites.map((s: { name: string }) => s.name)).toEqual([KENT_RIDGE.name])
-    const onRemoved = await api.post('/api/assessments').send({
+    const onRemoved = await create({
       clientId: first.clientId,
       siteId: bukit.siteId,
       surveyType: 'Follow-up visit',
-      engineerId: String(alex._id),
     })
     expect(onRemoved.status).toBe(400)
-    expect(Object.keys(onRemoved.body.fields)).toEqual(['siteId'])
+    expect(Object.keys(onRemoved.body.fields)).toEqual(['sites.0.id'])
     const removedSite = (await page(first.clientId)).sites.find(
       (s: { id: string }) => s.id === bukit.siteId,
     )
@@ -388,6 +421,20 @@ describe('Removing and restoring a site (CP-18)', () => {
 })
 
 describe('Removing and restoring a client (CP-18)', () => {
+  it('says how many assessments are still open, naming the client (copy from board R11 · 4)', async () => {
+    const first = await firstVisit()
+    await firstVisit(api, BUKIT_TIMAH, first.clientId)
+    const refused = await api.post(`/api/clients/${first.clientId}/remove`)
+    expect(refused.status).toBe(409)
+    expect(refused.body.error).toBe(
+      'This client has 2 open assessments. Archive them, then remove the client.',
+    )
+    await archive(api, first.reference)
+    expect((await page(first.clientId)).remove.reason).toBe(
+      'This client has 1 open assessment. Archive it, then remove the client.',
+    )
+  })
+
   it('removes its listed sites as one, leaves the create form, and restores those alone', async () => {
     const first = await firstVisit()
     const bukit = await firstVisit(api, BUKIT_TIMAH, first.clientId)
@@ -423,12 +470,7 @@ describe('Removing and restoring a client (CP-18)', () => {
     await api.post(`/api/clients/${first.clientId}/remove`).expect(204)
 
     // Typing its name finds it rather than adding a second NUS.
-    const again = await jideApi.post('/api/assessments').send({
-      client: 'nus',
-      site: KENT_RIDGE,
-      surveyType: 'Property risk survey',
-      engineerId: String(jide._id),
-    })
+    const again = await create({ client: 'nus', site: KENT_RIDGE }, jideApi)
     expect(again.body.clientId).toBe(first.clientId)
 
     expect((await api.post(`/api/clients/${first.clientId}/restore`)).body).toEqual({

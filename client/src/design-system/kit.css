@@ -1,0 +1,775 @@
+/* Shared CP-23 kit (v2 design system): pills, chips, tiles, menus, toasts, top bar.
+   Component files name the classes they use; values come from tokens (v2 sections 3-8). */
+
+/* Status pill */
+.ds-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font: 600 13px/1 var(--font-sans);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+/* Date cell (Report due, Next survey): the icon is centred on the two lines (round 13). */
+.ds-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 14px/1.25 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.ds-due > span {
+  display: flex;
+  flex-direction: column;
+}
+.ds-due-date {
+  color: var(--graphite-900);
+  font-weight: 500;
+}
+.ds-due-note {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--graphite-600);
+  /* Two lines at most, so a long site name never widens a column. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.ds-due-late,
+.ds-due-late .ds-due-note {
+  color: var(--red-600);
+}
+.ds-due-soon,
+.ds-due-soon .ds-due-note {
+  color: var(--amber-600);
+}
+.ds-due-ok,
+.ds-due-none {
+  color: var(--graphite-600);
+}
+.ds-due-none {
+  color: var(--graphite-400);
+}
+
+/* Assessment type tile */
+.ds-type-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: var(--radius-field);
+}
+.ds-type-tile-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font: 600 14px/1.2 var(--font-sans);
+  color: var(--graphite-900);
+}
+
+/* Chips and the New badge */
+.ds-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font: 600 12px/1 var(--font-sans);
+  white-space: nowrap;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+}
+.ds-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-chip svg {
+  flex: 0 0 auto;
+}
+.ds-new-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--green-50);
+  color: var(--green-600);
+  font: 700 12px/1 var(--font-sans);
+}
+
+/* File tile */
+.ds-file-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile);
+}
+
+/* Tag pill */
+.ds-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 164px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-900);
+  font: 500 13px/1 var(--font-sans);
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.ds-tag-pill[data-wide] {
+  width: 300px;
+  max-width: 100%;
+}
+.ds-tag-pill-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-tag-pill-ref {
+  flex: 0 0 auto;
+}
+.ds-tag-pill-site {
+  min-width: 0;
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+}
+/* A 44px target on touch screens, where the pill is the only way to retag. */
+@media (pointer: coarse) {
+  .ds-tag-pill {
+    height: 44px;
+  }
+}
+
+/* Menu (tag picker) */
+.ds-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  font: 400 14px/1.3 var(--font-sans);
+}
+.ds-menu-label {
+  padding: 10px 10px 4px;
+  color: var(--graphite-600);
+  font: 700 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ds-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: var(--graphite-900);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ds-menu-item[aria-selected='true'] {
+  font-weight: 600;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-menu-item:hover {
+    background: var(--graphite-100);
+  }
+}
+.ds-menu-item:focus-visible {
+  background: var(--graphite-100);
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+.ds-menu-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .ds-menu-item {
+    min-height: 44px;
+  }
+}
+
+/* Popover motion: scale from 0.97 + fade, 180 ms in, 120 ms out (v2 section 8). Uses the
+   individual `scale` property, so it never fights the inline translateX that keeps it on screen. */
+[role='dialog'][data-state='open'] {
+  animation: ds-pop-in var(--duration-base) var(--ease-out);
+}
+[role='dialog'][data-state='closed'] {
+  animation: ds-pop-out var(--duration-fast) var(--ease-standard) forwards;
+}
+@keyframes ds-pop-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+@keyframes ds-pop-out {
+  to {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
+/* Segmented control */
+.ds-segmented {
+  position: relative;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  max-width: 100%;
+}
+.ds-segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--graphite-600);
+  font: 500 13px/1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.ds-segmented button {
+  position: relative;
+}
+.ds-segmented button[aria-checked='true'] {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
+/* The thumb behind the chosen option; slides 180 ms ease-out, retargeting if interrupted. */
+.ds-seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px rgba(26, 31, 38, 0.12);
+  pointer-events: none;
+}
+/* Only the position slides; the width snaps (width is a layout property). */
+.ds-seg-thumb[data-slide] {
+  transition: transform var(--duration-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-seg-thumb[data-slide] {
+    transition: none;
+  }
+}
+.ds-segmented button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+@media (pointer: coarse) {
+  .ds-segmented button {
+    height: 44px;
+  }
+}
+
+/* Search field and filter pill. 16 px text on touch stops iOS zooming the page when it is focused. */
+@media (pointer: coarse) {
+  .ds-search input {
+    font-size: 16px;
+  }
+}
+.ds-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+  box-sizing: border-box;
+}
+.ds-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--graphite-900);
+  font: 400 14px/1 var(--font-sans);
+}
+.ds-search input::placeholder {
+  color: var(--graphite-600);
+}
+.ds-search:focus-within {
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+.ds-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-900);
+  font: 600 14px/1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-filter-pill:hover {
+    background: var(--graphite-200);
+  }
+}
+
+/* Dashed add row */
+.ds-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border: 1.5px dashed var(--graphite-300);
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: var(--marsh-navy);
+  font: 600 14px/1 var(--font-sans);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-add-row:hover {
+    background: var(--graphite-50);
+    border-color: var(--graphite-400);
+  }
+}
+
+/* Table footer */
+.ds-table-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  color: var(--graphite-600);
+  font: 400 13px/1.2 var(--font-sans);
+}
+.ds-table-footer-late {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--red-600);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Reading status cell: the mark is 16px wide in every state, so all three line up. */
+.ds-reading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font: 400 13px/1 var(--font-sans);
+  color: var(--graphite-700);
+}
+.ds-reading-words {
+  animation: ds-fade-in var(--duration-fast) var(--ease-out);
+}
+.ds-reading-waiting {
+  color: var(--graphite-600);
+}
+.ds-reading-spin {
+  animation: dsSpin 0.9s linear infinite;
+}
+.ds-reading-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--marsh-navy);
+}
+.ds-reading-circle {
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--graphite-400);
+  border-radius: 50%;
+}
+.ds-reading-tick {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 14;
+  animation: ds-draw var(--duration-slow) var(--ease-out) both;
+}
+@keyframes ds-draw {
+  from {
+    stroke-dashoffset: 14;
+  }
+}
+@keyframes ds-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Top bar and Back */
+.ds-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px var(--page-gutter);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--graphite-200);
+}
+.ds-topbar-main {
+  flex: 1;
+  min-width: 0;
+}
+.ds-topbar-eyebrow {
+  color: var(--graphite-600);
+  font: 700 11px/1.2 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ds-topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+}
+.ds-topbar-title > :not(h1) {
+  flex: 0 0 auto;
+}
+.ds-topbar-title h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  margin: 2px 0 0;
+  color: var(--marsh-navy);
+  font: 700 28px/1.2 var(--font-sans);
+  letter-spacing: -0.01em;
+}
+/* With tabs (client page): the tabs take a full row under the title and sit on the bar's edge. */
+.ds-topbar[data-tabs] {
+  flex-wrap: wrap;
+  padding-bottom: 0;
+  row-gap: 12px;
+}
+.ds-topbar-tabs {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .ds-topbar {
+    padding-inline: 16px;
+  }
+  .ds-topbar-title h1 {
+    font-size: 22px;
+  }
+}
+/* Buttons: press feedback is a CSS scale on :active (not JS, so a touch tap gets it too);
+   reduced motion drops it. */
+.ds-press,
+.ds-icon-button,
+.ds-add-row,
+.ds-filter-pill {
+  -webkit-tap-highlight-color: transparent;
+}
+.ds-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+/* Touch targets are at least 44 px (v2 section 2): buttons, pills, tabs, icon buttons, small links. */
+@media (pointer: coarse) {
+  .ds-press,
+  .ds-filter-pill,
+  .ds-tabs [role='tab'] {
+    min-height: 44px;
+  }
+  .ds-icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .ds-table-footer-late {
+    min-height: 44px;
+    padding-block: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-press:active:not(:disabled) {
+    transform: none;
+  }
+  [role='dialog'][data-state] {
+    animation-name: ds-fade-in;
+  }
+  [role='dialog'][data-state='closed'] {
+    animation: none;
+  }
+  .ds-reading-tick,
+  .ds-reading-spin {
+    animation: none;
+  }
+}
+
+/* Toasts (Sonner, unstyled + our classes; v2 section 7) */
+.ds-toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  padding: 14px 44px 14px 16px;
+  border-radius: var(--radius-popover);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-popover);
+  color: var(--graphite-900);
+  font: 500 14px/1.35 var(--font-sans);
+}
+.ds-toast-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.ds-toast [data-content] {
+  flex: 1;
+  min-width: 0;
+}
+.ds-toast-desc {
+  margin-top: 2px;
+  color: var(--graphite-600);
+  font-weight: 400;
+}
+.ds-toast-action {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--ink-50);
+  color: var(--ink-600);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+/* Sonner puts the close button top-left by default; ours is a quiet round icon at the right. */
+.ds-toast-close {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  left: auto;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--graphite-600);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-toast-close:hover {
+    background: var(--graphite-100);
+  }
+}
+/* The toast hugs its message, centred, up to the toaster's width (round 14). Sonner pins
+   every toast to that width with [data-sonner-toaster] [data-sonner-toast], hence the
+   stronger selector. */
+[data-sonner-toaster] .ds-toast[data-sonner-toast] {
+  left: 0;
+  right: 0;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+/* Sonner's phone toaster is 100% wide but shifted right by its offset, and pulls its toasts
+   back with a narrower width; without this, each toast sits off-centre and long ones overflow. */
+@media (max-width: 600px) {
+  [data-sonner-toaster] .ds-toast[data-sonner-toast] {
+    right: calc(2 * var(--mobile-offset-left));
+    max-width: calc(100% - 2 * var(--mobile-offset-left));
+  }
+}
+
+/* Report due, compact on a phone (R12): 14 px icon beside the date. */
+@media (max-width: 767px) {
+  .ds-due > span[aria-hidden='true'] {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .ds-due {
+    gap: 6px;
+  }
+}
+
+/* Dialog, v2 (round 14): the chat's Apple sheet look (chat.css .chat-dialog) in the app's
+   font: rounder card, no border, soft shadow, round grey close, no footer band, pill
+   buttons. Pass className="ds-dialog--v2" to Dialog. */
+.ds-dialog.ds-dialog--v2 {
+  border: 0;
+  border-radius: 18px;
+  box-shadow:
+    0 24px 64px rgb(0 15 71 / 0.18),
+    0 2px 8px rgb(0 15 71 / 0.08);
+}
+.ds-dialog--v2[open] {
+  animation: ds-dialog-in 220ms var(--ease-out);
+}
+@keyframes ds-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+/* The close button floats in the corner: only the title keeps room for it, so the helper
+   text runs the full width (round 15). */
+.ds-dialog--v2 .ds-dialog-header {
+  display: block;
+  position: relative;
+  padding: 22px 24px 0;
+}
+/* .ds-dialog.ds-dialog--v2: styles.css's .ds-dialog h2 loads after this file and would win. */
+.ds-dialog.ds-dialog--v2 h2 {
+  font-size: 19px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: var(--marsh-navy);
+  overflow-wrap: anywhere;
+  padding-right: 40px;
+}
+.ds-dialog--v2 .ds-dialog-header p {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.ds-dialog--v2 .ds-dialog-header > button {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  border-radius: 50%;
+  background: rgb(0 15 71 / 0.05);
+}
+.ds-dialog--v2 .ds-dialog-body {
+  padding: 20px 24px 4px;
+}
+/* With no helper text under the title (Edit site's scope check), the body sits closer. */
+.ds-dialog--v2 .ds-dialog-header:not(:has(p)) + .ds-dialog-body {
+  padding-top: 10px;
+}
+/* A dialog with nothing in its body (no error to show) keeps no gap for it. */
+.ds-dialog--v2 .ds-dialog-body:empty {
+  display: none;
+}
+.ds-dialog--v2 .ds-dialog-footer {
+  gap: 8px;
+  padding: 20px;
+  border: 0;
+  background: transparent;
+}
+@media (max-width: 767px) {
+  /* Thumb-sized, side by side and equal, like an iOS alert. */
+  .ds-dialog--v2 .ds-dialog-footer button {
+    flex: 1;
+    min-height: 44px;
+  }
+}
+@media (pointer: coarse) {
+  /* The 44 px close button (styles.css) sits a little further into the corner. */
+  .ds-dialog--v2 .ds-dialog-header > button {
+    top: 12px;
+    right: 12px;
+  }
+  .ds-dialog.ds-dialog--v2 h2 {
+    padding-right: 44px;
+  }
+}
+
+/* Dialog motion (round 15). The backdrop fades with the card. Closing plays on a copy of
+   the card that Dialog.tsx shows for 150 ms (.is-leaving), faster than the open. A
+   save error slides in, and a step change (Edit site to its scope check) crossfades
+   the header and the body (.ds-swap). */
+.ds-dialog--v2[open]::backdrop {
+  animation: ds-fade-in 200ms var(--ease-out);
+}
+.ds-dialog--v2.is-leaving {
+  animation: ds-dialog-out 150ms var(--ease-in) forwards;
+  pointer-events: none;
+}
+/* The copy's header, error and step fades would replay as it is added; it only fades out. */
+.ds-dialog.ds-dialog--v2.is-leaving * {
+  animation: none;
+}
+.ds-dialog--v2.is-leaving::backdrop {
+  animation: ds-fade-out 150ms var(--ease-in) forwards;
+}
+@keyframes ds-dialog-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes ds-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.ds-dialog--v2 [role='alert'] {
+  animation: ds-err-slide 180ms var(--ease-out);
+}
+@keyframes ds-err-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.ds-dialog--v2 .ds-dialog-header,
+.ds-dialog--v2 .ds-swap {
+  animation: ds-fade-in 160ms var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-dialog--v2[open] {
+    animation-name: ds-fade-in;
+  }
+  .ds-dialog--v2.is-leaving {
+    animation-name: ds-fade-out;
+  }
+  .ds-dialog--v2 [role='alert'] {
+    animation-name: ds-fade-in;
+  }
+}

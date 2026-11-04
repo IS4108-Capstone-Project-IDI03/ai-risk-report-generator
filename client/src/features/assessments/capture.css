@@ -358,7 +358,7 @@
 .cap-actions .cap-btn {
   align-self: flex-end;
 }
-@media (max-width: 759px) {
+@media (max-width: 767px) {
   .cap-actions .cap-btn {
     align-self: stretch;
   }

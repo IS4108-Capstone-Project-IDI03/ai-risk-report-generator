@@ -26,7 +26,6 @@ const ID = '6ab39017e45cf009e4507731'
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete'
 const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/assessments', 'assessments:view'],
-  ['get', '/api/assessments/engineers', 'assessments:edit'],
   ['post', '/api/assessments', 'assessments:edit'],
   ['post', '/api/assessments/RPT-2026-0411/capture-session', 'assessments:edit'],
   ['put', '/api/assessments/RPT-2026-0411', 'assessments:edit'],
@@ -108,10 +107,17 @@ describe('allowed operations succeed', () => {
     })
     const assignedEngineer = signedInAs(app, user)
     const created = await assignedEngineer.post('/api/assessments').send({
-      site: { name: 'Jurong Hub', jurisdiction: 'SG', facilityType: 'Distribution warehouse' },
-      client: 'Straits Logistics',
-      surveyType: 'Property risk survey',
-      engineerId: String(user._id),
+      client: { name: 'Straits Logistics' },
+      sites: [
+        {
+          ref: 'site-1',
+          name: 'Jurong Hub',
+          address: '2 Jurong Port Road',
+          jurisdiction: 'SG',
+          facilityType: 'Distribution warehouse',
+          assessments: [{ ref: 'a-1', visitType: 'First survey' }],
+        },
+      ],
     })
     expect(created.status).toBe(201)
 

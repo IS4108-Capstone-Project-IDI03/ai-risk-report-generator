@@ -75,9 +75,13 @@ def _unmask(text: str, mapping: dict[str, str], escape=_same) -> tuple[str, list
 class Session:
     """One drafting request's masking. Off (or no `privacy` sent): text passes unchanged."""
 
-    def __init__(self, privacy: dict | None):
+    def __init__(self, privacy: dict | None, timeout: float | None = None):
+        # A client intake masks whole document packs, which take longer than a draft's notes.
+        self.timeout = timeout or config.PRIVACY_TIMEOUT
         self.enabled = bool(privacy and privacy.get("enabled"))
         self.known_entities = (privacy or {}).get("known_entities") or []
+        # Extra kinds privacy-service should find on its own, e.g. company names (CP-23).
+        self.detect = (privacy or {}).get("detect") or []
         self.mapping: dict[str, str] = {}
         self.literals: dict[str, str] = {}
 
@@ -109,7 +113,10 @@ class Session:
                         "texts": texts,
                         "known_entities": self.known_entities,
                         "mapping": self.mapping,
+                        # Sent only when asked for, so other flows' requests are unchanged.
+                        **({"detect": self.detect} if self.detect else {}),
                     },
+                    timeout=self.timeout,
                 )
             response.raise_for_status()
         except httpx.TimeoutException as error:
@@ -196,6 +203,6 @@ def _held_from(text: str) -> int:
     return len(text)
 
 
-def session(privacy: dict | None) -> Session:
-    """`privacy` is the gateway's `{enabled, known_entities}` (Rule 1), or None."""
-    return Session(privacy)
+def session(privacy: dict | None, timeout: float | None = None) -> Session:
+    """`privacy` is the gateway's `{enabled, known_entities, detect?}` (Rule 1), or None."""
+    return Session(privacy, timeout)

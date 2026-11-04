@@ -92,11 +92,11 @@ describe('Popover', () => {
   })
 
   it('moves sideways onto the screen where its side of the trigger has too little room', () => {
-    // jsdom lays nothing out, so the surface reports where a phone would put
-    // it: 280px wide, its left edge 100px off the screen.
-    const box = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockReturnValue({ left: -100, right: 180, width: 280 } as DOMRect)
+    // jsdom lays nothing out, so the surface reports where a phone would put it: 280px
+    // wide (offsetWidth, which ignores the scale-in animation), 100px off the screen.
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(280)
+    const left = vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockReturnValue(-100)
+    const box = { mockRestore: () => (width.mockRestore(), left.mockRestore()) }
     try {
       render(<Harness />)
       fireEvent.click(screen.getByRole('button', { name: 'Open' }))

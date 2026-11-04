@@ -1,5 +1,7 @@
 import type * as React from 'react'
 import { Icon } from './Icon'
+import { ReasonWrap } from '../feedback/ReasonBox'
+import type { Reason } from '../feedback/ReasonBox'
 export type ButtonProps = Omit<
   React.ButtonHTMLAttributes<HTMLButtonElement>,
   | 'variant'
@@ -7,16 +9,22 @@ export type ButtonProps = Omit<
   | 'iconLeft'
   | 'iconRight'
   | 'disabled'
+  | 'disabledReason'
   | 'loading'
   | 'fullWidth'
   | 'children'
   | 'style'
 > & {
+  // Also: `create` (navy pill with the v2 shadow) and `pill` (grey secondary pill).
   variant?: string
+  // Rounds any variant to a pill (radius 999).
+  pill?: boolean
   size?: 'sm' | 'md' | 'lg'
   iconLeft?: string
   iconRight?: string
   disabled?: boolean
+  // Blocked but still focusable: greyed out, click does nothing, and a reason box explains why.
+  disabledReason?: Reason
   loading?: boolean
   fullWidth?: boolean
   children?: React.ReactNode
@@ -45,6 +53,28 @@ const SIZES = {
 }
 function palette(variant: string, hover: boolean, active: boolean) {
   switch (variant) {
+    // The screen's Create button: navy pill with a soft shadow (v2 section 5).
+    case 'create':
+      return {
+        background: active
+          ? 'var(--action-primary-active)'
+          : hover
+            ? 'var(--action-primary-hover)'
+            : 'var(--action-primary)',
+        color: 'var(--text-inverse)',
+        border: '1px solid transparent',
+      }
+    // Secondary grey pill: filters, "Documents · 3".
+    case 'pill':
+      return {
+        background: active
+          ? 'var(--graphite-200)'
+          : hover
+            ? 'var(--graphite-200)'
+            : 'var(--graphite-100)',
+        color: 'var(--graphite-900)',
+        border: '1px solid transparent',
+      }
     case 'primary':
       return {
         background: active
@@ -121,10 +151,13 @@ function palette(variant: string, hover: boolean, active: boolean) {
 }
 function Button({
   variant = 'secondary',
+  pill = false,
   size = 'md',
   iconLeft,
   iconRight,
   disabled = false,
+  disabledReason,
+  onClick,
   loading = false,
   fullWidth = false,
   children,
@@ -134,56 +167,82 @@ function Button({
   const [hover, setHover] = useState(false)
   const [active, setActive] = useState(false)
   const s = SIZES[size] || SIZES.md
-  const p = palette(variant, hover && !disabled, active && !disabled)
+  const blocked = disabled || !!disabledReason
+  const p = palette(variant, hover && !blocked, active && !blocked)
   return (
-    <button
-      type={'button'}
-      disabled={disabled || loading}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => {
-        setHover(false)
-        setActive(false)
-      }}
-      onMouseDown={() => setActive(true)}
-      onMouseUp={() => setActive(false)}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 'var(--space-3)',
-        boxSizing: 'border-box',
-        height: s.height,
-        padding: variant === 'link' ? 0 : s.padding,
-        width: fullWidth ? '100%' : undefined,
-        fontFamily: 'var(--font-sans)',
-        fontSize: s.font,
-        fontWeight: 'var(--weight-medium)',
-        lineHeight: 1,
-        letterSpacing: '0.005em',
-        borderRadius: 'var(--radius-md)',
-        cursor: disabled || loading ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.45 : 1,
-        boxShadow: variant === 'primary' || variant === 'danger' ? 'var(--shadow-sm)' : 'none',
-        transition: 'var(--transition-control)',
-        textDecoration: variant === 'link' && hover ? 'underline' : 'none',
-        whiteSpace: 'nowrap',
-        ...p,
-        ...style,
-      }}
-      {...rest}
-    >
-      {loading ? (
-        <Icon
-          name={'loader-circle'}
-          size={s.icon}
-          style={{ animation: 'dsSpin 0.9s linear infinite' }}
-        />
-      ) : iconLeft ? (
-        <Icon name={iconLeft} size={s.icon} />
-      ) : null}
-      {children}
-      {iconRight ? <Icon name={iconRight} size={s.icon} /> : null}
-    </button>
+    <ReasonWrap reason={disabledReason}>
+      {(describedBy, onBlockedClick) => (
+        <button
+          type={'button'}
+          className="ds-press"
+          disabled={disabled || loading}
+          aria-disabled={disabledReason ? true : undefined}
+          aria-describedby={describedBy}
+          onClick={
+            disabledReason
+              ? (e) => {
+                  e.preventDefault()
+                  onBlockedClick()
+                }
+              : onClick
+          }
+          // No hover colour on touch screens, where a tap would leave it stuck on.
+          onMouseEnter={() => setHover(window.matchMedia?.('(hover: hover)').matches !== false)}
+          onMouseLeave={() => {
+            setHover(false)
+            setActive(false)
+          }}
+          onMouseDown={() => setActive(true)}
+          onMouseUp={() => setActive(false)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 'var(--space-3)',
+            boxSizing: 'border-box',
+            height: s.height,
+            padding: variant === 'link' ? 0 : s.padding,
+            width: fullWidth ? '100%' : undefined,
+            fontFamily: 'var(--font-sans)',
+            fontSize: s.font,
+            fontWeight: 'var(--weight-medium)',
+            lineHeight: 1,
+            letterSpacing: '0.005em',
+            borderRadius:
+              pill || variant === 'create' || variant === 'pill'
+                ? 'var(--radius-pill)'
+                : 'var(--radius-md)',
+            cursor: blocked || loading ? 'not-allowed' : 'pointer',
+            opacity: blocked ? 0.45 : 1,
+            boxShadow:
+              variant === 'create'
+                ? 'var(--shadow-create)'
+                : variant === 'primary' || variant === 'danger'
+                  ? 'var(--shadow-sm)'
+                  : 'none',
+            // Press feedback is CSS (.ds-press:active in kit.css): scale 0.97, none with reduced motion.
+            transition: 'var(--transition-control), transform var(--duration-fast) var(--ease-out)',
+            textDecoration: variant === 'link' && hover ? 'underline' : 'none',
+            whiteSpace: 'nowrap',
+            ...p,
+            ...style,
+          }}
+          {...rest}
+        >
+          {loading ? (
+            <Icon
+              name={'loader-circle'}
+              size={s.icon}
+              style={{ animation: 'dsSpin 0.9s linear infinite' }}
+            />
+          ) : iconLeft ? (
+            <Icon name={iconLeft} size={s.icon} />
+          ) : null}
+          {children}
+          {iconRight ? <Icon name={iconRight} size={s.icon} /> : null}
+        </button>
+      )}
+    </ReasonWrap>
   )
 }
 export { Button }

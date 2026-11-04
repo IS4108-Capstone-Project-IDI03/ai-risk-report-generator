@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -37,24 +37,18 @@ function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    url === '/api/assessments/engineers'
-      ? respond(200, [
-          {
-            id: '6ab39017e45cf009e4507731',
-            name: 'Alex Rowe',
-            staffId: 'MRE-0001',
-            jobTitle: null,
-          },
-        ])
-      : init?.method === 'GET'
-        ? listReply()
-        : fetchMock(url, init),
+    init?.method === 'GET' ? listReply() : fetchMock(url, init),
   )
   return fetchMock
 }
 async function openApp() {
   render(<App />)
   await signIn()
+}
+// Picks a choice from one of the work list's pills or menus (CP-23 screen 6A).
+function choose(pill: string | RegExp, choice: string) {
+  fireEvent.click(screen.getByRole('button', { name: pill }))
+  fireEvent.click(screen.getByRole('menuitemradio', { name: choice }))
 }
 function openCapture() {
   // Open the assessment from the work list; capture starts from its Observations tab.
@@ -215,6 +209,8 @@ const CREATED = {
     change: { allowed: true, reason: null, assessments: 1 },
   },
 }
+// What creating answers since CP-23: the client and every assessment created.
+const CREATED_REPLY = { clientId: 'c1', assessments: [CREATED] }
 const CREATED_CAPTURE = {
   session: {
     id: '6ab3a1d0e45cf009e4507802',
@@ -251,66 +247,84 @@ function localDay(days = 0) {
   return day.toLocaleDateString('en-CA')
 }
 
-function createFromForm() {
+// Starts a new assessment from the form: New assessment opens a menu (CP-23 board 03).
+function startFromForm() {
   fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  fireEvent.change(screen.getByLabelText(/Site name/), {
-    target: { value: 'Jurong Distribution Hub' },
-  })
-  fireEvent.change(screen.getByRole('combobox', { name: /^Client/ }), {
+  fireEvent.click(screen.getByRole('button', { name: /^Fill in the form/ }))
+}
+
+// Fills in a new client's new site (its address now required, CP-23) and creates it.
+function createFromForm() {
+  startFromForm()
+  fireEvent.change(screen.getByLabelText(/^Client name/), {
     target: { value: 'Straits Logistics' },
   })
-  fireEvent.change(screen.getByLabelText(/Jurisdiction/), { target: { value: 'MY' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
+  fireEvent.change(screen.getByLabelText(/^Site name/), {
+    target: { value: 'Jurong Distribution Hub' },
+  })
+  fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
+  fireEvent.change(screen.getByLabelText(/^Jurisdiction/), { target: { value: 'MY' } })
+  // The facility type starts empty on the new form, so it is chosen here.
+  fireEvent.change(screen.getByLabelText(/^Facility type/), {
+    target: { value: 'Distribution warehouse' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
 }
+const CREATE_ONE = 'Create'
 function openRow() {
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 }
 
 describe('Create assessment (CP-01)', () => {
   it('creates the assessment on the server and lists it', async () => {
-    const fetchMock = mockGateway(() => respond(201, CREATED))
+    const fetchMock = mockGateway(() => respond(201, CREATED_REPLY))
     await openApp()
 
     createFromForm()
 
-    expect(
-      await screen.findByText('RPT-2026-0001 created for Jurong Distribution Hub.'),
-    ).toBeInTheDocument()
-    // It opens on its Overview, ready to capture, rather than back on the list.
-    expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-    expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
+    expect(await screen.findByText('RPT-2026-0001 created')).toBeInTheDocument()
+    // Back on the list (CP-23: one Create can make several), with the new one on it.
+    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Jurong Distribution Hub/ })).toBeInTheDocument()
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/assessments')
     expect(init.method).toBe('POST')
+    // No engineer is sent: the gateway assigns the signed-in engineer (CP-23 AC10).
     expect(JSON.parse(init.body)).toEqual({
-      site: {
-        name: 'Jurong Distribution Hub',
-        address: '',
-        jurisdiction: 'MY',
-        facilityType: 'Distribution warehouse',
-      },
-      client: 'Straits Logistics',
-      surveyType: 'Property risk survey',
-      // A new form is dated today, its report due in two weeks.
-      siteVisitDate: localDay(),
-      reportDueDate: localDay(14),
-      engineerId: '6ab39017e45cf009e4507731',
+      client: { name: 'Straits Logistics' },
+      sites: [
+        {
+          ref: expect.any(String),
+          name: 'Jurong Distribution Hub',
+          address: '2 Jurong Port Rd',
+          jurisdiction: 'MY',
+          facilityType: 'Distribution warehouse',
+          assessments: [
+            {
+              ref: expect.any(String),
+              // A new site's first visit is a First survey (CP-23 AC17).
+              visitType: 'First survey',
+              // A new form is dated today, its report due in two weeks.
+              siteVisitDate: localDay(),
+              reportDueDate: localDay(14),
+              siteContacts: [],
+            },
+          ],
+        },
+      ],
     })
 
     // The next assessment starts from a blank form, not this one's details.
     // New assessment is the Dashboard's action.
-    fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
-    fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-    expect(screen.getByLabelText(/Site name/)).toHaveValue('')
-    expect(screen.getByRole('combobox', { name: /^Client/ })).toHaveValue('')
-    expect(screen.getByLabelText(/Jurisdiction/)).toHaveValue('SG')
+    startFromForm()
+    expect(screen.getByLabelText(/^Site name/)).toHaveValue('')
+    expect(screen.getByLabelText(/^Client name/)).toHaveValue('')
+    expect(screen.getByLabelText(/^Jurisdiction/)).toHaveValue('SG')
   })
 
   it('opens a created assessment in its workspace, then captures against it', async () => {
     const fetchMock = mockGateway(
-      () => respond(201, CREATED),
+      () => respond(201, CREATED_REPLY),
       () => respond(201, CREATED_CAPTURE),
       () => respond(201, LOADING_DOCK),
       () => respond(201, CREATED_NOTE),
@@ -392,7 +406,10 @@ describe('Create assessment (CP-01)', () => {
     mockGateway(() =>
       respond(400, {
         error: 'The assessment details are invalid.',
-        fields: { reportDueDate: 'The report due date must be on or after the site visit date.' },
+        fields: {
+          'sites.0.assessments.0.reportDueDate':
+            'The report due date must be on or after the site visit date.',
+        },
       }),
     )
     await openApp()
@@ -400,12 +417,13 @@ describe('Create assessment (CP-01)', () => {
     createFromForm()
 
     expect(
-      await screen.findByText(
-        'The report due date must be on or after the site visit date. Correct the details above, then create the assessment again.',
-      ),
+      await screen.findByText('The report due date must be on or after the site visit date.'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Create assessment' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create assessment' })).toBeEnabled()
+    expect(screen.getByLabelText(/^Report due/)).toHaveAttribute('aria-invalid', 'true')
+    expect(await screen.findByText('Nothing created')).toBeInTheDocument()
+    expect(screen.getByText('Correct the marked fields, then create again.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New Assessment' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: CREATE_ONE })).toBeEnabled()
   })
 
   it('sends one request when Create is clicked twice', async () => {
@@ -419,13 +437,15 @@ describe('Create assessment (CP-01)', () => {
     await openApp()
 
     createFromForm()
-    const busy = screen.getByRole('button', { name: 'Creating assessment…' })
+    // The one Create button is busy (a spinner in place of its word) while the request is out.
+    const busy = screen.getByRole('button', { name: 'Create' })
     fireEvent.click(busy)
 
-    expect(busy).toBeDisabled()
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    fireEvent.click(busy)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     reply(
-      new Response(JSON.stringify(CREATED), {
+      new Response(JSON.stringify(CREATED_REPLY), {
         status: 201,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -433,19 +453,17 @@ describe('Create assessment (CP-01)', () => {
     expect(await screen.findByText(/RPT-2026-0001 created/)).toBeInTheDocument()
   })
 
-  it('keeps a demo-only assessment when the gateway is unreachable, and opens its workspace', async () => {
+  it('says nothing was created when the gateway is unreachable', async () => {
     mockGateway(() => Promise.reject(new TypeError('Failed to fetch')))
     await openApp()
 
     createFromForm()
 
+    expect(await screen.findByText('Nothing created')).toBeInTheDocument()
     expect(
-      await screen.findByText(
-        'The gateway could not be reached, so RPT-2026-0416 exists only in this demo and is not saved.',
-      ),
+      await screen.findByText(/The gateway could not be reached\. Try again\./),
     ).toBeInTheDocument()
-    openRow()
-    expect(screen.getByRole('heading', { name: 'Jurong Distribution Hub' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New Assessment' })).toBeInTheDocument()
   })
 })
 
@@ -485,17 +503,8 @@ describe('A client’s sites (CP-17)', () => {
     vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         posts.push(JSON.parse(String(init.body)))
-        return respond(201, CREATED)
+        return respond(201, CREATED_REPLY)
       }
-      if (url === '/api/assessments/engineers')
-        return respond(200, [
-          {
-            id: '6ab39017e45cf009e4507731',
-            name: 'Alex Rowe',
-            staffId: 'MRE-0001',
-            jobTitle: null,
-          },
-        ])
       if (url === '/api/clients') return respond(200, CLIENTS)
       if (url === '/api/clients/c1/sites') return respond(200, SITES)
       return unreachable()
@@ -503,129 +512,122 @@ describe('A client’s sites (CP-17)', () => {
     return posts
   }
   const clientField = () => screen.getByRole('combobox', { name: /^Client/ })
+  const siteBox = (name: RegExp) => screen.findByRole('checkbox', { name })
   const type = (field: HTMLElement, value: string) => fireEvent.change(field, { target: { value } })
-  // The clients the Client field lists, once they load, then its list closed.
-  const offeredClients = () => {
-    fireEvent.focus(clientField())
-    fireEvent.keyDown(clientField(), { key: 'ArrowDown' })
-    const names = within(screen.getByRole('listbox', { name: 'Suggestions for Client' }))
-      .getAllByRole('option')
-      .map((o) => o.textContent)
-    fireEvent.keyDown(clientField(), { key: 'Escape' })
-    return names
+  const create = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
+  // Opens the form on Existing client, once the clients have loaded (the Client field offers them).
+  async function openExisting() {
+    startFromForm()
+    fireEvent.click(screen.getByRole('radio', { name: 'Existing client' }))
+    await act(async () => {})
   }
 
   it('offers every client, then its sites, copying the chosen one’s latest visit (AC3, AC4, AC5)', async () => {
     const posts = gateway()
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+    await openExisting()
 
-    // Every client is offered, then those containing what is typed.
-    await vi.waitFor(() => expect(offeredClients()).toEqual(['NUS', 'Changi Airport Group']))
-    type(clientField(), 'airport')
-    expect(
-      within(screen.getByRole('listbox', { name: 'Suggestions for Client' }))
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Changi Airport Group'])
     type(clientField(), 'nus')
-    expect(screen.getByText('Listed client')).toBeInTheDocument()
-    const site = await screen.findByRole('combobox', { name: /^Site/ })
-    // The site's fields wait for a choice.
-    expect(screen.queryByLabelText(/Site name/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
+    // The sites are ticked from a list; none is chosen yet.
+    const kent = await siteBox(/Kent Ridge campus/)
+    expect(screen.queryByLabelText(/^Site name/)).not.toBeInTheDocument()
+    create('Create')
     expect(screen.getByText('Choose a site, or add a new one')).toBeInTheDocument()
     expect(posts).toHaveLength(0)
 
-    fireEvent.change(site, { target: { value: 's2' } })
-    // A listed site brings its details, locked.
-    expect(screen.getByLabelText(/Site name/)).toHaveValue('Kent Ridge campus')
-    expect(screen.getByLabelText(/Site name/)).toBeDisabled()
-    expect(screen.getByLabelText(/Facility type/)).toBeDisabled()
-    const copy = screen.getByRole('checkbox', { name: /Copy 41 locations from RPT-2026-0411/ })
+    fireEvent.click(kent)
+    // A listed site brings its details, which change only through Edit site (CP-18).
+    expect(kent).toBeChecked()
+    expect(screen.getByText('21 Lower Kent Ridge Road')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Site name/)).not.toBeInTheDocument()
+    // The copy switch shows for a Resurvey, on by default (the first survey needs no copy).
+    fireEvent.click(screen.getByRole('radio', { name: 'Resurvey' }))
+    const copy = screen.getByRole('switch', {
+      name: 'Copy 41 locations from RPT-2026-0411 · 11/04/2026',
+    })
     expect(copy).toBeChecked()
-    expect(screen.getByText(/4 buildings and places elsewhere on site/)).toBeInTheDocument()
 
     fireEvent.click(copy)
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
+    create('Create')
     await screen.findByText(/RPT-2026-0001 created/)
-    expect(posts[0]).toMatchObject({ clientId: 'c1', siteId: 's2', copyLocations: false })
-    expect(posts[0]).not.toHaveProperty('site')
-    expect(posts[0]).not.toHaveProperty('client')
+    expect(posts[0]).toMatchObject({
+      client: { id: 'c1' },
+      sites: [{ id: 's2', copyLocations: false, assessments: [{ visitType: 'Resurvey' }] }],
+    })
+    expect(posts[0]).not.toHaveProperty('sites.0.name')
   })
 
   it('adds a new site for a listed client, refusing one it already has (AC10, AC11)', async () => {
     const posts = gateway()
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-    await vi.waitFor(() => expect(offeredClients()).toHaveLength(2))
+    await openExisting()
     type(clientField(), 'NUS')
-    fireEvent.change(await screen.findByRole('combobox', { name: /^Site/ }), {
-      target: { value: 'new' },
-    })
+    await siteBox(/Kent Ridge campus/)
+    fireEvent.click(screen.getByRole('button', { name: 'New site' }))
+    type(screen.getByLabelText(/^Address/), '1 Outram Road')
 
-    type(screen.getByLabelText(/Site name/), 'kent ridge campus')
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(screen.getByText('NUS already has a site named Kent Ridge campus')).toBeInTheDocument()
+    type(screen.getByLabelText(/^Site name/), 'kent ridge campus')
+    create('Create')
+    expect(screen.getByText('NUS already has Kent Ridge campus')).toBeInTheDocument()
 
-    // A likely typo of a listed site is asked about.
-    type(screen.getByLabelText(/Site name/), 'Kent Rdge campus')
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(await screen.findByText('Did you mean Kent Ridge campus?')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Use Kent Ridge campus' }))
-    expect(screen.getByRole('combobox', { name: /^Site/ })).toHaveValue('s2')
+    // A likely typo of a listed site is asked about as it is typed.
+    type(screen.getByLabelText(/^Site name/), 'Kent Rdge campus')
+    expect(screen.getByText(/Did you mean/)).toHaveTextContent('Did you mean Kent Ridge campus?')
+    fireEvent.click(screen.getByRole('button', { name: 'Kent Ridge campus?' }))
+    expect(screen.getByRole('checkbox', { name: /Kent Ridge campus/ })).toBeChecked()
     expect(posts).toHaveLength(0)
 
-    fireEvent.change(screen.getByRole('combobox', { name: /^Site/ }), {
-      target: { value: 'new' },
-    })
-    type(screen.getByLabelText(/Site name/), 'Outram campus')
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
+    // Untick the listed site, then add the new one.
+    fireEvent.click(screen.getByRole('checkbox', { name: /Kent Ridge campus/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'New site' }))
+    type(screen.getByLabelText(/^Site name/), 'Outram campus')
+    type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+    type(screen.getByLabelText(/^Address/), '1 Outram Road')
+    create('Create')
     await screen.findByText(/RPT-2026-0001 created/)
-    expect(posts[0]).toMatchObject({ clientId: 'c1', site: { name: 'Outram campus' } })
+    expect(posts[0]).toMatchObject({ client: { id: 'c1' }, sites: [{ name: 'Outram campus' }] })
   }, 10000)
 
-  it('asks about a new client named like a listed one, and keeps it when told to (AC11)', async () => {
+  it('asks about a new client named like a listed one, and keeps it as typed (AC11)', async () => {
     const posts = gateway()
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-    await vi.waitFor(() => expect(offeredClients()).toHaveLength(2))
-    type(clientField(), 'Changi Airprot Group')
-    expect(screen.getByText('New client: it will be added to the list.')).toBeInTheDocument()
-    type(screen.getByLabelText(/Site name/), 'Terminal 5')
+    startFromForm()
+    await act(async () => {})
+    type(screen.getByLabelText(/^Client name/), 'Changi Airprot Group')
+    expect(screen.getByText(/Did you mean/)).toHaveTextContent('Did you mean Changi Airport Group?')
+    type(screen.getByLabelText(/^Site name/), 'Terminal 5')
+    type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+    type(screen.getByLabelText(/^Address/), 'Airport Boulevard')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-    expect(await screen.findByText('Did you mean Changi Airport Group?')).toBeInTheDocument()
-    expect(posts).toHaveLength(0)
-    fireEvent.click(screen.getByRole('button', { name: 'Keep “Changi Airprot Group”' }))
+    // Creating without taking the suggestion keeps the name as typed.
+    create('Create')
 
     await screen.findByText(/RPT-2026-0001 created/)
-    expect(posts[0]).toMatchObject({ client: 'Changi Airprot Group', site: { name: 'Terminal 5' } })
+    expect(posts[0]).toMatchObject({
+      client: { name: 'Changi Airprot Group' },
+      sites: [{ name: 'Terminal 5' }],
+    })
   })
 
   it('reads the sites again each time the form opens, as a client page may have removed one (CP-18)', async () => {
     let sites = SITES
     vi.stubGlobal('fetch', (url: string) => {
-      if (url === '/api/assessments/engineers') return respond(200, [])
       if (url === '/api/clients') return respond(200, CLIENTS)
       if (url === '/api/clients/c1/sites') return respond(200, sites)
       return unreachable()
     })
     await openApp()
     const offered = async () => {
-      fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-      await vi.waitFor(() => expect(offeredClients()).toHaveLength(2))
+      await openExisting()
       type(clientField(), 'NUS')
-      const site = await screen.findByRole('combobox', { name: /^Site/ })
-      return within(site)
-        .getAllByRole('option')
-        .map((o) => o.textContent)
+      await siteBox(/Kent Ridge campus/)
+      return screen.getAllByRole('checkbox').map((o) => o.closest('label')?.textContent ?? '')
     }
-    expect(await offered()).toContain('Bukit Timah campus')
+    expect((await offered()).join()).toContain('Bukit Timah campus')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Back/ }))
     sites = SITES.slice(1)
-    expect(await offered()).not.toContain('Bukit Timah campus')
+    expect((await offered()).join()).not.toContain('Bukit Timah campus')
   })
 })
 
@@ -643,7 +645,10 @@ describe('Work list (RV-10)', () => {
       site: { ...CREATED.site, code: 'SITE-0002', name: 'Harbourside Cold Store' },
     },
   ]
-  const results = () => screen.getByText(/of \d+ assessments/)
+  // The footer's count of the rows shown (CP-23); it replaced "N of M assessments".
+  const results = () => screen.getByText(/^\d+ assessments?$/)
+  // A row is a div; its reference button is the one control in it that opens it.
+  const rowOf = (button: HTMLElement) => button.closest<HTMLElement>('div[data-id]')!
   const search = (value: string) =>
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value },
@@ -655,18 +660,19 @@ describe('Work list (RV-10)', () => {
     await openApp()
 
     // A row's name starts with its site; Continue capture names it later on.
-    const row = await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
+    const row = rowOf(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
     expect(row).toHaveTextContent('RPT-2026-0001')
     expect(row).toHaveTextContent('21 Apr 2026')
     expect(row).toHaveTextContent('Capturing')
-    expect(screen.getByRole('button', { name: /Harbourside Cold Store/ })).toHaveTextContent(
+    expect(rowOf(screen.getByRole('button', { name: /Harbourside Cold Store/ }))).toHaveTextContent(
       'Unscheduled',
     )
-    expect(results()).toHaveTextContent('2 of 2 assessments')
+    expect(results()).toHaveTextContent('2 assessments')
     expect(screen.queryByText('Someone Else Depot')).not.toBeInTheDocument()
   })
 
-  it('counts overdue reports, reports due soon and site visits soon, and filters by each box', async () => {
+  // The Overdue / Due soon / Site visits boxes became the Due pill (CP-23 screen 6A).
+  it('filters by overdue reports, reports due soon and site visits soon from the Due pill', async () => {
     const inDays = (days: number) => {
       const day = new Date()
       day.setDate(day.getDate() + days)
@@ -699,47 +705,40 @@ describe('Work list (RV-10)', () => {
     mockGateway()
     await openApp()
     await screen.findByRole('button', { name: /^Case Late/ })
-    const overdue = screen.getByRole('button', {
-      name: 'Overdue, 1, report past due. Show only these',
-    })
-    const dueSoon = screen.getByRole('button', {
-      name: 'Due soon, 2, reports due within 7 days. Show only these',
-    })
-    const visits = screen.getByRole('button', {
-      name: 'Site visits, 2, visits within 7 days. Show only these',
-    })
+    // Grouped by client, then site in name order.
     const shown = () =>
-      screen.getAllByRole('button', { name: /^Case/ }).map((row) => row.getAttribute('data-id'))
-    expect(results()).toHaveTextContent('6 of 7 assessments')
-    for (const box of [overdue, dueSoon, visits])
-      expect(box).toHaveAttribute('aria-pressed', 'false')
+      screen.getAllByRole('button', { name: /^Case/ }).map((b) => b.getAttribute('data-id'))
+    // Archived work is hidden until Status is Archived: 6 of the 7.
+    expect(results()).toHaveTextContent('6 assessments')
 
     // Each row counts down to its report due date, or is marked overdue.
-    const row = (name: string) => screen.getByRole('button', { name: new RegExp(`^Case ${name}`) })
-    expect(within(row('Late')).getByText('Overdue')).toBeInTheDocument()
-    expect(row('Soon')).toHaveTextContent('Due in 3 days')
-    expect(row('Today')).toHaveTextContent('Due today')
-    expect(row('Far')).toHaveTextContent('Due in 8 days')
-    expect(row('Done')).not.toHaveTextContent(/Due|Overdue/)
+    const row = (name: string) =>
+      rowOf(screen.getByRole('button', { name: new RegExp(`^Case ${name}`) }))
+    expect(within(row('Late')).getByText('2 days late')).toBeInTheDocument()
+    expect(row('Soon')).toHaveTextContent('in 3 days')
+    expect(row('Today')).toHaveTextContent('today')
+    expect(row('Far')).toHaveTextContent('in 8 days')
+    // Finished work shows its date alone, never late.
+    expect(row('Done')).not.toHaveTextContent(/late|today|in \d+ days/)
 
-    fireEvent.click(overdue)
-    expect(overdue).toHaveAttribute('aria-pressed', 'true')
+    // The footer's late link applies the Late choice of the Report due pill.
+    expect(screen.getByRole('button', { name: '1 report late' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '1 report late' }))
+    expect(screen.getByRole('button', { name: 'Report due: Late' })).toBeInTheDocument()
     expect(shown()).toEqual(['RPT-CASE-0'])
-    expect(results()).toHaveTextContent('1 of 7 assessments')
+    expect(results()).toHaveTextContent('1 assessment')
 
-    // Selecting another box moves the filter to it.
-    fireEvent.click(dueSoon)
-    expect(overdue).toHaveAttribute('aria-pressed', 'false')
-    expect(dueSoon).toHaveAttribute('aria-pressed', 'true')
+    // Choosing another moves the filter to it.
+    // Groups follow the sort, latest site visit first (round 12).
+    choose('Report due: Late', 'Due within 7 days')
     expect(shown()).toEqual(['RPT-CASE-2', 'RPT-CASE-1'])
 
-    fireEvent.click(visits)
+    choose('Report due: Due within 7 days', 'Site visit within 7 days')
     expect(shown()).toEqual(['RPT-CASE-3', 'RPT-CASE-2'])
 
-    // Selecting the ticked box again shows every assessment.
-    fireEvent.click(visits)
-    expect(visits).toHaveAttribute('aria-pressed', 'false')
-    expect(results()).toHaveTextContent('6 of 7 assessments')
+    // Any report due clears the pill and shows every assessment.
+    choose('Report due: Site visit within 7 days', 'Any report due')
+    expect(results()).toHaveTextContent('6 assessments')
   })
 
   it('filters by status and searches by site and client', async () => {
@@ -748,20 +747,16 @@ describe('Work list (RV-10)', () => {
     await openApp()
     await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
 
-    fireEvent.change(screen.getByLabelText('Filter by status'), {
-      target: { value: 'Under review' },
-    })
-    expect(results()).toHaveTextContent('1 of 2 assessments')
+    choose('Status', 'Under review')
+    expect(results()).toHaveTextContent('1 assessment')
     expect(screen.queryByRole('button', { name: /^Jurong/ })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Filter by status'), {
-      target: { value: 'All statuses' },
-    })
+    choose('Status: Under review', 'Any status')
     search('jurong')
-    expect(results()).toHaveTextContent('1 of 2 assessments')
+    expect(results()).toHaveTextContent('1 assessment')
     search('harbourside foods')
     expect(screen.getByRole('button', { name: /Harbourside Cold Store/ })).toBeInTheDocument()
-    expect(results()).toHaveTextContent('1 of 2 assessments')
+    expect(results()).toHaveTextContent('1 assessment')
   })
 
   it('shows the sample assessments when the gateway cannot be reached', async () => {
@@ -769,7 +764,105 @@ describe('Work list (RV-10)', () => {
     await openApp()
 
     expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
-    expect(results()).toHaveTextContent('6 of 6 assessments')
+    expect(results()).toHaveTextContent('6 assessments')
+  })
+
+  // CP-23: one date format on every screen ("5 Sep 2026", never "05 Sept"),
+  // and counts that read right for one.
+  it('dates and counts one assessment as every screen does', async () => {
+    listReply = () => respond(200, [{ ...LIST[0], siteVisitDate: '2026-09-05' }])
+    mockGateway()
+    await openApp()
+
+    const row = rowOf(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
+    expect(row).toHaveTextContent('5 Sep 2026')
+    // The page header carries no count or engineer name any more; the footer has the count.
+    expect(screen.getByText('1 assessment')).toBeInTheDocument()
+  })
+
+  it('says there are no assessments yet, with New assessment, when there are none at all', async () => {
+    listReply = () => respond(200, [])
+    mockGateway()
+    await openApp()
+
+    expect(await screen.findByText('No assessments yet')).toBeInTheDocument()
+    expect(screen.queryByText('No assessments match those filters')).not.toBeInTheDocument()
+    // The header's split button, and the empty list's own.
+    expect(screen.getAllByRole('button', { name: 'New assessment' })).toHaveLength(2)
+  })
+})
+
+describe('Assessments page (CP-23 screen 6A)', () => {
+  const visit = (
+    reference: string,
+    client: string,
+    site: string,
+    surveyType: string,
+    reportDueDate: string,
+  ) => ({
+    ...CREATED,
+    id: 'id-' + reference,
+    reference,
+    client,
+    surveyType,
+    reportDueDate,
+    status: 'capturing',
+    site: { ...CREATED.site, name: site },
+  })
+  // The rows shown, by their reference button's data-id.
+  const refs = () =>
+    [...document.querySelectorAll('button[data-id]')].map((b) => b.getAttribute('data-id'))
+  // One group per client and site (CP-23 board 03), named "Client, Site".
+  const groups = () =>
+    screen
+      .getAllByRole('region')
+      .map((r) => r.getAttribute('aria-label'))
+      // Sonner's toast area is a region too.
+      .filter((label) => !label?.startsWith('Notifications'))
+
+  it('groups rows under their client and site, and filters by Report due and Type', async () => {
+    listReply = () =>
+      respond(200, [
+        visit('RPT-1', 'Northgate Logistics', 'Tilbury', 'First survey', '2000-01-01'),
+        visit('RPT-2', 'Northgate Logistics', 'Dublin', 'Resurvey', '2099-12-31'),
+        visit('RPT-3', 'Fennick Foods', 'Leeds', 'Resurvey', '2099-12-31'),
+      ])
+    mockGateway()
+    await openApp()
+
+    // Each client › site heads its assessments, in the sort's order (here by name); the client name opens its page.
+    const northgate = await screen.findByRole('region', { name: 'Northgate Logistics, Dublin' })
+    choose(/^Sort assessments/, 'Client name, A to Z')
+    expect(groups()).toEqual([
+      'Fennick Foods, Leeds',
+      'Northgate Logistics, Dublin',
+      'Northgate Logistics, Tilbury',
+    ])
+    expect(within(northgate).getByText('Northgate Logistics')).toBeInTheDocument()
+    // A row: reference, type, survey date, status, and report due with its days late.
+    const late = screen
+      .getByRole('button', { name: /^Tilbury, RPT-1/ })
+      .closest<HTMLElement>('div[data-id]')!
+    for (const text of ['RPT-1', 'First survey', '21 Apr 2026', 'Capturing', 'days late'])
+      expect(late).toHaveTextContent(text)
+    // No summary boxes above the list any more.
+    expect(screen.queryByRole('button', { name: /Show only these/ })).not.toBeInTheDocument()
+
+    choose('Report due', 'Late')
+    expect(refs()).toEqual(['RPT-1'])
+    expect(groups()).toEqual(['Northgate Logistics, Tilbury'])
+    choose('Report due: Late', 'Any report due')
+
+    // Type offers the types the list has, after "Any type".
+    fireEvent.click(screen.getByRole('button', { name: 'Type' }))
+    expect(screen.getAllByRole('menuitemradio').map((m) => m.textContent)).toEqual([
+      'Any type',
+      'First survey',
+      'Resurvey',
+    ])
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Resurvey' }))
+    expect(refs()).toEqual(['RPT-3', 'RPT-2'])
+    expect(screen.getByText('2 assessments')).toBeInTheDocument()
   })
 })
 
@@ -847,290 +940,213 @@ describe('Work list by client (CP-17)', () => {
     vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         posts.push(JSON.parse(String(init.body)))
-        return respond(201, CREATED)
+        return respond(201, url === '/api/assessments' ? CREATED_REPLY : CREATED)
       }
       if (url === '/api/assessments') return respond(200, LIST)
-      if (url === '/api/assessments/engineers')
-        return respond(200, [
-          {
-            id: '6ab39017e45cf009e4507731',
-            name: 'Alex Rowe',
-            staffId: 'MRE-0001',
-            jobTitle: null,
-          },
-        ])
       if (url === '/api/clients')
         return respond(200, [{ id: 'n1', name: 'Northgate Logistics', sites: 2 }])
       if (url === '/api/clients/n1/sites') return respond(200, SITES)
+      // The client's page, which the new form reads for its sites' latest status.
+      if (url === '/api/clients/n1')
+        return respond(200, { id: 'n1', name: 'Northgate Logistics', sites: [] })
       return respond(200, [])
     })
     return posts
   }
   // The assessments listed in a client's group or a site's, in order.
   const refsIn = (element: HTMLElement) =>
-    within(element)
-      .getAllByRole('button')
-      .map((b) => b.getAttribute('data-id'))
-      .filter(Boolean)
-  const client = (name: string) => screen.getByRole('region', { name })
+    [...element.querySelectorAll('button[data-id]')].map((b) => b.getAttribute('data-id'))
+  // A client › site group (CP-23 board 03).
+  const group = (name: string | RegExp) => screen.getByRole('region', { name })
+  const groups = () =>
+    screen
+      .getAllByRole('region')
+      .map((r) => r.getAttribute('aria-label'))
+      // Sonner's toast area is a region too.
+      .filter((label) => !label?.startsWith('Notifications'))
+  // The list opens grouped by client (CP-23 screen 6A).
   async function grouped() {
     const posts = gateway()
     await openApp()
-    await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ })
-    fireEvent.click(screen.getByRole('button', { name: 'Group by client' }))
+    await screen.findByRole('region', { name: 'Northgate Logistics, Tilbury Distribution Centre' })
     return posts
   }
 
   it('groups my assessments by client, then site, in name order (AC9)', async () => {
     await grouped()
 
-    // The button now says what pressing it again does.
-    expect(screen.getByRole('button', { name: 'Show latest first' })).toBeInTheDocument()
-    expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Fennick Foods',
-      'Northgate Logistics',
-      'Old Client',
+    // By client is on from the start (CP-23).
+    expect(screen.getByRole('radio', { name: 'By client' })).toBeChecked()
+    choose(/^Sort assessments/, 'Client name, A to Z')
+    expect(groups()).toEqual([
+      'Fennick Foods, Leeds Cold Store',
+      'Northgate Logistics, Dublin Warehouse 4',
+      'Northgate Logistics, Tilbury Distribution Centre',
+      'Old Client, Old Site',
     ])
-    // Archived assessments are not counted.
-    expect(
-      screen.getByRole('button', { name: 'Northgate Logistics, 2 sites · 3 assessments' }),
-    ).toHaveAttribute('aria-expanded', 'true')
-    const northgate = client('Northgate Logistics')
-    expect(
-      within(northgate)
-        .getAllByRole('group')
-        .map((g) => g.getAttribute('aria-label')),
-    ).toEqual(['Dublin Warehouse 4', 'Tilbury Distribution Centre'])
-    const tilbury = within(northgate).getByRole('group', { name: 'Tilbury Distribution Centre' })
+    const tilbury = group('Northgate Logistics, Tilbury Distribution Centre')
     expect(tilbury).toHaveTextContent('Ferry Lane, Tilbury')
-    expect(tilbury).toHaveTextContent('2 visits')
     // Latest visit first within the site.
     expect(refsIn(tilbury)).toEqual(['RPT-2026-0411', 'RPT-2025-0414'])
-    // The heading names the client, so the Client column goes.
-    expect(screen.queryByText('Client', { selector: 'span' })).not.toBeInTheDocument()
+    // The group names the client, so the rows carry no "Client › Site" line.
+    expect(within(tilbury).queryByText(/Northgate Logistics ›/)).not.toBeInTheDocument()
 
-    // A client folds away under its heading.
-    fireEvent.click(screen.getByRole('button', { name: /^Northgate Logistics,/ }))
-    expect(screen.getByRole('button', { name: /^Northgate Logistics,/ })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    )
-    expect(refsIn(client('Northgate Logistics'))).toEqual([])
-
-    // Back to one list, latest site visit first.
-    fireEvent.click(screen.getByRole('button', { name: 'Show latest first' }))
-    expect(screen.queryByRole('region', { name: 'Northgate Logistics' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Group by client' })).toBeInTheDocument()
+    // All: one flat list, each row naming its client and site, latest site visit first.
+    fireEvent.click(screen.getByRole('radio', { name: 'All' }))
+    expect(groups()).toEqual([])
+    expect(screen.getByRole('radio', { name: 'All' })).toBeChecked()
+    expect(screen.getAllByText('Northgate Logistics › Tilbury Distribution Centre')).toHaveLength(2)
   })
 
   it('keeps the search, status and sort, hiding a client or site left empty', async () => {
     await grouped()
 
-    fireEvent.change(screen.getByLabelText('Sort assessments'), {
-      target: { value: 'Report due: earliest first' },
-    })
-    expect(
-      refsIn(within(client('Northgate Logistics')).getByRole('group', { name: /^Tilbury/ })),
-    ).toEqual(['RPT-2025-0414', 'RPT-2026-0411'])
-
-    fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'Finalised' } })
-    expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Northgate Logistics',
+    choose(/^Sort assessments/, 'Report due, earliest first')
+    // The groups follow the same sort: each by its earliest report due.
+    expect(groups()).toEqual([
+      'Northgate Logistics, Tilbury Distribution Centre',
+      'Northgate Logistics, Dublin Warehouse 4',
+      'Fennick Foods, Leeds Cold Store',
+      'Old Client, Old Site',
     ])
-    expect(
-      within(client('Northgate Logistics'))
-        .getAllByRole('group')
-        .map((g) => g.getAttribute('aria-label')),
-    ).toEqual(['Tilbury Distribution Centre'])
+    // The finalised visit sorts after the open one (finished work is last in this sort).
+    expect(refsIn(group(/^Northgate Logistics, Tilbury/))).toEqual([
+      'RPT-2026-0411',
+      'RPT-2025-0414',
+    ])
 
-    // A search opens a folded client.
-    fireEvent.change(screen.getByLabelText('Filter by status'), {
-      target: { value: 'All statuses' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /^Fennick Foods,/ }))
+    choose('Status', 'Finalised')
+    expect(groups()).toEqual(['Northgate Logistics, Tilbury Distribution Centre'])
+
+    choose('Status: Finalised', 'Any status')
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value: 'leeds' },
     })
-    expect(refsIn(client('Fennick Foods'))).toEqual(['RPT-2026-0408'])
-    expect(screen.getAllByRole('region')).toHaveLength(1)
+    expect(refsIn(group('Fennick Foods, Leeds Cold Store'))).toEqual(['RPT-2026-0408'])
+    expect(groups()).toHaveLength(1)
   })
 
-  it('lists archived assessments under their own button, not as a status', async () => {
-    gateway()
-    await openApp()
-    await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ })
+  it('lists archived assessments under the Status filter, hidden otherwise', async () => {
+    await grouped()
 
-    // The toolbar reads Group by client, Sort, Status, Archived, then Search.
-    const toolbar = screen.getByRole('button', { name: 'Group by client' }).parentElement!
-    const controls = [...toolbar.querySelectorAll('button, select, input')].map(
-      (c) => c.textContent || c.getAttribute('aria-label'),
+    // Search, the three pills, By client | All, Sort and New assessment (CP-23 boards 03, 04).
+    const toolbar = screen.getByRole('radiogroup', { name: 'Group assessments' }).parentElement!
+      .parentElement!
+    const controls = [...toolbar.querySelectorAll('button, input')].map(
+      (c) => c.getAttribute('aria-label') || c.textContent,
     )
-    expect(controls[0]).toBe('Group by client')
-    expect(controls.slice(1, 3)).toEqual([
-      expect.stringContaining('Latest site visit'),
-      expect.stringContaining('All statuses'),
+    expect(controls).toEqual([
+      'Search assessments',
+      'Status',
+      'Report due',
+      'Type',
+      'Sort assessments: Survey date, latest first',
+      'By client',
+      'All',
+      'New assessment',
     ])
-    expect(controls[3]).toBe('Archived (1)')
-    expect(controls[controls.length - 1]).toBe('Search assessments')
-    expect(
-      within(screen.getByLabelText('Filter by status')).queryByRole('option', { name: 'Archived' }),
-    ).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /RPT-2026-0300/ })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Archived (1)' }))
-    expect(
-      screen
-        .getAllByRole('button')
-        .map((b) => b.getAttribute('data-id'))
-        .filter(Boolean),
-    ).toEqual(['RPT-2026-0300'])
-    // The archived list groups too (CP-18), so a client whose visits are all
-    // archived can still be opened.
-    expect(screen.getByRole('button', { name: 'Group by client' })).toBeInTheDocument()
+    // Archived is a Status choice; it shows the archived rows and nothing else.
+    choose('Status', 'Archived')
+    expect(refsIn(document.body)).toEqual(['RPT-2026-0300'])
+    // Still grouped, so a client whose assessments are all archived can be opened.
+    expect(groups()).toEqual(['Northgate Logistics, Dublin Warehouse 4'])
+    expect(screen.getByRole('button', { name: 'Northgate Logistics' })).toBeInTheDocument()
+    // An archived row is opened, not archived again.
+    expect(screen.queryByRole('button', { name: 'Archive RPT-2026-0300' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to assessments' }))
-    expect(screen.getByRole('button', { name: 'Archived (1)' })).toBeInTheDocument()
+    choose('Status: Archived', 'Any status')
+    expect(screen.queryByRole('button', { name: /RPT-2026-0300/ })).not.toBeInTheDocument()
   })
 
-  it('starts a new visit to a site on its client, copying its last visit (AC6)', async () => {
+  it('starts a new assessment at a site on its client, copying its last one (AC6)', async () => {
     const posts = await grouped()
-    // A site not linked to a client can't be visited again from here.
-    expect(screen.queryByRole('button', { name: 'New visit to Old Site' })).not.toBeInTheDocument()
+    // A site not linked to a client can't take a new assessment from here.
+    expect(
+      screen.queryByRole('button', { name: 'New assessment for Old Site' }),
+    ).not.toBeInTheDocument()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New visit to Tilbury Distribution Centre' }),
+      screen.getByRole('button', { name: 'New assessment for Tilbury Distribution Centre' }),
     )
 
-    expect(screen.getByRole('heading', { name: 'Create assessment' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /^Client/ })).toHaveValue('Northgate Logistics')
-    expect(await screen.findByRole('combobox', { name: /^Site/ })).toHaveValue('t1')
-    expect(screen.getByLabelText(/Site name/)).toHaveValue('Tilbury Distribution Centre')
-    expect(screen.getByLabelText(/Site name/)).toBeDisabled()
+    expect(screen.getByRole('heading', { name: 'New Assessment' })).toBeInTheDocument()
+    // The form opens on Existing client, with that site already ticked.
+    expect(screen.getByRole('radio', { name: 'Existing client' })).toBeChecked()
+    expect(screen.getByRole('region', { name: 'Client' })).toHaveTextContent('Northgate Logistics')
     expect(
-      screen.getByRole('checkbox', { name: /Copy 6 locations from RPT-2026-0411/ }),
+      await screen.findByRole('checkbox', { name: /Tilbury Distribution Centre/ }),
     ).toBeChecked()
+    expect(screen.getByText('Ferry Lane, Tilbury')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Resurvey' }))
+    expect(
+      screen.getByRole('switch', { name: 'Copy 6 locations from RPT-2026-0411 · 11/04/2026' }),
+    ).toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     await screen.findByText(/RPT-2026-0001 created/)
-    expect(posts[0]).toMatchObject({ clientId: 'n1', siteId: 't1', copyLocations: true })
+    expect(posts[0]).toMatchObject({
+      client: { id: 'n1' },
+      sites: [{ id: 't1', copyLocations: true }],
+    })
   })
 })
 
-it('assigns one engineer by ID and keeps work assigned to someone else out of my list', async () => {
-  const me = '6ab39017e45cf009e4507731'
-  const other = '6ab39017e45cf009e4507732'
-  let submitted: { engineerId: string } | undefined
-  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
-    if (url === '/api/assessments/engineers')
-      return respond(200, [
-        { id: me, name: 'Alex Rowe', staffId: 'MRE-0001', jobTitle: null },
-        { id: other, name: 'Jide Okafor', staffId: 'MRE-0002', jobTitle: null },
-      ])
+it('assigns new assessments to me, with no engineer to choose (CP-23 AC10)', async () => {
+  let submitted: object | undefined
+  vi.stubGlobal('fetch', (_url: string, init?: RequestInit) => {
     if (init?.method === 'GET') return respond(200, [])
     submitted = JSON.parse(String(init?.body))
-    return respond(201, { ...CREATED, engineer: { id: other, name: 'Jide Okafor' } })
+    return respond(201, CREATED_REPLY)
   })
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  // Assigned to me until I choose someone else, whom I find by searching.
-  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
-  fireEvent.change(screen.getByRole('searchbox', { name: 'Search engineers' }), {
-    target: { value: 'jide' },
+  startFromForm()
+  expect(screen.queryByRole('searchbox', { name: 'Search engineers' })).not.toBeInTheDocument()
+  expect(screen.queryByText('Assigned engineer')).not.toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: CREATED.site.name } })
+  fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
+  fireEvent.change(screen.getByLabelText(/^Facility type/), {
+    target: { value: 'Distribution warehouse' },
   })
-  fireEvent.click(screen.getByRole('button', { name: /Jide Okafor/ }))
-  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
-  expect(screen.queryByText('Alex Rowe (you)')).not.toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: CREATED.site.name } })
-  fireEvent.change(screen.getByRole('combobox', { name: /^Client/ }), {
-    target: { value: CREATED.client },
+  fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: CREATED.client } })
+  fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
+  await screen.findByText(/RPT-2026-0001 created/)
+  expect(submitted).not.toHaveProperty('engineerId')
+  expect(screen.getByRole('button', { name: /Jurong Distribution Hub/ })).toBeInTheDocument()
+})
+
+it('keeps work assigned to someone else out of my list', async () => {
+  // The gateway answers with an assessment whose engineer is not the signed-in one.
+  const other = { ...CREATED, engineer: { id: '6ab39017e45cf009e4507732', name: 'Jide Okafor' } }
+  vi.stubGlobal('fetch', (_url: string, init?: RequestInit) =>
+    init?.method === 'GET'
+      ? respond(200, [])
+      : respond(201, { clientId: 'c1', assessments: [other] }),
+  )
+  await openApp()
+  startFromForm()
+  fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: CREATED.site.name } })
+  fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
+  fireEvent.change(screen.getByLabelText(/^Facility type/), {
+    target: { value: 'Distribution warehouse' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'Create assessment' }))
-  await screen.findByText(/It will appear in the assigned engineer’s work list/)
-  expect(submitted?.engineerId).toBe(other)
+  fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: CREATED.client } })
+  fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
+  await screen.findByText(/RPT-2026-0001 created/)
   expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
 })
 
-it('lists engineers only as search matches, by name, staff ID or job title', async () => {
-  vi.stubGlobal('fetch', (url: string) =>
-    url === '/api/assessments/engineers'
-      ? respond(200, [
-          {
-            id: '6ab39017e45cf009e4507731',
-            name: 'Alex Rowe',
-            staffId: 'MRE-0001',
-            jobTitle: null,
-          },
-          {
-            id: '6ab39017e45cf009e4507732',
-            name: 'Jide Okafor',
-            staffId: 'MRE-0002',
-            jobTitle: 'Senior risk engineer',
-          },
-          {
-            id: '6ab39017e45cf009e4507733',
-            name: 'Mei Tan',
-            staffId: 'MRE-0003',
-            jobTitle: 'Risk engineer',
-          },
-          ...Array.from({ length: 9 }, (_, n) => ({
-            id: `6ab39017e45cf009e450775${n}`,
-            name: `Field Engineer ${n + 1}`,
-            staffId: `MRE-01${n + 1}0`,
-            jobTitle: 'Graduate engineer',
-          })),
-        ])
-      : respond(200, []),
-  )
+it('offers starting from client documents from New assessment’s menu (CP-23 screen 2A)', async () => {
+  mockGateway()
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  // Only the assigned engineer shows until a search.
-  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
-  const matches = () => screen.queryByRole('list', { name: 'Matching engineers' })
-  const match = (name: RegExp) => within(matches()!).queryByRole('button', { name })
-  expect(matches()).not.toBeInTheDocument()
-  const searchBox = screen.getByRole('searchbox', { name: 'Search engineers' })
-  const search = (value: string) => fireEvent.change(searchBox, { target: { value } })
+  fireEvent.click(screen.getByRole('button', { name: 'New assessment' }))
+  const menu = screen.getByRole('dialog', { name: 'New assessment' })
+  expect(within(menu).getByRole('button', { name: /Fill in the form/ })).toBeInTheDocument()
+  fireEvent.click(within(menu).getByRole('button', { name: /Start from client documents/ }))
 
-  search('jide')
-  expect(match(/Jide Okafor/)).toBeInTheDocument()
-  expect(match(/Mei Tan/)).not.toBeInTheDocument()
-  expect(screen.getByText('1 match')).toBeInTheDocument()
-
-  search('mre-0003')
-  expect(match(/Mei Tan/)).toBeInTheDocument()
-  expect(match(/Jide Okafor/)).not.toBeInTheDocument()
-
-  search('SENIOR')
-  expect(match(/Jide Okafor/)).toBeInTheDocument()
-  expect(match(/Mei Tan/)).not.toBeInTheDocument()
-
-  // A broad search lists at most eight and asks for more letters.
-  search('engineer')
-  expect(within(matches()!).getAllByRole('button')).toHaveLength(8)
-  expect(
-    screen.getByText('Showing 8 of 11 matches. Keep typing to narrow it down.'),
-  ).toBeInTheDocument()
-
-  // The assigned engineer shows as chosen among the matches.
-  search('alex')
-  expect(match(/Alex Rowe \(you\)/)).toHaveAttribute('aria-pressed', 'true')
-
-  // Choosing closes the matches and keeps focus in the search.
-  search('jide')
-  fireEvent.click(match(/Jide Okafor/)!)
-  expect(matches()).not.toBeInTheDocument()
-  expect(searchBox).toHaveValue('')
-  expect(searchBox).toHaveFocus()
-  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
-  expect(screen.queryByText('Alex Rowe (you)')).not.toBeInTheDocument()
-
-  search('zzz')
-  expect(screen.getByText('No engineer matches "zzz".')).toBeInTheDocument()
-  expect(screen.getByText('Jide Okafor')).toBeInTheDocument()
-
-  search('')
-  expect(matches()).not.toBeInTheDocument()
-  expect(screen.queryByText(/No engineer matches/)).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'New Assessment' })).toBeInTheDocument()
+  expect(screen.getByText('Add the client’s documents')).toBeInTheDocument()
 })
 
 it('dates a new form today with its report due in two weeks, and opens it blank each time', async () => {
@@ -1141,70 +1157,32 @@ it('dates a new form today with its report due in two weeks, and opens it blank 
     await openApp()
     const openForm = () => {
       fireEvent.click(screen.getAllByRole('button', { name: /^Assessments/ })[0])
-      fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
+      startFromForm()
     }
-    const visit = () => screen.getByLabelText(/Site visit date/)
+    const visit = () => screen.getByLabelText(/^Survey start/)
     const due = () => screen.getByLabelText(/Report due/)
     openForm()
-    expect(visit()).toHaveValue('2026-10-25')
-    expect(due()).toHaveValue('2026-11-08')
+    expect(visit()).toHaveValue('25/10/2026')
+    expect(due()).toHaveValue('08/11/2026')
 
     // Left blank in a tab overnight, it opens on the next day's dates.
     vi.setSystemTime(new Date(2026, 9, 26, 9, 0))
     openForm()
-    expect(visit()).toHaveValue('2026-10-26')
-    expect(due()).toHaveValue('2026-11-09')
+    expect(visit()).toHaveValue('26/10/2026')
+    expect(due()).toHaveValue('09/11/2026')
 
     // One the engineer started and left is forgotten, not kept as a draft.
-    fireEvent.change(screen.getByRole('combobox', { name: /^Client/ }), {
-      target: { value: 'Draft client' },
-    })
-    fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Draft site' } })
+    fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: 'Draft client' } })
+    fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: 'Draft site' } })
     vi.setSystemTime(new Date(2026, 9, 27, 9, 0))
     openForm()
-    expect(screen.getByRole('combobox', { name: /^Client/ })).toHaveValue('')
-    expect(screen.getByLabelText(/Site name/)).toHaveValue('')
-    expect(visit()).toHaveValue('2026-10-27')
-    expect(due()).toHaveValue('2026-11-10')
+    expect(screen.getByLabelText(/^Client name/)).toHaveValue('')
+    expect(screen.getByLabelText(/^Site name/)).toHaveValue('')
+    expect(visit()).toHaveValue('27/10/2026')
+    expect(due()).toHaveValue('10/11/2026')
   } finally {
     vi.useRealTimers()
   }
-})
-
-it('reloads the engineer directory after failure, the form opening blank on the signed-in engineer', async () => {
-  let reply: (response: Response) => void = () => {}
-  const directory = vi
-    .fn()
-    .mockImplementationOnce(() => respond(503, { error: 'Unavailable' }))
-    .mockImplementationOnce(
-      () =>
-        new Promise<Response>((resolve) => {
-          reply = resolve
-        }),
-    )
-  vi.stubGlobal('fetch', (url: string) =>
-    url === '/api/assessments/engineers' ? directory() : respond(200, []),
-  )
-  await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  await screen.findByText('Engineer list unavailable')
-  fireEvent.change(screen.getByLabelText(/Site name/), { target: { value: 'Typed site' } })
-
-  fireEvent.click(screen.getAllByRole('button', { name: /^Assessments/ })[0])
-  fireEvent.click(screen.getAllByRole('button', { name: 'New assessment' })[0])
-  expect(screen.getByText('Loading engineers…')).toBeInTheDocument()
-  expect(screen.queryByText('Engineer list unavailable')).not.toBeInTheDocument()
-  reply(
-    await respond(200, [
-      { id: '6ab39017e45cf009e4507731', name: 'Alex Rowe', staffId: 'MRE-0001', jobTitle: null },
-    ]),
-  )
-
-  expect(await screen.findByText('Alex Rowe (you)')).toBeInTheDocument()
-  // What was typed before leaving is gone.
-  expect(screen.getByLabelText(/Site name/)).toHaveValue('')
-  expect(screen.queryByText('Loading engineers…')).not.toBeInTheDocument()
-  expect(directory).toHaveBeenCalledTimes(2)
 })
 
 it('shows report deadlines, excludes today and finalised work from overdue, and sorts with filters', async () => {
@@ -1227,27 +1205,28 @@ it('shows report deadlines, excludes today and finalised work from overdue, and 
   mockGateway()
   await openApp()
   await screen.findByRole('button', { name: /^Deadline Undated/ })
-  const overdue = screen.getByRole('button', { name: /^Deadline Overdue/ })
-  expect(within(overdue).getByText('Overdue')).toBeInTheDocument()
+  // One list, latest first, rather than grouped by client (CP-23).
+  fireEvent.click(screen.getByRole('radio', { name: 'All' }))
+  const rowOf = (name: string) =>
+    screen
+      .getByRole('button', { name: new RegExp(`^Deadline ${name}`) })
+      .closest<HTMLElement>('div[data-id]')!
+  expect(within(rowOf('Overdue')).getByText(/days late/)).toBeInTheDocument()
   for (const name of ['Undated', 'Future', 'Today', 'Finalised']) {
-    expect(
-      within(screen.getByRole('button', { name: new RegExp(`^Deadline ${name}`) })).queryByText(
-        'Overdue',
-      ),
-    ).not.toBeInTheDocument()
+    expect(within(rowOf(name)).queryByText(/days late/)).not.toBeInTheDocument()
   }
   const order = () =>
     screen.getAllByRole('button', { name: /^Deadline/ }).map((row) => row.getAttribute('data-id'))
   expect(order()).toEqual([0, 1, 2, 3, 4].map((i) => `RPT-DEADLINE-${i}`))
-  const sort = screen.getByLabelText('Sort assessments')
-  fireEvent.change(sort, { target: { value: 'Report due: earliest first' } })
-  expect(order()).toEqual([3, 4, 2, 1, 0].map((i) => `RPT-DEADLINE-${i}`))
-  fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'Capturing' } })
+  choose(/^Sort assessments/, 'Report due, earliest first')
+  // The finalised one (4) goes last: nothing is left to chase.
+  expect(order()).toEqual([3, 2, 1, 0, 4].map((i) => `RPT-DEADLINE-${i}`))
+  choose('Status', 'Capturing')
   fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
     target: { value: 'Deadline' },
   })
   expect(order()).toEqual([3, 2, 1, 0].map((i) => `RPT-DEADLINE-${i}`))
-  fireEvent.change(sort, { target: { value: 'Latest site visit' } })
+  choose(/^Sort assessments/, 'Survey date, latest first')
   expect(order()).toEqual([0, 1, 2, 3].map((i) => `RPT-DEADLINE-${i}`))
 })
 
@@ -1279,21 +1258,16 @@ it('archives my assessment from its workspace, then shows it only under Archived
   status = 'archived'
   fireEvent.click(within(dialog).getByRole('button', { name: 'Archive' }))
 
-  await screen.findByText(/RPT-2026-0001 archived/)
+  await screen.findByText('RPT-2026-0001 archived')
   expect(fetchMock).toHaveBeenCalledWith(
     '/api/assessments/RPT-2026-0001/archive',
     expect.anything(),
   )
-  // Hidden from the work list, listed under Archived (1), which is not a
-  // status (CP-17).
-  await screen.findByText(/0 of 1 assessments/)
+  // Hidden from the work list, listed under the Status filter's Archived (CP-23).
+  await screen.findByText('0 assessments')
   expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
-  expect(
-    within(screen.getByLabelText('Filter by status')).queryByRole('option', { name: 'Archived' }),
-  ).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Archived (1)' }))
-  expect(screen.queryByLabelText('Filter by status')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Back to assessments' })).toBeInTheDocument()
+  choose('Status', 'Archived')
+  expect(screen.getByRole('button', { name: 'Status: Archived' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 
   // An archived workspace offers neither capture nor another archive.
@@ -1310,14 +1284,46 @@ it('archives my assessment from its workspace, then shows it only under Archived
     '/api/assessments/RPT-2026-0001/restore',
     expect.anything(),
   )
-  fireEvent.change(screen.getByLabelText('Filter by status'), {
-    target: { value: 'All statuses' },
-  })
-  await screen.findByText(/1 of 1 assessments/)
+  await screen.findByText('1 assessment')
   const row = screen
     .getAllByRole('button', { name: /Jurong Distribution Hub/ })
     .find((b) => b.getAttribute('data-id') === 'RPT-2026-0001')
-  expect(row).toHaveTextContent('Capturing')
+  expect(row?.closest('div[data-id]')).toHaveTextContent('Capturing')
+})
+
+it('archives from a list row with the same confirm, and Undo restores it (CP-23 board 01)', async () => {
+  let status = 'capturing'
+  const calls: string[] = []
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      calls.push(url)
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    return respond(200, url === '/api/assessments' ? [{ ...CREATED, status }] : [])
+  })
+  await openApp()
+  await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Archive RPT-2026-0001' }))
+  const dialog = screen.getByRole('dialog', { name: 'Archive this assessment?' })
+  status = 'archived'
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Archive' }))
+
+  // The toast offers Undo, and the row leaves the list.
+  await screen.findByText('RPT-2026-0001 archived')
+  expect(calls).toEqual(['/api/assessments/RPT-2026-0001/archive'])
+  await vi.waitFor(() =>
+    expect(screen.queryByRole('button', { name: /^Jurong Distribution Hub/ })).toBeNull(),
+  )
+  status = 'capturing'
+  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(
+    await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }),
+  ).toBeInTheDocument()
+  expect(calls).toEqual([
+    '/api/assessments/RPT-2026-0001/archive',
+    '/api/assessments/RPT-2026-0001/restore',
+  ])
 })
 
 it('offers Archive on the demo assessment too, from its saved record', async () => {
@@ -1331,9 +1337,10 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
     respond(200, url === '/api/assessments' ? [tilburyRecord] : []),
   )
   await openApp()
-  const tilbury = (
-    await screen.findAllByRole('button', { name: /Tilbury Distribution Centre/ })
-  ).find((b) => b.getAttribute('data-id') === 'RPT-2026-0411')!
+  // Grouped by client, the sample rows give way to the saved record's group.
+  const tilbury = within(
+    await screen.findByRole('region', { name: /^Straits Logistics/ }),
+  ).getByRole('button', { name: /^Tilbury Distribution Centre/ })
   fireEvent.click(tilbury)
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
@@ -1447,14 +1454,14 @@ it('corrects the site from the Overview for every assessment at it, asking first
   )
   const dialog = screen.getByRole('dialog', { name: 'Edit Jurong Distribution Hub' })
   expect(
-    within(dialog).getByText('All 2 assessments at this site show the change.'),
+    within(dialog).getByText('Changes apply to the 2 assessments at this site.'),
   ).toBeInTheDocument()
   fireEvent.change(within(dialog).getByLabelText(/Facility type/), {
     target: { value: 'Cold store' },
   })
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
   // A new scope changes what drafting retrieves, so it asks first.
-  expect(within(dialog).getByText(/This changes 2 assessments/)).toBeInTheDocument()
+  expect(within(dialog).getByText(/changes the 2 assessments/)).toBeInTheDocument()
   expect(corrections).toHaveLength(0)
   fireEvent.click(within(dialog).getByRole('button', { name: 'Change scope' }))
 
@@ -1737,8 +1744,14 @@ describe('Overview', () => {
       respond(200, url === '/api/assessments' ? [TILBURY] : []),
     )
     await openApp()
+    // Grouped by client, the sample rows give way to the saved record's group.
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+      within(await screen.findByRole('region', { name: /^Straits Logistics/ })).getByRole(
+        'button',
+        {
+          name: /^Tilbury Distribution Centre/,
+        },
+      ),
     )
     // The samples still list on the Observations tab, but the server has none.
     expect(box('Capture')).toHaveTextContent('0observations')

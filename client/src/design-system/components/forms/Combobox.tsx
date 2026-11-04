@@ -141,6 +141,7 @@ function Combobox({
       ) : null}
       <div style={{ position: 'relative' }}>
         <span
+          className="ds-field"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -160,6 +161,7 @@ function Combobox({
           }}
         >
           <input
+            className="ds-field-input"
             id={inputId}
             role="combobox"
             aria-autocomplete="list"
@@ -269,6 +271,7 @@ function Combobox({
                 key={option}
                 id={optionId(index)}
                 role="option"
+                className="ds-combo-option"
                 aria-selected={index === current}
                 // Keeps focus in the field, so the click lands before it blurs.
                 onMouseDown={(event) => event.preventDefault()}

@@ -75,13 +75,9 @@ export const JURISDICTIONS = [
   { value: 'UK', label: 'United Kingdom' },
 ]
 
-// The kinds of assessment offered when creating one and in Edit details.
-export const SURVEY_TYPES = [
-  'Property risk survey',
-  'Follow-up visit',
-  'Business interruption',
-  'Natural hazard review',
-]
+// The visit types offered when creating an assessment and in Edit details
+// (CP-23); must match VISIT_TYPES in new-assessment/form.ts and the gateway's list.
+export const SURVEY_TYPES = ['First survey', 'Resurvey', 'Follow-up visit']
 
 // The gateway checks knowledge documents against a copy of this list: keep
 // FACILITY_TYPES in server/src/services/knowledge-document.service.ts matching.
@@ -109,32 +105,13 @@ export const initialState: WorkflowState = {
   q: '',
   fStatus: 'All statuses',
   fDate: null,
-  workSort: 'Latest site visit',
-  workByClient: false,
+  fVisitType: '',
+  workSort: 'Survey date, latest first',
+  workByClient: true,
   workFolded: {},
   showArchived: false,
   createdRows: [],
-  cf: {
-    site: '',
-    client: '',
-    addr: '',
-    type: 'Distribution warehouse',
-    survey: 'Property risk survey',
-    // Set to today and two weeks on whenever a blank form is made.
-    date: '',
-    due: '',
-    eng: '',
-    engQuery: '',
-    jurisdiction: 'SG',
-    clientId: '',
-    siteId: '',
-    copy: true,
-    kept: [],
-    check: null,
-  },
-  cfErr: false,
-  cfBusy: false,
-  cfServerError: null,
+  createStart: { mode: 'form' },
   captureTarget: CAPTURE_ASSESSMENT,
   recent: [],
   captureObs: {},

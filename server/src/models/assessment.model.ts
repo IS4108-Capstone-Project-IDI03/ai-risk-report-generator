@@ -5,6 +5,13 @@ import { Schema, Types, model } from 'mongoose'
 export const REPORT_STATUSES = ['draft', 'under_review', 'finalised'] as const
 export type ReportStatus = (typeof REPORT_STATUSES)[number]
 
+// What kind of visit an assessment is (CP-23): a site's first survey by us, a
+// periodic resurvey of a site surveyed before, or a short visit to check an
+// earlier survey's recommendations. Checked when an assessment is created or
+// edited; older values ("Property risk survey") are still read until
+// `npm run migrate:visit-types` converts them.
+export const VISIT_TYPES = ['First survey', 'Resurvey', 'Follow-up visit'] as const
+
 // A place on the site the engineer records observations in (CP-16): in a
 // building, e.g. "Staircase" on "Level 2" of "Block A" (the level is optional,
 // for the whole building, e.g. its facade), or elsewhere on site, with a name
@@ -30,9 +37,14 @@ export interface IAssessment {
   // client (npm run migrate:clients), and kept so that can be run again; a new
   // assessment has none, and reads its client through its site.
   client?: string
+  // One of VISIT_TYPES, or an older value not yet migrated.
   surveyType: string
   siteVisitDate?: Date
+  // The last day of a visit over several days (CP-23); absent for one day.
+  siteVisitEndDate?: Date
   reportDueDate?: Date
+  // Who to meet at the site (CP-23), as the client's documents name them.
+  siteContacts?: { name: string; role?: string }[]
   // The one assigned engineer's account; their name is read from it, so a
   // rename shows everywhere. The work list matches on it (RV-10).
   engineer?: Types.ObjectId
@@ -95,7 +107,18 @@ const assessmentSchema = new Schema<IAssessment>(
       trim: true,
     },
     siteVisitDate: Date,
+    siteVisitEndDate: Date,
     reportDueDate: Date,
+    siteContacts: {
+      type: [
+        {
+          _id: false,
+          name: { type: String, required: true, trim: true, maxlength: 200 },
+          role: { type: String, trim: true, maxlength: 200 },
+        },
+      ],
+      default: undefined,
+    },
     engineer: { type: Schema.Types.ObjectId, ref: 'User', index: true },
     reportStatus: {
       type: String,

@@ -3,22 +3,24 @@ import {
   Button,
   Dialog,
   EmptyState,
-  Icon,
   IconRegistry,
+  NavDrawer,
+  PhoneBar,
   SideNav,
   Tabs,
   Toast,
+  Toaster,
 } from '../../design-system'
 import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import { guardLeave } from './leaveGuard'
 import { AssessmentActions } from './components/AssessmentActions'
-import { MoreMenu } from './components/MoreMenu'
 import { siteWalkReview } from '../site-walk/openReview'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
-import { CreateAssessment } from './screens/CreateAssessment'
+import { NewAssessment } from '../new-assessment/screens/NewAssessment'
+import { NewAssessmentButton } from '../new-assessment/components/NewAssessmentButton'
 import { SiteObservation } from './screens/SiteObservation'
 import { Overview } from './screens/Overview'
 import { Checklist } from './screens/Checklist'
@@ -43,6 +45,8 @@ const UsageCosts = lazy(() =>
   import('../usage/screens/UsageCosts').then((m) => ({ default: m.UsageCosts })),
 )
 import { AccessDenied } from '../auth/AccessDenied'
+import marshLogo from '../../assets/marsh-logo.png'
+import marshMark from '../../assets/marsh-m.png'
 
 export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
   const captureOnPhone = v.isField && v.phone && !v.routeBlocked
@@ -68,316 +72,240 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollTop = 0
   }, [v.viewKey])
+  // Screen changes (R9 · 3): siblings fade, going deeper slides in from the right, going
+  // back from the left. The screen's own key leaves out the tab, so tab changes stay still.
+  const screenKey = v.viewKey
+    .split('|')
+    .filter((_, i) => i !== 1)
+    .join('|')
+  const depth = v.isClient ? 1 : v.isCreate || v.isAssessment || v.isField ? 2 : 0
+  const last = useRef({ screenKey, depth })
+  useLayoutEffect(() => {
+    const before = last.current
+    last.current = { screenKey, depth }
+    if (before.screenKey === screenKey) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    // Board 17 (R9 · 3): siblings rise 6 px in 200 ms; deeper/back slide 16 px in 240 ms.
+    // shortcut: the old screen doesn't fade out first (it is already replaced); add an
+    // exit phase only if the cut ever looks abrupt.
+    const sibling = depth === before.depth
+    const from = reduce
+      ? 'none'
+      : sibling
+        ? 'translateY(6px)'
+        : `translateX(${depth > before.depth ? 16 : -16}px)`
+    // element.animate is missing in jsdom, so tests see the screen at once.
+    scroller.current?.animate?.(
+      [
+        { opacity: 0, transform: from },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: reduce ? 120 : sibling ? 200 : 240, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+    )
+  }, [screenKey, depth])
   return (
     <>
       {/* data-sidenav lets fixed overlays centre on the content, not the window. */}
-      <div className="workflow" data-sidenav={v.showSideNav || undefined}>
+      <div
+        className="workflow"
+        data-sidenav={v.showSideNav ? (v.navCollapsed ? 'rail' : 'open') : undefined}
+      >
         <div className="workflow-frame">
           <div style={{ display: 'flex', height: '100%' }}>
+            {/* Collapsing leaves an icon rail (CP-23), never a hidden sidebar. */}
             {!!v.showSideNav && (
-              <>
-                <SideNav
-                  product="Risk Report Generator"
-                  sections={v.navSections}
-                  value={v.navValue}
-                  onChange={(to: string) => leave(to === v.navValue, () => v.go(to))}
-                  footer={v.navFooter}
-                ></SideNav>
-              </>
-            )}
-            <Dialog
-              className="navigation-drawer"
-              open={v.navOpen}
-              ariaLabel="Navigation"
-              onClose={v.closeNav}
-              width={264}
-            >
               <SideNav
-                product="Risk Report Generator"
+                logoSrc={marshLogo}
+                subtitle="Risk Report Generator"
+                markSrc={marshMark}
+                sections={v.navSections}
+                value={v.navValue}
+                onChange={(to: string) => leave(to === v.navValue, () => v.go(to))}
+                footer={v.navFooter}
+                collapsed={v.navCollapsed}
+                onToggleCollapsed={v.toggleNav}
+              />
+            )}
+            <NavDrawer open={v.navOpen} onClose={v.closeNav}>
+              <SideNav
+                logoSrc={marshLogo}
+                subtitle="Risk Report Generator"
                 sections={v.navSections}
                 value={v.navValue}
                 onChange={(to: string) => leave(to === v.navValue, () => v.goFromDrawer(to))}
                 footer={v.navFooter}
+                onToggleCollapsed={v.closeNav}
+                toggleLabel="Close navigation"
               />
-            </Dialog>
+            </NavDrawer>
             <div style={{ flex: '1', minWidth: '0', display: 'flex', flexDirection: 'column' }}>
+              {/* Phone: one navy bar. Capture is drilled into, so ← replaces the menu. */}
               {!!v.showTopBar && (
-                <>
-                  <div
-                    style={{
-                      flex: '0 0 auto',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 16px',
-                      background: 'var(--marsh-navy)',
-                      color: '#fff',
-                    }}
-                  >
-                    {/* Capture on a phone is a screen drilled into: the bar
-                        says what it is, with ← back to the Observations tab
-                        in place of the menu. */}
-                    <button
-                      type="button"
-                      onClick={captureOnPhone ? v.leaveCapture : v.toggleNav}
-                      aria-label={
-                        captureOnPhone
-                          ? v.proposalCapture
-                            ? 'Back to site walk'
-                            : 'Back to observations'
-                          : 'Open navigation'
-                      }
-                      style={{
-                        flex: '0 0 auto',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: v.phone ? '44px' : '36px',
-                        height: v.phone ? '44px' : '36px',
-                        border: 'none',
-                        borderRadius: '99px',
-                        background: 'transparent',
-                        color: '#fff',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Icon name={captureOnPhone ? 'chevron-left' : 'menu'} size={20}></Icon>
-                    </button>
-                    {captureOnPhone ? (
-                      <h1
-                        style={{
-                          flex: '1',
-                          minWidth: '0',
-                          margin: '0',
-                          fontSize: '17px',
-                          fontWeight: '600',
-                          letterSpacing: '-0.01em',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {'New Observation'}
-                      </h1>
-                    ) : (
-                      <span
-                        style={{
-                          flex: '1',
-                          minWidth: '0',
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          justifyContent: 'center',
-                          gap: '8px',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <span
-                          style={{ fontSize: '16px', fontWeight: '600', letterSpacing: '-0.01em' }}
-                        >
-                          {'Marsh'}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: '14px',
-                            color: 'rgba(255,255,255,0.62)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {'Risk Report Generator'}
-                        </span>
-                      </span>
-                    )}
-                    <span style={{ flex: '0 0 auto' }}>
-                      <NotificationBell counts={session.notifications} tone="dark" />
-                    </span>
-                  </div>
-                </>
+                <PhoneBar
+                  onMenu={v.toggleNav}
+                  bell={<NotificationBell counts={session.notifications} tone="dark" />}
+                  back={
+                    captureOnPhone
+                      ? {
+                          label: v.proposalCapture ? 'Back to site walk' : 'Back to observations',
+                          title: 'New Observation',
+                          onClick: v.leaveCapture,
+                        }
+                      : undefined
+                  }
+                />
               )}
 
               {/* Capture keeps the workspace's header and tabs. On a phone the
-                  top bar stands in for them, leaving the screen to the form. */}
-              {!captureOnPhone && (
-                <div
-                  style={{
-                    flex: '0 0 auto',
-                    background: 'var(--surface-card)',
-                    borderBottom: '1px solid var(--border-default)',
-                    padding: '20px clamp(16px,2vw,28px) 0',
-                  }}
-                >
+                  top bar stands in for them, leaving the screen to the form. A
+                  client's page heads itself with the client's name (CP-23). */}
+              {!captureOnPhone &&
+                !(v.isClient && !v.routeBlocked) &&
+                !(v.isClients && !v.routeBlocked) &&
+                !(v.isDashboard && !v.routeBlocked) &&
+                // New Assessment heads itself with the kit TopBar and its Create (CP-23).
+                !(v.isCreate && !v.routeBlocked) && (
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      flexWrap: 'wrap',
-                      gap: '12px 20px',
-                      paddingBottom: '16px',
+                      flex: '0 0 auto',
+                      background: 'var(--surface-card)',
+                      borderBottom: '1px solid var(--border-default)',
+                      padding: '20px clamp(16px,2vw,28px) 0',
                     }}
                   >
-                    {!!v.showHeaderMenu && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={v.toggleNav}
-                          aria-label="Toggle navigation"
-                          style={{
-                            flex: '0 0 auto',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '36px',
-                            height: '36px',
-                            marginTop: '2px',
-                            border: 'none',
-                            borderRadius: '99px',
-                            background: 'transparent',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            transition: 'var(--transition-control)',
-                          }}
-                          data-hoverable="true"
-                        >
-                          <Icon name="menu" size={18}></Icon>
-                        </button>
-                      </>
-                    )}
-                    <div style={{ minWidth: '0', flex: v.showTopBar ? '1 0 100%' : '1' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          marginBottom: '6px',
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: 'var(--text-muted)',
-                          }}
-                        >
-                          {v.eyebrow}
-                        </span>
-                      </div>
-                      <h1
-                        style={{
-                          margin: '0',
-                          fontSize: 'clamp(23px,2.4vw,32px)',
-                          lineHeight: '1.2',
-                          fontWeight: '700',
-                          letterSpacing: '-0.02em',
-                          color: 'var(--text-primary)',
-                          overflowWrap: 'anywhere',
-                          textWrap: 'pretty',
-                        }}
-                      >
-                        {v.routeBlocked ? 'Access restricted' : v.title}
-                      </h1>
-                      {!v.routeBlocked && !!v.meta && (
-                        <div
-                          style={{
-                            marginTop: '6px',
-                            fontSize: '15px',
-                            lineHeight: '22px',
-                            color: 'var(--text-secondary)',
-                          }}
-                        >
-                          {v.meta}
-                        </div>
-                      )}
-                    </div>
                     <div
                       style={{
-                        flex: '0 1 auto',
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'flex-start',
                         flexWrap: 'wrap',
-                        gap: '8px',
-                        paddingTop: '6px',
+                        gap: '12px 20px',
+                        paddingBottom: '16px',
                       }}
                     >
-                      {v.isDashboard && !v.routeBlocked && v.canEdit && (
-                        <Button variant="primary" iconLeft="plus" onClick={v.goCreate}>
-                          New assessment
-                        </Button>
-                      )}
-                      {/* A client page's main action, Add site, then its
-                        occasional ones, Rename and Remove, behind ⋯, as an
-                        assessment's are (CP-18). */}
-                      {!!v.clientAddSite && !v.routeBlocked && (
-                        <Button variant="primary" iconLeft="plus" onClick={v.clientAddSite}>
-                          {'Add site'}
-                        </Button>
-                      )}
-                      {!!v.clientMenu && !v.routeBlocked && (
-                        <MoreMenu items={v.clientMenu.items} notes={v.clientMenu.notes} />
-                      )}
-                      {/* Restore stays visible: it is the one thing to do with an
+                      <div style={{ minWidth: '0', flex: v.showTopBar ? '1 0 100%' : '1' }}>
+                        {!!v.eyebrow && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              marginBottom: '6px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: 'var(--text-muted)',
+                              }}
+                            >
+                              {v.eyebrow}
+                            </span>
+                          </div>
+                        )}
+                        <h1
+                          style={{
+                            margin: '0',
+                            fontSize: 'clamp(23px,2.4vw,32px)',
+                            lineHeight: '1.2',
+                            fontWeight: '700',
+                            letterSpacing: '-0.02em',
+                            color: 'var(--text-primary)',
+                            overflowWrap: 'anywhere',
+                            textWrap: 'pretty',
+                          }}
+                        >
+                          {v.routeBlocked ? 'Access restricted' : v.title}
+                        </h1>
+                        {!v.routeBlocked && !!v.meta && (
+                          <div
+                            style={{
+                              marginTop: '6px',
+                              fontSize: '15px',
+                              lineHeight: '22px',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {v.meta}
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          flex: '0 1 auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                          paddingTop: '6px',
+                        }}
+                      >
+                        {v.isClients && !v.routeBlocked && v.canEdit && (
+                          <NewAssessmentButton onStart={v.goCreate} />
+                        )}
+                        {/* Restore stays visible: it is the one thing to do with an
                         archived assessment. Capturing starts from the
                         Observations tab's own buttons (CP-22). */}
-                      {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
-                        <>
-                          {v.canRestore && (
-                            <Button
-                              variant="secondary"
-                              iconLeft={IconRegistry.action.reinstate}
-                              onClick={v.restoreAssessment}
-                              disabled={v.archiveBusy}
-                            >
-                              {'Restore'}
-                            </Button>
-                          )}
-                          {/* Version history and Archive are for the whole assessment,
+                        {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
+                          <>
+                            {v.canRestore && (
+                              <Button
+                                variant="secondary"
+                                iconLeft={IconRegistry.action.reinstate}
+                                onClick={v.restoreAssessment}
+                                disabled={v.archiveBusy}
+                              >
+                                {'Restore'}
+                              </Button>
+                            )}
+                            {/* Version history and Archive are for the whole assessment,
                             so they sit here on every tab and on New Observation
                             (CP-22 round 1). Leaving the document editor or a
                             capture for history asks first (RV-08). */}
-                          <AssessmentActions
-                            onHistory={() => guardLeave(v.showVersionHistory)}
-                            onArchive={v.canArchive ? v.openArchive : undefined}
-                          />
-                        </>
-                      )}
-                      {/* Desktop has no top bar, so the bell lives in the page
+                            <AssessmentActions
+                              onHistory={() => guardLeave(v.showVersionHistory)}
+                              onArchive={v.canArchive ? v.openArchive : undefined}
+                            />
+                          </>
+                        )}
+                        {/* Desktop has no top bar, so the bell lives in the page
                         header. On phones the navy bar carries it instead, so
                         this copy is suppressed to avoid a second one. */}
-                      {!v.showTopBar && !v.routeBlocked && (
-                        <NotificationBell counts={session.notifications} />
-                      )}
-                    </div>
-                  </div>
-                  {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
-                    <>
-                      <div
-                        className="om-hidebar ws-tabs"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          overflowX: 'auto',
-                          scrollbarWidth: 'none',
-                        }}
-                      >
-                        {/* From capture, a tab leaves it for that tab. */}
-                        <Tabs
-                          items={v.tabItems}
-                          value={v.tabValue}
-                          onChange={
-                            v.isField
-                              ? v.leaveCaptureTo
-                              : (tab: string) => leave(tab === v.tabValue, () => v.setTab(tab))
-                          }
-                          compact
-                        ></Tabs>
+                        {!v.showTopBar && !v.routeBlocked && (
+                          <NotificationBell counts={session.notifications} />
+                        )}
                       </div>
-                    </>
-                  )}
-                </div>
-              )}
+                    </div>
+                    {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
+                      <>
+                        <div
+                          className="om-hidebar ws-tabs"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            overflowX: 'auto',
+                            scrollbarWidth: 'none',
+                          }}
+                        >
+                          {/* From capture, a tab leaves it for that tab. */}
+                          <Tabs
+                            items={v.tabItems}
+                            value={v.tabValue}
+                            onChange={
+                              v.isField
+                                ? v.leaveCaptureTo
+                                : (tab: string) => leave(tab === v.tabValue, () => v.setTab(tab))
+                            }
+                            compact
+                          ></Tabs>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
               <main
                 ref={scroller}
@@ -393,17 +321,45 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                   <AccessDenied roleLabel={v.roleName} onLeave={v.leaveBlocked} />
                 ) : (
                   <>
-                    {v.isDashboard && <Dashboard v={v} />}
+                    {v.isDashboard && (
+                      <Dashboard
+                        v={v}
+                        // Desktop has no top bar, so the bell sits in the page's own header.
+                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                      />
+                    )}
 
-                    {v.isCreate && <CreateAssessment v={v} />}
+                    {v.isCreate && (
+                      <NewAssessment
+                        mode={v.newAssessment.start.mode}
+                        start={v.newAssessment.start}
+                        onCreated={v.newAssessment.onCreated}
+                        onView={v.newAssessment.onView}
+                        onLeave={v.cancelForm}
+                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                      />
+                    )}
 
                     {v.isField && <SiteObservation v={v} />}
 
                     {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
 
-                    {v.isClients && <ClientList {...v.clientList} />}
+                    {v.isClients && (
+                      <ClientList
+                        {...v.clientList}
+                        onStart={v.canEdit ? v.goCreate : undefined}
+                        // Desktop has no top bar, so the bell sits in the page's own header.
+                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                      />
+                    )}
 
-                    {v.isClient && <ClientPage {...v.clientPage} />}
+                    {v.isClient && (
+                      <ClientPage
+                        {...v.clientPage}
+                        // Desktop has no top bar, so the bell sits in the page's own header.
+                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                      />
+                    )}
 
                     {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
 
@@ -498,14 +454,16 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
           ></Dialog>
           <Dialog
             open={v.archiveOpen}
+            className="ds-dialog--v2"
             title="Archive this assessment?"
-            description="It leaves your work list and takes no new observations. Everything it holds is kept, and you can still find it by filtering by Archived."
+            description="It moves off your work list and stops taking new observations. Everything is kept, and you can find it by filtering Status to Archived."
             footer={
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                <Button variant="secondary" onClick={v.closeArchive} disabled={v.archiveBusy}>
+              <>
+                <Button pill variant="secondary" onClick={v.closeArchive} disabled={v.archiveBusy}>
                   {'Cancel'}
                 </Button>
                 <Button
+                  pill
                   variant="primary"
                   iconLeft="archive"
                   onClick={v.confirmArchive}
@@ -513,11 +471,13 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 >
                   {'Archive'}
                 </Button>
-              </div>
+              </>
             }
             onClose={v.closeArchive}
-            width={480}
+            width={440}
           ></Dialog>
+          {/* Sonner's toaster (CP-23); callers use `toast` from the design system. */}
+          <Toaster />
           {!!v.toast && (
             <>
               {/* Keyed by message: a new toast starts fresh, even if the last one was fading out. */}

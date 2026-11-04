@@ -274,7 +274,7 @@
   }
 }
 
-@media (max-width: 759px) {
+@media (max-width: 767px) {
   .notification-popover-surface {
     position: fixed !important;
     top: auto !important;

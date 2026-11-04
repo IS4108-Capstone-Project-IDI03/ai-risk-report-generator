@@ -1,8 +1,8 @@
-import { Badge } from '../../../design-system'
+import { Icon } from '../../../design-system'
 
 // A report deadline beside its due date, on the work list and a client's
-// page (CP-18): the Overdue badge once past due, otherwise the countdown,
-// amber within three days.
+// page (CP-18): Overdue in red once past due (CP-23), otherwise the
+// countdown, amber within three days.
 export function DueNote({
   overdue,
   countdown,
@@ -10,7 +10,22 @@ export function DueNote({
   overdue: boolean
   countdown: { text: string; soon: boolean } | null
 }) {
-  if (overdue) return <Badge tone="high">Overdue</Badge>
+  if (overdue)
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          fontSize: '13px',
+          fontWeight: '600',
+          color: 'var(--red-600)',
+        }}
+      >
+        <Icon name="circle-alert" size={14} />
+        Overdue
+      </span>
+    )
   if (!countdown) return null
   return (
     <span

@@ -1,0 +1,524 @@
+/* The client page (CP-23, boards 06 and 07): avatar, site cards, the facts panel.
+   Used by ClientHeader, SiteCard, ClientFacts, ClientAvatar. Table and card
+   basics are in clients.css. */
+
+/* ---- Avatar: initials on a colour picked from the name ---- */
+.client-avatar {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  /* 44 px: as tall as the eyebrow and title beside it, so the header reads as one line (round 17). */
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: #fff;
+  font: 700 15px/1 var(--font-sans);
+  letter-spacing: 0.02em;
+}
+/* In the top bar: centred on the eyebrow and title, whose title line sits 2 px low. */
+.ds-topbar > .client-avatar {
+  margin-top: 2px;
+}
+.client-avatar--sm {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile);
+  font-size: 12px;
+}
+.client-avatar[data-tone='0'] {
+  background: var(--report-navy);
+}
+.client-avatar[data-tone='1'] {
+  background: var(--violet-600);
+}
+.client-avatar[data-tone='2'] {
+  background: var(--teal-600);
+}
+.client-avatar[data-tone='3'] {
+  background: var(--green-600);
+}
+.client-avatar[data-tone='4'] {
+  background: var(--amber-600);
+}
+.ds-topbar .client-avatar {
+  align-self: flex-start;
+}
+
+/* ---- Body: the tab's content, with the facts panel beside it from wide screens ---- */
+.cl-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cl-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+/* Narrow (tablet): the facts become a strip under the content (board 25). */
+@container cl-content (min-width: 1000px) {
+  .cl-body[data-panel] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+  }
+}
+
+/* ---- Site cards ---- */
+.cl-sites {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cl-site-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: #eef1f6;
+}
+.cl-site-tile {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-tile);
+  background: var(--surface-card);
+  color: var(--marsh-navy);
+}
+.cl-site-text {
+  flex: 1;
+  min-width: 0;
+}
+.cl-site-text h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.cl-site-text .cl-chips {
+  margin-top: 8px;
+}
+.cl-site-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+.cl-site-note {
+  padding: 12px 16px 16px;
+}
+.cl-sites .cl-assess {
+  border-top: 1px solid var(--graphite-200);
+}
+.cl-sites .cl-assess th:first-child {
+  border-top: 0;
+}
+.cl-sites .cl-assess th {
+  border-top: 0;
+}
+
+/* ---- Facts panel ---- */
+.cl-facts {
+  padding: 16px 20px 4px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+.cl-facts dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 24px;
+  margin: 0;
+}
+@container cl-content (min-width: 640px) and (max-width: 999px) {
+  .cl-facts dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.cl-fact {
+  margin: 0 0 16px;
+}
+.cl-fact dt {
+  margin: 0 0 6px;
+  color: var(--graphite-600);
+  font: 700 11px/1.2 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cl-fact dd {
+  margin: 0;
+  color: var(--graphite-900);
+  font: 400 14px/1.4 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.cl-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cl-contacts li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cl-contact-dot {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-100);
+  color: var(--ink-600);
+  font: 700 10px/1 var(--font-sans);
+}
+
+/* A site's name keeps to three lines; the badge beside it never shrinks. */
+.cl-site-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  min-width: 0;
+  overflow: hidden;
+}
+/* Phone: the site's actions stay top right. */
+@media (max-width: 767px) {
+  .cl-site-actions {
+    gap: 0;
+    margin: -8px -8px 0 0;
+  }
+}
+
+/* ---- Header: Rename / Remove pills, phone title and actions (boards 06, 22) ---- */
+.cl-header-actions,
+.cl-phone-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The facts content is in the Client details sheet on a phone. */
+@media (max-width: 767px) {
+  .cl-facts:not(.cl-facts--sheet) {
+    display: none;
+  }
+  .cl-page .ds-topbar h1 {
+    font: 700 22px/1.2 var(--font-sans);
+    overflow-wrap: anywhere;
+  }
+  /* Assessments sit indented under their site's header (R12), no rail. */
+  .cl-sites .cl-assess {
+    width: calc(100% - 16px);
+    margin: 0 0 0 16px;
+  }
+}
+.cl-facts--sheet {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* Phone document row: name (two lines at most) and tag (one line), ⋯ at the end (board 22). */
+.cl-doc-phone .cl-flex {
+  align-items: center;
+}
+.cl-doc-phone .cl-lines {
+  flex: 1;
+  min-width: 0;
+}
+.cl-doc-phone .cl-line-1 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cl-doc-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cl-doc-tag svg {
+  flex: none;
+}
+
+/* Tablet and desktop tables: first column left, the rest centred (board 06 C). */
+@media (min-width: 768px) {
+  .cl-docs :is(th, td):not(:first-child):not(.cl-cell-actions),
+  .cl-assess :is(th, td):not(:first-child):not(.cl-cell-actions) {
+    text-align: center;
+  }
+  .cl-assess td:not(:first-child) .ds-due {
+    display: inline-flex;
+    text-align: left;
+  }
+  .cl-docs .ds-tag-pill {
+    max-width: 100%;
+  }
+}
+
+/* Under 1024 px the avatar only repeats the name, so it goes and the title keeps its room. */
+@media (max-width: 1023px) {
+  .cl-page .ds-topbar .client-avatar {
+    display: none;
+  }
+}
+
+/* A tab's panel fades in and rises 4 px (board 17 · 1); reduced motion: fade only. */
+.cl-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: cl-rise var(--duration-base) var(--ease-out);
+}
+/* A tab picked with the arrow keys switches at once: motion on keyboard steps feels slow. */
+.cl-page:has([role='tab']:focus-visible) .cl-panel {
+  animation: none;
+}
+@keyframes cl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-panel {
+    animation-name: cl-fade;
+  }
+  @keyframes cl-fade {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* Tablet keeps assessments as tables (board 25): the card is ~680 px, so Type (and Survey
+   date beside the Site column) go; they show on the assessment itself and on desktop. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .cl-page .cl-assess[data-site] :is(th, td, col):is(:nth-child(3), :nth-child(4)),
+  .cl-page .cl-assess:not([data-site]) :is(th, td, col):nth-child(2) {
+    display: none;
+  }
+  .cl-page .cl-assess col:first-child {
+    width: 224px;
+  }
+  /* A site's own table has no Site column: tighter dates so the chevron stays inside the card. */
+  .cl-page .cl-assess:not([data-site]) col:first-child {
+    width: 196px;
+  }
+  .cl-page .cl-assess:not([data-site]) :is(.cl-col-date, .cl-col-status, .cl-col-due) {
+    width: 124px;
+  }
+}
+
+/* Documents: the row that changed (board 17 · 7). New row: fades in 180 ms and holds a soft
+   blue tint for 1 s, which fades over 260 ms. Retagged: the tag cross-fades. Deleted: the row
+   fades out 120 ms before the table closes up. Reduced motion: tint only. */
+.cl-docs tr[data-fresh] {
+  animation:
+    cl-row-in var(--duration-base) var(--ease-out),
+    cl-tint 1260ms linear;
+}
+.cl-docs tr[data-retagged] td[data-label='Tag'] {
+  animation: cl-row-in var(--duration-base) var(--ease-out);
+}
+.cl-docs tr[data-leaving] {
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+@keyframes cl-row-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cl-tint {
+  0%,
+  79% {
+    background: var(--ink-50);
+  }
+  100% {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-docs tr[data-fresh] {
+    animation: cl-tint 1260ms linear;
+  }
+  .cl-docs tr[data-retagged] td[data-label='Tag'] {
+    animation: none;
+  }
+}
+
+/* A long reference wraps rather than running into the next column (worst-case data). */
+.cl-page .cl-assess .cl-line-1 {
+  display: block;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  /* Upload gets its own full-width row under search and Tag (board 22 F); all 44 px. */
+  .cl-page .cl-toolbar-end {
+    flex: 1 1 100%;
+  }
+  .cl-page .cl-toolbar .ds-search,
+  .cl-page .cl-toolbar .ds-filter-pill,
+  .cl-page .cl-toolbar-end button {
+    min-height: 44px;
+  }
+  .cl-page .cl-toolbar .ds-search {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  /* The tabs are 44 px high; a row that scrolls shows a soft edge where more waits. */
+  .cl-page .ds-tabs [role='tab'] {
+    min-height: 44px;
+    align-items: center;
+    padding-bottom: 0 !important;
+  }
+  .cl-page .ds-tabs {
+    background:
+      linear-gradient(to right, var(--surface-card) 30%, transparent) left / 32px 100% no-repeat
+        local,
+      linear-gradient(to left, var(--surface-card) 30%, transparent) right / 32px 100% no-repeat
+        local,
+      linear-gradient(to right, rgb(0 24 71 / 12%), transparent) left / 12px 100% no-repeat scroll,
+      linear-gradient(to left, rgb(0 24 71 / 12%), transparent) right / 12px 100% no-repeat scroll;
+  }
+}
+
+/* ---- Phone assessment rows (board 22): tile, reference and a second line on the left,
+   status and report due on the right, a chevron. Open work shows the site on the second
+   line; a site's own table shows the type. The survey date is on the assessment itself. ---- */
+@media (max-width: 767px) {
+  .cl-assess colgroup,
+  .cl-assess thead {
+    display: none;
+  }
+  .cl-assess,
+  .cl-assess tbody,
+  .cl-assess td {
+    display: block;
+  }
+  .cl-assess tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 32px;
+    grid-template-areas:
+      'main status go'
+      'sub due go';
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 4px;
+    padding: 12px 0 12px 16px;
+    border-top: 1px solid var(--graphite-100);
+  }
+  .cl-assess td {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+  .cl-assess td.cl-cell-main {
+    grid-area: main;
+  }
+  .cl-assess td[data-label='Site'],
+  .cl-assess:not([data-site]) td[data-label='Type'] {
+    grid-area: sub;
+    padding-left: 44px;
+    color: var(--graphite-600);
+    font-size: 13px;
+  }
+  .cl-assess td[data-label='Site'] .cl-clamp {
+    -webkit-line-clamp: 1;
+  }
+  .cl-assess[data-site] td[data-label='Type'],
+  .cl-assess td[data-label='Survey date'] {
+    display: none;
+  }
+  .cl-assess td[data-label='Status'] {
+    grid-area: status;
+    justify-self: end;
+  }
+  .cl-assess td[data-label='Report due'] {
+    grid-area: due;
+    justify-self: end;
+  }
+  .cl-assess td.cl-cell-actions {
+    grid-area: go;
+    padding: 0 !important;
+  }
+  .cl-assess .cl-row-actions {
+    justify-content: center;
+    opacity: 1;
+  }
+  /* 44 px to tap, 32 px of room: the row itself opens the assessment too. */
+  .cl-assess .cl-row-actions :is(button, a) {
+    margin-inline: -6px;
+  }
+  .cl-sites .cl-assess {
+    border-top: 0;
+  }
+  .cl-assess td:first-child {
+    padding-left: 0;
+  }
+  /* The reference stays on one line; the site line under it is cut with … */
+  .cl-page .cl-assess .cl-line-1 {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Phone documents: one cell per row (DocumentRow), name and tag, ⋯ at the end. */
+@media (max-width: 767px) {
+  .cl-docs colgroup,
+  .cl-docs thead {
+    display: none;
+  }
+  .cl-docs,
+  .cl-docs tbody,
+  .cl-docs tr,
+  .cl-docs td {
+    display: block;
+  }
+  .cl-docs tr {
+    border-top: 1px solid var(--graphite-100);
+  }
+  .cl-docs td.cl-cell-main {
+    height: auto;
+    min-height: 72px;
+    padding: 12px 4px 12px 16px;
+    border: 0;
+  }
+}
+
+/* Tablet and up: the title block keeps at least 240 px and wraps by whole words (never a letter
+   per line); Rename, Remove and New assessment drop under the title when they don't fit. */
+@media (min-width: 768px) {
+  .cl-page .ds-topbar-main {
+    flex: 1 1 240px;
+  }
+  .cl-page .ds-topbar-title h1 {
+    overflow-wrap: break-word;
+  }
+}
+
+/* A single-word Tag ends in … at the pill's edge (the kit's flex text can't); a "ref · site" tag keeps its reference whole. */
+.cl-page .ds-tag-pill-text:not(:has(.ds-tag-pill-ref)) {
+  display: block;
+}

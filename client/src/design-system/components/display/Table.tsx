@@ -43,6 +43,7 @@ function Table({
       >
         <thead>
           <tr
+            className="ds-on-grey"
             style={{
               background: 'var(--surface-header)',
             }}

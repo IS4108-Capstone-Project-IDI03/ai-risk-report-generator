@@ -81,6 +81,18 @@ export const FACILITY_TYPES = [
   'Shopping mall',
   'Mixed-use development',
 ]
+// The jurisdictions a site may be in (CP-23 client intake). Must match
+// JURISDICTIONS in client/src/features/assessments/demo-data.ts, which the forms offer.
+export const JURISDICTIONS = [
+  { code: 'SG', name: 'Singapore' },
+  { code: 'MY', name: 'Malaysia' },
+  { code: 'ID', name: 'Indonesia' },
+  { code: 'TH', name: 'Thailand' },
+  { code: 'PH', name: 'Philippines' },
+  { code: 'VN', name: 'Vietnam' },
+  { code: 'HK', name: 'Hong Kong' },
+  { code: 'UK', name: 'United Kingdom' },
+]
 const onTheList = (allowed: string[]) =>
   [(value: string) => allowed.includes(value), 'Choose a facility type from the list.'] as const
 
@@ -560,14 +572,14 @@ const findStoredCopy = (sha256: string) =>
   }).lean()
 
 // Every PDF starts with this marker; the Content-Type alone is only a claim.
-const PDF_MARKER = Buffer.from('%PDF-')
+export const PDF_MARKER = Buffer.from('%PDF-')
 // Newer Office and OpenDocument files are ZIPs, told apart by their entries;
 // older Office files are OLE containers, told apart by their main stream's name.
 const ZIP_MARKER = Buffer.from('PK\x03\x04')
 const OLE_MARKER = Buffer.from('d0cf11e0a1b11ae1', 'hex')
-const isZipWith = (file: Buffer, entry: string) =>
+export const isZipWith = (file: Buffer, entry: string) =>
   file.subarray(0, 4).equals(ZIP_MARKER) && file.includes(entry)
-const isOleWith = (file: Buffer, stream: string) =>
+export const isOleWith = (file: Buffer, stream: string) =>
   file.subarray(0, 8).equals(OLE_MARKER) && file.includes(Buffer.from(stream, 'utf16le'))
 
 // The other files an upload may be, each turned into a PDF by the converter.

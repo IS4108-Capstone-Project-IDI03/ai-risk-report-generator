@@ -1,194 +1,175 @@
+// The app's sidebar (CP-23, board 02 option A): Marsh navy, white wordmark and
+// subtitle, labelled groups and a foldable group (Recent). With
+// onToggleCollapsed it collapses to an icon rail instead of hiding. Styles
+// are .ds-sidenav in design-system/styles.css. Used by AssessmentApp.tsx.
 import type * as React from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '../core/Icon'
+import { Tooltip } from '../feedback/Tooltip'
+import './shell.css'
+
 export type SideNavProps = {
+  // The wordmark, and the small mark the rail shows instead.
   logoSrc?: string
-  product?: React.ReactNode
+  markSrc?: string
   brand?: string
+  // Small line under the wordmark, e.g. the product name.
+  subtitle?: string
   sections?: {
     label: string
+    // A collapsible group folds under its heading and is left off the rail.
+    collapsible?: boolean
     // live: shows a blinking light (the .live-dot style) beside the label.
+    // The board shows no count beside an item, so `count` is accepted and not drawn.
     items: { value: string; label: string; icon?: string; count?: number; live?: boolean }[]
   }[]
   value?: string | number
   onChange?: (value: string) => void
   footer?: React.ReactNode
+  collapsed?: boolean
+  // Shows the collapse control at the top right; without it there is none (the phone drawer).
+  onToggleCollapsed?: () => void
+  // Names that control when it does not fold the sidebar, e.g. "Close navigation" in the drawer.
+  toggleLabel?: string
   style?: React.CSSProperties
 }
+
 function SideNav({
   logoSrc,
-  product = 'Risk Report Generator',
+  markSrc,
   brand = 'Marsh',
+  subtitle,
   sections = [],
   value,
   onChange,
   footer,
+  collapsed = false,
+  onToggleCollapsed,
+  toggleLabel,
   style = {},
 }: SideNavProps) {
+  // Groups folded away by their heading, e.g. Recent.
+  const [folded, setFolded] = useState<Record<string, boolean>>({})
+  const logo = collapsed ? markSrc : logoSrc
+  // The active highlight is one pill that glides to the current item (R7 · 4); `ease`
+  // is false on the first paint so it does not slide in from the top.
+  const body = useRef<HTMLDivElement>(null)
+  const [glide, setGlide] = useState<{ y: number; h: number; ease: boolean } | null>(null)
+  useLayoutEffect(() => {
+    const box = body.current
+    const cur = box?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!box || !cur) return setGlide((g) => (g ? null : g))
+    const y = cur.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+    const h = cur.offsetHeight
+    // Same spot: keep the old state so a re-render with new `sections` does not loop.
+    setGlide((g) => (g && g.y === y && g.h === h ? g : { y, h, ease: g !== null }))
+  }, [value, collapsed, folded, sections])
   return (
-    <nav
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        width: 'var(--sidebar-width)',
-        flex: '0 0 auto',
-        height: '100%',
-        background: 'var(--surface-nav)',
-        color: 'var(--graphite-300)',
-        fontFamily: 'var(--font-sans)',
-        ...style,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-3)',
-          padding: 'var(--space-9) var(--space-7)',
-          borderBottom: '1px solid rgba(255,255,255,0.12)',
-        }}
-      >
-        {logoSrc ? (
-          <img
-            src={logoSrc}
-            alt={'Marsh'}
-            style={{
-              height: 17,
-              width: 'auto',
-              display: 'block',
-            }}
-          />
-        ) : (
-          <span
-            style={{
-              color: 'var(--graphite-0)',
-              fontSize: 'var(--text-h3-size)',
-              fontWeight: 'var(--weight-semibold)',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {brand}
-          </span>
-        )}
-        {product ? (
-          <span
-            style={{
-              fontSize: 'var(--text-small-size)',
-              color: 'var(--graphite-400)',
-              letterSpacing: '0.01em',
-            }}
-          >
-            {product}
-          </span>
-        ) : null}
-      </div>
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: 'var(--space-7) var(--space-5)',
-        }}
-      >
-        {sections.map((sec) => (
-          <div
-            key={sec.label || 'default'}
-            role={sec.label ? 'group' : undefined}
-            aria-label={sec.label || undefined}
-            style={{
-              marginBottom: 'var(--space-7)',
-            }}
-          >
-            {sec.label ? (
-              <div
-                style={{
-                  padding: '0 var(--space-4) var(--space-4)',
-                  fontSize: 'var(--text-label-size)',
-                  letterSpacing: 'var(--text-label-ls)',
-                  textTransform: 'uppercase',
-                  fontWeight: 'var(--text-label-weight)',
-                  color: 'var(--graphite-500)',
-                }}
-              >
-                {sec.label}
-              </div>
-            ) : null}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-1)',
-              }}
-            >
-              {(sec.items || []).map((it) => {
-                const active = it.value === value
-                return (
-                  <button
-                    key={it.value}
-                    aria-current={active ? 'page' : undefined}
-                    type={'button'}
-                    onClick={() => onChange && onChange(it.value)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-5)',
-                      height: 45,
-                      padding: '0 var(--space-4)',
-                      border: 'none',
-                      borderRadius: 'var(--radius-md)',
-                      background: active ? 'rgba(255,255,255,0.10)' : 'transparent',
-                      color: active ? 'var(--graphite-0)' : 'var(--graphite-300)',
-                      fontFamily: 'inherit',
-                      fontSize: 'var(--text-body-size)',
-                      fontWeight: active ? 'var(--weight-medium)' : 'var(--weight-regular)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'var(--transition-control)',
-                    }}
-                  >
-                    <Icon name={it.icon || 'circle'} size={15} />
-                    {/* A long label, such as a site name, ends in an ellipsis;
-                        the tooltip gives it whole. */}
-                    <span
-                      title={it.label}
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {it.label}
-                    </span>
-                    {it.live ? (
-                      <span className="live-dot" role="img" aria-label="live"></span>
-                    ) : null}
-                    {it.count != null ? (
-                      <span
-                        style={{
-                          fontSize: 'var(--text-caption-size)',
-                          color: 'var(--graphite-400)',
-                        }}
-                      >
-                        {it.count}
-                      </span>
-                    ) : null}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-      {footer ? (
-        <div
-          style={{
-            padding: 'var(--space-7) var(--space-6)',
-            borderTop: '1px solid rgba(255,255,255,0.12)',
-          }}
-        >
-          {footer}
+    <nav className="ds-sidenav ds-on-navy" data-collapsed={collapsed || undefined} style={style}>
+      <div className="ds-sidenav-head">
+        <div className="ds-sidenav-title">
+          {logo ? (
+            <img className="ds-sidenav-logo" src={logo} alt={brand} />
+          ) : (
+            <span className="ds-sidenav-brand">{brand}</span>
+          )}
+          {subtitle && !collapsed ? <span className="ds-sidenav-subtitle">{subtitle}</span> : null}
         </div>
-      ) : null}
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            className="ds-sidenav-icon-button"
+            aria-label={toggleLabel ?? (collapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+            aria-expanded={!collapsed}
+            title={toggleLabel ?? (collapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+            onClick={onToggleCollapsed}
+          >
+            <Icon name={collapsed ? 'panel-left-open' : 'panel-left-close'} size={16} />
+          </button>
+        )}
+      </div>
+      <div className="ds-sidenav-body" ref={body} data-glide={glide ? '' : undefined}>
+        {glide && (
+          <span
+            className="ds-sidenav-glide"
+            data-ready={glide.ease || undefined}
+            style={{ transform: `translateY(${glide.y}px)`, height: glide.h }}
+          />
+        )}
+        {sections
+          .filter((sec) => !(collapsed && sec.collapsible))
+          .map((sec) => {
+            const isFolded = !!sec.collapsible && !!folded[sec.label]
+            return (
+              <div key={sec.label || 'default'} className="ds-sidenav-group">
+                {sec.label && !collapsed ? (
+                  sec.collapsible ? (
+                    <button
+                      type="button"
+                      className="ds-sidenav-label ds-sidenav-fold"
+                      aria-expanded={!isFolded}
+                      onClick={() => setFolded({ ...folded, [sec.label]: !isFolded })}
+                    >
+                      {sec.label}
+                      <Icon name={isFolded ? 'chevron-right' : 'chevron-down'} size={12} />
+                    </button>
+                  ) : (
+                    <div className="ds-sidenav-label">{sec.label}</div>
+                  )
+                ) : null}
+                {/* The group holds the items only, not the fold control above them. */}
+                <div
+                  role={sec.label ? 'group' : undefined}
+                  aria-label={sec.label || undefined}
+                  className="ds-sidenav-items"
+                >
+                  {!isFolded &&
+                    sec.items.map((it) => {
+                      const item = (
+                        <button
+                          key={it.value}
+                          type="button"
+                          className="ds-sidenav-item"
+                          data-small={sec.collapsible || undefined}
+                          aria-current={it.value === value ? 'page' : undefined}
+                          // On the rail only the icon shows, so the label names the button.
+                          aria-label={collapsed ? it.label : undefined}
+                          onClick={() => onChange && onChange(it.value)}
+                        >
+                          <Icon
+                            name={it.icon || 'circle'}
+                            size={sec.collapsible ? 16 : 18}
+                            // The current page's icon takes the blue-green mark (board 02).
+                            color={it.value === value ? 'var(--sn-mark)' : undefined}
+                          />
+                          {!collapsed && (
+                            <>
+                              {/* A long label, such as a site name, ends in an ellipsis;
+                                the tooltip gives it whole. */}
+                              <span className="ds-sidenav-text" title={it.label}>
+                                {it.label}
+                              </span>
+                              {it.live ? (
+                                <span className="live-dot" role="img" aria-label="live"></span>
+                              ) : null}
+                            </>
+                          )}
+                        </button>
+                      )
+                      return collapsed ? (
+                        <Tooltip key={it.value} label={it.label} placement="right">
+                          {item}
+                        </Tooltip>
+                      ) : (
+                        item
+                      )
+                    })}
+                </div>
+              </div>
+            )
+          })}
+      </div>
+      {footer ? <div className="ds-sidenav-foot">{footer}</div> : null}
     </nav>
   )
 }

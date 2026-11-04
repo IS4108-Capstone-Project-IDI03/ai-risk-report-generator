@@ -65,6 +65,7 @@ function Input({
         </span>
       ) : null}
       <span
+        className="ds-field"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -88,6 +89,7 @@ function Input({
       >
         {iconLeft ? <Icon name={iconLeft} size={14} color={'var(--text-muted)'} /> : null}
         <input
+          className="ds-field-input"
           aria-invalid={!!error}
           aria-describedby={error || hint ? descriptionId : undefined}
           required={required}

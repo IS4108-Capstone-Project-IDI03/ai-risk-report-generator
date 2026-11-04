@@ -16,17 +16,20 @@ function Tooltip({ label, placement = 'top', children, style = {} }: TooltipProp
           left: '50%',
           transform: 'translateX(-50%)',
         }
-      : placement === 'right'
-        ? {
-            left: 'calc(100% + 6px)',
-            top: '50%',
-            transform: 'translateY(-50%)',
-          }
-        : {
-            bottom: 'calc(100% + 6px)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-          }
+      : placement === 'top-end'
+        ? // Right edge of the trigger, for triggers at a card's right edge (CP-23).
+          { bottom: 'calc(100% + 6px)', right: 0 }
+        : placement === 'right'
+          ? {
+              left: 'calc(100% + 6px)',
+              top: '50%',
+              transform: 'translateY(-50%)',
+            }
+          : {
+              bottom: 'calc(100% + 6px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }
   return (
     <span
       onMouseEnter={() => setOpen(true)}
