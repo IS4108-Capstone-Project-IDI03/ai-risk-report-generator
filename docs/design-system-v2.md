@@ -7,6 +7,43 @@ The look every new screen follows: calm, Apple-like screens, white cards on a pa
 - **Relation to the old guide:** `docs/design-system.md` still lists the code's tokens and components. Where the two disagree on look and feel (type, spacing, shape, motion, colour use), this file wins. Restyle old components to this look as you touch them.
 - **For coding agents:** read this file before any UI work, together with the `apple-design` skill. Use the token names below; don't add new hex values.
 
+## Skills used to build this design system
+
+Jesper builds and checks every screen with these agent skills. Install the same ones so your agent follows the same rules. Sources come from the local install records; where none is recorded it says so.
+
+**From `emilkowalski/skills`** (https://github.com/emilkowalski/skills)
+
+- `apple-design`: the Apple feel (type, materials, springs, restraint). Used on every UI change.
+- `emil-design-eng`: judges polish and the small details that make a screen feel right.
+- `mobile-native`: makes screens feel native on a phone (375 px checks, tap targets, safe areas).
+- `review-animations`: reviews motion code against the Motion card. Run once in Check.
+- `improve-animations`: audits motion across the app and plans fixes. End-of-project polish.
+- `break-ui`: stress-tests a screen with worst-case data (long names, empty lists, huge counts).
+
+**From `pbakaus/impeccable`** (https://github.com/pbakaus/impeccable)
+
+- `impeccable`: build new UI, then audit, critique and polish it. Used on every frontend change.
+
+**From `Leonxlnx/taste-skill`** (https://github.com/Leonxlnx/taste-skill)
+
+- `design-taste-frontend` (optional): keeps pages from looking templated. Mostly for new public pages.
+
+**Source repo not recorded locally** (the skill text credits Emil Kowalski, but no repo is recorded, so treat it as unverified)
+
+- `animate`: builds one motion from the Motion card (purpose, property, curve, duration).
+- `find-animation-opportunities`: finds the few places motion helps and what must not move. Used on the Motion board.
+- `remove-animations`: removes motion the app doesn't need.
+- `animation-performance`: fixes janky or costly animation (blur, big areas).
+- `ask-sonner`: Sonner toast setup and styling, for the Toast component. Docs: https://sonner.emilkowal.ski
+
+**Other sources**
+
+- `web-design-guidelines`: checks UI code against Vercel's Web Interface Guidelines, which the skill fetches from https://github.com/vercel-labs/web-interface-guidelines (the skill's own repo is not recorded locally).
+- `playwright-cli`: drives a real browser for the 375 / 1280 / 1440 / 1920 px screenshot checks. Repo not recorded locally; its SKILL.md installs the tool with `npm install -g @playwright/cli@latest`.
+- `dataviz` (optional, for charts): source not recorded locally.
+
+**How to install:** copy or clone the skill folder into `~/.claude/skills/` (all projects) or `.claude/skills/` (this repo only), so that `<skill>/SKILL.md` exists, then restart your agent. For Codex use `~/.codex/skills/`. Jesper's install records come from the `npx skills` installer; check each repo's README for its own install command.
+
 ## 0. Why this exists: one app, one look
 
 The point of this system is **consistency**. The same kind of information looks and behaves the same on every screen, whichever story built it and whoever uses it (engineer, knowledge admin, account admin). A user who has learnt one table, one status pill or one jurisdiction chip already knows them everywhere else, so the app feels familiar and easy, even on a screen they have never opened.
