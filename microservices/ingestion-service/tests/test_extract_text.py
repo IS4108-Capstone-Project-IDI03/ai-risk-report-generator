@@ -23,6 +23,7 @@ def post(filename: str, data: bytes):
 
 
 def make_pdf(*page_texts: str) -> bytes:
+    # A typed page needs 20+ letters (MIN_TEXT_CHARS), or it is read as a scan and real OCR runs.
     doc = pymupdf.open()
     for text in page_texts:
         page = doc.new_page()
@@ -55,11 +56,11 @@ def make_eml(*attachments: tuple[str, bytes, str, str]) -> bytes:
 
 
 def test_text_pdf():
-    response = post("policy.pdf", make_pdf("Hello fire risk"))
+    response = post("policy.pdf", make_pdf("Hello fire risk survey for the warehouse"))
     assert response.status_code == 200
     [doc] = response.json()["documents"]
     assert doc["name"] == "policy.pdf"
-    assert "Hello fire risk" in doc["text"]
+    assert "Hello fire risk survey for the warehouse" in doc["text"]
 
 
 def test_scanned_page_goes_through_ocr(monkeypatch):
@@ -121,7 +122,7 @@ def test_eml_html_only_body_is_stripped():
 
 
 def test_eml_attachments_become_their_own_documents():
-    attachment = ("quote.pdf", make_pdf("Quote body"), "application", "pdf")
+    attachment = ("quote.pdf", make_pdf("Quote body for the new policy"), "application", "pdf")
     response = post("note.eml", make_eml(attachment))
     names = [d["name"] for d in response.json()["documents"]]
     assert names == ["note.eml", "Attachment: quote.pdf (from note.eml)"]
@@ -129,7 +130,7 @@ def test_eml_attachments_become_their_own_documents():
 
 
 def test_unreadable_attachment_is_listed_as_failed_and_the_rest_kept():
-    good = ("quote.pdf", make_pdf("Quote body"), "application", "pdf")
+    good = ("quote.pdf", make_pdf("Quote body for the new policy"), "application", "pdf")
     broken = ("broken.pdf", b"not a pdf", "application", "pdf")
     empty = ("blank.docx", b"", "application", "octet-stream")
     response = post("note.eml", make_eml(broken, good, empty))
