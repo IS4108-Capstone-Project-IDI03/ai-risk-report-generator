@@ -19,6 +19,11 @@ Jesper builds and checks every screen with these agent skills. Install the same 
 - `review-animations`: reviews motion code against the Motion card. Run once in Check.
 - `improve-animations`: audits motion across the app and plans fixes. End-of-project polish.
 - `break-ui`: stress-tests a screen with worst-case data (long names, empty lists, huge counts).
+- `animate`: builds one motion from the Motion card (purpose, property, curve, duration).
+- `find-animation-opportunities`: finds the few places motion helps and what must not move. Used on the Motion board.
+- `remove-animations`: removes motion the app doesn't need.
+- `animation-performance`: fixes janky or costly animation (blur, big areas).
+- `ask-sonner`: Sonner toast setup and styling, for the Toast component. Docs: https://sonner.emilkowal.ski
 
 **From `pbakaus/impeccable`** (https://github.com/pbakaus/impeccable)
 
@@ -27,14 +32,6 @@ Jesper builds and checks every screen with these agent skills. Install the same 
 **From `Leonxlnx/taste-skill`** (https://github.com/Leonxlnx/taste-skill)
 
 - `design-taste-frontend` (optional): keeps pages from looking templated. Mostly for new public pages.
-
-**Source repo not recorded locally** (the skill text credits Emil Kowalski, but no repo is recorded, so treat it as unverified)
-
-- `animate`: builds one motion from the Motion card (purpose, property, curve, duration).
-- `find-animation-opportunities`: finds the few places motion helps and what must not move. Used on the Motion board.
-- `remove-animations`: removes motion the app doesn't need.
-- `animation-performance`: fixes janky or costly animation (blur, big areas).
-- `ask-sonner`: Sonner toast setup and styling, for the Toast component. Docs: https://sonner.emilkowal.ski
 
 **Other sources**
 
