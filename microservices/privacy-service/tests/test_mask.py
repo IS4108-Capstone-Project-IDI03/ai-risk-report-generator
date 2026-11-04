@@ -176,3 +176,19 @@ def test_the_known_site_address_wins_over_the_pattern():
         "texts": ["Visited [ADDRESS_1]; the tenant is at [ADDRESS_2]."],
         "mapping": {"[ADDRESS_1]": "21 Lower Kent Ridge Road", "[ADDRESS_2]": "5 Jalan Kilang"},
     }
+
+
+def test_masks_a_vehicle_plate_with_or_without_spaces():
+    # "PU 104 J" is a plate guide's worked example of the check letter.
+    assert mask(["Lorry PU 104 J blocks the hydrant."]) == {
+        "texts": ["Lorry [VEHICLE_1] blocks the hydrant."],
+        "mapping": {"[VEHICLE_1]": "PU 104 J"},
+    }
+    assert mask(["The lorry PU104J was moved."])["texts"] == ["The lorry [VEHICLE_1] was moved."]
+
+
+def test_a_plate_needs_its_check_letter():
+    # A model or part code shaped like a plate is kept: its last letter is not the check letter.
+    note = "Pump model PU 104 K, valve set FM 200 B."
+    assert mask([note]) == {"texts": [note], "mapping": {}}
+    assert mask(["Owner's IC S1234567D."])["texts"] == ["Owner's IC [NRIC_1]."]

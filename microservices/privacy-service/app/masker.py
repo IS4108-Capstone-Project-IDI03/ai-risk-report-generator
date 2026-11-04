@@ -63,6 +63,8 @@ PATTERNS = {
         r"|(?:Jalan|Jln|Lorong|Lor)(?:\s+(?:[A-Z][a-z]+|\d{1,3}[A-Z]?)\b){1,3})"
         r"(?:,?\s*#\d{1,3}-\d{1,5}[A-Z]?\b)?)"
     ),
+    # A vehicle plate: two or three letters, up to four digits, a check letter.
+    "VEHICLE": re.compile(r"\b(?P<v>[A-Z]{2,3} ?\d{1,4} ?[A-Z])\b"),
 }
 
 
@@ -145,13 +147,25 @@ def _spans(text: str, known: list[KnownEntity]) -> list[_Span]:
 
 
 def _stands_as(span: _Span, text: str) -> bool:
-    """Whether a found phone number or ID is one, not a figure or part number of the same shape."""
+    """Whether a found phone number, ID or plate is one, not a figure or part number of the same
+    shape."""
+    if span.type == "VEHICLE":
+        return _plate_checks(span.original)
     if span.type not in LABELS:
         return True
     if span.type == "PHONE" and re.search(r"[+\s-]", span.original):
         return True
     before = text[max(0, span.start - LABEL_WINDOW) : span.start]
     return bool(LABELS[span.type].search(before))
+
+
+def _plate_checks(plate: str) -> bool:
+    """Whether a plate's last letter is its check letter: the last two prefix letters (A=1) and
+    the digits padded to four, weighted 9 4 5 4 3 2, summed, mod 19 ("PU 104 J")."""
+    letters, digits, check = re.fullmatch(r"([A-Z]+) ?(\d+) ?([A-Z])", plate).groups()
+    values = [ord(c) - ord("A") + 1 for c in letters[-2:]] + [int(d) for d in digits.zfill(4)]
+    total = sum(w * v for w, v in zip((9, 4, 5, 4, 3, 2), values, strict=True))
+    return "AZYXUTSRPMLKJHGEDCB"[total % 19] == check
 
 
 def _name_pattern(name: str) -> re.Pattern:
