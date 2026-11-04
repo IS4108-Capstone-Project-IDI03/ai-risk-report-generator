@@ -10,7 +10,18 @@ from app import config
 from app.generation.llm import GenerationFailed
 
 # Copied from privacy-service/app/placeholders.py (pure string work, needed per call).
-TYPES = ("CLIENT", "SITE", "ADDRESS", "PERSON", "NRIC", "PHONE", "EMAIL", "UEN", "POSTAL")
+TYPES = (
+    "CLIENT",
+    "SITE",
+    "ADDRESS",
+    "PERSON",
+    "NRIC",
+    "PHONE",
+    "EMAIL",
+    "UEN",
+    "POSTAL",
+    "VEHICLE",
+)
 
 # Lenient: a model may drop the brackets or change the case ("person_1", "PERSON_1").
 _PLACEHOLDER = re.compile(rf"\[?\b({'|'.join(TYPES)})_(\d+)\b\]?", re.IGNORECASE)

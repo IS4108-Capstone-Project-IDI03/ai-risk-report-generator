@@ -37,8 +37,9 @@ def no_real_network(monkeypatch):
 
 class FakePrivacy:
     """Stands in for privacy-service's POST /mask (PV-01's contract): swaps each known
-    entity's names, a +65 number and an NRIC for typed placeholders, extending the mapping
-    it is sent. `failure` makes it fail: an httpx exception to raise, or a status code."""
+    entity's names, a +65 number, an NRIC and the plate PU 104 J for typed placeholders,
+    extending the mapping it is sent. `failure` makes it fail: an httpx exception to raise,
+    or a status code."""
 
     def __init__(self):
         self.requests: list[dict] = []
@@ -69,6 +70,7 @@ class FakePrivacy:
                         text = text.replace(name, placeholder(entity["type"], entity["names"][0]))
             text = re.sub(r"\+65 \d{4} \d{4}", lambda m: placeholder("PHONE", m[0]), text)
             text = re.sub(r"\bS\d{7}[A-Z]\b", lambda m: placeholder("NRIC", m[0]), text)
+            text = re.sub(r"\bPU 104 J\b", lambda m: placeholder("VEHICLE", m[0]), text)
             texts.append(text)
         return httpx.Response(200, json={"texts": texts, "mapping": mapping})
 
