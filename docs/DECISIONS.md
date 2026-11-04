@@ -2053,3 +2053,22 @@ Rejected:
 Known limits: street addresses are not detected, only a postal code after "Singapore". A second `/mask` call per reading bends Rule 2 (one call per request); it adds nothing to the mapping.
 
 Stories: PV-04.
+
+## 2026-11-05 — privacy-service detects street addresses and vehicle plates; detectors.json switches each kind
+
+Chose:
+- (PV-04) A Singapore street address pattern: a house or block number, a capitalised street name and a street word (or a Jalan or Lorong), then any unit number. A road without a house number, or a street word without a name ("2 St."), is not an address. The postal code stays its own `POSTAL`.
+- A vehicle plate pattern, kept only when its last letter is the check letter (the last two prefix letters and the digits, weighted 9 4 5 4 3 2, mod 19), so model and part codes stay. Placeholder type `VEHICLE`, added to the unmask copies in rag-service and S5.
+- `detectors.json` in privacy-service switches each kind (`PERSON`, `PHONE`, `EMAIL`, `NRIC`, `UEN`, `POSTAL`, `ADDRESS`, `VEHICLE`) on or off. `PII_PROTECTION` stays the master switch in the gateway. Known names are always masked. Read at startup; a typo stops the service; a missing file means all on. Compose mounts it, so a change needs a restart, not a rebuild.
+
+Reason: a reading saved a street address read off a photo, which the answer check couldn't catch. A file lets the team switch a kind off (a pattern masking too much) without a code change, while the gateway alone decides whether to protect (Rule 1).
+
+Rejected:
+- Turning on spaCy's places and organisations for addresses: they also catch brands, standards and floors (PV-01).
+- A plate pattern without the check letter: it would mask model codes in drafts.
+- Per-flow switches in the file: one definition of what counts as personal, for now.
+- An admin screen for the switches: needs a settings store; the file is enough until someone other than the developers changes it.
+
+Known limits: the file applies to every flow, so switching a kind off affects drafting and chat too. Building names alone are not detected. Masking now changes for drafting and chat, so the drafting and chat evals need a rerun with `--privacy` (Rule 9).
+
+Stories: PV-04, PV-01.
