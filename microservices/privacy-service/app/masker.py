@@ -42,12 +42,27 @@ LABELS = {
 }
 LABEL_WINDOW = 30  # characters before the detail
 
+# What a Singapore street name ends in.
+STREET_WORDS = (
+    "Road", "Rd", "Street", "St", "Avenue", "Ave", "Drive", "Dr", "Lane", "Crescent", "Cres",
+    "Close", "Way", "Boulevard", "Blvd", "Link", "Place", "Terrace", "Walk",
+)  # fmt: skip
+
 # Singapore details Presidio has no recogniser for. Only the `v` group is replaced.
 PATTERNS = {
     # Business (8 digits + letter), local company (year + 5 digits + letter), other entities.
     "UEN": re.compile(r"\b(?P<v>\d{8}[A-Z]|(?:19|20)\d{7}[A-Z]|[RST]\d{2}[A-Z]{2}\d{4}[A-Z])\b"),
     # Only after "Singapore": six digits alone are as likely a figure as a postal code.
     "POSTAL": re.compile(r"\bSingapore\s*\(?(?P<v>\d{6})\b", re.IGNORECASE),
+    # A house or block number, then a capitalised street name ending in a street word (and its
+    # number: "Avenue 3"), or a Jalan or Lorong; then any unit number. Without the house number,
+    # a road is as likely a landmark the report needs ("next to Kent Ridge Road").
+    "ADDRESS": re.compile(
+        r"\b(?P<v>(?:(?:Blk|Block)\s*)?\d{1,5}[A-Z]?\s+"
+        rf"(?:(?:[A-Z][a-z]+\s+){{1,4}}(?:{'|'.join(STREET_WORDS)})\b(?:\s+\d{{1,3}}[A-Z]?\b)?"
+        r"|(?:Jalan|Jln|Lorong|Lor)(?:\s+(?:[A-Z][a-z]+|\d{1,3}[A-Z]?)\b){1,3})"
+        r"(?:,?\s*#\d{1,3}-\d{1,5}[A-Z]?\b)?)"
+    ),
 }
 
 
