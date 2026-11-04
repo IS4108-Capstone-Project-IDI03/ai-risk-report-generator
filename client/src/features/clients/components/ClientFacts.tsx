@@ -25,11 +25,14 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 
 export function ClientFacts({
   facts,
+  division,
   sites,
   contacts = [],
   sheet = false,
 }: {
   facts: Facts
+  // Shown here, not as a pill beside the name (round 17).
+  division?: string | null
   // The listed sites, which the jurisdictions and facility types come from.
   sites: ClientPageSite[]
   contacts?: NonNullable<ClientPage['contacts']>
@@ -46,6 +49,7 @@ export function ClientFacts({
       aria-label={sheet ? 'Client details' : 'Client facts'}
     >
       <dl>
+        {division && <Fact label="Division">{division}</Fact>}
         {jurisdictions.length > 0 && (
           <Fact label="Jurisdictions">
             <span className="cl-chips">

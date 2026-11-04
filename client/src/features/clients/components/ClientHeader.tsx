@@ -1,10 +1,10 @@
 // The client page's header (CP-23, boards 06 and 22): Back, the name, Rename and
 // Remove pills (Remove greyed out with its reason box when refused), New
-// assessment and the tabs, in the kit's top bar. On a phone: no avatar, the
-// division as plain text, a round + and a ⋯ that opens the More sheet.
+// assessment and the tabs, in the kit's top bar. The division is in the facts
+// panel, not here. On a phone: no avatar, a round + and a ⋯ that opens the More sheet.
 // Called by screens/ClientRecord. Calls TopBar, Button, Sheet.
 import { useState, type ReactNode } from 'react'
-import { Button, Chip, IconButton, Sheet, TopBar, useIsPhone } from '../../../design-system'
+import { Button, IconButton, Sheet, TopBar, useIsPhone } from '../../../design-system'
 import { ClientAvatar } from './ClientAvatar'
 
 // Rename or Remove: whether the engineer may, and if not why, and what opens it.
@@ -12,7 +12,6 @@ export type HeaderAction = { allowed: boolean; reason: string | null; open: () =
 
 export function ClientHeader({
   name,
-  division,
   rename,
   remove,
   onNewAssessment,
@@ -22,7 +21,6 @@ export function ClientHeader({
   tabs,
 }: {
   name: string
-  division?: string | null
   // Null for a removed client, which is restored first.
   rename: HeaderAction | null
   remove: HeaderAction | null
@@ -61,12 +59,7 @@ export function ClientHeader({
       <>
         <TopBar
           back={back}
-          title={
-            <>
-              {name}
-              {division && <span className="cl-division">{`${division} division`}</span>}
-            </>
-          }
+          title={name}
           action={
             <span className="cl-phone-actions">
               {onNewAssessment && (
@@ -127,7 +120,6 @@ export function ClientHeader({
       lead={<ClientAvatar name={name} />}
       eyebrow="Clients"
       title={name}
-      titleItems={division && <Chip kind="division">{division}</Chip>}
       action={
         <span className="cl-header-actions">
           {rename && pill(rename, 'Rename client', 'pencil', "Can't rename yet")}

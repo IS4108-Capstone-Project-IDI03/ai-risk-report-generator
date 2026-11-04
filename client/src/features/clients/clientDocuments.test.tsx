@@ -366,13 +366,13 @@ describe('Client page header and facts (CP-23)', () => {
     expect(screen.getByRole('tab', { name: 'Documents, 3' })).toBeInTheDocument()
   })
 
-  it('puts Rename and Remove beside the name, with the division chip', async () => {
+  it('puts Rename and Remove beside the name, with no division chip (it is in the facts)', async () => {
     gateway()
     await openDocuments()
     expect(screen.getByRole('button', { name: 'Rename client' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Remove client' })).toBeInTheDocument()
     const title = screen.getByRole('heading', { name: 'NUS', level: 1 }).parentElement!
-    expect(title).toHaveTextContent('Education')
+    expect(title).not.toHaveTextContent('Education')
   })
 
   it('lists the client’s facts in a side panel on Open work and Sites, not on Documents', async () => {
@@ -382,8 +382,15 @@ describe('Client page header and facts (CP-23)', () => {
     await signIn()
     await screen.findByRole('heading', { name: 'NUS', level: 1 })
     const facts = screen.getByLabelText('Client facts')
-    for (const label of ['Jurisdictions', 'Facility types', 'First survey', 'Next report due'])
+    for (const label of [
+      'Division',
+      'Jurisdictions',
+      'Facility types',
+      'First survey',
+      'Next report due',
+    ])
       expect(within(facts).getByText(label)).toBeInTheDocument()
+    expect(within(facts).getByText('Education')).toBeInTheDocument()
     expect(within(facts).getByText('Singapore')).toBeInTheDocument()
     expect(within(facts).getByText('Office')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /Documents/ }))

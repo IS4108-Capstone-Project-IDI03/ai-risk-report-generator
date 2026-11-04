@@ -113,7 +113,6 @@ export function ClientRecord({
     <>
       <ClientHeader
         name={page.name}
-        division={page.division}
         rename={headerAction('Rename client', page.rename)}
         remove={headerAction('Remove client', page.remove)}
         onNewAssessment={page.removed ? null : onNewAssessment}
@@ -153,13 +152,26 @@ export function ClientRecord({
               {tab === 'documents' && <DocumentsTab clientId={page.id} docs={docs} />}
             </div>
           </div>
-          {showFacts && <ClientFacts facts={facts} sites={listed} contacts={page.contacts} />}
+          {showFacts && (
+            <ClientFacts
+              facts={facts}
+              division={page.division}
+              sites={listed}
+              contacts={page.contacts}
+            />
+          )}
         </div>
       </div>
 
       {/* Phone: the facts panel is hidden; its content opens from the More sheet. */}
       <Sheet open={details} onClose={() => setDetails(false)} title={page.name}>
-        <ClientFacts facts={facts} sites={listed} contacts={page.contacts} sheet />
+        <ClientFacts
+          facts={facts}
+          division={page.division}
+          sites={listed}
+          contacts={page.contacts}
+          sheet
+        />
       </Sheet>
       {dialog === 'rename' && !page.removed && (
         <RenameClientDialog client={client} onClose={closeDialog} onSaved={changed} />
