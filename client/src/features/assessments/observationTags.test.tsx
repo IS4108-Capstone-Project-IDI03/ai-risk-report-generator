@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -70,12 +70,17 @@ let listed: SavedObservation[] = []
 let reachable = true
 let patchReply: ((id: string, tags: Record<string, unknown>) => Promise<Response>) | null = null
 const patches: { id: string; tags: Record<string, unknown> }[] = []
+// Set once the gateway has answered for the locations. They are asked for only
+// after the observations arrive, and until then the navigator builds its places
+// from the observations, so the sample's Pump house and this one both show.
+let locationsServed = false
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     if (!reachable) return Promise.reject(new TypeError('Failed to fetch'))
     // The workspace lists deleted ones too, for the Deleted button's count.
     if (url === OBS_URL || url === OBS_URL + '?include=deleted') return json(200, listed)
-    if (url === LOCATIONS_URL) return json(200, [BAY_3, STAIRWELL, PUMP_HOUSE])
+    if (url === LOCATIONS_URL)
+      return json(200, [BAY_3, STAIRWELL, PUMP_HOUSE]).finally(() => (locationsServed = true))
     const patch = url.match(/^\/api\/observations\/(\w+)$/)
     if (patch && init.method === 'PATCH') {
       const id = patch[1]
@@ -111,7 +116,14 @@ async function openObservations() {
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
-  if (reachable && listed.length) await screen.findByText(listed[0].note!)
+  if (reachable && listed.length) {
+    await screen.findByText(listed[0].note!)
+    // Then for the gateway's locations, or the navigator can briefly list a
+    // place twice (a slow CI runner clicked in that gap).
+    await waitFor(() => expect(locationsServed).toBe(true))
+    // Lets the app read the reply and render it.
+    await act(() => new Promise((r) => setTimeout(r, 0)))
+  }
 }
 // Opens a filter's menu by its name ("Category", or "Category: Exposure" once
 // set) and picks an item by what it says.
@@ -170,6 +182,7 @@ beforeEach(() => {
   reachable = true
   patchReply = null
   patches.length = 0
+  locationsServed = false
   mockGateway()
 })
 afterEach(() => {
