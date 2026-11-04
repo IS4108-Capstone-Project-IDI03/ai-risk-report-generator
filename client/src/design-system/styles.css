@@ -5,6 +5,8 @@
 @import url('tokens/elevation.css');
 @import url('tokens/motion.css');
 @import url('tokens/base.css');
+@import url('kit.css');
+@import url('cp23.css');
 
 .ds-choice {
   position: relative;
@@ -89,7 +91,7 @@
   flex-wrap: wrap;
 }
 /* A dialog that becomes a bottom sheet on phones, within reach of the thumb. */
-@media (max-width: 759px) {
+@media (max-width: 767px) {
   .ds-dialog-sheet {
     width: 100% !important;
     max-width: 100%;
@@ -115,9 +117,38 @@
 .ds-tabs > button {
   white-space: nowrap;
 }
+/* A hidden bold copy of the label holds the tab at its bold width, so the
+   chosen tab turning bold doesn't nudge its neighbours. The "/ ''" keeps the
+   copy out of what a screen reader says. */
+.ds-tab-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ds-tab-label::after {
+  content: attr(data-label) / '';
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: var(--weight-semibold);
+  pointer-events: none;
+  user-select: none;
+}
+/* A long label gives way to its short one on a phone (Tabs `shortLabel`). */
+.ds-tab-short {
+  display: none;
+}
+@media (max-width: 479px) {
+  .ds-tab-long {
+    display: none;
+  }
+  .ds-tab-short {
+    display: inline-flex;
+  }
+}
 /* Compact tabs show only their icons (and counts) on narrow screens, each a
    comfortable tap target; the label stays as the tab's accessible name. */
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .ds-tabs-compact {
     gap: var(--space-4) !important;
   }
@@ -131,5 +162,224 @@
   .ds-tabs-compact [role='tab'] > span:first-child {
     width: 18px !important;
     height: 18px !important;
+  }
+}
+
+/* The sidebar (SideNav, CP-23 board 02 option A): Marsh navy, white wordmark,
+   pale-blue labels, blue-green mark on the current page. Collapsed it is a 56px
+   icon rail. The three colours below come from board 02 and are used only here. */
+.ds-sidenav {
+  --sn-bg: var(--report-navy);
+  --sn-label: #a7e2f0;
+  --sn-mark: #00a8c7;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: var(--sidebar-width);
+  height: 100%;
+  box-sizing: border-box;
+  padding: 16px 8px 0;
+  background: var(--sn-bg);
+  color: rgb(255 255 255 / 0.86);
+  font: 400 14px/1.3 var(--font-sans);
+}
+.ds-sidenav[data-collapsed] {
+  width: var(--nav-rail-width);
+  align-items: center;
+  padding-inline: 0;
+}
+.ds-sidenav-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 0 20px 8px;
+}
+.ds-sidenav[data-collapsed] .ds-sidenav-head {
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 0 0 12px;
+}
+.ds-sidenav-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ds-sidenav-logo {
+  display: block;
+  width: 112px;
+  height: auto;
+  /* The logo file is navy; this turns it white. */
+  filter: brightness(0) invert(1) drop-shadow(0 0 0.5px #fff);
+}
+.ds-sidenav[data-collapsed] .ds-sidenav-logo {
+  width: 28px;
+}
+.ds-sidenav-brand {
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.ds-sidenav-subtitle {
+  color: var(--sn-label);
+  font-size: 12px;
+  font-weight: 500;
+}
+.ds-sidenav-icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(255 255 255 / 0.8);
+  cursor: pointer;
+}
+.ds-sidenav-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+/* The rail's tooltips sit beside it, so the rail must not clip them. */
+.ds-sidenav[data-collapsed] .ds-sidenav-body {
+  overflow: visible;
+}
+.ds-sidenav-group {
+  margin-bottom: 16px;
+}
+.ds-sidenav-items {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+/* On the rail, a hairline sets each group apart and the icons sit evenly. */
+.ds-sidenav[data-collapsed] .ds-sidenav-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 32px;
+  margin: 0 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+}
+.ds-sidenav[data-collapsed] .ds-sidenav-group:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ds-sidenav[data-collapsed] .ds-sidenav-items {
+  align-items: center;
+}
+.ds-sidenav-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  color: var(--sn-label);
+  font: 700 11px/1.2 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.ds-sidenav-fold {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.ds-sidenav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgb(255 255 255 / 0.9);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.ds-sidenav-item[data-small] {
+  height: 36px;
+  font-size: 14px;
+}
+.ds-sidenav-item[aria-current='page'] {
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  font-weight: 600;
+}
+.ds-sidenav[data-collapsed] .ds-sidenav-item {
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+}
+.ds-sidenav-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The signed-in engineer (the feature's .user-footer markup, workflow.css). */
+.ds-sidenav-foot {
+  margin: 0 -8px;
+  padding: 14px 16px;
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+}
+.ds-sidenav[data-collapsed] .ds-sidenav-foot {
+  margin: 0;
+  padding: 14px 0;
+  border-top: 0;
+}
+.ds-sidenav .user-footer strong {
+  color: #fff;
+}
+.ds-sidenav .user-footer small {
+  color: var(--sn-label);
+}
+.ds-sidenav .user-footer .user-avatar {
+  width: 32px;
+  height: 32px;
+  background: var(--sn-label);
+  color: var(--marsh-navy);
+  font-weight: 700;
+}
+.ds-sidenav .user-footer button {
+  color: rgb(255 255 255 / 0.8) !important;
+}
+.ds-sidenav :focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-sidenav-item:hover:not([aria-current='page']),
+  .ds-sidenav-icon-button:hover,
+  .ds-sidenav-fold:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: #fff;
+  }
+}
+/* Fingers need 44px: the phone drawer and touch screens. */
+@media (pointer: coarse), (max-width: 767px) {
+  .ds-sidenav-item,
+  .ds-sidenav-item[data-small],
+  .ds-sidenav-fold,
+  .ds-sidenav-icon-button {
+    min-height: 44px;
+  }
+  .ds-sidenav-icon-button {
+    min-width: 44px;
   }
 }

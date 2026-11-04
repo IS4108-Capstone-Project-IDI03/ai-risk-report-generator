@@ -327,7 +327,7 @@
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
 }
-@media (max-width: 759px) {
+@media (max-width: 767px) {
   .kb-toolbar > label {
     flex-basis: 100%;
   }
@@ -540,7 +540,7 @@
     flex-basis: 100%;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .kb-file-size {
     display: none;
   }

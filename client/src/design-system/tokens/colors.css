@@ -47,6 +47,9 @@
   --amber-700: #744c0e;
   --red-50: #fdeae8;
   --red-600: #ad2e2d;
+  /* Facility chip and Resurvey tile (v2 section 3). */
+  --teal-50: #dff4f8;
+  --teal-600: #016d9e;
   --violet-50: #eeecfb;
   --violet-200: #c9c2f0;
   --violet-600: #6258a3;
@@ -165,4 +168,14 @@
   /* Recessive chart chrome: hairline grid and the baseline. */
   --chart-grid: var(--graphite-100);
   --chart-axis: var(--graphite-200);
+}
+
+/* Hover by background (CP-23, board 18): the surface sets the hover; controls read these. */
+:root {
+  --hover-bg: #eef1f6;
+  --hover-ring: none;
+  --hover-button-bg: #e3e8ef;
+  /* Round Back button (board 24 option B): rest and hover. */
+  --back-bg: #eef1f6;
+  --back-bg-hover: #e3e8ef;
 }

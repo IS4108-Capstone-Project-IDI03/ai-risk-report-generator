@@ -1,0 +1,200 @@
+/* App shell styles (CP-23): round Back button, phone bar, drawer, sidebar glide and
+   collapse easing. Imported by BackButton, PhoneBar, NavDrawer, SideNav and TopBar. */
+
+/* Back button (board 24 option B) */
+.ds-backbtn {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  margin: 0 -4px 0 -4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--marsh-navy);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ds-backbtn-disc {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--back-bg);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.ds-backbtn:active .ds-backbtn-disc {
+  background: var(--back-bg-hover);
+  transform: scale(0.96);
+}
+.ds-backbtn:focus-visible {
+  outline: 2px solid var(--marsh-navy);
+  outline-offset: -2px;
+  border-radius: 50%;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-backbtn:hover .ds-backbtn-disc {
+    background: var(--back-bg-hover);
+  }
+}
+@media (max-width: 767px) {
+  .ds-backbtn-disc {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Phone top bar (board 21) */
+.ds-phonebar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: content-box;
+  height: 56px;
+  padding: env(safe-area-inset-top) max(8px, env(safe-area-inset-right)) 0
+    max(8px, env(safe-area-inset-left));
+  background: var(--report-navy, #002c77);
+  color: #fff;
+}
+.ds-phonebar-button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ds-phonebar-button:active {
+  background: rgb(255 255 255 / 0.12);
+}
+.ds-phonebar-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.ds-phonebar-brand {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+.ds-phonebar-mark {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.ds-phonebar-sub {
+  color: #a7e2f0;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ds-phonebar-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Drawer: the sidebar in a modal dialog; the scrim is its backdrop. */
+.ds-navdrawer {
+  width: min(280px, 85vw);
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  border: 0;
+  overflow: hidden;
+  background: var(--report-navy);
+  /* Transitions, not keyframes: reopening mid-close turns back from where it is. */
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+.ds-navdrawer::backdrop {
+  background: rgb(0 15 71 / 0.32);
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+@starting-style {
+  .ds-navdrawer[open] {
+    transform: translateX(-100%);
+  }
+  .ds-navdrawer[open]::backdrop {
+    opacity: 0;
+  }
+}
+.ds-navdrawer .ds-sidenav {
+  width: 100%;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.ds-navdrawer .ds-sidenav-item {
+  min-height: 48px;
+}
+/* Closing: slide out left while the scrim fades; the drawer unmounts when it ends. */
+.ds-navdrawer[data-closing] {
+  transform: translateX(-100%);
+  transition-duration: var(--duration-base);
+  pointer-events: none;
+}
+.ds-navdrawer[data-closing]::backdrop {
+  opacity: 0;
+}
+
+/* Sidebar: eased collapse, 64px tablet rail, gliding highlight (R7 · 4). */
+.ds-sidenav {
+  transition: width var(--duration-slow) var(--ease-out);
+}
+.ds-sidenav-body {
+  position: relative;
+}
+.ds-sidenav-glide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.12);
+  pointer-events: none;
+}
+.ds-sidenav-glide[data-ready] {
+  transition:
+    transform var(--duration-slow) var(--ease-out),
+    height var(--duration-base) var(--ease-out);
+}
+.ds-sidenav[data-collapsed] .ds-sidenav-glide {
+  left: calc(50% - 20px);
+  right: auto;
+  width: 40px;
+}
+.ds-sidenav-body[data-glide] .ds-sidenav-item[aria-current='page'] {
+  background: transparent;
+}
+.ds-sidenav-item {
+  position: relative;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-navdrawer,
+  .ds-navdrawer::backdrop {
+    transition: none;
+  }
+  .ds-sidenav,
+  .ds-sidenav-glide[data-ready] {
+    transition: none;
+  }
+}

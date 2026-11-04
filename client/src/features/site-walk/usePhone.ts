@@ -1,8 +1,8 @@
-// Whether the window is phone-wide (under 760px, the app's mobile break, as
+// Whether the window is phone-wide (under 768px, the app's mobile break, as
 // useAssessmentWorkflow.tsx's `phone`). Used by screens/Review.tsx.
 import { useEffect, useState } from 'react'
 
-const isPhone = () => typeof window !== 'undefined' && window.innerWidth < 760
+const isPhone = () => typeof window !== 'undefined' && window.innerWidth < 768
 
 // Returns true on a phone, and follows the window as it is resized or turned.
 export function usePhone() {

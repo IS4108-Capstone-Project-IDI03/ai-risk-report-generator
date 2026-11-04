@@ -131,7 +131,7 @@ const registry = {
     report: 'file-pen',
     queue: 'inbox',
     portfolio: 'files',
-    site: 'building-2',
+    site: 'map-pin',
     client: 'briefcase',
     archive: 'archive',
     library: 'book-marked',

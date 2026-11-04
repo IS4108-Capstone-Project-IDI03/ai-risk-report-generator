@@ -180,7 +180,7 @@
 .uc p {
   margin: 0 0 4px;
 }
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .uc-toolbar select {
     min-width: 0;
     width: 100%;
@@ -316,7 +316,7 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .uc-chart {
     padding: var(--space-5);
   }
@@ -367,7 +367,7 @@
   margin: var(--space-2) 0 0;
   color: var(--text-secondary);
 }
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .uc-filters > * {
     min-width: 0;
     flex: 1 1 100%;

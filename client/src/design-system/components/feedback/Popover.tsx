@@ -1,4 +1,14 @@
-import { cloneElement, isValidElement, useEffect, useId, useLayoutEffect, useRef } from 'react'
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
+import { Sheet, useIsPhone } from './Sheet'
+import { useOverlayStack } from './overlayStack'
 import type { CSSProperties, ReactElement, ReactNode } from 'react'
 
 export type PopoverProps = {
@@ -14,6 +24,10 @@ export type PopoverProps = {
   className?: string
   surfaceClassName?: string
   style?: CSSProperties
+  // Under 768 px the surface becomes a bottom sheet; set true to keep it floating.
+  noSheet?: boolean
+  // The phone sheet is a centred card instead of a bottom sheet (date picker).
+  sheetCentred?: boolean
 }
 
 // A small floating surface anchored to a trigger. It owns the overlay
@@ -32,7 +46,10 @@ export function Popover({
   className = '',
   surfaceClassName = '',
   style,
+  noSheet = false,
+  sheetCentred = false,
 }: PopoverProps) {
+  const asSheet = useIsPhone() && !noSheet
   const anchor = useRef<HTMLDivElement>(null)
   // The trigger sits in a wrapper this component owns, so focus return reads
   // the node from that wrapper rather than attaching a ref to the cloned
@@ -42,6 +59,24 @@ export function Popover({
   const triggerWrap = useRef<HTMLSpanElement>(null)
   const surfaceId = useId()
 
+  // Closing plays a 120 ms fade before the surface unmounts (v2 section 8). Where
+  // the browser can't animate (jsdom), it unmounts at once.
+  const [leaving, setLeaving] = useState(false)
+  const canAnimate = typeof Element !== 'undefined' && 'animate' in Element.prototype
+  const present = open || leaving
+  const wasShown = useRef(false)
+  useEffect(() => {
+    if (open) {
+      wasShown.current = true
+      return
+    }
+    if (!wasShown.current || !canAnimate) return
+    wasShown.current = false
+    setLeaving(true)
+    const timer = setTimeout(() => setLeaving(false), 120)
+    return () => clearTimeout(timer)
+  }, [open, canAnimate])
+
   // Kept on screen: where its side of the trigger leaves too little room, as
   // when a phone's header wraps its actions to the left, it moves sideways
   // just enough to fit, a small margin from the edge. jsdom lays nothing out,
@@ -50,25 +85,65 @@ export function Popover({
   useLayoutEffect(() => {
     const el = surface.current
     if (!open || !el) return
-    el.style.transform = ''
-    const box = el.getBoundingClientRect()
-    if (!box.width) return
-    const margin = 8
-    const room = document.documentElement.clientWidth - margin
-    const shift = box.left < margin ? margin - box.left : box.right > room ? room - box.right : 0
-    if (shift) el.style.transform = `translateX(${shift}px)`
-  }, [open])
+    const place = () => {
+      el.style.transform = ''
+      el.removeAttribute('data-flip')
+      el.removeAttribute('data-cap')
+      // offsetWidth ignores the scale-in animation, so the measure is the final size.
+      const width = el.offsetWidth
+      if (!width) return
+      const margin = 8
+      const room = document.documentElement.clientWidth - margin
+      // Unscaled left edge: the anchor's left plus the surface's offset inside it.
+      const left = (el.offsetParent?.getBoundingClientRect().left ?? 0) + el.offsetLeft
+      const right = left + width
+      const shift = left < margin ? margin - left : right > room ? room - right : 0
+      if (shift) el.style.transform = `translateX(${shift}px)`
+      // Vertical: stay above a sticky bottom bar and the window edge. Flip above the trigger
+      // when there is more room there, else cap the height and scroll.
+      const bar = document.querySelector('.ds-action-bar')?.getBoundingClientRect().top
+      const limit = Math.min(window.innerHeight, bar ?? Infinity) - margin
+      const box = el.getBoundingClientRect()
+      const trigger = anchor.current?.getBoundingClientRect()
+      if (!trigger || box.bottom <= limit) return
+      if (trigger.top - margin * 2 >= box.height) el.setAttribute('data-flip', '')
+      else {
+        el.style.setProperty('--cap', `${Math.max(160, limit - box.top)}px`)
+        el.setAttribute('data-cap', '')
+      }
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [open, asSheet])
 
+  // Opening moves focus to the selected item (or the first) of a menu inside, so a keyboard
+  // user lands in it. Only options and menu items: a form inside keeps its own focus.
   useEffect(() => {
-    if (!open) return
+    if (!open || asSheet) return
+    const el = surface.current
+    const target =
+      el?.querySelector<HTMLElement>('[role=option][aria-selected=true]') ??
+      el?.querySelector<HTMLElement>('[role=option], [role=menuitem]')
+    target?.focus()
+  }, [open, asSheet])
+
+  // Only the topmost overlay answers Esc, so one press closes one thing.
+  const isTop = useOverlayStack(open && !asSheet)
+  const closeRef = useRef(onOpenChange)
+  useEffect(() => {
+    closeRef.current = onOpenChange
+  })
+  useEffect(() => {
+    if (!open || asSheet) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false)
+      if (event.key === 'Escape' && isTop()) closeRef.current(false)
     }
     // mousedown, not click, so a press that starts outside closes before any
     // click handler inside a sibling runs.
     const onPointerDown = (event: MouseEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) onOpenChange(false)
+      if (!anchor.current?.contains(event.target as Node)) closeRef.current(false)
     }
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('mousedown', onPointerDown)
@@ -76,7 +151,7 @@ export function Popover({
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('mousedown', onPointerDown)
     }
-  }, [open, onOpenChange])
+  }, [open, asSheet, isTop])
 
   // Return focus to the trigger once the surface is gone, so a keyboard user
   // who closed with Escape lands back on the control they opened from. The
@@ -85,8 +160,9 @@ export function Popover({
   // first mount, when nothing was open to return from.
   const wasOpen = useRef(false)
   useEffect(() => {
-    if (!open && wasOpen.current) {
-      const wrap = triggerWrap.current
+    const wrap = triggerWrap.current
+    // Focus already in the trigger (typing in the date text) stays where it is.
+    if (!open && wasOpen.current && !wrap?.contains(document.activeElement)) {
       const focusable = wrap?.matches('button, [tabindex], a[href]')
         ? wrap
         : wrap?.querySelector<HTMLElement>('button, [tabindex], a[href]')
@@ -100,9 +176,10 @@ export function Popover({
   // compiler-safe.
   const control = isValidElement(trigger)
     ? cloneElement(trigger as ReactElement<Record<string, unknown>>, {
-        'aria-haspopup': 'dialog',
+        // A trigger that opens a menu or listbox says so itself; otherwise it's a dialog.
+        'aria-haspopup': (trigger.props as Record<string, unknown>)['aria-haspopup'] ?? 'dialog',
         'aria-expanded': open,
-        'aria-controls': open ? surfaceId : undefined,
+        'aria-controls': open && !asSheet ? surfaceId : undefined,
       })
     : trigger
 
@@ -115,29 +192,42 @@ export function Popover({
       <span ref={triggerWrap} style={{ display: 'inline-flex' }}>
         {control}
       </span>
-      {open && (
-        <div
-          ref={surface}
-          id={surfaceId}
-          role="dialog"
-          aria-label={ariaLabel}
-          className={surfaceClassName}
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + var(--space-2))',
-            [align]: 0,
-            zIndex: 50,
-            minWidth: '320px',
-            maxWidth: 'min(92vw, 420px)',
-            background: 'var(--surface-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-md)',
-            overflow: 'hidden',
-          }}
+      {asSheet ? (
+        <Sheet
+          open={open}
+          onClose={() => onOpenChange(false)}
+          title={ariaLabel ?? ''}
+          centred={sheetCentred}
         >
           {children}
-        </div>
+        </Sheet>
+      ) : (
+        present && (
+          <div
+            ref={surface}
+            data-state={open ? 'open' : 'closed'}
+            id={surfaceId}
+            role="dialog"
+            aria-label={ariaLabel}
+            className={`ds-popover ${surfaceClassName}`}
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + var(--space-2))',
+              [align]: 0,
+              zIndex: 50,
+              minWidth: '320px',
+              maxWidth: 'min(92vw, 420px)',
+              background: 'var(--surface-card)',
+              // Radius 14, shadow and 1px ring: v2 section 5. Scales in from the trigger's side (styles.css).
+              borderRadius: 'var(--radius-popover)',
+              boxShadow: 'var(--shadow-popover)',
+              transformOrigin: align === 'left' ? 'top left' : 'top right',
+              overflow: 'hidden',
+            }}
+          >
+            {children}
+          </div>
+        )
       )}
     </div>
   )

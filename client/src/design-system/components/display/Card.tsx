@@ -48,6 +48,7 @@ function Card({
     >
       {title || actions ? (
         <header
+          className={headerTone === 'sunken' ? 'ds-on-grey' : undefined}
           style={{
             display: 'flex',
             alignItems: 'center',

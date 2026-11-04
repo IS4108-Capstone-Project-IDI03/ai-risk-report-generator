@@ -44,6 +44,7 @@ function Textarea({
         </span>
       ) : null}
       <textarea
+        className="ds-field-input"
         aria-invalid={!!error}
         aria-describedby={error || hint ? descriptionId : undefined}
         rows={rows}

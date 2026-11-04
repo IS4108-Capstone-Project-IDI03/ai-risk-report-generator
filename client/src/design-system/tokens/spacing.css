@@ -18,13 +18,20 @@
   --radius-md: 5px;
   --radius-lg: 8px;
   --radius-pill: 999px;
+  /* v2 section 5 */
+  --radius-card: 16px;
+  --radius-popover: 14px;
+  --radius-field: 10px;
+  --radius-tile: 9px;
+  /* Side padding of page content, sidebar open or collapsed (v2 section 2). */
+  --page-gutter: 32px;
 
   --border-width: 1px;
   --border-width-strong: 2px;
 
   /* Layout */
-  --nav-rail-width: 56px;
-  --sidebar-width: 264px;
+  --nav-rail-width: 64px;
+  --sidebar-width: 200px;
   --inspector-width: 344px;
   --topbar-height: 56px;
   --toolbar-height: 52px;

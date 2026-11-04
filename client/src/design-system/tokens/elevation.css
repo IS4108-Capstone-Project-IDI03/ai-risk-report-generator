@@ -4,6 +4,9 @@
   --shadow-sm: 0 1px 2px rgba(26, 31, 38, 0.06);
   --shadow-md: 0 1px 2px rgba(26, 31, 38, 0.06), 0 2px 6px rgba(26, 31, 38, 0.07);
   --shadow-lg: 0 2px 4px rgba(26, 31, 38, 0.05), 0 8px 24px rgba(26, 31, 38, 0.12);
+  /* v2 section 5: popovers, menus, toasts (with a 1px ring) and the Create button. */
+  --shadow-popover: 0 12px 32px rgba(0, 15, 71, 0.16), 0 0 0 1px var(--graphite-200);
+  --shadow-create: 0 6px 16px rgba(0, 15, 71, 0.28);
   --shadow-overlay: 0 12px 40px rgba(16, 31, 51, 0.22);
   --shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 

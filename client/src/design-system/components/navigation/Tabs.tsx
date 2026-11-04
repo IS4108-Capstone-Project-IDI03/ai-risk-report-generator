@@ -1,9 +1,19 @@
+import { useEffect, useRef } from 'react'
 import type * as React from 'react'
 import { Icon } from '../core/Icon'
 export type TabsProps = {
   // `alert` turns the count into an amber pill that asks for attention, and is
   // read out after the label (e.g. "1 needs review").
-  items?: { value: string; label: string; icon?: string; count?: number; alert?: string }[]
+  // `shortLabel` stands in for a long label on a phone (styles.css); the
+  // label stays the tab's accessible name.
+  items?: {
+    value: string
+    label: string
+    shortLabel?: string
+    icon?: string
+    count?: number
+    alert?: string
+  }[]
   value?: string | number
   onChange?: (value: string) => void
   // Icons only on narrow screens (styles.css): each tab keeps its name for
@@ -12,8 +22,21 @@ export type TabsProps = {
   style?: React.CSSProperties
 }
 function Tabs({ items = [], value, onChange, compact = false, style = {} }: TabsProps) {
+  // Scrolls a row too narrow for its tabs so the chosen one shows; without
+  // this a phone could open on a tab that is off to the side.
+  const list = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const row = list.current
+    const tab = row?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!row || !tab) return
+    const r = row.getBoundingClientRect()
+    const t = tab.getBoundingClientRect()
+    if (t.left < r.left) row.scrollLeft += t.left - r.left
+    else if (t.right > r.right) row.scrollLeft += t.right - r.right
+  }, [value])
   return (
     <div
+      ref={list}
       className={compact ? 'ds-tabs ds-tabs-compact' : 'ds-tabs'}
       role="tablist"
       aria-label="View"
@@ -38,7 +61,11 @@ function Tabs({ items = [], value, onChange, compact = false, style = {} }: Tabs
                 ? `${t.label}, ${t.alert}`
                 : compact
                   ? t.label + (t.count != null ? ' ' + t.count : '')
-                  : undefined
+                  : t.count != null
+                    ? `${t.label}, ${t.count}`
+                    : t.shortLabel
+                      ? t.label
+                      : undefined
             }
             title={compact ? t.label : undefined}
             tabIndex={active ? 0 : -1}
@@ -76,7 +103,19 @@ function Tabs({ items = [], value, onChange, compact = false, style = {} }: Tabs
             }}
           >
             {t.icon ? <Icon name={t.icon} size={14} /> : null}
-            <span className="ds-tab-label">{t.label}</span>
+            {/* data-label reserves the bold width (styles.css), so choosing a
+                tab doesn't shift its neighbours. */}
+            <span
+              className={t.shortLabel ? 'ds-tab-label ds-tab-long' : 'ds-tab-label'}
+              data-label={t.label}
+            >
+              {t.label}
+            </span>
+            {t.shortLabel && (
+              <span className="ds-tab-label ds-tab-short" data-label={t.shortLabel}>
+                {t.shortLabel}
+              </span>
+            )}
             {t.count != null ? (
               <span
                 style={
@@ -93,9 +132,16 @@ function Tabs({ items = [], value, onChange, compact = false, style = {} }: Tabs
                         textAlign: 'center',
                       }
                     : {
+                        // Board 01 "Tab with count": a pill, blue on the chosen tab, grey otherwise.
+                        minWidth: 20,
+                        padding: '1px 7px',
+                        borderRadius: 'var(--radius-pill)',
+                        background: active ? 'var(--ink-100)' : 'var(--graphite-100)',
+                        color: active ? 'var(--ink-700)' : 'var(--text-secondary)',
                         fontSize: 'var(--text-caption-size)',
-                        color: 'var(--text-muted)',
-                        fontWeight: 'var(--weight-regular)',
+                        fontWeight: 'var(--weight-semibold)',
+                        fontVariantNumeric: 'tabular-nums',
+                        textAlign: 'center',
                       }
                 }
               >
