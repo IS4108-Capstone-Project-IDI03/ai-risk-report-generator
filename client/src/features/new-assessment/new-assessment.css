@@ -1,0 +1,1410 @@
+/* The New Assessment screen (CP-23, boards 08-14, 17), in docs/design-system-v2.md's
+   look: white cards on the pale page, navy for actions and titles, colour only
+   where it means something. Used by screens/NewAssessment.tsx and its parts. */
+
+/* ---- Frame: sticky top bar, then Back and the screen's content ---- */
+.na {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--graphite-50);
+  -webkit-tap-highlight-color: transparent;
+}
+.na-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.na-body {
+  flex: 1;
+  align-content: start;
+  display: grid;
+  gap: 16px;
+  padding: 8px var(--page-gutter) 48px;
+}
+.na-form,
+.na-start {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.na button {
+  touch-action: manipulation;
+}
+.na-muted {
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+
+/* ---- Cards ---- */
+.na-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+}
+.na-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.na-card-head h2,
+.na-reading h2,
+.na-found h2 {
+  margin: 0;
+  min-width: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.na-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.na-tile {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile);
+  background: var(--ink-50);
+  color: var(--report-navy);
+}
+.na-tile--empty {
+  background: var(--graphite-100);
+}
+.na-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--ink-100);
+  color: var(--ink-600);
+  font: 700 12px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.na-text-btn {
+  color: var(--marsh-navy) !important;
+  font-weight: 600 !important;
+}
+
+/* ---- New client | Existing client ---- */
+.na-mode .ds-segmented {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+}
+.na-mode .ds-segmented button {
+  flex: 1;
+  justify-content: center;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+/* ---- Fields: label, control, then the one error line ---- */
+.na-grid {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+.na-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.na-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.na-site-fields {
+  display: grid;
+  gap: 12px;
+}
+.na-site-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.na-field {
+  position: relative;
+  min-width: 0;
+}
+.na-label {
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
+}
+/* Not sure: one 16 px amber warning, centred in the control's box, 12 px from its
+   right edge (v2 "Fields", round 13). Measured from the bottom, since a Not sure
+   field never has a line under it (an error hides the icon), so the label's height
+   can't move it. --na-box-h must match the kit's field height (44 px on phones, cp23.css). */
+.na-field {
+  --na-box-h: var(--control-height-md);
+}
+.na-unsure-icon {
+  position: absolute;
+  right: 12px;
+  bottom: calc((var(--na-box-h) - 16px) / 2);
+  display: flex;
+  color: var(--amber-600);
+  pointer-events: none;
+}
+/* Text never runs under the icon. */
+.na-field.is-unsure .ds-field-input {
+  padding-right: 36px !important;
+}
+/* On a dropdown it sits 8 px left of the chevron (1 px border + right 10 + 14 wide), not on it. */
+.na-field--select .na-unsure-icon {
+  right: 33px;
+}
+.na-field--select.is-unsure .ds-field-input {
+  padding-right: 56px !important;
+}
+/* The kit's DatePicker in v2's Not sure state: amber border and tint, icon at the right. */
+.na-field--datepicker {
+  position: relative;
+}
+.na-field--datepicker .ds-datepicker-field {
+  width: 100%;
+}
+.na-field--datepicker.is-unsure .ds-datepicker-field {
+  border-color: var(--amber-600);
+  background: var(--amber-50);
+}
+.na-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.na-error-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--red-600);
+  font: 500 12px/1.3 var(--font-sans);
+  animation: na-line-in var(--duration-base) var(--ease-out) both;
+}
+@keyframes na-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.na-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 0;
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+.na-suggest button {
+  padding: 0;
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--marsh-navy);
+  font: 600 13px/1.3 var(--font-sans);
+  cursor: pointer;
+}
+
+/* ---- A recorded client ---- */
+.na-client-chosen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.na-client-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.na-client-text strong {
+  color: var(--graphite-900);
+  font: 600 15px/1.3 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.na-client-text span {
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+
+/* ---- Documents button and popover (motion 6 is the Popover's own) ---- */
+.na-docs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--marsh-navy);
+  font: 600 14px/1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.na-docs-btn:active {
+  transform: scale(0.97);
+}
+.na-docs-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+/* Wide enough for a long name beside the 300 px tag; the Popover caps at 420
+   inline, and its tag menu must not be clipped by the surface. */
+.na-docs-menu {
+  width: min(680px, calc(100vw - 32px));
+  max-width: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+.na-docs-pop {
+  display: grid;
+  padding: 14px 16px 16px;
+}
+.na-docs-pop h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  color: var(--graphite-900);
+  font: 600 14px/1.3 var(--font-sans);
+}
+.na-docs-empty {
+  margin: 4px 0 12px;
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+/* Five rows show, the rest scroll under a fade (board 08). A tag menu opened low in
+   the list extends the scroll area rather than being cut off. */
+.na-doc-list:has(> :nth-child(6)) {
+  max-height: min(300px, 60dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+}
+/* The popover floats above every card below it, not only its own. */
+.na-card:has(.na-docs-anchor) {
+  position: relative;
+  z-index: 25;
+}
+.na-doc-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.na-doc {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(140px, 240px) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.na-doc-text {
+  display: grid;
+  min-width: 0;
+}
+.na-doc-name {
+  overflow: hidden;
+  color: var(--graphite-900);
+  font: 500 14px/1.35 var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.na-doc-size {
+  color: var(--graphite-600);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.na-tag-menu {
+  width: min(320px, calc(100vw - 32px));
+}
+
+/* ---- Sites card of a recorded client ---- */
+.na-picks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.na-pick {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.na-pick.is-checked {
+  border-color: var(--marsh-navy);
+  box-shadow: inset 0 0 0 1px var(--marsh-navy);
+}
+.na-pick input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.na-pick:has(input:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.na-pick-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.na-pick-head strong {
+  color: var(--graphite-900);
+  font: 600 15px/1.3 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.na-pick-box {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--graphite-400);
+  border-radius: 5px;
+  color: #fff;
+}
+.is-checked .na-pick-box {
+  border-color: var(--marsh-navy);
+  background: var(--marsh-navy);
+}
+.na-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.na-pick-address {
+  overflow-wrap: anywhere;
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+.na-pick .is-empty {
+  color: var(--graphite-400);
+}
+.na-pick-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+  padding-top: 10px;
+  border-top: 1px solid var(--graphite-100);
+  color: var(--graphite-600);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- An assessment in a site's card ---- */
+.na-assessment {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--graphite-100);
+}
+.na-assessment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+.na-assessment-head h3 {
+  margin: 0;
+  color: var(--graphite-900);
+  font: 600 15px/1.3 var(--font-sans);
+}
+.na-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.na-type-control .ds-segmented {
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+.na-type-control.is-unsure .ds-segmented {
+  background: var(--amber-50);
+  box-shadow: inset 0 0 0 1px var(--amber-600);
+}
+.na-type-control[data-error] .ds-segmented {
+  box-shadow: inset 0 0 0 1px var(--red-600);
+}
+.na-type-error {
+  margin-top: -8px;
+  text-align: right;
+}
+.na-copy {
+  margin-top: 2px;
+  padding-top: 16px;
+  border-top: 1px solid var(--graphite-100);
+}
+.na-copy-text {
+  color: var(--graphite-700);
+  font: 400 14px/1.35 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.na-copy-text strong {
+  color: var(--graphite-900);
+  font-weight: 600;
+}
+/* A phone wraps before the report, never inside RPT-2026-0411. */
+.na-copy-from {
+  white-space: nowrap;
+}
+.na-help {
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--text-body);
+  font: 400 14px/1.45 var(--font-sans);
+}
+.na-help-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.na-help-list dt {
+  color: var(--graphite-900);
+  font-weight: 600;
+}
+.na-help-list dd {
+  margin: 0;
+}
+.na-help-note {
+  margin: 10px 0 0;
+  color: var(--marsh-navy);
+  font-weight: 500;
+}
+.na-nowrap {
+  white-space: nowrap;
+}
+
+/* ---- Site contacts: a grid of cells ---- */
+.na-contacts {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.na-contacts legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.na-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.na-contact,
+.na-contact-add {
+  min-width: 0;
+  min-height: 52px;
+  box-sizing: border-box;
+  border-radius: 12px;
+}
+.na-contact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 0;
+  border: 1px solid var(--graphite-200);
+}
+.na-contact-text {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 4px 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+  cursor: text;
+}
+.na-contact-text > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+.na-contact-text strong,
+.na-contact-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.na-contact-text strong {
+  color: var(--graphite-900);
+  font: 600 14px/1.3 var(--font-sans);
+}
+.na-contact-text small {
+  color: var(--graphite-600);
+  font-size: 12px;
+}
+.na-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--report-navy);
+  color: #fff;
+  font: 700 11px/1 var(--font-sans);
+}
+.na-contact.is-editing {
+  gap: 6px;
+  padding: 6px;
+  border-color: var(--border-focus);
+}
+.na-contact-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
+  color: var(--graphite-900);
+  font: 400 14px/1 var(--font-sans);
+}
+.na-contact-input:focus {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -1px;
+}
+.na-contact-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed var(--graphite-300);
+  background: transparent;
+  color: var(--marsh-navy);
+  font: 600 14px/1 var(--font-sans);
+  cursor: pointer;
+}
+
+/* ---- Adding documents: the large start and the slim row ---- */
+.na-drop {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 48px 24px;
+  border: 1.5px dashed var(--graphite-300);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  text-align: center;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.na-drop.is-over {
+  border-color: var(--marsh-navy);
+  background: var(--ink-50);
+}
+.na-drop-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--ink-50);
+  color: var(--report-navy);
+}
+.na-drop-text {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+.na-drop-text strong {
+  color: var(--marsh-navy);
+  font: 700 18px/1.3 var(--font-sans);
+}
+.na-drop-text .na-muted {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 6px;
+  font-size: 14px;
+}
+.na-drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.na-drop--slim {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border-width: 1px;
+  border-radius: 14px;
+  background: transparent;
+  text-align: left;
+}
+.na-drop--slim .na-drop-icon {
+  width: auto;
+  height: auto;
+  background: none;
+}
+.na-drop--slim .na-drop-text {
+  flex: 1;
+  justify-items: start;
+  font-size: 14px;
+}
+.na-drop--slim .na-drop-actions {
+  justify-content: flex-end;
+}
+.na-paste {
+  gap: 12px;
+}
+.na-paste-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.na-start-error {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ---- Reading screen (boards 10, 11) ---- */
+.na-reading-screen {
+  position: relative;
+}
+.na-reading-page {
+  display: grid;
+  gap: 16px;
+}
+/* Blurred at once, not animated: animating a filter repaints the whole page every frame,
+   and the Done card fading in over it already carries the change. */
+.na-reading-page.is-blurred {
+  filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
+.na-reading-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 16px;
+}
+/* The reading card's content sits at the top; Found so far is only as tall as its rows. */
+.na-reading {
+  align-content: start;
+}
+.na-found {
+  align-self: start;
+}
+.na-reading,
+.na-found {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.na-reading-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 16px 20px 0;
+}
+/* Cancel's text ends where the bar ends: the ghost button's 14 px padding hangs out. */
+.na-reading-head .na-card-actions > :last-child {
+  margin-right: -14px;
+}
+/* One bar for every file (motion 2): grows by scaleX, a faint sweep while working. */
+.na-bar {
+  position: relative;
+  height: 6px;
+  margin: 12px 20px 0;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+}
+.na-bar > span {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--marsh-navy);
+  transform-origin: left;
+  transition:
+    transform 250ms var(--ease-out),
+    background-color 200ms var(--ease-out);
+}
+.na-bar > span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.35), transparent);
+  animation: na-sweep 1.6s linear infinite;
+}
+.na-bar.is-done > span {
+  background: var(--green-600);
+}
+.na-bar.is-stopped > span {
+  background: var(--graphite-400);
+}
+.na-bar:is(.is-done, .is-stopped) > span::after {
+  display: none;
+}
+@keyframes na-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.na-hint,
+.na-read-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px 20px 14px;
+  color: var(--graphite-600);
+  font: 400 13px/1.4 var(--font-sans);
+}
+.na-hint > :first-child,
+.na-read-error > :first-child {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.na-read-error > :first-child,
+.na-read-error strong {
+  color: var(--red-600);
+}
+.na-read-error strong {
+  font-weight: 600;
+}
+.na-files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.na-file {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 20px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--graphite-100);
+}
+.na-file.is-attachment {
+  grid-template-columns: 14px 32px minmax(0, 1fr) auto;
+  padding-left: 40px;
+}
+.na-file-in {
+  color: var(--graphite-400);
+}
+.na-file-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.na-file-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.na-file-name,
+.na-file-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.na-file-name {
+  color: var(--graphite-900);
+  font: 400 14px/1.35 var(--font-sans);
+}
+.na-file.is-attachment .na-file-name {
+  flex-shrink: 0;
+  max-width: 60%;
+}
+.na-file-email {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--graphite-600);
+  font-size: 12px;
+}
+.na-file-error {
+  overflow-wrap: anywhere;
+  color: var(--graphite-600);
+  font: 400 13px/1.4 var(--font-sans);
+}
+.na-file-error > :first-child {
+  margin-right: 4px;
+  vertical-align: -2px;
+  color: var(--red-600);
+}
+.na-file-error strong {
+  color: var(--red-600);
+  font-weight: 600;
+}
+.na-files-group {
+  padding: 10px 20px;
+  border-top: 1px solid var(--graphite-100);
+  background: var(--graphite-50);
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
+}
+
+/* Found so far: each placeholder fades out under its item (motion 3); the first
+   group starts 10 px under the title (round 13). */
+.na-found h2 {
+  padding: 16px 20px 0;
+}
+.na-found-group {
+  padding: 10px 20px 0;
+}
+.na-found-group:last-child {
+  padding-bottom: 16px;
+}
+.na-found-group h3 {
+  margin: 0 0 10px;
+  color: var(--graphite-600);
+  font: 700 11px/1.2 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.na-found-group ul {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.na-found-row {
+  position: relative;
+  min-height: 32px;
+}
+.na-found-wait {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.na-found-wait > span:first-child {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile);
+  background: var(--graphite-100);
+}
+.na-found-wait > span:last-child {
+  width: 45%;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+}
+.na-found-row:not([data-state='wait']) .na-found-wait {
+  opacity: 0;
+}
+.na-found-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  animation: na-rise var(--duration-base) var(--ease-out) both;
+}
+.na-found-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--graphite-900);
+  font: 600 14px/1.3 var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@keyframes na-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* All read (motion 5): the card centred in the window over the blurred page,
+   however far it was scrolled, its tick drawn in. It only says something, so
+   clicks pass through (the sidebar stays usable). */
+.na-done {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  pointer-events: none;
+}
+.na-done-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px 44px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 20px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-popover);
+  text-align: center;
+  animation: na-pop 200ms var(--ease-out) both;
+}
+.na-done-card strong {
+  color: var(--marsh-navy);
+  font: 700 18px/1.3 var(--font-sans);
+}
+.na-done-card .na-muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--graphite-700);
+  font-size: 14px;
+}
+.na-done-tick {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 40;
+  animation: na-draw 300ms var(--ease-out) 120ms both;
+}
+.na-done.is-leaving .na-done-card {
+  animation: na-out 200ms var(--ease-out) forwards;
+}
+@keyframes na-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes na-draw {
+  from {
+    stroke-dashoffset: 40;
+  }
+}
+@keyframes na-out {
+  to {
+    opacity: 0;
+  }
+}
+.na-spin {
+  animation: na-spin 0.9s linear infinite;
+}
+@keyframes na-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The form fresh from reading: cards fade and rise in, 40 ms apart, once. */
+/* backwards, not both: a fill kept after the end makes each card its own stacking
+   context, and the next card would then cover an open calendar (round 13). */
+.na-enter > * {
+  animation: na-rise-in var(--duration-slow) var(--ease-out) backwards;
+}
+.na-enter > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.na-enter > :nth-child(3) {
+  animation-delay: 80ms;
+}
+.na-enter > :nth-child(4) {
+  animation-delay: 120ms;
+}
+.na-enter > :nth-child(5) {
+  animation-delay: 160ms;
+}
+.na-enter > :nth-child(n + 6) {
+  animation-delay: 200ms;
+}
+@keyframes na-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---- Hover only where a pointer can hover (touch keeps a false hover) ---- */
+@media (hover: hover) and (pointer: fine) {
+  .na-docs-btn:hover,
+  .na-contact-text:hover {
+    background: var(--graphite-50);
+  }
+  .na-pick:hover:not(.is-checked) {
+    border-color: var(--graphite-400);
+  }
+  .na-contact-add:hover {
+    background: var(--graphite-50);
+  }
+  .na-suggest button:hover {
+    text-decoration: underline;
+  }
+}
+
+/* ---- Tablet: the dates take two columns, contacts two ---- */
+@media (max-width: 1099px) {
+  .na-contact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 959px) {
+  .na-reading-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Tablet: the popover keeps its right edge on the button and stays inside the page. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .na-docs-menu {
+    width: 560px;
+  }
+}
+
+/* ---- Phone: one column, 44 px targets, the type control on its own row ---- */
+@media (max-width: 767px) {
+  .na-field {
+    --na-box-h: 44px;
+  }
+  .na-body {
+    padding-inline: 16px;
+  }
+  .na-card {
+    padding: 16px;
+  }
+  .na-reading,
+  .na-found {
+    padding: 0;
+  }
+  /* The status words wrap onto two short lines, leaving the name its width. */
+  .na-file .ds-reading-words {
+    max-width: 96px;
+    text-align: right;
+    white-space: normal;
+  }
+  .na-grid--2,
+  .na-grid--3,
+  .na-site-row,
+  .na-picks,
+  .na-contact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .na-client-chosen {
+    flex-wrap: wrap;
+  }
+  .na-client-chosen .na-card-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .na-type {
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+  .na-type-control {
+    flex: 1;
+    min-width: 0;
+  }
+  .na-type-control .ds-segmented {
+    display: flex;
+  }
+  .na-type-control .ds-segmented button {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 6px;
+  }
+  .na-type-error {
+    text-align: left;
+  }
+  /* Name and its tag text, then a tag icon and a bin (board 23). */
+  .na-doc {
+    grid-template-columns: 32px minmax(0, 1fr) auto auto;
+    gap: 4px 8px;
+  }
+  /* The popover hangs from the client card's edges, not the button's, so it
+     fits the screen (Popover sets the anchor inline, hence !important). */
+  .na-docs-anchor {
+    position: static !important;
+  }
+  .na-docs-menu {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto;
+  }
+  /* A recorded client's button sits at the left of its row, so the popover
+     scales from there (the Popover sets the origin inline). */
+  .na-client-chosen .na-docs-menu {
+    transform-origin: top left !important;
+  }
+  .na-drop--slim {
+    flex-wrap: wrap;
+  }
+  .na-drop--slim .na-drop-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .na-drop--slim .na-drop-actions > * {
+    flex: 1;
+  }
+  .na-file,
+  .na-file.is-attachment {
+    padding-inline: 16px;
+  }
+  .na-file.is-attachment {
+    padding-left: 28px;
+  }
+}
+/* Reading on a phone: icons only, no status words (they stay for a screen reader), so the
+   whole screen fits without scrolling (board 24). */
+@media (max-width: 767px) {
+  /* The upload card is a compact card, its two buttons full width (board 24 A). */
+  .na-drop:not(.na-drop--slim) {
+    padding: 24px 16px;
+  }
+  .na-drop:not(.na-drop--slim) .na-drop-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .na-drop:not(.na-drop--slim) .na-drop-actions > * {
+    width: 100%;
+    min-height: 48px;
+  }
+  .na-drop:not(.na-drop--slim) .na-drop-actions > :first-child {
+    background: var(--marsh-navy) !important;
+    color: #fff !important;
+  }
+  /* Reading fits one screen: no drop row, one line per found group (board 24 B). */
+  .na-reading-page > .na-drop--slim,
+  .na-found .ds-new-badge {
+    display: none;
+  }
+  .na-found h2 {
+    padding: 14px 16px 0;
+  }
+  .na-found-group {
+    padding: 10px 16px 0;
+  }
+  .na-found-group:last-child {
+    padding-bottom: 14px;
+  }
+  .na-found-group h3 {
+    margin-bottom: 6px;
+  }
+  /* No last-report line on the site cards (board 23). */
+  .na-pick-foot {
+    display: none;
+  }
+  .na-file .ds-reading-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .na-hint {
+    display: none;
+  }
+}
+@media (max-width: 400px) {
+  /* The three types fit 343 px with their words; the icons give way. */
+  .na-type-control .ds-segmented button > span {
+    /* The icon sets display inline, so only !important hides it. */
+    display: none !important;
+  }
+  .na-mode .ds-segmented button {
+    font-size: 13px;
+  }
+}
+@media (pointer: coarse) {
+  /* 16 px so iOS doesn't zoom into a focused field (the controls set 14 inline). */
+  .na input,
+  .na select,
+  .na textarea,
+  .na .ds-datepicker-mask {
+    font-size: 16px !important;
+  }
+  .na :is(button[title], .na-docs-btn, .na-contact-text) {
+    min-height: 44px;
+  }
+  .na button[title] {
+    min-width: 44px;
+  }
+}
+
+/* ---- Reduced motion: fades only, no rise, no blur ramp, no sweep ---- */
+@media (prefers-reduced-motion: reduce) {
+  .na-enter > *,
+  .na-found-item,
+  .na-error-line,
+  .na-done-card {
+    animation-name: na-fade;
+  }
+  .na-reading-page,
+  .na-docs-btn {
+    transition: none;
+  }
+  /* No blur: the page just dims behind the done card. */
+  .na-reading-page.is-blurred {
+    filter: none;
+    opacity: 0.4;
+  }
+  .na-bar > span::after,
+  .na-done-tick,
+  .na-spin {
+    animation: none;
+  }
+}
+@keyframes na-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- Round 1 motion (board 17): blocks, picks, the Create bar, errors, failed files ---- */
+/* 3. A block added after the form opened rises 6 px and fades in; a removed one fades out, then closes. */
+.na-block {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-width: 0;
+  transition: grid-template-rows var(--duration-base) var(--ease-out);
+}
+.na-block-inner {
+  min-height: 0;
+  min-width: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.na-block[data-late] > .na-block-inner {
+  animation: na-block-in var(--duration-base) var(--ease-out);
+}
+@keyframes na-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.na-block[data-leaving] > .na-block-inner {
+  opacity: 0;
+  overflow: hidden;
+}
+.na-block[data-leaving] {
+  grid-template-rows: 0fr;
+  transition-delay: var(--duration-fast);
+}
+/* 4. A site card: press .98, navy border fades in (above), tick pops 80% to 100%. */
+.na-pick {
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.na-pick:active {
+  transform: scale(0.98);
+}
+.na-pick.is-checked .na-pick-box svg {
+  animation: na-tick-pop var(--duration-base) var(--ease-out);
+}
+@keyframes na-tick-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+/* 6. The Create bar rises from the bottom once the form is ready. */
+.na > .ds-action-bar {
+  animation: na-bar-rise var(--duration-slow) var(--ease-out);
+}
+@keyframes na-bar-rise {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+/* 10. A field's border turns red over 120 ms. */
+.na-field input,
+.na-field select {
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+/* 11. A failed file's error line fades in, sliding down 3 px under its name. */
+.na-file-error {
+  animation: na-file-error-in var(--duration-base) var(--ease-out);
+}
+@keyframes na-file-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+.na-mode .ds-seg-thumb {
+  border-radius: 10px;
+}
+.na-field--datepicker .ds-datepicker-field,
+.ds-datepicker-field {
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .na-block,
+  .na-block-inner,
+  .na-pick,
+  .na-field input,
+  .na-field select {
+    transition: none;
+  }
+  .na-block[data-late] > .na-block-inner,
+  .na-pick.is-checked .na-pick-box svg,
+  .na > .ds-action-bar,
+  .na-file-error {
+    animation: na-fade var(--duration-fast) linear;
+  }
+}
+/* The tag pill fills its column; a long name ends in … (full name on hover). */
+.na-doc-tag {
+  min-width: 0;
+}
+.na-doc-tag .ds-tag-pill[data-wide] {
+  width: 100%;
+}
+/* The desktop tag menu hangs from the Documents popover, over the list. */
+.na-tag-float {
+  position: absolute;
+  z-index: 3;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-popover, 0 8px 24px rgba(26, 31, 38, 0.16));
+  animation: na-block-in var(--duration-fast) var(--ease-out);
+}
