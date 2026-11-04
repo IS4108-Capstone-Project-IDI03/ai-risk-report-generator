@@ -1,30 +1,6 @@
 // Gateway (S2) calls for assessments. Requests go to /api, which Vite proxies
 // to the gateway in development.
 
-export type SiteDetails = {
-  name: string
-  address?: string
-  jurisdiction: string
-  facilityType: string
-}
-// A new assessment's client is a listed one (clientId) or a new name
-// (client), and its site one of that client's (siteId) or a new one (site)
-// (CP-17). On a listed site, copyLocations copies its latest visit's
-// locations; the server copies them unless it is false.
-export type NewAssessment = (
-  { clientId: string; client?: never } | { client: string; clientId?: never }
-) &
-  (
-    { siteId: string; copyLocations: boolean; site?: never } | { site: SiteDetails; siteId?: never }
-  ) & {
-    surveyType: string
-    // YYYY-MM-DD, or '' when not scheduled.
-    siteVisitDate?: string
-    reportDueDate?: string
-    // The assigned engineer's user ID.
-    engineerId: string
-  }
-
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
 export type AssessmentStatus =
@@ -248,8 +224,15 @@ export class GatewayError extends Error {
   readonly status: number | null
   // Problems with individual fields from a 400, keyed by path, e.g. "site.name".
   readonly fields: Record<string, string>
+  // The whole problem body, for routes that say more, e.g. each file's reason (CP-23).
+  readonly detail: Record<string, unknown>
 
-  constructor(status: number | null, message?: string, fields: Record<string, string> = {}) {
+  constructor(
+    status: number | null,
+    message?: string,
+    fields: Record<string, string> = {},
+    detail: Record<string, unknown> = {},
+  ) {
     super(
       message ??
         (status === null
@@ -259,6 +242,7 @@ export class GatewayError extends Error {
     this.name = 'GatewayError'
     this.status = status
     this.fields = fields
+    this.detail = detail
   }
 }
 
@@ -303,7 +287,7 @@ export async function request<T>(
       error?: string
       fields?: Record<string, string>
     }
-    throw new GatewayError(response.status, problem.error, problem.fields)
+    throw new GatewayError(response.status, problem.error, problem.fields, problem)
   }
   // Accepted operations can also return an empty body (e.g. transcription retry).
   const text = await response.text()
@@ -314,18 +298,6 @@ export async function request<T>(
 // Every assessment, most recent site visit first (RV-10).
 export async function listAssessments(signal?: AbortSignal): Promise<Assessment[]> {
   return (await request<Assessment[]>('GET', '/api/assessments', undefined, signal)).data
-}
-
-export type AssignableEngineer = {
-  id: string
-  name: string
-  staffId: string
-  jobTitle: string | null
-}
-export async function listAssignableEngineers(signal?: AbortSignal): Promise<AssignableEngineer[]> {
-  return (
-    await request<AssignableEngineer[]>('GET', '/api/assessments/engineers', undefined, signal)
-  ).data
 }
 
 // Corrects an assessment's own details, its type and dates (RV-10 AC10). The
@@ -344,14 +316,8 @@ export async function updateAssessment(
   await request<void>('PUT', `/api/assessments/${encodeURIComponent(reference)}`, details)
 }
 
-// Creates the assessment, adding its client and site when they are new; the
-// server allocates the reference.
-export async function createAssessment(input: NewAssessment): Promise<Assessment> {
-  return (await request<Assessment>('POST', '/api/assessments', input)).data
-}
-
 // A client the firm surveys for, whoever added it (CP-17).
-export type Client = { id: string; name: string; sites: number }
+export type Client = { id: string; name: string; sites: number; division?: string | null }
 export async function listClients(signal?: AbortSignal): Promise<Client[]> {
   return (await request<Client[]>('GET', '/api/clients', undefined, signal)).data
 }

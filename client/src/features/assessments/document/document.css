@@ -344,7 +344,7 @@
     width: 100%;
   }
 }
-@media (max-width: 759px) {
+@media (max-width: 767px) {
   .dm-section {
     padding: 18px 16px 20px;
   }

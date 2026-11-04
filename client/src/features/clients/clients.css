@@ -1,263 +1,539 @@
-/* The Clients list and a client's page (CP-18). Colours, type and spacing
-   come from the design system's tokens; only the layout lives here. */
+/* The Clients list and what its tables share (CP-23, boards 05-07): one white card
+   with a toolbar, a table and a footer. Used by ClientList, ClientTable,
+   AssessmentTable, DocumentsTab. v2 tokens only (docs/design-system-v2.md). */
 
-.client-page {
-  padding: 24px clamp(16px, 2vw, 28px) 40px;
+.cl-page {
+  min-height: 100%;
+  background: var(--surface-page);
+  font-family: var(--font-sans);
+}
+.cl-content {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+  padding: 0 var(--page-gutter) 32px;
+  container: cl-content / inline-size;
 }
-
-.client-card {
+.cl-page > header + .cl-content {
+  padding-top: 24px;
+}
+.cl-card {
+  container: cl-card / inline-size;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  box-shadow: var(--shadow-sm);
-  min-width: 0;
+}
+@media (max-width: 767px) {
+  .cl-content {
+    padding-inline: 16px;
+  }
 }
 
-.client-card-head {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  padding: 14px 18px;
-}
-
-.client-card-title {
-  flex: 1 1 260px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.client-card-actions {
+/* ---- Toolbar: search, filter pills, then sort and the main button at the end ---- */
+.cl-toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  padding: 12px;
 }
-
-.client-toolbar {
+.cl-toolbar .ds-search {
+  flex: 0 1 300px;
+  min-width: 200px;
+}
+.cl-toolbar-end {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 12px;
+  gap: 8px;
+  margin-left: auto;
 }
-
-/* Who changed it and when, styled as an observation's stamp (CP-08). */
-.client-stamp {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-muted);
+.ds-filter-pill[data-active] {
+  background: var(--ink-100);
+  color: var(--marsh-navy);
 }
-
-.client-note {
-  margin: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--text-secondary);
+.cl-filter-menu {
+  min-width: 220px !important;
 }
-
-.client-visits {
-  border-top: 1px solid var(--border-subtle);
-}
-
-.client-visits ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* A site's visits as work list rows: report, visit date, status and report
-   due under the work list's column headings; the whole row opens the
-   assessment. Stacked on a phone, without the headings. */
-.client-visit-head,
-.client-visit {
-  display: grid;
-  grid-template-columns:
-    minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)
-    16px;
-  align-items: center;
-  gap: 4px 12px;
-  padding: 0 18px;
-}
-
-.client-visit-head {
-  height: 34px;
-  background: var(--surface-header);
-  border-bottom: 1px solid var(--border-default);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.client-visit {
-  width: 100%;
-  min-height: 52px;
-  padding-top: 8px;
-  padding-bottom: 8px;
+.cl-sort {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   border: 0;
-  border-bottom: 1px solid var(--border-subtle);
-  background: none;
-  font: inherit;
-  text-align: left;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-900);
   cursor: pointer;
-  transition: background 80ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cl-sort:hover {
+    background: var(--graphite-200);
+  }
+}
+@media (max-width: 767px) {
+  .cl-toolbar .ds-search {
+    flex: 1 1 100%;
+  }
 }
 
-.client-visit:hover {
-  background: var(--surface-hover);
+/* ---- The table: fixed columns, so a long value wraps and never widens one ---- */
+.cl-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font: 400 14px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite-900);
 }
-
-.client-visits li:last-child .client-visit {
+.cl-table th {
+  height: 44px;
+  padding: 0 8px;
+  border-top: 1px solid var(--graphite-200);
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font: 600 13px/1 var(--font-sans);
+  text-align: left;
+}
+.cl-table td {
+  height: 60px;
+  padding: 8px;
+  border-bottom: 1px solid var(--graphite-100);
+  vertical-align: middle;
+}
+.cl-table :is(th, td):first-child {
+  padding-left: 16px;
+}
+/* A table that opens its card has no heading rule above it: the card's border is enough. */
+.cl-card > .cl-table:first-child th {
+  border-top: 0;
+}
+.cl-table tbody tr:last-child td {
   border-bottom: 0;
 }
-
-.client-visit-ref {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--text-primary);
+@media (hover: hover) and (pointer: fine) {
+  .cl-table tbody tr:hover {
+    background: var(--graphite-50);
+  }
+}
+.cl-row-link {
+  cursor: pointer;
+}
+.cl-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cl-num {
+  text-align: center;
+}
+/* First column left, every other one centred (round 12, board 05). */
+.cl-clients :is(th, td):not(:first-child) {
+  text-align: center;
+}
+.cl-clients th:not(:first-child) .cl-th,
+.cl-clients .cl-chips {
+  justify-content: center;
+}
+/* Next survey has no icon, so its date and site line centre in the column. */
+.cl-clients td[data-label='Next survey'] .ds-due > span {
+  align-items: center;
+  text-align: center;
+}
+.cl-th[data-sorted] {
+  color: var(--marsh-navy);
+  font-weight: 700;
+}
+.cl-clients .cl-cell-actions {
+  text-align: right;
+}
+.cl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+/* Column widths (v2 section 2: fixed content gets fixed widths). Actions: the icons' width. */
+.cl-col-num {
+  width: 72px;
+}
+.cl-col-juris,
+.cl-col-survey {
+  width: 220px;
+}
+.cl-col-status {
+  width: 136px;
+}
+.cl-col-due {
+  width: 168px;
+}
+.cl-col-type,
+.cl-col-date {
+  width: 136px;
+}
+.cl-col-size {
+  width: 88px;
+}
+.cl-col-tag {
+  width: 204px;
+}
+.cl-col-actions-3 {
+  width: 120px;
+}
+.cl-col-actions-2 {
+  width: 88px;
+}
+.cl-col-actions-1 {
+  width: 52px;
+}
+/* With a Site column, the reference keeps its full width. */
+.cl-assess col:first-child {
+  width: 196px;
+}
+/* Open work (with a Site column) stays a table in a ~850 px card: tighter fixed
+   columns, and Site takes what is left (about 120 px there, more when wider). */
+.cl-assess[data-site] col:first-child {
+  width: 180px;
+}
+.cl-assess[data-site] .cl-col-type,
+.cl-assess[data-site] .cl-col-date {
+  width: 104px;
+}
+.cl-assess[data-site] .cl-col-status {
+  width: 128px;
+}
+.cl-assess[data-site] .cl-col-actions-1 {
+  width: 44px;
+}
+.cl-assess .cl-line-1 {
+  flex-shrink: 0;
+}
+.cl-cell-actions {
+  padding: 0 16px 0 0 !important;
+}
+.cl-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+/* Hover actions show on hover or focus; touch screens always show them. No motion (board 17). */
+@media (hover: hover) and (pointer: fine) {
+  .cl-row-actions:not(.cl-row-actions--always) {
+    opacity: 0;
+  }
+  .cl-table tr:hover .cl-row-actions,
+  .cl-row-actions:focus-within {
+    opacity: 1;
+  }
+}
+.cl-icon-link {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  border-radius: var(--radius-pill);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cl-icon-link:hover {
+    background: var(--surface-hover);
+  }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  .cl-row-actions :is(button, a),
+  .cl-site-actions :is(button, a) {
+    width: 44px !important;
+    height: 44px !important;
+  }
 }
 
-.client-visit-date {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.client-visit-status {
-  min-width: 0;
+/* ---- Cell content ---- */
+.cl-flex {
   display: flex;
   align-items: center;
-}
-
-.client-visit-due {
+  gap: 12px;
   min-width: 0;
+}
+.cl-lines {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  min-width: 0;
   gap: 2px;
 }
-
-@media (max-width: 760px) {
-  .client-visit-head {
-    display: none;
-  }
-  .client-visit {
-    grid-template-columns: minmax(0, 1fr) auto 16px;
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-  /* Report and date, then status and report due beneath. */
-  .client-visit-ref {
-    grid-column: 1;
-  }
-  .client-visit > .client-visit-date {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  .client-visit-go {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-  }
-  .client-visit-status {
-    grid-column: 1;
-    grid-row: 2;
-  }
-  .client-visit-due {
-    grid-column: 2;
-    grid-row: 2;
-    align-items: flex-end;
-  }
-}
-
-/* The Clients list: a search, then one row per client that opens its page. */
-.client-list-search {
+.cl-line-1 {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border-subtle);
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--graphite-900);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.client-list {
-  list-style: none;
+.cl-line-2 {
   margin: 0;
-  padding: 0;
+  color: var(--graphite-600);
+  font: 400 13px/1.3 var(--font-sans);
 }
-
-.client-row {
+.cl-ellip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cl-line-1 > :not(.cl-ellip) {
+  flex-shrink: 0;
+}
+.cl-lines > .cl-line-2.cl-ellip {
+  display: block;
+}
+.cl-size {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* At most two lines, then cut; a very long name never widens its column. */
+.cl-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.cl-open {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 60px;
-  padding: 10px 18px;
+  min-width: 0;
+  padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--border-subtle);
   background: none;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 80ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.cl-open:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-field);
+}
+.cl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cl-num-text {
+  color: var(--graphite-900);
+}
+.cl-muted {
+  color: var(--graphite-600);
+}
+.cl-stamp {
+  color: var(--graphite-600);
+  font-size: 12px;
+}
+.cl-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--graphite-600);
+  font-size: 13px;
 }
 
-.client-row:hover {
-  background: var(--surface-hover);
-}
-
-.client-list li:last-child .client-row {
-  border-bottom: 0;
-}
-
-.client-row-text {
-  flex: 1;
-  min-width: 0;
+/* ---- Empty states, the dashed add row and the footer ---- */
+.cl-empty {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 12px;
+  padding: 8px 16px 16px;
+}
+.cl-empty-title {
+  margin: 0;
+  padding: 24px 16px;
+  color: var(--graphite-600);
+  font: 600 14px/1.3 var(--font-sans);
+  text-align: center;
+}
+.cl-add {
+  padding: 12px 16px 16px;
+}
+.cl-card .ds-table-footer {
+  border-top: 1px solid var(--graphite-200);
 }
 
-.client-row-name {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
+/* A card-layout table that opens its card has no rule above its first row: the card's border is enough. */
+.cl-card > .cl-table:first-child tbody tr:first-child {
+  border-top: 0;
 }
 
-.client-row-summary {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.client-row-last {
-  flex: 0 0 auto;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-@media (max-width: 760px) {
-  .client-row {
-    flex-wrap: wrap;
-    padding: 12px 16px;
+/* ---- Clients table, sidebar open at 1280: tighter fixed columns so the client's name keeps room ---- */
+@container cl-card (max-width: 1100px) {
+  .cl-clients col.cl-col-num {
+    width: 56px;
   }
-  /* Under the name and summary, beside the icon's column. */
-  .client-row-last {
-    order: 3;
-    flex-basis: 100%;
-    padding-left: 30px;
+  .cl-clients col.cl-col-juris,
+  .cl-clients col.cl-col-survey {
+    width: 170px;
   }
+  .cl-clients col.cl-col-due {
+    width: 150px;
+  }
+}
+
+/* ---- Clients table: tablet drops Sites and Jurisdictions and stays a table (board 25) ---- */
+@container cl-card (max-width: 860px) {
+  .cl-clients :is(th, td):is(:nth-child(2), :nth-child(4)),
+  .cl-clients col:is(:nth-child(2), :nth-child(4)) {
+    display: none;
+  }
+  .cl-clients col.cl-col-survey,
+  .cl-clients col.cl-col-due {
+    width: 128px;
+  }
+  .cl-clients col.cl-col-actions-3 {
+    width: 144px;
+  }
+  .cl-clients :is(th, td) {
+    padding-inline: 4px;
+  }
+  /* Touch tablets have no hover, and the board shows the actions in line, 44 px each. */
+  .cl-clients .cl-row-actions {
+    opacity: 1;
+  }
+  .cl-clients .cl-row-actions :is(button, a) {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .cl-toolbar .ds-search {
+    flex: 1 1 140px;
+    min-width: 140px;
+  }
+}
+
+/* ---- Clients on a phone: name, division, place, due and one More button (board 21) ---- */
+@media (max-width: 767px) {
+  .cl-clients colgroup,
+  .cl-clients thead {
+    display: none;
+  }
+  .cl-clients,
+  .cl-clients tbody,
+  .cl-clients td {
+    display: block;
+  }
+  .cl-clients tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'main due more'
+      'juris due more';
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 6px;
+    padding: 12px 4px 12px 16px;
+    border-top: 1px solid var(--graphite-100);
+  }
+  .cl-clients td {
+    height: auto;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+  .cl-clients td:first-child {
+    padding-left: 0;
+  }
+  .cl-clients td.cl-cell-main {
+    grid-area: main;
+  }
+  .cl-clients td[data-label='Jurisdictions'] {
+    grid-area: juris;
+    padding-left: 48px;
+  }
+  .cl-clients td[data-label='Report due'] {
+    grid-area: due;
+  }
+  .cl-clients td.cl-cell-actions {
+    grid-area: more;
+    padding: 0 !important;
+  }
+  .cl-clients td:is([data-label='Sites'], [data-label='Open'], [data-label='Next survey']) {
+    display: none;
+  }
+  /* The tablet rule above hides this column; a phone shows it under the name. */
+  .cl-clients td[data-label='Jurisdictions'] {
+    display: block;
+  }
+  .cl-clients .cl-chips {
+    justify-content: flex-start;
+  }
+  .cl-clients .cl-line-1 {
+    white-space: normal;
+  }
+  .cl-clients .cl-ellip {
+    white-space: normal;
+  }
+  .cl-clients td.cl-cell-actions button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Filters and Sort: inline on a wide card, one scrolling row on a phone (board 21). */
+.cl-pills {
+  display: contents;
+}
+.cl-sort-anchor {
+  margin-left: auto;
+}
+/* The Clients list's sort already pushes the button right; the Documents tab's Upload
+   has no sort, so it keeps margin-left: auto (round 13). */
+.cl-pills ~ .cl-toolbar-end {
+  margin-left: 0;
+}
+@media (max-width: 767px) {
+  .cl-pills {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .cl-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .cl-pills > * {
+    flex: none;
+  }
+  .cl-sort-anchor {
+    margin-left: 0;
+  }
+  .cl-toolbar .ds-search,
+  .cl-pills .ds-filter-pill {
+    height: 44px;
+  }
+  .cl-pills {
+    padding: 3px;
+    margin: -3px;
+  }
+  /* The Clients list is full-bleed on a phone (board 21): rows with dividers, no bordered card. */
+  .cl-content--list {
+    padding-inline: 0;
+  }
+  .cl-page > header + .cl-content--list {
+    padding-top: 0;
+  }
+  .cl-content--list .cl-card {
+    border-width: 1px 0 0;
+    border-radius: 0;
+  }
+}
+
+/* The row actions sit at the card's right edge: their reason box opens leftwards, not off screen. */
+.cl-row-actions .ds-reason-box {
+  left: auto;
+  right: 0;
+  text-align: left;
 }

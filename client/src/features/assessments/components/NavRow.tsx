@@ -58,16 +58,19 @@ export function NavRow({
   )
 }
 
-// A small icon button on a row, e.g. Edit; its label is its tooltip.
+// A small icon button on a row, e.g. Edit. The tooltip names the action alone (round 16);
+// label, the screen-reader name, may also name the row.
 export function NavAction({
   icon,
   color,
   label,
+  tooltip = label,
   onClick,
 }: {
   icon: string
   color: string
   label: string
+  tooltip?: string
   onClick: () => void
 }) {
   return (
@@ -75,7 +78,7 @@ export function NavAction({
       type="button"
       className="ob-nav-action"
       aria-label={label}
-      title={label}
+      title={tooltip}
       onClick={onClick}
     >
       <Icon name={icon} size={15} color={color} />

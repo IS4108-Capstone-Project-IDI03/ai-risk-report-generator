@@ -1,0 +1,566 @@
+/* The Assessments page (CP-23, boards 03 and 04): top bar, then one card of
+   toolbar, table and footer. Wide, rows are table columns; narrow (the card's own
+   width, so a collapsed sidebar counts), each row stacks into a card. Not
+   animated (board 17): rows, hover actions, filters and sorting just change.
+   Used by screens/Dashboard.tsx and the components it renders. */
+
+.at-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  font-family: var(--font-sans);
+}
+.at-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px var(--page-gutter) 24px;
+}
+@media (max-width: 767px) {
+  .at-content {
+    padding: 16px;
+  }
+}
+.at-card {
+  container: at / inline-size;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+.at-card > .at-list {
+  flex: 1;
+}
+/* A footer line sits at the card's foot, above its own hairline. */
+.at-card > .ds-table-footer {
+  border-top: 1px solid var(--graphite-200);
+}
+
+/* ---- Toolbar ---- */
+.at-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+.at-search {
+  flex: 1 1 140px;
+  max-width: 300px;
+  min-width: 140px;
+}
+.at-pills {
+  display: contents;
+}
+/* Wide: search and the three pills, then By client | All, Sort and New assessment on the right. */
+.at-tools {
+  display: contents;
+}
+.at-tools .ds-segmented {
+  order: 1;
+  margin-left: auto;
+}
+.at-sort-anchor {
+  order: 2;
+}
+.at-tools .nab-anchor {
+  order: 3;
+}
+.at-sort {
+  max-width: 100%;
+}
+.at-sort-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.at-pills .ds-filter-pill[data-set] {
+  background: var(--ink-50);
+  color: var(--marsh-navy);
+}
+/* ---- Table: header, group headers and rows share these columns ---- */
+.at-list {
+  --at-cols: minmax(0, 1fr) 128px 132px 164px 168px 76px;
+  font: 400 14px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite-900);
+}
+.at-head,
+.at-row {
+  display: grid;
+  grid-template-columns: var(--at-cols);
+  align-items: center;
+  column-gap: 12px;
+  padding: 0 16px;
+}
+.at-meta,
+.at-foot {
+  display: contents;
+}
+.at-head {
+  min-height: 44px;
+  border-top: 1px solid var(--graphite-200);
+  color: var(--graphite-900);
+  font-size: 13px;
+  font-weight: 600;
+}
+.at-head > .at-th {
+  justify-self: start;
+}
+.at-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.at-th[data-sorted] {
+  color: var(--marsh-navy);
+  font-weight: 700;
+}
+.at-head .at-meta > span,
+.at-head .at-foot > span,
+.at-type,
+.at-date,
+.at-status,
+.at-due {
+  text-align: center;
+  justify-self: center;
+}
+.at-row {
+  min-height: 60px;
+  padding-block: 12px;
+  border-top: 1px solid var(--graphite-100);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .at-row:hover {
+    background: var(--graphite-50);
+  }
+}
+.at-assessment {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.at-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.at-ref {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--graphite-900);
+  font: 600 15px/1.3 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.at-ref:focus-visible,
+.at-link:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* "Client › Site": a long one wraps to two lines, whole in its title. */
+.at-sub,
+.at-address {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--graphite-600);
+  font-size: 13px;
+  font-weight: 400;
+}
+.at-type,
+.at-date {
+  color: var(--graphite-900);
+}
+
+/* Archive and the open chevron: only on hover or focus, always on touch. */
+.at-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  opacity: 0;
+}
+.at-row:hover .at-actions,
+.at-row:focus-within .at-actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .at-actions,
+  .at-add {
+    opacity: 1 !important;
+  }
+}
+
+/* ---- A client › site group header ---- */
+.at-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 16px;
+  border-top: 1px solid var(--graphite-100);
+  background: var(--graphite-50);
+}
+.at-group:first-child .at-group-head {
+  border-top: 1px solid var(--graphite-200);
+}
+.at-group-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.at-client {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  text-align: left;
+  color: var(--graphite-900);
+  font-weight: 600;
+}
+.at-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .at-link:hover {
+    text-decoration: underline;
+  }
+}
+@media (pointer: coarse) {
+  .at-link {
+    min-height: 44px;
+    padding-block: 12px;
+  }
+}
+.at-site {
+  min-width: 0;
+  color: var(--graphite-900);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.at-address {
+  min-width: 0;
+}
+.at-add {
+  margin-left: auto;
+  opacity: 0;
+}
+.at-group-head:hover .at-add,
+.at-group-head:focus-within .at-add {
+  opacity: 1;
+}
+.at-empty {
+  padding: 48px 16px;
+}
+
+/* ---- Mid-width card (sidebar open): By client | All shrinks to icons, and below 1100 px Sort
+   shows only the part of its order before the comma, so the search keeps room and New
+   assessment stays on the row. ---- */
+.at-sort-short {
+  display: none;
+}
+@container at (max-width: 1200px) {
+  .at-search {
+    flex: 1 1 232px;
+  }
+  .at-tools .ds-segmented button {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+}
+@container at (max-width: 1100px) {
+  .at-search {
+    flex: 1 1 180px;
+  }
+  .at-sort-label {
+    display: none;
+  }
+  .at-sort-short {
+    display: block;
+    white-space: nowrap;
+  }
+}
+
+/* ---- Tablet card: still a table (board 25): Assessment (with its type and survey date
+   under the ID), Status and Report due. ---- */
+@container at (max-width: 860px) {
+  .at-list {
+    --at-cols: minmax(0, 1fr) 124px 136px 56px;
+  }
+  .at-head,
+  .at-row {
+    column-gap: 8px;
+    padding-inline: 12px;
+  }
+  .at-head .at-meta {
+    display: none;
+  }
+  .at-row {
+    grid-template-areas:
+      'main status due actions'
+      'meta status due actions';
+    row-gap: 2px;
+  }
+  .at-assessment {
+    grid-area: main;
+  }
+  .at-ref {
+    white-space: nowrap;
+  }
+  .at-meta {
+    grid-area: meta;
+    display: flex;
+    gap: 6px;
+    padding-left: 48px;
+    color: var(--graphite-600);
+    font-size: 13px;
+  }
+  .at-meta > span {
+    color: var(--graphite-600);
+  }
+  .at-date::before {
+    content: '·';
+    margin-right: 6px;
+  }
+  .at-status {
+    grid-area: status;
+  }
+  .at-due {
+    grid-area: due;
+  }
+  .at-actions {
+    grid-area: actions;
+  }
+  .at-group-head {
+    padding-inline: 12px;
+  }
+  /* Toolbar on one row (board 25): the filters and Sort scroll sideways with an edge fade;
+     By client | All is icon-only; search keeps a readable width. */
+  .at-toolbar {
+    flex-wrap: nowrap;
+  }
+  .at-search {
+    flex: 0 0 160px;
+    min-width: 0;
+  }
+  .at-pills {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .at-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .at-pills > * {
+    flex: none;
+  }
+  /* Room for the pills' focus ring, which the scroller would clip. */
+  .at-pills {
+    padding: 3px;
+    margin: -3px;
+  }
+  .at-tools .ds-segmented {
+    margin-left: 0;
+  }
+  .at-tools .ds-segmented button {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+  /* Archive and the open chevron stay in view, as on the board. */
+  .at-list {
+    --at-cols: minmax(0, 1fr) 124px 136px 100px;
+  }
+  .at-actions {
+    opacity: 1;
+  }
+  .at-actions button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+/* ---- Phone card: each row is ID, status, due and Archive (board 21); 44px taps ---- */
+@container at (max-width: 600px) {
+  .at-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .at-search {
+    flex: 1 1 100%;
+  }
+  .at-tools .ds-segmented button {
+    width: auto;
+    padding: revert;
+    font-size: inherit;
+  }
+  .at-pills {
+    flex: 1 1 100%;
+  }
+  .at-search {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .at-search,
+  .ds-filter-pill,
+  .at-card .ds-segmented button {
+    height: 44px;
+  }
+  /* Filters and Sort share one scrolling row that fades at the edge. */
+  .at-pills {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .at-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .at-pills > *,
+  .at-pills .ds-filter-pill {
+    flex: none;
+  }
+  .at-pills {
+    padding: 3px;
+    margin: -3px;
+  }
+  /* The phone's pill row scrolls, so Sort keeps its whole order. */
+  .at-sort-label {
+    display: block;
+  }
+  .at-sort-short {
+    display: none;
+  }
+  .at-tools {
+    display: flex;
+    flex: 1 1 100%;
+  }
+  .at-tools .ds-segmented {
+    flex: 1;
+    margin-left: 0;
+  }
+  .at-tools .ds-segmented button {
+    flex: 1;
+  }
+  .at-head {
+    display: none;
+  }
+  .at-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'main due actions'
+      'status due actions';
+    column-gap: 4px;
+    row-gap: 6px;
+    padding: 12px 4px 12px 12px;
+  }
+  .at-assessment {
+    grid-area: main;
+    gap: 8px;
+    min-width: 0;
+    margin-right: 8px;
+  }
+  .at-status {
+    padding-left: 46px;
+  }
+  .at-ref {
+    overflow-wrap: normal;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+  .at-meta {
+    display: none;
+  }
+  .at-status {
+    grid-area: status;
+    justify-self: start;
+    padding-left: 48px;
+  }
+  .at-due {
+    grid-area: due;
+    justify-self: end;
+    text-align: left;
+  }
+  .at-actions {
+    grid-area: actions;
+    opacity: 1;
+  }
+  .at-actions > :last-child:not(button) {
+    display: none !important; /* the open chevron (inline-styled icon): the whole row opens */
+  }
+  .at-actions button,
+  .at-add button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .at-add {
+    opacity: 1;
+  }
+  /* Group header: site first, client under it; the address is on the assessment. */
+  .at-group-text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .at-site {
+    order: 1;
+    color: var(--marsh-navy);
+  }
+  .at-client {
+    order: 2;
+    color: var(--graphite-600);
+    font-size: 13px;
+    font-weight: 400;
+  }
+  .at-group-text > [aria-hidden] {
+    display: none !important; /* the › between client and site (an inline-styled icon) */
+  }
+  .at-address {
+    display: none;
+  }
+}
+/* The New assessment button beside the bell: a round + on a phone. The button's own
+   styles are inline, so these need !important. */
+@media (max-width: 767px) {
+  .at-topnew button[aria-haspopup] {
+    width: 44px;
+    height: 44px;
+    padding: 0 !important;
+    font-size: 0 !important;
+    gap: 0 !important;
+  }
+  .at-topnew button[aria-haspopup] > span:last-child {
+    display: none !important; /* the chevron */
+  }
+}
