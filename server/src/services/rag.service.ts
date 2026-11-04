@@ -396,3 +396,45 @@ export async function proposeSiteWalk(
   }
   return { proposal, usage: body.usage }
 }
+
+// What the gateway sends rag-service to read a client's documents (CP-23), in
+// the snake_case of POST /client-intakes/read. Must match ReadClientIntakeRequest
+// in microservices/rag-service/app/api/routes.py, which refuses unknown fields.
+export type ClientIntakeReadBody = {
+  documents: { id: string; name: string; text: string }[]
+  clients: {
+    id: string
+    name: string
+    division: string | null
+    sites: { id: string; name: string; address: string | null; has_assessments: boolean }[]
+  }[]
+  facility_types: string[]
+  jurisdictions: { code: string; name: string }[]
+  privacy: { enabled: boolean; known_entities: unknown[]; detect?: ('CLIENT' | 'SITE')[] }
+}
+
+// A snake_case key in camelCase, e.g. existing_id -> existingId.
+const camel = (key: string) => key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+
+/** Returns the value with every object key in camelCase, at any depth. */
+function camelKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(camelKeys)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [camel(k), camelKeys(v)]))
+}
+
+/**
+ * Asks rag-service to read a client's documents (CP-23). Returns its proposal
+ * in camelCase, unchecked, and its usage list. Throws RagServiceError; its
+ * `status` is 503 when privacy protection is on and masking is unavailable.
+ */
+export async function readClientIntake(
+  body: ClientIntakeReadBody,
+): Promise<{ result: Record<string, unknown>; usage: unknown }> {
+  const { usage, ...result } = await callRag<Record<string, unknown>>('/client-intakes/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { result: camelKeys(result) as Record<string, unknown>, usage }
+}

@@ -27,3 +27,22 @@ ALLOWED = frozenset(
 def is_allowed(text: str) -> bool:
     words = text.casefold().split()
     return bool(words) and all(word in ALLOWED for word in words)
+
+
+# Organisations and bodies that are never a client (CP-23). Whole names, lower case. Without this,
+# detecting organisations would mask Marsh and the standards bodies the drafts need.
+NEVER_MASK = frozenset(
+    ["marsh", "marsh mclennan", "fm global", "fm", "nfpa", "scdf", "ul", "vds", "lpcb"]
+    + ["singapore civil defence force", "munich re", "swiss re"]
+)
+
+
+# Names whose teams are never masked either ("Marsh Property Risk Engineering"). Short names
+# such as "FM" are left out: "FM Logistics" could be a client.
+TEAMS_OF = ("marsh", "fm global")
+
+
+def is_never_masked(text: str) -> bool:
+    """Whether `text` is a listed name, or a team of Marsh or FM Global."""
+    name = " ".join(text.casefold().split())
+    return name in NEVER_MASK or any(name.startswith(team + " ") for team in TEAMS_OF)

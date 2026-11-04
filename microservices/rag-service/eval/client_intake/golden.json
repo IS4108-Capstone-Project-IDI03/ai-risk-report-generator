@@ -1,0 +1,4802 @@
+{
+ "_about": "Client packs for the CP-23 intake step, see LABELS.md. Each case: the step's request (documents as /extract-text returns them, the recorded clients, the lists) and the answer key from the pack's plan (plans.json). written_by says who wrote the documents.",
+ "cases": [
+  {
+   "id": "p01",
+   "split": "tuning",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Re Periodic survey Kallang Riverside Centre.eml",
+      "text": "From: Chua Hui Ling <hl.chua@sembarestates.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Mon, 2 Nov 2026 09:14:00 +0800\nSubject: Re: Periodic survey - Kallang Riverside Centre\n\nHi team,\n\nAs discussed with Jasmine last week, we would like Marsh to do the periodic re-survey of Kallang Riverside Centre at 12 Kallang Riverside Road, Singapore 339511. Your team surveyed the centre before, so this is a repeat visit.\n\nPlease plan the survey for 23 and 24 March 2027. The first day will cover the retail podium and car park, and the second day the residential tower and the plant rooms.\n\nWe need the report by 30 April 2027 for our insurance renewal.\n\nYou will be met by me (Head, Property Management) and Rizal Hakim, our Senior Centre Manager, who will bring you round the plant areas.\n\nThank you.\n\nRegards,\nChua Hui Ling\nHead, Property Management\nSembar Estates Pte. Ltd.\n"
+     },
+     {
+      "id": "f2",
+      "name": "Engagement letter Sembar Estates.pdf",
+      "text": "SEMBAR ESTATES PTE LTD\n8 Kallang Riverside Road, Singapore 339510\n\n12 October 2026\n\nMarsh Property Risk Engineering\nMarsh Advisory\n\nDear Sirs\n\nSTANDING ENGAGEMENT FOR PROPERTY RISK SURVEYS\n\nFurther to our meeting, Sembar Estates Pte Ltd (\"Sembar\") confirms that it engages Marsh to carry out property risk engineering surveys of the properties Sembar names from time to time, on the terms of Marsh's standard services agreement. Each survey will be requested by email from our Property Management team.\n\nSembar will give your engineers safe access to each property and to the managers who run it, and will send the documents you ask for before each visit. Please address the reports to the Head, Property Management.\n\nYours faithfully\n\nFor and on behalf of Sembar Estates Pte Ltd\nDirector, Real Estate\n"
+     },
+     {
+      "id": "f3",
+      "name": "Site information sheet Kallang Riverside Centre.pdf",
+      "text": "SITE INFORMATION SHEET\nProperty: Kallang Riverside Centre\nAddress: 12 Kallang Riverside Road, Singapore 339511\nType: Mixed-use: 4-storey retail podium with a 22-storey residential tower above\nYear completed: 2009\nGross floor area: 46,000 square metres\nConstruction: Reinforced concrete frame, concrete floors, metal deck roof over the podium\nFire protection: Wet sprinklers throughout the podium, risers and hose reels in the tower, addressable fire alarm\nFire pumps: Two diesel-driven pumps and one jockey pump in the basement 2 pump room\nTenants: 62 retail units, a supermarket, a cinema and 216 residential units\nSite contacts: Chua Hui Ling (Head, Property Management); Rizal Hakim (Senior Centre Manager)\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-01",
+      "name": "Sembar Estates Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-101",
+        "name": "Kallang Riverside Centre",
+        "address": "12 Kallang Riverside Road, Singapore 339511",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p01",
+    "split": "tuning",
+    "written_by": "claude",
+    "base_report": "Mixed Use Development Sample 1",
+    "hard_cases": [
+     "resurvey",
+     "recorded_client",
+     "date_range",
+     "placement_assessment",
+     "placement_site",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Sembar Estates Pte Ltd",
+     "division": null,
+     "existing_id": "c-01"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-01",
+      "name": "Sembar Estates Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-101",
+        "name": "Kallang Riverside Centre",
+        "address": "12 Kallang Riverside Road, Singapore 339511",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Kallang Riverside Centre",
+      "address": "12 Kallang Riverside Road, Singapore 339511",
+      "jurisdiction": "SG",
+      "facility_type": "Mixed-use development",
+      "existing_site_id": "s-101"
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Resurvey",
+      "site_visit_date": "2027-03-23",
+      "site_visit_end_date": "2027-03-24",
+      "report_due_date": "2027-04-30",
+      "site_contacts": [
+       {
+        "name": "Chua Hui Ling",
+        "role": "Head, Property Management"
+       },
+       {
+        "name": "Rizal Hakim",
+        "role": "Senior Centre Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Re Periodic survey Kallang Riverside Centre.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Client's request for the periodic re-survey",
+      "id": "f1"
+     },
+     {
+      "name": "Engagement letter Sembar Estates.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Standing engagement letter",
+      "id": "f2"
+     },
+     {
+      "name": "Site information sheet Kallang Riverside Centre.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts about the centre",
+      "id": "f3"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p02",
+   "split": "tuning",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Property survey request.eml",
+      "text": "From: Gerald Ong <gerald.ong@lindenmoor.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Tue, 3 Nov 2026 09:21:00 +0800\nSubject: Property survey request\n\nDear Marsh team,\n\nI am the Group Risk Manager at Lindenmoor Capital Pte Ltd and I am writing for our Corporate Real Estate division. We would like Marsh to survey Lindenmoor Tower, our head office building at 6 Marina Crescent, Singapore 018978. We have not had a Marsh survey of this building before.\n\nWe would like the visit on 9 February 2027. Please let us know the time you need. The report is needed by 15 March 2027, before our board meeting.\n\nTan Pei Shan, our Facilities Manager, will host your engineers on the day. I will join for the closing discussion.\n\nThank you and best regards,\nGerald Ong\nGroup Risk Manager\n"
+     },
+     {
+      "id": "f2",
+      "name": "Letter of appointment.pdf",
+      "text": "LINDENMOOR CAPITAL PTE LTD\nCorporate Real Estate\n6 Marina Crescent, Singapore 018978\n\n3 November 2026\n\nMarsh Property Risk Engineering\n\nDear Sirs\n\nAPPOINTMENT TO SURVEY LINDENMOOR TOWER\n\nWe, Lindenmoor Capital Pte Ltd, Corporate Real Estate, appoint Marsh to carry out a property risk survey of Lindenmoor Tower on the terms of your proposal of the same date. We understand the survey takes one day and that your report will set out recommendations by priority.\n\nPlease send the invoice to our Corporate Real Estate team.\n\nYours faithfully\n\nGerald Ong\nGroup Risk Manager\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p02",
+    "split": "tuning",
+    "written_by": "claude",
+    "base_report": "Office Sample 1",
+    "hard_cases": [
+     "division",
+     "placement_client",
+     "new_client"
+    ],
+    "client": {
+     "name": "Lindenmoor Capital Pte Ltd",
+     "division": "Corporate Real Estate",
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Lindenmoor Tower",
+      "address": "6 Marina Crescent, Singapore 018978",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-02-09",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-03-15",
+      "site_contacts": [
+       {
+        "name": "Tan Pei Shan",
+        "role": "Facilities Manager"
+       },
+       {
+        "name": "Gerald Ong",
+        "role": "Group Risk Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Property survey request.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request from the Corporate Real Estate team",
+      "id": "f1"
+     },
+     {
+      "name": "Letter of appointment.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Appointment letter on letterhead",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p03",
+   "split": "tuning",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey of Rye Square Mall.eml",
+      "text": "From: Jamilah Rahman <jamilah@hollinrye.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Wed, 4 Nov 2026 09:28:00 +0800\nSubject: Survey of Rye Square Mall\n\nHello,\n\nHollin & Rye Retail Holdings Pte Ltd would like Marsh to survey Rye Square Mall, 45 Jurong Gateway Lane, Singapore 608532. This will be the first time the mall is surveyed by Marsh.\n\nWe have not fixed the visit date yet, because the mall's year-end stocktake is still being planned. I will confirm the dates once the stocktake is settled. Our insurance broker needs the report by 14 May 2027.\n\nI am the Centre Manager, and Alvin Teo, the Assistant Manager, will take your engineers round.\n\nBest,\nJamilah Rahman\nCentre Manager, Rye Square Mall\n"
+     },
+     {
+      "id": "f2",
+      "name": "Rye Square Mall information sheet.pdf",
+      "text": "RYE SQUARE MALL INFORMATION SHEET\nOwner: Hollin & Rye Retail Holdings Pte Ltd\nProperty: Rye Square Mall\nAddress: 45 Jurong Gateway Lane, Singapore 608532\nUse: Shopping mall with 148 shops, a food court, a gym and a multi-storey car park\nStoreys: 5 above ground, 2 basement car park levels\nOpened: 2014\nFire protection: Wet pipe sprinklers throughout, smoke extraction in the atrium, fire alarm linked to the SCDF\nManagement office hours: Monday to Friday 9am to 6pm\nContacts: Jamilah Rahman, Centre Manager; Alvin Teo, Assistant Manager\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-02",
+      "name": "Hollin Rye Logistics Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-201",
+        "name": "Hollin Rye Distribution Hub",
+        "address": "5 Pioneer Sector 2, Singapore 628354",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p03",
+    "split": "tuning",
+    "written_by": "claude",
+    "base_report": "Shopping Mall Sample 2",
+    "hard_cases": [
+     "missing_date",
+     "similar_client_trap",
+     "placement_assessment",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Hollin & Rye Retail Holdings Pte Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [
+     {
+      "id": "c-02",
+      "name": "Hollin Rye Logistics Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-201",
+        "name": "Hollin Rye Distribution Hub",
+        "address": "5 Pioneer Sector 2, Singapore 628354",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Rye Square Mall",
+      "address": "45 Jurong Gateway Lane, Singapore 608532",
+      "jurisdiction": "SG",
+      "facility_type": "Shopping mall",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": null,
+      "site_visit_end_date": null,
+      "report_due_date": "2027-05-14",
+      "site_contacts": [
+       {
+        "name": "Jamilah Rahman",
+        "role": "Centre Manager"
+       },
+       {
+        "name": "Alvin Teo",
+        "role": "Assistant Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey of Rye Square Mall.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request; visit date still to be arranged",
+      "id": "f1"
+     },
+     {
+      "name": "Rye Square Mall information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts about the mall",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p04",
+   "split": "tuning",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Request for three surveys.eml",
+      "text": "From: Ho Wei Jie <wj.ho@meridianpavillion.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Mon, 2 Nov 2026 09:14:00 +0800\nSubject: Request for three surveys\n\nHi Marsh,\n\nPlease find our request on behalf of Meridian Pavillion REIT Management Pte Ltd. We would like surveys of three buildings in the first quarter of 2027:\n\n1. Pavilion Tower One, 1 Shenton Link, Singapore 068801: re-survey, 2 February 2027.\n2. Pavilion Tower Two, 3 Shenton Link, Singapore 068803: re-survey, 3 February 2027.\n3. Meridian Business Hub, 28 Science Park Drive, Singapore 118228: first survey, 8 February 2027 (one day).\n\nTowers One and Two were surveyed by Marsh before, so these are repeats. The Hub is new to our portfolio and has never been surveyed by Marsh.\n\nReports for the two towers are needed by 31 March 2027 and for the Hub by 15 April 2027.\n\nHo Wei Jie (Asset Manager) will be at Tower One. Sabrina Lau, the Property Manager for both towers, will be there for both days. Dennis Phua, Building Manager, looks after the Hub.\n\nDetails of each building are in the attached sheets.\n\nRegards,\nHo Wei Jie\nAsset Manager, Meridian Pavillion REIT Management Pte Ltd\n"
+     },
+     {
+      "id": "f2",
+      "name": "Pavilion Tower One thread.eml",
+      "text": "From: Sabrina Lau <sabrina.lau@meridianpavillion.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Thu, 5 Nov 2026 09:35:00 +0800\nSubject: Pavilion Tower One survey\n\nHi,\n\nFollowing Wei Jie's email, a few notes on Pavilion Tower One (1 Shenton Link). The building is a 38-storey office tower with a three-level retail podium. The sprinkler system was upgraded in 2021. Our fire pump room is on the basement 3 level, and the contractor visits it quarterly.\n\nYour team will find me (Property Manager) at the management office on level 3 at 9am. Wei Jie will be there for the opening meeting only.\n\nThanks,\nSabrina Lau\n"
+     },
+     {
+      "id": "f3",
+      "name": "Pavilion Tower Two thread.eml",
+      "text": "From: Sabrina Lau <sabrina.lau@meridianpavillion.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Thu, 5 Nov 2026 09:35:00 +0800\nSubject: Pavilion Tower Two survey\n\nHi,\n\nNotes on Pavilion Tower Two (3 Shenton Link). It is a 31-storey office tower connected to Tower One through a link bridge on level 4. Tower Two has its own sprinkler tanks and pumps. Please come to the lobby security counter at 9am; I will meet you there as the Property Manager.\n\nThanks,\nSabrina Lau\n"
+     },
+     {
+      "id": "f4",
+      "name": "New date for the Business Hub.eml",
+      "text": "From: Ho Wei Jie <wj.ho@meridianpavillion.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Thu, 12 Nov 2026 09:24:00 +0800\nSubject: New date for the Business Hub\n\nHi Marsh,\n\nSorry, the Hub's tenant has asked us to move the date for Meridian Business Hub. Please ignore 8 February 2027 in my earlier email. The survey will now run over two days, 10 and 11 February 2027. The other two dates do not change.\n\nDennis Phua, the Building Manager, remains your contact there.\n\nThanks,\nWei Jie\n"
+     },
+     {
+      "id": "f5",
+      "name": "Engagement letter Meridian Pavillion.pdf",
+      "text": "MERIDIAN PAVILLION REIT MANAGEMENT PTE LTD\n(as manager of the trust)\n\nENGAGEMENT LETTER\n\nDate: 20 October 2026\n\nTo: Marsh Property Risk Engineering\n\nWe, Meridian Pavillion REIT Management Pte Ltd, engage Marsh to carry out property risk engineering surveys of the buildings named in our written requests, on the terms set out below.\n\n1. The Broker shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys.\n\n2. The Client shall give the Broker's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors.\n\n3. The Client shall supply, before the visit, the documents the Broker reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule.\n\n4. The survey is a visual inspection of the areas the Client makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Broker does not test equipment unless the Client agrees in writing.\n\n5. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category.\n\n6. The Broker's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss.\n\n7. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose.\n\n8. The Client shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate.\n\n9. The report is for the Client alone. The Client may give a copy to its insurers and professional advisers but not to any other person without the Broker's written consent.\n\n10. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it.\n\n11. The Broker may use sub-contracted specialists for part of the services, and remains responsible for their work. The Broker shall tell the Client before doing so.\n\n12. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email.\n\n13. The Client confirms that it has the right to let the Broker's engineers enter each site, and that it has told the site's occupiers and managers about the visit.\n\n14. The Broker shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws.\n\n15. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities.\n\n16. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion.\n\n1. The Broker's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss.\n\n2. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose.\n\n3. The Client shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate.\n\n4. The report is for the Client alone. The Client may give a copy to its insurers and professional advisers but not to any other person without the Broker's written consent.\n\n5. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it.\n\n6. The Broker may use sub-contracted specialists for part of the services, and remains responsible for their work. The Broker shall tell the Client before doing so.\n\n7. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email.\n\n8. The Client confirms that it has the right to let the Broker's engineers enter each site, and that it has told the site's occupiers and managers about the visit.\n\n9. The Broker shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws.\n\n10. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities.\n\n11. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion.\n\n12. The Broker shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys.\n\n13. The Client shall give the Broker's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors.\n\n14. The Client shall supply, before the visit, the documents the Broker reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule.\n\n15. The survey is a visual inspection of the areas the Client makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Broker does not test equipment unless the Client agrees in writing.\n\n16. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category.\n\n1. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it.\n\n2. The Broker may use sub-contracted specialists for part of the services, and remains responsible for their work. The Broker shall tell the Client before doing so.\n\n3. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email.\n\n4. The Client confirms that it has the right to let the Broker's engineers enter each site, and that it has told the site's occupiers and managers about the visit.\n\n5. The Broker shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws.\n\n6. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities.\n\n7. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion.\n\n8. The Broker shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys.\n\n9. The Client shall give the Broker's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors.\n\n10. The Client shall supply, before the visit, the documents the Broker reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule.\n\n11. The survey is a visual inspection of the areas the Client makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Broker does not test equipment unless the Client agrees in writing.\n\n12. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category.\n\n13. The Broker's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss.\n\n14. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose.\n\n15. The Client shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate.\n\n16. The report is for the Client alone. The Client may give a copy to its insurers and professional advisers but not to any other person without the Broker's written consent.\n\nSigned for Meridian Pavillion REIT Management Pte Ltd\n\nChief Operating Officer\n"
+     },
+     {
+      "id": "f6",
+      "name": "Pavilion Tower One information sheet.pdf",
+      "text": "SITE INFORMATION SHEET\nProperty: Pavilion Tower One\nAddress: 1 Shenton Link, Singapore 068801\nType: 38-storey office tower with a three-level retail podium\nCompleted: 2005\nNet lettable area: 52,000 square metres\nConstruction: Reinforced concrete core, steel floor beams, curtain wall\nFire protection: Wet sprinklers, fire alarm, smoke control, two electric fire pumps with one diesel standby\nContacts: Ho Wei Jie, Asset Manager; Sabrina Lau, Property Manager\n"
+     },
+     {
+      "id": "f7",
+      "name": "Pavilion Tower Two information sheet.pdf",
+      "text": "SITE INFORMATION SHEET\nProperty: Pavilion Tower Two\nAddress: 3 Shenton Link, Singapore 068803\nType: 31-storey office tower\nCompleted: 2008\nNet lettable area: 41,000 square metres\nConstruction: Reinforced concrete frame and curtain wall\nFire protection: Wet sprinklers, fire alarm, two diesel fire pumps\nContact: Sabrina Lau, Property Manager\n"
+     },
+     {
+      "id": "f8",
+      "name": "Meridian Business Hub information sheet.pdf",
+      "text": "SITE INFORMATION SHEET\nProperty: Meridian Business Hub\nAddress: 28 Science Park Drive, Singapore 118228\nType: Six-storey business park building with laboratories and offices\nCompleted: 2016\nNet lettable area: 18,500 square metres\nConstruction: Precast concrete frame, metal deck roof\nFire protection: Wet sprinklers, gas suppression in two server rooms, fire alarm\nContact: Dennis Phua, Building Manager\n"
+     },
+     {
+      "id": "f9",
+      "name": "Business Hub lease summary.docx",
+      "text": "SUMMARY OF LEASE: MERIDIAN BUSINESS HUB\nPrepared for the Trust's records. This summary does not replace the lease.\n\nPremises: the whole of Meridian Business Hub, 28 Science Park Drive, Singapore 118228.\n\nRent and outgoings. The Landlord shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule.\n\nPermitted use. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing.\n\nAlterations. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category.\n\nRepair and maintenance. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss.\n\nInsurance. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose.\n\nFire safety and sprinkler systems. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate.\n\nBuilding services. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent.\n\nAccess and security. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it.\n\nSignage. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so.\n\nAssignment and subletting. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email.\n\nDefault. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email. The Tenant confirms that it has the right to let the Landlord's engineers enter each site, and that it has told the site's occupiers and managers about the visit.\n\nReinstatement. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email. The Tenant confirms that it has the right to let the Landlord's engineers enter each site, and that it has told the site's occupiers and managers about the visit. The Landlord shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws.\n\nQuiet enjoyment. The Tenant confirms that it has the right to let the Landlord's engineers enter each site, and that it has told the site's occupiers and managers about the visit. The Landlord shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities.\n\nRent and outgoings. The Landlord shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion.\n\nPermitted use. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion. The Landlord shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys.\n\nAlterations. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion. The Landlord shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors.\n\nRepair and maintenance. The Landlord shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule.\n\nInsurance. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing.\n\nFire safety and sprinkler systems. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category.\n\nBuilding services. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss.\n\nAccess and security. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose.\n\nSignage. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate.\n\nAssignment and subletting. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent.\n\nDefault. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it.\n\nReinstatement. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so.\n\nQuiet enjoyment. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email.\n\nRent and outgoings. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email. The Tenant confirms that it has the right to let the Landlord's engineers enter each site, and that it has told the site's occupiers and managers about the visit.\n\nPermitted use. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email. The Tenant confirms that it has the right to let the Landlord's engineers enter each site, and that it has told the site's occupiers and managers about the visit. The Landlord shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws.\n\nAlterations. The Tenant confirms that it has the right to let the Landlord's engineers enter each site, and that it has told the site's occupiers and managers about the visit. The Landlord shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities.\n\nRepair and maintenance. The Landlord shall keep working papers, photographs and notes for the period its record policy requires and shall protect personal data in them under the applicable data protection laws. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion.\n\nInsurance. Neither party is responsible for delay caused by events outside its reasonable control, including severe weather, public health measures, industrial action or failure of public utilities. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion. The Landlord shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys.\n\nFire safety and sprinkler systems. This agreement is governed by the laws of the place stated in the schedule. The parties submit to the courts of that place, after first trying in good faith to settle any dispute by discussion. The Landlord shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors.\n\nBuilding services. The Landlord shall carry out the services with reasonable skill and care and in accordance with generally accepted practice for property risk engineering surveys. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule.\n\nAccess and security. The Tenant shall give the Landlord's engineers safe access to the premises, to the fire protection systems and to the persons responsible for operating them, and shall tell the engineers of any site rules that apply to visitors. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing.\n\nSignage. The Tenant shall supply, before the visit, the documents the Landlord reasonably asks for, including fire protection test records, sprinkler and hydrant inspection reports, the emergency response plan, and the latest insurance schedule. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category.\n\nAssignment and subletting. The survey is a visual inspection of the areas the Tenant makes available. It is not a structural survey, a code compliance audit or a certification of any system, and the Landlord does not test equipment unless the Tenant agrees in writing. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss.\n\nDefault. The report will describe construction, occupancy, protection and exposure, will list recommendations ranked by priority, and will give a risk quality rating for each main category. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose.\n\nReinstatement. The Landlord's liability under this agreement is limited to the fees paid for the services, except where the law does not allow the limit. Neither party is liable for indirect or consequential loss. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate.\n\nQuiet enjoyment. Each party shall keep the other's confidential information confidential and use it only for this agreement. This does not apply to information that is public or that the law requires a party to disclose. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent.\n\nRent and outgoings. The Tenant shall pay each invoice within thirty days of receiving it. Fees are stated exclusive of goods and services tax, which is added at the prevailing rate. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it.\n\nPermitted use. The report is for the Tenant alone. The Tenant may give a copy to its insurers and professional advisers but not to any other person without the Landlord's written consent. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so.\n\nAlterations. Either party may end this agreement by written notice if the other party commits a material breach and does not put it right within fourteen days of being told of it. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email.\n\nRepair and maintenance. The Landlord may use sub-contracted specialists for part of the services, and remains responsible for their work. The Landlord shall tell the Tenant before doing so. Any change to the scope of the services, the sites or the fees takes effect only when both parties have agreed to it in writing, including by email. The Tenant confirms that it has the right to let the Landlord's engineers enter each site, and that it has told the site's occupiers and managers about the visit.\n\nNote: management of the building is by the Building Manager, Dennis Phua.\n"
+     },
+     {
+      "id": "f10",
+      "name": "Pasted email Tower Two access.txt",
+      "text": "From: Sabrina Lau <sabrina.lau@meridianpavillion.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Tue, 1 Dec 2026 09:07:00 +0800\nSubject: FW: Tower Two access\n\nPasting below the note I got from security about Tower Two, in case your engineers need it.\n\n\"Visitors to the plant rooms must be escorted. The roof level is open from 9am. Please tell us the names of your engineers a day before so we can issue passes. Basement car park lifts will be out of service in the morning; use the goods lift.\"\n\nSabrina\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-03",
+      "name": "Meridian Pavilion REIT Management Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-301",
+        "name": "Pavilion Tower One",
+        "address": "1 Shenton Link, Singapore 068801",
+        "has_assessments": true
+       },
+       {
+        "id": "s-302",
+        "name": "Pavilion Tower Two",
+        "address": "3 Shenton Link, Singapore 068803",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p04",
+    "split": "tuning",
+    "written_by": "claude",
+    "base_report": "Office Sample 2",
+    "hard_cases": [
+     "multi_site",
+     "client_typo",
+     "resurvey",
+     "date_changed",
+     "long_pack",
+     "recorded_site",
+     "placement_client",
+     "placement_site",
+     "placement_assessment",
+     "pasted"
+    ],
+    "client": {
+     "name": "Meridian Pavilion REIT Management Pte Ltd",
+     "division": null,
+     "existing_id": "c-03"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-03",
+      "name": "Meridian Pavilion REIT Management Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-301",
+        "name": "Pavilion Tower One",
+        "address": "1 Shenton Link, Singapore 068801",
+        "has_assessments": true
+       },
+       {
+        "id": "s-302",
+        "name": "Pavilion Tower Two",
+        "address": "3 Shenton Link, Singapore 068803",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Pavilion Tower One",
+      "address": "1 Shenton Link, Singapore 068801",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": "s-301"
+     },
+     {
+      "ref": "site-2",
+      "name": "Pavilion Tower Two",
+      "address": "3 Shenton Link, Singapore 068803",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": "s-302"
+     },
+     {
+      "ref": "site-3",
+      "name": "Meridian Business Hub",
+      "address": "28 Science Park Drive, Singapore 118228",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Resurvey",
+      "site_visit_date": "2027-02-02",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-03-31",
+      "site_contacts": [
+       {
+        "name": "Ho Wei Jie",
+        "role": "Asset Manager"
+       },
+       {
+        "name": "Sabrina Lau",
+        "role": "Property Manager"
+       }
+      ]
+     },
+     {
+      "ref": "a-2",
+      "site_ref": "site-2",
+      "visit_type": "Resurvey",
+      "site_visit_date": "2027-02-03",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-03-31",
+      "site_contacts": [
+       {
+        "name": "Sabrina Lau",
+        "role": "Property Manager"
+       }
+      ]
+     },
+     {
+      "ref": "a-3",
+      "site_ref": "site-3",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-02-10",
+      "site_visit_end_date": "2027-02-11",
+      "report_due_date": "2027-04-15",
+      "site_contacts": [
+       {
+        "name": "Dennis Phua",
+        "role": "Building Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Request for three surveys.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Asset manager's request covering all three sites",
+      "id": "f1"
+     },
+     {
+      "name": "Pavilion Tower One thread.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Thread about Tower One",
+      "id": "f2"
+     },
+     {
+      "name": "Pavilion Tower Two thread.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "site",
+       "ref": "site-2"
+      },
+      "about": "Thread about Tower Two",
+      "id": "f3"
+     },
+     {
+      "name": "New date for the Business Hub.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-3"
+      },
+      "about": "Moves the Hub visit; supersedes the first date",
+      "id": "f4"
+     },
+     {
+      "name": "Engagement letter Meridian Pavillion.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Long engagement letter with terms",
+      "id": "f5"
+     },
+     {
+      "name": "Pavilion Tower One information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts about Tower One",
+      "id": "f6"
+     },
+     {
+      "name": "Pavilion Tower Two information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-2"
+      },
+      "about": "Facts about Tower Two",
+      "id": "f7"
+     },
+     {
+      "name": "Meridian Business Hub information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-3"
+      },
+      "about": "Facts about the Hub",
+      "id": "f8"
+     },
+     {
+      "name": "Business Hub lease summary.docx",
+      "kind": "letter",
+      "placement": {
+       "kind": "site",
+       "ref": "site-3"
+      },
+      "about": "Long lease summary; no dates of the visit",
+      "id": "f9"
+     },
+     {
+      "name": "Pasted email Tower Two access.txt",
+      "kind": "pasted",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-2"
+      },
+      "about": "Pasted note on Tower Two access",
+      "id": "f10"
+     }
+    ],
+    "brief": "The client's name is spelled 'Meridian Pavillion' (typo) everywhere in the pack."
+   }
+  },
+  {
+   "id": "p05",
+   "split": "tuning",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Surveys of the two towers.eml",
+      "text": "From: Yusof Karim <yusof.karim@quarryhill.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Mon, 9 Nov 2026 09:03:00 +0800\nSubject: Surveys of the two towers\n\nDear Marsh,\n\nQuarry Hill Developments Pte Ltd would like a first property survey of our two office towers, Quarry Hill Tower 1 at 2 Quarry Hill Road, Singapore 159201, and Quarry Hill Tower 2 at 4 Quarry Hill Road, Singapore 159203. Marsh has not surveyed either before.\n\nCould you do Tower 1 on 12 January 2027 and Tower 2 on 13 January 2027?\n\nI am the Senior Building Manager for both towers and will accompany your engineers.\n\nRegards,\nYusof Karim\n"
+     },
+     {
+      "id": "f2",
+      "name": "Change of dates.eml",
+      "text": "From: Yusof Karim <yusof.karim@quarryhill.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Mon, 16 Nov 2026 09:52:00 +0800\nSubject: Change of dates\n\nDear Marsh,\n\nI am sorry, our tenant moves clash with the dates I gave you. Please use these dates instead of the earlier ones:\n\n- Quarry Hill Tower 1: 14 January 2027\n- Quarry Hill Tower 2: 15 January 2027\n\nEverything else stays as before. Thank you for your patience.\n\nYusof\n"
+     },
+     {
+      "id": "f3",
+      "name": "Tower 1 information sheet.pdf",
+      "text": "TOWER 1 INFORMATION SHEET\nProperty: Quarry Hill Tower 1\nAddress: 2 Quarry Hill Road, Singapore 159201\nUse: Office, 24 storeys, ground floor retail\nCompleted: 2012\nFire protection: Wet sprinklers, addressable alarm, two electric fire pumps\nBuilding manager: Yusof Karim\n"
+     },
+     {
+      "id": "f4",
+      "name": "Tower 2 information sheet.pdf",
+      "text": "TOWER 2 INFORMATION SHEET\nProperty: Quarry Hill Tower 2\nAddress: 4 Quarry Hill Road, Singapore 159203\nUse: Office, 20 storeys, ground floor retail\nCompleted: 2014\nFire protection: Wet sprinklers, addressable alarm, one diesel fire pump\nBuilding manager: Yusof Karim\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p05",
+    "split": "tuning",
+    "written_by": "claude",
+    "base_report": "Office Sample 4",
+    "hard_cases": [
+     "multi_site",
+     "date_changed",
+     "new_client",
+     "placement_client",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Quarry Hill Developments Pte Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Quarry Hill Tower 1",
+      "address": "2 Quarry Hill Road, Singapore 159201",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": null
+     },
+     {
+      "ref": "site-2",
+      "name": "Quarry Hill Tower 2",
+      "address": "4 Quarry Hill Road, Singapore 159203",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-01-14",
+      "site_visit_end_date": null,
+      "report_due_date": null,
+      "site_contacts": [
+       {
+        "name": "Yusof Karim",
+        "role": "Senior Building Manager"
+       }
+      ]
+     },
+     {
+      "ref": "a-2",
+      "site_ref": "site-2",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-01-15",
+      "site_visit_end_date": null,
+      "report_due_date": null,
+      "site_contacts": [
+       {
+        "name": "Yusof Karim",
+        "role": "Senior Building Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Surveys of the two towers.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "First request; gives 12 and 13 January",
+      "id": "f1"
+     },
+     {
+      "name": "Change of dates.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Later email; moves the visits to 14 and 15 January",
+      "id": "f2"
+     },
+     {
+      "name": "Tower 1 information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts about Tower 1",
+      "id": "f3"
+     },
+     {
+      "name": "Tower 2 information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-2"
+      },
+      "about": "Facts about Tower 2",
+      "id": "f4"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p06",
+   "split": "tuning",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Follow up on recommendations.eml",
+      "text": "From: Lim Kah Hock <kh.lim@tamanseri.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Tue, 10 Nov 2026 09:10:00 +0800\nSubject: Follow up on recommendations\n\nDear Marsh team,\n\nTaman Seri Retail Sdn Bhd would like a short follow-up visit to Taman Seri Mall, Jalan Seri Utama 2, Taman Seri, 81200 Johor Bahru, Johor, Malaysia. Your engineers surveyed the mall last year, and we have closed most of the recommendations. We would like your engineers to come and check them.\n\nThe visit is on 21 January 2027. I will be your contact (Operations Executive). A short report on the status of the recommendations is needed by 12 February 2027.\n\nTerima kasih,\nLim Kah Hock\n"
+     },
+     {
+      "id": "f2",
+      "name": "Pasted note from the mall office.txt",
+      "text": "Note from the mall office, pasted into the notes of the survey request:\n\nTaman Seri Mall has 3 floors of shops and a rooftop car park. The mall office is on the ground floor beside the main entrance. The mall's security desk keeps the keys to the sprinkler valve room and the fire pump room, and there is always someone at the desk. Visitors sign in with their identity cards. The rooftop car park closes for cleaning at 6am daily.\n"
+     },
+     {
+      "id": "f3",
+      "name": "Engagement letter Taman Seri Retail.pdf",
+      "text": "TAMAN SERI RETAIL SDN BHD\nJalan Seri Utama 2, Taman Seri, 81200 Johor Bahru, Johor, Malaysia\n\n6 July 2026\n\nMarsh Property Risk Engineering\n\nDear Sirs\n\nENGAGEMENT FOR PROPERTY RISK SURVEYS\n\nTaman Seri Retail Sdn Bhd confirms its engagement of Marsh to survey Taman Seri Mall and to visit the mall afterwards to check the recommendations, on Marsh's standard terms. Please send reports to the Operations Executive.\n\nYours faithfully\n\nDirector\nTaman Seri Retail Sdn Bhd\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-04",
+      "name": "Taman Seri Retail Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-401",
+        "name": "Taman Seri Mall",
+        "address": "Jalan Seri Utama 2, Taman Seri, 81200 Johor Bahru, Johor, Malaysia",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p06",
+    "split": "tuning",
+    "written_by": "claude",
+    "base_report": "Shopping Mall Sample 1",
+    "hard_cases": [
+     "follow_up",
+     "recorded_site",
+     "pasted",
+     "placement_site",
+     "placement_assessment",
+     "placement_client",
+     "my"
+    ],
+    "client": {
+     "name": "Taman Seri Retail Sdn Bhd",
+     "division": null,
+     "existing_id": "c-04"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-04",
+      "name": "Taman Seri Retail Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-401",
+        "name": "Taman Seri Mall",
+        "address": "Jalan Seri Utama 2, Taman Seri, 81200 Johor Bahru, Johor, Malaysia",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Taman Seri Mall",
+      "address": "Jalan Seri Utama 2, Taman Seri, 81200 Johor Bahru, Johor, Malaysia",
+      "jurisdiction": "MY",
+      "facility_type": "Shopping mall",
+      "existing_site_id": "s-401"
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Follow-up visit",
+      "site_visit_date": "2027-01-21",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-02-12",
+      "site_contacts": [
+       {
+        "name": "Lim Kah Hock",
+        "role": "Operations Executive"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Follow up on recommendations.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Asks for a short visit to check recommendations",
+      "id": "f1"
+     },
+     {
+      "name": "Pasted note from the mall office.txt",
+      "kind": "pasted",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Pasted text about the mall",
+      "id": "f2"
+     },
+     {
+      "name": "Engagement letter Taman Seri Retail.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Standing engagement letter",
+      "id": "f3"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p13",
+   "split": "held-out",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey of Tidewell Centre.eml",
+      "text": "From: Goh Mei Ling <meiling.goh@tidewell.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Tue, 17 Nov 2026 09:59:00 +0800\nSubject: Survey of Tidewell Centre\n\nHello Marsh,\n\nTidewel Estates Pte Ltd would like Marsh to carry out the periodic resurvey of Tidewell Centre, 2 Tidewell Link, Singapore 189721. Marsh surveyed it before, and we are due for another.\n\nPlease plan for 3 March 2027, one day. We would like the report by 23 April 2027.\n\nGoh Mei Ling, Head, Property Management, and Syafiq Aziz, Head of M&E, will be with your engineers.\n\nThank you,\nMei Ling\n"
+     },
+     {
+      "id": "f2",
+      "name": "Re Survey of Tidewell Centre.eml",
+      "text": "From: Goh Mei Ling <meiling.goh@tidewell.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Mon, 7 Dec 2026 09:49:00 +0800\nSubject: Re: Survey of Tidewell Centre\n\nHello Marsh,\n\nSorry, the mall's chiller replacement now clashes with 3 March 2027. Please move the survey to 10 March and 11 March 2027, for two days. Please ignore the earlier date.\n\nThe report date stays the same.\n\nMei Ling\n"
+     },
+     {
+      "id": "f3",
+      "name": "Engagement letter Tidewel Estates.pdf",
+      "text": "TIDEWEL ESTATES PTE LTD\n2 Tidewell Link, Singapore 189721\n\n19 October 2026\n\nMarsh Advisory\n\nDear Sirs\n\nLETTER OF ENGAGEMENT\n\nTidewel Estates Pte Ltd engages Marsh to survey Tidewell Centre as set out in our email request, on Marsh's usual terms. The Head, Property Management will manage the engagement for us.\n\nYours faithfully\n\nFinance Director\nTidewel Estates Pte Ltd\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-05",
+      "name": "Tidewell Estates Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-501",
+        "name": "Tidewell Centre",
+        "address": "2 Tidewell Link, Singapore 189721",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p13",
+    "split": "held-out",
+    "written_by": "claude",
+    "base_report": "Mixed Use Development Sample 1",
+    "hard_cases": [
+     "client_typo",
+     "resurvey",
+     "date_changed",
+     "recorded_site",
+     "placement_assessment",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Tidewell Estates Pte Ltd",
+     "division": null,
+     "existing_id": "c-05"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-05",
+      "name": "Tidewell Estates Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-501",
+        "name": "Tidewell Centre",
+        "address": "2 Tidewell Link, Singapore 189721",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Tidewell Centre",
+      "address": "2 Tidewell Link, Singapore 189721",
+      "jurisdiction": "SG",
+      "facility_type": "Mixed-use development",
+      "existing_site_id": "s-501"
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Resurvey",
+      "site_visit_date": "2027-03-10",
+      "site_visit_end_date": "2027-03-11",
+      "report_due_date": "2027-04-23",
+      "site_contacts": [
+       {
+        "name": "Goh Mei Ling",
+        "role": "Head, Property Management"
+       },
+       {
+        "name": "Syafiq Aziz",
+        "role": "Head of M&E"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey of Tidewell Centre.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request; gives 3 March",
+      "id": "f1"
+     },
+     {
+      "name": "Re Survey of Tidewell Centre.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Reschedules to 10 and 11 March",
+      "id": "f2"
+     },
+     {
+      "name": "Engagement letter Tidewel Estates.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f3"
+     }
+    ],
+    "brief": "The pack spells the client 'Tidewel Estates' (one L)."
+   }
+  },
+  {
+   "id": "p14",
+   "split": "held-out",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Pasted email from Aldergate.txt",
+      "text": "Pasting the email from Kelvin Soh of Aldergate below.\n\nHi Marsh,\n\nAldergate REIT Management Pte Ltd would like you to do two surveys in late February 2027.\n\n(1) Aldergate House at 15 Tras Link, Singapore 078345: a re-survey of the building you surveyed before. Date: 23 February 2027.\n\n(2) Aldergate Hub at 5 Changi Business Park Central 2, Singapore 486038: a first survey, as it is new to us. Date: 25 February 2027.\n\nPlease give us both reports by 2 April 2027.\n\nI will be at Aldergate House, together with Rosli Ahmad, the Property Manager. Terrence Yap, the Building Manager, looks after the Hub.\n\nKelvin Soh\nAsset Management"
+     },
+     {
+      "id": "f2",
+      "name": "Aldergate Hub fact sheet.pdf",
+      "text": "ALDERGATE HUB FACT SHEET\nProperty: Aldergate Hub\nAddress: 5 Changi Business Park Central 2, Singapore 486038\nUse: Seven-storey office and business park building\nCompleted: 2018\nFire protection: Wet sprinklers and fire alarm; gas suppression in the data room\nContact: Terrence Yap, Building Manager\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-06",
+      "name": "Aldergate REIT Management Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-601",
+        "name": "Aldergate House",
+        "address": "15 Tras Link, Singapore 078345",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p14",
+    "split": "held-out",
+    "written_by": "claude",
+    "base_report": "Office Sample 2",
+    "hard_cases": [
+     "multi_site",
+     "resurvey",
+     "recorded_site",
+     "pasted",
+     "placement_client",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Aldergate REIT Management Pte Ltd",
+     "division": null,
+     "existing_id": "c-06"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-06",
+      "name": "Aldergate REIT Management Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-601",
+        "name": "Aldergate House",
+        "address": "15 Tras Link, Singapore 078345",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Aldergate House",
+      "address": "15 Tras Link, Singapore 078345",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": "s-601"
+     },
+     {
+      "ref": "site-2",
+      "name": "Aldergate Hub",
+      "address": "5 Changi Business Park Central 2, Singapore 486038",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Resurvey",
+      "site_visit_date": "2027-02-23",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-04-02",
+      "site_contacts": [
+       {
+        "name": "Kelvin Soh",
+        "role": "Asset Management"
+       },
+       {
+        "name": "Rosli Ahmad",
+        "role": "Property Manager"
+       }
+      ]
+     },
+     {
+      "ref": "a-2",
+      "site_ref": "site-2",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-02-25",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-04-02",
+      "site_contacts": [
+       {
+        "name": "Terrence Yap",
+        "role": "Building Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Pasted email from Aldergate.txt",
+      "kind": "pasted",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Pasted request for two surveys",
+      "id": "f1"
+     },
+     {
+      "name": "Aldergate Hub fact sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-2"
+      },
+      "about": "Facts about the Hub",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p15",
+   "split": "held-out",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Brightmere Junction information sheet.pdf",
+      "text": "BRIGHTMERE JUNCTION INFORMATION SHEET\nProperty: Brightmere Junction\nAddress: 8 Sengkang Square Way, Singapore 545078\nOwner: Brightmere Retail Pte Ltd\nUse: Neighbourhood shopping mall with a supermarket and cinema\nStoreys: 4 above ground, one basement\nOpened: 2015\nFire protection: Wet sprinklers, fire alarm, smoke extraction\nContacts: Wong Chee Keong (Manager); Nurul Huda (Assistant Manager); Arun Pillai (Operations)\n"
+     },
+     {
+      "id": "f2",
+      "name": "Property survey for Brightmere.eml",
+      "text": "From: Wong Chee Keong <cheekeong@brightmere.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Wed, 18 Nov 2026 09:06:00 +0800\nSubject: Property survey for Brightmere\n\nDear Marsh,\n\nBrightmere Retail Pte Ltd would like Marsh to survey Brightmere Junction. We have never had a Marsh survey of the mall. The information sheet is attached.\n\nWe have no dates yet, because we need to fit the visit around the mall's renovation works. We will tell you once the works schedule is out. The report is needed by 30 June 2027.\n\nRegards,\nChee Keong\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p15",
+    "split": "held-out",
+    "written_by": "claude",
+    "base_report": "Shopping Mall Sample 2",
+    "hard_cases": [
+     "missing_date",
+     "new_client",
+     "placement_site",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Brightmere Retail Pte Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Brightmere Junction",
+      "address": "8 Sengkang Square Way, Singapore 545078",
+      "jurisdiction": "SG",
+      "facility_type": "Shopping mall",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": null,
+      "site_visit_end_date": null,
+      "report_due_date": "2027-06-30",
+      "site_contacts": [
+       {
+        "name": "Wong Chee Keong",
+        "role": "Manager"
+       },
+       {
+        "name": "Nurul Huda",
+        "role": "Assistant Manager"
+       },
+       {
+        "name": "Arun Pillai",
+        "role": "Operations"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Brightmere Junction information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts and contacts",
+      "id": "f1"
+     },
+     {
+      "name": "Property survey for Brightmere.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Request; dates to be arranged",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p16",
+   "split": "held-out",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Follow-up visit request.eml",
+      "text": "From: Somchai Wattanakul <somchai@chaophrayacold.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Thu, 19 Nov 2026 09:13:00 +0800\nSubject: Follow-up visit request\n\nDear Marsh team,\n\nChao Phraya Cold Chain Co., Ltd would like a follow-up visit to Bang Pakong Cold Store, 88 Moo 4, Bang Na-Trat Road Km 36, Bang Pakong, Chachoengsao 24130, Thailand. Your engineers surveyed the store before and made recommendations on the ammonia plant and the sprinklers. We would like them to check what we have done.\n\nVisit date: 16 February 2027. Report needed by 5 March 2027.\n\nI am the Plant Manager and will be your contact.\n\nBest regards,\nSomchai Wattanakul\n"
+     },
+     {
+      "id": "f2",
+      "name": "Agreement letter.pdf",
+      "text": "CHAO PHRAYA COLD CHAIN CO., LTD\nBangkok, Thailand\n\nAGREEMENT LETTER\n\n1 September 2026\n\nMarsh Property Risk Engineering\n\nChao Phraya Cold Chain Co., Ltd agrees that Marsh will carry out property risk engineering surveys and follow-up visits at the cold stores we name, on Marsh's standard terms. Our Plant Manager will arrange access.\n\nAuthorised signatory\nChao Phraya Cold Chain Co., Ltd\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-07",
+      "name": "Chao Phraya Cold Chain Co., Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-701",
+        "name": "Bang Pakong Cold Store",
+        "address": "88 Moo 4, Bang Na-Trat Road Km 36, Bang Pakong, Chachoengsao 24130, Thailand",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p16",
+    "split": "held-out",
+    "written_by": "claude",
+    "base_report": "Office Sample 6",
+    "hard_cases": [
+     "follow_up",
+     "recorded_site",
+     "th",
+     "other_facility",
+     "placement_assessment",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Chao Phraya Cold Chain Co., Ltd",
+     "division": null,
+     "existing_id": "c-07"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-07",
+      "name": "Chao Phraya Cold Chain Co., Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-701",
+        "name": "Bang Pakong Cold Store",
+        "address": "88 Moo 4, Bang Na-Trat Road Km 36, Bang Pakong, Chachoengsao 24130, Thailand",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Bang Pakong Cold Store",
+      "address": "88 Moo 4, Bang Na-Trat Road Km 36, Bang Pakong, Chachoengsao 24130, Thailand",
+      "jurisdiction": "TH",
+      "facility_type": "Cold store",
+      "existing_site_id": "s-701"
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Follow-up visit",
+      "site_visit_date": "2027-02-16",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-03-05",
+      "site_contacts": [
+       {
+        "name": "Somchai Wattanakul",
+        "role": "Plant Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Follow-up visit request.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Asks to check recommendations",
+      "id": "f1"
+     },
+     {
+      "name": "Agreement letter.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p17",
+   "split": "held-out",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey of Oakhaven Campus.eml",
+      "text": "From: Raghav Nair <raghav.nair@oakhaven.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Fri, 20 Nov 2026 09:20:00 +0800\nSubject: Survey of Oakhaven Campus\n\nHi Marsh,\n\nI am with the Group Risk and Insurance division of Oakhaven Technologies Pte Ltd. We would like to engage Marsh to survey our Singapore headquarters, Oakhaven Campus, 37 Tai Seng Street, Singapore 534058. We have not had a property survey done by Marsh at this campus.\n\nWe suggest 2 and 3 March 2027, two days. The report should reach us by 9 April 2027.\n\nFelicia Lee from Facilities Management will take your engineers round, and I will attend as Group Risk Management.\n\nThanks,\nRaghav Nair\nGroup Risk and Insurance, Oakhaven Technologies Pte Ltd\n"
+     },
+     {
+      "id": "f2",
+      "name": "Appointment letter Oakhaven.pdf",
+      "text": "OAKHAVEN TECHNOLOGIES PTE LTD\nGroup Risk and Insurance\n37 Tai Seng Street, Singapore 534058\n\n16 November 2026\n\nMarsh Property Risk Engineering\n\nDear Sirs\n\nAPPOINTMENT\n\nOakhaven Technologies Pte Ltd (Group Risk and Insurance) appoints Marsh to survey Oakhaven Campus as described in our email. Please send the invoice to Group Risk and Insurance.\n\nYours faithfully\n\nRaghav Nair\n"
+     },
+     {
+      "id": "f3",
+      "name": "Oakhaven Campus information sheet.pdf",
+      "text": "OAKHAVEN CAMPUS INFORMATION SHEET\nProperty: Oakhaven Campus\nAddress: 37 Tai Seng Street, Singapore 534058\nUse: Office and research campus: two 8-storey blocks and an amenity building\nCompleted: 2011\nFire protection: Wet sprinklers, addressable alarm, gas suppression in the data hall\nContacts: Felicia Lee, Facilities Management; Raghav Nair, Group Risk Management\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p17",
+    "split": "held-out",
+    "written_by": "claude",
+    "base_report": "Office Sample 5",
+    "hard_cases": [
+     "division",
+     "date_range",
+     "new_client",
+     "placement_assessment",
+     "placement_client",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Oakhaven Technologies Pte Ltd",
+     "division": "Group Risk and Insurance",
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Oakhaven Campus",
+      "address": "37 Tai Seng Street, Singapore 534058",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-02",
+      "site_visit_end_date": "2027-03-03",
+      "report_due_date": "2027-04-09",
+      "site_contacts": [
+       {
+        "name": "Felicia Lee",
+        "role": "Facilities Management"
+       },
+       {
+        "name": "Raghav Nair",
+        "role": "Group Risk Management"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey of Oakhaven Campus.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request",
+      "id": "f1"
+     },
+     {
+      "name": "Appointment letter Oakhaven.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f2"
+     },
+     {
+      "name": "Oakhaven Campus information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Sheet",
+      "id": "f3"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p18",
+   "split": "held-out",
+   "written_by": "claude",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey of Bayu Heights Campus.eml",
+      "text": "From: Hafiz Zainal <hafiz@bayuheights.example>\nTo: Marsh Property Risk Engineering <pre@marsh.example>\nDate: Mon, 23 Nov 2026 09:41:00 +0800\nSubject: Survey of Bayu Heights Campus\n\nAssalamualaikum and good day,\n\nBayu Heights Education Sdn Bhd would like a first property survey by Marsh for our Bayu Heights Campus, Persiaran Bayu 1, Bandar Seri Bayu, 43500 Semenyih, Selangor, Malaysia. It is a university campus with lecture blocks, student hostels, laboratories and a sports hall.\n\nWe would like the visit on 16 March 2027 and the report by 30 April 2027. I am the Senior Building Manager and will be with your engineers all day.\n\nTerima kasih,\nHafiz Zainal\n"
+     },
+     {
+      "id": "f2",
+      "name": "Bayu Heights Campus information sheet.pdf",
+      "text": "BAYU HEIGHTS CAMPUS INFORMATION SHEET\nProperty: Bayu Heights Campus\nAddress: Persiaran Bayu 1, Bandar Seri Bayu, 43500 Semenyih, Selangor, Malaysia\nUse: University campus: 9 lecture and laboratory blocks, 4 hostels, library, sports hall\nOpened: 2013\nFire protection: Hose reels and wet risers; sprinklers in hostels and library\nContact: Hafiz Zainal, Senior Building Manager\n"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p18",
+    "split": "held-out",
+    "written_by": "claude",
+    "base_report": "Shopping Mall Sample 1",
+    "hard_cases": [
+     "off_list_facility",
+     "my",
+     "placement_assessment",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Bayu Heights Education Sdn Bhd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Bayu Heights Campus",
+      "address": "Persiaran Bayu 1, Bandar Seri Bayu, 43500 Semenyih, Selangor, Malaysia",
+      "jurisdiction": "MY",
+      "facility_type": null,
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-16",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-04-30",
+      "site_contacts": [
+       {
+        "name": "Hafiz Zainal",
+        "role": "Senior Building Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey of Bayu Heights Campus.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request",
+      "id": "f1"
+     },
+     {
+      "name": "Bayu Heights Campus information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Sheet; a university campus",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p07",
+   "split": "tuning",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey request Ashgrove Centre.eml",
+      "text": "From: Janice Cheung\nTo: Marsh\nDate: 3 December 2026\nSubject: Survey request – Ashgrove Centre\n\nDear Marsh team,\n\nPlease arrange a first survey of Ashgrove Centre for Ashgrove Pacfic (HK) Ltd. The site is an office at 26 Wing Hong Street, Cheung Sha Wan, Kowloon, Hong Kong.\n\nWe would like the visit on 12 January 2027. I will be the site contact and can coordinate access to the building and relevant areas. Please let me know what records your surveyor needs us to prepare beforehand.\n\nThank you.\n\nJanice Cheung\nBuilding Manager"
+     },
+     {
+      "id": "f2",
+      "name": "Engagement letter.pdf",
+      "text": "Ashgrove Pacfic (HK) Ltd\nAshgrove Centre\n26 Wing Hong Street, Cheung Sha Wan, Kowloon, Hong Kong\n\n7 December 2026\n\nTo: Marsh\n\nDear Marsh team,\n\nRe: Property risk survey engagement – Ashgrove Centre\n\nWe confirm our instruction for Marsh to coordinate a first survey of the office premises at Ashgrove Centre, 26 Wing Hong Street, Cheung Sha Wan, Kowloon, Hong Kong.\n\nFor your engagement records, the full client name is Ashgrove Pacific (HK) Limited, under client reference c-08.\n\nThe site visit is to take place on 12 January 2027. Please arrange for the survey report to be delivered by 26 February 2027 so that we have time to review the findings internally.\n\nJanice Cheung, Building Manager, is the site contact for access arrangements and requests for building information. Please send any preparation checklist ahead of the visit.\n\nYours faithfully,\n\nJanice Cheung\nBuilding Manager\nFor and on behalf of Ashgrove Pacific (HK) Limited"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-08",
+      "name": "Ashgrove Pacific (HK) Limited",
+      "division": null,
+      "sites": []
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p07",
+    "split": "tuning",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 5",
+    "hard_cases": [
+     "client_typo",
+     "hk",
+     "placement_assessment",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Ashgrove Pacific (HK) Limited",
+     "division": null,
+     "existing_id": "c-08"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-08",
+      "name": "Ashgrove Pacific (HK) Limited",
+      "division": null,
+      "sites": []
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Ashgrove Centre",
+      "address": "26 Wing Hong Street, Cheung Sha Wan, Kowloon, Hong Kong",
+      "jurisdiction": "HK",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-01-12",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-02-26",
+      "site_contacts": [
+       {
+        "name": "Janice Cheung",
+        "role": "Building Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey request Ashgrove Centre.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request from the building manager",
+      "id": "f1"
+     },
+     {
+      "name": "Engagement letter.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter on letterhead",
+      "id": "f2"
+     }
+    ],
+    "brief": "The pack spells the client 'Ashgrove Pacfic (HK) Ltd' (missing letter, Ltd for Limited)."
+   }
+  },
+  {
+   "id": "p08",
+   "split": "tuning",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Property survey enquiry.eml",
+      "text": "From: Pranee Sombat, Siam Orchid Properties Co., Ltd\nTo: Marsh\nDate: 18 November 2026\nSubject: Property survey enquiry – Orchid Tower Silom\n\nDear Marsh team,\n\nWe would like to arrange a first survey for Orchid Tower Silom in Bangkok. The site information sheet is attached for your reference.\n\nThe visit date is still to be arranged. Please let us know what information you need beforehand and we will coordinate access with the building team. We require the report by 31 March 2027.\n\nThank you.\n\nRegards,\nPranee Sombat\nBuilding Manager\nSiam Orchid Properties Co., Ltd"
+     },
+     {
+      "id": "f2",
+      "name": "Orchid Tower Silom information sheet.pdf",
+      "text": "Orchid Tower Silom – Site Information Sheet\n\nClient: Siam Orchid Properties Co., Ltd\nSite name: Orchid Tower Silom\nAddress: 199 Silom Road, Bang Rak, Bangkok 10500, Thailand\nJurisdiction: TH\nFacility type: Office\n\nSite contacts:\nPranee Sombat – Building Manager\nAnan Chaiyasit – Technical Manager\nWirat Kaew – Senior Engineer\nMali Srisuk – Engineer\n\nAccess coordination: Please coordinate the survey arrangements with Pranee Sombat. The technical team can assist with building services information and access to plant areas."
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p08",
+    "split": "tuning",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 6",
+    "hard_cases": [
+     "missing_date",
+     "many_contacts",
+     "th",
+     "placement_client",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Siam Orchid Properties Co., Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Orchid Tower Silom",
+      "address": "199 Silom Road, Bang Rak, Bangkok 10500, Thailand",
+      "jurisdiction": "TH",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": null,
+      "site_visit_end_date": null,
+      "report_due_date": "2027-03-31",
+      "site_contacts": [
+       {
+        "name": "Pranee Sombat",
+        "role": "Building Manager"
+       },
+       {
+        "name": "Anan Chaiyasit",
+        "role": "Technical Manager"
+       },
+       {
+        "name": "Wirat Kaew",
+        "role": "Senior Engineer"
+       },
+       {
+        "name": "Mali Srisuk",
+        "role": "Engineer"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Property survey enquiry.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Enquiry; no visit date yet",
+      "id": "f1"
+     },
+     {
+      "name": "Orchid Tower Silom information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts and the four site contacts",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p09",
+   "split": "tuning",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Risk survey Fernvale Bay Hotel.eml",
+      "text": "From: Ivan Chia <ivan.chia@fernvale.example>\nTo: Marsh <property.surveys@marsh.example>\nDate: 18 November 2026\nSubject: Risk survey request – Fernvale Bay Hotel\n\nDear Marsh team,\n\nPlease arrange a first survey for Fernvale Bay Hotel on 4 February 2027 under Fernvale Hospitality Pte Ltd's property insurance programme.\n\nI will be the site contact in my role as Hotel Engineering Manager. Please let me know the access requirements and documents your surveyor would like us to prepare. We will coordinate access around hotel operations.\n\nThe site information sheet is attached for your reference.\n\nRegards,\nIvan Chia\nHotel Engineering Manager\nFernvale Hospitality Pte Ltd"
+     },
+     {
+      "id": "f2",
+      "name": "Fernvale Bay Hotel information sheet.pdf",
+      "text": "Fernvale Bay Hotel – Site Information Sheet\n\nClient: Fernvale Hospitality Pte Ltd\nSite name: Fernvale Bay Hotel\nSite address: 28 Beach View Road, Singapore 098512\nCountry: Singapore\nProperty description: Hotel premises with guest accommodation and associated hotel operations.\nPurpose: Property risk survey\nVisit type: A first survey\nSite visit date: 4 February 2027\nSite contact: Ivan Chia\nContact role: Hotel Engineering Manager\nAccess arrangements: Please coordinate with the site contact before arrival so that access to engineering areas can be arranged."
+     },
+     {
+      "id": "f3",
+      "name": "Engagement letter Fernvale.pdf",
+      "text": "Fernvale Hospitality Pte Ltd\n\n25 November 2026\n\nMarsh\n\nDear Marsh team,\n\nPROPERTY RISK SURVEY – FERNVALE BAY HOTEL\n\nWe confirm our instruction to Marsh to coordinate a first survey of Fernvale Bay Hotel at 28 Beach View Road, Singapore 098512. The site visit is scheduled for 4 February 2027.\n\nThe survey is to assist with the review of property risks and practical risk improvement measures. Please advise us of the proposed scope and any information required in advance, so that the relevant records can be made available.\n\nIvan Chia, Hotel Engineering Manager, will coordinate the visit on behalf of Fernvale Hospitality Pte Ltd. Please route site access queries through him and let us know if any areas require special preparation for inspection.\n\nYours faithfully,\n\nIvan Chia\nHotel Engineering Manager\nFor and on behalf of\nFernvale Hospitality Pte Ltd"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p09",
+    "split": "tuning",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Mixed Use Development Sample 2",
+    "hard_cases": [
+     "off_list_facility",
+     "placement_assessment",
+     "placement_site",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Fernvale Hospitality Pte Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Fernvale Bay Hotel",
+      "address": "28 Beach View Road, Singapore 098512",
+      "jurisdiction": "SG",
+      "facility_type": null,
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-02-04",
+      "site_visit_end_date": null,
+      "report_due_date": null,
+      "site_contacts": [
+       {
+        "name": "Ivan Chia",
+        "role": "Hotel Engineering Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Risk survey Fernvale Bay Hotel.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request",
+      "id": "f1"
+     },
+     {
+      "name": "Fernvale Bay Hotel information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts; a hotel",
+      "id": "f2"
+     },
+     {
+      "name": "Engagement letter Fernvale.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f3"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p10",
+   "split": "tuning",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Engagement letter Wexcombe.pdf",
+      "text": "Wexcombe Insurance Services Pte Ltd\n14 Church Street Lane, Singapore 049483\n\n23 November 2026\n\nDear Marsh Team,\n\nProperty risk survey engagement — Wexcombe House\n\nPlease proceed with the property risk survey arrangements for Wexcombe Insurance Services Pte Ltd at Wexcombe House. We would like a periodic re-survey, followed by a short follow-up visit to check recommendations.\n\nThe site information sheet and separate confirmation letters set out the property details, visit dates and report deadlines. Please coordinate access with Doreen Lim, Office Manager, so that the relevant office areas can be made available.\n\nPlease let us know what records you require beforehand so we can prepare them for the surveyor.\n\nYours faithfully,\n\nDoreen Lim\nOffice Manager\nWexcombe Insurance Services Pte Ltd"
+     },
+     {
+      "id": "f2",
+      "name": "Wexcombe House information sheet.pdf",
+      "text": "Wexcombe House — Site Information Sheet\n\nClient: Wexcombe Insurance Services Pte Ltd\nClient reference: c-09\nSite name: Wexcombe House\nSite reference: s-901\nAddress: 14 Church Street Lane, Singapore 049483\nJurisdiction: SG\nFacility type: Office\nSite contact: Doreen Lim\nContact role: Office Manager\n\nAccess arrangements: Please coordinate with Doreen Lim before attending. Let us have the surveyor's document requirements in advance so that the records can be ready for review."
+     },
+     {
+      "id": "f3",
+      "name": "Letter confirming the resurvey.pdf",
+      "text": "Wexcombe Insurance Services Pte Ltd\n14 Church Street Lane, Singapore 049483\n\n30 November 2026\n\nDear Marsh Team,\n\nConfirmation of periodic re-survey — Wexcombe House\n\nWe confirm that a periodic re-survey of Wexcombe House, 14 Church Street Lane, Singapore 049483, is to take place on 9 February 2027.\n\nThe report due date is 19 March 2027. Please allow for this deadline when planning the survey and any subsequent requests for information.\n\nDoreen Lim, Office Manager, will be the site contact for this visit. Please liaise with her on access and the records needed for the review.\n\nYours faithfully,\n\nDoreen Lim\nOffice Manager\nWexcombe Insurance Services Pte Ltd"
+     },
+     {
+      "id": "f4",
+      "name": "Letter requesting a follow-up visit.pdf",
+      "text": "Wexcombe Insurance Services Pte Ltd\n14 Church Street Lane, Singapore 049483\n\n7 December 2026\n\nDear Marsh Team,\n\nRequest for follow-up visit — Wexcombe House\n\nIn addition to the periodic re-survey already confirmed, please arrange a short follow-up visit to check recommendations at Wexcombe House, 14 Church Street Lane, Singapore 049483, on 8 June 2027.\n\nThis is a separate visit intended to review progress on the recommendations arising from the periodic re-survey. The report for the follow-up visit is due on 25 June 2027.\n\nDoreen Lim, Office Manager, will remain the site contact. Please advise her of the evidence the surveyor would like to see so that we can have it ready.\n\nThank you for coordinating both visits.\n\nYours faithfully,\n\nDoreen Lim\nOffice Manager\nWexcombe Insurance Services Pte Ltd"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-09",
+      "name": "Wexcombe Insurance Services Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-901",
+        "name": "Wexcombe House",
+        "address": "14 Church Street Lane, Singapore 049483",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p10",
+    "split": "tuning",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 0",
+    "hard_cases": [
+     "resurvey",
+     "follow_up",
+     "multi_assessment",
+     "letter_only",
+     "recorded_site",
+     "placement_assessment",
+     "placement_site",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Wexcombe Insurance Services Pte Ltd",
+     "division": null,
+     "existing_id": "c-09"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-09",
+      "name": "Wexcombe Insurance Services Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-901",
+        "name": "Wexcombe House",
+        "address": "14 Church Street Lane, Singapore 049483",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Wexcombe House",
+      "address": "14 Church Street Lane, Singapore 049483",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": "s-901"
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Resurvey",
+      "site_visit_date": "2027-02-09",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-03-19",
+      "site_contacts": [
+       {
+        "name": "Doreen Lim",
+        "role": "Office Manager"
+       }
+      ]
+     },
+     {
+      "ref": "a-2",
+      "site_ref": "site-1",
+      "visit_type": "Follow-up visit",
+      "site_visit_date": "2027-06-08",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-06-25",
+      "site_contacts": [
+       {
+        "name": "Doreen Lim",
+        "role": "Office Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Engagement letter Wexcombe.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f1"
+     },
+     {
+      "name": "Wexcombe House information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Sheet",
+      "id": "f2"
+     },
+     {
+      "name": "Letter confirming the resurvey.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Letter for the February resurvey",
+      "id": "f3"
+     },
+     {
+      "name": "Letter requesting a follow-up visit.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-2"
+      },
+      "about": "Letter for the June follow-up",
+      "id": "f4"
+     }
+    ],
+    "brief": "No emails in this pack: letters and a sheet only. One site, two visits."
+   }
+  },
+  {
+   "id": "p11",
+   "split": "tuning",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey request Gebeng.eml",
+      "text": "From: Azman Yusoff <azman.yusoff@kuantangateway.example>\nTo: Marsh Singapore <property.surveys@marsh.example>\nDate: 23 November 2026\nSubject: Survey request – Gebeng Distribution Centre\n\nDear Marsh team,\n\nPlease arrange a first survey for Kuantan Gateway Distribution Sdn Bhd at our Gebeng Distribution Centre. We propose 19 January 2027 for the visit.\n\nThe report is required by 12 March 2027. Please let us know what information your surveyor needs beforehand so we can prepare it.\n\nI will be the site contact and can coordinate access with our warehouse team.\n\nRegards,\nAzman Yusoff\nWarehouse Manager\nKuantan Gateway Distribution Sdn Bhd"
+     },
+     {
+      "id": "f2",
+      "name": "Re Survey request Gebeng.eml",
+      "text": "From: Azman Yusoff <azman.yusoff@kuantangateway.example>\nTo: Marsh Singapore <property.surveys@marsh.example>\nDate: 8 December 2026\nSubject: Re: Survey request – Gebeng Distribution Centre\n\nDear Marsh team,\n\nThere has been a change to our warehouse arrangements. Please replace the proposed visit date of 19 January 2027 with 26 January 2027 for the first survey at Gebeng Distribution Centre.\n\nThe report due date remains 12 March 2027. I will still be your site contact. The site information sheet is attached for your preparation.\n\nThanks for accommodating the change.\n\nRegards,\nAzman Yusoff\nWarehouse Manager\nKuantan Gateway Distribution Sdn Bhd"
+     },
+     {
+      "id": "f3",
+      "name": "Gebeng Distribution Centre information sheet.pdf",
+      "text": "Gebeng Distribution Centre — Site Information Sheet\n\nClient: Kuantan Gateway Distribution Sdn Bhd\nSite name: Gebeng Distribution Centre\nSite address: Lot 1208, Jalan Gebeng 3/6, Kawasan Perindustrian Gebeng, 26080 Kuantan, Pahang, Malaysia\nJurisdiction: MY\nFacility type: Distribution warehouse\nSurvey requirement: A first survey\nSite visit date: 26 January 2027\nReport due date: 12 March 2027\nSite contact: Azman Yusoff\nRole: Warehouse Manager\n\nAccess coordination: Please liaise with the site contact before arrival so that access to the warehouse can be arranged."
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p11",
+    "split": "tuning",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Shopping Mall Sample 1",
+    "hard_cases": [
+     "date_changed",
+     "my",
+     "other_facility",
+     "placement_assessment",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Kuantan Gateway Distribution Sdn Bhd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Gebeng Distribution Centre",
+      "address": "Lot 1208, Jalan Gebeng 3/6, Kawasan Perindustrian Gebeng, 26080 Kuantan, Pahang, Malaysia",
+      "jurisdiction": "MY",
+      "facility_type": "Distribution warehouse",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-01-26",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-03-12",
+      "site_contacts": [
+       {
+        "name": "Azman Yusoff",
+        "role": "Warehouse Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey request Gebeng.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "First email; gives 19 January",
+      "id": "f1"
+     },
+     {
+      "name": "Re Survey request Gebeng.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Reply; moves the visit to 26 January",
+      "id": "f2"
+     },
+     {
+      "name": "Gebeng Distribution Centre information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Sheet",
+      "id": "f3"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p12",
+   "split": "tuning",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey Greywater Specialist Hospital.eml",
+      "text": "From: Anita Rao\nTo: Marsh\nCc: Calvin Ng\nDate: 8 December 2026\nSubject: Survey request – Greywater Specialist Hospital\n\nDear Marsh team,\n\nPlease arrange a first survey for Greywater Medical Group Pte Ltd at Greywater Specialist Hospital. We have set aside 18 February 2027 to 19 February 2027 for the site visit, to allow time for the survey and discussions with the hospital teams.\n\nPlease issue the report by 2 April 2027. Let us know what information you need beforehand and whether there are any particular areas the surveyor will need access to, so we can coordinate around hospital operations.\n\nThe hospital information sheet sets out the address and site contacts. Calvin will coordinate facilities access, and I will assist with operational arrangements.\n\nThank you.\n\nRegards,\nAnita Rao\nDirector, Operations\nGreywater Medical Group Pte Ltd"
+     },
+     {
+      "id": "f2",
+      "name": "Hospital information sheet.pdf",
+      "text": "HOSPITAL INFORMATION SHEET\n\nClient: Greywater Medical Group Pte Ltd\nSite name: Greywater Specialist Hospital\nSite address: 40 Bukit Batok West Avenue 8, Singapore 659100\n\nProperty description: Hospital premises. Access to clinical areas will need to be coordinated with the hospital team to minimise disruption to patient care.\n\nSite contact: Calvin Ng\nRole: Facilities Director\nCoordination: Facilities access and arrangements for the survey walkthrough.\n\nSite contact: Anita Rao\nRole: Director, Operations\nCoordination: Operational arrangements and liaison with hospital teams.\n\nVisitor arrangements: Please provide the surveyor's details and proposed scope in advance so that the necessary access arrangements can be made."
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-10",
+      "name": "Greywater Marine Services Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1001",
+        "name": "Greywater Marine Yard",
+        "address": "22 Tanjong Kling Road, Singapore 628049",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p12",
+    "split": "tuning",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 3",
+    "hard_cases": [
+     "off_list_facility",
+     "similar_client_trap",
+     "placement_assessment",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Greywater Medical Group Pte Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [
+     {
+      "id": "c-10",
+      "name": "Greywater Marine Services Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1001",
+        "name": "Greywater Marine Yard",
+        "address": "22 Tanjong Kling Road, Singapore 628049",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Greywater Specialist Hospital",
+      "address": "40 Bukit Batok West Avenue 8, Singapore 659100",
+      "jurisdiction": "SG",
+      "facility_type": null,
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-02-18",
+      "site_visit_end_date": "2027-02-19",
+      "report_due_date": "2027-04-02",
+      "site_contacts": [
+       {
+        "name": "Calvin Ng",
+        "role": "Facilities Director"
+       },
+       {
+        "name": "Anita Rao",
+        "role": "Director, Operations"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey Greywater Specialist Hospital.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request",
+      "id": "f1"
+     },
+     {
+      "name": "Hospital information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Facts; a hospital",
+      "id": "f2"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p19",
+   "split": "held-out",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Surveys of Marlin Quay.eml",
+      "text": "From: Edwin Tay <edwin.tay@marlinquay.example>\nTo: Marsh <property.surveys@marsh.example>\nDate: 24 November 2026\nSubject: Surveys of Marlin Quay\n\nDear Marsh team,\n\nPlease arrange a first survey for each of our two properties under Marlin Quay Developments Pte Ltd. The proposed visits are:\n\nMarlin Quay Phase 1 — 9 March 2027\nMarlin Quay Phase 2 — 10 March 2027\n\nWe need both reports by 30 April 2027. The site information sheets give the addresses and property details.\n\nI will be the site contact for both visits. Please let me know what drawings and records your surveyor would like us to have ready.\n\nRegards,\nEdwin Tay\nProperty Executive\nMarlin Quay Developments Pte Ltd"
+     },
+     {
+      "id": "f2",
+      "name": "Phase 2 visit moved.eml",
+      "text": "From: Edwin Tay <edwin.tay@marlinquay.example>\nTo: Marsh <property.surveys@marsh.example>\nDate: 8 December 2026\nSubject: Phase 2 visit moved\n\nDear Marsh team,\n\nPlease replace 10 March 2027 with 11 March 2027 for the first survey at Marlin Quay Phase 2. Our site team cannot support the earlier date.\n\nThe first survey at Marlin Quay Phase 1 remains on 9 March 2027, and the report due date for both properties remains 30 April 2027.\n\nPlease use the revised Phase 2 information sheet for your arrangements. I remain the contact for both sites.\n\nThank you,\nEdwin Tay\nProperty Executive\nMarlin Quay Developments Pte Ltd"
+     },
+     {
+      "id": "f3",
+      "name": "Phase 1 information sheet.pdf",
+      "text": "SITE INFORMATION SHEET\nClient: Marlin Quay Developments Pte Ltd\nSite name: Marlin Quay Phase 1\nSite address: 12 Telok Blangah Crescent, Singapore 098631\nJurisdiction: SG\nFacility type: Mixed-use development\nVisit type: A first survey\nSite visit date: 9 March 2027\nReport due date: 30 April 2027\nSite contact: Edwin Tay\nContact role: Property Executive\n\nAccess note: Please coordinate access with the site contact before arrival so that the relevant areas can be made available."
+     },
+     {
+      "id": "f4",
+      "name": "Phase 2 information sheet.pdf",
+      "text": "SITE INFORMATION SHEET — REVISED\nClient: Marlin Quay Developments Pte Ltd\nSite name: Marlin Quay Phase 2\nSite address: 14 Telok Blangah Crescent, Singapore 098633\nJurisdiction: SG\nFacility type: Mixed-use development\nVisit type: A first survey\nSite visit date: 11 March 2027\nReport due date: 30 April 2027\nSite contact: Edwin Tay\nContact role: Property Executive\n\nScheduling note: This sheet reflects the revised visit date advised by email. Please liaise with Edwin Tay on access and the documents required for the survey."
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p19",
+    "split": "held-out",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Mixed Use Development Sample 2",
+    "hard_cases": [
+     "multi_site",
+     "date_changed",
+     "placement_client",
+     "placement_assessment",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Marlin Quay Developments Pte Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Marlin Quay Phase 1",
+      "address": "12 Telok Blangah Crescent, Singapore 098631",
+      "jurisdiction": "SG",
+      "facility_type": "Mixed-use development",
+      "existing_site_id": null
+     },
+     {
+      "ref": "site-2",
+      "name": "Marlin Quay Phase 2",
+      "address": "14 Telok Blangah Crescent, Singapore 098633",
+      "jurisdiction": "SG",
+      "facility_type": "Mixed-use development",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-09",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-04-30",
+      "site_contacts": [
+       {
+        "name": "Edwin Tay",
+        "role": "Property Executive"
+       }
+      ]
+     },
+     {
+      "ref": "a-2",
+      "site_ref": "site-2",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-11",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-04-30",
+      "site_contacts": [
+       {
+        "name": "Edwin Tay",
+        "role": "Property Executive"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Surveys of Marlin Quay.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Request; Phase 2 on 10 March",
+      "id": "f1"
+     },
+     {
+      "name": "Phase 2 visit moved.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-2"
+      },
+      "about": "Moves Phase 2 to 11 March",
+      "id": "f2"
+     },
+     {
+      "name": "Phase 1 information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Sheet",
+      "id": "f3"
+     },
+     {
+      "name": "Phase 2 information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-2"
+      },
+      "about": "Sheet",
+      "id": "f4"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p20",
+   "split": "held-out",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Resurvey of Hartwell Ridge Plaza.eml",
+      "text": "From: Jonathan Lew, Hartwel Ridge Properties\nTo: Marsh\nCc: Rachel Ang\nDate: 26 November 2026\nSubject: Resurvey of Hartwell Ridge Plaza\n\nDear Marsh team,\n\nPlease arrange a periodic re-survey of Hartwell Ridge Plaza on 24 February 2027. This is our office property at 100 Hartwell Road, Singapore 229101.\n\nThe site contacts are Jonathan Lew, Asset Management, and Rachel Ang, Property Manager. Rachel will coordinate access to the premises; please let us know what records your surveyor would like ready beforehand.\n\nWe will need the report by 9 April 2027. Our engagement letter is attached for your records.\n\nThank you.\n\nRegards,\nJonathan Lew\nAsset Management\nHartwel Ridge Properties"
+     },
+     {
+      "id": "f2",
+      "name": "Engagement letter Hartwel Ridge.pdf",
+      "text": "Hartwel Ridge Properties\n\n26 November 2026\n\nMarsh\nSingapore\n\nDear Marsh team,\n\nRe: Property risk survey engagement — Hartwell Ridge Plaza\n\nWe confirm our instruction to Marsh to arrange a periodic re-survey of Hartwell Ridge Plaza, the office property at 100 Hartwell Road, Singapore 229101.\n\nFor account identification, the registered client name is Hartwell Ridge Properties Pte Ltd.\n\nThe site visit is to take place on 24 February 2027, with the report due by 9 April 2027. Please advise us of any access requirements or documents needed for the survey so that the site team can prepare.\n\nJonathan Lew, Asset Management, will be the client contact for this engagement. Rachel Ang, Property Manager, will assist with site access and operational information.\n\nYours faithfully,\n\nJonathan Lew\nAsset Management\nFor and on behalf of\nHartwel Ridge Properties"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-11",
+      "name": "Hartwell Ridge Properties Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1101",
+        "name": "Hartwell Ridge Plaza",
+        "address": "100 Hartwell Road, Singapore 229101",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p20",
+    "split": "held-out",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 4",
+    "hard_cases": [
+     "client_typo",
+     "resurvey",
+     "recorded_site",
+     "placement_assessment",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Hartwell Ridge Properties Pte Ltd",
+     "division": null,
+     "existing_id": "c-11"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-11",
+      "name": "Hartwell Ridge Properties Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1101",
+        "name": "Hartwell Ridge Plaza",
+        "address": "100 Hartwell Road, Singapore 229101",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Hartwell Ridge Plaza",
+      "address": "100 Hartwell Road, Singapore 229101",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": "s-1101"
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Resurvey",
+      "site_visit_date": "2027-02-24",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-04-09",
+      "site_contacts": [
+       {
+        "name": "Jonathan Lew",
+        "role": "Asset Management"
+       },
+       {
+        "name": "Rachel Ang",
+        "role": "Property Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Resurvey of Hartwell Ridge Plaza.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request",
+      "id": "f1"
+     },
+     {
+      "name": "Engagement letter Hartwel Ridge.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f2"
+     }
+    ],
+    "brief": "The pack spells the client 'Hartwel Ridge Properties' (one L)."
+   }
+  },
+  {
+   "id": "p21",
+   "split": "held-out",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Follow-up on recommendations Nimbus Row.eml",
+      "text": "From: Benedict Sim\nTo: Marsh\nDate: 9 December 2026\nSubject: Follow-up on recommendations – Nimbus Row Building\n\nDear Marsh team,\n\nPlease arrange a short follow-up visit to check recommendations for Nimbus Row Offices Pte Ltd at Nimbus Row Building, 31 Nimbus Row, Singapore 199590. This is our office property, already recorded under client ID c-12 and site ID s-1201.\n\nThe visit date is still to be arranged. Please let me know your availability so we can coordinate access. We need the report by 7 May 2027.\n\nI will be the site contact for the visit.\n\nThank you.\n\nRegards,\nBenedict Sim\nBuilding Manager\nNimbus Row Offices Pte Ltd"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-12",
+      "name": "Nimbus Row Offices Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1201",
+        "name": "Nimbus Row Building",
+        "address": "31 Nimbus Row, Singapore 199590",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p21",
+    "split": "held-out",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 0",
+    "hard_cases": [
+     "follow_up",
+     "missing_date",
+     "recorded_site",
+     "placement_assessment"
+    ],
+    "client": {
+     "name": "Nimbus Row Offices Pte Ltd",
+     "division": null,
+     "existing_id": "c-12"
+    },
+    "recorded_clients": [
+     {
+      "id": "c-12",
+      "name": "Nimbus Row Offices Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1201",
+        "name": "Nimbus Row Building",
+        "address": "31 Nimbus Row, Singapore 199590",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Nimbus Row Building",
+      "address": "31 Nimbus Row, Singapore 199590",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": "s-1201"
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "Follow-up visit",
+      "site_visit_date": null,
+      "site_visit_end_date": null,
+      "report_due_date": "2027-05-07",
+      "site_contacts": [
+       {
+        "name": "Benedict Sim",
+        "role": "Building Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Follow-up on recommendations Nimbus Row.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Asks for a follow-up; no date yet",
+      "id": "f1"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p22",
+   "split": "held-out",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Terminal survey request.eml",
+      "text": "From: Kanda Ratana\nTo: Marsh\nDate: 24 November 2026\nSubject: Terminal survey request – Laem Ridge Container Terminal\n\nDear Marsh team,\n\nPlease arrange a first survey for Eastern Seaboard Terminals Co., Ltd at Laem Ridge Container Terminal. We would like to propose 2 March 2027 for the visit.\n\nThe site is a port terminal at Terminal Road, Laem Chabang Port, Si Racha, Chonburi 20230, Thailand.\n\nPlease let us know what information your surveyor needs beforehand so we can prepare it and organise access.\n\nRegards,\nKanda Ratana\nHSE Manager\nEastern Seaboard Terminals Co., Ltd"
+     },
+     {
+      "id": "f2",
+      "name": "Re Terminal survey request.eml",
+      "text": "From: Kanda Ratana\nTo: Marsh\nCc: Prasit Boonmee\nDate: 8 December 2026\nSubject: Re: Terminal survey request – Laem Ridge Container Terminal\n\nDear Marsh team,\n\nThere is a change to our proposed arrangement. Please replace 2 March 2027 with a two-day visit on 4 March 2027 and 5 March 2027 for the first survey at Laem Ridge Container Terminal. The earlier date no longer applies.\n\nPrasit Boonmee, Terminal Operations Manager, will coordinate the operational areas and access. I will coordinate the HSE information and join the site discussions as HSE Manager.\n\nPlease plan for the report to reach us by 23 April 2027. The agreement letter records the revised arrangement.\n\nThank you,\nKanda Ratana\nHSE Manager\nEastern Seaboard Terminals Co., Ltd"
+     },
+     {
+      "id": "f3",
+      "name": "Agreement letter.pdf",
+      "text": "Eastern Seaboard Terminals Co., Ltd\nLaem Ridge Container Terminal\nTerminal Road, Laem Chabang Port, Si Racha, Chonburi 20230, Thailand\n\n11 December 2026\n\nTo: Marsh\n\nDear Marsh team,\n\nAgreement for property risk survey\n\nWe confirm our agreement for Marsh to arrange a first survey of Laem Ridge Container Terminal, our port terminal at the address above.\n\nThe survey will take place over 4 March 2027 and 5 March 2027. Please provide the survey report by 23 April 2027.\n\nOur site contacts are Prasit Boonmee, Terminal Operations Manager, for terminal operations and access, and Kanda Ratana, HSE Manager, for HSE records and coordination. Please route the pre-survey information request through these contacts so that the relevant material can be made available.\n\nYours faithfully,\n\nPrasit Boonmee\nTerminal Operations Manager\nFor Eastern Seaboard Terminals Co., Ltd"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p22",
+    "split": "held-out",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Shopping Mall Sample 2",
+    "hard_cases": [
+     "date_changed",
+     "date_range",
+     "th",
+     "other_facility",
+     "placement_assessment",
+     "placement_client"
+    ],
+    "client": {
+     "name": "Eastern Seaboard Terminals Co., Ltd",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Laem Ridge Container Terminal",
+      "address": "Terminal Road, Laem Chabang Port, Si Racha, Chonburi 20230, Thailand",
+      "jurisdiction": "TH",
+      "facility_type": "Port terminal",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-04",
+      "site_visit_end_date": "2027-03-05",
+      "report_due_date": "2027-04-23",
+      "site_contacts": [
+       {
+        "name": "Prasit Boonmee",
+        "role": "Terminal Operations Manager"
+       },
+       {
+        "name": "Kanda Ratana",
+        "role": "HSE Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Terminal survey request.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request; 2 March",
+      "id": "f1"
+     },
+     {
+      "name": "Re Terminal survey request.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Moves to 4 and 5 March",
+      "id": "f2"
+     },
+     {
+      "name": "Agreement letter.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f3"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p23",
+   "split": "held-out",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Survey of Linden Wharf Offices.eml",
+      "text": "From: Siti Aminah\nTo: Marsh\nDate: 18 November 2026\nSubject: Survey of Linden Wharf Offices\n\nDear Marsh team,\n\nPlease arrange a first survey of Linden Wharf Offices for Linden Wharf Capital Pte Ltd, Asset Management.\n\nThe visit is to take place on 23 March 2027. We need the report by 14 May 2027 for our internal review. The property details are in the information sheet, and we will send the engagement letter separately.\n\nI will coordinate matters on our side as Risk Manager. Marcus Foo, Facilities Manager, will assist with the site arrangements.\n\nThank you,\nSiti Aminah\nRisk Manager\nLinden Wharf Capital Pte Ltd"
+     },
+     {
+      "id": "f2",
+      "name": "Letter of engagement.pdf",
+      "text": "Linden Wharf Capital Pte Ltd\nAsset Management\n\n25 November 2026\n\nDear Marsh team,\n\nEngagement for property risk survey — Linden Wharf Offices\n\nWe confirm our instruction to Marsh to arrange a first survey of our office property, Linden Wharf Offices, at 8 Boat Quay Walk, Singapore 049817.\n\nThe site visit is scheduled for 23 March 2027, with the report due by 14 May 2027. Please let us know what records your surveyor requires so that we can have them ready for the visit.\n\nSiti Aminah, Risk Manager, will be the contact for the report and any risk-related queries. Please coordinate access and the inspection route with Marcus Foo, Facilities Manager.\n\nYours faithfully,\n\nSiti Aminah\nRisk Manager\nFor Linden Wharf Capital Pte Ltd\nAsset Management"
+     },
+     {
+      "id": "f3",
+      "name": "Linden Wharf Offices information sheet.pdf",
+      "text": "Linden Wharf Offices — Site Information Sheet\n\nClient: Linden Wharf Capital Pte Ltd\nDivision: Asset Management\nSite name: Linden Wharf Offices\nSite address: 8 Boat Quay Walk, Singapore 049817\nJurisdiction: SG\nFacility type: Office\nVisit type: A first survey\nSite visit date: 23 March 2027\nReport due date: 14 May 2027\nSite contact: Marcus Foo\nRole: Facilities Manager\nRisk contact: Siti Aminah\nRole: Risk Manager\n\nPreparation note: Please send the document request list in advance so that the relevant records can be made available."
+     },
+     {
+      "id": "f4",
+      "name": "Access arrangements.eml",
+      "text": "From: Marcus Foo\nTo: Marsh\nCc: Siti Aminah\nDate: 9 December 2026\nSubject: Building access for the visit — Linden Wharf Offices\n\nDear Marsh team,\n\nFor the visit on 23 March 2027, please come to the reception at Linden Wharf Offices, 8 Boat Quay Walk, Singapore 049817, and ask for me. I will meet the surveyor there and accompany the walk-through.\n\nPlease send over the names of those attending beforehand for visitor registration. Bring photo identification for reception, and let me know if access to any particular rooms or equipment is needed so I can arrange this with the building team.\n\nSiti Aminah, Risk Manager, is copied for any questions on the survey scope or report.\n\nRegards,\nMarcus Foo\nFacilities Manager\nLinden Wharf Capital Pte Ltd\nAsset Management"
+     },
+     {
+      "id": "f5",
+      "name": "Pasted note on billing.txt",
+      "text": "Billing note\n\nPlease address the invoice to Linden Wharf Capital Pte Ltd, attention Asset Management. Use “Linden Wharf Offices — property risk survey” as the invoice description.\n\nPlease send the invoice separately from the survey report so that it can be routed for payment processing."
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-13",
+      "name": "Linden Wharf Estates Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1301",
+        "name": "Linden Wharf Warehouse",
+        "address": "9 Pandan Crescent, Singapore 128470",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-91",
+      "name": "Orrin Foods Sdn Bhd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9101",
+        "name": "Orrin Foods Plant",
+        "address": "Lot 77, Jalan Industri 5, 75250 Melaka, Malaysia",
+        "has_assessments": false
+       }
+      ]
+     },
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p23",
+    "split": "held-out",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 1",
+    "hard_cases": [
+     "similar_client_trap",
+     "division",
+     "placement_assessment",
+     "placement_site",
+     "placement_client",
+     "pasted"
+    ],
+    "client": {
+     "name": "Linden Wharf Capital Pte Ltd",
+     "division": "Asset Management",
+     "existing_id": null
+    },
+    "recorded_clients": [
+     {
+      "id": "c-13",
+      "name": "Linden Wharf Estates Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-1301",
+        "name": "Linden Wharf Warehouse",
+        "address": "9 Pandan Crescent, Singapore 128470",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Linden Wharf Offices",
+      "address": "8 Boat Quay Walk, Singapore 049817",
+      "jurisdiction": "SG",
+      "facility_type": "Office",
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-23",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-05-14",
+      "site_contacts": [
+       {
+        "name": "Marcus Foo",
+        "role": "Facilities Manager"
+       },
+       {
+        "name": "Siti Aminah",
+        "role": "Risk Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Survey of Linden Wharf Offices.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Request",
+      "id": "f1"
+     },
+     {
+      "name": "Letter of engagement.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f2"
+     },
+     {
+      "name": "Linden Wharf Offices information sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Sheet",
+      "id": "f3"
+     },
+     {
+      "name": "Access arrangements.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "assessment",
+       "ref": "a-1"
+      },
+      "about": "Building access for the visit",
+      "id": "f4"
+     },
+     {
+      "name": "Pasted note on billing.txt",
+      "kind": "pasted",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Pasted text; billing details only",
+      "id": "f5"
+     }
+    ],
+    "brief": ""
+   }
+  },
+  {
+   "id": "p24",
+   "split": "held-out",
+   "written_by": "gpt-6.1-sol",
+   "request": {
+    "documents": [
+     {
+      "id": "f1",
+      "name": "Three property surveys.eml",
+      "text": "From: Victoria Crest Holdings Limited\nTo: Marsh\nDate: 24 November 2026\nSubject: Three property surveys – Hong Kong\n\nDear Marsh team,\n\nPlease help arrange a first survey for each of our three properties: Crest Tower Central, Crest Tower Kowloon and Crest Harbour Hotel. The site information sheets are attached for your planning.\n\nFor Crest Tower Central, the visit is on 15 March 2027. Crest Tower Kowloon will be on 16 March 2027. Please have both office reports ready by 7 May 2027.\n\nThe visit date for Crest Harbour Hotel is still to be arranged. Please liaise with Vivian Wu, General Manager, on access and availability before making the booking.\n\nOur appointment letter is also attached. Kindly let us know what drawings and records the site teams should prepare.\n\nThank you.\n\nRegards,\nVictoria Crest Holdings Limited"
+     },
+     {
+      "id": "f2",
+      "name": "Crest Tower Central sheet.pdf",
+      "text": "Site information sheet\nClient: Victoria Crest Holdings Limited\nSite name: Crest Tower Central\nAddress: 55 Queen's Road Central, Central, Hong Kong\nJurisdiction: Hong Kong\nFacility type: Office\nVisit type: a first survey\nSite visit date: 15 March 2027\nReport due date: 7 May 2027\nSite contact: Mandy Lo\nRole: Property Manager\n\nAccess arrangements: Please coordinate with Mandy Lo for arrival and access to the building services areas. Let the site team know beforehand which records are required for review."
+     },
+     {
+      "id": "f3",
+      "name": "Crest Tower Kowloon sheet.pdf",
+      "text": "Crest Tower Kowloon\nProperty survey information\n\nClient: Victoria Crest Holdings Limited\nSite name: Crest Tower Kowloon\nAddress: 18 Canton Road, Tsim Sha Tsui, Kowloon, Hong Kong\nJurisdiction: Hong Kong\nFacility type: Office\nVisit type: a first survey\nSite visit date: 16 March 2027\nReport due date: 7 May 2027\nSite contact: Ken Tsang\nRole: Building Manager\n\nCoordination note: Ken Tsang will be the point of contact for the survey arrangements. Please send the proposed scope and document request through before the visit so the relevant records can be made available."
+     },
+     {
+      "id": "f4",
+      "name": "Crest Harbour Hotel sheet.pdf",
+      "text": "Site information sheet – Crest Harbour Hotel\n\nClient: Victoria Crest Holdings Limited\nSite name: Crest Harbour Hotel\nAddress: 3 Harbour Road, Wan Chai, Hong Kong\nJurisdiction: Hong Kong\nProperty description: A hotel with guest accommodation and associated guest service areas.\nVisit type: a first survey\nSite contact: Vivian Wu\nRole: General Manager\n\nPlanning note: The visit is still to be arranged. Please discuss availability with Vivian Wu and agree access arrangements with the hotel before confirming the appointment. The survey route will need to take account of guest privacy and hotel operations."
+     },
+     {
+      "id": "f5",
+      "name": "Appointment letter Victoria Crest.pdf",
+      "text": "Victoria Crest Holdings Limited\n\n24 November 2026\n\nMarsh\nSingapore\n\nDear Marsh team,\n\nAppointment for property risk surveys\n\nWe appoint Marsh to coordinate property risk surveys for Crest Tower Central, Crest Tower Kowloon and Crest Harbour Hotel on behalf of Victoria Crest Holdings Limited.\n\nPlease proceed on the basis of the accompanying site information sheets and liaise with the named site contacts regarding access, supporting records and the survey programme. Each property is to receive a first survey.\n\nThe reports for Crest Tower Central and Crest Tower Kowloon are required by 7 May 2027. Arrangements for the Crest Harbour Hotel visit remain to be agreed with its General Manager.\n\nPlease advise us if any further information is needed to commence the arrangements.\n\nYours faithfully,\n\nFor and on behalf of\nVictoria Crest Holdings Limited"
+     }
+    ],
+    "clients": [
+     {
+      "id": "c-92",
+      "name": "Pelham Gardens Pte Ltd",
+      "division": "Retail",
+      "sites": [
+       {
+        "id": "s-9201",
+        "name": "Pelham Mall",
+        "address": "60 Pelham Road, Singapore 297010",
+        "has_assessments": true
+       }
+      ]
+     },
+     {
+      "id": "c-90",
+      "name": "Banyan Cold Chain Pte Ltd",
+      "division": null,
+      "sites": [
+       {
+        "id": "s-9001",
+        "name": "Banyan Cold Store 2",
+        "address": "11 Kranji Way, Singapore 739432",
+        "has_assessments": true
+       }
+      ]
+     }
+    ],
+    "facility_types": [
+     "Distribution warehouse",
+     "Cold store",
+     "Chemical plant",
+     "Paper mill",
+     "Port terminal",
+     "Data centre",
+     "Office",
+     "Shopping mall",
+     "Mixed-use development"
+    ],
+    "jurisdictions": [
+     {
+      "code": "SG",
+      "name": "Singapore"
+     },
+     {
+      "code": "MY",
+      "name": "Malaysia"
+     },
+     {
+      "code": "ID",
+      "name": "Indonesia"
+     },
+     {
+      "code": "TH",
+      "name": "Thailand"
+     },
+     {
+      "code": "PH",
+      "name": "Philippines"
+     },
+     {
+      "code": "VN",
+      "name": "Vietnam"
+     },
+     {
+      "code": "HK",
+      "name": "Hong Kong"
+     },
+     {
+      "code": "UK",
+      "name": "United Kingdom"
+     }
+    ]
+   },
+   "key": {
+    "id": "p24",
+    "split": "held-out",
+    "written_by": "gpt-6.1-sol",
+    "base_report": "Office Sample 3",
+    "hard_cases": [
+     "multi_site",
+     "missing_date",
+     "off_list_facility",
+     "hk",
+     "placement_client",
+     "placement_site"
+    ],
+    "client": {
+     "name": "Victoria Crest Holdings Limited",
+     "division": null,
+     "existing_id": null
+    },
+    "recorded_clients": [],
+    "sites": [
+     {
+      "ref": "site-1",
+      "name": "Crest Tower Central",
+      "address": "55 Queen's Road Central, Central, Hong Kong",
+      "jurisdiction": "HK",
+      "facility_type": "Office",
+      "existing_site_id": null
+     },
+     {
+      "ref": "site-2",
+      "name": "Crest Tower Kowloon",
+      "address": "18 Canton Road, Tsim Sha Tsui, Kowloon, Hong Kong",
+      "jurisdiction": "HK",
+      "facility_type": "Office",
+      "existing_site_id": null
+     },
+     {
+      "ref": "site-3",
+      "name": "Crest Harbour Hotel",
+      "address": "3 Harbour Road, Wan Chai, Hong Kong",
+      "jurisdiction": "HK",
+      "facility_type": null,
+      "existing_site_id": null
+     }
+    ],
+    "assessments": [
+     {
+      "ref": "a-1",
+      "site_ref": "site-1",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-15",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-05-07",
+      "site_contacts": [
+       {
+        "name": "Mandy Lo",
+        "role": "Property Manager"
+       }
+      ]
+     },
+     {
+      "ref": "a-2",
+      "site_ref": "site-2",
+      "visit_type": "First survey",
+      "site_visit_date": "2027-03-16",
+      "site_visit_end_date": null,
+      "report_due_date": "2027-05-07",
+      "site_contacts": [
+       {
+        "name": "Ken Tsang",
+        "role": "Building Manager"
+       }
+      ]
+     },
+     {
+      "ref": "a-3",
+      "site_ref": "site-3",
+      "visit_type": "First survey",
+      "site_visit_date": null,
+      "site_visit_end_date": null,
+      "report_due_date": null,
+      "site_contacts": [
+       {
+        "name": "Vivian Wu",
+        "role": "General Manager"
+       }
+      ]
+     }
+    ],
+    "documents": [
+     {
+      "name": "Three property surveys.eml",
+      "kind": "email",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Request for three sites; hotel date not set",
+      "id": "f1"
+     },
+     {
+      "name": "Crest Tower Central sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-1"
+      },
+      "about": "Sheet",
+      "id": "f2"
+     },
+     {
+      "name": "Crest Tower Kowloon sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-2"
+      },
+      "about": "Sheet",
+      "id": "f3"
+     },
+     {
+      "name": "Crest Harbour Hotel sheet.pdf",
+      "kind": "sheet",
+      "placement": {
+       "kind": "site",
+       "ref": "site-3"
+      },
+      "about": "Sheet; a hotel",
+      "id": "f4"
+     },
+     {
+      "name": "Appointment letter Victoria Crest.pdf",
+      "kind": "letter",
+      "placement": {
+       "kind": "client"
+      },
+      "about": "Letter",
+      "id": "f5"
+     }
+    ],
+    "brief": ""
+   }
+  }
+ ]
+}

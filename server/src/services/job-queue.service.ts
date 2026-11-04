@@ -1,6 +1,7 @@
 // Background queues for the gateway (CP-22): BullMQ jobs kept in Redis and
 // worked by workers in this process. Called by background-queues.service.ts,
-// which defines the two queues. Started from index.ts (startWorkers).
+// which defines the two CP-22 queues, and client-intake.service.ts (CP-23's
+// daily cleanup, a scheduled job). Started from index.ts (startWorkers).
 // A restart loses nothing: jobs stay in Redis and are picked up again.
 import { Queue, Worker } from 'bullmq'
 import { setTimeout as sleep } from 'timers/promises'
@@ -102,6 +103,24 @@ export function defineQueue<T extends object>(
         }),
         timedOut,
       ])
+    },
+    /**
+     * Runs a job on a cron schedule, e.g. '0 3 * * *' daily at 03:00 UTC, kept
+     * in Redis under `schedulerId`; calling it again replaces the schedule, so
+     * every boot can call it. Does nothing under tests, which call the handler's
+     * work directly.
+     */
+    async schedule(schedulerId: string, pattern: string, data: T): Promise<void> {
+      if (inline()) return
+      await queueOf().upsertJobScheduler(
+        schedulerId,
+        { pattern },
+        {
+          name,
+          data,
+          opts: { attempts: options.attempts, removeOnComplete: true, removeOnFail: true },
+        },
+      )
     },
   }
 }

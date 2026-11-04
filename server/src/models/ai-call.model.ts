@@ -20,6 +20,8 @@ export const AI_FEATURES = [
   // A site walk (CP-22): S5 describing a photo, and the proposal step in rag-service.
   'describe-photo',
   'site-walk',
+  // Reading a client's documents into the New assessment form (CP-23), in rag-service.
+  'client-intake',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

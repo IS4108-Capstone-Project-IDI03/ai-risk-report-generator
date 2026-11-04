@@ -9,7 +9,8 @@ import {
 
 // Recordings, photos and handwritten pages arrive as a multipart form, buffered
 // in memory, both when an observation is captured (CP-02, CP-03, CP-04, CP-19)
-// and when recordings and photos are added to a saved one (CP-08). 100 MB in all.
+// and when recordings and photos are added to a saved one (CP-08), and client
+// documents (CP-23). 100 MB in all.
 // ponytail: the whole form is buffered in memory; stream it to S3 if uploads
 // grow past a few recordings.
 export const multipartBody = express.raw({ type: 'multipart/form-data', limit: '100mb' })
@@ -20,6 +21,28 @@ export const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
   res.status(413).json({
     error: 'The recordings, photos and pages are larger than 100 MB in total. Save fewer at once.',
   })
+}
+
+// The same limit for client documents (CP-23): an intake's or a client page upload.
+export const documentsTooLarge: ErrorRequestHandler = (error, _req, res, next) => {
+  if (error?.type !== 'entity.too.large') return next(error)
+  res
+    .status(413)
+    .json({ error: 'The documents are larger than 100 MB in total. Add fewer at once.' })
+}
+
+// The form's `file` parts as names and bytes (CP-23 client documents); their
+// types are checked by the service.
+export async function documentFiles(form: FormData): Promise<{ name: string; bytes: Buffer }[]> {
+  return Promise.all(
+    form
+      .getAll('file')
+      .filter((part) => part instanceof File)
+      .map(async (file) => ({
+        name: file.name || 'Document',
+        bytes: Buffer.from(await file.arrayBuffer()),
+      })),
+  )
 }
 
 // A form's images under one part name, checked as photos are (CP-04 AC4): each a

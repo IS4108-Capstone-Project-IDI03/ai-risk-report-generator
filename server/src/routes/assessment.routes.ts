@@ -4,14 +4,11 @@ import type { SessionUser } from '../services/auth.service'
 import {
   archiveAssessment,
   assessmentDetailsSchema,
-  createAssessment,
-  InvalidEngineersError,
-  listAssignableEngineers,
   listAssessments,
-  newAssessmentSchema,
   NotArchivedError,
   NotAssignedError,
   restoreAssessment,
+  storedSurveyType,
   updateAssessment,
 } from '../services/assessment.service'
 import {
@@ -19,12 +16,12 @@ import {
   AssessmentNotFoundError,
   startCaptureSession,
 } from '../services/capture-session.service'
+import { ClientSiteError } from '../services/client.service'
 import {
-  ClientSiteError,
-  DuplicateSiteError,
-  UnknownClientError,
-  UnknownSiteError,
-} from '../services/client.service'
+  AssessmentFieldsError,
+  createAll,
+  newAssessmentsSchema,
+} from '../services/assessment-batch.service'
 import {
   addLocation,
   DuplicateLocationError,
@@ -129,15 +126,14 @@ router.get('/', requirePermission('assessments:view'), async (_req, res) => {
   res.json(await listAssessments(res.locals.user!))
 })
 
-router.get('/engineers', requirePermission('assessments:edit'), async (_req, res) => {
-  res.json(await listAssignableEngineers())
-})
-
-// Creates an assessment, on a listed site or a new one (CP-17). 400 lists the
-// first problem with each invalid field, including an unknown client, a site
-// of another client, and a new site named like one the client has.
+// Creates one client's sites and assessments together (CP-23), each assigned
+// to the signed-in engineer: 201 { clientId, assessments }. 400 names the
+// first problem with each invalid field by its path, e.g.
+// `sites.0.assessments.1.visitType`, including an unknown client, a site of
+// another client, a site name the client has, and a visit type a site with no
+// earlier assessment can't start with.
 router.post('/', requirePermission('assessments:edit'), async (req, res) => {
-  const parsed = newAssessmentSchema.safeParse(req.body)
+  const parsed = newAssessmentsSchema.safeParse(req.body)
   if (!parsed.success) {
     res
       .status(400)
@@ -145,27 +141,10 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
     return
   }
   try {
-    res.status(201).json(await createAssessment(parsed.data, res.locals.user!))
+    res.status(201).json(await createAll(parsed.data, res.locals.user!))
   } catch (error) {
-    if (error instanceof InvalidEngineersError) {
-      res.status(400).json({ error: error.message, fields: { engineerId: error.message } })
-      return
-    }
-    const field =
-      error instanceof UnknownClientError
-        ? 'clientId'
-        : error instanceof UnknownSiteError
-          ? 'siteId'
-          : error instanceof DuplicateSiteError
-            ? 'site.name'
-            : null
-    if (field) {
-      res
-        .status(400)
-        .json({ error: (error as Error).message, fields: { [field]: (error as Error).message } })
-      return
-    }
-    throw error
+    if (!(error instanceof AssessmentFieldsError)) throw error
+    res.status(400).json({ error: 'The assessment details are invalid.', fields: error.fields })
   }
 })
 
@@ -197,7 +176,8 @@ router.post(
 // assigned engineer, 409 once it is archived. Its site and client are
 // corrected through /api/sites and /api/clients (CP-18).
 router.put('/:reference', requirePermission('assessments:edit'), async (req, res) => {
-  const parsed = assessmentDetailsSchema.safeParse(req.body)
+  const stored = await storedSurveyType(req.params.reference)
+  const parsed = assessmentDetailsSchema(stored).safeParse(req.body)
   if (!parsed.success) {
     res
       .status(400)

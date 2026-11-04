@@ -1,0 +1,2293 @@
+[
+ {
+  "id": "p01",
+  "split": "tuning",
+  "written_by": "claude",
+  "base_report": "Mixed Use Development Sample 1",
+  "hard_cases": [
+   "resurvey",
+   "recorded_client",
+   "date_range",
+   "placement_assessment",
+   "placement_site",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Sembar Estates Pte Ltd",
+   "division": null,
+   "existing_id": "c-01"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-01",
+    "name": "Sembar Estates Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-101",
+      "name": "Kallang Riverside Centre",
+      "address": "12 Kallang Riverside Road, Singapore 339511",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Kallang Riverside Centre",
+    "address": "12 Kallang Riverside Road, Singapore 339511",
+    "jurisdiction": "SG",
+    "facility_type": "Mixed-use development",
+    "existing_site_id": "s-101"
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Resurvey",
+    "site_visit_date": "2027-03-23",
+    "site_visit_end_date": "2027-03-24",
+    "report_due_date": "2027-04-30",
+    "site_contacts": [
+     {
+      "name": "Chua Hui Ling",
+      "role": "Head, Property Management"
+     },
+     {
+      "name": "Rizal Hakim",
+      "role": "Senior Centre Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Re Periodic survey Kallang Riverside Centre.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Client's request for the periodic re-survey",
+    "id": "f1"
+   },
+   {
+    "name": "Engagement letter Sembar Estates.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Standing engagement letter",
+    "id": "f2"
+   },
+   {
+    "name": "Site information sheet Kallang Riverside Centre.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts about the centre",
+    "id": "f3"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p02",
+  "split": "tuning",
+  "written_by": "claude",
+  "base_report": "Office Sample 1",
+  "hard_cases": [
+   "division",
+   "placement_client",
+   "new_client"
+  ],
+  "client": {
+   "name": "Lindenmoor Capital Pte Ltd",
+   "division": "Corporate Real Estate",
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Lindenmoor Tower",
+    "address": "6 Marina Crescent, Singapore 018978",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-02-09",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-03-15",
+    "site_contacts": [
+     {
+      "name": "Tan Pei Shan",
+      "role": "Facilities Manager"
+     },
+     {
+      "name": "Gerald Ong",
+      "role": "Group Risk Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Property survey request.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request from the Corporate Real Estate team",
+    "id": "f1"
+   },
+   {
+    "name": "Letter of appointment.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Appointment letter on letterhead",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p03",
+  "split": "tuning",
+  "written_by": "claude",
+  "base_report": "Shopping Mall Sample 2",
+  "hard_cases": [
+   "missing_date",
+   "similar_client_trap",
+   "placement_assessment",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Hollin & Rye Retail Holdings Pte Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [
+   {
+    "id": "c-02",
+    "name": "Hollin Rye Logistics Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-201",
+      "name": "Hollin Rye Distribution Hub",
+      "address": "5 Pioneer Sector 2, Singapore 628354",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Rye Square Mall",
+    "address": "45 Jurong Gateway Lane, Singapore 608532",
+    "jurisdiction": "SG",
+    "facility_type": "Shopping mall",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": null,
+    "site_visit_end_date": null,
+    "report_due_date": "2027-05-14",
+    "site_contacts": [
+     {
+      "name": "Jamilah Rahman",
+      "role": "Centre Manager"
+     },
+     {
+      "name": "Alvin Teo",
+      "role": "Assistant Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey of Rye Square Mall.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request; visit date still to be arranged",
+    "id": "f1"
+   },
+   {
+    "name": "Rye Square Mall information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts about the mall",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p04",
+  "split": "tuning",
+  "written_by": "claude",
+  "base_report": "Office Sample 2",
+  "hard_cases": [
+   "multi_site",
+   "client_typo",
+   "resurvey",
+   "date_changed",
+   "long_pack",
+   "recorded_site",
+   "placement_client",
+   "placement_site",
+   "placement_assessment",
+   "pasted"
+  ],
+  "client": {
+   "name": "Meridian Pavilion REIT Management Pte Ltd",
+   "division": null,
+   "existing_id": "c-03"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-03",
+    "name": "Meridian Pavilion REIT Management Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-301",
+      "name": "Pavilion Tower One",
+      "address": "1 Shenton Link, Singapore 068801",
+      "has_assessments": true
+     },
+     {
+      "id": "s-302",
+      "name": "Pavilion Tower Two",
+      "address": "3 Shenton Link, Singapore 068803",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Pavilion Tower One",
+    "address": "1 Shenton Link, Singapore 068801",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": "s-301"
+   },
+   {
+    "ref": "site-2",
+    "name": "Pavilion Tower Two",
+    "address": "3 Shenton Link, Singapore 068803",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": "s-302"
+   },
+   {
+    "ref": "site-3",
+    "name": "Meridian Business Hub",
+    "address": "28 Science Park Drive, Singapore 118228",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Resurvey",
+    "site_visit_date": "2027-02-02",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-03-31",
+    "site_contacts": [
+     {
+      "name": "Ho Wei Jie",
+      "role": "Asset Manager"
+     },
+     {
+      "name": "Sabrina Lau",
+      "role": "Property Manager"
+     }
+    ]
+   },
+   {
+    "ref": "a-2",
+    "site_ref": "site-2",
+    "visit_type": "Resurvey",
+    "site_visit_date": "2027-02-03",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-03-31",
+    "site_contacts": [
+     {
+      "name": "Sabrina Lau",
+      "role": "Property Manager"
+     }
+    ]
+   },
+   {
+    "ref": "a-3",
+    "site_ref": "site-3",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-02-10",
+    "site_visit_end_date": "2027-02-11",
+    "report_due_date": "2027-04-15",
+    "site_contacts": [
+     {
+      "name": "Dennis Phua",
+      "role": "Building Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Request for three surveys.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Asset manager's request covering all three sites",
+    "id": "f1"
+   },
+   {
+    "name": "Pavilion Tower One thread.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Thread about Tower One",
+    "id": "f2"
+   },
+   {
+    "name": "Pavilion Tower Two thread.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "site",
+     "ref": "site-2"
+    },
+    "about": "Thread about Tower Two",
+    "id": "f3"
+   },
+   {
+    "name": "New date for the Business Hub.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-3"
+    },
+    "about": "Moves the Hub visit; supersedes the first date",
+    "id": "f4"
+   },
+   {
+    "name": "Engagement letter Meridian Pavillion.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Long engagement letter with terms",
+    "id": "f5"
+   },
+   {
+    "name": "Pavilion Tower One information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts about Tower One",
+    "id": "f6"
+   },
+   {
+    "name": "Pavilion Tower Two information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-2"
+    },
+    "about": "Facts about Tower Two",
+    "id": "f7"
+   },
+   {
+    "name": "Meridian Business Hub information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-3"
+    },
+    "about": "Facts about the Hub",
+    "id": "f8"
+   },
+   {
+    "name": "Business Hub lease summary.docx",
+    "kind": "letter",
+    "placement": {
+     "kind": "site",
+     "ref": "site-3"
+    },
+    "about": "Long lease summary; no dates of the visit",
+    "id": "f9"
+   },
+   {
+    "name": "Pasted email Tower Two access.txt",
+    "kind": "pasted",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-2"
+    },
+    "about": "Pasted note on Tower Two access",
+    "id": "f10"
+   }
+  ],
+  "brief": "The client's name is spelled 'Meridian Pavillion' (typo) everywhere in the pack."
+ },
+ {
+  "id": "p05",
+  "split": "tuning",
+  "written_by": "claude",
+  "base_report": "Office Sample 4",
+  "hard_cases": [
+   "multi_site",
+   "date_changed",
+   "new_client",
+   "placement_client",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Quarry Hill Developments Pte Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Quarry Hill Tower 1",
+    "address": "2 Quarry Hill Road, Singapore 159201",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": null
+   },
+   {
+    "ref": "site-2",
+    "name": "Quarry Hill Tower 2",
+    "address": "4 Quarry Hill Road, Singapore 159203",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-01-14",
+    "site_visit_end_date": null,
+    "report_due_date": null,
+    "site_contacts": [
+     {
+      "name": "Yusof Karim",
+      "role": "Senior Building Manager"
+     }
+    ]
+   },
+   {
+    "ref": "a-2",
+    "site_ref": "site-2",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-01-15",
+    "site_visit_end_date": null,
+    "report_due_date": null,
+    "site_contacts": [
+     {
+      "name": "Yusof Karim",
+      "role": "Senior Building Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Surveys of the two towers.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "First request; gives 12 and 13 January",
+    "id": "f1"
+   },
+   {
+    "name": "Change of dates.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Later email; moves the visits to 14 and 15 January",
+    "id": "f2"
+   },
+   {
+    "name": "Tower 1 information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts about Tower 1",
+    "id": "f3"
+   },
+   {
+    "name": "Tower 2 information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-2"
+    },
+    "about": "Facts about Tower 2",
+    "id": "f4"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p06",
+  "split": "tuning",
+  "written_by": "claude",
+  "base_report": "Shopping Mall Sample 1",
+  "hard_cases": [
+   "follow_up",
+   "recorded_site",
+   "pasted",
+   "placement_site",
+   "placement_assessment",
+   "placement_client",
+   "my"
+  ],
+  "client": {
+   "name": "Taman Seri Retail Sdn Bhd",
+   "division": null,
+   "existing_id": "c-04"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-04",
+    "name": "Taman Seri Retail Sdn Bhd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-401",
+      "name": "Taman Seri Mall",
+      "address": "Jalan Seri Utama 2, Taman Seri, 81200 Johor Bahru, Johor, Malaysia",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Taman Seri Mall",
+    "address": "Jalan Seri Utama 2, Taman Seri, 81200 Johor Bahru, Johor, Malaysia",
+    "jurisdiction": "MY",
+    "facility_type": "Shopping mall",
+    "existing_site_id": "s-401"
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Follow-up visit",
+    "site_visit_date": "2027-01-21",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-02-12",
+    "site_contacts": [
+     {
+      "name": "Lim Kah Hock",
+      "role": "Operations Executive"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Follow up on recommendations.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Asks for a short visit to check recommendations",
+    "id": "f1"
+   },
+   {
+    "name": "Pasted note from the mall office.txt",
+    "kind": "pasted",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Pasted text about the mall",
+    "id": "f2"
+   },
+   {
+    "name": "Engagement letter Taman Seri Retail.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Standing engagement letter",
+    "id": "f3"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p07",
+  "split": "tuning",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 5",
+  "hard_cases": [
+   "client_typo",
+   "hk",
+   "placement_assessment",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Ashgrove Pacific (HK) Limited",
+   "division": null,
+   "existing_id": "c-08"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-08",
+    "name": "Ashgrove Pacific (HK) Limited",
+    "division": null,
+    "sites": []
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Ashgrove Centre",
+    "address": "26 Wing Hong Street, Cheung Sha Wan, Kowloon, Hong Kong",
+    "jurisdiction": "HK",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-01-12",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-02-26",
+    "site_contacts": [
+     {
+      "name": "Janice Cheung",
+      "role": "Building Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey request Ashgrove Centre.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request from the building manager",
+    "id": "f1"
+   },
+   {
+    "name": "Engagement letter.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter on letterhead",
+    "id": "f2"
+   }
+  ],
+  "brief": "The pack spells the client 'Ashgrove Pacfic (HK) Ltd' (missing letter, Ltd for Limited)."
+ },
+ {
+  "id": "p08",
+  "split": "tuning",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 6",
+  "hard_cases": [
+   "missing_date",
+   "many_contacts",
+   "th",
+   "placement_client",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Siam Orchid Properties Co., Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Orchid Tower Silom",
+    "address": "199 Silom Road, Bang Rak, Bangkok 10500, Thailand",
+    "jurisdiction": "TH",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": null,
+    "site_visit_end_date": null,
+    "report_due_date": "2027-03-31",
+    "site_contacts": [
+     {
+      "name": "Pranee Sombat",
+      "role": "Building Manager"
+     },
+     {
+      "name": "Anan Chaiyasit",
+      "role": "Technical Manager"
+     },
+     {
+      "name": "Wirat Kaew",
+      "role": "Senior Engineer"
+     },
+     {
+      "name": "Mali Srisuk",
+      "role": "Engineer"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Property survey enquiry.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Enquiry; no visit date yet",
+    "id": "f1"
+   },
+   {
+    "name": "Orchid Tower Silom information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts and the four site contacts",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p09",
+  "split": "tuning",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Mixed Use Development Sample 2",
+  "hard_cases": [
+   "off_list_facility",
+   "placement_assessment",
+   "placement_site",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Fernvale Hospitality Pte Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Fernvale Bay Hotel",
+    "address": "28 Beach View Road, Singapore 098512",
+    "jurisdiction": "SG",
+    "facility_type": null,
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-02-04",
+    "site_visit_end_date": null,
+    "report_due_date": null,
+    "site_contacts": [
+     {
+      "name": "Ivan Chia",
+      "role": "Hotel Engineering Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Risk survey Fernvale Bay Hotel.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request",
+    "id": "f1"
+   },
+   {
+    "name": "Fernvale Bay Hotel information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts; a hotel",
+    "id": "f2"
+   },
+   {
+    "name": "Engagement letter Fernvale.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f3"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p10",
+  "split": "tuning",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 0",
+  "hard_cases": [
+   "resurvey",
+   "follow_up",
+   "multi_assessment",
+   "letter_only",
+   "recorded_site",
+   "placement_assessment",
+   "placement_site",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Wexcombe Insurance Services Pte Ltd",
+   "division": null,
+   "existing_id": "c-09"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-09",
+    "name": "Wexcombe Insurance Services Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-901",
+      "name": "Wexcombe House",
+      "address": "14 Church Street Lane, Singapore 049483",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Wexcombe House",
+    "address": "14 Church Street Lane, Singapore 049483",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": "s-901"
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Resurvey",
+    "site_visit_date": "2027-02-09",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-03-19",
+    "site_contacts": [
+     {
+      "name": "Doreen Lim",
+      "role": "Office Manager"
+     }
+    ]
+   },
+   {
+    "ref": "a-2",
+    "site_ref": "site-1",
+    "visit_type": "Follow-up visit",
+    "site_visit_date": "2027-06-08",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-06-25",
+    "site_contacts": [
+     {
+      "name": "Doreen Lim",
+      "role": "Office Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Engagement letter Wexcombe.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f1"
+   },
+   {
+    "name": "Wexcombe House information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Sheet",
+    "id": "f2"
+   },
+   {
+    "name": "Letter confirming the resurvey.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Letter for the February resurvey",
+    "id": "f3"
+   },
+   {
+    "name": "Letter requesting a follow-up visit.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-2"
+    },
+    "about": "Letter for the June follow-up",
+    "id": "f4"
+   }
+  ],
+  "brief": "No emails in this pack: letters and a sheet only. One site, two visits."
+ },
+ {
+  "id": "p11",
+  "split": "tuning",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Shopping Mall Sample 1",
+  "hard_cases": [
+   "date_changed",
+   "my",
+   "other_facility",
+   "placement_assessment",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Kuantan Gateway Distribution Sdn Bhd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Gebeng Distribution Centre",
+    "address": "Lot 1208, Jalan Gebeng 3/6, Kawasan Perindustrian Gebeng, 26080 Kuantan, Pahang, Malaysia",
+    "jurisdiction": "MY",
+    "facility_type": "Distribution warehouse",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-01-26",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-03-12",
+    "site_contacts": [
+     {
+      "name": "Azman Yusoff",
+      "role": "Warehouse Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey request Gebeng.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "First email; gives 19 January",
+    "id": "f1"
+   },
+   {
+    "name": "Re Survey request Gebeng.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Reply; moves the visit to 26 January",
+    "id": "f2"
+   },
+   {
+    "name": "Gebeng Distribution Centre information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Sheet",
+    "id": "f3"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p12",
+  "split": "tuning",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 3",
+  "hard_cases": [
+   "off_list_facility",
+   "similar_client_trap",
+   "placement_assessment",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Greywater Medical Group Pte Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [
+   {
+    "id": "c-10",
+    "name": "Greywater Marine Services Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-1001",
+      "name": "Greywater Marine Yard",
+      "address": "22 Tanjong Kling Road, Singapore 628049",
+      "has_assessments": false
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Greywater Specialist Hospital",
+    "address": "40 Bukit Batok West Avenue 8, Singapore 659100",
+    "jurisdiction": "SG",
+    "facility_type": null,
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-02-18",
+    "site_visit_end_date": "2027-02-19",
+    "report_due_date": "2027-04-02",
+    "site_contacts": [
+     {
+      "name": "Calvin Ng",
+      "role": "Facilities Director"
+     },
+     {
+      "name": "Anita Rao",
+      "role": "Director, Operations"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey Greywater Specialist Hospital.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request",
+    "id": "f1"
+   },
+   {
+    "name": "Hospital information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts; a hospital",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p13",
+  "split": "held-out",
+  "written_by": "claude",
+  "base_report": "Mixed Use Development Sample 1",
+  "hard_cases": [
+   "client_typo",
+   "resurvey",
+   "date_changed",
+   "recorded_site",
+   "placement_assessment",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Tidewell Estates Pte Ltd",
+   "division": null,
+   "existing_id": "c-05"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-05",
+    "name": "Tidewell Estates Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-501",
+      "name": "Tidewell Centre",
+      "address": "2 Tidewell Link, Singapore 189721",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Tidewell Centre",
+    "address": "2 Tidewell Link, Singapore 189721",
+    "jurisdiction": "SG",
+    "facility_type": "Mixed-use development",
+    "existing_site_id": "s-501"
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Resurvey",
+    "site_visit_date": "2027-03-10",
+    "site_visit_end_date": "2027-03-11",
+    "report_due_date": "2027-04-23",
+    "site_contacts": [
+     {
+      "name": "Goh Mei Ling",
+      "role": "Head, Property Management"
+     },
+     {
+      "name": "Syafiq Aziz",
+      "role": "Head of M&E"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey of Tidewell Centre.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request; gives 3 March",
+    "id": "f1"
+   },
+   {
+    "name": "Re Survey of Tidewell Centre.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Reschedules to 10 and 11 March",
+    "id": "f2"
+   },
+   {
+    "name": "Engagement letter Tidewel Estates.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f3"
+   }
+  ],
+  "brief": "The pack spells the client 'Tidewel Estates' (one L)."
+ },
+ {
+  "id": "p14",
+  "split": "held-out",
+  "written_by": "claude",
+  "base_report": "Office Sample 2",
+  "hard_cases": [
+   "multi_site",
+   "resurvey",
+   "recorded_site",
+   "pasted",
+   "placement_client",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Aldergate REIT Management Pte Ltd",
+   "division": null,
+   "existing_id": "c-06"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-06",
+    "name": "Aldergate REIT Management Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-601",
+      "name": "Aldergate House",
+      "address": "15 Tras Link, Singapore 078345",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Aldergate House",
+    "address": "15 Tras Link, Singapore 078345",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": "s-601"
+   },
+   {
+    "ref": "site-2",
+    "name": "Aldergate Hub",
+    "address": "5 Changi Business Park Central 2, Singapore 486038",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Resurvey",
+    "site_visit_date": "2027-02-23",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-04-02",
+    "site_contacts": [
+     {
+      "name": "Kelvin Soh",
+      "role": "Asset Management"
+     },
+     {
+      "name": "Rosli Ahmad",
+      "role": "Property Manager"
+     }
+    ]
+   },
+   {
+    "ref": "a-2",
+    "site_ref": "site-2",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-02-25",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-04-02",
+    "site_contacts": [
+     {
+      "name": "Terrence Yap",
+      "role": "Building Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Pasted email from Aldergate.txt",
+    "kind": "pasted",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Pasted request for two surveys",
+    "id": "f1"
+   },
+   {
+    "name": "Aldergate Hub fact sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-2"
+    },
+    "about": "Facts about the Hub",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p15",
+  "split": "held-out",
+  "written_by": "claude",
+  "base_report": "Shopping Mall Sample 2",
+  "hard_cases": [
+   "missing_date",
+   "new_client",
+   "placement_site",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Brightmere Retail Pte Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Brightmere Junction",
+    "address": "8 Sengkang Square Way, Singapore 545078",
+    "jurisdiction": "SG",
+    "facility_type": "Shopping mall",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": null,
+    "site_visit_end_date": null,
+    "report_due_date": "2027-06-30",
+    "site_contacts": [
+     {
+      "name": "Wong Chee Keong",
+      "role": "Manager"
+     },
+     {
+      "name": "Nurul Huda",
+      "role": "Assistant Manager"
+     },
+     {
+      "name": "Arun Pillai",
+      "role": "Operations"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Brightmere Junction information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Facts and contacts",
+    "id": "f1"
+   },
+   {
+    "name": "Property survey for Brightmere.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Request; dates to be arranged",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p16",
+  "split": "held-out",
+  "written_by": "claude",
+  "base_report": "Office Sample 6",
+  "hard_cases": [
+   "follow_up",
+   "recorded_site",
+   "th",
+   "other_facility",
+   "placement_assessment",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Chao Phraya Cold Chain Co., Ltd",
+   "division": null,
+   "existing_id": "c-07"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-07",
+    "name": "Chao Phraya Cold Chain Co., Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-701",
+      "name": "Bang Pakong Cold Store",
+      "address": "88 Moo 4, Bang Na-Trat Road Km 36, Bang Pakong, Chachoengsao 24130, Thailand",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Bang Pakong Cold Store",
+    "address": "88 Moo 4, Bang Na-Trat Road Km 36, Bang Pakong, Chachoengsao 24130, Thailand",
+    "jurisdiction": "TH",
+    "facility_type": "Cold store",
+    "existing_site_id": "s-701"
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Follow-up visit",
+    "site_visit_date": "2027-02-16",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-03-05",
+    "site_contacts": [
+     {
+      "name": "Somchai Wattanakul",
+      "role": "Plant Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Follow-up visit request.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Asks to check recommendations",
+    "id": "f1"
+   },
+   {
+    "name": "Agreement letter.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p17",
+  "split": "held-out",
+  "written_by": "claude",
+  "base_report": "Office Sample 5",
+  "hard_cases": [
+   "division",
+   "date_range",
+   "new_client",
+   "placement_assessment",
+   "placement_client",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Oakhaven Technologies Pte Ltd",
+   "division": "Group Risk and Insurance",
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Oakhaven Campus",
+    "address": "37 Tai Seng Street, Singapore 534058",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-02",
+    "site_visit_end_date": "2027-03-03",
+    "report_due_date": "2027-04-09",
+    "site_contacts": [
+     {
+      "name": "Felicia Lee",
+      "role": "Facilities Management"
+     },
+     {
+      "name": "Raghav Nair",
+      "role": "Group Risk Management"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey of Oakhaven Campus.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request",
+    "id": "f1"
+   },
+   {
+    "name": "Appointment letter Oakhaven.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f2"
+   },
+   {
+    "name": "Oakhaven Campus information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Sheet",
+    "id": "f3"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p18",
+  "split": "held-out",
+  "written_by": "claude",
+  "base_report": "Shopping Mall Sample 1",
+  "hard_cases": [
+   "off_list_facility",
+   "my",
+   "placement_assessment",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Bayu Heights Education Sdn Bhd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Bayu Heights Campus",
+    "address": "Persiaran Bayu 1, Bandar Seri Bayu, 43500 Semenyih, Selangor, Malaysia",
+    "jurisdiction": "MY",
+    "facility_type": null,
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-16",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-04-30",
+    "site_contacts": [
+     {
+      "name": "Hafiz Zainal",
+      "role": "Senior Building Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey of Bayu Heights Campus.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request",
+    "id": "f1"
+   },
+   {
+    "name": "Bayu Heights Campus information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Sheet; a university campus",
+    "id": "f2"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p19",
+  "split": "held-out",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Mixed Use Development Sample 2",
+  "hard_cases": [
+   "multi_site",
+   "date_changed",
+   "placement_client",
+   "placement_assessment",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Marlin Quay Developments Pte Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Marlin Quay Phase 1",
+    "address": "12 Telok Blangah Crescent, Singapore 098631",
+    "jurisdiction": "SG",
+    "facility_type": "Mixed-use development",
+    "existing_site_id": null
+   },
+   {
+    "ref": "site-2",
+    "name": "Marlin Quay Phase 2",
+    "address": "14 Telok Blangah Crescent, Singapore 098633",
+    "jurisdiction": "SG",
+    "facility_type": "Mixed-use development",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-09",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-04-30",
+    "site_contacts": [
+     {
+      "name": "Edwin Tay",
+      "role": "Property Executive"
+     }
+    ]
+   },
+   {
+    "ref": "a-2",
+    "site_ref": "site-2",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-11",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-04-30",
+    "site_contacts": [
+     {
+      "name": "Edwin Tay",
+      "role": "Property Executive"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Surveys of Marlin Quay.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Request; Phase 2 on 10 March",
+    "id": "f1"
+   },
+   {
+    "name": "Phase 2 visit moved.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-2"
+    },
+    "about": "Moves Phase 2 to 11 March",
+    "id": "f2"
+   },
+   {
+    "name": "Phase 1 information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Sheet",
+    "id": "f3"
+   },
+   {
+    "name": "Phase 2 information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-2"
+    },
+    "about": "Sheet",
+    "id": "f4"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p20",
+  "split": "held-out",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 4",
+  "hard_cases": [
+   "client_typo",
+   "resurvey",
+   "recorded_site",
+   "placement_assessment",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Hartwell Ridge Properties Pte Ltd",
+   "division": null,
+   "existing_id": "c-11"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-11",
+    "name": "Hartwell Ridge Properties Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-1101",
+      "name": "Hartwell Ridge Plaza",
+      "address": "100 Hartwell Road, Singapore 229101",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Hartwell Ridge Plaza",
+    "address": "100 Hartwell Road, Singapore 229101",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": "s-1101"
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Resurvey",
+    "site_visit_date": "2027-02-24",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-04-09",
+    "site_contacts": [
+     {
+      "name": "Jonathan Lew",
+      "role": "Asset Management"
+     },
+     {
+      "name": "Rachel Ang",
+      "role": "Property Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Resurvey of Hartwell Ridge Plaza.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request",
+    "id": "f1"
+   },
+   {
+    "name": "Engagement letter Hartwel Ridge.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f2"
+   }
+  ],
+  "brief": "The pack spells the client 'Hartwel Ridge Properties' (one L)."
+ },
+ {
+  "id": "p21",
+  "split": "held-out",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 0",
+  "hard_cases": [
+   "follow_up",
+   "missing_date",
+   "recorded_site",
+   "placement_assessment"
+  ],
+  "client": {
+   "name": "Nimbus Row Offices Pte Ltd",
+   "division": null,
+   "existing_id": "c-12"
+  },
+  "recorded_clients": [
+   {
+    "id": "c-12",
+    "name": "Nimbus Row Offices Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-1201",
+      "name": "Nimbus Row Building",
+      "address": "31 Nimbus Row, Singapore 199590",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Nimbus Row Building",
+    "address": "31 Nimbus Row, Singapore 199590",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": "s-1201"
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "Follow-up visit",
+    "site_visit_date": null,
+    "site_visit_end_date": null,
+    "report_due_date": "2027-05-07",
+    "site_contacts": [
+     {
+      "name": "Benedict Sim",
+      "role": "Building Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Follow-up on recommendations Nimbus Row.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Asks for a follow-up; no date yet",
+    "id": "f1"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p22",
+  "split": "held-out",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Shopping Mall Sample 2",
+  "hard_cases": [
+   "date_changed",
+   "date_range",
+   "th",
+   "other_facility",
+   "placement_assessment",
+   "placement_client"
+  ],
+  "client": {
+   "name": "Eastern Seaboard Terminals Co., Ltd",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Laem Ridge Container Terminal",
+    "address": "Terminal Road, Laem Chabang Port, Si Racha, Chonburi 20230, Thailand",
+    "jurisdiction": "TH",
+    "facility_type": "Port terminal",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-04",
+    "site_visit_end_date": "2027-03-05",
+    "report_due_date": "2027-04-23",
+    "site_contacts": [
+     {
+      "name": "Prasit Boonmee",
+      "role": "Terminal Operations Manager"
+     },
+     {
+      "name": "Kanda Ratana",
+      "role": "HSE Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Terminal survey request.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request; 2 March",
+    "id": "f1"
+   },
+   {
+    "name": "Re Terminal survey request.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Moves to 4 and 5 March",
+    "id": "f2"
+   },
+   {
+    "name": "Agreement letter.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f3"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p23",
+  "split": "held-out",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 1",
+  "hard_cases": [
+   "similar_client_trap",
+   "division",
+   "placement_assessment",
+   "placement_site",
+   "placement_client",
+   "pasted"
+  ],
+  "client": {
+   "name": "Linden Wharf Capital Pte Ltd",
+   "division": "Asset Management",
+   "existing_id": null
+  },
+  "recorded_clients": [
+   {
+    "id": "c-13",
+    "name": "Linden Wharf Estates Pte Ltd",
+    "division": null,
+    "sites": [
+     {
+      "id": "s-1301",
+      "name": "Linden Wharf Warehouse",
+      "address": "9 Pandan Crescent, Singapore 128470",
+      "has_assessments": true
+     }
+    ]
+   }
+  ],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Linden Wharf Offices",
+    "address": "8 Boat Quay Walk, Singapore 049817",
+    "jurisdiction": "SG",
+    "facility_type": "Office",
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-23",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-05-14",
+    "site_contacts": [
+     {
+      "name": "Marcus Foo",
+      "role": "Facilities Manager"
+     },
+     {
+      "name": "Siti Aminah",
+      "role": "Risk Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Survey of Linden Wharf Offices.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Request",
+    "id": "f1"
+   },
+   {
+    "name": "Letter of engagement.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f2"
+   },
+   {
+    "name": "Linden Wharf Offices information sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Sheet",
+    "id": "f3"
+   },
+   {
+    "name": "Access arrangements.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "assessment",
+     "ref": "a-1"
+    },
+    "about": "Building access for the visit",
+    "id": "f4"
+   },
+   {
+    "name": "Pasted note on billing.txt",
+    "kind": "pasted",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Pasted text; billing details only",
+    "id": "f5"
+   }
+  ],
+  "brief": ""
+ },
+ {
+  "id": "p24",
+  "split": "held-out",
+  "written_by": "gpt-6.1-sol",
+  "base_report": "Office Sample 3",
+  "hard_cases": [
+   "multi_site",
+   "missing_date",
+   "off_list_facility",
+   "hk",
+   "placement_client",
+   "placement_site"
+  ],
+  "client": {
+   "name": "Victoria Crest Holdings Limited",
+   "division": null,
+   "existing_id": null
+  },
+  "recorded_clients": [],
+  "sites": [
+   {
+    "ref": "site-1",
+    "name": "Crest Tower Central",
+    "address": "55 Queen's Road Central, Central, Hong Kong",
+    "jurisdiction": "HK",
+    "facility_type": "Office",
+    "existing_site_id": null
+   },
+   {
+    "ref": "site-2",
+    "name": "Crest Tower Kowloon",
+    "address": "18 Canton Road, Tsim Sha Tsui, Kowloon, Hong Kong",
+    "jurisdiction": "HK",
+    "facility_type": "Office",
+    "existing_site_id": null
+   },
+   {
+    "ref": "site-3",
+    "name": "Crest Harbour Hotel",
+    "address": "3 Harbour Road, Wan Chai, Hong Kong",
+    "jurisdiction": "HK",
+    "facility_type": null,
+    "existing_site_id": null
+   }
+  ],
+  "assessments": [
+   {
+    "ref": "a-1",
+    "site_ref": "site-1",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-15",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-05-07",
+    "site_contacts": [
+     {
+      "name": "Mandy Lo",
+      "role": "Property Manager"
+     }
+    ]
+   },
+   {
+    "ref": "a-2",
+    "site_ref": "site-2",
+    "visit_type": "First survey",
+    "site_visit_date": "2027-03-16",
+    "site_visit_end_date": null,
+    "report_due_date": "2027-05-07",
+    "site_contacts": [
+     {
+      "name": "Ken Tsang",
+      "role": "Building Manager"
+     }
+    ]
+   },
+   {
+    "ref": "a-3",
+    "site_ref": "site-3",
+    "visit_type": "First survey",
+    "site_visit_date": null,
+    "site_visit_end_date": null,
+    "report_due_date": null,
+    "site_contacts": [
+     {
+      "name": "Vivian Wu",
+      "role": "General Manager"
+     }
+    ]
+   }
+  ],
+  "documents": [
+   {
+    "name": "Three property surveys.eml",
+    "kind": "email",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Request for three sites; hotel date not set",
+    "id": "f1"
+   },
+   {
+    "name": "Crest Tower Central sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-1"
+    },
+    "about": "Sheet",
+    "id": "f2"
+   },
+   {
+    "name": "Crest Tower Kowloon sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-2"
+    },
+    "about": "Sheet",
+    "id": "f3"
+   },
+   {
+    "name": "Crest Harbour Hotel sheet.pdf",
+    "kind": "sheet",
+    "placement": {
+     "kind": "site",
+     "ref": "site-3"
+    },
+    "about": "Sheet; a hotel",
+    "id": "f4"
+   },
+   {
+    "name": "Appointment letter Victoria Crest.pdf",
+    "kind": "letter",
+    "placement": {
+     "kind": "client"
+    },
+    "about": "Letter",
+    "id": "f5"
+   }
+  ],
+  "brief": ""
+ }
+]

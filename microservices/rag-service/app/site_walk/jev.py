@@ -1,7 +1,9 @@
-"""The fixed-choice classifier for the site walk step (CP-22): TypeSafe Jev, plain httpx.
+"""The fixed-choice classifier for the site walk (CP-22) and client intake (CP-23) steps:
+TypeSafe Jev, plain httpx.
 
 A small copy of jev_classify in microservices/ingestion-service/app/labelling/models.py.
-Called by app/site_walk/propose.py through `choose`. Records each call's usage, priced here.
+Called by app/site_walk/propose.py and app/client_intake/read.py through `choose`.
+Records each call's usage, priced here.
 """
 
 import logging
@@ -24,16 +26,16 @@ def _post(url: str, headers: dict, body: dict) -> dict:
     response = httpx.post(url, headers=headers, json=body, timeout=TIMEOUT)
     if response.is_error:
         # The body says why (bad schema, bad key); the default error message does not.
-        log.error("site walk classifier call failed: %s", response.text[:300])
+        log.error("Jev classifier call failed: %s", response.text[:300])
     response.raise_for_status()
     return response.json()
 
 
-def _jev(state: str, questions: dict[str, tuple[str, dict[str, str]]]) -> dict:
+def _jev(state: str, questions: dict[str, tuple[str, dict[str, str]]], feature: str) -> dict:
     """Jev answers every question about one `state` text in a single call."""
     key = os.getenv("TYPESAFE_API_KEY", "").strip()
     if not key or key == "REPLACE_ME":
-        raise GenerationFailed("Set TYPESAFE_API_KEY in the root .env to read site walks.")
+        raise GenerationFailed("Set TYPESAFE_API_KEY in the root .env to use the Jev classifier.")
     started = time.perf_counter()
     body = {
         "model": "jev-latest",
@@ -46,7 +48,7 @@ def _jev(state: str, questions: dict[str, tuple[str, dict[str, str]]]) -> dict:
     try:
         data = _post(URL, {"Authorization": f"Bearer {key}"}, body)
     except httpx.HTTPError as error:
-        raise GenerationFailed("The site walk classifier (Jev) could not be reached.") from error
+        raise GenerationFailed("The classifier (Jev) could not be reached.") from error
     use = data.get("usage") or {}
     tokens_in, tokens_out = use.get("input_tokens"), use.get("output_tokens")
     cost = None
@@ -54,7 +56,7 @@ def _jev(state: str, questions: dict[str, tuple[str, dict[str, str]]]) -> dict:
         cost = (tokens_in * PRICE_IN + tokens_out * PRICE_OUT) / 1_000_000
     # Recorded before the answers are read: an unreadable answer is still billed.
     usage.record(
-        "site-walk",
+        feature,
         "typesafe-jev",
         "jev",
         started,
@@ -76,23 +78,28 @@ def _jev(state: str, questions: dict[str, tuple[str, dict[str, str]]]) -> dict:
                 raise KeyError(choice)
             answers[name] = (choice, answer["probabilities"].get(choice, answer["confidence"]))
     except (KeyError, TypeError) as error:
-        raise GenerationFailed("The site walk classifier's answer could not be read.") from error
+        raise GenerationFailed("The classifier's (Jev's) answer could not be read.") from error
     return answers
 
 
 _CLASSIFIERS = {"jev": _jev}
 
 
-def choose(state: str, questions: dict[str, tuple[str, dict[str, str]]]) -> dict:
+def choose(
+    state: str,
+    questions: dict[str, tuple[str, dict[str, str]]],
+    classifier: str | None = None,
+    feature: str = "site-walk",
+) -> dict:
     """Return {question name: (chosen criterion id, its probability)} for each question.
 
-    `questions` maps a name to (instructions, {criterion id: description}). SITE_WALK_CLASSIFIER
-    picks the adapter, so no provider is named in the step itself.
+    `questions` maps a name to (instructions, {criterion id: description}). `classifier` is the
+    step's setting (SITE_WALK_CLASSIFIER when not given), so no provider is named in the step
+    itself. `feature` names the call in the usage record.
     """
+    name = classifier or config.SITE_WALK_CLASSIFIER
     try:
-        adapter = _CLASSIFIERS[config.SITE_WALK_CLASSIFIER]
+        adapter = _CLASSIFIERS[name]
     except KeyError:
-        raise NotImplementedError(
-            f"SITE_WALK_CLASSIFIER {config.SITE_WALK_CLASSIFIER!r} is not supported"
-        ) from None
-    return adapter(state, questions)
+        raise NotImplementedError(f"Classifier {name!r} is not supported") from None
+    return adapter(state, questions, feature)

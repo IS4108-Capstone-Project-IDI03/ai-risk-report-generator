@@ -14,6 +14,9 @@ import ragRoutes from './routes/rag.routes'
 import chatRoutes from './routes/chat.routes'
 import observationRoutes from './routes/observation.routes'
 import siteWalkRoutes from './routes/site-walk.routes'
+import clientIntakeRoutes from './routes/client-intake.routes'
+import clientDocumentRoutes from './routes/client-document.routes'
+import { scheduleIntakeCleanup } from './services/client-intake.service'
 import { startWorkers } from './services/job-queue.service'
 import { resumeInterruptedSiteWalks } from './services/site-walk.service'
 import {
@@ -56,6 +59,8 @@ app.use('/api/assessments/:reference/site-walks', requireAuth, siteWalkRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)
+app.use('/api/client-intakes', requireAuth, clientIntakeRoutes)
+app.use('/api/client-documents', requireAuth, clientDocumentRoutes)
 app.use('/api/knowledge-documents', requireAuth, knowledgeDocumentRoutes)
 app.use('/api/knowledge-gaps', requireAuth, knowledgeGapRoutes)
 app.use('/api/rag', requireAuth, ragRoutes)
@@ -78,6 +83,10 @@ async function start() {
   await connectDb()
   await failInterruptedInterpretations()
   startWorkers()
+  // Not awaited: Redis being slow must not hold up the gateway starting.
+  scheduleIntakeCleanup().catch((error: unknown) =>
+    console.error('Scheduling the client intake cleanup failed:', error),
+  )
   await resumeInterruptedTranscriptions()
   await resumeInterruptedSiteWalks()
   app.listen(config.port, () => {

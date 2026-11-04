@@ -1,54 +1,26 @@
 import { z } from 'zod'
 import { isValidObjectId, type Types } from 'mongoose'
-import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
-import { AssessmentModel, REPORT_STATUSES, type IAssessment } from '../models/assessment.model'
+import {
+  AssessmentModel,
+  REPORT_STATUSES,
+  VISIT_TYPES,
+  type IAssessment,
+} from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { nextInSequence } from './sequence.service'
-import { SiteModel, type ISite } from '../models/site.model'
+import type { ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
-import { FACILITY_TYPES } from './knowledge-document.service'
-import {
-  changeRights,
-  clientNameOf,
-  FACILITY_TYPE_RULE,
-  findOrCreateClient,
-  getClient,
-  latestVisit,
-  refuseDuplicateSite,
-  restoreSiteOf,
-  UnknownSiteError,
-  type Allowed,
-} from './client.service'
+import { changeRights, clientNameOf, restoreSiteOf, type Allowed } from './client.service'
 
-export class InvalidEngineersError extends Error {
-  constructor() {
-    super('Choose an active risk engineer from the list.')
-  }
-}
-
-// Minimal directory for assignment; account administration remains admin-only.
-export async function listAssignableEngineers() {
-  const users = await UserModel.find({ role: 'risk_engineer', active: true })
-    .select('name staffId jobTitle')
-    .sort({ name: 1 })
-    .lean()
-  return users.map((u) => ({
-    id: String(u._id),
-    name: u.name,
-    staffId: u.staffId,
-    jobTitle: u.jobTitle ?? null,
-  }))
-}
-
-const required = (label: string) =>
+export const required = (label: string) =>
   z
     .string(`${label} is required.`)
     .trim()
     .min(1, `${label} is required.`)
     .max(200, `${label} must be 200 characters or fewer.`)
-const optional = (label: string) =>
+export const optional = (label: string) =>
   z
     .string()
     .trim()
@@ -56,13 +28,13 @@ const optional = (label: string) =>
     .optional()
     .transform((value) => value || undefined)
 // Form date inputs send '' when left empty.
-const optionalDate = (label: string) =>
+export const optionalDate = (label: string) =>
   z.preprocess(
     (value) => (value === '' || value === null ? undefined : value),
     z.iso.date(`${label} must be a valid date (YYYY-MM-DD).`).optional(),
   )
 
-const objectId = (message: string) => z.string(message).refine(isValidObjectId, message)
+export const objectId = (message: string) => z.string(message).refine(isValidObjectId, message)
 
 // A site's details: what a new site is created with, and what PUT
 // /api/sites/:id corrects (CP-18).
@@ -77,63 +49,45 @@ export const siteDetailsSchema = z.object(
   },
   'Site details are required.',
 )
-const assessmentFields = {
-  surveyType: required('Assessment type'),
-  siteVisitDate: optionalDate('Site visit date'),
-  reportDueDate: optionalDate('Report due date'),
-}
-const dueOnOrAfterVisit = (a: { siteVisitDate?: string; reportDueDate?: string }) =>
+const VISIT_TYPE_RULE = 'Choose a visit type: First survey, Resurvey or Follow-up visit.'
+// One of the three visit types (CP-23).
+export const visitType = z.enum(VISIT_TYPES, VISIT_TYPE_RULE)
+export const dueOnOrAfterVisit = (a: { siteVisitDate?: string; reportDueDate?: string }) =>
   !a.siteVisitDate || !a.reportDueDate || a.reportDueDate >= a.siteVisitDate
-const dueDateRule = {
+export const dueDateRule = {
   message: 'The report due date must be on or after the site visit date.',
   path: ['reportDueDate'],
+  // Checked even when another field is invalid, so every problem is named at once.
+  when: ({ value }: { value: unknown }) => typeof value === 'object' && value !== null,
 }
-
-// Request body for POST /api/assessments (CP-17): the client is a listed one
-// (clientId) or a new name (client), and the site one of that client's
-// (siteId) or a new one (site). For a listed site, copyLocations, on unless
-// false, copies its latest visit's locations (AC5).
-export const newAssessmentSchema = z
-  .object({
-    clientId: objectId('Choose one of the listed clients, or name a new one.').optional(),
-    client: required('Client').optional(),
-    siteId: objectId("Choose one of this client's sites, or add a new one.").optional(),
-    site: siteDetailsSchema
-      .extend({
-        facilityType: required('Facility type').refine(
-          (type) => FACILITY_TYPES.includes(type),
-          FACILITY_TYPE_RULE,
-        ),
-      })
-      .optional(),
-    copyLocations: z.boolean().default(true),
-    ...assessmentFields,
-    engineerId: objectId('Choose the engineer for this assessment.'),
-  })
-  .refine((a) => !!a.clientId !== !!a.client, {
-    message: 'Client is required.',
-    path: ['client'],
-  })
-  .refine((a) => !!a.siteId !== !!a.site, {
-    message: 'Site details are required.',
-    path: ['site'],
-  })
-  .refine((a) => !a.siteId || a.clientId, {
-    message: 'A new client has no sites yet. Add a new site.',
-    path: ['siteId'],
-  })
-  .refine(dueOnOrAfterVisit, dueDateRule)
 
 // Request body for PUT /api/assessments/:reference: the visit's own details.
 // The engineer, client and site stay as created (CP-17 AC8), and the site's and
 // client's details change for all their assessments at once, through PUT
 // /api/sites/:id and /api/clients/:id (CP-18); a `site` sent here is ignored.
-export const assessmentDetailsSchema = z
-  .object(assessmentFields)
-  .refine(dueOnOrAfterVisit, dueDateRule)
+// `stored` is the assessment's saved type: kept as it is, it may be a type
+// from before CP-23 (not yet migrated); changed, it must be one of the three.
+// Without this, editing an older assessment's dates would be refused.
+export const assessmentDetailsSchema = (stored?: string) =>
+  z
+    .object({
+      surveyType: z
+        .string(VISIT_TYPE_RULE)
+        .refine(
+          (t) => t === stored || (VISIT_TYPES as readonly string[]).includes(t),
+          VISIT_TYPE_RULE,
+        ),
+      siteVisitDate: optionalDate('Site visit date'),
+      reportDueDate: optionalDate('Report due date'),
+    })
+    .refine(dueOnOrAfterVisit, dueDateRule)
 
-export type NewAssessment = z.infer<typeof newAssessmentSchema>
-export type AssessmentDetails = z.infer<typeof assessmentDetailsSchema>
+export type AssessmentDetails = z.infer<ReturnType<typeof assessmentDetailsSchema>>
+
+/** Returns the assessment's saved type, or undefined for an unknown reference. */
+export async function storedSurveyType(reference: string): Promise<string | undefined> {
+  return (await AssessmentModel.findOne({ reference }, 'surveyType').lean())?.surveyType
+}
 
 // Where an assessment stands: the capture statuses are derived from its latest
 // capture session, the report statuses are stored on the assessment.
@@ -160,7 +114,9 @@ export type AssessmentDto = {
   clientId: string | null
   surveyType: string
   siteVisitDate: string | null
+  siteVisitEndDate: string | null
   reportDueDate: string | null
+  siteContacts: { name: string; role: string | null }[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
   // When its latest capture session started; null before capture starts. The
@@ -183,84 +139,12 @@ export type AssessmentDto = {
 }
 
 // A site as an assessment shows it, with its client's name.
-type ListedSite = Omit<ISite, 'client'> & {
+export type ListedSite = Omit<ISite, 'client'> & {
   _id: Types.ObjectId
   client?: { _id: Types.ObjectId; name: string } | null
 }
 // Whether the engineer may correct an assessment's site (CP-18).
-type Rights = ReturnType<Awaited<ReturnType<typeof changeRights>>>
-
-// Creates the assessment on a listed site of a listed client, or adds the
-// client and the site first (CP-17), allocating the site code and the report
-// reference (RPT-<year>-<nnnn>) on the server. On a listed site, it starts with
-// a copy of the latest visit's locations unless the engineer said not to. A
-// removed site (CP-18) is not listed, so it is refused.
-export async function createAssessment(
-  input: NewAssessment,
-  user?: SessionUser,
-): Promise<AssessmentDto> {
-  const engineer = await UserModel.findOne({
-    _id: input.engineerId,
-    role: 'risk_engineer',
-    active: true,
-  }).lean()
-  if (!engineer) throw new InvalidEngineersError()
-  const year = new Date().getUTCFullYear()
-  const client = input.clientId
-    ? await getClient(input.clientId)
-    : await findOrCreateClient(input.client!)
-  let site: ISite & { _id: Types.ObjectId }
-  if (input.siteId) {
-    const listed = await SiteModel.findById(input.siteId).lean()
-    // A site of another client is refused, and a removed one (CP-18).
-    if (!listed || !client._id.equals(listed.client) || listed.removed) throw new UnknownSiteError()
-    site = listed
-  } else {
-    await refuseDuplicateSite(client._id, input.site!.name)
-    const added = await insertWithNextCode(
-      'site',
-      (n) => `SITE-${pad(n)}`,
-      (code) => SiteModel.create({ code, ...input.site, client: client._id }),
-    )
-    site = added.toObject()
-  }
-  // Each copied location is the new assessment's own, with a new id (AC7).
-  const copied = input.siteId && input.copyLocations ? await latestVisit(site._id) : null
-  const locations = (copied?.locations ?? []).map(({ building, floor, name, key }) => ({
-    building,
-    floor,
-    name,
-    key,
-  }))
-  try {
-    const assessment = await insertWithNextCode(
-      `assessment:${year}`,
-      (n) => `RPT-${year}-${pad(n)}`,
-      (reference) =>
-        AssessmentModel.create({
-          reference,
-          site: site._id,
-          surveyType: input.surveyType,
-          // 'YYYY-MM-DD' parses as UTC midnight, so the calendar day is kept.
-          siteVisitDate: input.siteVisitDate ? new Date(input.siteVisitDate) : undefined,
-          reportDueDate: input.reportDueDate ? new Date(input.reportDueDate) : undefined,
-          engineer: engineer._id,
-          locations,
-        }),
-    )
-    const shown = { ...site, client }
-    const rights = await changeRights([shown], user?.id ?? String(engineer._id))
-    return toDto(assessment, shown, engineer, rights(shown))
-  } catch (error: unknown) {
-    // No transaction (dev and test MongoDB are standalone servers), so remove
-    // a new site by hand rather than leave it without an assessment.
-    if (!input.siteId)
-      await SiteModel.deleteOne({ _id: site._id }).catch((cleanupError: unknown) => {
-        console.error(`Could not remove site ${site.code} after a failed create:`, cleanupError)
-      })
-    throw error
-  }
-}
+export type Rights = ReturnType<Awaited<ReturnType<typeof changeRights>>>
 
 // Assigned assessments for engineers, all assessments for knowledge admins.
 // Two queries: matching assessments, then their capture sessions.
@@ -376,7 +260,7 @@ export async function restoreAssessment(reference: string, user: SessionUser): P
 
 // Takes the next number in a sequence and inserts with the code built from
 // it. A code already in use (e.g. a seeded record) is skipped.
-async function insertWithNextCode<T>(
+export async function insertWithNextCode<T>(
   sequence: string,
   format: (n: number) => string,
   insert: (code: string) => Promise<T>,
@@ -392,7 +276,7 @@ async function insertWithNextCode<T>(
   throw new Error(`No unused code found in sequence ${sequence}.`)
 }
 
-function pad(n: number) {
+export function pad(n: number) {
   return String(n).padStart(4, '0')
 }
 
@@ -402,7 +286,8 @@ function isoDay(date?: Date) {
 
 type AssignedEngineer = { _id: unknown; name: string }
 
-function toDto(
+// An assessment as the API returns it.
+export function toDto(
   assessment: Omit<IAssessment, 'site' | 'engineer'> & { _id: unknown },
   site: ListedSite,
   engineer: AssignedEngineer | null | undefined,
@@ -417,7 +302,12 @@ function toDto(
     clientId: site.client ? String(site.client._id) : null,
     surveyType: assessment.surveyType,
     siteVisitDate: isoDay(assessment.siteVisitDate),
+    siteVisitEndDate: isoDay(assessment.siteVisitEndDate),
     reportDueDate: isoDay(assessment.reportDueDate),
+    siteContacts: (assessment.siteContacts ?? []).map((c) => ({
+      name: c.name,
+      role: c.role ?? null,
+    })),
     engineer: engineer ? { id: String(engineer._id), name: engineer.name } : null,
     status,
     captureStartedAt,

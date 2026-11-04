@@ -1490,7 +1490,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pymongo" },
     { name = "pymupdf" },
+    { name = "python-docx" },
     { name = "python-dotenv" },
+    { name = "python-oxmsg" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1549,7 +1551,9 @@ requires-dist = [
     { name = "pymongo", specifier = ">=4.18.2" },
     { name = "pymupdf", specifier = ">=1.28.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
+    { name = "python-docx", specifier = ">=1.2.0" },
     { name = "python-dotenv", specifier = ">=1.0" },
+    { name = "python-oxmsg", specifier = ">=0.0.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "torch", marker = "sys_platform == 'linux' and extra == 'cpu'", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "ingestion-service", extra = "cpu" } },
     { name = "torch", marker = "sys_platform != 'linux' and extra == 'cpu'" },

@@ -34,6 +34,54 @@ export async function whyPdfCannotOpen(pdf: Buffer): Promise<string | null> {
   throw new IngestionUnavailableError()
 }
 
+// Text from a client's document (CP-23): the file itself, then each email
+// attachment ingestion could read, each a document with its own name, and the
+// attachments it couldn't read, with the reason.
+export type ExtractedText = {
+  documents: { name: string; text: string }[]
+  failed?: { name: string; size: number; reason: string }[]
+}
+
+// Asks the ingestion service for a file's text (CP-23 /extract-text, which
+// writes nothing). `fileName` names its type by its extension. Returns the
+// documents, or `{ reason }` when the file can't be read (its 422 or 415
+// answer), so the other files are still read. Throws IngestionUnavailableError
+// if the service is down or answers anything else, which becomes a 503.
+export async function extractText(
+  file: Buffer,
+  fileName: string,
+): Promise<ExtractedText | { reason: string }> {
+  const unavailable = new IngestionUnavailableError(
+    'The documents could not be read just now. Try again shortly.',
+  )
+  const url = `${config.ingestionServiceUrl}/extract-text?filename=${encodeURIComponent(fileName)}`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: new Uint8Array(file),
+  }).catch(() => {
+    throw unavailable
+  })
+  const body = (await response.json().catch(() => ({}))) as {
+    detail?: unknown
+    documents?: unknown
+  }
+  if (response.status === 422 || response.status === 415) {
+    const detail =
+      typeof body.detail === 'string' ? body.detail : `${fileName} could not be opened.`
+    // Ingestion says so in words; the board's copy (CP-23 R7 · 4) is shorter.
+    if (/password-protected/i.test(detail)) {
+      return { reason: 'Password-protected. Remove the password and add it again.' }
+    }
+    if (/damaged/i.test(detail)) {
+      return { reason: 'File is damaged. Save it again as a PDF and add it.' }
+    }
+    return { reason: detail }
+  }
+  if (!response.ok || !Array.isArray(body.documents)) throw unavailable
+  return body as ExtractedText
+}
+
 // One detail in the /label answer. `value` is null when Unconfirmed.
 export type LabelledDetailAnswer = {
   value: unknown

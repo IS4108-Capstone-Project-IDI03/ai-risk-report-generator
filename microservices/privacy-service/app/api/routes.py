@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
@@ -18,6 +20,8 @@ class MaskRequest(BaseModel):
     known_entities: list[KnownEntityModel] = []
     # From an earlier call in the same request, so its placeholders keep their meaning.
     mapping: dict[str, str] = {}
+    # Also mask names nobody listed: organisations as CLIENT, facilities as SITE (CP-23).
+    detect: list[Literal["CLIENT", "SITE"]] = []
 
 
 @router.get("/health")
@@ -28,5 +32,5 @@ def health() -> dict:
 @router.post("/mask")
 def mask_texts(request: MaskRequest) -> dict:
     known = [KnownEntity(e.type, e.names) for e in request.known_entities]
-    texts, mapping = mask(request.texts, known, request.mapping)
+    texts, mapping = mask(request.texts, known, request.mapping, request.detect)
     return {"texts": texts, "mapping": mapping}

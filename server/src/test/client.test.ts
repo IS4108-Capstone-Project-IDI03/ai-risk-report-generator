@@ -7,6 +7,8 @@ import { SiteModel } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
 import { useMemoryMongo } from './memory-mongo'
+import { oneAssessment } from './new-assessments'
+import type request from 'supertest'
 
 useMemoryMongo()
 
@@ -30,6 +32,16 @@ beforeEach(async () => {
   await UserModel.create([alex, jide])
 })
 
+// Posts one assessment (CP-23's body) and answers with the one assessment it
+// made, or with the refusal.
+async function create(
+  payload: Record<string, unknown>,
+  as: { post: (url: string) => request.Test } = api,
+) {
+  const response = await as.post('/api/assessments').send(oneAssessment(payload))
+  return { status: response.status, body: response.body.assessments?.[0] ?? response.body }
+}
+
 const KENT_RIDGE = {
   name: 'Kent Ridge campus',
   address: '21 Lower Kent Ridge Road',
@@ -41,18 +53,14 @@ function body(overrides: Record<string, unknown> = {}) {
   return {
     client: 'NUS',
     site: KENT_RIDGE,
-    surveyType: 'Property risk survey',
     siteVisitDate: '2025-03-10',
-    engineerId: String(alex._id),
     ...overrides,
   }
 }
 
 // A first visit by Jide, on a new site of a new client, with its locations.
 async function firstVisit() {
-  const created = await jideApi
-    .post('/api/assessments')
-    .send(body({ engineerId: String(jide._id) }))
+  const created = await create(body(), jideApi)
   const { reference, clientId, site } = created.body
   for (const location of [
     { building: 'Block A', floor: 'L2', name: 'Staircase' },
@@ -66,12 +74,11 @@ async function firstVisit() {
 
 // A later visit by Alex to a listed site.
 function revisit(clientId: string, siteId: string, overrides: Record<string, unknown> = {}) {
-  return api.post('/api/assessments').send({
+  return create({
     clientId,
     siteId,
-    surveyType: 'Property risk survey',
+    surveyType: 'Resurvey',
     siteVisitDate: '2026-03-12',
-    engineerId: String(alex._id),
     ...overrides,
   })
 }
@@ -82,12 +89,33 @@ const places = (locations: { building?: string; floor?: string; name: string }[]
 describe('Clients and their sites (CP-17 AC3, AC4)', () => {
   it("lists every client, whoever added it, in name order with each one's site count", async () => {
     await firstVisit()
-    await api.post('/api/assessments').send(body({ client: 'changi airport group' }))
+    await create(body({ client: 'changi airport group' }))
 
-    // Alex sees NUS, though only Jide has assessed it.
+    // Alex sees NUS, though only Jide has assessed it. Each row says whether Alex may rename
+    // or remove it (the Clients list's menu).
+    const rights = {
+      rename: { allowed: true, reason: null },
+      remove: {
+        allowed: false,
+        reason: expect.stringMatching(/^This client has 1 open assessment\. Archive it, then/),
+      },
+    }
     expect((await api.get('/api/clients')).body).toEqual([
-      { id: expect.any(String), name: 'changi airport group', sites: 1 },
-      { id: expect.any(String), name: 'NUS', sites: 1 },
+      { id: expect.any(String), name: 'changi airport group', division: null, sites: 1, ...rights },
+      {
+        id: expect.any(String),
+        name: 'NUS',
+        division: null,
+        sites: 1,
+        rename: {
+          allowed: false,
+          reason: 'You have no assessments for this client.',
+        },
+        remove: {
+          allowed: false,
+          reason: 'You have no assessments for this client.',
+        },
+      },
     ])
   })
 
@@ -96,11 +124,9 @@ describe('Clients and their sites (CP-17 AC3, AC4)', () => {
     // A later visit, archived: it was made by mistake, so it is not the latest.
     const mistake = await revisit(clientId, siteId, { siteVisitDate: '2026-05-01' })
     await api.post(`/api/assessments/${mistake.body.reference}/archive`)
-    await api
-      .post('/api/assessments')
-      .send(
-        body({ clientId, client: undefined, site: { ...KENT_RIDGE, name: 'Bukit Timah campus' } }),
-      )
+    await create(
+      body({ clientId, client: undefined, site: { ...KENT_RIDGE, name: 'Bukit Timah campus' } }),
+    )
 
     const sites = (await api.get(`/api/clients/${clientId}/sites`)).body
     expect(sites).toEqual([
@@ -183,38 +209,52 @@ describe('Starting an assessment on a listed site (CP-17 AC5, AC7)', () => {
 
   it("refuses another client's site, an unknown client, and a listed site for a new client", async () => {
     const { siteId } = await firstVisit()
-    const other = await api.post('/api/assessments').send(body({ client: 'SMU' }))
+    const other = await create(body({ client: 'SMU' }))
 
     const wrong = await revisit(other.body.clientId, siteId)
     expect(wrong.status).toBe(400)
     expect(wrong.body.fields).toEqual({
-      siteId: "Choose one of this client's sites, or add a new one.",
+      'sites.0.id': "Choose one of this client's sites, or add a new one.",
     })
 
     const unknown = await revisit(String(new Types.ObjectId()), siteId)
     expect(unknown.status).toBe(400)
-    expect(Object.keys(unknown.body.fields)).toEqual(['clientId'])
+    expect(Object.keys(unknown.body.fields)).toEqual(['client.id'])
 
-    const newClient = await api
-      .post('/api/assessments')
-      .send({ ...body({ site: undefined }), siteId })
+    const newClient = await create({ ...body({ client: 'Duke-NUS', site: undefined }), siteId })
     expect(newClient.status).toBe(400)
     expect(newClient.body.fields).toEqual({
-      siteId: 'A new client has no sites yet. Add a new site.',
+      'sites.0.id': 'A new client has no sites yet. Add a new site.',
     })
 
     expect(await AssessmentModel.countDocuments()).toBe(2)
   })
 
   it('needs a client and a site, each listed or new but not both', async () => {
-    const neither = await api
-      .post('/api/assessments')
-      .send(body({ client: undefined, site: undefined }))
+    const neither = await create(body({ client: undefined, site: undefined }))
     expect(neither.status).toBe(400)
     expect(neither.body.fields).toMatchObject({
-      client: 'Client is required.',
-      site: 'Site details are required.',
+      'client.name': 'Client is required.',
+      'sites.0.name': 'Site name is required.',
     })
+  })
+
+  it('starts a listed site with no earlier assessment with a First survey, and a visited one with any type (CP-23 AC17)', async () => {
+    const { clientId, siteId } = await firstVisit()
+    const unvisited = await SiteModel.create({
+      code: 'SITE-0099',
+      ...KENT_RIDGE,
+      name: 'Outram campus',
+      client: clientId,
+    })
+
+    const refused = await revisit(clientId, String(unvisited._id), { surveyType: 'Resurvey' })
+    expect(refused.status).toBe(400)
+    expect(refused.body.fields).toEqual({
+      'sites.0.assessments.0.visitType':
+        'A site with no earlier assessment starts with a First survey.',
+    })
+    expect((await revisit(clientId, siteId, { surveyType: 'Follow-up visit' })).status).toBe(201)
   })
 })
 
@@ -222,26 +262,22 @@ describe("A client's site names (CP-17 AC10)", () => {
   it('refuses a new site named like one the client has, whatever its case', async () => {
     const { clientId } = await firstVisit()
 
-    const again = await api
-      .post('/api/assessments')
-      .send(
-        body({ clientId, client: undefined, site: { ...KENT_RIDGE, name: 'KENT RIDGE CAMPUS' } }),
-      )
+    const again = await create(
+      body({ clientId, client: undefined, site: { ...KENT_RIDGE, name: 'KENT RIDGE CAMPUS' } }),
+    )
     expect(again.status).toBe(400)
-    expect(again.body.fields['site.name']).toMatch(/already has a site named KENT RIDGE CAMPUS/)
+    expect(again.body.fields['sites.0.name']).toMatch(/already has a site named KENT RIDGE CAMPUS/)
     // By typed name too: NUS is the same client.
-    expect((await api.post('/api/assessments').send(body({ client: 'nus' }))).status).toBe(400)
+    expect((await create(body({ client: 'nus' }))).status).toBe(400)
     // Another client may have a site of that name.
-    expect((await api.post('/api/assessments').send(body({ client: 'SMU' }))).status).toBe(201)
+    expect((await create(body({ client: 'SMU' }))).status).toBe(201)
     expect(await SiteModel.countDocuments()).toBe(2)
   })
 
   it("refuses renaming a site to another of the client's site names", async () => {
     const { clientId } = await firstVisit()
     const bukit = { ...KENT_RIDGE, name: 'Bukit Timah campus' }
-    const second = await api
-      .post('/api/assessments')
-      .send(body({ clientId, client: undefined, site: bukit }))
+    const second = await create(body({ clientId, client: undefined, site: bukit }))
 
     // Corrected through /api/sites since CP-18.
     const renamed = await api

@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from app import matching, worker
+from app import extract_text, matching, worker
 from app.labelling import label_pdf
 from app.matching import comparison_rows, find_match
 from app.pipeline.indexer import index_chunks, relabel
@@ -180,3 +180,17 @@ def comparison(doc_id: str, other_id: str) -> dict:
     stored_document(doc_id)
     stored_document(other_id)
     return {"rows": comparison_rows(doc_id, other_id)}
+
+
+# CP-23: reads an uploaded file into plain text for the gateway, and lists the email
+# attachments it couldn't read with the reason. Writes nothing.
+@router.post("/extract-text")
+async def extract_text_route(request: Request, filename: str):
+    data = await request.body()
+    try:
+        documents, failed = await run_in_threadpool(extract_text.extract_documents, filename, data)
+    except extract_text.UnsupportedType:
+        raise HTTPException(415, "Only PDF, Word (.docx) and email (.eml, .msg) files can be read.")
+    except extract_text.Unreadable as err:
+        raise HTTPException(422, str(err))
+    return {"documents": documents, "failed": failed}
