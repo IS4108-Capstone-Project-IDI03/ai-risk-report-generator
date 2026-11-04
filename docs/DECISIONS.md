@@ -1990,6 +1990,29 @@ Known limits: a site or client a colleague's assessment uses can't be changed by
 
 Stories: CP-18, CP-17, PV-02, PV-03, RV-10, RV-11, CP-44.
 
+## 2026-11-04 — Marsh's page layout is the document editor restyled as Letter pages; a block that does not fit moves whole to the next page
+
+Chose:
+- (RV-12) Page layout, beside Save in the document editor (RV-08), restyles the same TipTap editor as Marsh's pages, so the engineer keeps writing, with undo, find and replace and saving as before, and the pages reflow as they type. The editor is never remounted: switching back and forth only changes a class and turns the layout plugin on or off.
+- The page is measured from the two Marsh samples supplied (Office Sample 5 - PRE 2026, Shopping Mall Sample 2 - PRE 2025; both Word exports): US Letter, 2.5 cm side margins, 1 inch top and bottom, header half an inch from the top ("Property Risk Evaluation Report", then the client and site on the right), footer near the foot ("Marsh Advisory / Consulting Solutions", then the page number on the right). Arial 11/13pt text, "Section 7" in 18pt `--report-blue` over the title in 28pt `--report-navy`, subsections 14pt bold blue (`document/page/pages.css`, `geometry.ts`). Marsh's reports are set in Arial, which needs no substitute; the stack falls back to Liberation Sans and Arimo, its metric twins. The review screens' parts inside the pages take Arial too, by redefining `--font-sans` and `--font-serif` under the page view only.
+- Pagination (`document/page/paginate.ts`, pure): each block's place with no page breaks is measured (`measure.ts`), and a block that would cross a page's foot gets space above it to start the next page. Rules: each section starts a page, as Marsh's do; a heading stays with what follows; a table splits by rows, its header repeated at the top of the next page; a chart, the Risk Assessment Matrix, the Rating Legend, a photo, and charts set side by side are never split; an OFI record's rows stay together when they fit on one page; each Section 5 loss level starts a page. The space is padding: a ProseMirror decoration on the editor's own blocks, so ProseMirror keeps its DOM, and the element's own style on what React draws inside a locked part, which ProseMirror ignores. Moving a block never changes the others' sizes, so a layout settles on its second measure; lengths are snapped to the browser's 1/64 px, so a long report does not drift.
+- The pages around the text are drawn outside the editor (`PageFrame.tsx`): white sheets under it, and over it, from where each page's text ends, the page's blank foot, footer, the grey gap and the next page's header (with a repeated table header under it). The cover, details page and contents sit above the editor, so they cannot be typed into (AC3), and read the assessment from the work list each time they are drawn, so a correction made with CP-18 shows at once.
+- Front matter as Marsh's: a navy cover (wordmark, title, address, site, visit date), then the details page (page i: the client bar, Location Surveyed, Address, Surveyed By, Survey Dates, Survey Type, Report Reference), then the contents (ii, iii…), its entries spaced 30pt and 24pt as the samples are. The report's pages are numbered from 1. A missing detail reads "Not entered" (`NOT_ENTERED`, GN-03's words). The logo stays the text wordmark until Marsh supplies the file (`MARSH_LOGO` in `frontMatter.ts`).
+- The contents lists each section and one level down: a drafted section's template subsections, or the engineer's own sub-headings written in a section's opening text (sections 1, 2, 3 and A, or one not drafted). Sub-headings inside a template subsection are a level deeper and left out, as Marsh's contents stops at two levels.
+- In the pages, Sections 1 and 3 and Appendix A read as the report has them: Section 1's text without the screen's note, Section 3's matrix, OFI records (`OfisInReport`) and charts, and only the photos chosen for the appendix, with their captions. Notes for the engineer (why a section was not drafted) and screen controls in Sections 4 and 5 are hidden; violet AI marking moves into the margin so it does not change the measure.
+- Switching keeps the engineer's place (AC1): the document position at the top of the view is noted before switching and scrolled back to the same height once the pages are laid out. The outline and the contents entries open the page a section starts on.
+
+Rejected:
+- A read-only paged preview: simpler, but the engineer would switch back to type, and the story asks to correct the report on the page.
+- Splitting a paragraph across pages at a line: possible with a spacer inside the paragraph at the first line that does not fit, but caret movement over it and widow and orphan rules make it a story of its own. Blocks move whole instead.
+- A paged-editor library: a second editor model beside RV-08's structure guard, review decorations and saving.
+- CSS print rules (`@page`, `break-inside`): they paginate only when printing, not on screen.
+- Scaling the pages down on narrow screens: transforms make every measurement scaled; the pages keep their printed size and the view scrolls sideways below 1080px.
+
+Known limits: a block taller than a page's text area (a very long paragraph, a row with many photos) runs past the foot and under the footer. Page breaks fall a little earlier than Word's, since paragraphs are not split, so the export's page numbers may differ (EX-01 should decide whether its PDF comes from these pages). Marsh's disclaimer on page i, the cover's site photo, Date Last Surveyed, Site Contacts and Q/A Review By are not drawn: the app records none of them. Section 5's Scenario and Assumptions text sits after the three levels, where RV-08's document has it, not inside each level's page. Laying out runs in the browser only; jsdom lays nothing out, so tests count each section on a page of its own, and the page-break rules are tested on numbers (`paginate.test.ts`).
+
+Stories: RV-12, RV-08, CP-17, CP-18, GN-03, GN-05, GN-07, GN-11, GN-12, EX-01.
+
 ## 2026-11-03 — A new assessment can start from the client's documents, read in place, with recorded clients and sites matched in code
 
 Chose:
@@ -2029,3 +2052,63 @@ Reason: a client's request email, engagement letter and site plans already hold 
 Known limits: some names are still readable after masking. On the 24 synthetic packs (3 Nov 2026): 1 of 22 client names, 0 of 31 new site names, 2 of 48 contact names and 0 of 31 addresses (after adding patterns for building names and street addresses; before them, 11 site names and street names leaked). Recorded names are always masked. The model is Sonnet 5.5 on `LLM_PROVIDER`; changing it means re-running the evaluation. Visit type meanings are ours, to be confirmed with Marsh. Adding documents to an existing client later is CP-40.
 
 Stories: CP-23, CP-17, CP-18, PV-02, CP-40, RV-11.
+
+## 2026-11-01 — Photo reading blurs faces and masks text before Gemini; the copy sent is kept beside the original
+
+Chose:
+- (PV-04) With `PII_PROTECTION=required`, observation reading (CP-05, CP-21) sends Gemini only blurred photos and masked text. The gateway sends `privacyFor(reference)` with each reading, as drafting does.
+- Faces are blurred in privacy-service, `POST /redact-image` (a JSON batch of base64 images, one call per reading), not in S5, so ingestion's picture crops can use it too (PV-06). YuNet (OpenCV's face detector, about 230 KB, MIT) is kept in the repo, so neither the image build nor the tests download it. A face, padded by 40%, is pixelated to 3×3 blocks and blurred: at 5 or more blocks the detector still found the face it had blurred. Faces are looked for on a copy at most 960 px long (about 100 ms per 1600 px photo instead of 210 ms); one under about 17 px in the photo is missed, and is too small to recognise.
+- The note, every recording and page transcript, and the location are masked in one `/mask` call. Item labels are not: they are what the proposal cites and the gateway matches.
+- Unmask before the gateway's checks: the description, each reason and each quote come back with real values. `[LITERAL_n]` escaping and the fail-closed wording are rag-service's, so engineers read one message everywhere.
+- The vision prompt tells the model to copy placeholders exactly (`cp21-v4`), with protection off too.
+- The photo as sent is kept. S5 returns each photo as Gemini received it, still storing nothing itself. For a photo with a face blurred, the gateway stores it as `<photo key>.redacted.jpg` beside the original, which is never changed, and the photo popup can switch to it ("As sent to AI · 2 faces blurred"). A photo without a face records only that it was checked. Failing to store the copy doesn't fail the reading.
+- Handwritten pages (CP-19) stay unprotected. The model must read the page, so it can't be masked first. The risk is mostly in a combination of details, and the goal is not to store PII in the database. Scan mode asks the engineer to leave names, phone numbers and ID numbers off the page, and the transcript is masked like any text when it feeds drafting or chat.
+
+Reason: photo reading sends client photos and the engineer's notes to Google. Blurring and masking before the call keeps people and named details out of what leaves. Keeping the copy lets the engineer check what was actually sent.
+
+Rejected:
+- Blurring in S5: ingestion needs the same detector for picture crops (PV-06), and one service keeps one model.
+- Overwriting the S3 original with the blurred photo: the original is the engineer's evidence, and the epic requires it unchanged.
+- Tesseract redaction of text inside photos: 1–3 s per photo, against a budget of about 1 s for the whole reading. Left as a known gap.
+- Refusing handwriting transcription under protection: it would remove CP-19 for every protected assessment, for a risk the capture hint mostly avoids.
+
+Open: whether site photos and notes may go to Google at all (G3) is still with Marsh. Blurring and masking may be enough for them.
+
+Stories: PV-04, PV-01, PV-02, CP-05, CP-21, CP-19.
+
+## 2026-11-02 — Photo reading's answer is checked for details the AI added
+
+Chose:
+- (PV-04) Text inside a photo is never masked, so Gemini may write a name or number it read off a sign into its answer, and that would be saved. With protection on, S5 checks the description and each category's reason before unmasking: one more `/mask` call with the reading's mapping. What the reading sent is a placeholder by then, so whatever is found is new, and is replaced by its kind ("[name removed]"). Known clients, sites and people are kept. Quotes are not checked, since they are copied from masked items.
+- On by default, and switchable in the backend: `PII_CHECK_ANSWERS=on|off` on the gateway, sent to S5 as `privacy.check_answers` (Rule 1: S5 reads no env var for it). A typo stops the gateway starting, as for `PII_PROTECTION`.
+- If privacy-service fails at the check, the reading fails and nothing is saved. Gemini has already answered by then, so the message says the answer couldn't be checked rather than that nothing was sent.
+- Provenance counts the details taken out (`removedFromAnswer`), never which.
+
+Reason: the goal is not to store PII in the database. The check is local and cheap, and catches what face blurring and text masking can't reach until text in photos is redacted.
+
+Rejected:
+- Telling the model not to write personal details: the prompt can be ignored, and the output still needs checking.
+- Keeping the removed values for the engineer to restore: that would store the PII the check exists to keep out.
+
+Known limits: street addresses are not detected, only a postal code after "Singapore". A second `/mask` call per reading bends Rule 2 (one call per request); it adds nothing to the mapping.
+
+Stories: PV-04.
+
+## 2026-11-05 — privacy-service detects street addresses and vehicle plates; detectors.json switches each kind
+
+Chose:
+- (PV-04) A Singapore street address pattern: a house or block number, a capitalised street name and a street word (or a Jalan or Lorong), then any unit number. A road without a house number, or a street word without a name ("2 St."), is not an address. The postal code stays its own `POSTAL`.
+- A vehicle plate pattern, kept only when its last letter is the check letter (the last two prefix letters and the digits, weighted 9 4 5 4 3 2, mod 19), so model and part codes stay. Placeholder type `VEHICLE`, added to the unmask copies in rag-service and S5.
+- `detectors.json` in privacy-service switches each kind (`PERSON`, `PHONE`, `EMAIL`, `NRIC`, `UEN`, `POSTAL`, `ADDRESS`, `VEHICLE`) on or off. `PII_PROTECTION` stays the master switch in the gateway. Known names are always masked. Read at startup; a typo stops the service; a missing file means all on. Compose mounts it, so a change needs a restart, not a rebuild.
+
+Reason: a reading saved a street address read off a photo, which the answer check couldn't catch. A file lets the team switch a kind off (a pattern masking too much) without a code change, while the gateway alone decides whether to protect (Rule 1).
+
+Rejected:
+- Turning on spaCy's places and organisations for addresses: they also catch brands, standards and floors (PV-01).
+- A plate pattern without the check letter: it would mask model codes in drafts.
+- Per-flow switches in the file: one definition of what counts as personal, for now.
+- An admin screen for the switches: needs a settings store; the file is enough until someone other than the developers changes it.
+
+Known limits: the file applies to every flow, so switching a kind off affects drafting and chat too. Building names alone are not detected. Masking now changes for drafting and chat, so the drafting and chat evals need a rerun with `--privacy` (Rule 9).
+
+Stories: PV-04, PV-01.

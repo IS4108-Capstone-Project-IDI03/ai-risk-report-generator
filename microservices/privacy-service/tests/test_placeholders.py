@@ -29,3 +29,10 @@ def test_unmask_reports_a_placeholder_it_cannot_resolve():
     text, unknown = unmask("[PERSON_9] signed.", {"[PERSON_1]": "John Tan"})
 
     assert (text, unknown) == ("[PERSON_9] signed.", ["[PERSON_9]"])
+
+
+def test_unmask_restores_an_address_and_a_plate():
+    note = "Lorry PU 104 J at 5 Jalan Kilang Barat."
+    masked = client.post("/mask", json={"texts": [note]}).json()
+
+    assert unmask(masked["texts"][0], masked["mapping"]) == (note, [])

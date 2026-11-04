@@ -2,6 +2,8 @@ import { Types } from 'mongoose'
 import { Readable } from 'stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { config } from '../config'
+import type { ReadingPrivacy } from '../services/privacy.service'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel, type CaptureSessionStatus } from '../models/capture-session.model'
@@ -20,15 +22,25 @@ import { signedInAs, signedInAsRole } from './auth-test-helpers'
 
 // S3 stands in as a map; S5 as a stubbed fetch.
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
+// A write to a key it matches fails, as S3 would when unreachable.
+const failingWrites = vi.hoisted(() => ({ match: null as RegExp | null }))
 vi.mock('../services/storage.service', () => ({
-  putObject: async (key: string, body: Buffer) => void s3.set(key, body),
+  putObject: async (key: string, body: Buffer) => {
+    if (failingWrites.match?.test(key)) throw new Error('S3 unreachable')
+    s3.set(key, body)
+  },
   getObjectStream: async (key: string, range?: { start: number; end: number }) =>
     Readable.from([range ? s3.get(key)!.subarray(range.start, range.end + 1) : s3.get(key)]),
   deleteObject: async (key: string) => void s3.delete(key),
 }))
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 // S5's photo interpretation (CP-05), stubbed apart from transcription.
-type InterpretBody = { s3_keys: string[]; location: string | null; note: string | null }
+type InterpretBody = {
+  s3_keys: string[]
+  location: string | null
+  note: string | null
+  privacy: ReadingPrivacy
+}
 const vision = vi.fn<(body: InterpretBody) => Promise<Response>>()
 // S5's handwritten pages (CP-19), stubbed apart from voice transcription.
 const handwriting = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
@@ -61,6 +73,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   s3.clear()
+  failingWrites.match = null
   speech.mockReset()
   vision.mockReset()
   handwriting.mockReset()
@@ -1232,6 +1245,8 @@ describe('reading an observation (CP-05, CP-21)', () => {
       location: 'Bay 3 — north aisle, Ground',
       // Both parts in one call the first time (CP-21).
       parts: ['categories', 'description'],
+      // Off unless PII_PROTECTION requires it (PV-04).
+      privacy: { enabled: false, known_entities: [], check_answers: false },
     })
     expect(speech).not.toHaveBeenCalled()
     // Listed as interpreting while it runs (AC2), naming what it reads.
@@ -1342,6 +1357,7 @@ describe('reading an observation (CP-05, CP-21)', () => {
       ],
       location: 'Bay 3 — north aisle, Ground',
       parts: ['categories'],
+      privacy: { enabled: false, known_entities: [], check_answers: false },
     })
     expect(done.interpretation?.photoReading).toBeUndefined()
     const [observation] = await listed()
@@ -1593,6 +1609,7 @@ describe('reading an observation (CP-05, CP-21)', () => {
       texts: [{ label: 'Note', kind: 'note', text: 'Bay 3 racking' }],
       location: 'Bay 3 — north aisle, Ground',
       parts: ['description'],
+      privacy: { enabled: false, known_entities: [], check_answers: false },
     })
     const [observation] = await listed()
     expect(observation.interpretation).toMatchObject({
@@ -1820,6 +1837,215 @@ describe('reading an observation (CP-05, CP-21)', () => {
         status: 'failed',
         error: expect.stringMatching(/interrupted by a gateway restart/),
       },
+    })
+  })
+
+  describe('PII protection (PV-04)', () => {
+    afterEach(() => {
+      config.piiProtection = 'off'
+      config.piiCheckAnswers = true
+    })
+
+    it("asks S5 to check the AI's answer when protection is required", async () => {
+      config.piiProtection = 'required'
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      expect(vision.mock.calls[0][0].privacy.check_answers).toBe(true)
+    })
+
+    it("leaves the AI's answer unchecked when PII_CHECK_ANSWERS is off", async () => {
+      config.piiProtection = 'required'
+      config.piiCheckAnswers = false
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      expect(vision.mock.calls[0][0].privacy).toMatchObject({ enabled: true, check_answers: false })
+    })
+
+    it('checks no answer when protection is off', async () => {
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      expect(vision.mock.calls[0][0].privacy.check_answers).toBe(false)
+    })
+
+    it("sends the assessment's known details when protection is required", async () => {
+      config.piiProtection = 'required'
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved([{ image: JPG }], { note: 'Racking under the heads.' }))
+
+      expect(vision.mock.calls[0][0]).toMatchObject({
+        privacy: {
+          enabled: true,
+          known_entities: expect.arrayContaining([
+            { type: 'CLIENT', names: ['Northgate Logistics'] },
+            { type: 'SITE', names: ['Tilbury Distribution Centre', 'SITE-0001'] },
+          ]),
+        },
+      })
+    })
+
+    it('sends protection off, with no details, when it is not required', async () => {
+      vision.mockReturnValue(s5(200, PROPOSAL))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      expect(vision.mock.calls[0][0]).toMatchObject({
+        privacy: { enabled: false, known_entities: [] },
+      })
+    })
+
+    it('records what was protected with each part, never the values (Rule 8)', async () => {
+      config.piiProtection = 'required'
+      vision.mockReturnValue(
+        s5(200, {
+          ...PROPOSAL,
+          privacy: { enabled: true, masked_count: 2, faces_blurred: 1, removed_from_answer: 1 },
+        }),
+      )
+      await assessmentWithSession()
+
+      const done = await interpreted(await readSaved())
+
+      const privacy = { enabled: true, maskedCount: 2, facesBlurred: 1, removedFromAnswer: 1 }
+      expect(done.interpretation?.provenance?.privacy).toEqual(privacy)
+      expect(done.interpretation?.photoReading?.provenance?.privacy).toEqual(privacy)
+    })
+
+    it('shows why nothing was sent when the details could not be protected', async () => {
+      // Passed when first run: S5's wording is already readable, so it is shown as is.
+      const reason =
+        "Client details couldn't be protected because the privacy service isn't available, " +
+        'so nothing was sent to the AI model. If this keeps happening, tell your administrator.'
+      config.piiProtection = 'required'
+      vision.mockReturnValue(s5(502, { detail: reason }))
+      await assessmentWithSession()
+
+      await interpreted(await readSaved())
+
+      const { interpretation } = (await listed())[0]
+      expect(interpretation.error).toBe(reason)
+      expect(interpretation.photos.error).toBe(reason)
+    })
+
+    it('keeps each photo with a face as it was sent, beside the untouched original', async () => {
+      config.piiProtection = 'required'
+      const BLURRED = Buffer.from('blurred jpeg')
+      vision.mockReturnValue(
+        s5(200, {
+          ...PROPOSAL,
+          redacted_photos: [
+            { label: 'IMG_0460.jpg', faces: 2, image: BLURRED.toString('base64') },
+            { label: 'IMG_0461.png', faces: 0, image: Buffer.from('as sent').toString('base64') },
+          ],
+        }),
+      )
+      await assessmentWithSession()
+
+      const done = await interpreted(
+        await readSaved([{ image: JPG }, { image: PNG, name: 'IMG_0461.png', type: 'image/png' }]),
+      )
+
+      const [withFace, withoutFace] = done.photos!
+      const copy = withFace.key.replace(/\.jpg$/, '.redacted.jpg')
+      expect(s3.get(copy)).toEqual(BLURRED)
+      expect(s3.get(withFace.key)).toEqual(JPG)
+      expect(withFace.redaction).toMatchObject({ key: copy, faces: 2, size: BLURRED.length })
+      // Checked, and no face: nothing to keep, as it went out as taken (only shrunk).
+      expect(withoutFace.redaction).toMatchObject({ key: null, faces: 0 })
+      expect(s3.get(withoutFace.key)).toEqual(PNG)
+      expect([...s3.keys()].filter((k) => k.includes('.redacted.'))).toEqual([copy])
+    })
+
+    it('lists each photo with how it last went to the model', async () => {
+      config.piiProtection = 'required'
+      vision.mockReturnValue(
+        s5(200, {
+          ...PROPOSAL,
+          redacted_photos: [
+            { label: 'IMG_0460.jpg', faces: 2, image: 'Ymx1cnJlZA==' },
+            { label: 'IMG_0461.jpg', faces: 0, image: 'YXMgc2VudA==' },
+          ],
+        }),
+      )
+      await assessmentWithSession()
+      const id = await readSaved([{ image: JPG }, { image: JPG }])
+      await interpreted(id)
+      const unread = (await savePhotos([{ image: JPG }])).body
+
+      const observations: { id: string; photos: { id: string; redaction: unknown }[] }[] =
+        await listed()
+
+      const read = observations.find((o) => o.id === id)!
+      const saved = observations.find((o) => o.id === unread.id)!
+      const [withFace, withoutFace] = read.photos
+      expect(withFace.redaction).toEqual({
+        url: `/api/observations/${id}/photos/${withFace.id}/redacted`,
+        faces: 2,
+      })
+      expect(withoutFace.redaction).toEqual({ url: null, faces: 0 })
+      // Never read with protection on.
+      expect(saved.photos[0].redaction).toBeNull()
+    })
+
+    it('streams the copy as it was sent, and only where there is one', async () => {
+      config.piiProtection = 'required'
+      const BLURRED = Buffer.from('blurred jpeg')
+      vision.mockReturnValue(
+        s5(200, {
+          ...PROPOSAL,
+          redacted_photos: [
+            { label: 'IMG_0460.jpg', faces: 1, image: BLURRED.toString('base64') },
+            { label: 'IMG_0461.jpg', faces: 0, image: 'YXMgc2VudA==' },
+          ],
+        }),
+      )
+      await assessmentWithSession()
+      const id = await readSaved([{ image: JPG }, { image: JPG }])
+      await interpreted(id)
+      const [withFace, withoutFace] = (await listed())[0].photos
+
+      const response = await api.get(withFace.redaction.url).buffer(true)
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('image/jpeg')
+      expect(Buffer.from(response.body)).toEqual(BLURRED)
+      const none = `/api/observations/${id}/photos/${withoutFace.id}/redacted`
+      expect((await api.get(none)).status).toBe(404)
+      expect((await api.get(`/api/observations/${id}/photos/nope/redacted`)).status).toBe(404)
+    })
+
+    it('still gives the proposal when the copy cannot be kept', async () => {
+      config.piiProtection = 'required'
+      failingWrites.match = /\.redacted\./
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(vision).mockReturnValue(
+        s5(200, {
+          ...PROPOSAL,
+          redacted_photos: [{ label: 'IMG_0460.jpg', faces: 1, image: 'Ymx1cnJlZA==' }],
+        }),
+      )
+      await assessmentWithSession()
+
+      const done = await interpreted(await readSaved())
+
+      // The copy only lets the engineer see what left; the reading itself succeeded.
+      expect(done.interpretation?.status).toBe('interpreted')
+      expect(done.interpretation?.photoReading?.description).toBe(PROPOSAL.description)
+      expect(done.photos![0].redaction).toBeUndefined()
+      // Logged without the image.
+      expect(String(error.mock.calls)).not.toContain('Ymx1cnJlZA==')
+      error.mockRestore()
     })
   })
 })

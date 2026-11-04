@@ -399,7 +399,13 @@ function toEntry(o: SavedObservation): Observation {
       ? { text: o.checklistItem.text, result: o.checklistItem.result }
       : null,
     fromSiteWalk: !!o.fromSiteWalk,
-    media: photos.map((p) => ({ id: p.id, name: p.name, url: p.url, added: p.added })),
+    media: photos.map((p) => ({
+      id: p.id,
+      name: p.name,
+      url: p.url,
+      added: p.added,
+      redaction: p.redaction,
+    })),
     // Removed recordings and photos, kept to restore (CP-08).
     removedMedia: [
       ...o.removedRecordings.map((r) => ({
@@ -2565,6 +2571,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // A saved assessment opens its real sections 7-12 on the Generate tab;
       // the demo assessment keeps the sample generation run (GN-01).
       liveReference: openRow?.persisted ? openRow.id : null,
+      // Its saved record, read again with the work list, so a corrected
+      // client, site or detail shows on the document's cover (RV-12 AC3).
+      liveRecord: openRow?.persisted ? (openRow.record ?? null) : null,
       canDraftSections: isMine && canCapture && can('reports:generate', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
@@ -3464,6 +3473,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       pageHint: liveCapture
         ? 'JPG or PNG, one photo per page. Each page is transcribed once you save.'
         : 'No capture session, so pages stay in this browser and are not transcribed.',
+      // A page goes to the AI service as photographed: client details in it
+      // can't be masked, so the engineer is asked to leave them off (PV-04).
+      pagePrivacyHint: liveCapture
+        ? 'Leave names, phone numbers and ID numbers off the page: an external AI service reads it.'
+        : null,
       addPages: (e: React.ChangeEvent<HTMLInputElement>) => {
         const { photos, refused } = choosePhotos([...(e.target.files ?? [])])
         e.target.value = ''

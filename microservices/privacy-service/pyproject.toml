@@ -16,6 +16,8 @@ dependencies = [
     "preshed<3.0.14",
     "ruff>=0.17.1",
     "black>=26.10.1",
+    "opencv-python-headless>=4.10",
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]

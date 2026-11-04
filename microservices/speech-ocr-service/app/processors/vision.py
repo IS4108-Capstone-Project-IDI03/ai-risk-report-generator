@@ -16,11 +16,12 @@ import boto3
 from google import genai
 from pydantic import BaseModel, ValidationError
 
+from app import privacy as protection
 from app.config import AWS_REGION, GEMINI_API_KEY, S3_BUCKET, VISION_MODEL, VISION_PROVIDER
 from app.processors.images import upright_jpeg
 
 # Bump whenever the prompt wording changes, so a saved proposal names the prompt it came from.
-PROMPT_VERSION = "cp21-v3"
+PROMPT_VERSION = "cp21-v4"
 
 COPE_DIMENSIONS = ("Construction", "Occupancy", "Protection", "Exposure")
 
@@ -151,16 +152,25 @@ hazard_type: the closest of {", ".join(HAZARD_TYPES[:-2])}; "Other" if none fits
 "No hazard visible"."""
 
 
+# With protection on, names and contact details reach the model as placeholders (PV-04). The
+# rule is there with protection off too, so off and on differ only in masking (as in rag-service).
+PLACEHOLDER_RULE = """
+
+Copy bracketed placeholders such as [PERSON_1] or [CLIENT_1] exactly as written, brackets \
+included, in descriptions, reasons and quotes. They stand for names and contact details; never \
+invent, alter, explain or merge them."""
+
+
 def system_instruction(parts: tuple[str, ...]) -> str:
     """The rules for the parts asked for: categories may rest on any item, a description only on
     the photos."""
     if parts == ("description",):
-        return DESCRIPTION_INTRO + PHOTOS_INSTRUCTION
+        return DESCRIPTION_INTRO + PHOTOS_INSTRUCTION + PLACEHOLDER_RULE
     rules = CATEGORIES_INTRO + CATEGORIES_INSTRUCTION
     if "description" in parts:
         rules += "\n\nThere are also photographs." + PHOTOS_INSTRUCTION
         rules += " The categories may rest on any item."
-    return rules
+    return rules + PLACEHOLDER_RULE
 
 
 def _read(s3, key: str) -> bytes:
@@ -254,8 +264,24 @@ def _interpret_gemini(
 _PROVIDERS = {"gemini": _interpret_gemini}
 
 
-def _categories(answer: BaseModel) -> list[dict] | None:
-    """Each category once, in the model's order, at most MAX_CATEGORIES; None if not asked for."""
+def _check(answer: BaseModel, session: protection.Session) -> None:
+    """The answer's reasons and description with each detail Gemini added taken out, in one
+    call, while still masked so only those are found (PV-04). Quotes are not checked: they are
+    copied from the items, which were masked going in."""
+    proposed = getattr(answer, "categories", [])
+    texts = [category.reason for category in proposed]
+    if isinstance(answer, DescriptionAnswer):
+        texts.append(answer.description)
+    checked = session.check_answer(texts)
+    for category, reason in zip(proposed, checked, strict=False):
+        category.reason = reason
+    if isinstance(answer, DescriptionAnswer):
+        answer.description = checked[-1]
+
+
+def _categories(answer: BaseModel, unmask) -> list[dict] | None:
+    """Each category once, in the model's order, at most MAX_CATEGORIES, with real values back
+    in its reason and quotes; None if not asked for."""
     if not isinstance(answer, CategoriesAnswer):
         return None
     seen: set[str] = set()
@@ -263,7 +289,12 @@ def _categories(answer: BaseModel) -> list[dict] | None:
     for proposed in answer.categories:
         if proposed.category not in seen:
             seen.add(proposed.category)
-            kept.append(proposed.model_dump())
+            category = proposed.model_dump()
+            category["reason"] = unmask(category["reason"])
+            for evidence in category["evidence"]:
+                if evidence["quote"]:
+                    evidence["quote"] = unmask(evidence["quote"])
+            kept.append(category)
     return kept[:MAX_CATEGORIES]
 
 
@@ -272,11 +303,13 @@ def interpret(
     texts: list[dict],
     location: str | None,
     parts: tuple[str, ...] | None = None,
+    privacy: dict | None = None,
 ) -> dict:
-    """The proposal for an observation: photos as {label, s3_key}, texts as {label, kind, text}."""
+    """The proposal for an observation: photos as {label, s3_key}, texts as {label, kind, text}.
+    `privacy` is the gateway's `{enabled, known_entities}` (PV-04), or None."""
     s3 = boto3.client("s3", region_name=AWS_REGION) if photos else None
     return interpret_images(
-        [(p["label"], _read(s3, p["s3_key"])) for p in photos], texts, location, parts
+        [(p["label"], _read(s3, p["s3_key"])) for p in photos], texts, location, parts, privacy
     )
 
 
@@ -285,6 +318,7 @@ def interpret_images(
     texts: list[dict],
     location: str | None,
     parts: tuple[str, ...] | None = None,
+    privacy: dict | None = None,
 ) -> dict:
     """The proposal for photos already in hand; interpret() and the eval both use it. Without
     `parts`, both when there are photos, else the categories."""
@@ -298,19 +332,39 @@ def interpret_images(
         raise InterpretationError(
             "There are too many photos to interpret together. Save fewer photos per observation."
         )
+    session = protection.session(privacy)
+    # Faces blurred in every photo, in one call; the original in S3 is never changed.
+    blurred = session.redact_images([data for _, data in images])
+    images = [(label, data) for (label, _), data in zip(images, blurred, strict=True)]
+    # The texts and the location in one /mask call, so one mapping covers them (Rule 2).
+    *masked, masked_location = session.mask([t["text"] for t in texts] + [location or ""])
+    texts = [{**t, "text": text} for t, text in zip(texts, masked, strict=True)]
+    location = masked_location or None
     prompt = _prompt([label for label, _ in images], texts, location)
     answer, model, usage = provider(images, prompt, parts)
-    return {
+    _check(answer, session)
+    description = getattr(answer, "description", None)
+    # Real values back before the gateway checks quotes against the items (Rule 4).
+    result = {
         # None for a part not asked for.
-        "categories": _categories(answer),
-        "description": getattr(answer, "description", None),
+        "categories": _categories(answer, session.unmask),
+        "description": description and session.unmask(description),
         "hazard_type": getattr(answer, "hazard_type", None),
         "provider": VISION_PROVIDER,
         "model": model,
         "prompt_version": PROMPT_VERSION,
         # None when the provider reports no usage (EV-03 AC7).
         "usage": usage,
+        "privacy": session.provenance(),
     }
+    if session.enabled:
+        # Each photo as Gemini received it, so the engineer can see what left (PV-04). S5
+        # stores nothing: the gateway keeps the ones with a face blurred.
+        result["redacted_photos"] = [
+            {"label": label, "faces": faces, "image": data}
+            for (label, data), faces in zip(images, session.faces, strict=True)
+        ]
+    return result
 
 
 # A plain photo description for matching photos to findings (CP-22). Sent with only the photo.

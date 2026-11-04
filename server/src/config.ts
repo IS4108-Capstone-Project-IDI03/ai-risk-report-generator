@@ -24,6 +24,15 @@ export function piiProtectionFrom(value: string | undefined): 'off' | 'required'
   throw new Error(`PII_PROTECTION must be off or required, not "${value}"`)
 }
 
+// Whether, with protection on, S5 takes details the AI added out of its answer
+// before the reading is saved (PV-04): a name or number read off a photo, which
+// was never masked. On unless PII_CHECK_ANSWERS says off; a typo throws.
+export function piiCheckAnswersFrom(value: string | undefined): boolean {
+  if (value === undefined || value === '' || value === 'on') return true
+  if (value === 'off') return false
+  throw new Error(`PII_CHECK_ANSWERS must be on or off, not "${value}"`)
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
   mongodbUri: requireEnv('MONGODB_URI'),
@@ -48,6 +57,7 @@ export const config = {
   },
   serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
   piiProtection: piiProtectionFrom(process.env.PII_PROTECTION),
+  piiCheckAnswers: piiCheckAnswersFrom(process.env.PII_CHECK_ANSWERS),
   // Where the browser app is served; the emailed reset (F-06) and invitation
   // (F-08) links point here.
   appUrl: process.env.APP_URL ?? 'http://localhost:3000',

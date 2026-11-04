@@ -37,6 +37,9 @@ const registry = {
     next: 'chevron-down',
     save: 'save',
     outline: 'list-tree',
+    // Switching to Marsh's page layout and back (RV-12).
+    pages: 'book-open',
+    continuous: 'scroll-text',
   },
   status: {
     notStarted: {

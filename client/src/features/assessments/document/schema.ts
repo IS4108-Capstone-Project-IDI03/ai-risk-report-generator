@@ -51,6 +51,23 @@ const ReportSection = Node.create({
   ],
 })
 
+// A section's heading split as Marsh's page layout sets it (RV-12): "Section
+// 7" over "Construction", "Appendix A" over "Site Photos". The words read the
+// same either way ("7. Construction").
+function sectionHeadingParts(label: string) {
+  const numbered = /^(\d+)\.\s+(.+)$/.exec(label)
+  if (numbered)
+    return { number: `${numbered[1]}.`, kicker: `Section ${numbered[1]}`, title: numbered[2] }
+  const appendix = /^Appendix ([A-Z])\.\s+(.+)$/.exec(label)
+  if (appendix)
+    return {
+      number: `Appendix ${appendix[1]}.`,
+      kicker: `Appendix ${appendix[1]}`,
+      title: appendix[2],
+    }
+  return null
+}
+
 // A fixed heading: the section's ("7. Construction") or a template
 // subsection's. Read-only, and not selectable, so typing never replaces it.
 const fixedHeading = (name: string, tag: 'h2' | 'h3') =>
@@ -61,11 +78,18 @@ const fixedHeading = (name: string, tag: 'h2' | 'h3') =>
     draggable: false,
     addAttributes: () => ({ label: { default: '', rendered: false } }),
     parseHTML: () => [],
-    renderHTML: ({ node }) => [
-      tag,
-      { class: `dm-fixed-heading dm-${tag}`, contenteditable: 'false' },
-      node.attrs.label as string,
-    ],
+    renderHTML: ({ node }) => {
+      const label = node.attrs.label as string
+      const attrs = { class: `dm-fixed-heading dm-${tag}`, contenteditable: 'false' }
+      const parts = tag === 'h2' ? sectionHeadingParts(label) : null
+      if (!parts) return [tag, attrs, label]
+      return [
+        tag,
+        { ...attrs, 'data-kicker': parts.kicker },
+        ['span', { class: 'dm-h2-number' }, `${parts.number} `],
+        ['span', { class: 'dm-h2-title' }, parts.title],
+      ]
+    },
   })
 
 // Why a section was not drafted, or what happened to its saved text (AC3).

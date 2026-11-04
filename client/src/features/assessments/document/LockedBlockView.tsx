@@ -6,6 +6,7 @@ import { AppendixPhotos } from '../components/AppendixPhotos'
 import { LossEstimateFigures } from '../components/LossEstimateFigures'
 import { PurposeScope } from '../components/PurposeScope'
 import { RiskQualityFigures } from '../components/RiskQualityFigures'
+import { AppendixReport, OfisReport, PurposeText } from './page/ReportParts'
 import { DocumentPartsContext } from './parts'
 import { LOSS_LEVEL_IDS } from './sections'
 
@@ -61,8 +62,18 @@ export function LockedBlockView({ node }: NodeViewProps) {
   const section = node.attrs.section as string
   if (!parts) return <NodeViewWrapper />
   const { reference } = parts
+  // In Marsh's page layout (RV-12), Sections 1 and 3 and Appendix A read as
+  // the report has them; Sections 4 and 5 hide their screen controls (pages.css).
+  const report = !parts.pageLayout ? null : kind === 'purpose' ? (
+    <PurposeText text={parts.purposeAndScope} />
+  ) : kind === 'ofis' ? (
+    <OfisReport ofis={parts.ofis} observations={parts.observations} />
+  ) : kind === 'appendix' ? (
+    <AppendixReport reference={reference} />
+  ) : null
   const body =
-    kind === 'purpose' ? (
+    report ??
+    (kind === 'purpose' ? (
       <PurposeScope text={parts.purposeAndScope} error={null} />
     ) : kind === 'ofis' ? (
       <OfiList ofis={parts.ofis} />
@@ -76,7 +87,7 @@ export function LockedBlockView({ node }: NodeViewProps) {
       <p className="rv-muted">
         This table is completed from measured values, so it is not written here.
       </p>
-    )
+    ))
   // Section 1 changes with the assessment details, a table with its values.
   const where = kind === 'purpose' || kind === 'table' ? null : section
   return (

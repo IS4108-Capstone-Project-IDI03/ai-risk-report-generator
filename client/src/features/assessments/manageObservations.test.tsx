@@ -1250,6 +1250,59 @@ describe('Site photographs (CP-04)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('shows the photo as sent to the AI, faces blurred, beside the original (PV-04)', async () => {
+    const BLURRED_URL = '/api/observations/o9/photos/p1/redacted'
+    listed = [
+      {
+        ...PHOTOGRAPHED,
+        photos: [{ ...PHOTOGRAPHED.photos[0], redaction: { url: BLURRED_URL, faces: 2 } }],
+      },
+    ]
+    await openObservations()
+    fireEvent.click(row('Riser room door wedged open.'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open IMG_0460.jpg' }))
+
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    const photo = () => within(popup).getByRole('img', { name: 'IMG_0460.jpg' })
+    // The original first: it is the evidence.
+    expect(photo()).toHaveAttribute('src', IMAGE_URL)
+    const sent = within(popup).getByRole('switch', { name: 'As sent to AI · 2 faces blurred' })
+    expect(sent).not.toBeChecked()
+    fireEvent.click(sent)
+    expect(photo()).toHaveAttribute('src', BLURRED_URL)
+    fireEvent.click(sent)
+    expect(photo()).toHaveAttribute('src', IMAGE_URL)
+  })
+
+  it('says when a photo sent to the AI had no face to blur, and when it was never protected (PV-04)', async () => {
+    listed = [
+      {
+        ...PHOTOGRAPHED,
+        photos: [{ ...PHOTOGRAPHED.photos[0], redaction: { url: null, faces: 0 } }],
+      },
+    ]
+    await openObservations()
+    fireEvent.click(row('Riser room door wedged open.'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open IMG_0460.jpg' }))
+
+    const popup = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(popup).getByText('As sent to AI · no faces found')).toBeInTheDocument()
+    expect(within(popup).queryByRole('switch')).not.toBeInTheDocument()
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+    cleanup()
+
+    // Read without protection, or never read: nothing to say.
+    listed = [PHOTOGRAPHED]
+    await openObservations()
+    fireEvent.click(row('Riser room door wedged open.'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open IMG_0460.jpg' }))
+    const plain = screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+    expect(within(plain).queryByText(/As sent to AI/)).not.toBeInTheDocument()
+    expect(within(plain).queryByRole('switch')).not.toBeInTheDocument()
+  })
+
   it('lists every photo in the collection, leaving deleted ones out (AC3)', async () => {
     listed = [PHOTOGRAPHED, DELETED]
     await openObservations()

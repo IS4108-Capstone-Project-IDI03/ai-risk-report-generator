@@ -6,6 +6,7 @@ import {
   decideReplacement,
   editFinding,
   regenerateSection,
+  type Assessment,
   type ReviewSection,
   type ReviewWorkspace as Workspace,
 } from '../api'
@@ -113,6 +114,7 @@ function replacementView(section: ReviewSection): ReviewSection {
 // can restore one as the part's text.
 export function ReviewWorkspace({
   reference,
+  assessment = null,
   canReview = false,
   wrapStyle,
   railStyle,
@@ -121,6 +123,9 @@ export function ReviewWorkspace({
   historyRequest = 0,
 }: {
   reference: string
+  // The assessment with its client and site, for the document's page layout
+  // cover (RV-12); null where it is not known.
+  assessment?: Assessment | null
   // The assigned engineer, on an assessment not archived: others only read.
   // Also who may change Appendix A (GN-07); the gateway checks both too.
   canReview?: boolean
@@ -214,10 +219,12 @@ export function ReviewWorkspace({
         <DocumentEdit
           key={documentKey}
           reference={reference}
+          assessment={assessment}
           workspace={workspace}
           summary={summary}
           summaryLoaded={!!summary || !!summaryError}
           ofis={accepted}
+          observations={observations ?? undefined}
           startAt={documentAt}
           onReturn={(id) => {
             setReturnedFrom(workspace.asOf)

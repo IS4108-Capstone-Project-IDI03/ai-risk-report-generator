@@ -92,6 +92,10 @@ export type SavedPhoto = {
   contentType: 'image/jpeg' | 'image/png'
   size: number
   url: string
+  // How it last went to the AI with protection on (PV-04): faces blurred, and
+  // that copy's url (null when it had no face, so went as taken). Null, or
+  // absent from older answers, when never read with protection on.
+  redaction?: { url: string | null; faces: number } | null
   added: Stamp | null
 }
 // A photographed page of the engineer's handwritten notes (CP-19); url opens
