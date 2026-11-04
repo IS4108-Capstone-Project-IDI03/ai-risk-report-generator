@@ -1202,6 +1202,24 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a section order has been saved, when I export the report, then the export uses that order.
   </details>
 
+- [ ] **RV-12** — Edit the report in Marsh's page layout, with cover, contents page and page numbers (risk engineer, 5 pts, deps: RV-08, CP-17, CP-18, GN-03, Sprint 4)
+  <details><summary>Goal / AC</summary>
+
+  Goal: switch the full edit view into a page layout that matches Marsh's existing reports, with the cover, contents page and page numbers in place, so that I can see and correct how the report reads on the page before I export it.
+
+  1. Given the full edit view (RV-08) is open, when I switch to Page layout, then the report is shown as pages with the page size, margins, header and footer of Marsh's report template. It uses Marsh's fonts, or agreed substitutes where those can't be used. Switching back returns me to the continuous view at the same place.
+  2. Given the report is in page layout, when I view its first pages, then they are a cover and a details page laid out as Marsh's. They show the client, site name and site address from their records (CP-17, CP-18); the report reference, assessment type, site visit date and lead engineer from the assessment; and the Marsh logo once Marsh supplies the file, the text wordmark until then.
+  3. Given the cover is shown, when I try to type on it, then it is protected like RV-08's other protected sections. When a detail it shows changes on the assessment or site, the cover shows the new value.
+  4. Given a cover field has no value, when the cover is shown, then it reads "Not entered", as Sections 4 and 5 do for missing figures (GN-03), and no value is filled in its place.
+  5. Given the report has sections and sub-headings, when the contents page is shown, then it lists them in report order, to the heading depth Marsh's contents page uses, each with the page it starts on.
+  6. Given I edit a section, add or remove a sub-heading, accept a regenerated section (RV-02) or restore an earlier version (RV-06), when the change is saved, then the pages reflow and the contents page and page numbers match it.
+  7. Given any page after the cover, when I view it, then its page number appears in the position and format of Marsh's template, and the cover has no page number.
+  8. Given the report is laid out in pages, when a block reaches the end of a page, then a table's header row repeats on the next page; a chart, the Risk Assessment Matrix, the Rating Legend or a photo is never split; an OFI record stays on one page when it fits on one; and each Section 5 loss level starts on a new page, as Marsh's template has it.
+  9. Given the report of Office Sample 5 and of Shopping Mall Sample 2, when each is shown in page layout and its cover, contents page and a body page are compared side by side with Marsh's original, then the layout, fonts and numbering format match. The team's Marsh contact confirms the match.
+
+  Built 4 Nov 2026 (DECISIONS 2026-11-04). AC2 now names the details page: Marsh's samples put the site, address and date on the cover and the client, surveyor and dates on page i, so both are drawn. The template was measured from the two samples (US Letter, Arial); the fonts are Arial, so no substitute is needed where it is installed. A block moves whole to the next page, so a long paragraph is never split across two, and pages break a little earlier than Word's. AC6's pages reflow as the text changes, before it is saved. AC9 needs a full seeded report for each sample: the eval cases are single sections.
+  </details>
+
 - [x] **RV-10** — Find assessments/reports (risk engineer, Must, 2 pts, deps: CP-01, Sprint 1)
   <details><summary>Goal / AC</summary>
 

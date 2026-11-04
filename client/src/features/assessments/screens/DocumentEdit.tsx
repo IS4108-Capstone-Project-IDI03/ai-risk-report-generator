@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Button, Callout, Dialog, IconRegistry } from '../../../design-system'
-import type { AcceptedOfi, ReviewWorkspace, Summary } from '../api'
+import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
 import { toEditorJSON } from '../document/convert'
 import { toggleSubheading } from '../document/commands'
 import { DocumentToolbar } from '../document/DocumentToolbar'
@@ -10,6 +10,11 @@ import { FindBar } from '../document/FindBar'
 import { FindReplace } from '../document/findReplace'
 import { DocumentPartsContext } from '../document/parts'
 import { ReviewPlugins } from '../document/plugins'
+import { contentsEntries, coverDetails, type ContentsEntry } from '../document/page/frontMatter'
+import { MARSH_GEOMETRY, pagesHeight, strideOf } from '../document/page/geometry'
+import { placeOf, restorePlace, scrollToPage, type Place } from '../document/page/measure'
+import { FrontPages, PageBands } from '../document/page/PageFrame'
+import { PageLayout, setPageLayout, type PageLayoutState } from '../document/page/PageLayout'
 import { documentExtensions } from '../document/schema'
 import { buildReportDocument, type ReportDocument } from '../document/sections'
 import { useDocumentSave, type SaveStatus } from '../document/useDocumentSave'
@@ -17,6 +22,7 @@ import { formatDayTime } from '../format'
 import { setLeaveGuard } from '../leaveGuard'
 import { useSections } from '../useSections'
 import '../document/document.css'
+import '../document/page/pages.css'
 
 const STATUS_TEXT: Record<SaveStatus, string> = {
   saved: 'All changes saved',
@@ -30,6 +36,12 @@ const prefersReducedMotion = () =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+// None yet: one list for every render, so the document's parts stay the same.
+const NO_OBSERVATIONS: SavedObservation[] = []
+
+// The bottom of the sticky save bar and toolbar, which the view starts under.
+const bottomOf = (element: HTMLElement | null) => element?.getBoundingClientRect().bottom ?? 0
+
 // The section the selection is in, by its id.
 function sectionAtSelection(editor: Editor): string | null {
   const { $from } = editor.state.selection
@@ -41,6 +53,7 @@ function DocumentBody({
   reference,
   report,
   parts,
+  assessment,
   startAt,
   onReturn,
   onReload,
@@ -49,7 +62,9 @@ function DocumentBody({
 }: {
   reference: string
   report: ReportDocument
-  parts: React.ContextType<typeof DocumentPartsContext>
+  parts: Omit<NonNullable<React.ContextType<typeof DocumentPartsContext>>, 'pageLayout'>
+  // The assessment as last read, for the cover and details page (RV-12).
+  assessment: Assessment | null
   startAt: string
   onReturn: (sectionId: string) => void
   onReload: () => void
@@ -67,6 +82,11 @@ function DocumentBody({
   const [leaving, setLeaving] = useState<null | { proceed: () => void }>(null)
   const [leaveBusy, setLeaveBusy] = useState(false)
   const header = useRef<HTMLDivElement>(null)
+  // Marsh's page layout (RV-12), the pages it last laid out, and where the
+  // engineer was when switching, to come back to (AC1).
+  const [pageMode, setPageMode] = useState(false)
+  const [layout, setLayout] = useState<PageLayoutState | null>(null)
+  const switchedFrom = useRef<Place | null>(null)
 
   const editor = useEditor({
     immediatelyRender: true,
@@ -75,6 +95,7 @@ function DocumentBody({
       ...documentExtensions,
       ReviewPlugins.configure({ context: report.context }),
       FindReplace,
+      PageLayout.configure({ geometry: MARSH_GEOMETRY, onLayout: setLayout }),
       Extension.create({
         name: 'documentKeys',
         priority: 1000,
@@ -136,8 +157,46 @@ function DocumentBody({
     return () => document.removeEventListener('scroll', follow, { capture: true })
   }, [editor, report.parts])
 
+  // Switching between the continuous view and the page layout keeps the
+  // engineer's place (RV-12 AC1): the text at the top of the view stays there.
+  const switchView = () => {
+    if (!editor) return
+    switchedFrom.current = placeOf(editor.view, bottomOf(header.current))
+    const next = !pageMode
+    setPageMode(next)
+    setPageLayout(editor, next)
+  }
+  useEffect(() => {
+    const place = switchedFrom.current
+    if (!place || !editor) return
+    // The page layout first measures the pages.
+    if (pageMode && !layout?.measured) return
+    switchedFrom.current = null
+    const frame = requestAnimationFrame(() =>
+      restorePlace(editor.view, place, bottomOf(header.current)),
+    )
+    return () => cancelAnimationFrame(frame)
+  }, [pageMode, layout, editor])
+
+  // A page of the report at the top of the view (RV-12): where a section or
+  // a contents entry starts.
+  const goToPage = (page: number) => {
+    if (editor && layout)
+      scrollToPage(
+        editor.view,
+        page * strideOf(MARSH_GEOMETRY),
+        layout.scale,
+        bottomOf(header.current),
+      )
+  }
+
   const goTo = (id: string) => {
     setCurrent(id)
+    const opening = layout?.headings.find((h) => h.sectionId === id && h.level === 1)
+    if (pageMode && opening) {
+      goToPage(opening.page)
+      return
+    }
     document
       .getElementById(`dm-section-${id}`)
       ?.scrollIntoView?.({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
@@ -171,16 +230,22 @@ function DocumentBody({
 
   const returnToReview = () => attemptLeave(() => onReturn(current))
   const located = useMemo(
-    () =>
-      parts && {
-        ...parts,
-        onOpen: (id: string) => {
-          if (saver.dirty()) setLeaving({ proceed: () => onReturn(id) })
-          else onReturn(id)
-        },
+    () => ({
+      ...parts,
+      pageLayout: pageMode,
+      onOpen: (id: string) => {
+        if (saver.dirty()) setLeaving({ proceed: () => onReturn(id) })
+        else onReturn(id)
       },
-    [parts, saver, onReturn],
+    }),
+    [parts, saver, onReturn, pageMode],
   )
+  const details = coverDetails(assessment)
+  const contents = layout ? contentsEntries(report.parts, layout.headings) : null
+  const openEntry = (entry: ContentsEntry) => {
+    setCurrent(entry.sectionId)
+    goToPage(entry.page - 1)
+  }
 
   if (!editor) return null
   return (
@@ -226,6 +291,14 @@ function DocumentBody({
                 )}
               </p>
               <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
+                onClick={switchView}
+              >
+                {pageMode ? 'Continuous view' : 'Page layout'}
+              </Button>
+              <Button
                 variant="primary"
                 size="sm"
                 iconLeft={IconRegistry.editor.save}
@@ -261,7 +334,25 @@ function DocumentBody({
             </div>
           )}
           <div className="om-scroll dm-scroll">
-            <EditorContent editor={editor} className="dm-paper" />
+            {/* The editor keeps its place in the tree in either view, so
+                switching never remounts it (RV-12). */}
+            <div className={pageMode ? 'dm-sheet is-page' : 'dm-sheet'}>
+              {pageMode && (
+                <FrontPages key="front" details={details} contents={contents} onOpen={openEntry} />
+              )}
+              <div
+                key="body"
+                className="dm-body"
+                style={
+                  pageMode && layout
+                    ? { minHeight: pagesHeight(MARSH_GEOMETRY, layout.pages) }
+                    : undefined
+                }
+              >
+                {pageMode && layout && <PageBands key="bands" layout={layout} details={details} />}
+                <EditorContent key="editor" editor={editor} className="dm-paper" />
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -328,10 +419,12 @@ function DocumentBody({
 // are lost (AC14). Return to review opens the section being edited (AC2).
 export function DocumentEdit({
   reference,
+  assessment = null,
   workspace,
   summary,
   summaryLoaded,
   ofis,
+  observations = NO_OBSERVATIONS,
   startAt,
   onReturn,
   onReload,
@@ -339,12 +432,16 @@ export function DocumentEdit({
   railStyle,
 }: {
   reference: string
+  // The assessment with its client and site, for the page layout's cover (RV-12).
+  assessment?: Assessment | null
   workspace: ReviewWorkspace
   summary: Summary | null
   // Sections 1 and 2 have loaded, or failed to: the document waits for them.
   summaryLoaded: boolean
   // Section 3's OFIs in the report.
   ofis: AcceptedOfi[]
+  // The assessment's observations, for the photos of its OFI records.
+  observations?: SavedObservation[]
   // The section to open on.
   startAt: string
   onReturn: (sectionId: string) => void
@@ -366,9 +463,10 @@ export function DocumentEdit({
       reference,
       purposeAndScope: summary?.purposeAndScope ?? null,
       ofis,
+      observations,
       onOpen: onReturn,
     }),
-    [reference, summary, ofis, onReturn],
+    [reference, summary, ofis, observations, onReturn],
   )
   if (!report) return <p style={{ padding: '24px 28px', margin: 0 }}>Opening the document…</p>
   return (
@@ -376,6 +474,7 @@ export function DocumentEdit({
       reference={reference}
       report={report}
       parts={parts}
+      assessment={assessment}
       startAt={startAt}
       onReturn={onReturn}
       onReload={onReload}

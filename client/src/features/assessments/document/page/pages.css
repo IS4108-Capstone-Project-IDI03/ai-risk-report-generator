@@ -1,0 +1,408 @@
+/* Marsh's page layout in the document editor (RV-12): Letter pages at their
+   printed size, set in Arial as Marsh's reports are (its metric twins where
+   Arial is missing), with the measurements of Office Sample 5 and Shopping
+   Mall Sample 2 in points. The text is the same editor as the continuous
+   view, restyled; the pages around it are drawn by PageFrame.tsx, and
+   geometry.ts holds the same page figures for the layout. */
+.dm-sheet.is-page {
+  --report-font: Arial, 'Liberation Sans', Arimo, 'Helvetica Neue', Helvetica, sans-serif;
+  --report-text: #202020;
+  --report-rule: #565656;
+  /* The parts drawn by the review screens take the report's face too. */
+  --font-sans: var(--report-font);
+  --font-serif: var(--report-font);
+  width: 612pt;
+  margin: 24px auto 48px;
+  color: var(--report-text);
+  font-family: var(--report-font);
+}
+.dm-sheet.is-page .dm-body {
+  position: relative;
+}
+.dm-sheet.is-page .dm-paper {
+  position: relative;
+  z-index: 1;
+  max-width: none;
+  margin: 0;
+  padding: 72pt 70.85pt 0;
+}
+
+/* The pages behind the text, and what covers the text between two pages:
+   the rest of a page below its last block, its footer, the gap, and the
+   next page's header (and a table header repeated under it). */
+.pg-sheets,
+.pg-bands {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pg-sheets {
+  z-index: 0;
+}
+.pg-bands {
+  z-index: 2;
+}
+.pg-sheet-page {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: #fff;
+  box-shadow: var(--shadow-md);
+}
+.pg-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: #fff;
+  overflow: hidden;
+}
+.pg-gap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--surface-page);
+}
+.pg-repeat {
+  position: absolute;
+}
+.pg-repeat table {
+  margin: 0;
+}
+
+/* A page before the report: the cover, the details page, the contents. */
+.pg-page {
+  position: relative;
+  width: 612pt;
+  height: 792pt;
+  margin-bottom: 24px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--shadow-md);
+  color: var(--report-text);
+  font-family: var(--report-font);
+  user-select: none;
+}
+.pg-text {
+  position: absolute;
+  top: 72pt;
+  left: 70.85pt;
+  right: 70.85pt;
+  bottom: 72pt;
+}
+.pg-header,
+.pg-footer {
+  position: absolute;
+  left: 70.85pt;
+  right: 70.85pt;
+  display: flex;
+  justify-content: space-between;
+  gap: 24pt;
+  font-size: 8pt;
+  line-height: 10pt;
+  color: var(--report-text);
+}
+.pg-header {
+  top: 36pt;
+}
+.pg-header-right {
+  text-align: right;
+}
+.pg-footer {
+  bottom: 28pt;
+  line-height: 9pt;
+}
+.pg-folio {
+  align-self: flex-start;
+}
+
+/* The cover (AC2): Marsh navy, white type. */
+.pg-cover {
+  background: var(--report-navy);
+  color: #fff;
+}
+.pg-cover p {
+  position: absolute;
+  left: 70.85pt;
+  right: 70.85pt;
+  margin: 0;
+}
+.pg-wordmark {
+  top: 56pt;
+  font-size: 22pt;
+  line-height: 26pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.pg-logo {
+  position: absolute;
+  top: 56pt;
+  left: 70.85pt;
+  height: 26pt;
+}
+.pg-cover-title {
+  top: 140pt;
+  max-width: 340pt;
+  font-size: 38pt;
+  line-height: 44pt;
+  font-weight: 700;
+}
+.pg-cover-address {
+  top: 326pt;
+  font-size: 24pt;
+  line-height: 28pt;
+}
+.pg-cover-site {
+  top: 384pt;
+  font-size: 22pt;
+  line-height: 26pt;
+  font-weight: 700;
+}
+.pg-cover-date {
+  top: 428pt;
+  font-size: 14pt;
+  line-height: 17pt;
+}
+.pg-cover-foot {
+  top: auto;
+  bottom: 28pt;
+  font-size: 10pt;
+  line-height: 12pt;
+}
+
+/* The details page (page i). */
+.pg-details {
+  width: 100%;
+  margin-top: 27pt;
+  border-collapse: collapse;
+  font-size: 11pt;
+  line-height: 13pt;
+}
+.pg-details thead th {
+  padding: 3pt 4pt;
+  background: var(--report-navy);
+  color: #fff;
+  font-weight: 400;
+  text-align: left;
+}
+.pg-details tbody th,
+.pg-details tbody td {
+  padding: 3.5pt 4pt;
+  border-bottom: 1px solid var(--report-rule);
+  text-align: left;
+  vertical-align: top;
+}
+.pg-details tbody th {
+  width: 116pt;
+  font-weight: 700;
+}
+.pg-details tbody tr:last-child th,
+.pg-details tbody tr:last-child td {
+  border-bottom-width: 2px;
+}
+
+/* The contents (AC5): numbered sections and bulleted sub-headings, each
+   with dot leaders to the page it starts on. */
+.pg-contents-title {
+  margin: 24pt 0;
+  font-size: 28pt;
+  line-height: 32pt;
+  font-weight: 700;
+  color: var(--report-navy);
+}
+.pg-contents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pg-toc-link {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pg-toc-link:focus-visible {
+  outline: 1px solid var(--border-focus);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.pg-toc-1 .pg-toc-link {
+  height: 30pt;
+  font-size: 11pt;
+  line-height: 13pt;
+}
+.pg-toc-2 .pg-toc-link {
+  height: 24pt;
+  padding-left: 22pt;
+  font-size: 10pt;
+  line-height: 12pt;
+}
+.pg-toc-2 .pg-toc-link::before {
+  content: '•';
+  width: 14pt;
+  flex: none;
+}
+.pg-toc-number {
+  flex: none;
+  min-width: 18pt;
+  padding-right: 4pt;
+}
+.pg-toc-leader {
+  flex: 1;
+  min-width: 12pt;
+  margin: 0 3pt;
+  border-bottom: 1.5px dotted currentColor;
+}
+.pg-toc-page {
+  flex: none;
+}
+
+/* The report's text, set as Marsh sets it. */
+.dm-sheet.is-page .dm-prose {
+  font-family: var(--report-font);
+  font-size: 11pt;
+  line-height: 13pt;
+  color: var(--report-text);
+}
+.dm-sheet.is-page .dm-section {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.dm-sheet.is-page .dm-section + .dm-section {
+  margin-top: 0;
+}
+/* Nothing's top margin escapes the block it opens: a block moved to the
+   next page then moves with all its insides, as measured. */
+.dm-sheet.is-page .dm-prose :is(div, section, figure, ul, ol, li, td, th) > :first-child {
+  margin-top: 0;
+}
+.dm-sheet.is-page .dm-h2 {
+  margin: 0 0 18pt;
+  padding: 0;
+  border: 0;
+  font-family: var(--report-font);
+  font-size: 28pt;
+  line-height: 32pt;
+  font-weight: 700;
+  color: var(--report-navy);
+}
+.dm-sheet.is-page .dm-h2::before {
+  content: attr(data-kicker);
+  display: block;
+  font-size: 18pt;
+  line-height: 22pt;
+  color: var(--report-blue);
+}
+.dm-sheet.is-page .dm-h2-number {
+  display: none;
+}
+.dm-sheet.is-page .dm-h3 {
+  margin: 14pt 0 6pt;
+  font-family: var(--report-font);
+  font-size: 14pt;
+  line-height: 17pt;
+  font-weight: 700;
+  color: var(--report-blue);
+}
+.dm-sheet.is-page .dm-prose h4 {
+  margin: 12pt 0 4pt;
+  font-family: var(--report-font);
+  font-size: 12pt;
+  line-height: 15pt;
+  color: var(--report-text);
+}
+.dm-sheet.is-page .dm-prose p {
+  max-width: none;
+  margin: 0 0 9pt;
+  padding: 0;
+  border-left: 0;
+}
+.dm-sheet.is-page .dm-prose p + p {
+  margin-top: 0;
+}
+.dm-sheet.is-page .dm-prose ul,
+.dm-sheet.is-page .dm-prose ol {
+  margin: 0 0 9pt;
+  padding-left: 18pt;
+}
+.dm-sheet.is-page .dm-prose li + li {
+  margin-top: 0;
+}
+.dm-sheet.is-page .dm-prose li p {
+  margin: 0;
+  padding-left: 0;
+}
+/* Still as drafted: the violet marks it in the margin, not in the measure. */
+.dm-sheet.is-page .dm-prose p.dm-ai {
+  box-shadow:
+    -6pt 0 0 0 var(--ai-bg),
+    -8pt 0 0 0 var(--ai-border);
+}
+/* Notes for the engineer are not part of the report. */
+.dm-sheet.is-page .dm-notice {
+  display: none;
+}
+/* Parts filled in elsewhere read as the report reads them. */
+.dm-sheet.is-page .dm-locked {
+  margin: 0 0 9pt;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.dm-sheet.is-page .dm-locked-bar,
+.dm-sheet.is-page .dm-locked :is(.rv-figures-actions, .rv-proposal-note, details) {
+  display: none;
+}
+.dm-sheet.is-page .dm-locked-body {
+  padding: 0;
+  overflow: visible;
+  font-size: 10pt;
+  line-height: 12pt;
+}
+.dm-sheet.is-page .rv-maturity-scroll {
+  overflow: visible;
+}
+.pg-photo {
+  margin: 0 0 12pt;
+}
+.pg-photo img {
+  display: block;
+  max-width: 100%;
+  max-height: 420pt;
+  margin: 0 auto;
+}
+.pg-photo figcaption {
+  margin-top: 4pt;
+  font-size: 10pt;
+  line-height: 12pt;
+  text-align: center;
+}
+.pg-purpose p {
+  margin: 0 0 9pt;
+}
+.pg-purpose ul {
+  margin: 0 0 9pt;
+  padding-left: 18pt;
+}
+.pg-note {
+  margin: 0 0 9pt;
+  color: var(--text-muted);
+}
+
+/* Below the stacked breakpoint the pages keep their printed size and the
+   view scrolls sideways to them, rather than the whole workspace. */
+@media (max-width: 1080px) {
+  .dm-scroll:has(> .dm-sheet.is-page) {
+    overflow-x: auto;
+  }
+  .dm-sheet.is-page {
+    margin: 16px;
+  }
+}
