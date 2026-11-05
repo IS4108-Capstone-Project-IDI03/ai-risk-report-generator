@@ -418,8 +418,13 @@ it('lets me edit and delete only my own comments, and marks an edited one (AC3)'
   expect(box).toHaveValue('Is this still so?')
   fireEvent.change(box, { target: { value: 'Is this still so after the March works?' } })
   fireEvent.click(within(card).getByRole('button', { name: 'Save' }))
+  // Saved, the box gives way to the comment as edited. (The box itself holds
+  // the same words until then, so the comment is looked for once it has gone.)
+  await waitFor(() =>
+    expect(within(card).queryByRole('textbox', { name: 'Edit comment' })).not.toBeInTheDocument(),
+  )
   expect(
-    await within(card).findByText('Is this still so after the March works?'),
+    within(card).getByText('Is this still so after the March works?', { selector: '.cm-body' }),
   ).toBeInTheDocument()
   expect(within(card).getByText('· Edited')).toBeInTheDocument()
   expect(posted('PATCH', '/t1/comments/c1')).toHaveLength(1)

@@ -296,10 +296,10 @@ describe('the export check: only a complete report goes (AC1)', () => {
       ],
       createdBy: { id: String(engineer._id), name: 'Alex Rowe' },
       metadata: {
-        source_type: 'report_comment_thread',
+        source_type: 'report_comment_thread' as const,
         jurisdiction: 'SG',
         facility_type: 'Warehouse',
-        COPE_dimension: 'all',
+        COPE_dimension: 'all' as const,
         effective_date: new Date(),
       },
     })
