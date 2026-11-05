@@ -2697,6 +2697,22 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               },
             }
           : null,
+      // The Overview's Geolocation card (CP-26): the site, this visit's buildings, and
+      // whether the engineer may change its pins. A record from a gateway
+      // before CP-26 has no pins.
+      ovMap: targetRow?.record
+        ? {
+            site: {
+              id: targetRow.record.site.id,
+              coordinates: targetRow.record.site.coordinates ?? null,
+              pins: targetRow.record.site.pins ?? [],
+            },
+            buildings: groupLocations(places.locations)
+              .filter((g) => g.key.startsWith('building:'))
+              .map((g) => g.title),
+            canEdit: isMine && canCapture && !targetRow.record.site.removed,
+          }
+        : null,
       // A site corrected from the Overview: the work list reads it again, and
       // the header takes its name.
       siteSaved: async (message: string) => {

@@ -4,6 +4,7 @@ import { Badge, Button, Icon } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import type { ReportSection, ReviewSection } from '../api'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
+import { SiteMapCard } from '../components/SiteMapCard'
 import { StatBox, type BoxContent } from '../components/StatBox'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { reportProgress } from '../reviewDisplay'
@@ -329,6 +330,7 @@ function OverviewLayout({ v, report }: { v: AssessmentWorkflow; report: Report }
                   </p>
                 )}
               </section>
+              {v.ovMap && <SiteMapCard {...v.ovMap} onSaved={v.siteSaved} />}
               {/* This assessment's own details, and Edit details (RV-10 AC10). */}
               <section aria-label="Assessment record" style={{ ...card, overflow: 'hidden' }}>
                 <div style={cardHead}>
