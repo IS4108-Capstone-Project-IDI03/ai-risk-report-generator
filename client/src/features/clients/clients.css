@@ -246,7 +246,8 @@
 }
 @media (max-width: 767px), (pointer: coarse) {
   .cl-row-actions :is(button, a),
-  .cl-site-actions :is(button, a) {
+  /* Icon actions only: without this the Restore pill is squeezed into a 44 px circle. */
+  .cl-site-actions :is(.ds-icon-button, a) {
     width: 44px !important;
     height: 44px !important;
   }
