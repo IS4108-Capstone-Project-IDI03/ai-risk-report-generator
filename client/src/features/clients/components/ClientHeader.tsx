@@ -33,8 +33,8 @@ export function ClientHeader({
   tabs: ReactNode
 }) {
   const phone = useIsPhone()
-  // A tablet (768 to 1023 px) is too tight for the words, so Rename and Remove are round icons.
-  const tablet = useCompact() && !phone
+  // Under 820 px the board's labelled Rename and Remove leave the name no room, so they are round icons.
+  const tablet = useCompact(819) && !phone
   const [more, setMore] = useState(false)
   // A refused action stays focusable but inert; its reason shows in a box (board 06 A).
   const pill = (

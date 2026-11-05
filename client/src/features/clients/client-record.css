@@ -622,9 +622,9 @@
     overflow-wrap: break-word;
   }
 }
-/* Tablet is tight, so a smaller title and round Rename and Remove icons leave the name one
-   line, or two at most. Back and the avatar are centred on the title block. */
-@media (min-width: 768px) and (max-width: 1023px) {
+/* Tablet is tight, so a smaller title keeps the name to two lines at most. Back and the avatar
+   are centred on the title block. Up to 1199 px too: the open sidebar leaves the same room there. */
+@media (min-width: 768px) and (max-width: 1199px) {
   .cl-page .ds-topbar-title h1 {
     display: -webkit-box;
     -webkit-box-orient: vertical;
