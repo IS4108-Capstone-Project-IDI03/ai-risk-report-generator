@@ -1,10 +1,12 @@
 """Looks up one passage by id, for the citation panel (CB-02).
 
-Called by app/api/routes.py (GET /passages/{id}). Reads Chroma only; no paid call.
+Called by app/api/routes.py (GET /passages/{id}). Reads Chroma, and a past report's mapping
+from MongoDB (PV-05); no paid call.
 """
 
 from chromadb.errors import NotFoundError
 
+from app.past_reports import with_real_words
 from app.retrieval_config import COLLECTION, chroma_client
 
 
@@ -18,12 +20,16 @@ def get_passage(passage_id: str) -> dict | None:
     found = collection.get(ids=[passage_id], include=["documents", "metadatas"])
     if not found["ids"]:
         return None
-    meta = found["metadatas"][0] or {}
+    # A past report is stored with tags; the panel shows the words the answer quoted.
+    [passage] = with_real_words(
+        [{"id": passage_id, "text": found["documents"][0], "metadata": found["metadatas"][0] or {}}]
+    )
+    meta = passage["metadata"]
     page_start = meta.get("page_start")
     return {
         "id": passage_id,
         "documentId": meta.get("doc_id"),
-        "text": found["documents"][0],
+        "text": passage["text"],
         "headings": list(meta.get("headings") or []),
         "pageStart": page_start,
         "pageEnd": meta.get("page_end"),
