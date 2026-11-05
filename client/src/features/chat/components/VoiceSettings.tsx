@@ -22,7 +22,6 @@ export function VoiceSettings() {
       <IconButton
         icon="settings"
         label="Voice settings"
-        size="sm"
         selected={open}
         onClick={() => setOpen((was) => !was)}
       />

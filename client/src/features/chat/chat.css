@@ -1269,6 +1269,7 @@
 @media (pointer: coarse) {
   .message-actions button,
   .answer-bar button,
+  .voice-input button,
   .fact-row__actions button,
   .version-switcher button {
     min-width: 44px;
@@ -1301,11 +1302,23 @@
   font-size: var(--text-caption-size);
 }
 .voice-input__state {
-  color: var(--text-muted);
+  color: var(--graphite-600);
 }
+/* A failed step, as in design system v2: red icon and short problem, then the fix in grey. */
 .voice-input__note {
-  color: var(--status-high-fg);
-  max-width: 60ch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--graphite-600);
+}
+.voice-input__note strong {
+  color: var(--red-600);
+  font-weight: 600;
+}
+.voice-input__note .ds-icon,
+.voice-input__note > span:first-child {
+  color: var(--red-600);
 }
 .answer-bar {
   flex-wrap: wrap;
@@ -1315,6 +1328,24 @@
   flex: 0 0 100%;
   gap: var(--space-5);
   padding-top: var(--space-4);
+  /* Appears with a short fade and rise (v2 motion: things appearing, 180 ms). */
+  animation: voice-settings-in var(--duration-base) var(--ease-out);
+}
+@keyframes voice-settings-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-settings {
+    animation-name: voice-settings-fade;
+  }
+  @keyframes voice-settings-fade {
+    from {
+      opacity: 0;
+    }
+  }
 }
 .voice-settings > * {
   max-width: 320px;

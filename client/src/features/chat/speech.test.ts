@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isStopWord, loadSettings, micProblem, saveSettings, spokenText } from './speech'
+import { asProblem, isStopWord, loadSettings, micProblem, saveSettings, spokenText } from './speech'
 
 // Node in CI has no localStorage (a laptop's may), so each test brings its own.
 beforeEach(() => {
@@ -35,12 +35,12 @@ describe('voice settings (add-on A)', () => {
 describe('micProblem (CB-10 AC3)', () => {
   it('names plain HTTP, a missing mic and a blocked mic differently', () => {
     vi.stubGlobal('isSecureContext', false)
-    expect(micProblem()).toMatch(/HTTPS/)
+    expect(micProblem()?.fix).toMatch(/HTTPS/)
     vi.stubGlobal('isSecureContext', true)
     vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: vi.fn() } })
     expect(micProblem()).toBeNull()
-    expect(micProblem({ name: 'NotFoundError' })).toMatch(/No microphone/)
-    expect(micProblem({ name: 'NotAllowedError' })).toMatch(/lock icon/)
+    expect(micProblem({ name: 'NotFoundError' })?.problem).toBe('No microphone found')
+    expect(micProblem({ name: 'NotAllowedError' })?.fix).toMatch(/lock icon/)
   })
 })
 
@@ -48,5 +48,15 @@ describe('isStopWord (add-on B)', () => {
   it('matches only a lone "stop"', () => {
     expect(isStopWord(' Stop. ')).toBe(true)
     expect(isStopWord('stop the pump test')).toBe(false)
+  })
+})
+
+describe('asProblem (design system v2 errors)', () => {
+  it('puts the first sentence as the problem and the rest as the fix', () => {
+    expect(asProblem('No speech was heard. Try again closer to the microphone.')).toEqual({
+      problem: 'No speech was heard',
+      fix: 'Try again closer to the microphone.',
+    })
+    expect(asProblem('Too long')).toEqual({ problem: 'Too long', fix: '' })
   })
 })

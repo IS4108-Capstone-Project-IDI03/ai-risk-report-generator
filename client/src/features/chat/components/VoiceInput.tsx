@@ -5,10 +5,18 @@
 import { useThread } from '@openuidev/react-headless'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { IconButton } from '../../../design-system'
+import { Icon, IconButton } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import { transcribeQuestion } from '../api'
-import { answerSpoken, handsFreeTurn, isStopWord, micProblem, useVoiceSettings } from '../speech'
+import {
+  answerSpoken,
+  asProblem,
+  handsFreeTurn,
+  isStopWord,
+  micProblem,
+  useVoiceSettings,
+  type Problem,
+} from '../speech'
 
 // The chat's own box, not the edit box inside a sent question.
 const BOX = '.knowledge-assistant .openui-agent-thread-composer textarea'
@@ -56,7 +64,7 @@ export function VoiceInput() {
   const processMessage = useThread((s) => s.processMessage)
   const [settings, change] = useVoiceSettings()
   const [state, setState] = useState<'idle' | 'recording' | 'working'>('idle')
-  const [note, setNote] = useState('')
+  const [note, setNote] = useState<Problem | null>(null)
   const recorder = useRef<MediaRecorder | null>(null)
   const [host, setHost] = useState<Element | null>(null)
   const [card, setCard] = useState<Element | null>(null)
@@ -84,8 +92,9 @@ export function VoiceInput() {
   )
 
   const start = useCallback(async () => {
-    setNote('')
-    if (micProblem()) return setNote(micProblem()!)
+    setNote(null)
+    const blocked = micProblem()
+    if (blocked) return setNote(blocked)
     let stream: MediaStream
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -105,7 +114,9 @@ export function VoiceInput() {
       try {
         deliver(await transcribeQuestion(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })))
       } catch (error) {
-        setNote(error instanceof GatewayError ? error.message : 'Could not read the recording.')
+        setNote(
+          asProblem(error instanceof GatewayError ? error.message : 'Could not read the recording.'),
+        )
       } finally {
         setState('idle')
       }
@@ -134,11 +145,21 @@ export function VoiceInput() {
       />
     </div>
   )
-  const message = (state !== 'idle' || note) && (
-    <p className={note ? 'voice-input__note' : 'voice-input__state'} role={note ? 'alert' : 'status'}>
-      {note || (state === 'recording' ? 'Listening… stop talking to send' : 'Reading your question…')}
-    </p>
-  )
+  // Errors follow design system v2: a red icon and short problem, then the fix in grey.
+  const message =
+    note ? (
+      <p className="voice-input__note" role="alert">
+        <Icon name="circle-alert" size={16} />
+        <strong>{note.problem}</strong>
+        {note.fix && <span>{note.fix}</span>}
+      </p>
+    ) : (
+      state !== 'idle' && (
+        <p className="voice-input__state" role="status">
+          {state === 'recording' ? 'Listening… stop talking to send' : 'Reading your question…'}
+        </p>
+      )
+    )
   return (
     <>
       {card && createPortal(button, card)}

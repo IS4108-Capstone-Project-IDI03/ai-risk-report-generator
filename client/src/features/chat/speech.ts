@@ -59,15 +59,30 @@ export function useVoiceSettings() {
   return [settings, (change: Partial<VoiceSettings>) => saveSettings({ ...settings, ...change })] as const
 }
 
-/** Why the microphone cannot be used, in words that say what to do; null when it can. */
-export function micProblem(error?: unknown): string | null {
+/** What went wrong and what to do about it, as design system v2 shows errors: a short problem, then the fix. */
+export type Problem = { problem: string; fix: string }
+
+/** Splits a gateway message ("No speech was heard. Try again.") into its problem and fix. */
+export function asProblem(message: string): Problem {
+  const [problem, ...rest] = message.split(/(?<=\.)\s+/)
+  return { problem: problem.replace(/\.$/, ''), fix: rest.join(' ') }
+}
+
+/** Why the microphone cannot be used; null when it can. */
+export function micProblem(error?: unknown): Problem | null {
   // Browsers allow the microphone only on HTTPS or localhost (Marsh's note on plain HTTP).
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)
-    return 'Your browser blocks the microphone on this page because it is not secure (HTTP). Open the app over HTTPS, or on localhost.'
+    return {
+      problem: 'Microphone unavailable here',
+      fix: 'This page is not secure (HTTP). Open the app over HTTPS, or on localhost.',
+    }
   if (error && (error as { name?: string }).name === 'NotFoundError')
-    return 'No microphone was found. Plug one in and try again.'
+    return { problem: 'No microphone found', fix: 'Plug one in, then try again.' }
   if (error)
-    return 'The microphone is blocked. Click the lock icon in the address bar, allow the microphone for this site, then try again.'
+    return {
+      problem: 'Microphone blocked',
+      fix: 'Allow it from the lock icon in the address bar, then try again.',
+    }
   return null
 }
 
