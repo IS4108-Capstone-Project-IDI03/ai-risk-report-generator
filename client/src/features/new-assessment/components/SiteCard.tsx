@@ -1,12 +1,14 @@
 // One site's card in the New Assessment form (CP-23, boards 08, 12): pin
 // tile, its name (New badge for a site not yet recorded) and Remove site;
 // a new site's Site name | Jurisdiction | Facility type, then
-// Address; then each assessment and "Add assessment". Used by
+// Address, then its optional Coordinates and map (CP-26); then each assessment and "Add assessment". Used by
 // screens/NewAssessmentForm.tsx.
 import { useState } from 'react'
 import { AddRow, Icon, IconButton, NewBadge, toast } from '../../../design-system'
 import { plural } from '../../clients/formatClient'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { SiteMapView } from '../../assessments/components/SiteMapView'
+import { formatCoordinates, parseCoordinates } from '../../assessments/googleMaps'
 import {
   copyAt,
   docsOn,
@@ -38,6 +40,7 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
   const placed = docsOn(form, site)
   const filled = !!(site.name.trim() || site.address.trim() || placed)
   const copy = copyAt(form, site, f.sitesOf)
+  const point = parseCoordinates(site.coordinates)
   return (
     <section className="na-card" aria-label={'Site ' + (i + 1)}>
       <div className="na-card-head">
@@ -99,6 +102,20 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
             notSure={notSure('address')}
             error={f.errors[path + 'address']}
             onChange={(e) => f.setSite(i, { address: e.target.value })}
+          />
+          {/* Optional, so an engineer without them isn't held up (CP-26). */}
+          <TextField
+            label="Coordinates"
+            iconLeft="crosshair"
+            placeholder="Click the map, or paste e.g. 1.2966, 103.8520"
+            value={site.coordinates}
+            error={f.errors[path + 'coordinates']}
+            onChange={(e) => f.setSite(i, { coordinates: e.target.value })}
+          />
+          <SiteMapView
+            label={'Map to place site ' + (i + 1)}
+            pins={point ? [{ ...point, label: 'S', title: 'Site' }] : []}
+            onPick={(p) => f.setSite(i, { coordinates: formatCoordinates(p) })}
           />
         </div>
       )}

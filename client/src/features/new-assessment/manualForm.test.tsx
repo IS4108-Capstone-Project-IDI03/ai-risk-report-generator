@@ -381,3 +381,38 @@ describe('New Assessment by hand (CP-23)', () => {
     expect(screen.getByRole('button', { name: /^Fill in the form/ })).toHaveFocus()
   })
 })
+
+describe('A new site on the map (CP-26)', () => {
+  const body = () =>
+    sent('POST', '/api/assessments')[0].body as { sites: Record<string, unknown>[] }
+  const assessments = () => json(201, { clientId: 'c9', assessments: [created('RPT-2026-0900')] })
+
+  it('sends pasted coordinates with the new site (AC2)', async () => {
+    gateway({ 'GET /api/clients': () => json(200, []), 'POST /api/assessments': assessments })
+    const { onCreated } = open()
+    fillNewClient()
+    type(within(site(1)).getByLabelText(/^Coordinates/), '1.2966, 103.8520')
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalled())
+    expect(body().sites[0].coordinates).toEqual({ lat: 1.2966, lng: 103.852 })
+  })
+
+  it('creates a site without coordinates as before (AC4)', async () => {
+    gateway({ 'GET /api/clients': () => json(200, []), 'POST /api/assessments': assessments })
+    const { onCreated } = open()
+    fillNewClient()
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalled())
+    expect(body().sites[0]).not.toHaveProperty('coordinates')
+  })
+
+  it('names coordinates it cannot read, and creates nothing (AC3)', async () => {
+    gateway({ 'GET /api/clients': () => json(200, []), 'POST /api/assessments': assessments })
+    open()
+    fillNewClient()
+    type(within(site(1)).getByLabelText(/^Coordinates/), '91, 103')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Create' })))
+    expect(within(site(1)).getByText(/Enter coordinates such as/)).toBeInTheDocument()
+    expect(sent('POST', '/api/assessments')).toHaveLength(0)
+  })
+})

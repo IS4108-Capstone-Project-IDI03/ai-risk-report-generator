@@ -1,0 +1,112 @@
+/* The site map (CP-26), on the Overview and the create form. */
+.sm-map {
+  height: 280px;
+  background: var(--surface-sunken);
+}
+.na-site-fields .sm-map {
+  border-radius: var(--radius-field);
+  overflow: hidden;
+}
+.sm-unavailable,
+.sm-problem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+.sm-unavailable {
+  padding: 12px 20px;
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+}
+.sm-problem {
+  padding: 8px 20px 0;
+  color: var(--red-600);
+}
+.sm-card {
+  overflow: hidden;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.sm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+}
+.sm-placing {
+  padding: 12px 20px 0;
+  font-size: 14px;
+}
+.sm-placing p {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+}
+.sm-placing-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sm-placing-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.sm-rows {
+  margin: 0;
+  padding: 8px 20px 12px;
+  list-style: none;
+}
+.sm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+.sm-row + .sm-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.sm-row a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.sm-badge {
+  flex: 0 0 24px;
+  height: 24px;
+  border-radius: 50%;
+  font: 12px/24px var(--font-mono);
+  text-align: center;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+}
+.sm-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sm-name small {
+  display: block;
+  font: 12px/16px var(--font-mono);
+  color: var(--text-muted);
+}
+.sm-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+@media (max-width: 760px) {
+  .sm-row {
+    flex-wrap: wrap;
+  }
+  .sm-name {
+    flex-basis: calc(100% - 34px);
+  }
+}

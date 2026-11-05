@@ -3,6 +3,7 @@
 // helpers only. Called by useNewAssessment.ts and the screen's components.
 import type { AssessmentType } from '../../design-system'
 import type { Assessment, ClientSite } from '../assessments/api'
+import { parseCoordinates } from '../assessments/googleMaps'
 import type { IntakeResult, NewAssessments, Placement, VisitType } from './api'
 
 // One line on each assessment type, for the (?) beside the type control (AC18).
@@ -37,6 +38,8 @@ export type FormSite = {
   copyLocations: boolean
   name: string
   address: string
+  // As typed or dropped on the map (CP-26): '' for none.
+  coordinates: string
   jurisdiction: string
   facilityType: string
   assessments: FormAssessment[]
@@ -93,6 +96,7 @@ export function blankSite(choice = ''): FormSite {
     copyLocations: true,
     name: '',
     address: '',
+    coordinates: '',
     jurisdiction: 'SG',
     facilityType: '',
     assessments: [blankAssessment()],
@@ -145,6 +149,7 @@ export function formFromResult(
       })
       return {
         ...site.values,
+        coordinates: '',
         notSure: s.existingId ? [] : site.notSure,
         ref: s.ref,
         choice: s.existingId ?? (existing ? NEW_SITE : ''),
@@ -262,6 +267,7 @@ export function toBody(form: Form, sitesOf?: ClientSite[]): NewAssessments {
         ? {
             name: s.name.trim(),
             address: s.address.trim(),
+            ...(s.coordinates.trim() && { coordinates: parseCoordinates(s.coordinates)! }),
             jurisdiction: s.jurisdiction,
             facilityType: s.facilityType,
           }

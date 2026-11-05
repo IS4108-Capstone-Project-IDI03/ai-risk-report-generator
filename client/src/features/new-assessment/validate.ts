@@ -3,6 +3,7 @@
 // field paths, e.g. "sites.0.assessments.1.visitType" (must match its 400
 // `fields`). Called by useNewAssessment.ts.
 import type { ClientSite } from '../assessments/api'
+import { parseCoordinates } from '../assessments/googleMaps'
 import { sameName } from '../assessments/locations'
 import { firstSurveyOnly, isNewSite, type Form } from './form'
 
@@ -39,6 +40,8 @@ export function validate(
       if (!site.jurisdiction) errors[at + 'jurisdiction'] = 'Choose a jurisdiction'
       if (!site.facilityType) errors[at + 'facilityType'] = 'Choose a facility type'
       if (!site.address.trim()) errors[at + 'address'] = 'Add the address'
+      if (site.coordinates.trim() && !parseCoordinates(site.coordinates))
+        errors[at + 'coordinates'] = 'Enter coordinates such as 1.2966, 103.8520'
     }
     site.assessments.forEach((a, j) => {
       const field = `${at}assessments.${j}.`
