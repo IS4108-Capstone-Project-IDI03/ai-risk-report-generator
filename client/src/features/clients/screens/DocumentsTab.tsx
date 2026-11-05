@@ -115,6 +115,7 @@ export function DocumentsTab({
       />
       <FilterMenu
         name="Tag"
+        icon="tag"
         choices={tags.map((t) => ({
           value: t.label,
           label: t.label,

@@ -16,7 +16,7 @@ const STARTS: { mode: StartMode; icon: string; label: string; note: string; tile
   },
   {
     mode: 'documents',
-    icon: 'file-up',
+    icon: 'upload',
     label: 'Start from client documents',
     note: 'Add their emails and letters. The form fills itself in.',
     tile: 'nab-tile--docs',

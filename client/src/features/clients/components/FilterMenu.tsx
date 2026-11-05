@@ -8,12 +8,14 @@ export type Choice = { value: string; label: string; icon?: string; color?: stri
 
 export function FilterMenu({
   name,
+  icon,
   choices,
   value,
   onChange,
 }: {
   // The pill's text when nothing is chosen, e.g. "Status".
   name: string
+  icon?: string
   choices: Choice[]
   // The chosen value, or '' for any.
   value: string
@@ -36,6 +38,7 @@ export function FilterMenu({
       surfaceClassName="cl-filter-menu"
       trigger={
         <FilterPill
+          icon={icon}
           label={chosen ? chosen.label : name}
           aria-label={chosen ? `${name}: ${chosen.label}` : name}
           aria-haspopup="listbox"

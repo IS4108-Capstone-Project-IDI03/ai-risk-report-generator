@@ -21,12 +21,14 @@ export function SearchField({ label, className, ...rest }: SearchFieldProps) {
 export type FilterPillProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   // Current filter text, e.g. "Status" or "Draft".
   label: string
+  icon?: string
 }
 
 /** Returns a grey pill button with a chevron; the host opens its menu from onClick. */
-export function FilterPill({ label, ...rest }: FilterPillProps) {
+export function FilterPill({ label, icon, ...rest }: FilterPillProps) {
   return (
     <button type="button" className="ds-filter-pill" {...rest}>
+      {icon && <Icon name={icon} size={16} />}
       {label}
       <Icon name="chevron-down" size={16} />
     </button>
