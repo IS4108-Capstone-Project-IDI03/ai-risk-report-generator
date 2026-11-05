@@ -221,7 +221,7 @@
   max-height: 100svh;
   border: 0;
   border-radius: 0;
-  background: var(--report-navy);
+  background: var(--surface-nav);
 }
 .navigation-drawer .ds-dialog-close {
   color: #fff;

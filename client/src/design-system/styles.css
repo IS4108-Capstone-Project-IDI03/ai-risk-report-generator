@@ -165,13 +165,13 @@
   }
 }
 
-/* The sidebar (SideNav, CP-23 board 02 option A): Marsh navy, white wordmark,
-   pale-blue labels, blue-green mark on the current page. Collapsed it is a 56px
-   icon rail. The three colours below come from board 02 and are used only here. */
+/* The sidebar (SideNav, CP-23 board 02 option A): navy, white and one light blue only, to
+   keep it quiet. Quieter white labels, a white mark on the current page, a light blue avatar.
+   Collapsed it is a 56px icon rail. */
 .ds-sidenav {
   --sn-bg: var(--surface-nav);
-  --sn-label: #a7e2f0;
-  --sn-mark: #00a8c7;
+  --sn-label: rgb(255 255 255 / 0.72);
+  --sn-mark: #fff;
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
@@ -347,12 +347,15 @@
   color: #fff;
 }
 .ds-sidenav .user-footer small {
+  overflow: hidden;
   color: var(--sn-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ds-sidenav .user-footer .user-avatar {
   width: 32px;
   height: 32px;
-  background: var(--sn-label);
+  background: var(--ink-100);
   color: var(--marsh-navy);
   font-weight: 700;
 }

@@ -72,7 +72,7 @@ The point of this system is **consistency**. The same kind of information looks 
 - **Keyboard-only focus ring.** The navy focus ring shows for keyboard use only (`:focus-visible`), never after a mouse click, on every control.
 - **A toast for every confirmed action.** Create, save, delete, archive, upload and restore each show a toast (section 7), so the state is always clear.
 - **Collapsed sidebar = full width.** When the sidebar collapses, the page content fills the full width, keeping its 32 px side padding. Check every screen with the sidebar open AND collapsed.
-- **Layout.** Navy sidebar on the left. A white top bar holds the round Back button (section 6) beside the eyebrow and page title, the main action (top right) and the bell. Page background `--graphite-50`, cards white.
+- **Layout.** Navy sidebar on the left, in navy, white and one light blue only (the avatar), with no accent colours. A white top bar holds the round Back button (section 6) beside the eyebrow and page title, the main action (top right) and the bell. Page background `--graphite-50`, cards white.
 - **One list frame.** Every list screen: top bar with one helper line under the title (what the page is for), then a 64 px toolbar (search, filter pills, a labelled sort pill, the main button at the right end), so every list's header row starts at the same height.
 - **No filler copy.** No captions explaining the obvious ("Kept under the client"), no counts in page headers; the one helper line under a list's title is the exception. Counts live in the table footer ("5 assessments · 3 reports late", the late count is a filter link). Help goes behind a (?) icon.
 - **Words.** Plain English, short. Use "assessment type" (First survey, Resurvey, Follow-up); never "visit". Errors say what's wrong in ≤ 4 words, then the fix.
@@ -81,7 +81,7 @@ The point of this system is **consistency**. The same kind of information looks 
 - **Dates.** Typed and shown as dd/mm/yyyy in forms; tables and pages show "12 Nov 2026".
 - **Not-sure values** (AI-filled, needs a look): amber border and tint with one 16 px warning icon, centred in the field, 12 px from its right edge (8 px left of a dropdown's chevron), no caption.
 - **No "made by AI" labels.** New screens don't mark things just because the AI made them: no "AI draft", "AI-generated" or "AI proposal" badges and no AI tint or rule on AI-written text. Violet itself is fine for anything it already means (statuses, the site walk proposal, division chips, email tiles). Existing screens stay as they are.
-- **Phone.** Everything works at 375 px: no sideways scroll, 44 px tap targets, 16 px text in inputs (no zoom on focus), safe areas (`viewport-fit=cover`), tables reflow, dialogs fit, and popovers and menus become sheets under 768 px (`mobile-native` skill). The phone top bar is `#002c77` with the stacked wordmark; the drawer is the desktop sidebar.
+- **Phone.** Everything works at 375 px: no sideways scroll, 44 px tap targets, 16 px text in inputs (no zoom on focus), safe areas (`viewport-fit=cover`), tables reflow, dialogs fit, and popovers and menus become sheets under 768 px (`mobile-native` skill). The phone top bar is the sidebar's navy (`--surface-nav`) with the stacked wordmark; the drawer is the desktop sidebar.
 
 ## 3. Colour
 
@@ -213,7 +213,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
 - **Changelog:**
   - v2.0 (4 Nov 2026, CP-23): first version from the CP-23 canvas.
   - v2.1 (5 Nov 2026, CP-23 feedback rounds 7–16): tooltips name the action only; grey out and explain (reason box); hover by background; keyboard-only focus ring; one list frame with a helper line; first column left, the rest centred; labelled sort; "just changed" row; dates as dd/mm/yyyy in forms; Not-sure icon placement; Back button, date picker, sheets, sticky action bar, Apple dialog (look, copy and motion), long lists in popovers, Found so far; one date cell for Report due and Next survey; toast tick and width; the full motion set with its rules (replaces the seven-motion list, and "no shake" becomes one shake on a repeated error).
-  - v2.2 (5 Nov 2026): sidebar and phone drawer back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover.
+  - v2.2 (5 Nov 2026): sidebar, phone drawer and phone top bar back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover; sidebar is navy, white and one light blue, 224 px wide so a role fits on one line.
 
 ## 10. When this file says nothing
 

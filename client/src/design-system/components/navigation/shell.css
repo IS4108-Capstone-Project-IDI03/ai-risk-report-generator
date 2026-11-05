@@ -58,7 +58,7 @@
   height: 56px;
   padding: env(safe-area-inset-top) max(8px, env(safe-area-inset-right)) 0
     max(8px, env(safe-area-inset-left));
-  background: var(--report-navy, #002c77);
+  background: var(--surface-nav);
   color: #fff;
 }
 .ds-phonebar-button {
@@ -96,7 +96,7 @@
   letter-spacing: 0.02em;
 }
 .ds-phonebar-sub {
-  color: #a7e2f0;
+  color: rgb(255 255 255 / 0.72);
   font-size: 11px;
   white-space: nowrap;
 }
