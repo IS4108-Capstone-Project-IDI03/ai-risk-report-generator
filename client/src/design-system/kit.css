@@ -682,7 +682,8 @@
   position: absolute;
   top: 18px;
   right: 18px;
-  border-radius: 50%;
+  /* !important: IconButton sets its own radius inline, which would keep it square. */
+  border-radius: 50% !important;
   background: rgb(0 15 71 / 0.05);
 }
 .ds-dialog--v2 .ds-dialog-body {
