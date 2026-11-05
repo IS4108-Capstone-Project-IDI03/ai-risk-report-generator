@@ -22,7 +22,8 @@ def mask(texts, known=(), mapping=None):
         body["mapping"] = mapping
     response = client.post("/mask", json=body)
     assert response.status_code == 200, response.text
-    return response.json()
+    # Texts and mapping only; test_says_where_each_detail_sits covers the spans.
+    return {key: value for key, value in response.json().items() if key != "spans"}
 
 
 NUS = {"type": "CLIENT", "names": ["NUS", "National University of Singapore"]}
@@ -192,3 +193,33 @@ def test_a_plate_needs_its_check_letter():
     note = "Pump model PU 104 K, valve set FM 200 B."
     assert mask([note]) == {"texts": [note], "mapping": {}}
     assert mask(["Owner's IC S1234567D."])["texts"] == ["Owner's IC [NRIC_1]."]
+
+
+def test_a_known_value_of_any_type_is_masked_wherever_it_appears():
+    # PV-05: rag lists the values restored from a past report, so they are masked again even
+    # where detection alone would miss them: no phone word nearby, or a name ending in a dot.
+    known = [
+        {"type": "PHONE", "names": ["91234567"]},
+        {"type": "CLIENT", "names": ["Acme Pte. Ltd."]},
+    ]
+    assert mask(["Acme Pte. Ltd. gave 91234567 for after hours."], known) == {
+        "texts": ["[CLIENT_1] gave [PHONE_1] for after hours."],
+        "mapping": {"[CLIENT_1]": "Acme Pte. Ltd.", "[PHONE_1]": "91234567"},
+    }
+
+
+def test_says_where_each_detail_sits():
+    # PV-05: the ingestion redactor finds each detail's word boxes in a PDF from these offsets.
+    john = {"type": "PERSON", "names": ["John Tan"]}
+    response = client.post(
+        "/mask",
+        json={"texts": ["Call John Tan on +65 9123 4567", "No details here."],
+              "known_entities": [john]},
+    )  # fmt: skip
+    assert response.json()["spans"] == [
+        [
+            {"start": 5, "end": 13, "placeholder": "[PERSON_1]"},
+            {"start": 17, "end": 30, "placeholder": "[PHONE_1]"},
+        ],
+        [],
+    ]
