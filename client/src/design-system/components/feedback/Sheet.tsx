@@ -29,6 +29,10 @@ export type SheetProps = {
   children?: ReactNode
   // A centred card over the scrim (fade + scale) instead of sliding up from the bottom.
   centred?: boolean
+  // Content mode: a grey line under the title (the file being tagged) ...
+  subtitle?: string
+  // ... and a Cancel button at the bottom in place of the close tick (board 23).
+  cancel?: boolean
 }
 
 const EXIT_MS = 200
@@ -50,7 +54,16 @@ export function useIsPhone() {
 }
 
 /** Returns the sheet, portalled to the body; renders nothing when closed (after the exit fade). */
-export function Sheet({ open, onClose, title, actions, children, centred }: SheetProps) {
+export function Sheet({
+  open,
+  onClose,
+  title,
+  actions,
+  children,
+  centred,
+  subtitle,
+  cancel,
+}: SheetProps) {
   const panel = useRef<HTMLDivElement>(null)
   // Keep it mounted for the exit motion; jsdom cannot animate, so it unmounts at once there.
   const canAnimate = typeof Element !== 'undefined' && 'animate' in Element.prototype
@@ -112,7 +125,7 @@ export function Sheet({ open, onClose, title, actions, children, centred }: Shee
         <span className="ds-sheet-grabber" aria-hidden="true" />
         <div className="ds-sheet-head">
           <h2>{title}</h2>
-          {actions ? null : (
+          {actions || cancel ? null : (
             <IconButton
               icon="check"
               label="Close"
@@ -122,6 +135,7 @@ export function Sheet({ open, onClose, title, actions, children, centred }: Shee
             />
           )}
         </div>
+        {subtitle ? <p className="ds-sheet-sub">{subtitle}</p> : null}
         {actions ? (
           <>
             <div className="ds-sheet-rows">
@@ -154,7 +168,14 @@ export function Sheet({ open, onClose, title, actions, children, centred }: Shee
             </button>
           </>
         ) : (
-          <div className="ds-sheet-body">{children}</div>
+          <>
+            <div className="ds-sheet-body">{children}</div>
+            {cancel ? (
+              <button type="button" className="ds-sheet-cancel" onClick={onClose}>
+                Cancel
+              </button>
+            ) : null}
+          </>
         )}
       </div>
     </div>,

@@ -20,6 +20,7 @@ export function SortPill({
       type="button"
       className="ds-filter-pill at-sort"
       aria-label={`${name}: ${label}`}
+      title={label}
       {...rest}
     >
       <Icon name="arrow-up-down" size={16} />

@@ -216,7 +216,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
 - **Changelog:**
   - v2.0 (4 Nov 2026, CP-23): first version from the CP-23 canvas.
   - v2.1 (5 Nov 2026, CP-23 feedback rounds 7–16): tooltips name the action only; grey out and explain (reason box); hover by background; keyboard-only focus ring; one list frame with a helper line; first column left, the rest centred; labelled sort; "just changed" row; dates as dd/mm/yyyy in forms; Not-sure icon placement; Back button, date picker, sheets, sticky action bar, Apple dialog (look, copy and motion), long lists in popovers, Found so far; one date cell for Report due and Next survey; toast tick and width; the full motion set with its rules (replaces the seven-motion list, and "no shake" becomes one shake on a repeated error).
-  - v2.2 (5 Nov 2026): sidebar, phone drawer and phone top bar back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover; sidebar is navy, white and one light blue, 224 px wide so a role fits on one line.
+  - v2.2 (5 Nov 2026): sidebar, phone drawer and phone top bar back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover; sidebar is navy, white and one light blue, 224 px wide so a role fits on one line. Phone lists run edge to edge with fixed due columns; the phone All view shows Client › Site under the reference. On tablets (768–1023 px) Rename and Remove are round icon buttons, and Sort drops to its icon only where a labelled pill would squeeze search under 96 px.
 
 ## 10. When this file says nothing
 

@@ -1246,6 +1246,10 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
+  /* The fading old words are hidden with the new ones, or they flash mid-change. */
+  .na-file .ds-reading-was {
+    display: none;
+  }
   .na-hint {
     display: none;
   }

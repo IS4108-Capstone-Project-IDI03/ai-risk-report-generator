@@ -87,8 +87,15 @@ export function DocumentRow({
               },
             ]}
           />
-          <Sheet open={tagging} onClose={() => setTagging(false)} title="Tag this document">
+          <Sheet
+            open={tagging}
+            onClose={() => setTagging(false)}
+            title="Tag this document"
+            subtitle={doc.name}
+            cancel
+          >
             <TagPicker
+              radios
               options={tagOptions}
               value={tagOptions.find((o) => o.label === doc.tag)?.value}
               onChange={(value) => {

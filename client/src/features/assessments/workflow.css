@@ -205,6 +205,13 @@
   border-radius: var(--radius-lg);
   border: 3px solid var(--surface-card);
 }
+/* The page's own scroller (the app's main area) shows no bar: a bar beside the white header
+   left a 10 px grey strip, and a bar appearing would shift every page. Wheel, touch and
+   keyboard scrolling work as before; the inner panels above keep their bars. */
+main.om-scroll {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
 @media (max-width: 767px) {
   .workflow main {
     overflow-x: hidden !important;

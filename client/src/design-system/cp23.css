@@ -158,9 +158,17 @@
   margin: 0;
   min-width: 0;
   overflow: hidden;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--marsh-navy);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-sheet-sub {
+  margin: 0;
+  overflow: hidden;
+  color: var(--graphite-600);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -495,12 +503,16 @@
   min-width: 120px;
 }
 
-/* Toast: icon centred on the first text line */
+/* Toast: the icon shares the first text line's centre. One line (even with an action button
+   that makes the row taller): centred with it; with a description under it: at the top. */
 .ds-toast-icon {
-  align-self: flex-start;
+  align-self: center;
   align-items: center;
   height: 19px;
   margin-top: 0;
+}
+.ds-toast:has([data-description]) .ds-toast-icon {
+  align-self: flex-start;
 }
 
 /* Phones: 44 px fields, 16 px text (stops iOS zooming on focus), chip-size status pill */

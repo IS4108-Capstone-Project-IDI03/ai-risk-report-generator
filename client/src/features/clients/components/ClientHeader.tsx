@@ -4,7 +4,8 @@
 // panel, not here. On a phone: no avatar, a round + and a ⋯ that opens the More sheet.
 // Called by screens/ClientRecord. Calls TopBar, Button, Sheet.
 import { useState, type ReactNode } from 'react'
-import { Button, IconButton, Sheet, TopBar, useIsPhone } from '../../../design-system'
+import { Button, IconButton, Sheet, Tooltip, TopBar, useIsPhone } from '../../../design-system'
+import { useCompact } from '../../assessments/useCompact'
 import { ClientAvatar } from './ClientAvatar'
 
 // Rename or Remove: whether the engineer may, and if not why, and what opens it.
@@ -32,6 +33,8 @@ export function ClientHeader({
   tabs: ReactNode
 }) {
   const phone = useIsPhone()
+  // A tablet (768 to 1023 px) is too tight for the words, so Rename and Remove are round icons.
+  const tablet = useCompact() && !phone
   const [more, setMore] = useState(false)
   // A refused action stays focusable but inert; its reason shows in a box (board 06 A).
   const pill = (
@@ -40,20 +43,41 @@ export function ClientHeader({
     icon: string,
     blocked: string,
     danger?: boolean,
-  ) => (
-    <Button
-      pill
-      variant={danger && a.allowed ? 'danger-tonal' : 'pill'}
-      iconLeft={icon}
-      aria-label={label}
-      disabledReason={
-        a.allowed ? undefined : { title: blocked, text: a.reason ?? "You can't do this here." }
-      }
-      onClick={a.open}
-    >
-      {label.split(' ')[0]}
-    </Button>
-  )
+  ) => {
+    const reason = a.allowed
+      ? undefined
+      : { title: blocked, text: a.reason ?? "You can't do this here." }
+    if (tablet) {
+      const round = (
+        <IconButton
+          icon={icon}
+          label={label}
+          title={undefined}
+          disabledReason={reason}
+          onClick={a.open}
+          style={{
+            borderRadius: 999,
+            background: danger && a.allowed ? 'var(--red-50)' : 'var(--graphite-100)',
+            color: danger && a.allowed ? 'var(--action-danger)' : 'var(--graphite-600)',
+          }}
+        />
+      )
+      // A refused one shows its reason box instead of a tooltip.
+      return a.allowed ? <Tooltip label={label}>{round}</Tooltip> : round
+    }
+    return (
+      <Button
+        pill
+        variant={danger && a.allowed ? 'danger-tonal' : 'pill'}
+        iconLeft={icon}
+        aria-label={label}
+        disabledReason={reason}
+        onClick={a.open}
+      >
+        {label.split(' ')[0]}
+      </Button>
+    )
+  }
   const back = { label: 'Back to Clients', onClick: onBack }
   if (phone)
     return (
@@ -120,7 +144,7 @@ export function ClientHeader({
       back={back}
       lead={<ClientAvatar name={name} />}
       eyebrow="Clients"
-      title={name}
+      title={<span title={name}>{name}</span>}
       action={
         <span className="cl-header-actions">
           {rename && pill(rename, 'Rename client', 'pencil', "Can't rename yet")}

@@ -144,6 +144,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A single-word Tag ends in … at the pill's edge (flex text can't); a "ref · site" tag keeps its reference whole. */
+.ds-tag-pill-text:not(:has(.ds-tag-pill-ref)) {
+  display: block;
+}
 .ds-tag-pill-ref {
   flex: 0 0 auto;
 }
@@ -216,6 +220,39 @@
   .ds-menu-item {
     min-height: 44px;
   }
+}
+/* Tag picker as radio rows in a phone sheet (board 23): 16 px text, a ring that fills navy
+   with a white tick on the current one. */
+.ds-menu--radios {
+  max-height: none;
+  min-width: 0;
+  padding: 0;
+}
+.ds-menu--radios .ds-menu-item {
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 4px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--graphite-100);
+  font-size: 16px;
+}
+.ds-menu--radios > div:last-child .ds-menu-item:last-child {
+  border-bottom: 0;
+}
+.ds-radio-dot {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--graphite-300);
+  border-radius: 50%;
+  color: #fff;
+}
+.ds-radio-dot[data-on] {
+  border-color: var(--marsh-navy);
+  background: var(--marsh-navy);
 }
 
 /* Popover motion: scale from 0.97 + fade, 180 ms in, 120 ms out (v2 section 8). Uses the

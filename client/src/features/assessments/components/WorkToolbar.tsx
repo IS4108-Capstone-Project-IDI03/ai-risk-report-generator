@@ -7,6 +7,7 @@ import {
   SearchField,
   SegmentedControl,
   statusLook,
+  useIsPhone,
 } from '../../../design-system'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
 import type { DateFilter } from '../types'
@@ -60,46 +61,52 @@ function Filter({
 
 // `compact` (under 1024 px): New assessment lives in the top bar instead (screens/Dashboard).
 export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: boolean }) {
+  // A tablet's search is squeezed by the pills, so it says only "Search"; a phone has its own full row.
+  const phone = useIsPhone()
+  const tablet = compact && !phone
   return (
     <div className="at-toolbar">
       <SearchField
         className="at-search"
         label="Search assessments"
-        placeholder="Search site, client or report ID"
+        placeholder={tablet ? 'Search' : 'Search site, client or report ID'}
         value={v.q}
         onChange={v.setQ}
       />
       <div className="at-pills">
-        <Filter
-          name="Status"
-          // Each status wears the icon and colour of its pill, so the two read as one thing.
-          choices={v.statusOptions.map((value) => {
-            const { icon, fg } = statusLook(value)
-            return { value, label: value, icon, color: fg }
-          })}
-          value={v.statusFilter}
-          onChoose={v.setStatusFilter}
-        />
-        <Filter
-          name="Report due"
-          choices={DUE_CHOICES}
-          value={v.dateFilter ?? ''}
-          onChoose={(value) => v.setDateFilter((value || null) as DateFilter | null)}
-        />
-        <Filter
-          name="Type"
-          choices={v.visitTypeOptions.map((value) => {
-            const name = typeName(value)
-            return {
-              value,
-              label: name,
-              icon: ASSESSMENT_TYPES[name].icon,
-              color: ASSESSMENT_TYPES[name].fg,
-            }
-          })}
-          value={v.visitType}
-          onChoose={v.setVisitType}
-        />
+        {/* Own wrapper so a tablet can scroll the filters while Sort stays in view. */}
+        <div className="at-filters">
+          <Filter
+            name="Status"
+            // Each status wears the icon and colour of its pill, so the two read as one thing.
+            choices={v.statusOptions.map((value) => {
+              const { icon, fg } = statusLook(value)
+              return { value, label: value, icon, color: fg }
+            })}
+            value={v.statusFilter}
+            onChoose={v.setStatusFilter}
+          />
+          <Filter
+            name="Report due"
+            choices={DUE_CHOICES}
+            value={v.dateFilter ?? ''}
+            onChoose={(value) => v.setDateFilter((value || null) as DateFilter | null)}
+          />
+          <Filter
+            name="Type"
+            choices={v.visitTypeOptions.map((value) => {
+              const name = typeName(value)
+              return {
+                value,
+                label: name,
+                icon: ASSESSMENT_TYPES[name].icon,
+                color: ASSESSMENT_TYPES[name].fg,
+              }
+            })}
+            value={v.visitType}
+            onChoose={v.setVisitType}
+          />
+        </div>
         <ChoiceMenu
           label="Sort assessments"
           align="right"

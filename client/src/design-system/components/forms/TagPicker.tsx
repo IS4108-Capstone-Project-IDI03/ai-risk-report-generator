@@ -14,6 +14,8 @@ export type TagPickerProps = {
   options: TagOption[]
   value?: string
   onChange: (value: string) => void
+  // Phone sheet (board 23): plain radio rows, no group headings or icons.
+  radios?: boolean
 }
 
 export const GROUPS = [
@@ -23,7 +25,7 @@ export const GROUPS = [
 ] as const
 
 /** Returns the menu; the chosen option is ticked and onChange gets its value. */
-export function TagPicker({ options, value, onChange }: TagPickerProps) {
+export function TagPicker({ options, value, onChange, radios = false }: TagPickerProps) {
   // One tab stop: the chosen option, or the first when none is chosen.
   const stop = options.some((o) => o.value === value) ? value : options[0]?.value
   // Up/Down/Home/End move focus between options; the selected one is scrolled into view.
@@ -38,13 +40,18 @@ export function TagPicker({ options, value, onChange }: TagPickerProps) {
     target?.scrollIntoView?.({ block: 'nearest' })
   }
   return (
-    <div className="ds-menu" role="listbox" aria-label="Tag" onKeyDown={onKeyDown}>
+    <div
+      className={radios ? 'ds-menu ds-menu--radios' : 'ds-menu'}
+      role="listbox"
+      aria-label="Tag"
+      onKeyDown={onKeyDown}
+    >
       {GROUPS.map(({ group, heading, icon }) => {
         const items = options.filter((o) => (o.group ?? 'client') === group)
         if (!items.length) return null
         return (
           <div key={group} role="group" aria-label={heading || undefined}>
-            {heading ? <div className="ds-menu-label">{heading}</div> : null}
+            {heading && !radios ? <div className="ds-menu-label">{heading}</div> : null}
             {items.map((o) => (
               <button
                 key={o.value}
@@ -58,11 +65,17 @@ export function TagPicker({ options, value, onChange }: TagPickerProps) {
                 className="ds-menu-item"
                 onClick={() => onChange(o.value)}
               >
-                <Icon name={icon} size={16} />
+                {radios ? (
+                  <span className="ds-radio-dot" data-on={o.value === value || undefined}>
+                    {o.value === value ? <Icon name="check" size={14} /> : null}
+                  </span>
+                ) : (
+                  <Icon name={icon} size={16} />
+                )}
                 <span className="ds-menu-text" title={o.label}>
                   {o.label}
                 </span>
-                {o.value === value ? <Icon name="check" size={16} /> : null}
+                {o.value === value && !radios ? <Icon name="check" size={16} /> : null}
               </button>
             ))}
           </div>
