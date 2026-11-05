@@ -1285,3 +1285,37 @@
     min-height: 44px;
   }
 }
+
+/* Ask by voice (CB-10): the mic inside the chat box beside Send, and the voice settings popover. */
+.openui-agent-thread-composer__input-wrapper {
+  position: relative;
+}
+.voice-input {
+  position: absolute;
+  right: 56px;
+  bottom: 10px;
+}
+.voice-input__state,
+.voice-input__note {
+  margin: var(--space-3) var(--space-5) 0;
+  font-size: var(--text-caption-size);
+}
+.voice-input__state {
+  color: var(--text-muted);
+}
+.voice-input__note {
+  color: var(--status-high-fg);
+  max-width: 60ch;
+}
+.answer-bar {
+  flex-wrap: wrap;
+}
+.voice-settings {
+  display: grid;
+  flex: 0 0 100%;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+}
+.voice-settings > * {
+  max-width: 320px;
+}

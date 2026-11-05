@@ -18,6 +18,7 @@ import { CitationSelectionContext, type SelectedCitation } from '../components/c
 import { DocumentsContext, useDocumentMap } from '../components/documents'
 import { SearchStep } from '../components/SearchStep'
 import { UserMessage } from '../components/UserMessage'
+import { VoiceInput } from '../components/VoiceInput'
 import { chatLibrary } from '../library'
 import marshbot from '../marshbot.svg'
 import { starters } from '../starters'
@@ -104,6 +105,7 @@ export function KnowledgeAssistant({
                 <AgentInterface.Composer placeholder="Ask about a standard or a past report" />
                 <CloseOnChatChange />
                 <AnswerBar />
+                <VoiceInput />
               </AgentInterface>
               {selected && <CitationPanel selected={selected} onClose={close} />}
             </div>

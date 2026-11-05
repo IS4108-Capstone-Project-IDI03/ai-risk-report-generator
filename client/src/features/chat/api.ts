@@ -110,3 +110,8 @@ export async function removeFact(id: string): Promise<void> {
 export function askAdminToAdd(question: string, message: string): Promise<unknown> {
   return request('POST', '/api/knowledge-gaps', message ? { question, message } : { question })
 }
+
+/** Turns a short recording of a spoken question into text (CB-10). Throws GatewayError with the reason. */
+export async function transcribeQuestion(audio: Blob): Promise<string> {
+  return (await request<{ text: string }>('POST', '/api/chat/transcribe', audio)).data.text
+}

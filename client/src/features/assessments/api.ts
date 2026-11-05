@@ -271,12 +271,14 @@ export async function request<T>(
       method,
       signal,
       // A form (with recordings) is sent as-is, so the browser sets its
-      // multipart boundary; anything else as JSON.
+      // multipart boundary; a recording alone (CB-10) as raw audio; anything else as JSON.
       ...(body === undefined
         ? {}
         : body instanceof FormData
           ? { body }
-          : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+          : body instanceof Blob
+            ? { headers: { 'Content-Type': body.type }, body }
+            : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     })
   } catch (error: unknown) {
     if (signal?.aborted) throw error
