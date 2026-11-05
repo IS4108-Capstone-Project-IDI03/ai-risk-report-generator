@@ -108,7 +108,7 @@ describe('listForUser audience', () => {
     const movedToEngineer = session(ADMIN_ID, 'risk_engineer', 'Sana Patel')
 
     expect((await listForUser(movedToEngineer, 10, 0)).items).toEqual([])
-    expect(await countsForUser(movedToEngineer)).toEqual({ total: 0, unread: 0 })
+    expect(await countsForUser(movedToEngineer)).toEqual({ total: 0, unread: 0, inboxTodo: 0 })
   })
 
   it('shows a user-targeted notification only to those users', async () => {
@@ -284,7 +284,7 @@ describe('markAllReadForUser', () => {
 
     await createNotification(forAllAdmins('Document 3 finished ingesting.'))
 
-    expect(await countsForUser(admin)).toEqual({ total: 3, unread: 1 })
+    expect(await countsForUser(admin)).toEqual({ total: 3, unread: 1, inboxTodo: 0 })
   })
 
   it('does not touch the other role', async () => {
@@ -316,20 +316,20 @@ describe('countsForUser', () => {
     const { items } = await listForUser(admin, 10, 0)
     await markAsRead(items[0].id, admin)
 
-    expect(await countsForUser(admin)).toEqual({ total: 3, unread: 2 })
+    expect(await countsForUser(admin)).toEqual({ total: 3, unread: 2, inboxTodo: 0 })
   })
 
   it('is not affected by another user reading the same notification', async () => {
     const created = await createNotification(forAllAdmins())
     await markAsRead(created.id, otherAdmin)
 
-    expect(await countsForUser(admin)).toEqual({ total: 1, unread: 1 })
+    expect(await countsForUser(admin)).toEqual({ total: 1, unread: 1, inboxTodo: 0 })
   })
 
   it('is zero for a user with nothing to see', async () => {
     await createNotification(forAllAdmins())
 
-    expect(await countsForUser(engineer)).toEqual({ total: 0, unread: 0 })
+    expect(await countsForUser(engineer)).toEqual({ total: 0, unread: 0, inboxTodo: 0 })
   })
 })
 
@@ -339,7 +339,12 @@ describe('dismissAllForUser', () => {
 
     await dismissAllForUser(admin)
 
-    expect(await listForUser(admin, 10, 0)).toEqual({ items: [], total: 0, unread: 0 })
+    expect(await listForUser(admin, 10, 0)).toEqual({
+      items: [],
+      total: 0,
+      unread: 0,
+      inboxTodo: 0,
+    })
     expect((await listForUser(otherAdmin, 10, 0)).items).toHaveLength(3)
   })
 

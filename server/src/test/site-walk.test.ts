@@ -13,6 +13,7 @@ import { NotificationModel } from '../models/notification.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import { SiteModel } from '../models/site.model'
+import { UserModel } from '../models/user.model'
 import { proposalQueue, transcriptionQueue } from '../services/background-queues.service'
 import { drainInlineJobs, setInlineAttempts } from '../services/job-queue.service'
 import { signSession } from '../services/auth.service'
@@ -71,7 +72,9 @@ const json = (status: number, body: object) =>
 const heard = (text: string) =>
   json(200, { transcript: text, segments: [{ start: 0, end: 5, text }], usage: [] })
 
-beforeEach(() => {
+beforeEach(async () => {
+  // The notification looks the engineer's role up (F-10), so the account must exist.
+  await UserModel.create(actor)
   speech.mockImplementation(() => heard('We are at Block A, pallets in the fire lane.'))
   describe_.mockImplementation(() =>
     json(200, { description: 'Pallets stacked in an aisle.', usage: [] }),
@@ -220,6 +223,21 @@ describe('walk lifecycle', () => {
     })
   })
 
+  // RV-11: the walk follows the assessment, so the new engineer finishes the old one's
+  // recordings instead of starting a second walk beside it.
+  it('gives the new engineer the walk still recording after a reassignment', async () => {
+    await seed()
+    const first = await startWalk()
+    const next = { _id: new Types.ObjectId(), role: 'risk_engineer', name: 'New Engineer' }
+    await AssessmentModel.updateOne({ reference: REF }, { engineer: next._id })
+
+    const res = await signedInAs(app, next as never).post(base)
+
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe(first.id)
+    expect(await SiteWalkModel.countDocuments()).toBe(1)
+  })
+
   it('lets only the assigned engineer start a walk', async () => {
     await seed()
     const other = signedInAsRole(app, 'risk_engineer', 'Someone Else')
@@ -251,10 +269,12 @@ describe('walk lifecycle', () => {
     expect((await api.get(`${base}/${new Types.ObjectId()}`)).status).toBe(404)
   })
 
-  it("lists only the calling engineer's own walks", async () => {
+  // Walks follow the assessment, not the engineer who started them (RV-11): after a
+  // reassignment the new engineer carries on the walks already made.
+  it('lists the assessment’s walks, whoever started them, newest first', async () => {
     await seed()
     const mine = await startWalk()
-    await SiteWalkModel.create({
+    const theirs = await SiteWalkModel.create({
       assessment: (await AssessmentModel.findOne())!._id,
       engineerId: new Types.ObjectId(),
       status: 'ready',
@@ -266,7 +286,10 @@ describe('walk lifecycle', () => {
       },
     })
 
-    expect((await api.get(base)).body.map((w: { id: string }) => w.id)).toEqual([mine.id])
+    expect((await api.get(base)).body.map((w: { id: string }) => w.id)).toEqual([
+      String(theirs._id),
+      mine.id,
+    ])
   })
 
   it('refuses another engineer changing a walk but lets them read it', async () => {
@@ -644,10 +667,19 @@ describe('finishing and proposing', () => {
     })
     const note = await NotificationModel.findOne({ purpose: 'site_walk_ready' }).lean()
     expect(note).toMatchObject({
+      kind: 'inbox',
+      targetRole: 'risk_engineer',
       targetUserIds: [String(actor._id)],
-      message: 'Your site walk proposal is ready to review.',
+      message: 'Review site walk: Tilbury DC',
     })
-    expect(note?.context).toMatchObject({ reference: REF, walkId: walk.id })
+    expect(note?.context).toMatchObject({
+      reference: REF,
+      walkId: walk.id,
+      client: 'Acme Logistics',
+      site: 'Tilbury DC',
+    })
+    // Made by the app, not a person, so no sender.
+    expect(note?.context).not.toHaveProperty('sender')
   })
 
   it('still notifies the engineer, once, when the notification write fails after the walk is ready', async () => {
@@ -1002,6 +1034,105 @@ describe('a queue that is down', () => {
     const notes = await NotificationModel.find({ purpose: 'site_walk_ready' }).lean()
     expect(notes).toHaveLength(1)
     expect(notes[0].context).toMatchObject({ reference: REF, walkId: walk.id })
+  })
+})
+
+describe('telling the engineer (F-10)', () => {
+  const admin = {
+    ...actor,
+    _id: new Types.ObjectId(),
+    staffId: 'TEST-9',
+    name: 'Sana Patel',
+    email: 'sana@example.com',
+    role: 'knowledge_admin' as const,
+  }
+  const notes = (purpose: 'site_walk_ready' | 'site_walk_failed') =>
+    NotificationModel.find({ purpose }).sort({ _id: 1 }).lean()
+
+  it('tells the assessment’s current engineer, by their current role, not the walk’s own engineer', async () => {
+    await seed()
+    await UserModel.create(admin)
+    await AssessmentModel.updateOne({ reference: REF }, { reportDueDate: new Date('2026-10-19') })
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    // The admin takes the assessment over while the walk is being read.
+    rag.mockImplementation(async () => {
+      await AssessmentModel.updateOne({ reference: REF }, { engineer: admin._id })
+      return json(200, proposalFromRag())
+    })
+
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'ready')
+
+    const [note] = await notes('site_walk_ready')
+    expect(note).toMatchObject({
+      kind: 'inbox',
+      targetRole: 'knowledge_admin',
+      targetUserIds: [String(admin._id)],
+      context: { reportDue: '2026-10-19' },
+    })
+    // And the admin sees it in their Inbox.
+    const inbox = await signedInAs(app, admin).get('/api/notifications?kind=inbox')
+    expect(inbox.body.items.map((i: { message: string }) => i.message)).toEqual([
+      'Review site walk: Tilbury DC',
+    ])
+  })
+
+  it('tells them when the reading fails, and again when a retry fails again', async () => {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    setInlineAttempts(2)
+    rag.mockImplementation(() => json(502, { detail: 'The reading service is down.' }))
+
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'failed')
+    await drainInlineJobs()
+
+    const [first] = await notes('site_walk_failed')
+    expect(first).toMatchObject({
+      kind: 'inbox',
+      targetRole: 'risk_engineer',
+      targetUserIds: [String(actor._id)],
+      message: 'Retry site walk: Tilbury DC',
+      details: 'The reading service is down.',
+      context: { reference: REF, walkId: walk.id, site: 'Tilbury DC' },
+    })
+
+    await api.post(`${base}/${walk.id}/retry`)
+    await reaches(walk.id, 'failed')
+    await drainInlineJobs()
+    expect(await notes('site_walk_failed')).toHaveLength(2)
+  })
+
+  it('tells them when a recording cannot be transcribed and the walk fails', async () => {
+    await seed()
+    const walk = await startWalk()
+    setInlineAttempts(2)
+    speech.mockImplementation(() => json(503, { detail: 'Busy.' }))
+
+    await upload(walk.id, 1)
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'failed')
+
+    expect(await notes('site_walk_failed')).toHaveLength(1)
+  })
+
+  it('does not tell them of the failure again when the retry succeeds', async () => {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    setInlineAttempts(2)
+    rag.mockImplementation(() => json(502, { detail: 'Down.' }))
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'failed')
+
+    rag.mockImplementation(() => json(200, proposalFromRag()))
+    await api.post(`${base}/${walk.id}/retry`)
+    await reaches(walk.id, 'ready')
+
+    expect(await notes('site_walk_failed')).toHaveLength(1)
+    expect(await notes('site_walk_ready')).toHaveLength(1)
   })
 })
 

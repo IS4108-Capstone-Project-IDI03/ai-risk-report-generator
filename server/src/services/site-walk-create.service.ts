@@ -195,7 +195,7 @@ export async function createAll(
     })
     let id: string
     try {
-      id = (await addLocation(reference, details)).id
+      id = (await addLocation(reference, details, user)).id
     } catch (error) {
       if (!(error instanceof DuplicateLocationError)) throw error
       const key = locationKey(details.name, details.floor, details.building)
@@ -210,7 +210,7 @@ export async function createAll(
   }
 
   // d. Observations, in the capture session (started if there is none).
-  const { session } = await startCaptureSession(reference)
+  const { session } = await startCaptureSession(reference, user)
   for (const o of proposal.observations) {
     await createWalkObservation({
       reference,

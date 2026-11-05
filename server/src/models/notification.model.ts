@@ -2,15 +2,20 @@ import { Schema, Types, model } from 'mongoose'
 import { USER_ROLES, type UserRole } from './user.model'
 
 // What a notification is about. A closed set, so a purpose always has a known
-// audience and a known screen to open. Only `ingestion_status` has a producer
-// today; the rest are the agreed next purposes, each grounded in an event the
-// code already records:
+// audience and a known screen to open. Producers today:
+//   ingestion_status            the ingestion worker, via the internal route (IN-10)
+//   knowledge_gap_request       a knowledge request sent, filled or dismissed (CB-07)
+//   site_walk_ready             a site walk proposal is ready to review (CP-22)
+//   site_walk_failed            a site walk could not be read; the engineer retries it (F-10)
+//   assessment_assigned         an admin assigned an assessment to an engineer (RV-11)
+//   assessment_moved            an admin moved an assessment away from an engineer (RV-11)
+// Agreed next purposes, each grounded in an event the code already records but
+// not yet sent anywhere:
 //   transcription_status        runTranscription / resumeInterruptedTranscriptions
 //   drafting_status             draftSection's guardrail and open questions
 //   knowledge_document_status   correct / withdraw / reinstate (KB-01)
 //   account_status              createUser, and updateUser changing role or active
 //   assessment_status           createAssessment, archive, restore
-//   knowledge_gap_request       a knowledge request sent, filled or dismissed (CB-07)
 // Deadline and reminder purposes are deliberately absent: nothing schedules
 // work in this repo, so nothing could fire them.
 export const NOTIFICATION_PURPOSES = [
@@ -23,8 +28,22 @@ export const NOTIFICATION_PURPOSES = [
   'knowledge_gap_request',
   // A site walk proposal is ready to review (CP-22).
   'site_walk_ready',
+  // A site walk could not be read; the engineer retries it (F-10).
+  'site_walk_failed',
+  // An assessment was assigned to the engineer (RV-11).
+  'assessment_assigned',
+  // An assessment was moved away from the engineer (RV-11).
+  'assessment_moved',
 ] as const
 export type NotificationPurpose = (typeof NOTIFICATION_PURPOSES)[number]
+
+// Where a notification shows (F-10): the Inbox holds what a person must act on
+// ("if they ignore it, does work stall?"), the bell holds updates. Set once at
+// creation by notification.service.ts, the only place that decides it. A
+// document saved before F-10 has none and counts as `bell`, so every read
+// filters on "not inbox" rather than "is bell".
+export const NOTIFICATION_KINDS = ['inbox', 'bell'] as const
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number]
 
 // Every user of the target role sees the notification. Stored as the first
 // element of targetUserIds.
@@ -33,6 +52,9 @@ export const AUDIENCE_ALL = 'all'
 // Notifications are kept for 90 days, then dropped by the TTL index below.
 // Nothing deletes them otherwise — "dismiss all" is per user (see dismissedBy),
 // so without an expiry the collection would only ever grow.
+// shortcut: an Inbox item expires with everything else, even one never opened.
+// Nothing is lost: the assessment, request or document it points at still exists
+// on its own screen. Upgrade if an unread Inbox item must outlive 90 days.
 export const NOTIFICATION_TTL_SECONDS = 90 * 24 * 60 * 60
 
 /**
@@ -58,6 +80,13 @@ export interface INotification {
   // here rather than deleting, which would clear it for everyone else too.
   readBy: string[]
   dismissedBy: string[]
+  // Inbox only (F-10): where it shows. Absent on older documents, read as `bell`.
+  kind?: NotificationKind
+  // Inbox only: set when anyone ticks the item, cleared when anyone unticks it.
+  // Document-wide on purpose, so a tick by one admin moves a shared item to Done
+  // for every admin, while opening it (readBy) moves it for that admin alone.
+  doneAt?: Date
+  doneBy?: Types.ObjectId
   // Who or what created it. A notification from a microservice has no user, so
   // both are nullable and exactly one is normally set.
   createdBy: Types.ObjectId | null
@@ -89,6 +118,9 @@ const notificationSchema = new Schema<INotification>(
     },
     readBy: { type: [String], default: [] },
     dismissedBy: { type: [String], default: [] },
+    kind: { type: String, enum: NOTIFICATION_KINDS },
+    doneAt: Date,
+    doneBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: Schema.Types.ObjectId, default: null },
     createdByService: { type: String, default: null, trim: true },
     context: { type: Map, of: String, default: undefined },

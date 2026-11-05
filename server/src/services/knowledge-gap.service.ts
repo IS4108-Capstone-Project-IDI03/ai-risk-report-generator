@@ -11,7 +11,7 @@ import {
 } from '../models/knowledge-gap-request.model'
 import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
-import { createNotification, type NewNotification } from './notification.service'
+import { audienceOf, createNotification, type NewNotification } from './notification.service'
 
 export const createRequestSchema = z.object({
   question: z.string('A question is required.').trim().min(1, 'A question is required.').max(4000),
@@ -76,9 +76,10 @@ async function namesFor(ids: Types.ObjectId[]): Promise<Map<string, string>> {
 
 // Without the catch, a notification error would fail an action that already
 // saved: the request is the record, the notification only a nudge.
-async function notifyQuietly(input: NewNotification) {
+async function notifyQuietly(pending: NewNotification | null | Promise<NewNotification | null>) {
   try {
-    await createNotification(input)
+    const input = await pending
+    if (input) await createNotification(input)
   } catch (error) {
     console.error('Could not create the knowledge request notification:', error)
   }
@@ -138,21 +139,28 @@ async function closeRequest(
     : new GapRequestNotFoundError()
 }
 
-const outcomeNotification = (
+// The asker's bell notification. Addressed by the asker's role now, looked up,
+// not the engineer role they asked with: a person promoted since would never see
+// one addressed to the old role. Null for an account that no longer exists.
+const outcomeNotification = async (
   r: Stored,
   status: 'filled' | 'dismissed',
   lines: string[],
   parts: Record<string, string>,
   closer: SessionUser,
-): NewNotification => ({
-  purpose: 'knowledge_gap_request',
-  message: `Your knowledge request was ${status}`,
-  details: [r.question, ...lines].join('\n'),
-  targetRole: 'risk_engineer',
-  targetUserIds: [String(r.askedBy)],
-  context: { requestId: String(r._id), status, question: r.question, ...parts },
-  createdBy: closer.id,
-})
+): Promise<NewNotification | null> => {
+  const to = await audienceOf(String(r.askedBy))
+  return (
+    to && {
+      purpose: 'knowledge_gap_request',
+      message: `Your knowledge request was ${status}`,
+      details: [r.question, ...lines].join('\n'),
+      ...to,
+      context: { requestId: String(r._id), status, question: r.question, ...parts },
+      createdBy: closer.id,
+    }
+  )
+}
 
 const askerName = async (r: Stored) =>
   (await namesFor([r.askedBy])).get(String(r.askedBy)) ?? 'Unknown user'

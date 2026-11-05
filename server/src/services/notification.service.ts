@@ -1,21 +1,25 @@
-// Notifications for the header dropdown: create one, list a user's, mark one
-// read, dismiss them all. Called by routes/notification.routes.ts and
-// routes/internal-notification.routes.ts.
+// Notifications for the header bell and the Inbox (F-10): create one, list a
+// user's, open, tick, bin and restore one. Called by routes/notification.routes.ts,
+// routes/internal-notification.routes.ts and the services that notify (assessment
+// assignment, site walks, knowledge requests).
 //
 // A notification is shared by the users it targets rather than copied per
 // user, so everything here is written around two consequences: who has read or
 // dismissed it lives on the one document as lists of user ids, and nothing is
-// ever deleted on a user's behalf.
+// ever deleted on a user's behalf. The Inbox and the bell are two views of the
+// same collection, told apart by `kind`.
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import {
   AUDIENCE_ALL,
+  NOTIFICATION_KINDS,
   NOTIFICATION_PURPOSES,
   NotificationModel,
   type INotification,
+  type NotificationKind,
   type NotificationPurpose,
 } from '../models/notification.model'
-import { USER_ROLES, type UserRole } from '../models/user.model'
+import { USER_ROLES, UserModel, type UserRole } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 
 export class NotificationNotFoundError extends Error {
@@ -56,26 +60,45 @@ export const externalNotificationSchema = z.object({
 
 export type ExternalNotification = z.infer<typeof externalNotificationSchema>
 
+// The list's query string: which view (the bell by default, or the Inbox) and,
+// for the Inbox, which tab. A value outside the set is a 400 naming the field.
+export const listQuerySchema = z.object({
+  kind: z.enum(NOTIFICATION_KINDS, 'kind must be bell or inbox.').default('bell'),
+  tab: z.enum(['todo', 'done'], 'tab must be todo or done.').default('todo'),
+})
+
 /**
- * One notification as the dropdown reads it. `read` is this caller's state,
- * not the document's: `readBy` and `dismissedBy` hold other users' ids, and
- * `targetUserIds` names the audience, so none of them leave the server.
+ * One notification as the bell and the Inbox read it. `read` and `done` are this
+ * caller's state, not the document's: `readBy` and `dismissedBy` hold other
+ * users' ids, `doneBy` names who ticked it, and `targetUserIds` names the
+ * audience, so none of them leave the server.
  */
 export type NotificationDto = {
   id: string
   purpose: NotificationPurpose
+  kind: NotificationKind
   message: string
   details: string | null
   context: Record<string, string> | null
   read: boolean
+  // Inbox only: Done for this caller, because they opened it or anyone ticked it.
+  done: boolean
+  // When anyone ticked it; null while it is not ticked.
+  doneAt: Date | null
   createdAt: Date
 }
 
 export type NotificationPage = {
   items: NotificationDto[]
+  // The rows matching this kind and tab across all pages.
   total: number
+  // The bell's unread count, whatever kind was listed.
   unread: number
+  // The caller's Inbox To do count.
+  inboxTodo: number
 }
+
+export type NotificationCounts = Pick<NotificationPage, 'total' | 'unread' | 'inboxTodo'>
 
 type StoredNotification = INotification & { _id: unknown }
 
@@ -85,19 +108,24 @@ function toDto(notification: StoredNotification, readerId: string): Notification
   return {
     id: String(notification._id),
     purpose: notification.purpose,
+    kind: notification.kind ?? 'bell',
     message: notification.message,
     details: notification.details ?? null,
     // A plain object from both read paths: lean() gives one already, and
     // toObject({ flattenMaps: true }) below turns the stored Map into one.
     context: notification.context ? { ...notification.context } : null,
     read: notification.readBy.includes(readerId),
+    done:
+      notification.kind === 'inbox' &&
+      (notification.readBy.includes(readerId) || !!notification.doneAt),
+    doneAt: notification.doneAt ?? null,
     createdAt: notification.createdAt,
   }
 }
 
 /**
- * What this user may see: their role's notifications, addressed either to the
- * whole role or to them by id, less the ones they have dismissed.
+ * The notifications addressed to this user: their role's, addressed either to
+ * the whole role or to them by id.
  *
  * The role comes from the session on every request and is never copied onto
  * the notification, so a user moved between roles sees the new role's
@@ -108,12 +136,53 @@ function toDto(notification: StoredNotification, readerId: string): Notification
  * sentinel is positional: ['all'] leads the audience when it means everyone
  * holding the role.
  */
-function visibleTo(user: SessionUser) {
+function addressedTo(user: SessionUser) {
   return {
     targetRole: user.role,
     $or: [{ [`targetUserIds.0`]: AUDIENCE_ALL }, { targetUserIds: user.id }],
-    dismissedBy: { $ne: user.id },
   }
+}
+
+// What this user may see: addressed to them, less the ones they have binned.
+function visibleTo(user: SessionUser) {
+  return { ...addressedTo(user), dismissedBy: { $ne: user.id } }
+}
+
+// The bell is everything that is not an Inbox item. Matched as "not inbox"
+// rather than "is bell" so a document saved before F-10, with no kind, stays
+// in the bell.
+const BELL = { kind: { $ne: 'inbox' as const } }
+
+// To do and Done for one user are worked out, never stored (F-10): To do is
+// not opened by them and not ticked by anyone; Done is opened by them or
+// ticked by anyone. `doneAt: null` also matches a document with no doneAt.
+// Joined with $and because visibleTo already uses a top-level $or.
+function inboxFor(user: SessionUser, tab: InboxTab) {
+  const state =
+    tab === 'todo'
+      ? { readBy: { $ne: user.id }, doneAt: null }
+      : { $or: [{ readBy: user.id }, { doneAt: { $ne: null } }] }
+  return { $and: [visibleTo(user), { kind: 'inbox' as const }, state] }
+}
+
+export type InboxTab = 'todo' | 'done'
+
+// Where each purpose goes (F-10), the only place that decides it. The Inbox
+// holds what stalls work if the person ignores it; the worker's own status is
+// read from the context so the ingestion worker needs no change. A purpose not
+// listed is a bell one.
+const GOES_TO_INBOX: Partial<Record<NotificationPurpose, (status?: string) => boolean>> = {
+  // A document that failed or needs review; a finished one is an update.
+  ingestion_status: (status) => status === 'failed' || status === 'needs_review',
+  // A new request has no status; its outcome (filled, dismissed) is for the asker's bell.
+  knowledge_gap_request: (status) => !status,
+  site_walk_ready: () => true,
+  site_walk_failed: () => true,
+  assessment_assigned: () => true,
+}
+
+function kindFor(purpose: NotificationPurpose, context?: Record<string, string>): NotificationKind {
+  return GOES_TO_INBOX[purpose]?.(context?.status) ? 'inbox' : 'bell'
 }
 
 /**
@@ -131,6 +200,7 @@ function visibleTo(user: SessionUser) {
 export async function createNotification(input: NewNotification): Promise<NotificationDto> {
   const doc = {
     purpose: input.purpose,
+    kind: kindFor(input.purpose, input.context),
     message: input.message,
     details: input.details,
     targetRole: input.targetRole,
@@ -167,6 +237,15 @@ function dedupeKey(input: NewNotification): Record<string, unknown> | null {
   // A site walk becomes ready once (CP-22), so its walk alone is the key.
   if (input.purpose === 'site_walk_ready' && input.context?.walkId)
     return { purpose: input.purpose, 'context.walkId': input.context.walkId }
+  // A walk can fail, be retried and fail again, and each failure tells the
+  // engineer. `attempt` is the walk's retry count, absent for the first try,
+  // as for a document below.
+  if (input.purpose === 'site_walk_failed' && input.context?.walkId)
+    return {
+      purpose: input.purpose,
+      'context.walkId': input.context.walkId,
+      'context.attempt': input.context.attempt ?? { $exists: false },
+    }
   const documentId = input.context?.documentId
   const status = input.context?.status
   if (!documentId || !status) return null
@@ -182,11 +261,11 @@ function dedupeKey(input: NewNotification): Record<string, unknown> | null {
 }
 
 /**
- * Returns one page of the user's notifications, newest first, with the totals
- * the dropdown needs: `total` to decide whether to offer Load more, `unread`
- * for the count on the bell. Both cover every page, not just this one, and
- * `total` is returned on every page so a figure taken at sign-in corrects
- * itself as soon as the list is opened.
+ * Returns one page of the user's bell or Inbox notifications, newest first,
+ * with the totals the screens need: `total` to decide whether to offer Load
+ * more, `unread` for the count on the bell and `inboxTodo` for the sidebar. All
+ * cover every page, not just this one, and are returned on every page so a
+ * figure taken at sign-in corrects itself as soon as a list is opened.
  *
  * Ties on createdAt break by _id, which is monotonic, so paging cannot show
  * the same notification twice or skip one when several share a timestamp.
@@ -195,75 +274,156 @@ export async function listForUser(
   user: SessionUser,
   limit: number,
   offset: number,
+  view: { kind: NotificationKind; tab: InboxTab } = { kind: 'bell', tab: 'todo' },
 ): Promise<NotificationPage> {
-  const filter = visibleTo(user)
-  const [notifications, counts] = await Promise.all([
+  const filter = view.kind === 'inbox' ? inboxFor(user, view.tab) : { ...visibleTo(user), ...BELL }
+  const [notifications, total, counts] = await Promise.all([
     NotificationModel.find(filter)
       .sort({ createdAt: -1, _id: -1 })
       .skip(offset)
       .limit(limit)
       .lean<StoredNotification[]>(),
+    NotificationModel.countDocuments(filter),
     countsForUser(user),
   ])
-  return { items: notifications.map((n) => toDto(n, user.id)), ...counts }
+  return {
+    items: notifications.map((n) => toDto(n, user.id)),
+    total,
+    unread: counts.unread,
+    inboxTodo: counts.inboxTodo,
+  }
 }
 
-/** How many the user can see, and how many of those they have not read. */
-export async function countsForUser(user: SessionUser): Promise<{
-  total: number
-  unread: number
-}> {
-  const filter = visibleTo(user)
-  const [total, unread] = await Promise.all([
-    NotificationModel.countDocuments(filter),
-    NotificationModel.countDocuments({ ...filter, readBy: { $ne: user.id } }),
+/** How many bell notifications the user can see and has not read, and their Inbox To do count. */
+export async function countsForUser(user: SessionUser): Promise<NotificationCounts> {
+  const bell = { ...visibleTo(user), ...BELL }
+  const [total, unread, inboxTodo] = await Promise.all([
+    NotificationModel.countDocuments(bell),
+    NotificationModel.countDocuments({ ...bell, readBy: { $ne: user.id } }),
+    NotificationModel.countDocuments(inboxFor(user, 'todo')),
   ])
-  return { total, unread }
+  return { total, unread, inboxTodo }
+}
+
+// Applies one change to one notification the user may see, or throws
+// NotificationNotFoundError: the id is malformed, unknown or outside what the
+// caller may see, one answer for all three so the call cannot be used to find
+// out whether a notification exists for someone else.
+async function changeOne(
+  id: string,
+  filter: Record<string, unknown>,
+  update: Record<string, unknown>,
+) {
+  if (!isValidObjectId(id)) throw new NotificationNotFoundError()
+  const { matchedCount } = await NotificationModel.updateOne({ _id: id, ...filter }, update)
+  if (!matchedCount) throw new NotificationNotFoundError()
 }
 
 /**
- * Marks one notification read for this user. Throws NotificationNotFoundError
- * for an id that is malformed, unknown, or outside what the caller may see —
- * one answer for all three, so the call cannot be used to find out whether a
- * notification exists for someone else.
+ * Opens one notification for this user (adds them to `readBy`); on an Inbox
+ * item that moves it to Done for them alone. Throws NotificationNotFoundError,
+ * as for every change below.
  */
 export async function markAsRead(id: string, user: SessionUser): Promise<void> {
-  if (!isValidObjectId(id)) throw new NotificationNotFoundError()
-  const { matchedCount } = await NotificationModel.updateOne(
-    { _id: id, ...visibleTo(user) },
-    { $addToSet: { readBy: user.id } },
-  )
-  if (!matchedCount) throw new NotificationNotFoundError()
+  await changeOne(id, visibleTo(user), { $addToSet: { readBy: user.id } })
 }
 
 /**
- * Marks every notification the user can see as read, for this user only.
- * Like markAsRead but across the whole visible set, so one admin clearing
+ * Ticks an Inbox item: Done for this user and, because `doneAt` is set on the
+ * shared document, for everyone it is addressed to. A bell item is not found.
+ */
+export async function markDone(id: string, user: SessionUser): Promise<void> {
+  await changeOne(
+    id,
+    { ...visibleTo(user), kind: 'inbox' },
+    { $addToSet: { readBy: user.id }, $set: { doneAt: new Date(), doneBy: user.id } },
+  )
+}
+
+/**
+ * Unticks an Inbox item: clears the tick for everyone and takes this user out of
+ * `readBy`. An admin who had opened it earlier stays in `readBy`, so it stays
+ * Done for them. A bell item is not found.
+ */
+export async function unmarkDone(id: string, user: SessionUser): Promise<void> {
+  await changeOne(
+    id,
+    { ...visibleTo(user), kind: 'inbox' },
+    { $pull: { readBy: user.id }, $unset: { doneAt: 1, doneBy: 1 } },
+  )
+}
+
+/**
+ * Marks every bell notification the user can see as read, for this user only.
+ * Like markAsRead but across the whole visible bell, so one admin clearing
  * their badge leaves every other admin's unchanged. Reading is not
  * dismissing: the notifications stay in the list and later ones arrive unread.
+ * Inbox items are left alone: opening one is how it moves to Done.
  */
 export async function markAllReadForUser(user: SessionUser): Promise<void> {
-  await NotificationModel.updateMany(visibleTo(user), { $addToSet: { readBy: user.id } })
+  await NotificationModel.updateMany(
+    { ...visibleTo(user), ...BELL },
+    { $addToSet: { readBy: user.id } },
+  )
 }
 
 /**
- * Clears the user's list. Adds them to `dismissedBy` rather than deleting:
+ * Clears the user's bell. Adds them to `dismissedBy` rather than deleting:
  * the document is shared, so deleting would clear it for everyone else in the
- * role too. Notifications created afterwards are unaffected.
+ * role too. Notifications created afterwards are unaffected. Bell only: without
+ * that filter, "Dismiss all" in the bell would silently wipe the Inbox.
  */
 export async function dismissAllForUser(user: SessionUser): Promise<void> {
-  await NotificationModel.updateMany(visibleTo(user), { $addToSet: { dismissedBy: user.id } })
+  await NotificationModel.updateMany(
+    { ...visibleTo(user), ...BELL },
+    { $addToSet: { dismissedBy: user.id } },
+  )
 }
 
 /**
- * Dismisses one notification for this user only (adds them to `dismissedBy`).
- * Same visibility rule and same not-found answer as markAsRead.
+ * Dismisses (bins) one notification for this user only (adds them to
+ * `dismissedBy`). Same visibility rule and not-found answer as markAsRead.
  */
 export async function dismissForUser(id: string, user: SessionUser): Promise<void> {
-  if (!isValidObjectId(id)) throw new NotificationNotFoundError()
-  const { matchedCount } = await NotificationModel.updateOne(
-    { _id: id, ...visibleTo(user) },
-    { $addToSet: { dismissedBy: user.id } },
+  await changeOne(id, visibleTo(user), { $addToSet: { dismissedBy: user.id } })
+}
+
+/**
+ * Undoes a bin: takes this user out of `dismissedBy`. Matches on who it is
+ * addressed to, not on visibleTo, which would hide exactly the item to restore.
+ */
+export async function restoreForUser(id: string, user: SessionUser): Promise<void> {
+  await changeOne(id, addressedTo(user), { $pull: { dismissedBy: user.id } })
+}
+
+/**
+ * Returns who to address a notification to so the person sees it: their
+ * CURRENT role, looked up, plus their id; null for an account that no longer
+ * exists. Read paths match `targetRole` against the role in the session, so a
+ * role hardcoded by the producer would hide the item from, say, an admin who
+ * holds the assessment.
+ */
+export async function audienceOf(
+  userId: string,
+): Promise<{ targetRole: UserRole; targetUserIds: string[] } | null> {
+  const user = isValidObjectId(userId) ? await UserModel.findById(userId, 'role').lean() : null
+  return user ? { targetRole: user.role, targetUserIds: [String(user._id)] } : null
+}
+
+/**
+ * Takes this person's Inbox items for one assessment out of their Inbox, when
+ * the assessment moves away from them. Items are found by `context.reference`
+ * and by naming them in `targetUserIds`, and the person is pulled from that
+ * list, so they cannot bring one back with restore (which matches on it). If
+ * they were the only target the list is left empty: nobody sees the item, and
+ * the 90-day expiry drops it. Nobody else's Inbox changes. A shared admin item
+ * is never matched, since it names no user.
+ */
+export async function removeAssessmentItems(reference: string, userId: string): Promise<void> {
+  // Safe despite the model's "at least one target" check: updateMany skips
+  // schema validators (runValidators is off), so an empty list can be saved here.
+  await NotificationModel.updateMany(
+    { kind: 'inbox', 'context.reference': reference, targetUserIds: userId },
+    { $pull: { targetUserIds: userId } },
   )
-  if (!matchedCount) throw new NotificationNotFoundError()
 }
