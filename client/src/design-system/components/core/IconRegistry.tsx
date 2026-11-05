@@ -40,6 +40,9 @@ const registry = {
     // Switching to Marsh's page layout and back (RV-12).
     pages: 'book-open',
     continuous: 'scroll-text',
+    // Commenting on the selected text, and the comments list (RV-03).
+    comment: 'message-square-plus',
+    comments: 'messages-square',
   },
   status: {
     notStarted: {

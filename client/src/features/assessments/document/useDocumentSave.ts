@@ -30,6 +30,9 @@ function createSaver(reference: string, parts: DocumentPart[], show: (s: Partial
   let timer: ReturnType<typeof setTimeout> | null = null
   let running: Promise<boolean> | null = null
   let status: SaveStatus = 'saved'
+  // Told after each save, with the sections still changed since (RV-03:
+  // comment threads then move with the saved text).
+  let onSaved: ((pending: Set<string>) => void) | null = null
   const set = (next: SaveStatus, more: Partial<Shown> = {}) => {
     status = next
     show({ status: next, ...more })
@@ -75,7 +78,9 @@ function createSaver(reference: string, parts: DocumentPart[], show: (s: Partial
       }
     }
     // Typing during the save is saved on the next pause.
-    if (changed().length) {
+    const left = changed()
+    onSaved?.(new Set(left.map((c) => c.id)))
+    if (left.length) {
       set('unsaved')
       schedule()
     } else set('saved')
@@ -109,6 +114,13 @@ function createSaver(reference: string, parts: DocumentPart[], show: (s: Partial
       schedule()
     },
     save,
+    // Listens for each save that went through; returns how to stop.
+    listen(listener: (pending: Set<string>) => void) {
+      onSaved = listener
+      return () => {
+        if (onSaved === listener) onSaved = null
+      }
+    },
     // Unsaved work: changed since the last save, or a save still running.
     dirty: () => status === 'saving' || changed().length > 0,
     // Stops saving, e.g. once the engineer discards their changes.

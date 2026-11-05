@@ -13,6 +13,7 @@ export const SESSIONS: Record<UserRole, Session> = {
       'assessments:edit',
       'reports:generate',
       'reports:export',
+      'reports:comment',
       'knowledge:view',
       'usage:view',
     ],
@@ -22,6 +23,7 @@ export const SESSIONS: Record<UserRole, Session> = {
     user: { id: '6ab39017e45cf009e4507734', name: 'Sana Patel', role: 'knowledge_admin' },
     permissions: [
       'assessments:view',
+      'reports:comment',
       'knowledge:view',
       'knowledge:manage',
       'users:manage',

@@ -26,6 +26,7 @@ import {
   RegenerateDialog,
   RejectFindingDialog,
 } from '../components/ReviewDialogs'
+import type { Stamp } from '../comments/api'
 import { ReviewHistory } from '../components/ReviewHistory'
 import { ReviewSectionRail } from '../components/ReviewSectionRail'
 import { SectionReviewBar, type DraftView } from '../components/SectionReviewBar'
@@ -72,7 +73,8 @@ type RestoredNotice = { sectionId: string; name: string; version: number }
 
 // The dialog open over the workspace, if any.
 type OpenDialog =
-  { kind: 'edit' | 'reject'; claim: Claim } | { kind: 'regenerate' | 'accept-replacement' }
+  | { kind: 'edit' | 'reject'; claim: Claim }
+  | { kind: 'regenerate' | 'accept-replacement' }
 
 // A replacement draft shown in the editor and source panel in place of the
 // saved one, read-only: decisions are made on it once it is accepted.
@@ -116,6 +118,8 @@ export function ReviewWorkspace({
   reference,
   assessment = null,
   canReview = false,
+  canComment = false,
+  me = null,
   wrapStyle,
   railStyle,
   panelStyle,
@@ -129,6 +133,11 @@ export function ReviewWorkspace({
   // The assigned engineer, on an assessment not archived: others only read.
   // Also who may change Appendix A (GN-07); the gateway checks both too.
   canReview?: boolean
+  // May comment on the report in the document editor (RV-03): the assigned
+  // engineer, or a knowledge admin, who opens it read only.
+  canComment?: boolean
+  // Who is signed in, for their own comments (RV-03 AC3).
+  me?: Stamp | null
   wrapStyle: React.CSSProperties
   railStyle: React.CSSProperties
   panelStyle: React.CSSProperties
@@ -170,6 +179,9 @@ export function ReviewWorkspace({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyFor, setHistoryFor] = useState(0)
   const [restored, setRestored] = useState<RestoredNotice | null>(null)
+  // The document opens to edit for the assigned engineer, and read only, to
+  // comment on, for anyone else who can comment (RV-03 AC7).
+  const canOpenDocument = canReview || canComment
 
   // Version history chosen from the ⋯ menu opens it, leaving the document
   // editor (the menu asked first if anything there was unsaved) for the
@@ -226,6 +238,9 @@ export function ReviewWorkspace({
           ofis={accepted}
           observations={observations ?? undefined}
           startAt={documentAt}
+          readOnly={!canReview}
+          canComment={canComment}
+          me={me ?? undefined}
           onReturn={(id) => {
             setReturnedFrom(workspace.asOf)
             setDocumentAt(null)
@@ -291,13 +306,14 @@ export function ReviewWorkspace({
       inReport={accepted.length}
       executiveSummary={summary?.executiveSummary ?? null}
       onEditDocument={
-        canReview
+        canOpenDocument
           ? () => {
               setHistoryOpen(false)
               setDocumentAt(selected ?? saved?.id ?? '1')
             }
           : undefined
       }
+      readOnly={!canReview}
       editPending={returnedFrom !== null && workspace.asOf === returnedFrom && !loadError}
       style={railStyle}
     />

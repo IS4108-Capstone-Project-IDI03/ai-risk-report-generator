@@ -123,6 +123,7 @@ import {
   UnrestoredPlaceholderError,
 } from '../services/export.service'
 import { RenderFailedError, RendererUnavailableError } from '../services/export-render.service'
+import { openThreadCount } from '../services/comment.service'
 import { fieldErrors } from './field-errors'
 import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
 import { requirePermission } from '../middleware/auth.middleware'
@@ -1106,10 +1107,15 @@ router.put(
 
 // What is left to finish before the report can be exported (EX-01 AC1): it
 // goes out only once complete, written and reviewed. 200 with `blockers`,
-// empty when it may go.
+// empty when it may go, and `openThreads`, how many comment threads are still
+// open (RV-03 AC9): a reminder only, which never blocks the export.
 router.get('/:reference/export', requirePermission('reports:export'), async (req, res) => {
   try {
-    res.json({ blockers: await exportBlockers(req.params.reference) })
+    const [blockers, openThreads] = await Promise.all([
+      exportBlockers(req.params.reference),
+      openThreadCount(req.params.reference),
+    ])
+    res.json({ blockers, openThreads })
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })

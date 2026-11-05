@@ -476,7 +476,7 @@
 /* Below the stacked breakpoint the pages keep their printed size and the
    view scrolls sideways to them, rather than the whole workspace. */
 @media (max-width: 1080px) {
-  .dm-scroll:has(> .dm-sheet.is-page) {
+  .dm-scroll:has(.dm-sheet.is-page) {
     overflow-x: auto;
   }
   .dm-sheet.is-page {

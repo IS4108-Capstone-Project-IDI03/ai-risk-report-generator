@@ -844,7 +844,12 @@ export type CompletionState = 'not_started' | 'partial' | 'complete'
 // `ai_draft` while every finding is pending, `in_review` once some are
 // decided, `reviewed` once none is pending.
 export type ReviewState =
-  'not_drafted' | 'ai_draft' | 'in_review' | 'reviewed' | 'edited' | 'needs_review'
+  | 'not_drafted'
+  | 'ai_draft'
+  | 'in_review'
+  | 'reviewed'
+  | 'edited'
+  | 'needs_review'
 
 // A generated finding's review decision (RV-02). Rejected findings are out of
 // the draft, kept in the review history.
@@ -1096,7 +1101,8 @@ export async function decideReplacement(
 // marker names its source as a statement's citations do.
 export type DocumentMark = 'bold' | 'italic' | 'underline'
 export type DocumentInline =
-  { type: 'text'; text: string; marks?: DocumentMark[] } | { type: 'cite'; id: string }
+  | { type: 'text'; text: string; marks?: DocumentMark[] }
+  | { type: 'cite'; id: string }
 export type DocumentParagraph = {
   type: 'paragraph'
   finding?: string | null
@@ -1405,6 +1411,25 @@ export async function getExportBlockers(
   return (
     await request<{ blockers: ExportBlocker[] }>('GET', exportPath(reference), undefined, signal)
   ).data.blockers
+}
+
+// The export check as the Export tab opens (EX-01): what is left to finish,
+// and how many comment threads are still open, a reminder that never blocks
+// the export (RV-03 AC9).
+export async function getExportCheck(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<{ blockers: ExportBlocker[]; openThreads: number }> {
+  const { data } = await request<{ blockers: ExportBlocker[]; openThreads?: number }>(
+    'GET',
+    exportPath(reference),
+    undefined,
+    signal,
+  )
+  return {
+    blockers: data.blockers,
+    openThreads: typeof data.openThreads === 'number' ? data.openThreads : 0,
+  }
 }
 
 // The export was refused because the report is not complete (409).

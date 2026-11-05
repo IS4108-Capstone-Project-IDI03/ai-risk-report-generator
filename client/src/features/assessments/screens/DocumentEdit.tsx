@@ -3,6 +3,12 @@ import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Button, Callout, Dialog, IconRegistry } from '../../../design-system'
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
+import type { Stamp } from '../comments/api'
+import { CommentAnchors } from '../comments/commentMarks'
+import { CommentMargin } from '../comments/CommentMargin'
+import { CommentsPanel } from '../comments/CommentsPanel'
+import type { ThreadActions } from '../comments/ThreadCard'
+import { DRAFT, useComments } from '../comments/useComments'
 import { toEditorJSON } from '../document/convert'
 import { toggleSubheading } from '../document/commands'
 import { DocumentToolbar } from '../document/DocumentToolbar'
@@ -24,6 +30,7 @@ import { registerPendingSave } from '../pendingSaves'
 import { useSections } from '../useSections'
 import '../document/document.css'
 import '../document/page/pages.css'
+import '../comments/comments.css'
 
 const STATUS_TEXT: Record<SaveStatus, string> = {
   saved: 'All changes saved',
@@ -39,9 +46,31 @@ const prefersReducedMotion = () =>
 
 // None yet: one list for every render, so the document's parts stay the same.
 const NO_OBSERVATIONS: SavedObservation[] = []
+const NOBODY: Stamp = { id: '', name: '' }
 
 // The bottom of the sticky save bar and toolbar, which the view starts under.
 const bottomOf = (element: HTMLElement | null) => element?.getBoundingClientRect().bottom ?? 0
+
+// The room the comment margin needs beside the text (RV-03): the narrowest
+// the continuous view's text goes, or the page layout's page, the margin and
+// the gaps around them.
+const MARGIN_ROOM = { continuous: 560 + 296 + 64, page: 816 + 296 + 64 }
+
+// What the editor's comment marks call back to (RV-03): set once the
+// document has rendered, so the editor, made once, always reaches the
+// latest handlers.
+function createCommentBridge() {
+  let activate: (threadId: string) => void = () => {}
+  let comment: () => void = () => {}
+  return {
+    onActivate: (threadId: string) => activate(threadId),
+    onComment: () => comment(),
+    set(handlers: { activate: (threadId: string) => void; comment: () => void }) {
+      activate = handlers.activate
+      comment = handlers.comment
+    },
+  }
+}
 
 // The section the selection is in, by its id.
 function sectionAtSelection(editor: Editor): string | null {
@@ -56,6 +85,9 @@ function DocumentBody({
   parts,
   assessment,
   startAt,
+  readOnly,
+  canComment,
+  me,
   onReturn,
   onReload,
   wrapStyle,
@@ -67,6 +99,10 @@ function DocumentBody({
   // The assessment as last read, for the cover and details page (RV-12).
   assessment: Assessment | null
   startAt: string
+  // Read only: commented on, not changed (RV-03 AC7).
+  readOnly: boolean
+  canComment: boolean
+  me: Stamp
   onReturn: (sectionId: string) => void
   onReload: () => void
   wrapStyle: React.CSSProperties
@@ -88,15 +124,23 @@ function DocumentBody({
   const [pageMode, setPageMode] = useState(false)
   const [layout, setLayout] = useState<PageLayoutState | null>(null)
   const switchedFrom = useRef<Place | null>(null)
+  // The editor area's width, for whether the comment margin fits (RV-03).
+  const main = useRef<HTMLElement>(null)
+  const [mainWidth, setMainWidth] = useState(0)
+  const [bridge] = useState(createCommentBridge)
 
   const editor = useEditor({
     immediatelyRender: true,
     shouldRerenderOnTransaction: false,
+    // Read only, the text is not changed, but can still be selected to
+    // comment on (RV-03 AC7).
+    editable: !readOnly,
     extensions: [
       ...documentExtensions,
       ReviewPlugins.configure({ context: report.context }),
       FindReplace,
       PageLayout.configure({ geometry: MARSH_GEOMETRY, onLayout: setLayout }),
+      CommentAnchors.configure({ onActivate: bridge.onActivate, onComment: bridge.onComment }),
       Extension.create({
         name: 'documentKeys',
         priority: 1000,
@@ -123,17 +167,81 @@ function DocumentBody({
         'aria-label': 'Report document',
       },
     },
-    onUpdate: () => saver.changedNow(),
+    onUpdate: () => {
+      if (!readOnly) saver.changedNow()
+    },
     onSelectionUpdate: ({ editor: e }) => {
       const id = sectionAtSelection(e)
       if (id) setCurrent(id)
     },
   })
 
-  // Saving starts from the document as it opened.
+  // Saving starts from the document as it opened; read only, nothing saves.
   useEffect(() => {
-    if (editor) saver.attach(editor)
-  }, [editor, saver])
+    if (editor && !readOnly) saver.attach(editor)
+  }, [editor, saver, readOnly])
+
+  // Comment threads (RV-03), moved with the text each time it saves (AC6).
+  const comments = useComments({
+    reference,
+    editor,
+    canComment,
+    canMoveAnchors: !readOnly,
+  })
+  useEffect(() => saver.listen((pending) => void comments.syncAnchors(pending)))
+  // Whether the margin fits beside the text: unmeasured (as in tests), it does.
+  useEffect(() => {
+    const element = main.current
+    if (!element || typeof ResizeObserver !== 'function') return
+    const observer = new ResizeObserver(([entry]) => setMainWidth(entry.contentRect.width))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  const room =
+    mainWidth === 0 || mainWidth >= (pageMode ? MARGIN_ROOM.page : MARGIN_ROOM.continuous)
+  const inMargin = room && comments.panel === null
+  const marginShown =
+    inMargin &&
+    (comments.active === DRAFT ||
+      comments.entries.some(
+        (e) => e.range && (e.thread.status === 'open' || e.thread.id === comments.active),
+      ))
+  // A new thread on the selected text (AC1): in the margin, or in the
+  // comments list's place where there is no margin.
+  const startComment = () => {
+    if (comments.startDraft() && !inMargin) comments.setPanel('thread')
+  }
+  // A thread's highlighted text clicked: its thread opens.
+  useEffect(() =>
+    bridge.set({
+      activate: (threadId) => {
+        comments.activate(threadId)
+        if (!inMargin) comments.setPanel('thread')
+      },
+      comment: () => {
+        if (canComment) startComment()
+      },
+    }),
+  )
+  // Read only, the text takes no keys, so Comment's shortcut is the window's.
+  useEffect(() => {
+    if (!readOnly || !canComment) return
+    const press = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.altKey && event.code === 'KeyM') {
+        event.preventDefault()
+        bridge.onComment()
+      }
+    }
+    window.addEventListener('keydown', press)
+    return () => window.removeEventListener('keydown', press)
+  }, [readOnly, canComment, bridge])
+  const actions: ThreadActions = {
+    reply: comments.reply,
+    edit: comments.edit,
+    remove: comments.remove,
+    resolve: comments.resolve,
+    reopen: comments.reopen,
+  }
 
   // Opens on the section being reviewed.
   useEffect(() => {
@@ -277,23 +385,30 @@ function DocumentBody({
             ))}
           </ol>
           <p className="rv-rail-legend">
-            Headings and parts filled in elsewhere stay as they are. Violet text is still as the
-            draft wrote it; once you change it, it is yours. Changes save when you pause.
+            {readOnly
+              ? 'You can read the whole report and comment on any part of it. Only its assigned engineer changes the text.'
+              : 'Headings and parts filled in elsewhere stay as they are. Violet text is still as the draft wrote it; once you change it, it is yours. Changes save when you pause.'}
           </p>
         </nav>
-        <section aria-label="Document editor" className="dm-main">
+        <section aria-label="Document editor" className="dm-main" ref={main}>
           <div className="dm-head" ref={header}>
             <div className="dm-bar">
               <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={returnToReview}>
                 Return to review
               </Button>
               <p className="dm-save-status" role="status">
-                {STATUS_TEXT[status]}
-                {savedAt && status !== 'saving' && (
-                  <span className="dm-save-time">
-                    {' '}
-                    · Last saved {formatDayTime(new Date(savedAt))}
-                  </span>
+                {readOnly ? (
+                  'Read only · You can comment and reply'
+                ) : (
+                  <>
+                    {STATUS_TEXT[status]}
+                    {savedAt && status !== 'saving' && (
+                      <span className="dm-save-time">
+                        {' '}
+                        · Last saved {formatDayTime(new Date(savedAt))}
+                      </span>
+                    )}
+                  </>
                 )}
               </p>
               <Button
@@ -304,19 +419,47 @@ function DocumentBody({
               >
                 {pageMode ? 'Continuous view' : 'Page layout'}
               </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                iconLeft={IconRegistry.editor.save}
-                disabled={status === 'saving' || status === 'conflict'}
-                loading={status === 'saving'}
-                onClick={() => void saver.save()}
-              >
-                Save
-              </Button>
+              {!readOnly && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  iconLeft={IconRegistry.editor.save}
+                  disabled={status === 'saving' || status === 'conflict'}
+                  loading={status === 'saving'}
+                  onClick={() => void saver.save()}
+                >
+                  Save
+                </Button>
+              )}
             </div>
-            <DocumentToolbar editor={editor} onFind={() => setFindOpen(true)} />
-            {findOpen && <FindBar editor={editor} onClose={() => setFindOpen(false)} />}
+            <DocumentToolbar
+              editor={editor}
+              onFind={() => setFindOpen(true)}
+              readOnly={readOnly}
+              comments={
+                canComment || comments.counts.all
+                  ? {
+                      onComment: canComment ? startComment : undefined,
+                      onList: () => {
+                        // Closed where there is no margin, a new thread goes too.
+                        if (comments.panel && !room && comments.active === DRAFT)
+                          comments.cancelDraft()
+                        comments.setPanel(comments.panel ? null : 'list')
+                      },
+                      listOpen: comments.panel !== null,
+                      open: comments.counts.open,
+                    }
+                  : undefined
+              }
+            />
+            {comments.hint && (
+              <p className="dm-comment-hint" role="status">
+                {comments.hint}
+              </p>
+            )}
+            {findOpen && (
+              <FindBar editor={editor} canReplace={!readOnly} onClose={() => setFindOpen(false)} />
+            )}
           </div>
           {problem && (
             <div role="alert" className="dm-problem">
@@ -339,26 +482,63 @@ function DocumentBody({
               )}
             </div>
           )}
-          <div className="om-scroll dm-scroll">
-            {/* The editor keeps its place in the tree in either view, so
-                switching never remounts it (RV-12). */}
-            <div className={pageMode ? 'dm-sheet is-page' : 'dm-sheet'}>
-              {pageMode && (
-                <FrontPages key="front" details={details} contents={contents} onOpen={openEntry} />
-              )}
-              <div
-                key="body"
-                className="dm-body"
-                style={
-                  pageMode && layout
-                    ? { minHeight: pagesHeight(MARSH_GEOMETRY, layout.pages) }
-                    : undefined
-                }
-              >
-                {pageMode && layout && <PageBands key="bands" layout={layout} details={details} />}
-                <EditorContent key="editor" editor={editor} className="dm-paper" />
+          <div className="dm-viewport">
+            <div className="om-scroll dm-scroll">
+              <div className={marginShown ? 'dm-canvas has-margin' : 'dm-canvas'}>
+                {/* The editor keeps its place in the tree in either view, so
+                    switching never remounts it (RV-12). */}
+                <div className={pageMode ? 'dm-sheet is-page' : 'dm-sheet'}>
+                  {pageMode && (
+                    <FrontPages
+                      key="front"
+                      details={details}
+                      contents={contents}
+                      onOpen={openEntry}
+                    />
+                  )}
+                  <div
+                    key="body"
+                    className="dm-body"
+                    style={
+                      pageMode && layout
+                        ? { minHeight: pagesHeight(MARSH_GEOMETRY, layout.pages) }
+                        : undefined
+                    }
+                  >
+                    {pageMode && layout && (
+                      <PageBands key="bands" layout={layout} details={details} />
+                    )}
+                    <EditorContent key="editor" editor={editor} className="dm-paper" />
+                  </div>
+                </div>
+                {/* Open threads beside their text (RV-03 AC1). */}
+                {marginShown && (
+                  <CommentMargin
+                    editor={editor}
+                    comments={comments}
+                    me={me}
+                    canComment={canComment}
+                    actions={actions}
+                  />
+                )}
               </div>
             </div>
+            {/* The comments list (AC8), and threads where there is no margin. */}
+            {comments.panel && (
+              <CommentsPanel
+                comments={comments}
+                parts={report.parts}
+                me={me}
+                canComment={canComment}
+                actions={actions}
+                marginShown={room}
+                overlay={!room}
+                onClose={() => {
+                  if (comments.active === DRAFT) comments.cancelDraft()
+                  comments.setPanel(null)
+                }}
+              />
+            )}
           </div>
         </section>
       </div>
@@ -423,6 +603,9 @@ function DocumentBody({
 // (AC9, AC10) and flags stay until resolved in review (AC11). Changes save
 // when typing pauses or on Save (AC13), with a warning before unsaved ones
 // are lost (AC14). Return to review opens the section being edited (AC2).
+// Anyone who can open the report comments on it here (RV-03): threads sit in
+// the margin beside their text, and the comments list holds them all; a
+// knowledge admin opens it read only, to comment and reply (AC7).
 export function DocumentEdit({
   reference,
   assessment = null,
@@ -432,6 +615,9 @@ export function DocumentEdit({
   ofis,
   observations = NO_OBSERVATIONS,
   startAt,
+  readOnly = false,
+  canComment = false,
+  me = NOBODY,
   onReturn,
   onReload,
   wrapStyle,
@@ -450,6 +636,13 @@ export function DocumentEdit({
   observations?: SavedObservation[]
   // The section to open on.
   startAt: string
+  // Opened by someone who can't change the text, e.g. a knowledge admin,
+  // who still comments (RV-03 AC7).
+  readOnly?: boolean
+  // May comment on the report, reply, resolve and reopen threads (RV-03).
+  canComment?: boolean
+  // Who is signed in, for whose comments they may edit and delete (AC3).
+  me?: Stamp
   onReturn: (sectionId: string) => void
   // Reads the workspace again and reopens the document from it.
   onReload: () => void
@@ -482,6 +675,9 @@ export function DocumentEdit({
       parts={parts}
       assessment={assessment}
       startAt={startAt}
+      readOnly={readOnly}
+      canComment={canComment}
+      me={me}
       onReturn={onReturn}
       onReload={onReload}
       wrapStyle={wrapStyle}

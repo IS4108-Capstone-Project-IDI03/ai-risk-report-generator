@@ -13,6 +13,8 @@
 // - Citations and the photo appendix are the engineer's choice, applied the
 //   same way to both formats (AC6).
 // - A file that cannot be made says why, with Retry; nothing is simulated (AC11).
+// - Comment threads (RV-03) never reach the file; while any are open, how
+//   many is shown as a reminder, which does not block the export (RV-03 AC9).
 import { useCallback, useEffect, useState } from 'react'
 import {
   Button,
@@ -31,6 +33,7 @@ import {
   GatewayError,
   getAppendix,
   getExportBlockers,
+  getExportCheck,
   getReviewWorkspace,
   getSummary,
   listObservations,
@@ -111,6 +114,8 @@ export function ReportExport({
   onGenerate: () => void
 }) {
   const [blockers, setBlockers] = useState<ExportBlocker[] | null>(null)
+  // Comment threads still open (RV-03 AC9).
+  const [openThreads, setOpenThreads] = useState(0)
   const [checkError, setCheckError] = useState<string | null>(null)
   const [appendixPhotos, setAppendixPhotos] = useState<number | null>(null)
   const [format, setFormat] = useState<ExportFormat>('pdf')
@@ -121,10 +126,16 @@ export function ReportExport({
 
   useEffect(() => {
     const controller = new AbortController()
-    getExportBlockers(reference, controller.signal).then(setBlockers, (error: unknown) => {
-      if (!controller.signal.aborted)
-        setCheckError(messageOf(error, 'The export check could not be run.'))
-    })
+    getExportCheck(reference, controller.signal).then(
+      (check) => {
+        setBlockers(check.blockers)
+        setOpenThreads(check.openThreads)
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted)
+          setCheckError(messageOf(error, 'The export check could not be run.'))
+      },
+    )
     getAppendix(reference, controller.signal).then(
       (list) => setAppendixPhotos(Array.isArray(list?.selected) ? list.selected.length : 0),
       () => undefined,
@@ -265,6 +276,21 @@ export function ReportExport({
           ) : (
             <Callout tone="success" title="Ready to export">
               The report is complete: every section is written and every finding reviewed.
+            </Callout>
+          )}
+
+          {openThreads > 0 && (
+            <Callout
+              tone="info"
+              title={`${openThreads} comment thread${openThreads === 1 ? ' is' : 's are'} still open`}
+              actions={
+                <Button variant="secondary" size="sm" onClick={onReview}>
+                  Open review
+                </Button>
+              }
+            >
+              A reminder only: open threads don't stop the export, and no comments or highlights
+              appear in the file. Resolve them in the document editor once they are settled.
             </Callout>
           )}
 

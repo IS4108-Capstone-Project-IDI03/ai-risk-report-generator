@@ -2577,6 +2577,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       canDraftSections: isMine && canCapture && can('reports:generate', session),
       // Its assigned engineer exports its report, archived or not (EX-01 AC2).
       canExportReport: isMine && can('reports:export', session),
+      // Anyone who can open the assessment comments on its report (RV-03 AC7):
+      // its assigned engineer, or a knowledge admin; not once it is archived.
+      canComment:
+        !!targetRow?.persisted &&
+        canCapture &&
+        (isMine || session.user.role === 'knowledge_admin') &&
+        can('reports:comment', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
       isAdmin: session.user.role === 'knowledge_admin',
