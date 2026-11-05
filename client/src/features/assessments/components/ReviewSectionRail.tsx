@@ -39,7 +39,8 @@ function ReviewSummary({ summary }: { summary: FindingCounts }) {
 // with how many are in the report.
 // Sections 1 and 2 lead the rail and Appendix A ends it (GN-07). Edit
 // document, for the assigned engineer, opens the whole report as one
-// document (RV-08).
+// document (RV-08); anyone else who can comment on it (a knowledge admin)
+// opens it read only, as Open document (RV-03 AC7).
 export function ReviewSectionRail({
   sections,
   summary,
@@ -49,6 +50,7 @@ export function ReviewSectionRail({
   inReport,
   executiveSummary,
   onEditDocument,
+  readOnly = false,
   editPending = false,
   style,
 }: {
@@ -62,8 +64,10 @@ export function ReviewSectionRail({
   inReport: number
   // Section 2's state, for its row; null until loaded (GN-07).
   executiveSummary: Summary['executiveSummary'] | null
-  // Left out where the viewer may not edit.
+  // Left out where the viewer may neither edit nor comment.
   onEditDocument?: () => void
+  // The document opens read only, to comment on (RV-03).
+  readOnly?: boolean
   // The document's last changes are still being read back: opening it again
   // waits, so it opens on them.
   editPending?: boolean
@@ -107,9 +111,13 @@ export function ReviewSectionRail({
             disabled={editPending}
             onClick={onEditDocument}
           >
-            Edit document
+            {readOnly ? 'Open document' : 'Edit document'}
           </Button>
-          <p className="rv-muted">Write and revise any section, drafted or not, in one document.</p>
+          <p className="rv-muted">
+            {readOnly
+              ? 'Read the whole report as one document, and comment on any part of it.'
+              : 'Write and revise any section, drafted or not, in one document.'}
+          </p>
         </div>
       )}
       {summary && <ReviewSummary summary={summary} />}

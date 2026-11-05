@@ -2153,3 +2153,24 @@ Rejected:
 Known limits: OFI suggestions left unaccepted do not block. RV-04 is still to add citation targets, high-severity findings, overrides and second-layer review.
 
 Stories: EX-01, RV-04.
+
+## 2026-11-05 — Comment threads are kept apart from the text, anchored by its words
+
+Chose:
+- (RV-03) A comment thread is a document of its own in `report_comment_threads`, never part of a section's text. A comment adds no version to `report_section_versions` and changes no review state, so a knowledge admin, who cannot change the text, still comments (AC7), and the export (EX-01), laid out by an editor with no comment marks, never shows one (AC9).
+- A thread is anchored by text, not by an editor position: its offsets in the section's text as the document editor saves it (each paragraph, sub-heading and list item, one per line, a citation marker as one character), the passage itself and up to 32 characters either side, as the W3C Web Annotation quote and position selectors do. Opening the editor finds each thread at its offsets; else where the same words stand with the most matching text around them; else, when its words changed, between the text either side; else it is listed as having lost its text. So a thread survives what changes the text outside the editor: a finding edited or rejected in review, a redraft, a restore (RV-06).
+- In the editor each thread's passage carries a mark naming it. The mark moves with the words as they are edited, stays on what remains (AC6) and comes back on undo; it is placed outside the undo history, is not a change to save, is never taken from pasted HTML, and `inlineOf` merges the text runs it splits, so the saved text is the same with or without comments. After each save the editor sends where its threads now are (`PUT …/comments/anchors`); a thread whose text was deleted entirely is `detached` and keeps quoting it.
+- Who can comment is who can open the assessment, as the work list has it: its assigned engineer and every knowledge admin (`opensAssessment`), with the new `reports:comment` permission for both roles (F-05). The Review tab now needs `reports:comment` rather than `reports:generate`, so a knowledge admin reads the review workspace and opens the document read only ("Open document"); every decision still needs `reports:generate` and the assigned engineer.
+- No @mentions and no notifications from comments: AC4 was taken out of the story the same day, with the comments list's "mentioning me" filter. A colleague sees a new thread in the margin and the comments list when they next open the document.
+- Each comment is changed or deleted only by its author. A deleted reply goes; a deleted first comment that others reply to reads "Comment deleted"; a thread left with no comment goes too. Resolve and reopen are open to anyone who can comment, as in Google Docs.
+- Threads are read again when the window regains focus, not on a timer: a timer would keep an idle session signed in (F-07).
+
+Rejected:
+- Comment marks saved in the section's text, as some editors do: every comment would add a version and could change a finding's review state, a knowledge admin could not comment without a text save, and the export would have to strip them.
+- Anchoring by editor position alone: positions mean nothing once the text changes outside the editor.
+- Real-time sync between two open editors (Google Docs' live comments): out of scope; a colleague's new thread shows once the window regains focus.
+- @mentions with notifications (AC4 as first written, built and then removed at Josiah's request): a comment names no one, so it needs no list of colleagues and sends nothing to the bell.
+
+Known limits: a thread is on text only, not on a table, figure or photo filled in elsewhere. Where the window is too narrow for the margin beside the page, threads open in the comments list's place. A thread whose words changed beyond recognition outside the editor is listed with its quote rather than placed.
+
+Stories: RV-03, RV-08, F-05, EX-01.

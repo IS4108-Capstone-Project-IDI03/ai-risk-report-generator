@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
-import { IconButton, IconRegistry } from '../../../design-system'
+import { IconButton, IconRegistry, type Reason } from '../../../design-system'
+import { commentTarget } from '../comments/anchor'
 import { toggleSubheading } from './commands'
 
 const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -16,13 +17,37 @@ type Tool = {
   keys: string[]
   active?: boolean
   disabled?: boolean
+  // Greyed out, with a reason box saying why (design system v2).
+  reason?: Reason
   title?: string
   run: () => void
 }
 
+// Commenting (RV-03): starting a thread on the selected text, and the
+// comments list with how many threads are open.
+export type CommentTools = {
+  // Absent for someone who can only read the threads.
+  onComment?: () => void
+  onList: () => void
+  listOpen: boolean
+  open: number
+}
+
 // The document editor's formatting toolbar (AC6) with undo and redo (AC7),
-// each with its keyboard shortcut in its name.
-export function DocumentToolbar({ editor, onFind }: { editor: Editor; onFind: () => void }) {
+// each with its keyboard shortcut in its name; then Comment and the comments
+// list (RV-03). Read only, it keeps Find, Comment and the list.
+export function DocumentToolbar({
+  editor,
+  onFind,
+  readOnly = false,
+  comments,
+}: {
+  editor: Editor
+  onFind: () => void
+  readOnly?: boolean
+  // Offered to anyone who can comment on the report (RV-03 AC7).
+  comments?: CommentTools
+}) {
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -34,10 +59,14 @@ export function DocumentToolbar({ editor, onFind }: { editor: Editor; onFind: ()
       ordered: e.isActive('orderedList'),
       undo: e.can().undo(),
       redo: e.can().redo(),
+      from: e.state.selection.from,
+      to: e.state.selection.to,
     }),
   })
+  // Why the selection can't take a comment, if it can't (AC1).
+  const target = comments?.onComment ? commentTarget(editor.state.doc, state.from, state.to) : null
   const chain = () => editor.chain().focus()
-  const groups: Tool[][] = [
+  const formatting: Tool[][] = [
     [
       {
         name: 'Bold',
@@ -103,33 +132,59 @@ export function DocumentToolbar({ editor, onFind }: { editor: Editor; onFind: ()
         run: () => chain().redo().run(),
       },
     ],
-    [
-      {
-        name: 'Find and replace',
-        icon: IconRegistry.action.search,
-        keys: ['Mod', 'F'],
-        run: onFind,
-      },
-    ],
   ]
+  const find: Tool[] = [
+    {
+      name: readOnly ? 'Find' : 'Find and replace',
+      icon: IconRegistry.action.search,
+      keys: ['Mod', 'F'],
+      run: onFind,
+    },
+  ]
+  const onComment = comments?.onComment
+  const commenting: Tool[] = comments
+    ? [
+        ...(onComment
+          ? [
+              {
+                name: 'Comment',
+                icon: IconRegistry.editor.comment,
+                keys: ['Mod', 'Alt', 'M'],
+                reason: target && 'reason' in target ? target.reason : undefined,
+                run: onComment,
+              },
+            ]
+          : []),
+        {
+          name: comments.open ? `Comments, ${comments.open} open` : 'Comments',
+          icon: IconRegistry.editor.comments,
+          keys: [],
+          active: comments.listOpen,
+          run: comments.onList,
+        },
+      ]
+    : []
+  const groups = [...(readOnly ? [] : formatting), find, commenting].filter((g) => g.length)
   return (
-    <div role="toolbar" aria-label="Formatting" className="dm-tools">
+    <div role="toolbar" aria-label={readOnly ? 'Tools' : 'Formatting'} className="dm-tools">
       {groups.map((group, i) => (
         <div key={i} className="dm-tool-group">
           {group.map((tool) => {
             const keys = shortcut(tool.keys)
             const pressable = tool.active !== undefined
+            const name = tool.keys.length ? `${tool.name} (${keys.label})` : tool.name
             return (
               <IconButton
-                key={tool.name}
+                key={tool.icon}
                 icon={tool.icon}
                 size="sm"
-                label={`${tool.name} (${keys.label})`}
-                title={tool.title ?? `${tool.name} (${keys.label})`}
-                aria-keyshortcuts={keys.aria}
+                label={name}
+                title={tool.reason ? undefined : (tool.title ?? name)}
+                aria-keyshortcuts={tool.keys.length ? keys.aria : undefined}
                 aria-pressed={pressable ? !!tool.active : undefined}
                 selected={!!tool.active}
                 disabled={tool.disabled}
+                disabledReason={tool.reason}
                 // Keeps the selection in the document while the button is pressed.
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={tool.run}

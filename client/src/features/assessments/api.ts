@@ -1407,6 +1407,25 @@ export async function getExportBlockers(
   ).data.blockers
 }
 
+// The export check as the Export tab opens (EX-01): what is left to finish,
+// and how many comment threads are still open, a reminder that never blocks
+// the export (RV-03 AC9).
+export async function getExportCheck(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<{ blockers: ExportBlocker[]; openThreads: number }> {
+  const { data } = await request<{ blockers: ExportBlocker[]; openThreads?: number }>(
+    'GET',
+    exportPath(reference),
+    undefined,
+    signal,
+  )
+  return {
+    blockers: data.blockers,
+    openThreads: typeof data.openThreads === 'number' ? data.openThreads : 0,
+  }
+}
+
 // The export was refused because the report is not complete (409).
 export class ExportBlockedError extends GatewayError {
   readonly blockers: ExportBlocker[]

@@ -1005,7 +1005,11 @@ file. Nothing is stored: the file is the gateway's answer.
    OFI; Sections 4-12 drafted or written, 4 and 5 with every figure; and in
    each draft no new draft waiting, every finding decided, none unsupported,
    out of date or citing a withdrawn source (DECISIONS 2026-11-05). Each
-   blocker names its section and where it is finished (`where`).
+   blocker names its section and where it is finished (`where`). It also
+   returns `openThreads`, the comment threads still open (RV-03), shown as a
+   reminder that never blocks the export; no comment reaches the file, as
+   threads are kept apart from the text and the export's editor has no
+   comment marks.
 2. **Save** pending edits (`client/.../pendingSaves.ts`): the document editor's
    next save and Appendix A's queue. One that fails stops the export.
 3. **Lay out** (`client/.../document/export/`): `ExportPages` draws the report

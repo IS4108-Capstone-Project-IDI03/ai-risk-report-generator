@@ -50,6 +50,12 @@
   document editor, and each restore from the version history (RV-06), adds a
   version; never update or delete one. A restore names what it restored in
   `restoredFrom`, on the version and on the review log entries it makes.
+- Comment threads (RV-03) live in `report_comment_threads`, never in a
+  section's text: a comment adds no version and changes no review state. In
+  the document editor a thread's passage carries the `commentAnchor` mark,
+  which is never saved (`inlineOf` merges the runs it splits) and is not in
+  the export's editor. Don't add it to `documentExtensions`. See
+  docs/areas/database.md, "Report comment threads".
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export

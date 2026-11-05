@@ -146,8 +146,19 @@ export type ListedSite = Omit<ISite, 'client'> & {
 // Whether the engineer may correct an assessment's site (CP-18).
 export type Rights = ReturnType<Awaited<ReturnType<typeof changeRights>>>
 
-// Assigned assessments for engineers, all assessments for knowledge admins.
-// Two queries: matching assessments, then their capture sessions.
+// Who can open an assessment and its report: its assigned engineer, and every
+// knowledge admin. The work list below lists the same assessments; comment
+// threads (RV-03) are read, written and @mentioned to by the same rule.
+export function opensAssessment(
+  user: { id: string; role: string },
+  engineer: Types.ObjectId | string | null | undefined,
+): boolean {
+  return user.role === 'knowledge_admin' || (!!engineer && String(engineer) === user.id)
+}
+
+// Assigned assessments for engineers, all assessments for knowledge admins
+// (opensAssessment). Two queries: matching assessments, then their capture
+// sessions.
 // ponytail: paginate once one engineer's work list outgrows one response.
 export async function listAssessments(user: SessionUser): Promise<AssessmentDto[]> {
   const assessments = await AssessmentModel.find(

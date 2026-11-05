@@ -77,6 +77,8 @@ const json = (status: number, body: unknown) =>
 
 type Answer = (init?: RequestInit) => Promise<Response>
 let blockers: unknown[] = []
+// Comment threads still open (RV-03 AC9).
+let openThreads = 0
 const FILE: Answer = () =>
   Promise.resolve(
     new Response(new Blob(['%PDF-1.4']), {
@@ -92,6 +94,7 @@ const posted: unknown[] = []
 
 beforeEach(() => {
   blockers = []
+  openThreads = 0
   exportAnswer = FILE
   posted.length = 0
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
@@ -100,7 +103,7 @@ beforeEach(() => {
       posted.push(JSON.parse(String(init.body)))
       return exportAnswer(init)
     }
-    if (url === `${path}/export`) return json(200, { blockers })
+    if (url === `${path}/export`) return json(200, { blockers, openThreads })
     if (url === `${path}/appendix`)
       return json(200, { selected: [{ photoId: 'p1', caption: 'Pump room' }], available: [] })
     if (url === `${path}/review`) return json(200, WORKSPACE)
@@ -142,6 +145,23 @@ it('exports the chosen format with the chosen parts, named by the gateway (AC1, 
     { format: 'docx', citations: false, photos: true, html: '<!doctype html><title>pages</title>' },
   ])
   expect(laidOut.options).toEqual({ citations: false, photos: true, appendixPhotos: 1 })
+})
+
+it('reminds of comment threads still open, without blocking the export (RV-03 AC9)', async () => {
+  openThreads = 2
+  screenFor()
+  await screen.findByText('Ready to export')
+  expect(screen.getByText('2 comment threads are still open')).toBeInTheDocument()
+  const button = screen.getByRole('button', { name: 'Export as PDF' })
+  await waitFor(() => expect(button).toBeEnabled())
+  fireEvent.click(button)
+  expect(await screen.findByText(`Downloaded ${REF} 2026-11-04.pdf.`)).toBeInTheDocument()
+})
+
+it('shows no reminder once every thread is resolved (RV-03 AC9)', async () => {
+  screenFor()
+  await screen.findByText('Ready to export')
+  expect(screen.queryByText(/comment threads? (is|are) still open/)).not.toBeInTheDocument()
 })
 
 it('saves pending edits before exporting, and exports nothing if they fail (AC1)', async () => {

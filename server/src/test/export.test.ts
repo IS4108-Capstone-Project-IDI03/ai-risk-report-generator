@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
+import { ReportCommentThreadModel } from '../models/report-comment.model'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel, type IReportSection } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
@@ -282,6 +283,30 @@ describe('the export check: only a complete report goes (AC1)', () => {
       where: 'generation',
       reason: 'It is not written yet. Draft it on Generation, or write it in the document editor.',
     })
+  })
+
+  it('reminds of comment threads still open, without blocking the export (RV-03 AC9)', async () => {
+    const a = await completeReport()
+    const thread = (status: 'open' | 'resolved') => ({
+      assessment: a._id,
+      anchor: { sectionId: '7', start: 0, end: 4, exact: 'Roof', prefix: '', suffix: ' is' },
+      status,
+      comments: [
+        { body: 'Checked?', by: { id: String(engineer._id), name: 'Alex Rowe' }, at: new Date() },
+      ],
+      createdBy: { id: String(engineer._id), name: 'Alex Rowe' },
+      metadata: {
+        source_type: 'report_comment_thread' as const,
+        jurisdiction: 'SG',
+        facility_type: 'Warehouse',
+        COPE_dimension: 'all' as const,
+        effective_date: new Date(),
+      },
+    })
+    await ReportCommentThreadModel.create([thread('open'), thread('open'), thread('resolved')])
+    const check = await api.get(url)
+    expect(check.body).toMatchObject({ blockers: [], openThreads: 2 })
+    expect((await fileOf(api.post(url).send(exportBody()))).status).toBe(200)
   })
 
   it('refuses to export an unfinished report, naming what is left (409)', async () => {

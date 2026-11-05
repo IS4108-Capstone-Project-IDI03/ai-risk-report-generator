@@ -474,6 +474,8 @@ with the same list.
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
 | `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
+| `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01) | yes | no |
+| `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
@@ -969,6 +971,66 @@ is one; any other is the engineer's own text.
 section's `review` also has `editedInDocument`: true when it was changed or
 written in the document, so Edited by you shows even while another state
 (Needs review) comes first.
+
+## Report comment threads (RV-03)
+
+`report_comment_threads` holds one document per comment thread on a report,
+as in Google Docs: a thread on a passage of one section's text, with its
+comments oldest first. It is kept apart from the text on purpose: a comment
+never adds a version to `report_section_versions`, never changes a finding's
+review state, and the export (EX-01) never sees one. Written by
+`comment.service.ts`. Each thread has:
+
+- `assessment`.
+- `anchor` `{ sectionId, start, end, exact, prefix, suffix }`: where the
+  thread is in the section's text as the document editor saves it (each
+  paragraph, sub-heading and list item in order, one per line, a citation
+  marker as U+FFFC): `start` and `end` are offsets into that text, `exact` the
+  text between them (`end - start` characters, at most 10,000), `prefix` and
+  `suffix` up to 32 characters either side. The editor finds a thread at its
+  offsets, else by its words and the text around them, else between the text
+  either side when its words changed (`comments/anchor.ts`), and sends where
+  each thread now is after a save.
+- `detached`: true once the text it was on was deleted entirely (AC6). It stays
+  in the comments list, quoting `anchor.exact`, and is in no margin.
+- `status`: `open` or `resolved`; `resolved` `{ by, at }` while resolved.
+- `comments`: each `{ _id, body, by, at, editedAt, deletedAt }`. `body` is
+  plain text; `editedAt` is set when its author changes it (shown as
+  Edited). A deleted reply is removed; a deleted
+  first comment that others reply to keeps its place with `deletedAt` and no
+  words; a thread with no comment left is deleted.
+- `createdBy` `{ id, name }`, `createdAt`, `updatedAt`.
+- `metadata` with the five required fields: `source_type:
+  'report_comment_thread'`, `jurisdiction` and `facility_type` from the site,
+  `COPE_dimension` (the section draft's, else `all`) and `effective_date`
+  (when the thread was started).
+
+Indexes: `{ assessment: 1, createdAt: 1 }` for the list, and `{ assessment: 1,
+status: 1 }` for the export's count of open threads.
+
+Who can read and write threads is who can open the assessment, as the work
+list has it: its assigned engineer and every knowledge admin
+(`opensAssessment` in `assessment.service.ts`), with `reports:comment`. An
+archived assessment's threads are read, and take nothing new (409). A comment
+is changed or deleted only by its author (403). Comments send no
+notifications.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/comments` | `{ threads }`, oldest first, each `{ id, anchor, detached, status, resolved, comments, createdBy, createdAt, updatedAt }`, a comment `{ id, body, by, at, editedAt, deleted }`. |
+| `POST /api/assessments/:reference/comments` | `{ anchor, body }` (`body` up to 5,000 characters): starts a thread. 201 with `{ thread }`. |
+| `POST /api/assessments/:reference/comments/:threadId/replies` | `{ body }`: a reply, after the comments before it. 201 with `{ thread }`; 409 once a thread has 500 comments. |
+| `PATCH /api/assessments/:reference/comments/:threadId/comments/:commentId` | `{ body }`: the author's edit. 200 with `{ thread }`. |
+| `DELETE /api/assessments/:reference/comments/:threadId/comments/:commentId` | The author's delete. 200 with `{ thread }`, null once the thread has no comment left. |
+| `POST /api/assessments/:reference/comments/:threadId/resolve` and `…/reopen` | 200 with `{ thread }`. |
+| `PUT /api/assessments/:reference/comments/anchors` | `{ anchors: [{ id, anchor \| null }] }`: where the editor's last save left each thread; null detaches it. Needs `reports:generate` and the assigned engineer, as saving the text does. 200 with `{ updated }`. |
+
+All but the last need `reports:comment` and an assessment the caller can open
+(403 otherwise); 400 for an invalid body, naming each field; 404 for an
+unknown assessment, thread or comment; 409 once the assessment is archived.
+`GET /api/assessments/:reference/export` also returns `openThreads`, how many
+threads are still open, which the Export tab shows as a reminder that never
+blocks the export (AC9).
 
 ## Opportunities for Improvement (GN-05)
 
