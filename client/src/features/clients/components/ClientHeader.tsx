@@ -42,6 +42,7 @@ export function ClientHeader({
     danger?: boolean,
   ) => (
     <Button
+      pill
       variant={danger && a.allowed ? 'danger-tonal' : 'pill'}
       iconLeft={icon}
       aria-label={label}

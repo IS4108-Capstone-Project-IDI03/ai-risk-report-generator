@@ -64,6 +64,7 @@ export function SiteCard({
           {site.removed ? (
             site.restore.allowed && (
               <Button
+                pill
                 size="sm"
                 variant="secondary"
                 iconLeft={IconRegistry.action.reinstate}

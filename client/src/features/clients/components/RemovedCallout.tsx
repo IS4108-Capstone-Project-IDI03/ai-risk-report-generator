@@ -15,6 +15,7 @@ export function RemovedCallout({
 }) {
   const restoreButton = (label: string) => (
     <Button
+      pill
       size="sm"
       variant="secondary"
       iconLeft={IconRegistry.action.reinstate}
