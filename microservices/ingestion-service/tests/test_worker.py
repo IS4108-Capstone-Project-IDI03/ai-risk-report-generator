@@ -12,7 +12,7 @@ import httpx
 import pytest
 from bson import ObjectId
 
-from app import worker
+from app import privacy, worker
 from app.pipeline import UnparsableDocumentError
 from app.pipeline.errors import DocumentTimeoutError, OcrUnavailableError
 
@@ -102,6 +102,31 @@ def labels_of(doc):
     return worker.labels(doc)
 
 
+PROTECTED = {
+    "enabled": True,
+    "known_entities": [{"type": "PERSON", "names": ["John Tan"]}],
+    "detect": ["CLIENT", "SITE"],
+}
+
+
+class FakeGateway:
+    """The gateway's GET /api/internal/knowledge-documents/:id/privacy (PV-05): protection off
+    unless a test sets `answer`. `failure` is an httpx exception to raise, or a status code."""
+
+    def __init__(self):
+        self.answer = {"enabled": False, "known_entities": []}
+        self.requests: list[httpx.Request] = []
+        self.failure: Exception | int | None = None
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if isinstance(self.failure, Exception):
+            raise self.failure
+        if self.failure:
+            return httpx.Response(self.failure, json={"error": "boom"})
+        return httpx.Response(200, json=self.answer)
+
+
 @pytest.fixture
 def documents(monkeypatch):
     fake = FakeDocuments()
@@ -135,16 +160,27 @@ def documents(monkeypatch):
     monkeypatch.setattr(
         worker, "delete_passages", lambda doc_id: fake.deleted_passages.append(doc_id) or 1
     )
-    # Expose the jobs collection and captured notifications on the fixture.
+    # The gateway says how to protect each document (PV-05); off unless a test says otherwise.
+    gateway = FakeGateway()
+    monkeypatch.setenv("SERVICE_API_KEY", "test-key")
+    monkeypatch.setattr(
+        privacy,
+        "_gateway_client",
+        lambda: httpx.Client(
+            base_url="http://gateway.test", transport=httpx.MockTransport(gateway.handler)
+        ),
+    )
+    # Expose the jobs collection, captured notifications and the gateway on the fixture.
     fake.jobs = jobs
     fake.notifications = notifications
+    fake.gateway = gateway
     return fake
 
 
 def test_a_processed_document_is_complete_with_its_counts(documents, monkeypatch):
     seen = {}
 
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         seen.update(bytes=Path(file_path).read_bytes(), doc_id=doc_id)
         reporter.start_stage("parsing")
         reporter.start_stage("chunking")
@@ -171,7 +207,7 @@ def test_the_documents_labels_go_to_every_passage(documents, monkeypatch):
     # KB-01: passages carry the record's labels, the date as YYYY-MM-DD.
     seen = {}
 
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         seen["labels"] = labels
         return {"chunks_indexed": 1, "tables_captured": 0, "images_captured": 0}
 
@@ -234,7 +270,7 @@ def test_a_match_error_fails_the_document(documents, monkeypatch):
 
 
 def test_a_pdf_whose_text_cannot_be_read_is_failed_with_a_plain_reason(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         raise UnparsableDocumentError(file_path, "Docling produced no extractable content")
 
     monkeypatch.setattr(worker, "run", fake_run)
@@ -251,7 +287,7 @@ def test_a_pdf_whose_text_cannot_be_read_is_failed_with_a_plain_reason(documents
 
 
 def test_a_parse_that_ran_out_of_time_is_failed_with_the_limit_to_raise(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         raise DocumentTimeoutError("Docling stopped at the 1800 s limit: processed 300/577 pages")
 
     monkeypatch.setattr(worker, "run", fake_run)
@@ -267,7 +303,7 @@ def test_a_parse_that_ran_out_of_time_is_failed_with_the_limit_to_raise(document
 
 
 def test_an_ocr_provider_that_kept_refusing_fails_with_a_reason_to_retry(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         raise OcrUnavailableError("Claude OCR kept refusing a table region after 8 waits")
 
     monkeypatch.setattr(worker, "run", fake_run)
@@ -280,7 +316,7 @@ def test_an_ocr_provider_that_kept_refusing_fails_with_a_reason_to_retry(documen
 
 
 def test_a_system_error_is_failed_with_a_plain_reason_not_the_technical_one(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         raise OSError(-2, "Name or service not known")
 
     monkeypatch.setattr(worker, "run", fake_run)
@@ -420,7 +456,7 @@ def _logged_stages(job_doc: dict) -> list[str]:
 
 
 def test_a_successful_run_leaves_a_finished_job_with_every_stage_logged(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         reporter.start_stage("parsing")
         reporter.start_stage("chunking")
         reporter.start_stage("anonymising")
@@ -440,7 +476,7 @@ def test_a_successful_run_leaves_a_finished_job_with_every_stage_logged(document
 
 
 def test_a_failed_run_records_the_failed_stage_in_the_log(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         reporter.start_stage("parsing")
         raise UnparsableDocumentError(file_path, "Docling produced no extractable content")
 
@@ -531,7 +567,7 @@ def test_a_completed_document_notifies_the_gateway(documents, monkeypatch):
 
 
 def test_a_failed_document_notifies_with_the_stage_that_broke(documents, monkeypatch):
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         reporter.start_stage("parsing")
         reporter.start_stage("chunking")
         raise OSError(-2, "boom")
@@ -554,7 +590,7 @@ def test_the_document_is_recorded_before_it_is_notified(documents, monkeypatch):
     # The notification carries the already-updated document, which proves the
     # status write happened first — so a notification problem (swallowed inside
     # notify_ingestion, see test_notifications.py) can never undo the status.
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         reporter.start_stage("parsing")
         raise OSError(-2, "boom")
 
@@ -588,7 +624,7 @@ def test_a_finished_document_that_needs_review_notifies_why(documents, monkeypat
 def test_a_failed_ingestion_removes_the_passages_it_already_wrote(documents, monkeypatch):
     # Chroma writes in batches: a failure after some were stored must not leave
     # those passages searchable under a document marked Failed.
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         raise OSError(-2, "Name or service not known")
 
     monkeypatch.setattr(worker, "run", fake_run)
@@ -672,7 +708,7 @@ def _ocr_and_embed(regions: int, texts: list[str]):
     from app.pipeline import embedder
     from app.pipeline.chunking_helper import ocr_model
 
-    def fake_run(file_path, doc_id=None, labels=None, reporter=None):
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
         with ThreadPoolExecutor(max_workers=4) as pool:
             list(pool.map(lambda _: ocr_model.recognise(PNG, "table"), range(regions)))
         embedder.embed(texts)
@@ -832,3 +868,96 @@ def test_self_hosted_ocr_is_recorded_for_its_speed(documents, posted, monkeypatc
     assert ocr["model"] == "glm-ocr"
     assert ocr["input_tokens"] == 300
     assert ocr["output_tokens"] == 20
+
+
+# --- PV-05: the gateway says whether to protect the document; the worker passes it on.
+
+
+def test_the_worker_asks_the_gateway_how_to_protect_the_document(documents, monkeypatch):
+    documents.gateway.answer = PROTECTED
+    seen = {}
+
+    def fake_run(file_path, doc_id=None, labels=None, reporter=None, privacy=None):
+        seen["privacy"] = privacy
+        return RUN_OK()
+
+    monkeypatch.setattr(worker, "run", fake_run)
+
+    worker.ingest_document(DOC_ID)
+
+    assert seen["privacy"] == PROTECTED
+    [asked] = documents.gateway.requests
+    assert asked.url.path == f"/api/internal/knowledge-documents/{DOC_ID}/privacy"
+    assert asked.headers["x-service-key"] == "test-key"
+
+
+REDACTED_RUN = {
+    **RUN_OK(),
+    "privacy": {"enabled": True, "masked_count": 1},
+    "mapping": {"[PERSON_1]": "John Tan"},
+}
+
+
+def test_the_mapping_is_saved_before_the_passages_go_live(documents, monkeypatch):
+    # Relabelling makes the passages searchable; rag needs the mapping by then to read them.
+    documents.gateway.answer = PROTECTED
+    monkeypatch.setattr(worker, "run", lambda *_a, **_k: REDACTED_RUN)
+    saved_when_live = []
+    monkeypatch.setattr(
+        worker,
+        "relabel_passages",
+        lambda doc: saved_when_live.append(documents.doc.get("privacyMapping")) or 1,
+    )
+
+    worker.ingest_document(DOC_ID)
+
+    assert saved_when_live == [{"[PERSON_1]": "John Tan"}]
+    assert documents.doc["privacyMapping"] == {"[PERSON_1]": "John Tan"}
+    # Provenance (Rule 8): whether it was protected and how much, never the mapping.
+    assert documents.jobs.doc["privacy"] == {"enabled": True, "masked_count": 1}
+
+
+def _privacy_service_down(*_a, **_k):
+    raise privacy.PrivacyUnavailable("The privacy service isn't available.")
+
+
+@pytest.mark.parametrize("where", ["gateway", "privacy service"])
+def test_when_protection_cannot_be_checked_or_applied_the_document_fails(
+    documents, monkeypatch, where
+):
+    # Fail closed (Rule 3): nothing is read unprotected, and the admin is told why.
+    if where == "gateway":
+        documents.gateway.failure = httpx.ConnectError("refused")
+        monkeypatch.setattr(worker, "run", RUN_OK)
+    else:
+        documents.gateway.answer = PROTECTED
+        monkeypatch.setattr(worker, "run", _privacy_service_down)
+
+    with pytest.raises(privacy.PrivacyUnavailable):
+        worker.ingest_document(DOC_ID)
+
+    assert documents.doc["status"] == "failed"
+    assert documents.doc["error"] == worker.PRIVACY_DOWN
+    assert documents.deleted_passages == [DOC_ID]
+
+
+@pytest.mark.parametrize("ending", ["failed", "cancelled"])
+def test_a_run_that_does_not_finish_leaves_no_mapping(documents, monkeypatch, ending):
+    # Its passages are deleted, so the mapping would only be personal data kept for nothing.
+    documents.gateway.answer = PROTECTED
+    monkeypatch.setattr(worker, "run", lambda *_a, **_k: REDACTED_RUN)
+
+    def after_the_mapping_is_saved(doc, _collection):
+        if ending == "failed":
+            raise RuntimeError("matching broke")
+        documents.doc["cancelRequestedAt"] = datetime(2026, 11, 5)
+
+    monkeypatch.setattr(worker, "find_match", after_the_mapping_is_saved)
+
+    try:
+        worker.ingest_document(DOC_ID)
+    except RuntimeError:
+        pass
+
+    assert documents.doc["status"] == ending
+    assert "privacyMapping" not in documents.doc

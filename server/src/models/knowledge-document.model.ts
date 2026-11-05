@@ -134,6 +134,11 @@ export interface IKnowledgeDocument {
   // Shared by every edition of one standard once an admin links them (IN-07
   // decisions); the id of the first document of the family. Written only by the gateway.
   editionFamily?: Types.ObjectId | null
+  // A redacted report's tags and the client details they replaced (PV-05), as
+  // { '[PERSON_1]': 'John Tan' }. Written only by the ingestion worker and read
+  // only by rag; `select: false`, so the gateway never loads it unless it asks
+  // by name, and no route can send it to the browser.
+  privacyMapping?: Record<string, string>
   createdAt: Date
   updatedAt: Date
 }
@@ -260,6 +265,7 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
       ),
     },
     retryCount: { type: Number, required: true, default: 0 },
+    privacyMapping: { type: Schema.Types.Mixed, select: false },
   },
   { timestamps: true, collection: 'knowledge_documents' },
 )

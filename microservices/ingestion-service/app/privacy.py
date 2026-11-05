@@ -43,6 +43,12 @@ def _client() -> httpx.Client:
     return httpx.Client(base_url=PRIVACY_SERVICE_URL, timeout=PRIVACY_TIMEOUT)
 
 
+def _gateway_client() -> httpx.Client:
+    # Read when called, like the worker's notifications: Compose sets GATEWAY_URL for the worker.
+    gateway = os.environ.get("GATEWAY_URL", "http://localhost:4000")
+    return httpx.Client(base_url=gateway, timeout=PRIVACY_TIMEOUT)
+
+
 class Session:
     """One document's masking. Off (or no `privacy` sent): text passes unchanged."""
 
@@ -76,6 +82,10 @@ class Session:
         """Where each client detail in `texts` sits, `{start, end, placeholder}` per detail, in
         one /mask call. The caller escapes `texts` first (`escape`), keeping its offsets."""
         return self._mask(texts)["spans"]
+
+    def provenance(self) -> dict:
+        """What the ingestion job records (Rule 8): never the mapping itself."""
+        return {"enabled": self.enabled, "masked_count": len(self.mapping)}
 
     def unmask(self, text: str) -> str:
         """`text` with real values back. A placeholder the mapping doesn't hold is left as
@@ -122,6 +132,26 @@ class Session:
         body = response.json()
         self.mapping = body["mapping"]
         return body
+
+
+def for_document(document_id: str) -> dict:
+    """How the gateway says to protect one knowledge document: `{enabled, known_entities,
+    detect?}` (the epic's Rule 1; ingestion never reads PII_PROTECTION itself). Asked when its
+    ingestion runs, so a retry uses the names known then. Fails closed: without an answer the
+    document fails, rather than being read unprotected."""
+    try:
+        with _gateway_client() as client:
+            response = client.get(
+                f"/api/internal/knowledge-documents/{document_id}/privacy",
+                headers={"x-service-key": os.environ.get("SERVICE_API_KEY", "")},
+            )
+        response.raise_for_status()
+    except httpx.HTTPError as error:
+        raise PrivacyUnavailable(
+            "Client details couldn't be protected because the gateway didn't say how, so "
+            "nothing was sent or indexed. If this keeps happening, tell your administrator."
+        ) from error
+    return response.json()
 
 
 def session(privacy: dict | None) -> Session:

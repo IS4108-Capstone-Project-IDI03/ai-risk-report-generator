@@ -2061,3 +2061,34 @@ describe('buildKnowledgeDocumentIndex', () => {
     await KnowledgeDocumentModel.syncIndexes()
   })
 })
+
+// PV-05 acceptance: a redacted report's mapping (tag -> client detail) is saved
+// on its document, and no API returns it to the browser.
+describe('a knowledge document privacy mapping', () => {
+  it('is in no response that returns the document', async () => {
+    // A guard: the DTO lists its fields, and the model never loads the mapping.
+    const id = await stored(REPORT)
+    await KnowledgeDocumentModel.collection.updateOne(
+      { _id: new Types.ObjectId(id) },
+      { $set: { privacyMapping: { '[PERSON_1]': 'John Tan' } } },
+    )
+
+    const responses = [
+      await api.get('/api/knowledge-documents'),
+      await api.get('/api/knowledge-documents/ingested'),
+      await api.put(`/api/knowledge-documents/${id}`).send({
+        title: REPORT.title,
+        effectiveDate: REPORT.effectiveDate,
+        sourceType: REPORT.sourceType,
+        jurisdiction: 'SG',
+        facilityType: 'Data centre',
+      }),
+    ]
+
+    for (const response of responses) {
+      expect(response.status).toBe(200)
+      expect(JSON.stringify(response.body)).toContain(id)
+      expect(JSON.stringify(response.body)).not.toMatch(/John Tan|privacyMapping/)
+    }
+  })
+})

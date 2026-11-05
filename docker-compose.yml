@@ -100,6 +100,9 @@ services:
       chroma:
         condition: service_started
         required: false
+      # Labelling masks a document's pages through it, and fails closed without it (PV-05).
+      privacy-service:
+        condition: service_started
 
   # Takes queued knowledge documents one at a time and runs the pipeline
   # (app/worker.py). Same image as ingestion-service, different command.
@@ -128,6 +131,9 @@ services:
       chroma:
         condition: service_started
         required: false
+      # A past report is redacted through it before parsing, and fails closed without it (PV-05).
+      privacy-service:
+        condition: service_started
 
   ingestion-test:
     build:

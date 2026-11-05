@@ -30,6 +30,7 @@ import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
 import internalNotificationRoutes from './routes/internal-notification.routes'
 import internalAiUsageRoutes from './routes/internal-ai-usage.routes'
+import internalKnowledgeDocumentRoutes from './routes/internal-knowledge-document.routes'
 import { requireAuth, requireAuthNoRefresh } from './middleware/auth.middleware'
 import { requireServiceKey } from './middleware/service-auth.middleware'
 
@@ -85,6 +86,9 @@ app.use('/api/notifications', requireAuth, notificationRoutes)
 // mounts on its own path outside the requireAuth chain above.
 app.use('/api/internal/notifications', requireServiceKey, internalNotificationRoutes)
 app.use('/api/internal/ai-usage', requireServiceKey, internalAiUsageRoutes)
+// GET /api/internal/knowledge-documents/:id/privacy (PV-05): how the ingestion
+// worker is to protect a document before it reads it.
+app.use('/api/internal/knowledge-documents', requireServiceKey, internalKnowledgeDocumentRoutes)
 
 async function start() {
   await connectDb()

@@ -32,8 +32,9 @@ export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed' | 
 // The stages a document moves through while processing (E2). Mirrors
 // INGESTION_STAGES in server/src/models/ingestion-job.model.ts.
 export const INGESTION_STAGES = [
-  'parsing',
+  // Redaction before parsing, only for a protected report (PV-05).
   'anonymising',
+  'parsing',
   'chunking',
   'indexing',
   'complete',
