@@ -183,7 +183,7 @@ describe('Marsh prototype integration', () => {
     act(() => vi.advanceTimersByTime(15000))
     expect(screen.getByText(/5 of 7 sections drafted · 2 need attention/)).toBeInTheDocument()
   })
-  it('requires review and evidence resolution before simulating export', async () => {
+  it('requires review and evidence resolution, then says sample data cannot be exported (EX-01 AC11)', async () => {
     render(<App />)
     await signIn()
     openAssessment()
@@ -212,13 +212,12 @@ describe('Marsh prototype integration', () => {
     expect(screen.getByRole('button', { name: 'Export as DOCX' })).toBeEnabled()
     fireEvent.click(screen.getByRole('radio', { name: /PDF/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Export as PDF' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Simulate export' }))
-    // The dashboard's "gateway could not be reached" notice is a status too.
-    expect(
-      screen
-        .getAllByRole('status')
-        .some((s) => s.textContent?.includes('No file was generated or issued')),
-    ).toBe(true)
+    // Nothing is produced or simulated: the cause is shown instead.
+    const dialog = screen.getByRole('dialog', { name: 'Sample data cannot be exported' })
+    expect(dialog).toHaveTextContent('No file was produced.')
+    expect(screen.queryByRole('button', { name: 'Simulate export' })).toBeNull()
+    // Closed from the header's ✕ or the footer's Close.
+    expect(within(dialog).getAllByRole('button', { name: 'Close' })).toHaveLength(2)
   }, 10000)
   it.each([390, 900])('provides usable navigation at %ipx', async (width) => {
     const previous = window.innerWidth

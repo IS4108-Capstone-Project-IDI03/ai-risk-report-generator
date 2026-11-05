@@ -51,9 +51,9 @@ route remains a placeholder.
 ### Frontend demo
 
 The UI follows the Marsh design system and includes sign-in, the assessment
-dashboard, observations, generation, review, and simulated export. Demo changes
-are kept in memory only; refreshing or signing out resets them, and export is
-simulated.
+dashboard, observations, generation, review, and export. Demo changes
+are kept in memory only; refreshing or signing out resets them. The sample
+assessment shown without the gateway cannot be exported, and says so.
 
 Sign-in is real (F-04): the form checks the credentials with the gateway, which
 sets an httpOnly session cookie, so the gateway must be running. Each screen has
@@ -144,6 +144,24 @@ hazards checked for each facility type, and the standards they are checked
 against, are in `rag-service/app/generation/checklist.json`. The assigned
 engineer chooses the standards to use and generates; each generation is kept,
 and the latest is shown. Only the facility type and country reach S4.
+
+The Export tab (EX-01) exports the finished report as a PDF, to issue, or an
+editable Word document, for review rounds. Only the assigned engineer can
+(`reports:export`), and only once the report is complete: every section written
+(the Executive Summary current, an OFI accepted, Sections 4 and 5's figures
+entered) and every finding reviewed. What is left is listed on the tab
+(`GET /api/assessments/:reference/export`), until RV-04 builds the full check. The browser lays the
+report out off screen with the document editor's Page layout (RV-12), without
+AI styling, review states or notes, and sends the pages to
+`POST /api/assessments/:reference/export`; the gateway prints them with
+headless Chromium (Playwright; Chrome locally, or `CHROMIUM_PATH`), so the PDF
+matches the page layout page for page, with its bookmarks and contents links,
+or reads the same pages into a Word file with heading styles, a table of
+contents, page-number fields and editable tables (`docx`). Citations become
+numbered references listed after the report, or are left out; Appendix A's
+photos go in at 300 dpi of their printed size, or not at all. A masking
+placeholder left in the text stops the export (PV-02). The file downloads as
+`<reference> <date>.pdf` or `.docx`; nothing is stored.
 
 In Section 5's Review editor, each loss level has its own property damage items,
 values and damage percentages. Site-wide insured values remain in

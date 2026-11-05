@@ -2112,3 +2112,44 @@ Rejected:
 Known limits: the file applies to every flow, so switching a kind off affects drafting and chat too. Building names alone are not detected. Masking now changes for drafting and chat, so the drafting and chat evals need a rerun with `--privacy` (Rule 9).
 
 Stories: PV-04, PV-01.
+
+## 2026-11-04 — The export is the page layout, printed: the browser lays out the pages, the gateway prints them with headless Chromium
+
+Chose:
+- (EX-01) The PDF comes from Marsh's page layout itself (RV-12), as AC3 asks: the Export tab draws the report off screen with the document editor's own schema, pagination and pages (`document/export/ExportPages.tsx`), read-only and without the review screen's marks (AC10): no review plugins, so no violet AI styling, flags or deleted-citation badges; no notices; citation numbers only. Once every part has loaded and nothing has changed for four checks 300 ms apart, `snapshot.ts` turns the pages into one HTML document: the cover, details page and contents as drawn, and the report cut into Letter pages exactly where the layout breaks it. Each block of the report keeps the page `paginate` gave it and sits where it sat on that page; a table carried onto a page starts with its header again (the layout's repeated header), a split numbered list goes on counting, and a split table keeps its column widths. Each page gets the header and footer its band draws.
+- The gateway prints those pages with headless Chromium (playwright-core), the user's choice over a separate export service. The HTML comes from the browser, so it is opened with no way out: page scripts off, a content security policy allowing only inline styles and data: images and fonts, and every request refused (`export-render.service.ts`). Chromium embeds the fonts (Arial, or Liberation Sans in the server image, its metric twin), keeps backgrounds, makes the headings bookmarks and the contents entries links (AC3, AC4). One Chromium per export, closed after it, at most two at once. Chromium is `CHROMIUM_PATH` (the server image installs Alpine's), else an installed Chrome, else Playwright's.
+- The Word file is read off the same pages, so both formats hold the same text (AC6, AC7): `export-extract.ts` runs in the page and returns the blocks (sections, headings, runs with their bold, italic, underline, superscript and colour, Word lists, tables with each cell's fill, pictures, page breaks), joining a table or list split across pages by the `data-x` name the snapshot gives its parts. Charts and legends are pictured at twice their size; photos keep the bytes the export embedded. `export-docx.ts` writes it with `docx`: the navy cover (a page-sized navy picture behind white text), the details page and a Word table of contents numbered i, ii, the report from 1, Marsh's header and footer with a PAGE field, each section a Heading 1 ("Section 7", a line break, "Construction") from a new page, subsections Heading 2, other headings Heading 3. Its contents is a TOC field (`\h \o "1-2"`) holding the page layout's entries until Word refreshes it; it is marked for refreshing, so Word may ask to update fields when it opens.
+- Citations (AC6): markers keep the numbers each section already gives them (`plugins.ts citationNumbers`), and References, a part after the report (after Appendix A, so no earlier page moves), list each section's numbers: a standard by title, edition, heading trail and page; an observation by location and capture date (`capturedAt`, now on the review workspace's observations); a past Marsh report by facility type and year only (`facilityType`, now on its passage's document); a section of this report by its title. Without citations no marker is left. Page layout now draws markers as the PDF prints them, plain superscripts, so its line breaks are the export's.
+- Section 6's programs are Marsh's two tables in the page layout and the export (AC7): a `programs` locked part in the Management Programs subsection draws `MaturityTable` from the rows written there, live, and the page layout hides the rows it shows (`page/programs.ts`); the continuous view keeps editing them as paragraphs. The subsection schema allows that part before its text.
+- The export check (AC1) is the minimal one until RV-04 (`exportBlockers`): every drafted finding decided, none unsupported, no withdrawn source cited, each blocker named by section, on the tab and as the 409 body. (Widened 2026-11-05: the report must also be written in full.) Pending edits are saved first through a registry (`pendingSaves.ts`) that the document editor and Appendix A's queue join; one that fails stops the export.
+- Only the assigned engineer exports, with a new `reports:export` permission (risk engineers, F-05). An archived report can be exported again. A masking placeholder left in the text (`[PERSON_2]`, `client_1`, `[PHONE 3]`) stops the export with where it is (422, AC9). Photos go in at 300 dpi of their printed size, never above the original's own resolution, in Appendix A's order (AC8). The file is `<reference> <YYYY-MM-DD>.<pdf|docx>`, the day in `REPORT_TIME_ZONE` (Asia/Singapore). Nothing is stored.
+- The sample assessment shown without the gateway says it cannot be exported and simulates nothing (AC11); its Standards index option, which did nothing, is gone.
+
+Rejected:
+- Laying out the PDF on the gateway (pdfkit, or the docx converted by Gotenberg): its pages would not be the page layout's, which AC3 asks for.
+- Printing the browser's page with `window.print()`: a print dialog, not a download, with no API to refuse (AC2).
+- Rasterising the pages in the browser (html2canvas): no text to select or search, no embedded fonts, no links.
+- Printing the page layout's one continuous sheet and letting Chromium break it: Chromium would move a block whose space crosses a page edge, and every page after it would shift. Each page is cut out instead, so Chromium never breaks one.
+- Gotenberg's Chromium route, already in Compose: it is off on purpose (it fetches any URL), and the Word file needs the page read and pictured, which its routes do not do.
+- Chart pictures drawn in the browser (SVG to canvas): the charts' colours are CSS variables, which a standalone SVG loses; Chromium pictures them as drawn.
+- Word's hidden text for "7. " in the heading, to make the contents read "7. Construction": Word leaves hidden text out of the contents.
+
+Known limits: a block taller than a page still runs past its foot (RV-12), and is cut off at the page's edge in the PDF. Word paginates on its own, so its page numbers can differ from the PDF's; its contents shows the page layout's until refreshed. Bookmarks name a section by its title, without its number. The export waits for the off-screen pages to settle, so a report with many photos takes a few seconds before the gateway is asked. The minimal check does not cover RV-04's mandatory sections, unresolved citation targets, overrides or second-layer review.
+
+Stories: EX-01, RV-12, RV-04, F-05, GN-03, GN-07, GN-11, GN-12, CP-04, PV-02.
+
+## 2026-11-05 — Only a complete report is exported: every section written, every finding reviewed
+
+Chose:
+- (EX-01 AC1) Until RV-04 builds its full check, `exportBlockers` (`export.service.ts`) lets a report go only once it is complete, as the team decided: Section 2's Executive Summary drafted and not out of date; at least one accepted OFI (Section 3); Sections 4-12 each drafted, or written in the document editor; Sections 4 and 5 with every figure entered; and in each draft no new draft waiting, every finding decided, none unsupported, none citing a withdrawn source, and nothing changed since it was drafted (evidence, figures or the site's scope). The 4 Nov check covered only the review half.
+- Each item names its section, in report order, and where it is finished (`where`: Generation or the review workspace), so the Export tab opens the right tab from it. `GET /api/assessments/:reference/export` returns them as `blockers`; the POST checks again and answers 409 with them. The export stays greyed out with the reason until the list is empty (design system v2).
+- Section 2's own statements are not checked for support: they cannot be decided in the review workspace, so a flag there could never clear.
+
+Rejected:
+- Exporting as it stands with the open items only as a warning (tried earlier the same day): the team wants an unfinished report kept in the tool.
+- Requiring every template subsection to have text: a draft covers only the subsections its evidence supports.
+- An override with a justification (RV-04 AC9-AC11): left to RV-04, which also adds its audit trail.
+
+Known limits: OFI suggestions left unaccepted do not block. RV-04 is still to add citation targets, high-severity findings, overrides and second-layer review.
+
+Stories: EX-01, RV-04.

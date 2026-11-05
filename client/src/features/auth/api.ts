@@ -9,6 +9,7 @@ export type Permission =
   | 'assessments:view'
   | 'assessments:edit'
   | 'reports:generate'
+  | 'reports:export'
   | 'knowledge:view'
   | 'knowledge:manage'
   | 'users:manage'

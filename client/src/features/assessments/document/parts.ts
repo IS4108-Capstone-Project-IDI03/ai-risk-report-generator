@@ -1,5 +1,6 @@
 import { createContext } from 'react'
 import type { AcceptedOfi, SavedObservation } from '../api'
+import type { ReferenceGroup } from './export/references'
 
 // What the document's locked parts show (LockedBlockView), and the way to
 // change them.
@@ -14,5 +15,7 @@ export type DocumentParts = {
   pageLayout: boolean
   // Leaves the document for the review workspace, on this section.
   onOpen: (sectionId: string) => void
+  // The export's references, by section (EX-01 AC6); only the export has them.
+  references?: ReferenceGroup[] | null
 }
 export const DocumentPartsContext = createContext<DocumentParts | null>(null)

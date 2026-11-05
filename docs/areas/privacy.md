@@ -15,6 +15,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | Site walk proposal (CP-22) | Yes | CP-22 | The transcript, existing location names and photo descriptions are masked before the walk-reading model and Jev. The photo itself and the audio are not (speech-to-text and photo description, rows below). |
 | Client intake: reading a client's documents (CP-23) | Yes | CP-23 | Every document's name and text is masked before the reading model and Jev, including a client or site not yet recorded. See "Client intake" below. The files themselves are stored in S3 and never sent. |
 | Pre-survey checklist (CP-30) | Not needed | CP-30 | Only the facility type, country and standard ids are sent; S4's request has no field for client text. |
+| Report export (EX-01) | Not needed | EX-01 | No AI call. The gateway refuses a file whose text still holds a placeholder (`[PERSON_2]`, `client_1`, `[PHONE 3]`), naming where it is (422). |
 | Proposed figures for Sections 4 and 5 (GN-03) | **No** | (PV-02 follow-up) | `POST /figures/propose` sends observations and sections to the model unmasked. |
 | Observation reading: photos, and since CP-21 any observation's text (Gemini) | Yes | PV-04 | Faces in photos are blurred; the note, transcripts and location are masked. Item labels ("Note", a photo's file name) are not. |
 | Handwritten note transcription (CP-19, Gemini) | **No, by decision** | PV-04 | The page image must be read by the model, so it can't be masked. See Known gaps. |

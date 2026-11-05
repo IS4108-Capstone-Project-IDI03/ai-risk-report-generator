@@ -58,6 +58,12 @@ export const config = {
   serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
   piiProtection: piiProtectionFrom(process.env.PII_PROTECTION),
   piiCheckAnswers: piiCheckAnswersFrom(process.env.PII_CHECK_ANSWERS),
+  // The Chromium the report export prints with (EX-01). Unset, the gateway
+  // uses an installed Chrome, else a Chromium installed for Playwright; the
+  // Docker image sets it to its own Chromium.
+  chromiumPath: process.env.CHROMIUM_PATH || undefined,
+  // Where the team works, for the export date in a report's file name (EX-01).
+  reportTimeZone: process.env.REPORT_TIME_ZONE || 'Asia/Singapore',
   // Where the browser app is served; the emailed reset (F-06) and invitation
   // (F-08) links point here.
   appUrl: process.env.APP_URL ?? 'http://localhost:3000',

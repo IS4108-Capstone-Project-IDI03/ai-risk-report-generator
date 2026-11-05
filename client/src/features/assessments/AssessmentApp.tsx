@@ -30,6 +30,7 @@ import { Generation } from './screens/Generation'
 import { SectionDrafts } from './screens/SectionDrafts'
 import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
+import { ReportExport } from './screens/ReportExport'
 import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
@@ -408,7 +409,18 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         <Review v={v} />
                       ))}
 
-                    {v.isExport && <ValidationExport v={v} />}
+                    {v.isExport &&
+                      (v.liveReference ? (
+                        <ReportExport
+                          reference={v.liveReference}
+                          assessment={v.liveRecord}
+                          canExport={v.canExportReport}
+                          onReview={() => v.setTab('review')}
+                          onGenerate={() => v.setTab('generate')}
+                        />
+                      ) : (
+                        <ValidationExport v={v} />
+                      ))}
                   </>
                 )}
               </main>

@@ -20,6 +20,12 @@ a managed service or an API:
 | Redis (BullMQ queue) | container on the instance; server and worker share it |
 | Client | static build (`npm run build`) served by nginx on the host over HTTPS; nginx forwards `/api` to `server` on 4000 |
 
+The server image carries Chromium and the Liberation fonts for the report
+export (EX-01, `server/Dockerfile`, `CHROMIUM_PATH`): one Chromium is started
+per export and closed after it, at most two at once, each about 200–300 MB
+while it prints. An export's request carries its laid-out pages with the photos
+(up to 64 MB, within nginx's `client_max_body_size 100m`).
+
 Docling parses on the instance's CPU with RapidOCR. Its models are built into
 the ingestion image, so nothing is downloaded at runtime.
 

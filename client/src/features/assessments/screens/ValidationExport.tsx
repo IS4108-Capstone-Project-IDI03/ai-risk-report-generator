@@ -31,7 +31,7 @@ export function ValidationExport({ v }: { v: AssessmentWorkflow }) {
               <>
                 <Callout tone="success" title="Ready to export">
                   {
-                    'All included sections are reviewed and no review items remain open. Export is simulated; no file is generated and no sign-off is recorded.'
+                    'All included sections are reviewed and no review items remain open. This is sample data shown without the gateway, so it cannot be exported.'
                   }
                 </Callout>
               </>
@@ -265,8 +265,8 @@ export function ValidationExport({ v }: { v: AssessmentWorkflow }) {
                   </span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <Checkbox
-                      label="Citation references"
-                      description="Superscript markers and a source list per section"
+                      label="Citations"
+                      description="Numbered markers, with the sources they cite listed in References after the report"
                       checked={v.optCite}
                       onChange={v.setOptCite}
                     ></Checkbox>
@@ -275,12 +275,6 @@ export function ValidationExport({ v }: { v: AssessmentWorkflow }) {
                       description="28 captioned site photographs"
                       checked={v.optPhotos}
                       onChange={v.setOptPhotos}
-                    ></Checkbox>
-                    <Checkbox
-                      label="Standards index"
-                      description="FM Global 2-0, NFPA 13, NFPA 22"
-                      checked={v.optIdx}
-                      onChange={v.setOptIdx}
                     ></Checkbox>
                   </div>
                 </div>

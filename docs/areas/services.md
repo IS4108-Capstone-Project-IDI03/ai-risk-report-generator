@@ -994,6 +994,53 @@ Regenerate:
    and then accept (it becomes the saved draft, every finding pending) or
    discard (nothing else changes).
 
+## Report export (S2, EX-01)
+
+The Export tab of a saved assessment exports the report as a PDF or a Word
+file. Nothing is stored: the file is the gateway's answer.
+
+1. **Check** (`GET /api/assessments/:reference/export`, `reports:export`):
+   `exportBlockers` in `server/src/services/export.service.ts`, until RV-04:
+   only a complete report goes. Section 2 drafted and current; an accepted
+   OFI; Sections 4-12 drafted or written, 4 and 5 with every figure; and in
+   each draft no new draft waiting, every finding decided, none unsupported,
+   out of date or citing a withdrawn source (DECISIONS 2026-11-05). Each
+   blocker names its section and where it is finished (`where`).
+2. **Save** pending edits (`client/.../pendingSaves.ts`): the document editor's
+   next save and Appendix A's queue. One that fails stops the export.
+3. **Lay out** (`client/.../document/export/`): `ExportPages` draws the report
+   off screen in the document editor's Page layout (RV-12), read-only, with no
+   AI styling, review states, flags or notices. `exportDocument.ts` applies the
+   choices: citations numbered per section with References after Appendix A
+   (`references.ts`: a standard by title, edition, heading and page; an
+   observation by location and capture date; a past Marsh report by facility
+   type and year only), or no marker at all; Appendix A only when chosen and
+   holding photos. Once every part has loaded and the pages have held still
+   for four checks 300 ms apart, `snapshot.ts` cuts the report into Letter pages
+   where the layout breaks it, each page with its header and footer, a table
+   carried onto a page starting with its header again, and photos redrawn at
+   300 dpi of their printed size (never above the original). It marks what the
+   Word file needs (`data-x-*`; see `export-extract.ts`).
+4. **Make the file** (`POST /api/assessments/:reference/export`, 64 MB body):
+   the assigned engineer only (403), the check again (409 with `blockers`),
+   then `export-render.service.ts` opens the pages in headless Chromium
+   (playwright-core) with page scripts off, a content security policy allowing
+   only inline styles and data: images, and every request refused. Any text
+   still holding a privacy placeholder stops it (422). A PDF is printed as the
+   pages size it (Letter, backgrounds on, tagged, headings as bookmarks,
+   contents as links, fonts embedded). A Word file is read off the same pages
+   (`export-extract.ts`, run in the page; charts and legends pictured at twice
+   their size) and written by `export-docx.ts` (`docx`): a navy cover, the
+   details page and a Word table of contents numbered i, ii, the report from 1,
+   Marsh's header and footer with a page-number field, Heading 1-3, editable
+   tables with their header rows repeating and rank colours, Word lists, and
+   the photos as embedded. 503 when Chromium is missing or the pages cannot be
+   printed, to retry.
+
+Chromium: `CHROMIUM_PATH` (the server image's own), else an installed Google
+Chrome, else a Chromium installed for Playwright. `REPORT_TIME_ZONE` (default
+Asia/Singapore) dates the file name, `<reference> <YYYY-MM-DD>.pdf`.
+
 ## Knowledge chat: cost and speed (S4, CB-01)
 
 One question runs up to four paid steps:

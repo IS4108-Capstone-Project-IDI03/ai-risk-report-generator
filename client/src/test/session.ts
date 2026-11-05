@@ -12,6 +12,7 @@ export const SESSIONS: Record<UserRole, Session> = {
       'assessments:view',
       'assessments:edit',
       'reports:generate',
+      'reports:export',
       'knowledge:view',
       'usage:view',
     ],

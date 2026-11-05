@@ -46,6 +46,10 @@ app.use((req, res, next) => (documentSave.test(req.path) ? documentBody(req, res
 const proposalSave = /^\/api\/assessments\/[^/]+\/site-walks\/[^/]+\/proposal$/
 const proposalBody = express.json({ limit: '5mb' })
 app.use((req, res, next) => (proposalSave.test(req.path) ? proposalBody(req, res, next) : next()))
+// A report export (EX-01) carries its laid-out pages, photos included.
+const exportRequest = /^\/api\/assessments\/[^/]+\/export$/
+const exportBody = express.json({ limit: '64mb' })
+app.use((req, res, next) => (exportRequest.test(req.path) ? exportBody(req, res, next) : next()))
 app.use(express.json())
 app.use(cookieParser())
 

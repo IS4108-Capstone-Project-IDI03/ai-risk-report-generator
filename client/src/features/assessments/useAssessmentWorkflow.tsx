@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type * as React from 'react'
-import { Icon, IconRegistry, toast as sonner } from '../../design-system'
+import { Button, Icon, IconRegistry, toast as sonner } from '../../design-system'
 import {
   archiveAssessment as requestArchive,
   restoreAssessment as requestRestore,
@@ -2575,6 +2575,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // client, site or detail shows on the document's cover (RV-12 AC3).
       liveRecord: openRow?.persisted ? (openRow.record ?? null) : null,
       canDraftSections: isMine && canCapture && can('reports:generate', session),
+      // Its assigned engineer exports its report, archived or not (EX-01 AC2).
+      canExportReport: isMine && can('reports:export', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
       isAdmin: session.user.role === 'knowledge_admin',
@@ -4204,7 +4206,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       exportLabel: 'Export as ' + s.fmt,
       exportHint: blocked
         ? 'Enabled once the checklist passes.'
-        : 'Demo only. No file is generated and no sign-off is recorded.',
+        : 'Sample data shown without the gateway cannot be exported.',
       askExport: () => {
         if (!isBlocked())
           setState({
@@ -4216,61 +4218,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           exportOpen: false,
         }),
       exportOpen: s.exportOpen,
-      exportDialogTitle: 'Export RPT-2026-0411 as ' + s.fmt + '?',
+      // Sample data has no saved report to make a file from (EX-01 AC11):
+      // the cause is shown, and nothing is produced or simulated.
+      exportDialogTitle: 'Sample data cannot be exported',
       exportDialogBody:
-        live.length +
-        ' sections selected. This simulates export only: no file is generated, no report is issued and no sign-off is recorded.',
+        'This assessment is sample data shown without the gateway, so there is no saved report to make a file from. No file was produced. Open a saved assessment from the dashboard to export its report.',
       exportFooter: (
         <div
           style={{
             display: 'flex',
+            justifyContent: 'flex-end',
             gap: 8,
           }}
         >
-          <button
-            type={'button'}
+          <Button
+            variant="secondary"
             onClick={() =>
               setState({
                 exportOpen: false,
               })
             }
-            style={{
-              height: 40,
-              padding: '0 16px',
-              borderRadius: 5,
-              border: '1px solid var(--border-default)',
-              background: 'var(--surface-card)',
-              color: 'var(--text-body)',
-              fontFamily: 'var(--font-sans)',
-              fontSize: 16,
-              cursor: 'pointer',
-            }}
           >
-            {'Cancel'}
-          </button>
-          <button
-            type={'button'}
-            onClick={() => {
-              setState({
-                exportOpen: false,
-                screen: 'dashboard',
-              })
-              toast('Demo export complete. No file was generated or issued.')
-            }}
-            style={{
-              height: 40,
-              padding: '0 16px',
-              borderRadius: 5,
-              border: '1px solid var(--action-primary)',
-              background: 'var(--action-primary)',
-              color: '#fff',
-              fontFamily: 'var(--font-sans)',
-              fontSize: 16,
-              cursor: 'pointer',
-            }}
-          >
-            {'Simulate export'}
-          </button>
+            {'Close'}
+          </Button>
         </div>
       ),
       wordCount: '7 sections · 4,180 words · 28 photographs',
