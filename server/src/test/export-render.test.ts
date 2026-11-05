@@ -64,7 +64,11 @@ async function orSkip<T>(skip: () => void, work: () => Promise<T>): Promise<T | 
   }
 }
 
-describe('the export page (EX-01)', () => {
+// Each export launches Chromium afresh, and a first launch on a cold machine
+// (a CI runner) can take longer than Vitest's 5 seconds.
+const CHROMIUM_TEST_MS = 30_000
+
+describe('the export page (EX-01)', { timeout: CHROMIUM_TEST_MS }, () => {
   it('puts the content security policy first in the page', () => {
     expect(withPolicy('<html><head><title>x</title></head></html>')).toMatch(
       /^<html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none';/,
