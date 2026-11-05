@@ -48,11 +48,14 @@ const PAGE_COUNTED_STAGES: IngestionStage[] = ['parsing', 'chunking', 'indexing'
 // gateway leaves the last list showing.
 /** Returns the Recent uploads section. */
 export function UploadedDocuments({
+  focused,
   narrow,
   refreshKey,
   onCompleted,
   onReview,
 }: {
+  // The document a notification opened (F-10): marked, and scrolled into view once loaded.
+  focused?: string | null
   narrow: boolean
   refreshKey: number
   // Opens a document's Review page from its Needs review badge (IN-07).
@@ -127,8 +130,13 @@ export function UploadedDocuments({
     }
   }, [refreshKey, attempt, onCompleted])
 
+  useEffect(() => {
+    if (documents && focused)
+      document.getElementById(`document-${focused}`)?.scrollIntoView({ block: 'center' })
+  }, [documents, focused])
+
   const title = (d: KnowledgeDocument) => (
-    <span className="kb-doc">
+    <span className="kb-doc" id={`document-${d.id}`} data-focused={d.id === focused || undefined}>
       <strong>{d.title}</strong>
       <small>
         {d.sourceType === 'marsh_report'

@@ -1,16 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconButton, Popover } from '../../design-system'
-import { useNotifications, type NotificationCounts } from './useNotifications'
+import { useNotifications } from './useNotifications'
 import './notifications.css'
 import { NotificationList } from './NotificationList'
 import type { Notification } from './api'
-import { KNOWLEDGE_REVIEW_PATH, SCREEN_PATHS } from '../auth/access'
-import { openKnowledgeTab } from '../knowledge-base/openTab'
-import { openSiteWalkReview } from '../site-walk/openReview'
+import { openSubject } from './openSubject'
 
 export type NotificationBellProps = {
-  // Counts from the session, so the badge is right before the dropdown opens.
-  counts: NotificationCounts
   // How many rows a page holds. A component concern, not a constant.
   pageSize?: number
   // Navigate to a notification's subject. Given the notification so the caller
@@ -22,15 +18,15 @@ export type NotificationBellProps = {
 }
 
 // The header entry point: a bell with an unread count that opens the dropdown.
+// The counts and their one poller live above the screens (NotificationCountsContext).
 // Owns the open state and the data hook; the Popover owns dismissal.
 export function NotificationBell({
-  counts,
   pageSize = 5,
   onActivate,
   tone = 'light',
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false)
-  const n = useNotifications(pageSize, counts)
+  const n = useNotifications(pageSize)
 
   // Plays the pulse and tilt once each time the count rises while the page is
   // open. The first value is skipped, so loading the page with unread items is
@@ -63,6 +59,8 @@ export function NotificationBell({
       ariaLabel="Notifications"
       align="right"
       surfaceClassName="notification-popover-surface"
+      sheetCancel
+      sheetClassName="notif-sheet"
       trigger={
         <IconButton
           icon="bell"
@@ -99,37 +97,7 @@ export function NotificationBell({
             openSubject(notification)
           })
         }
-        onClose={() => setOpen(false)}
       />
     </Popover>
   )
-}
-
-// Opens what a notification is about, where it has a page. A document that
-// needs review (IN-07) opens its Review page: the URL changes and popstate
-// tells the app and the knowledge base to follow it, as the browser's Back does.
-function openSubject(notification: Notification) {
-  if (notification.purpose === 'knowledge_gap_request') return openKnowledgeRequest(notification)
-  // A site walk proposal is ready (CP-22): its assessment's Observations tab, on the review.
-  if (notification.purpose === 'site_walk_ready') {
-    const { reference, walkId } = notification.context ?? {}
-    return reference && walkId ? openSiteWalkReview(reference, walkId) : undefined
-  }
-  const { documentId, status } = notification.context ?? {}
-  if (status !== 'needs_review' || !documentId) return
-  const path = KNOWLEDGE_REVIEW_PATH + encodeURIComponent(documentId)
-  // Already there: a second entry would make Back land on the same page.
-  if (window.location.pathname === path) return
-  window.history.pushState(null, '', path)
-  window.dispatchEvent(new PopStateEvent('popstate'))
-}
-
-// A knowledge request (CB-07). The admin's "New knowledge request" has no status in its context,
-// so it opens Requests; the engineer's outcome (filled or dismissed) carries one and opens the chat.
-function openKnowledgeRequest(notification: Notification) {
-  if (!notification.context?.status)
-    return openKnowledgeTab('requests', notification.context?.requestId)
-  if (window.location.pathname === SCREEN_PATHS.chat) return
-  window.history.pushState(null, '', SCREEN_PATHS.chat)
-  window.dispatchEvent(new PopStateEvent('popstate'))
 }

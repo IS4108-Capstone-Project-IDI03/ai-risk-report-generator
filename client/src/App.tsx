@@ -5,11 +5,18 @@ import { currentSession, signOut, type Session } from './features/auth/api'
 import { AssessmentApp } from './features/assessments/AssessmentApp'
 import { SESSION_ENDED_EVENT } from './features/assessments/api'
 import { useAssessmentWorkflow } from './features/assessments/useAssessmentWorkflow'
+import { NotificationCountsProvider } from './features/notifications/NotificationCountsContext'
 
 function Workspace({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const workflow = useAssessmentWorkflow(onSignOut, session)
   useIdleTimeout(onSignOut)
-  return <AssessmentApp v={workflow} session={session} />
+  // The notification counts and their one poller live here, above every screen, so a screen
+  // change never restarts them (NotificationCountsContext.tsx).
+  return (
+    <NotificationCountsProvider initial={session.notifications}>
+      <AssessmentApp v={workflow} session={session} />
+    </NotificationCountsProvider>
+  )
 }
 
 // Every workspace URL needs a session (F-04): without one the sign-in screen

@@ -2,10 +2,21 @@
 import { useState } from 'react'
 import { Icon } from '../../design-system'
 import type { Notification } from './api'
-import { formatWhen } from './formatWhen'
+import { formatBellWhen } from './formatWhen'
 import { KnowledgeRequestDetails } from './KnowledgeRequestDetails'
 import { ActionButton } from './components/ActionButton'
 import { NotificationIcon } from './components/NotificationIcon'
+
+// Past this many characters the one line under the message is cut off, so Show more earns its place.
+const FITS_ONE_LINE = 44
+
+// What the line beside the time says (board 11): the details' first line, or who moved it.
+function detailLine(n: Notification) {
+  if (n.details) return n.details.split('\n')[0]
+  return n.purpose === 'assessment_moved' && n.context?.sender
+    ? `${n.context.sender} reassigned it`
+    : null
+}
 
 export function NotificationRow({
   notification,
@@ -21,13 +32,17 @@ export function NotificationRow({
   onDismiss: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const hasDetails = Boolean(notification.details)
+  const details = notification.details
   // A knowledge request stored with its parts (CB-07) is laid out with labels; older ones
   // fall back to the plain details text.
   const request =
     notification.purpose === 'knowledge_gap_request' && notification.context?.question
       ? notification.context
       : null
+  const line = detailLine(notification)
+  // Only when there is more to read than the one line shows.
+  const hasMore =
+    !!details && (!!request || details.includes('\n') || details.length > FITS_ONE_LINE)
 
   const activate = () => {
     if (!notification.read) onMarkRead(notification.id)
@@ -43,15 +58,16 @@ export function NotificationRow({
         <button type="button" onClick={activate} className="notif-row__message">
           <span className={expanded ? undefined : 'notif-clamp'}>{notification.message}</span>
         </button>
-        {hasDetails && expanded && request && (
+        {hasMore && expanded && request && (
           <KnowledgeRequestDetails context={request} onOpen={activate} />
         )}
-        {hasDetails && expanded && !request && (
-          <p className="notif-row__details">{notification.details}</p>
-        )}
+        {hasMore && expanded && !request && <p className="notif-row__details">{details}</p>}
         <div className="notif-row__meta">
-          <time dateTime={notification.createdAt}>{formatWhen(notification.createdAt)}</time>
-          {hasDetails && (
+          <span className="notif-row__when">
+            <time dateTime={notification.createdAt}>{formatBellWhen(notification.createdAt)}</time>
+            {line && !expanded && ` · ${line}`}
+          </span>
+          {hasMore && (
             <button
               type="button"
               aria-expanded={expanded}

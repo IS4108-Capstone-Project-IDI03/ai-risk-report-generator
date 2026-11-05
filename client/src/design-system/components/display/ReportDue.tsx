@@ -14,6 +14,9 @@ export type ReportDueProps = {
   note?: string
   // False leaves the calendar icon out (the Clients list's Next survey, round 14).
   icon?: boolean
+  // The date alone, "28 Feb" with its state colour and icon, no year and no second line
+  // (the phone Inbox, F-10 board 07).
+  short?: boolean
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -27,6 +30,7 @@ export function ReportDue({
   plain = false,
   note,
   icon = true,
+  short = false,
 }: ReportDueProps) {
   if (!date) {
     return (
@@ -52,9 +56,10 @@ export function ReportDue({
       {icon && <Icon name={glyph} size={16} />}
       <span>
         <span className="ds-due-date">
-          {d.getDate()} {MONTHS[d.getMonth()]} {d.getFullYear()}
+          {d.getDate()} {MONTHS[d.getMonth()]}
+          {short ? '' : ` ${d.getFullYear()}`}
         </span>
-        {plain ? null : (
+        {plain || short ? null : (
           <span className="ds-due-note" title={note}>
             {note ?? count}
           </span>

@@ -6,6 +6,7 @@ import type * as React from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '../core/Icon'
 import { Tooltip } from '../feedback/Tooltip'
+import { usePop } from './usePop'
 import './shell.css'
 
 export type SideNavProps = {
@@ -20,8 +21,16 @@ export type SideNavProps = {
     // A collapsible group folds under its heading and is left off the rail.
     collapsible?: boolean
     // live: shows a blinking light (the .live-dot style) beside the label.
-    // The board shows no count beside an item, so `count` is accepted and not drawn.
-    items: { value: string; label: string; icon?: string; count?: number; live?: boolean }[]
+    // count: a red number at the item's right (the Inbox's To do, F-10); none at 0. On the
+    // collapsed rail it is a dot. countLabel is what a screen reader hears ("4 to do").
+    items: {
+      value: string
+      label: string
+      icon?: string
+      count?: number
+      countLabel?: string
+      live?: boolean
+    }[]
   }[]
   value?: string | number
   onChange?: (value: string) => void
@@ -32,6 +41,24 @@ export type SideNavProps = {
   // Names that control when it does not fold the sidebar, e.g. "Close navigation" in the drawer.
   toggleLabel?: string
   style?: React.CSSProperties
+}
+
+// The red count on an item (F-10): one pop to 1.2 and the number crossfades when it rises;
+// on the collapsed rail it is a dot on the icon. Hidden from screen readers, which hear the
+// item's own label (SideNav adds the count text to it).
+function NavCount({ count, dot }: { count: number; dot: boolean }) {
+  const pops = usePop(count)
+  if (dot)
+    return (
+      <span key={pops} className="ds-sidenav-dot" aria-hidden="true" data-pop={pops || undefined} />
+    )
+  return (
+    <span key={pops} className="ds-sidenav-count" aria-hidden="true" data-pop={pops || undefined}>
+      <span key={count} data-fade={pops || undefined}>
+        {count > 99 ? '99+' : count}
+      </span>
+    </span>
+  )
 }
 
 function SideNav({
@@ -132,8 +159,15 @@ function SideNav({
                           className="ds-sidenav-item"
                           data-small={sec.collapsible || undefined}
                           aria-current={it.value === value ? 'page' : undefined}
-                          // On the rail only the icon shows, so the label names the button.
-                          aria-label={collapsed ? it.label : undefined}
+                          // On the rail only the icon shows, so the label names the button,
+                          // with the count when there is one.
+                          aria-label={
+                            collapsed
+                              ? it.count
+                                ? `${it.label}, ${it.countLabel ?? it.count}`
+                                : it.label
+                              : undefined
+                          }
                           onClick={() => onChange && onChange(it.value)}
                         >
                           <Icon
@@ -152,8 +186,15 @@ function SideNav({
                               {it.live ? (
                                 <span className="live-dot" role="img" aria-label="live"></span>
                               ) : null}
+                              {it.count ? (
+                                <>
+                                  <NavCount count={it.count} dot={false} />
+                                  <span className="ds-sr-only">{`, ${it.countLabel ?? it.count}`}</span>
+                                </>
+                              ) : null}
                             </>
                           )}
+                          {collapsed && it.count ? <NavCount count={it.count} dot /> : null}
                         </button>
                       )
                       return collapsed ? (

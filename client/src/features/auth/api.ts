@@ -8,6 +8,7 @@ import type { UserRole } from '../accounts/api'
 export type Permission =
   | 'assessments:view'
   | 'assessments:edit'
+  | 'assessments:assign'
   | 'reports:generate'
   | 'knowledge:view'
   | 'knowledge:manage'
@@ -17,9 +18,10 @@ export type Permission =
 export type Session = {
   user: { id: string; name: string; role: UserRole }
   permissions: Permission[]
-  // Populate session state so the header can show the unread badge.
-  // The dropdown will replace `total` with a fresh figure once it loads the list.
-  notifications: { total: number; unread: number }
+  // Populate session state so the header can show the unread badge and the
+  // sidebar the Inbox count. `total` and `unread` are the bell's; `inboxTodo` is
+  // the Inbox's To do count.
+  notifications: { total: number; unread: number; inboxTodo: number }
 }
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {

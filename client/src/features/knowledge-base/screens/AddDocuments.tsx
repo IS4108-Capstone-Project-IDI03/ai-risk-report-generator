@@ -11,10 +11,13 @@ import { addFiles, clearFinished, useUploads } from '../uploads'
 
 /** Returns the Add documents tab: the upload panel, then recent uploads. */
 export function AddDocuments({
+  focused,
   narrow,
   onCompleted,
   onReview,
 }: {
+  // The document a notification opened (a failed one, where Retry is), marked once.
+  focused?: string | null
   narrow: boolean
   onCompleted: (count: number) => void
   // Opens a document's Review page (IN-07).
@@ -94,6 +97,7 @@ export function AddDocuments({
       </section>
 
       <UploadedDocuments
+        focused={focused}
         narrow={narrow}
         refreshKey={acceptedCount}
         onCompleted={onCompleted}

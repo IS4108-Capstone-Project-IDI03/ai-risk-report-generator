@@ -15,18 +15,21 @@ export const SESSIONS: Record<UserRole, Session> = {
       'knowledge:view',
       'usage:view',
     ],
-    notifications: { total: 0, unread: 0 },
+    notifications: { total: 0, unread: 0, inboxTodo: 0 },
   },
   knowledge_admin: {
     user: { id: '6ab39017e45cf009e4507734', name: 'Sana Patel', role: 'knowledge_admin' },
     permissions: [
       'assessments:view',
+      'assessments:edit',
+      'assessments:assign',
+      'reports:generate',
       'knowledge:view',
       'knowledge:manage',
       'users:manage',
       'usage:view',
     ],
-    notifications: { total: 0, unread: 0 },
+    notifications: { total: 0, unread: 0, inboxTodo: 0 },
   },
 }
 
