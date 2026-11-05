@@ -48,10 +48,11 @@
   margin-left: auto;
 }
 .ds-filter-pill[data-active] {
-  background: var(--ink-100);
+  background: var(--ink-50);
   color: var(--marsh-navy);
 }
 .cl-filter-menu {
+  text-align: left;
   min-width: 220px !important;
 }
 .cl-sort {
@@ -71,6 +72,9 @@
   }
 }
 @media (max-width: 767px) {
+  .cl-toolbar {
+    padding-inline: 16px;
+  }
   .cl-toolbar .ds-search {
     flex: 1 1 100%;
   }
@@ -91,7 +95,7 @@
   border-top: 1px solid var(--graphite-200);
   border-bottom: 1px solid var(--graphite-200);
   color: var(--graphite-700);
-  font: 600 13px/1 var(--font-sans);
+  font: 600 12px/1 var(--font-sans);
   text-align: left;
 }
 .cl-table td {
@@ -155,7 +159,7 @@
 }
 /* Column widths (v2 section 2: fixed content gets fixed widths). Actions: the icons' width. */
 .cl-col-num {
-  width: 72px;
+  width: 64px;
 }
 .cl-col-juris,
 .cl-col-survey {
@@ -178,13 +182,13 @@
   width: 204px;
 }
 .cl-col-actions-3 {
-  width: 120px;
+  width: 116px;
 }
 .cl-col-actions-2 {
-  width: 88px;
+  width: 82px;
 }
 .cl-col-actions-1 {
-  width: 52px;
+  width: 48px;
 }
 /* With a Site column, the reference keeps its full width. */
 .cl-assess col:first-child {
@@ -214,7 +218,7 @@
 .cl-row-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 2px;
 }
 /* Hover actions show on hover or focus; touch screens always show them. No motion (board 17). */
 @media (hover: hover) and (pointer: fine) {
@@ -231,6 +235,8 @@
   place-items: center;
   width: var(--control-height-sm);
   height: var(--control-height-sm);
+  /* The global link underline (a { border-bottom }) would curve round the pill like a ring. */
+  border: 0;
   border-radius: var(--radius-pill);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -240,7 +246,8 @@
 }
 @media (max-width: 767px), (pointer: coarse) {
   .cl-row-actions :is(button, a),
-  .cl-site-actions :is(button, a) {
+  /* Icon actions only: without this the Restore pill is squeezed into a 44 px circle. */
+  .cl-site-actions :is(.ds-icon-button, a) {
     width: 44px !important;
     height: 44px !important;
   }
@@ -424,12 +431,13 @@
   }
   .cl-clients tr {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    /* Same fixed Report due column as the Assessments list, so every date icon shares one x. */
+    grid-template-columns: 32px minmax(0, 1fr) 112px 44px;
     grid-template-areas:
-      'main due more'
-      'juris due more';
+      'av main due more'
+      'av juris due more';
     align-items: center;
-    column-gap: 8px;
+    column-gap: 14px;
     row-gap: 6px;
     padding: 12px 4px 12px 16px;
     border-top: 1px solid var(--graphite-100);
@@ -443,15 +451,29 @@
   .cl-clients td:first-child {
     padding-left: 0;
   }
-  .cl-clients td.cl-cell-main {
+  /* The name cell and its button vanish from the grid, so the avatar is centred on the whole
+     row and the name, division and chips share one left edge. */
+  .cl-clients td.cl-cell-main,
+  .cl-clients .cl-open {
+    display: contents;
+  }
+  .cl-clients .cl-open > :first-child {
+    grid-area: av;
+  }
+  .cl-clients .cl-lines {
     grid-area: main;
+  }
+  .cl-clients .cl-open:focus-visible > .cl-lines {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-field);
   }
   .cl-clients td[data-label='Jurisdictions'] {
     grid-area: juris;
-    padding-left: 48px;
   }
   .cl-clients td[data-label='Report due'] {
     grid-area: due;
+    text-align: left;
   }
   .cl-clients td.cl-cell-actions {
     grid-area: more;
@@ -473,9 +495,10 @@
   .cl-clients .cl-ellip {
     white-space: normal;
   }
+  /* The button's own size is inline, so this needs !important to reach 44 px. */
   .cl-clients td.cl-cell-actions button {
-    width: 44px;
-    height: 44px;
+    width: 44px !important;
+    height: 44px !important;
   }
 }
 

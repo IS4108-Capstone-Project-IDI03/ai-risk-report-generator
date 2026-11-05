@@ -210,6 +210,11 @@
   align-items: center;
   gap: 8px;
 }
+/* Exactly 44 px round (the buttons' own size is inline, so !important). */
+.cl-phone-actions button {
+  width: 44px !important;
+  height: 44px !important;
+}
 /* The facts content is in the Client details sheet on a phone. */
 @media (max-width: 767px) {
   .cl-facts:not(.cl-facts--sheet) {
@@ -218,11 +223,6 @@
   .cl-page .ds-topbar h1 {
     font: 700 22px/1.2 var(--font-sans);
     overflow-wrap: anywhere;
-  }
-  /* Assessments sit indented under their site's header (R12), no rail. */
-  .cl-sites .cl-assess {
-    width: calc(100% - 16px);
-    margin: 0 0 0 16px;
   }
 }
 .cl-facts--sheet {
@@ -270,8 +270,8 @@
   }
 }
 
-/* Under 1024 px the avatar only repeats the name, so it goes and the title keeps its room. */
-@media (max-width: 1023px) {
+/* Only on a phone does the avatar go (it repeats the name); a tablet keeps it (board 25 E). */
+@media (max-width: 767px) {
   .cl-page .ds-topbar .client-avatar {
     display: none;
   }
@@ -385,6 +385,16 @@
     flex: 1 1 0;
     min-width: 0;
   }
+  /* On the page (not in a card), the toolbar already has the page's 16 px gutter. */
+  .cl-panel > .cl-toolbar {
+    padding: 0;
+  }
+  /* The Sites tab's toolbar is a card on wider screens; on a phone it sits on the page too (board 22 D). */
+  .cl-panel > .cl-card.cl-toolbar {
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
   /* The tabs are 44 px high; a row that scrolls shows a soft edge where more waits. */
   .cl-page .ds-tabs [role='tab'] {
     min-height: 44px;
@@ -469,9 +479,6 @@
   .cl-assess .cl-row-actions :is(button, a) {
     margin-inline: -6px;
   }
-  .cl-sites .cl-assess {
-    border-top: 0;
-  }
   .cl-assess td:first-child {
     padding-left: 0;
   }
@@ -481,6 +488,104 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+
+/* Open work and a site's own table on a phone (board 22 A, D): each assessment is its own card; status is a
+   plain word and the due date one line with its icon. */
+@media (max-width: 767px) {
+  .cl-card:has(> .cl-assess[data-site]) {
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .cl-page .cl-card > .cl-assess[data-site]:first-child tbody,
+  .cl-sites .cl-assess tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cl-page .cl-card > .cl-assess[data-site]:first-child tbody tr,
+  .cl-sites .cl-assess tbody tr {
+    /* The tile spans both lines (as on the board), so it gets its own grid column. */
+    grid-template-columns: 32px minmax(0, 1fr) auto 32px;
+    grid-template-areas:
+      'tile main status go'
+      'tile sub due go';
+    align-content: center;
+    min-height: 76px;
+    padding: 12px 6px 12px 14px;
+    border: 1px solid var(--graphite-200);
+    border-radius: var(--radius-card);
+    background: var(--surface-card);
+  }
+  .cl-assess td.cl-cell-main,
+  .cl-assess .cl-flex {
+    display: contents;
+  }
+  .cl-assess .cl-flex > :first-child {
+    grid-area: tile;
+    align-self: center;
+  }
+  /* 12 px from the tile to the ID and the site line (the grid's own gap is 6 px). */
+  .cl-assess .cl-line-1,
+  .cl-assess td[data-label='Site'],
+  .cl-assess:not([data-site]) td[data-label='Type'] {
+    margin-left: 6px;
+  }
+  .cl-page .cl-assess .cl-line-1 {
+    grid-area: main;
+  }
+  .cl-assess td[data-label='Site'],
+  .cl-assess:not([data-site]) td[data-label='Type'] {
+    padding-left: 0;
+  }
+  .cl-assess .ds-pill {
+    height: auto;
+    padding: 0;
+    background: none !important;
+    box-shadow: none !important;
+  }
+  .cl-assess td[data-label='Report due'] .ds-due {
+    font-size: 13px;
+  }
+  /* Compact rows (R12): a 14 px icon carries the state beside a plain date, no second line. */
+  .cl-assess td[data-label='Report due'] .ds-due-note {
+    display: none;
+  }
+  .cl-assess td[data-label='Report due'] .ds-due-date {
+    color: var(--graphite-900);
+    font-weight: 400;
+  }
+
+  /* A site (board 22 D): the tinted header stands alone, its assessments are cards indented 24 px
+     under it, joined to it by a thin rail on the left. */
+  .cl-sites > .cl-site {
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .cl-site-head {
+    border: 1px solid var(--graphite-200);
+    border-radius: var(--radius-card);
+  }
+  .cl-sites .cl-assess {
+    position: relative;
+    width: calc(100% - 24px);
+    margin: 8px 0 0 24px;
+    border-top: 0;
+  }
+  .cl-sites .cl-assess::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -12px;
+    width: 2px;
+    background: var(--ink-100);
+  }
+  .cl-sites .cl-site-note {
+    padding: 8px 0 0 24px;
   }
 }
 
@@ -507,14 +612,48 @@
   }
 }
 
-/* Tablet and up: the title block keeps at least 240 px and wraps by whole words (never a letter
-   per line); Rename, Remove and New assessment drop under the title when they don't fit. */
+/* Tablet and up: Back, avatar, name, Rename, Remove, New assessment and the bell stay on one
+   row (board 25 E); when it is tight the name wraps, never the actions. */
 @media (min-width: 768px) {
   .cl-page .ds-topbar-main {
-    flex: 1 1 240px;
+    flex: 1 1 0;
   }
   .cl-page .ds-topbar-title h1 {
     overflow-wrap: break-word;
+  }
+}
+/* Tablet is tight, so a smaller title keeps the name to two lines at most. Back and the avatar
+   are centred on the title block. Up to 1199 px too: the open sidebar leaves the same room there. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .cl-page .ds-topbar-title h1 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-size: 22px;
+  }
+  .cl-page .ds-topbar {
+    column-gap: 8px;
+  }
+  .cl-page .ds-topbar > .client-avatar {
+    align-self: center;
+    margin-top: 0;
+  }
+  .cl-header-actions {
+    gap: 6px;
+  }
+  .cl-header-actions button {
+    padding-inline: 12px;
+  }
+  .cl-header-actions button.ds-icon-button {
+    padding-inline: 0;
+  }
+}
+@media (min-width: 820px) and (max-width: 899px) {
+  /* The labelled buttons leave about 133 px, enough for a three-word name at this size. */
+  .cl-page .ds-topbar-title h1 {
+    font-size: 20px;
+    letter-spacing: -0.01em;
   }
 }
 

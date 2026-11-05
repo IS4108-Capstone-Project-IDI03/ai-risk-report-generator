@@ -12,6 +12,7 @@ export type FormActionBarProps = {
 }
 
 const big = { height: 48, fontSize: 16 }
+const swap = 'opacity var(--duration-fast) var(--ease-out)'
 
 /** Returns the bar; it sticks to the bottom of the scrolling page with safe-area padding. */
 export function FormActionBar({
@@ -29,7 +30,8 @@ export function FormActionBar({
         variant="create"
         style={big}
         // Not Button's `loading` (it would add a spinner beside the word and change the width):
-        // the word is kept, hidden, so the button stays as wide as it was (board 17 · 6).
+        // the word stays in place, faded, so the button stays as wide as it was; word and
+        // spinner crossfade in 120 ms (v2 section 8).
         aria-busy={primaryLoading || undefined}
         aria-label={typeof primaryLabel === 'string' ? primaryLabel : undefined}
         onClick={primaryLoading ? undefined : onPrimary}
@@ -41,24 +43,25 @@ export function FormActionBar({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 8,
-              visibility: primaryLoading ? 'hidden' : undefined,
+              opacity: primaryLoading ? 0 : 1,
+              transition: swap,
             }}
           >
             <Icon name="check" size={18} />
             {primaryLabel}
           </span>
-          {primaryLoading ? (
-            <Icon
-              name="loader-circle"
-              size={18}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                margin: 'auto',
-                animation: 'dsSpin 0.9s linear infinite',
-              }}
-            />
-          ) : null}
+          <Icon
+            name="loader-circle"
+            size={18}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              margin: 'auto',
+              opacity: primaryLoading ? 1 : 0,
+              transition: swap,
+              animation: primaryLoading ? 'dsSpin 0.9s linear infinite' : undefined,
+            }}
+          />
         </span>
       </Button>
     </div>

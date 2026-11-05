@@ -334,7 +334,7 @@ describe('Clients table (CP-23)', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'Singapore' }))
     expect(screen.getByRole('row', { name: /NUS/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Jurisdiction: Singapore' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'All' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Any jurisdiction' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report due' }))
     fireEvent.click(await screen.findByRole('option', { name: 'On track' }))
     expect(await screen.findByText('No clients match')).toBeInTheDocument()

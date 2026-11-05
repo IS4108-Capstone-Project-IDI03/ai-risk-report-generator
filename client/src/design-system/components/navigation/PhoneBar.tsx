@@ -5,6 +5,8 @@ import { Icon } from '../core/Icon'
 import './shell.css'
 
 export type PhoneBarProps = {
+  // The Marsh wordmark file the sidebar uses; without it the bar falls back to text.
+  logoSrc?: string
   onMenu: () => void
   bell?: React.ReactNode
   // A drilled-in screen (capture) swaps the menu for a back arrow and shows its own title.
@@ -12,7 +14,7 @@ export type PhoneBarProps = {
 }
 
 /** Returns the 56px navy phone bar; the panel button's label is "Open navigation". */
-export function PhoneBar({ onMenu, bell, back }: PhoneBarProps) {
+export function PhoneBar({ logoSrc, onMenu, bell, back }: PhoneBarProps) {
   return (
     <div className="ds-phonebar ds-on-navy">
       <button
@@ -27,7 +29,11 @@ export function PhoneBar({ onMenu, bell, back }: PhoneBarProps) {
         <h1 className="ds-phonebar-title">{back.title}</h1>
       ) : (
         <div className="ds-phonebar-brand">
-          <span className="ds-phonebar-mark">MARSH</span>
+          {logoSrc ? (
+            <img className="ds-phonebar-logo" src={logoSrc} alt="Marsh" />
+          ) : (
+            <span className="ds-phonebar-mark">MARSH</span>
+          )}
           <span className="ds-phonebar-sub">Risk Report Generator</span>
         </div>
       )}

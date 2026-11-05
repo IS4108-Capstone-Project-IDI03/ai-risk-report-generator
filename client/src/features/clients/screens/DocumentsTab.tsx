@@ -9,6 +9,7 @@ import {
   EmptyState,
   SearchField,
   TableFooter,
+  TAG_GROUPS,
   toast,
   useIsPhone,
 } from '../../../design-system'
@@ -104,6 +105,38 @@ export function DocumentsTab({
     (d) => (!tag || d.tag === tag) && (!search || d.name.toLowerCase().includes(search)),
   )
   const pickFiles = () => picker.current?.click()
+  const toolbar = (
+    <div className="cl-toolbar">
+      <SearchField
+        label="Search documents"
+        placeholder="Search documents"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <FilterMenu
+        name="Tag"
+        icon="tag"
+        choices={tags.map((t) => ({
+          value: t.label,
+          label: t.label,
+          icon: TAG_GROUPS.find((g) => g.group === (t.group ?? 'client'))?.icon,
+        }))}
+        value={tag}
+        onChange={setTag}
+      />
+      <span className="cl-toolbar-end">
+        <Button
+          variant="create"
+          iconLeft="upload"
+          fullWidth={phone}
+          loading={uploading}
+          onClick={pickFiles}
+        >
+          {'Upload'}
+        </Button>
+      </span>
+    </div>
+  )
   return (
     <>
       <input
@@ -115,32 +148,10 @@ export function DocumentsTab({
         aria-label="Choose documents to upload"
         onChange={upload}
       />
+      {/* On a phone the search, Tag and Upload sit on the page, above the card (board 22 F). */}
+      {phone && toolbar}
       <div className="cl-card">
-        <div className="cl-toolbar">
-          <SearchField
-            label="Search documents"
-            placeholder="Search documents"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <FilterMenu
-            name="Tag"
-            choices={tags.map((t) => ({ value: t.label, label: t.label }))}
-            value={tag}
-            onChange={setTag}
-          />
-          <span className="cl-toolbar-end">
-            <Button
-              variant="create"
-              iconLeft="upload"
-              fullWidth={phone}
-              loading={uploading}
-              onClick={pickFiles}
-            >
-              {'Upload'}
-            </Button>
-          </span>
-        </div>
+        {!phone && toolbar}
         {documents.length === 0 ? (
           <div className="cl-empty">
             <p className="cl-empty-title">{'No documents yet'}</p>

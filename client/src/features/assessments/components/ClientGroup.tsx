@@ -44,7 +44,8 @@ export function ClientGroup({
         {/* A site on the gateway takes a new assessment (CP-17 AC6); a removed one does not. */}
         {!!site.newVisit && (
           <span className="at-add">
-            <Tooltip label={'New assessment for ' + site.name} placement="top-end">
+            {/* The tooltip names the action only; a screen reader still hears the site (v2 section 2). */}
+            <Tooltip label="New assessment" placement="top-end">
               <IconButton
                 icon="plus"
                 label={'New assessment for ' + site.name}

@@ -1,7 +1,14 @@
 // The Assessments card's toolbar (CP-23, boards 03 and 04): search, the Status /
 // Report due / Type pills, the By client | All toggle, Sort and New assessment.
 // Used by screens/Dashboard; the filtering itself is in useAssessmentWorkflow.tsx.
-import { FilterPill, SearchField, SegmentedControl } from '../../../design-system'
+import {
+  ASSESSMENT_TYPES,
+  FilterPill,
+  SearchField,
+  SegmentedControl,
+  statusLook,
+  useIsPhone,
+} from '../../../design-system'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
 import type { DateFilter } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -10,8 +17,14 @@ import { ChoiceMenu, type Choice } from './ChoiceMenu'
 import { SortPill } from './SortPill'
 
 const DUE_CHOICES: Choice[] = [
-  { value: 'overdue', label: 'Late', icon: 'circle-alert', color: 'var(--red-600)' },
-  { value: 'due-soon', label: 'Due within 7 days', icon: 'calendar-clock' },
+  // Late and Due soon wear the icon and colour of the Report due column's states.
+  { value: 'overdue', label: 'Late', icon: 'calendar-x', color: 'var(--red-600)' },
+  {
+    value: 'due-soon',
+    label: 'Due within 7 days',
+    icon: 'calendar-clock',
+    color: 'var(--amber-600)',
+  },
   { value: 'visit-soon', label: 'Site visit within 7 days', icon: 'map-pin' },
 ]
 
@@ -48,35 +61,52 @@ function Filter({
 
 // `compact` (under 1024 px): New assessment lives in the top bar instead (screens/Dashboard).
 export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: boolean }) {
-  const asChoices = (values: string[]) => values.map((value) => ({ value, label: value }))
+  // A tablet's search is squeezed by the pills, so it says only "Search"; a phone has its own full row.
+  const phone = useIsPhone()
+  const tablet = compact && !phone
   return (
     <div className="at-toolbar">
       <SearchField
         className="at-search"
         label="Search assessments"
-        placeholder="Search site, client or report ID"
+        placeholder={tablet ? 'Search' : 'Search site, client or report ID'}
         value={v.q}
         onChange={v.setQ}
       />
       <div className="at-pills">
-        <Filter
-          name="Status"
-          choices={asChoices(v.statusOptions)}
-          value={v.statusFilter}
-          onChoose={v.setStatusFilter}
-        />
-        <Filter
-          name="Report due"
-          choices={DUE_CHOICES}
-          value={v.dateFilter ?? ''}
-          onChoose={(value) => v.setDateFilter((value || null) as DateFilter | null)}
-        />
-        <Filter
-          name="Type"
-          choices={v.visitTypeOptions.map((value) => ({ value, label: typeName(value) }))}
-          value={v.visitType}
-          onChoose={v.setVisitType}
-        />
+        {/* Own wrapper so a tablet can scroll the filters while Sort stays in view. */}
+        <div className="at-filters">
+          <Filter
+            name="Status"
+            // Each status wears the icon and colour of its pill, so the two read as one thing.
+            choices={v.statusOptions.map((value) => {
+              const { icon, fg } = statusLook(value)
+              return { value, label: value, icon, color: fg }
+            })}
+            value={v.statusFilter}
+            onChoose={v.setStatusFilter}
+          />
+          <Filter
+            name="Report due"
+            choices={DUE_CHOICES}
+            value={v.dateFilter ?? ''}
+            onChoose={(value) => v.setDateFilter((value || null) as DateFilter | null)}
+          />
+          <Filter
+            name="Type"
+            choices={v.visitTypeOptions.map((value) => {
+              const name = typeName(value)
+              return {
+                value,
+                label: name,
+                icon: ASSESSMENT_TYPES[name].icon,
+                color: ASSESSMENT_TYPES[name].fg,
+              }
+            })}
+            value={v.visitType}
+            onChoose={v.setVisitType}
+          />
+        </div>
         <ChoiceMenu
           label="Sort assessments"
           align="right"

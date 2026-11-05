@@ -35,9 +35,9 @@ function Textarea({
       {label ? (
         <span
           style={{
-            fontSize: 'var(--text-small-size)',
-            fontWeight: 'var(--weight-medium)',
-            color: 'var(--text-body)',
+            fontSize: 'var(--text-label-size)',
+            fontWeight: 'var(--text-label-weight)',
+            color: 'var(--graphite-700)',
           }}
         >
           {label}
@@ -62,13 +62,13 @@ function Textarea({
               : focus
                 ? 'var(--border-focus)'
                 : 'var(--border-default)'),
-          borderRadius: 'var(--radius-md)',
+          borderRadius: 'var(--radius-field)',
           boxShadow: focus ? 'var(--focus-ring)' : 'none',
           outline: 'none',
           resize: 'vertical',
           fontFamily: 'var(--font-sans)',
-          fontSize: 'var(--text-body-size)',
-          lineHeight: 'var(--text-body-lh)',
+          fontSize: 'var(--text-small-size)',
+          lineHeight: 'var(--text-small-lh)',
           color: 'var(--text-primary)',
           transition: 'var(--transition-control)',
           ...style,

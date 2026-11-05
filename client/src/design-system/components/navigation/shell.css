@@ -16,6 +16,9 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+.ds-sidenav-icon-button {
+  transition: var(--transition-control);
+}
 .ds-backbtn-disc {
   display: grid;
   place-items: center;
@@ -58,7 +61,7 @@
   height: 56px;
   padding: env(safe-area-inset-top) max(8px, env(safe-area-inset-right)) 0
     max(8px, env(safe-area-inset-left));
-  background: var(--report-navy, #002c77);
+  background: var(--surface-nav);
   color: #fff;
 }
 .ds-phonebar-button {
@@ -88,6 +91,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  gap: 5px;
   line-height: 1.1;
 }
 .ds-phonebar-mark {
@@ -95,8 +99,18 @@
   font-weight: 800;
   letter-spacing: 0.02em;
 }
+/* The same navy logo file as the sidebar, turned white like it (styles.css). */
+.ds-phonebar-logo {
+  display: block;
+  /* The same logo-to-subtitle proportion as the sidebar. */
+  width: 96px;
+  height: auto;
+  filter: brightness(0) invert(1) drop-shadow(0 0 0.5px #fff);
+}
 .ds-phonebar-sub {
-  color: #a7e2f0;
+  /* The R's side bearing would otherwise sit it 1px right of the logo. */
+  margin-left: -1px;
+  color: rgb(255 255 255 / 0.72);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -121,7 +135,7 @@
   max-height: 100dvh;
   border: 0;
   overflow: hidden;
-  background: var(--report-navy);
+  background: var(--surface-nav);
   /* Transitions, not keyframes: reopening mid-close turns back from where it is. */
   transition: transform var(--duration-slow) var(--ease-out);
 }
@@ -174,7 +188,7 @@
 .ds-sidenav-glide[data-ready] {
   transition:
     transform var(--duration-slow) var(--ease-out),
-    height var(--duration-base) var(--ease-out);
+    height var(--duration-slow) var(--ease-out);
 }
 .ds-sidenav[data-collapsed] .ds-sidenav-glide {
   left: calc(50% - 20px);
@@ -189,9 +203,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ds-navdrawer,
-  .ds-navdrawer::backdrop {
-    transition: none;
+  /* The slide becomes a fade; NavDrawer.tsx unmounts when it ends. */
+  .ds-navdrawer {
+    transition: opacity var(--duration-fast) var(--ease-out) !important;
+  }
+  @starting-style {
+    .ds-navdrawer[open] {
+      transform: none;
+      opacity: 0;
+    }
+  }
+  .ds-navdrawer[data-closing] {
+    transform: none;
+    opacity: 0;
   }
   .ds-sidenav,
   .ds-sidenav-glide[data-ready] {

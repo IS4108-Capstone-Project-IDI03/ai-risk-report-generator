@@ -1,7 +1,8 @@
 /* The New assessment menu (CP-23, board 03). Used by NewAssessmentButton.tsx.
    The surface (radius, shadow, motion) is the design system's Popover. */
 .nab-menu {
-  width: min(380px, calc(100vw - 56px));
+  /* Wide enough for "Add their emails and letters. The form fills itself in." on one line. */
+  width: min(400px, calc(100vw - 56px));
   padding: 6px;
 }
 .nab-list {
@@ -57,6 +58,8 @@
 .nab-text span {
   color: var(--graphite-600);
   font: 400 13px/1.35 var(--font-sans);
+  /* No single word ("in.") alone on the last line where it has to wrap. */
+  text-wrap: pretty;
 }
 
 /* In the phone sheet the rows are roomier and 16 px (board 23). */
@@ -68,6 +71,8 @@
   align-items: center;
   min-height: 64px;
   padding: 12px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
   background: var(--graphite-50);
 }
 .ds-sheet .nab-text strong {

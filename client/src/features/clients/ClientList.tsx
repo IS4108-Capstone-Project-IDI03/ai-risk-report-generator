@@ -44,11 +44,12 @@ export type ClientListItem = {
   open: () => void
 }
 
-const DUE_CHOICES: { value: DueState; label: string }[] = [
-  { value: 'late', label: 'Late' },
-  { value: 'soon', label: 'Due within 7 days' },
-  { value: 'ok', label: 'On track' },
-  { value: 'none', label: 'Not set' },
+// Each state wears the icon and colour of the Report due column (ReportDue.tsx).
+const DUE_CHOICES: { value: DueState; label: string; icon: string; color: string }[] = [
+  { value: 'late', label: 'Late', icon: 'calendar-x', color: 'var(--red-600)' },
+  { value: 'soon', label: 'Due within 7 days', icon: 'calendar-clock', color: 'var(--amber-600)' },
+  { value: 'ok', label: 'On track', icon: 'calendar', color: 'var(--graphite-600)' },
+  { value: 'none', label: 'Not set', icon: 'calendar', color: 'var(--graphite-400)' },
 ]
 const SORTS = [
   { value: 'name', label: 'Name, A to Z', icon: 'arrow-down-a-z' },
@@ -136,6 +137,7 @@ export function ClientList({
       <TopBar
         eyebrow="Risk engineering"
         title="Clients"
+        helper="Your clients, their sites and what is due next."
         bell={bell}
         action={
           compact && onStart ? (

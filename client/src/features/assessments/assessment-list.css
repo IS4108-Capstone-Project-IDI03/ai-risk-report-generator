@@ -18,9 +18,11 @@
   min-width: 0;
   padding: 20px var(--page-gutter) 24px;
 }
+/* A phone's list runs edge to edge, like the Clients list (board 21): rows with dividers,
+   no bordered card. */
 @media (max-width: 767px) {
   .at-content {
-    padding: 16px;
+    padding: 0 0 24px;
   }
 }
 .at-card {
@@ -32,6 +34,12 @@
   border: 1px solid var(--graphite-200);
   border-radius: var(--radius-card);
   background: var(--surface-card);
+}
+@media (max-width: 767px) {
+  .at-card {
+    border-width: 1px 0 0;
+    border-radius: 0;
+  }
 }
 .at-card > .at-list {
   flex: 1;
@@ -54,7 +62,8 @@
   max-width: 300px;
   min-width: 140px;
 }
-.at-pills {
+.at-pills,
+.at-filters {
   display: contents;
 }
 /* Wide: search and the three pills, then By client | All, Sort and New assessment on the right. */
@@ -84,7 +93,7 @@
 }
 /* ---- Table: header, group headers and rows share these columns ---- */
 .at-list {
-  --at-cols: minmax(0, 1fr) 128px 132px 164px 168px 76px;
+  --at-cols: minmax(0, 1fr) 128px 132px 164px 168px 52px;
   font: 400 14px/1.3 var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--graphite-900);
@@ -104,8 +113,8 @@
 .at-head {
   min-height: 44px;
   border-top: 1px solid var(--graphite-200);
-  color: var(--graphite-900);
-  font-size: 13px;
+  color: var(--graphite-700);
+  font-size: 12px;
   font-weight: 600;
 }
 .at-head > .at-th {
@@ -158,7 +167,7 @@
   border: 0;
   background: none;
   color: var(--graphite-900);
-  font: 600 15px/1.3 var(--font-sans);
+  font: 600 14px/1.3 var(--font-sans);
   text-align: left;
   cursor: pointer;
 }
@@ -190,7 +199,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 2px;
   opacity: 0;
 }
 .at-row:hover .at-actions,
@@ -333,7 +342,7 @@
     grid-area: meta;
     display: flex;
     gap: 6px;
-    padding-left: 48px;
+    padding-left: 44px;
     color: var(--graphite-600);
     font-size: 13px;
   }
@@ -356,35 +365,25 @@
   .at-group-head {
     padding-inline: 12px;
   }
-  /* Toolbar on one row (board 25): the filters and Sort scroll sideways with an edge fade;
-     By client | All is icon-only; search keeps a readable width. */
+  /* Toolbar on one row (board 25): the three filters, Sort and the icon-only By client | All
+     keep their size and stay in view; the search takes what is left. */
   .at-toolbar {
     flex-wrap: nowrap;
   }
   .at-search {
-    flex: 0 0 160px;
-    min-width: 0;
-  }
-  .at-pills {
-    display: flex;
     flex: 1 1 0;
     min-width: 0;
-    gap: 8px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    max-width: none;
   }
-  .at-pills::-webkit-scrollbar {
-    display: none;
-  }
-  .at-pills > * {
+  .at-pills,
+  .at-filters {
+    display: flex;
     flex: none;
+    gap: 8px;
   }
-  /* Room for the pills' focus ring, which the scroller would clip. */
-  .at-pills {
-    padding: 3px;
-    margin: -3px;
+  .at-pills > :not(.at-filters),
+  .at-filters > * {
+    flex: none;
   }
   .at-tools .ds-segmented {
     margin-left: 0;
@@ -408,11 +407,26 @@
   }
 }
 
-/* ---- Phone card: each row is ID, status, due and Archive (board 21); 44px taps ---- */
+/* A narrow tablet card: Sort keeps its short label while the search can stay 96 px wide; below
+   that it is its icon alone (name in the tooltip and aria-label), as on the Clients list. */
+@container at (min-width: 601px) and (max-width: 706px) {
+  .at-sort {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+  .at-sort > :not(:first-child) {
+    display: none !important; /* the chevron's icon has an inline display */
+  }
+}
+
+/* ---- Phone card: each row is tile, ID, status, due and Archive (board 21); 44px taps.
+   The tile, ID and pill sit on one grid, so the pill's left edge is the ID's. ---- */
 @container at (max-width: 600px) {
   .at-toolbar {
     flex-wrap: wrap;
     gap: 8px;
+    padding-inline: 16px;
   }
   .at-search {
     flex: 1 1 100%;
@@ -455,6 +469,15 @@
     padding: 3px;
     margin: -3px;
   }
+  /* On a phone the filters are not their own scroller: the whole pill row is. */
+  .at-filters {
+    display: contents;
+    overflow: visible;
+    padding: 0;
+    margin: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
   /* The phone's pill row scrolls, so Sort keeps its whole order. */
   .at-sort-label {
     display: block;
@@ -476,28 +499,33 @@
   .at-head {
     display: none;
   }
+  /* Tile 16 px from the edge, ID 14 px after it, a fixed Report due column so every date
+     icon shares one x, then Archive. The tile spans the lines. */
   .at-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: 32px minmax(0, 1fr) 112px 44px;
     grid-template-areas:
-      'main due actions'
-      'status due actions';
-    column-gap: 4px;
-    row-gap: 6px;
-    padding: 12px 4px 12px 12px;
+      'tile main due actions'
+      'tile status due actions';
+    column-gap: 14px;
+    row-gap: 5px;
+    min-height: 72px;
+    padding: 12px 4px 12px 16px;
   }
-  .at-assessment {
-    grid-area: main;
-    gap: 8px;
-    min-width: 0;
-    margin-right: 8px;
+  .at-assessment,
+  .at-text {
+    display: contents;
   }
-  .at-status {
-    padding-left: 46px;
+  .at-assessment > :first-child {
+    grid-area: tile;
+    align-self: center;
   }
   .at-ref {
+    grid-area: main;
+    justify-self: start;
     overflow-wrap: normal;
     white-space: nowrap;
     font-size: 14px;
+    line-height: 18px;
   }
   .at-meta {
     display: none;
@@ -505,11 +533,10 @@
   .at-status {
     grid-area: status;
     justify-self: start;
-    padding-left: 48px;
   }
   .at-due {
     grid-area: due;
-    justify-self: end;
+    justify-self: start;
     text-align: left;
   }
   .at-actions {
@@ -527,6 +554,34 @@
   .at-add {
     opacity: 1;
   }
+  /* All view: the first band holds tile, ID, due and Archive, all centred in it (the same
+     x as By client). "Client › Site" then runs under the ID to the right gutter (two lines
+     at most), then the pill. */
+  .at-list:not([data-grouped]) .at-row {
+    grid-template-areas:
+      'tile main due actions'
+      '. sub sub sub'
+      '. status status status';
+    grid-template-rows: 44px auto auto;
+    row-gap: 4px;
+    padding-top: 8px;
+    padding-bottom: 14px;
+  }
+  .at-list:not([data-grouped]) .at-assessment > :first-child,
+  .at-list:not([data-grouped]) .at-ref,
+  .at-list:not([data-grouped]) .at-due {
+    align-self: center;
+  }
+  .at-sub {
+    grid-area: sub;
+    margin-right: 12px; /* ends at the 16px gutter, not under the 4px Archive column */
+  }
+  .at-list:not([data-grouped]) .at-status {
+    margin-top: 2px;
+  }
+  .at-group-head {
+    padding-inline: 16px;
+  }
   /* Group header: site first, client under it; the address is on the assessment. */
   .at-group-text {
     flex-direction: column;
@@ -543,6 +598,17 @@
     font-size: 13px;
     font-weight: 400;
   }
+  /* The link's 44 px tap area is an invisible overlay, so the client line sits right under the site. */
+  .at-client.at-link {
+    position: relative;
+    min-height: 0;
+    padding-block: 0;
+  }
+  .at-client.at-link::after {
+    content: '';
+    position: absolute;
+    inset: -10px 0;
+  }
   .at-group-text > [aria-hidden] {
     display: none !important; /* the › between client and site (an inline-styled icon) */
   }
@@ -553,9 +619,13 @@
 /* The New assessment button beside the bell: a round + on a phone. The button's own
    styles are inline, so these need !important. */
 @media (max-width: 767px) {
+  /* Level with the eyebrow and title on every list, however many lines the helper takes (board 21). */
+  .at-topnew {
+    align-self: flex-start;
+  }
   .at-topnew button[aria-haspopup] {
-    width: 44px;
-    height: 44px;
+    width: 44px !important;
+    height: 44px !important;
     padding: 0 !important;
     font-size: 0 !important;
     gap: 0 !important;

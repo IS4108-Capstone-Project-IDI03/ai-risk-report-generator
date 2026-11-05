@@ -214,12 +214,8 @@ function Button({
                 : 'var(--radius-md)',
             cursor: blocked || loading ? 'not-allowed' : 'pointer',
             opacity: blocked ? 0.45 : 1,
-            boxShadow:
-              variant === 'create'
-                ? 'var(--shadow-create)'
-                : variant === 'primary' || variant === 'danger'
-                  ? 'var(--shadow-sm)'
-                  : 'none',
+            // Only Create floats (v2 section 5); every other button sits flat.
+            boxShadow: variant === 'create' ? 'var(--shadow-create)' : 'none',
             // Press feedback is CSS (.ds-press:active in kit.css): scale 0.97, none with reduced motion.
             transition: 'var(--transition-control), transform var(--duration-fast) var(--ease-out)',
             textDecoration: variant === 'link' && hover ? 'underline' : 'none',

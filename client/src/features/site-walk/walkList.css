@@ -219,7 +219,7 @@
   display: flex;
   justify-content: center;
   pointer-events: none;
-  animation: toast-in 360ms var(--sw-ease) both;
+  animation: toast-in var(--duration-slow) var(--sw-ease) both;
 }
 .sw-toast > div {
   pointer-events: auto;

@@ -16,7 +16,7 @@ const STARTS: { mode: StartMode; icon: string; label: string; note: string; tile
   },
   {
     mode: 'documents',
-    icon: 'file-up',
+    icon: 'upload',
     label: 'Start from client documents',
     note: 'Add their emails and letters. The form fills itself in.',
     tile: 'nab-tile--docs',
@@ -44,25 +44,38 @@ export function NewAssessmentButton({ onStart }: { onStart: (mode: StartMode) =>
       {'New assessment'}
     </Button>
   )
-  // A phone gets the board 21 sheet: two two-line rows and a 48 px Cancel, no close icon.
+  // The two starts as tiled rows: in the Popover on a wide screen, in the Sheet on a phone (board 23).
+  const options = (
+    <ul ref={list} className="nab-list">
+      {STARTS.map((s) => (
+        <li key={s.mode}>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false)
+              onStart(s.mode)
+            }}
+          >
+            <span className={'nab-tile ' + s.tile}>
+              <Icon name={s.icon} size={18} />
+            </span>
+            <span className="nab-text">
+              <strong>{s.label}</strong>
+              <span>{s.note}</span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+  // A phone gets the board 23 sheet: the same two tiled rows and a 48 px Cancel.
   if (phone)
     return (
       <>
         {trigger}
-        <Sheet
-          open={open}
-          onClose={() => setOpen(false)}
-          title="New assessment"
-          actions={STARTS.map((s) => ({
-            label: s.label,
-            description: s.note,
-            icon: s.icon,
-            onSelect: () => {
-              setOpen(false)
-              onStart(s.mode)
-            },
-          }))}
-        />
+        <Sheet open={open} onClose={() => setOpen(false)} title="New assessment" cancel>
+          {options}
+        </Sheet>
       </>
     )
   return (
@@ -75,27 +88,7 @@ export function NewAssessmentButton({ onStart }: { onStart: (mode: StartMode) =>
       surfaceClassName="nab-menu"
       trigger={trigger}
     >
-      <ul ref={list} className="nab-list">
-        {STARTS.map((s) => (
-          <li key={s.mode}>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false)
-                onStart(s.mode)
-              }}
-            >
-              <span className={'nab-tile ' + s.tile}>
-                <Icon name={s.icon} size={18} />
-              </span>
-              <span className="nab-text">
-                <strong>{s.label}</strong>
-                <span>{s.note}</span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {options}
     </Popover>
   )
 }

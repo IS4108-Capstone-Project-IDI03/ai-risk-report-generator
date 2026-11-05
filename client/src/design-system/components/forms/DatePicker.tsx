@@ -83,14 +83,14 @@ function Calendar({
     return d
   })
   // The grid only animates once the month has changed, so opening is calm.
-  const [animate, setAnimate] = useState(false)
+  const [animate, setAnimate] = useState<'next' | 'prev' | undefined>()
   // Only the month arrows animate: a keyboard move into the next month changes it at once,
   // since motion on keyboard steps makes them feel slow.
   const move = (days: number, months = 0) => {
     let d = new Date(f.getFullYear(), f.getMonth() + months, f.getDate() + days)
     // Never move before min: those days cannot be picked.
     if (min && toIso(d) < min) d = fromIso(min)
-    setAnimate(months !== 0)
+    setAnimate(months === 0 ? undefined : months > 0 ? 'next' : 'prev')
     setFocus(toIso(d))
   }
   // After a keyboard move the new day takes focus.
@@ -124,9 +124,9 @@ function Calendar({
         aria-label="Days"
         ref={grid}
         onKeyDown={onKey}
-        // Keyed by month so a month change replays the short slide-fade (CSS .ds-cal-grid).
+        // Keyed by month so a month change replays the slide (CSS .ds-cal-grid).
         key={f.getFullYear() * 12 + f.getMonth()}
-        data-animate={animate ? '' : undefined}
+        data-animate={animate}
       >
         {'Mo Tu We Th Fr Sa Su'.split(' ').map((d) => (
           <span key={d} className="ds-cal-dow" aria-hidden="true">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type * as React from 'react'
-import { Icon, Button, IconRegistry, toast as sonner } from '../../design-system'
+import { Icon, IconRegistry, toast as sonner } from '../../design-system'
 import {
   archiveAssessment as requestArchive,
   restoreAssessment as requestRestore,
@@ -936,16 +936,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           <strong>{session.user.name}</strong>
           <small>{roleLabel(session.user.role)}</small>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
+          className="ds-sidenav-icon-button"
           title="Sign out"
           aria-label="Sign out"
           // Unsaved document edits ask first (RV-08 AC14).
           onClick={() => guardLeave(onSignOut)}
         >
-          <Icon name="log-out" />
-        </Button>
+          <Icon name="log-out" size={16} />
+        </button>
       </div>
     )
   }
@@ -2214,7 +2214,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           opacity: rejected ? '.5' : '1',
           borderLeft: '2px solid ' + (active ? 'var(--action-primary)' : 'transparent'),
           background: active ? 'var(--surface-selected)' : 'transparent',
-          transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
+          transition: 'background 120ms cubic-bezier(.2,0,.2,1)',
         } as React.CSSProperties,
       }
     })

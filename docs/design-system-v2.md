@@ -1,4 +1,4 @@
-# Risk Report Generator design system, v2.1
+# Risk Report Generator design system, v2.2
 
 The look every new screen follows: calm, Apple-like screens, white cards on a pale page, Marsh navy for actions and titles, and colour only where it means something.
 
@@ -59,7 +59,7 @@ The point of this system is **consistency**. The same kind of information looks 
 
 1. **One font.** The system font (SF Pro on Apple devices): `-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif`. No second family.
 2. **Navy is for actions and titles.** Primary buttons and page/card titles use `--marsh-navy`. Nothing decorative is navy.
-3. **Colour means something.** Red = late or an error, amber = soon or not sure, green = done or new, and the category colours (jurisdiction, facility, division, assessment type, file type). Never colour for decoration.
+3. **Colour means something.** Red = late or an error, amber = soon or not sure, green = done or new, and the category colours (jurisdiction, facility, assessment type, file type). Never colour for decoration.
 4. **Quiet surfaces.** Thin 1 px borders, no heavy fills. Shadows only on things that float (popovers, menus, toasts, the Create button).
 
 ## 2. Rules every screen follows
@@ -68,10 +68,11 @@ The point of this system is **consistency**. The same kind of information looks 
 - **Tooltips name the action only** ("Rename client", "Delete document"), never the client, site or file, so a long name never buries it. The screen-reader name still names the item ("Rename client NUS"): pass `tooltip` beside `label` on IconButton, RowAction or NavAction.
 - **Not allowed yet: grey out and explain.** A blocked action stays visible, greyed and focusable (`aria-disabled`). Hover, focus or tap opens a reason box saying why ("Can't remove yet · This client has 1 open assessment. Archive it, then remove the client."). No error after a click, and no names in the reason.
 - **Hover by background.** Hover changes the fill, not the border: grey on white, white with a ring on grey, darker on grey buttons, a white veil in segmented tracks and on navy. The surface sets it; hover only where a pointer can hover.
+- **Dropdown options keep their icons.** If a value shows an icon anywhere in the interface (a status pill, a type tile, a Report due state), its dropdown option shows that same icon and colour. Values with no icon of their own, such as jurisdictions, stay plain.
 - **Keyboard-only focus ring.** The navy focus ring shows for keyboard use only (`:focus-visible`), never after a mouse click, on every control.
 - **A toast for every confirmed action.** Create, save, delete, archive, upload and restore each show a toast (section 7), so the state is always clear.
 - **Collapsed sidebar = full width.** When the sidebar collapses, the page content fills the full width, keeping its 32 px side padding. Check every screen with the sidebar open AND collapsed.
-- **Layout.** Navy sidebar on the left. A white top bar holds the round Back button (section 6) beside the eyebrow and page title, the main action (top right) and the bell. Page background `--graphite-50`, cards white.
+- **Layout.** Navy sidebar on the left, in navy, white and one light blue only (the avatar), with no accent colours. A white top bar holds the round Back button (section 6) beside the eyebrow and page title, the main action (top right) and the bell. Page background `--graphite-50`, cards white.
 - **One list frame.** Every list screen: top bar with one helper line under the title (what the page is for), then a 64 px toolbar (search, filter pills, a labelled sort pill, the main button at the right end), so every list's header row starts at the same height.
 - **No filler copy.** No captions explaining the obvious ("Kept under the client"), no counts in page headers; the one helper line under a list's title is the exception. Counts live in the table footer ("5 assessments · 3 reports late", the late count is a filter link). Help goes behind a (?) icon.
 - **Words.** Plain English, short. Use "assessment type" (First survey, Resurvey, Follow-up); never "visit". Errors say what's wrong in ≤ 4 words, then the fix.
@@ -79,8 +80,8 @@ The point of this system is **consistency**. The same kind of information looks 
 - **Forms.** One full-width column. Fields 40 px high in rows (e.g. Site name | Jurisdiction | Facility type, then Address full width). "Add …" actions are slim dashed rows. Cancel and Create sit in a sticky action bar at the bottom of the window (section 6); the top bar keeps only the title. On Create with missing fields: scroll to the first one, turn its border red and show one short line under it; pressing Create again gives that field one small shake. No error box or banner.
 - **Dates.** Typed and shown as dd/mm/yyyy in forms; tables and pages show "12 Nov 2026".
 - **Not-sure values** (AI-filled, needs a look): amber border and tint with one 16 px warning icon, centred in the field, 12 px from its right edge (8 px left of a dropdown's chevron), no caption.
-- **No "made by AI" labels.** New screens don't mark things just because the AI made them: no "AI draft", "AI-generated" or "AI proposal" badges and no AI tint or rule on AI-written text. Violet itself is fine for anything it already means (statuses, the site walk proposal, division chips, email tiles). Existing screens stay as they are.
-- **Phone.** Everything works at 375 px: no sideways scroll, 44 px tap targets, 16 px text in inputs (no zoom on focus), safe areas (`viewport-fit=cover`), tables reflow, dialogs fit, and popovers and menus become sheets under 768 px (`mobile-native` skill). The phone top bar is `#002c77` with the stacked wordmark; the drawer is the desktop sidebar.
+- **No "made by AI" labels.** New screens don't mark things just because the AI made them: no "AI draft", "AI-generated" or "AI proposal" badges and no AI tint or rule on AI-written text. Violet itself is fine for anything it already means (statuses, the site walk proposal, email tiles). Existing screens stay as they are.
+- **Phone.** Everything works at 375 px: no sideways scroll, 44 px tap targets, 16 px text in inputs (no zoom on focus), safe areas (`viewport-fit=cover`), tables reflow, dialogs fit, and popovers and menus become sheets under 768 px (`mobile-native` skill). The phone top bar is the sidebar's navy (`--surface-nav`) with the stacked wordmark; the drawer is the desktop sidebar.
 
 ## 3. Colour
 
@@ -105,7 +106,7 @@ Existing code tokens (`client/src/design-system/tokens/colors.css`) are reused; 
 | Green | `--green-600` | #2f7049 | Done tick, New badge text, success toast icon |
 | Green tint **(new)** | `--green-50` | #e6f4ea | New badge background |
 | Teal **(new)** | `--teal-600` / `--teal-50` | #016d9e / #dff4f8 | Facility chip, Resurvey tile |
-| Violet | `--violet-600` / `--violet-50` | #6258a3 / #eeecfb | Division chip, email file tile |
+| Violet | `--violet-600` / `--violet-50` | #6258a3 / #eeecfb | Draft status, email file tile |
 
 The canvas drew green as #1f7a45; code uses the existing `--green-600` (#2f7049), which passes contrast.
 
@@ -140,7 +141,7 @@ New radius tokens to add when building: `--radius-card: 16px`, `--radius-popover
 
 - **Buttons:** primary navy pill (New assessment, Create), secondary pill (`--graphite-100` fill: filters, Documents · 3), icon buttons (section 2).
 - **Status pills:** Draft (violet), Not started (grey dashed circle), Under review (amber), Archived (outline). Icon + word.
-- **Chips:** jurisdiction (blue, globe icon), facility (teal, building icon), division (violet). Plain, no border.
+- **Chips:** jurisdiction (blue, globe icon), facility (teal, building icon). Plain, no border. A client's division is plain text (facts panel, Clients table's second line), not a chip.
 - **New badge:** green tint, green text, 12 / 700.
 - **Tag pill:** fixed width so every row matches: 164 px in tables, wider in the documents popover (sized in Build so a long "Site · Assessment" fits). Tag icon first, chevron last; long text ends in … with the full name on hover.
 - **Date cell** (`ReportDue`): calendar icon 8 px from the date, centred on its two lines; date 14 / 500; a 12 px second line, at most two lines. Report due: late = calendar-x and red "N days late"; within 7 days = calendar-clock and amber "in N days"; on track = grey "in N days"; none = grey "Not set". Next survey uses the same cell with its site as the second line (`note`), never late; in the Clients list it drops the icon (`icon={false}`) so a long site name can't push it away. No coloured fills.
@@ -197,6 +198,9 @@ Rules: 120 ms for hover and colour, 180 ms for things appearing, 240–260 ms fo
 | Sidebar | Highlight glides to the picked item; collapse eases | 260 ms |
 | Popovers and the date picker | Scale from 0.97 and fade, origin at the trigger; the calendar's month slides when changed | 180 ms in, 120 ms out |
 | Dialogs | Open: fade and scale from 0.97 with the backdrop fading in. Close (Cancel, ✕, Esc or after confirming): the card fades and scales to 0.98 with the backdrop. A save error slides in 4 px; a step change (Edit site → its scope check) crossfades | open 220 ms; close 150 ms; error 180 ms; step 160 ms |
+| Sheets (phone) | Rise from the bottom edge with the scrim fading in; leave the same way | 260 ms in; 200 ms out |
+| Centred card (date picker on phones) | Fades and scales from 0.96 | 220 ms in; 160 ms out |
+| Navigation drawer (phone) | Slides in from the left with the scrim fading in; leaves the same way | 260 ms in; 180 ms out |
 | Toasts | Come in from the edge they leave by | 260 ms in; 120 ms out |
 | Press feedback | Buttons scale to 0.97 while pressed (Back button 0.96) | 120 ms |
 | Hover | Background fades | 120 ms |
@@ -212,6 +216,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
 - **Changelog:**
   - v2.0 (4 Nov 2026, CP-23): first version from the CP-23 canvas.
   - v2.1 (5 Nov 2026, CP-23 feedback rounds 7–16): tooltips name the action only; grey out and explain (reason box); hover by background; keyboard-only focus ring; one list frame with a helper line; first column left, the rest centred; labelled sort; "just changed" row; dates as dd/mm/yyyy in forms; Not-sure icon placement; Back button, date picker, sheets, sticky action bar, Apple dialog (look, copy and motion), long lists in popovers, Found so far; one date cell for Report due and Next survey; toast tick and width; the full motion set with its rules (replaces the seven-motion list, and "no shake" becomes one shake on a repeated error).
+  - v2.2 (5 Nov 2026): sidebar, phone drawer and phone top bar back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover; sidebar is navy, white and one light blue, 224 px wide so a role fits on one line. Phone lists run edge to edge with fixed due columns; the phone All view shows Client › Site under the reference. On tablets (768–1023 px) Rename and Remove are round icon buttons, and Sort drops to its icon only where a labelled pill would squeeze search under 96 px.
 
 ## 10. When this file says nothing
 

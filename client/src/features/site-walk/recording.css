@@ -130,8 +130,8 @@
   background: var(--sw-fill);
   color: var(--marsh-navy);
   transition:
-    background-color 160ms var(--sw-ease),
-    transform 100ms var(--sw-ease);
+    background-color 120ms var(--sw-ease),
+    transform 120ms var(--sw-ease);
 }
 /* Side buttons: centred on the main one, with all three labels on one line. */
 .sw-control:not(.sw-control--main) .sw-control-icon {
@@ -141,7 +141,7 @@
   background: rgb(0 15 71 / 0.1);
 }
 .sw-control:active:not(:disabled) .sw-control-icon {
-  transform: scale(0.94);
+  transform: scale(0.97);
 }
 .sw-control:disabled {
   cursor: default;
@@ -303,10 +303,10 @@
   background-clip: content-box;
   padding: 3px;
   cursor: pointer;
-  transition: transform 100ms var(--sw-ease);
+  transition: transform 120ms var(--sw-ease);
 }
 .sw-shutter:active:not(:disabled) {
-  transform: scale(0.92);
+  transform: scale(0.97);
 }
 .sw-shutter:disabled {
   opacity: 0.4;
@@ -328,8 +328,8 @@
   background: var(--graphite-0);
   box-shadow: var(--sw-shadow-md);
   transition:
-    background-color 240ms var(--sw-ease),
-    box-shadow 240ms var(--sw-ease);
+    background-color 120ms var(--sw-ease),
+    box-shadow 120ms var(--sw-ease);
 }
 .sw-record--live {
   background: linear-gradient(180deg, rgb(229 55 43 / 0.14), rgb(229 55 43 / 0.04));

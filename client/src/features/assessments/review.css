@@ -61,7 +61,7 @@
   text-align: left;
   font-family: inherit;
   cursor: pointer;
-  transition: background var(--duration-instant) var(--ease-standard);
+  transition: background 120ms var(--ease-standard);
 }
 .rv-rail-row:hover {
   background: var(--surface-hover);
@@ -1204,7 +1204,7 @@
   text-align: left;
   font-family: inherit;
   cursor: pointer;
-  transition: background var(--duration-instant) var(--ease-standard);
+  transition: background 120ms var(--ease-standard);
 }
 .rv-version-row:hover {
   background: var(--surface-hover);

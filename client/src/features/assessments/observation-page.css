@@ -50,11 +50,11 @@
   color: var(--marsh-navy);
   cursor: pointer;
   transition:
-    background-color 160ms var(--ob-ease),
-    transform 100ms var(--ob-ease);
+    background-color 120ms var(--ob-ease),
+    transform 120ms var(--ob-ease);
 }
 .op-step:active:not(:disabled) {
-  transform: scale(0.94);
+  transform: scale(0.97);
 }
 .op-step:disabled {
   opacity: 0.35;

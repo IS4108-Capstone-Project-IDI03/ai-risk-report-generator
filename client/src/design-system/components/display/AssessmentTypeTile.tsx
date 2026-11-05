@@ -13,7 +13,7 @@ export const ASSESSMENT_TYPES: Record<AssessmentType, { icon: string; fg: string
 
 export type AssessmentTypeTileProps = {
   type: AssessmentType
-  // Tile size in px (default 36, radius 10; v2 section 5).
+  // Tile size in px (default 32, radius 9; v2 section 5).
   size?: number
   // Shows the type's name beside the tile.
   showLabel?: boolean
@@ -22,7 +22,7 @@ export type AssessmentTypeTileProps = {
 /** Returns the coloured icon tile for an assessment type, with its name when showLabel. */
 export function AssessmentTypeTile({
   type,
-  size = 36,
+  size = 32,
   showLabel = false,
 }: AssessmentTypeTileProps) {
   const t = ASSESSMENT_TYPES[type]

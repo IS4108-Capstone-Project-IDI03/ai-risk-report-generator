@@ -15,6 +15,7 @@ import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import { guardLeave } from './leaveGuard'
+import { ScreenMotion } from './ScreenMotion'
 import { AssessmentActions } from './components/AssessmentActions'
 import { siteWalkReview } from '../site-walk/openReview'
 import './workflow.css'
@@ -79,32 +80,9 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
     .filter((_, i) => i !== 1)
     .join('|')
   const depth = v.isClient ? 1 : v.isCreate || v.isAssessment || v.isField ? 2 : 0
-  const last = useRef({ screenKey, depth })
-  useLayoutEffect(() => {
-    const before = last.current
-    last.current = { screenKey, depth }
-    if (before.screenKey === screenKey) return
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    // Board 17 (R9 · 3): siblings rise 6 px in 200 ms; deeper/back slide 16 px in 240 ms.
-    // shortcut: the old screen doesn't fade out first (it is already replaced); add an
-    // exit phase only if the cut ever looks abrupt.
-    const sibling = depth === before.depth
-    const from = reduce
-      ? 'none'
-      : sibling
-        ? 'translateY(6px)'
-        : `translateX(${depth > before.depth ? 16 : -16}px)`
-    // element.animate is missing in jsdom, so tests see the screen at once.
-    scroller.current?.animate?.(
-      [
-        { opacity: 0, transform: from },
-        { opacity: 1, transform: 'none' },
-      ],
-      { duration: reduce ? 120 : sibling ? 200 : 240, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
-    )
-  }, [screenKey, depth])
   return (
     <>
+      <ScreenMotion screenKey={screenKey} depth={depth} main={scroller} />
       {/* data-sidenav lets fixed overlays centre on the content, not the window. */}
       <div
         className="workflow"
@@ -142,6 +120,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
               {/* Phone: one navy bar. Capture is drilled into, so ← replaces the menu. */}
               {!!v.showTopBar && (
                 <PhoneBar
+                  logoSrc={marshLogo}
                   onMenu={v.toggleNav}
                   bell={<NotificationBell counts={session.notifications} tone="dark" />}
                   back={

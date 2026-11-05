@@ -4,23 +4,27 @@
 import { useState } from 'react'
 import { FilterPill, Icon, Popover } from '../../../design-system'
 
-export type Choice = { value: string; label: string }
+export type Choice = { value: string; label: string; icon?: string; color?: string }
 
 export function FilterMenu({
   name,
+  icon,
   choices,
   value,
   onChange,
 }: {
   // The pill's text when nothing is chosen, e.g. "Status".
   name: string
+  icon?: string
   choices: Choice[]
-  // The chosen value, or '' for all.
+  // The chosen value, or '' for any.
   value: string
   onChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const chosen = choices.find((c) => c.value === value)
+  // When any option has an icon, the ones without (like Any status) keep its column so labels line up.
+  const hasIcons = choices.some((c) => c.icon)
   const pick = (v: string) => {
     onChange(v)
     setOpen(false)
@@ -34,6 +38,7 @@ export function FilterMenu({
       surfaceClassName="cl-filter-menu"
       trigger={
         <FilterPill
+          icon={icon}
           label={chosen ? chosen.label : name}
           aria-label={chosen ? `${name}: ${chosen.label}` : name}
           aria-haspopup="listbox"
@@ -43,7 +48,7 @@ export function FilterMenu({
       }
     >
       <div className="ds-menu" role="listbox" aria-label={name}>
-        {[{ value: '', label: `All` }, ...choices].map((c) => (
+        {[{ value: '', label: `Any ${name.toLowerCase()}` }, ...choices].map((c) => (
           <button
             key={c.value}
             type="button"
@@ -52,6 +57,11 @@ export function FilterMenu({
             className="ds-menu-item"
             onClick={() => pick(c.value)}
           >
+            {c.icon ? (
+              <Icon name={c.icon} size={16} color={c.color} />
+            ) : (
+              hasIcons && <span style={{ width: 16, flexShrink: 0 }} />
+            )}
             <span className="ds-menu-text">{c.label}</span>
             {c.value === value ? <Icon name="check" size={16} /> : null}
           </button>

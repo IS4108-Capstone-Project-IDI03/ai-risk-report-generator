@@ -2,7 +2,7 @@
 // filter, then a card per site with the engineer's assessments there. Called by
 // ClientRecord. Row actions go back to ClientRecord, which owns the dialogs.
 import { useState } from 'react'
-import { Button, EmptyState, IconRegistry, SearchField } from '../../../design-system'
+import { Button, EmptyState, IconRegistry, SearchField, statusLook } from '../../../design-system'
 import { STATUS_LABEL } from '../../assessments/format'
 import type { ClientPage as Page, ClientPageSite } from '../api'
 import { FilterMenu } from '../components/FilterMenu'
@@ -53,7 +53,10 @@ export function SitesTab({
     ...new Set(
       listed.flatMap((s) => s.visits.filter((v) => v.status !== 'archived').map((v) => v.status)),
     ),
-  ].map((value) => ({ value, label: STATUS_LABEL[value] }))
+  ].map((value) => {
+    const { icon, fg } = statusLook(value)
+    return { value, label: STATUS_LABEL[value], icon, color: fg }
+  })
 
   return (
     <>
