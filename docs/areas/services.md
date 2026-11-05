@@ -245,7 +245,9 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
    for knowledge admins to the gateway (IN-10, `app/notifications.py`): "finished
    ingesting" or "failed", or, when the finished document needs review (IN-07),
    '"<title>" needs review.' with the list's reason as details and
-   `context.status: needs_review`, which the bell opens as the Review page. A job whose worker died mid-run is
+   `context.status: needs_review`, which the Inbox opens as the Review page (F-10:
+   the gateway files `failed` and `needs_review` in the Inbox and `complete` in the
+   bell, from `context.status`, so the worker does not change). A job whose worker died mid-run is
    redelivered by BullMQ and processed again.
    Whatever the outcome (complete, failed or cancelled), the worker then posts
    what the document's paid calls used to the gateway's
@@ -1114,3 +1116,30 @@ A knowledge admin also has an **Ingestion** tab (from `GET /api/usage/ingestion`
   - **Scope:** as for the summary: a risk engineer sees only their assigned assessments and their own chat.
 - **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../RUNNING.md) §5.
 
+
+## Who is told what (F-10, RV-11)
+
+Every notification goes through `createNotification` in the gateway's
+`notification.service.ts`, which sets its `kind` (Inbox or bell) from one lookup;
+see `docs/areas/database.md`, "Inbox and bell". The producers:
+
+| Producer | Purpose | Goes to |
+|---|---|---|
+| Ingestion worker, via `POST /api/internal/notifications` | `ingestion_status` | Inbox when failed or needs review, bell when finished |
+| `knowledge-gap.service.ts`, a new request | `knowledge_gap_request` | Inbox, all admins |
+| `knowledge-gap.service.ts`, filled or dismissed | `knowledge_gap_request` | bell, the asker |
+| `assessment-assign.service.ts`, an assessment created for or moved to another engineer | `assessment_assigned` | Inbox, that engineer |
+| `assessment-assign.service.ts`, an assessment moved away | `assessment_moved` | bell, the previous engineer |
+| `site-walk-notice.service.ts`, proposal ready | `site_walk_ready` | Inbox, the assessment's current engineer |
+| `site-walk-notice.service.ts`, walk failed | `site_walk_failed` | Inbox, the assessment's current engineer |
+
+Rules every producer follows: address a person by their current role, looked up
+(`audienceOf`), never a role written into the code; never tell people about their
+own action (an admin assigning to themselves, or moving work away from
+themselves, makes no notification for them); and never let a failed notification
+fail the action that already saved (they log and carry on, except the site walk
+"ready" one, which throws so the queue sends it again).
+
+A site walk fails in three places (the reading runs out of retries, a recording
+cannot be transcribed, the job cannot be queued); each tells the engineer once
+per attempt. An attempt is the walk's `retries` count, which Retry increments.

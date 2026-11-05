@@ -2112,3 +2112,23 @@ Rejected:
 Known limits: the file applies to every flow, so switching a kind off affects drafting and chat too. Building names alone are not detected. Masking now changes for drafting and chat, so the drafting and chat evals need a rerun with `--privacy` (Rule 9).
 
 Stories: PV-04, PV-01.
+
+## 2026-11-05 — Admins hold the engineer's powers, and may assign assessments; the Inbox holds what needs a person
+
+Chose:
+- (F-10, RV-11) `knowledge_admin` gains `assessments:edit` and `reports:generate`, and a new `assessments:assign` belongs to `knowledge_admin` only. An admin can do everything an engineer can under Assessments and Clients, including Generation, Review and Export, on the same screens.
+- This reverses the 30 Sep F-05 decision that rejected a wildcard admin and kept admins read-only on assessments. The "only the assigned engineer can change it" checks stay, so an admin changes only assessments assigned to them and reads the rest. Routes that had no such check because only engineers could reach them (starting capture, adding and removing locations, retrying a transcription, reading an observation, filing and deleting client documents) now have one.
+- An admin chooses the engineer when creating an assessment (required, any active account including themselves), and can reassign one later (`POST /api/assessments/:reference/reassign`; archived ones are refused). Engineers still get themselves. Observations, drafts and costs follow the assessment. After a reassignment the new engineer carries on its observations, locations and site walks, and the old one is refused.
+- The Inbox holds what stalls work if the person ignores it; the bell holds updates. Inbox items stay in the `notifications` collection with a `kind` set at creation from one lookup in the notification service, so the ingestion worker does not change. To do and Done are worked out per person, not stored.
+
+Reason: nobody on the team could state the motivation for the F-05 limit, and an admin should not be able to do less than an engineer; a person can only hand work over if an admin can do it. A second collection for the Inbox would rebuild audiences, per-user state, polling and the worker's route.
+
+Rejected:
+- A second collection for Inbox items.
+- A stored status for each item: it differs per person for the items shared by all admins.
+- Closing a shared item automatically when it is filled: Jesper chose not to track whether work was done, so Omar still sees a request Sana filled in To do until he opens or bins it.
+- Engineers choosing another engineer, or asking for a handover in the app.
+
+Known limits: a notification's `reportDue` is a snapshot from creation; an Inbox item expires with the rest after 90 days, though the thing it points at still exists.
+
+Stories: F-10, RV-11, F-05.
