@@ -114,9 +114,6 @@
   color: var(--text-muted);
   font-size: 12px;
 }
-.user-footer button {
-  color: var(--text-muted) !important;
-}
 .user-avatar {
   width: 28px;
   height: 28px;
