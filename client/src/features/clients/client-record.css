@@ -649,6 +649,13 @@
     padding-inline: 0;
   }
 }
+@media (min-width: 820px) and (max-width: 899px) {
+  /* The labelled buttons leave about 133 px, enough for a three-word name at this size. */
+  .cl-page .ds-topbar-title h1 {
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+}
 
 /* A single-word Tag ends in … at the pill's edge (the kit's flex text can't); a "ref · site" tag keeps its reference whole. */
 .cl-page .ds-tag-pill-text:not(:has(.ds-tag-pill-ref)) {
