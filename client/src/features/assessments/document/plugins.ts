@@ -126,16 +126,28 @@ function flagWidget(flag: PassageFlag) {
   return wrap
 }
 
+// Each source a section cites, numbered in the order the section first cites
+// it: the numbers its markers show (AC9), and the export's references (EX-01).
+export function citationNumbers(section: PMNode): Map<string, number> {
+  const numbers = new Map<string, number>()
+  section.descendants((node) => {
+    if (node.type.name !== 'citation') return true
+    const id = node.attrs.id as string
+    if (!numbers.has(id)) numbers.set(id, numbers.size + 1)
+    return false
+  })
+  return numbers
+}
+
 function reviewDecorations(doc: PMNode, context: ReviewContext): DecorationSet {
   const decorations: Decoration[] = []
   doc.forEach((section, offset) => {
     const sectionId = section.attrs.id as string
-    const numbers = new Map<string, number>()
+    const numbers = citationNumbers(section)
     section.descendants((node, pos, parent) => {
       const at = offset + 1 + pos
       if (node.type.name === 'citation') {
         const id = node.attrs.id as string
-        if (!numbers.has(id)) numbers.set(id, numbers.size + 1)
         const label = `Citation ${numbers.get(id)}: ${context.describe(sectionId, id)}`
         decorations.push(
           Decoration.node(at, at + node.nodeSize, {

@@ -12,6 +12,7 @@ import type {
   SectionDocument,
 } from '../api'
 import { plainText } from '../documentContent'
+import { isProgramsSubsection } from './page/programs'
 
 const MARKS: DocumentMark[] = ['bold', 'italic', 'underline']
 
@@ -106,9 +107,13 @@ export function toEditorJSON(sections: EditorSection[]): JSONContent {
                 { type: 'subsectionHeading', attrs: { label: sub.heading } },
                 ...(kinds[i] === 'table'
                   ? [{ type: 'lockedBlock', attrs: { kind: 'table', section: id } }]
-                  : blocks.length
-                    ? blocks
-                    : [EMPTY_PARAGRAPH]),
+                  : [
+                      // Marsh's programs table over the rows (page/programs.ts).
+                      ...(isProgramsSubsection(id, sub.heading)
+                        ? [{ type: 'lockedBlock', attrs: { kind: 'programs', section: id } }]
+                        : []),
+                      ...(blocks.length ? blocks : [EMPTY_PARAGRAPH]),
+                    ]),
               ],
             }
           }),

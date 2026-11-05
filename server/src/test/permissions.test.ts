@@ -43,6 +43,8 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['post', `/api/observations/${ID}/recordings/${ID}/transcription/retry`, 'assessments:edit'],
   ['get', `/api/observations/${ID}/recordings/${ID}/audio`, 'assessments:view'],
   ['post', '/api/rag/generate', 'reports:generate'],
+  ['get', '/api/assessments/RPT-2026-0411/export', 'reports:export'],
+  ['post', '/api/assessments/RPT-2026-0411/export', 'reports:export'],
   ['get', '/api/knowledge-documents', 'knowledge:view'],
   ['post', '/api/knowledge-documents', 'knowledge:manage'],
   ['get', `/api/knowledge-documents/${ID}/file`, 'knowledge:view'],

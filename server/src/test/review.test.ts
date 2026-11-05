@@ -265,6 +265,7 @@ describe('the review workspace (RV-01)', () => {
         sourceType: 'fm_standard',
         edition: '2022',
         effectiveDate: '2022-04-01',
+        facilityType: 'all',
         withdrawnAt: null,
         fileUrl: `/api/knowledge-documents/${standard._id}/file`,
       },
@@ -290,6 +291,8 @@ describe('the review workspace (RV-01)', () => {
         severity: 'high',
         location: 'Bay 3, Ground',
         standard: null,
+        // When it was captured, for the export's references (EX-01 AC6).
+        capturedAt: riser.createdAt.toISOString(),
       },
       expect.objectContaining({ id: String(sprinklers._id), copeDimensions: ['Protection'] }),
     ])

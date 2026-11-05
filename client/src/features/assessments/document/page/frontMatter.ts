@@ -91,9 +91,10 @@ export function contentsPages(entries: ContentsEntry[], contentHeight: number) {
   return pages
 }
 
-// A section's number as its contents entry starts: "7." or "Appendix A:".
+// A section's number as its contents entry starts: "7." or "Appendix A:";
+// nothing for a part with no number, the export's References (EX-01).
 export const contentsNumber = (number: string) =>
-  /^\d+$/.test(number) ? `${number}.` : `Appendix ${number}:`
+  /^\d+$/.test(number) ? `${number}.` : number ? `Appendix ${number}:` : ''
 
 // Marsh's logo for the cover (AC2): none was supplied (docs/design-system.md),
 // so the cover shows the text wordmark. Set this to the logo's URL (e.g. a

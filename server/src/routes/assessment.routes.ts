@@ -115,6 +115,14 @@ import {
   TranscriptionInProgressError,
   UnknownSectionError,
 } from '../services/section.service'
+import {
+  ExportBlockedError,
+  exportBlockers,
+  exportReport,
+  exportRequestSchema,
+  UnrestoredPlaceholderError,
+} from '../services/export.service'
+import { RenderFailedError, RendererUnavailableError } from '../services/export-render.service'
 import { fieldErrors } from './field-errors'
 import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
 import { requirePermission } from '../middleware/auth.middleware'
@@ -1095,5 +1103,74 @@ router.put(
     }
   },
 )
+
+// What is left to finish before the report can be exported (EX-01 AC1): it
+// goes out only once complete, written and reviewed. 200 with `blockers`,
+// empty when it may go.
+router.get('/:reference/export', requirePermission('reports:export'), async (req, res) => {
+  try {
+    res.json({ blockers: await exportBlockers(req.params.reference) })
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof RagServiceError) {
+      res.status(503).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// A file name in Content-Disposition, plain and encoded (RFC 6266).
+const attachment = (name: string) =>
+  `attachment; filename="${name.replace(/["\\]/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`
+
+// Exports the report as a PDF or Word file (EX-01), from the pages the
+// browser laid out: 200 with the file, named with the report reference and
+// the export date (AC1). 400 for a body that is not an export; 403 for anyone
+// but the assigned engineer, or a role without reports:export (AC2); 404; 409
+// with `blockers` while the report is not complete (AC1); 422 when a masking
+// placeholder is left in the report (AC9); 503 when the file could not be
+// made, which can be retried (AC11). Nothing is stored.
+router.post('/:reference/export', requirePermission('reports:export'), async (req, res) => {
+  const parsed = exportRequestSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ error: 'The export request is invalid.', fields: fieldErrors(parsed.error) })
+    return
+  }
+  try {
+    const { file, fileName, contentType } = await exportReport(
+      req.params.reference,
+      parsed.data,
+      res.locals.user!,
+    )
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Disposition', attachment(fileName))
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(file)
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+    } else if (error instanceof NotAssignedError) {
+      res.status(403).json({ error: error.message })
+    } else if (error instanceof ExportBlockedError) {
+      res.status(409).json({ error: error.message, blockers: error.blockers })
+    } else if (error instanceof UnrestoredPlaceholderError) {
+      res.status(422).json({ error: error.message })
+    } else if (
+      error instanceof RendererUnavailableError ||
+      error instanceof RenderFailedError ||
+      error instanceof RagServiceError
+    ) {
+      res.status(503).json({ error: error.message })
+    } else {
+      throw error
+    }
+  }
+})
 
 export default router

@@ -20,6 +20,7 @@ import { buildReportDocument, type ReportDocument } from '../document/sections'
 import { useDocumentSave, type SaveStatus } from '../document/useDocumentSave'
 import { formatDayTime } from '../format'
 import { setLeaveGuard } from '../leaveGuard'
+import { registerPendingSave } from '../pendingSaves'
 import { useSections } from '../useSections'
 import '../document/document.css'
 import '../document/page/pages.css'
@@ -208,6 +209,11 @@ function DocumentBody({
     if (saver.dirty()) setLeaving({ proceed })
     else proceed()
   }
+  // An export saves the document's pending changes first (EX-01 AC1).
+  useEffect(
+    () => registerPendingSave(async () => (saver.dirty() ? await saver.save() : true)),
+    [saver],
+  )
   useEffect(
     () =>
       setLeaveGuard((proceed) => {

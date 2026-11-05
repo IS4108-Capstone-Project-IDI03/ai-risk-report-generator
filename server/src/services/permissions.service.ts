@@ -13,6 +13,9 @@ export const PERMISSIONS = [
   // Draft report sections (RAG), and decide on their findings: accept, edit,
   // reject, regenerate (RV-02). Also needs the assigned engineer.
   'reports:generate',
+  // Export the finished report as a PDF or Word file (EX-01). Also needs the
+  // assigned engineer, and the report to be complete (export.service).
+  'reports:export',
   // List knowledge documents and open their original files, e.g. a citation.
   'knowledge:view',
   // Upload knowledge documents and correct their details (KB-01).
@@ -30,6 +33,7 @@ export type Permission = (typeof PERMISSIONS)[number]
 // assessments:view   |      yes      |      yes (read-only)
 // assessments:edit   |      yes      |      -
 // reports:generate   |      yes      |      -
+// reports:export     |      yes      |      -
 // knowledge:view     |      yes      |      yes
 // knowledge:manage   |      -        |      yes
 // users:manage       |      -        |      yes
@@ -39,6 +43,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'assessments:view',
     'assessments:edit',
     'reports:generate',
+    'reports:export',
     'knowledge:view',
     'usage:view',
   ],

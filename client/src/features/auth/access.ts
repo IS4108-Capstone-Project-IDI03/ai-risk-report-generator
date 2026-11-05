@@ -82,7 +82,8 @@ export function reviewIdForPath(pathname: string): string | null {
 const TAB_PERMISSIONS: Record<string, Permission> = {
   generate: 'reports:generate',
   review: 'reports:generate',
-  export: 'reports:generate',
+  // Exporting the finished report (EX-01 AC2).
+  export: 'reports:export',
 }
 
 // Where each role starts after signing in, or on opening the site root.

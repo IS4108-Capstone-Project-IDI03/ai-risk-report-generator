@@ -50,6 +50,10 @@
   document editor, and each restore from the version history (RV-06), adds a
   version; never update or delete one. A restore names what it restored in
   `restoredFrom`, on the version and on the review log entries it makes.
+- The report export (EX-01) prints HTML that came from the browser:
+  `export-render.service.ts` opens it with page scripts off, a content security
+  policy and every request refused. Keep it that way: nothing in the export
+  page may fetch a URL. See docs/areas/services.md, "Report export".
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

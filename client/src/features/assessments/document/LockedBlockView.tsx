@@ -6,7 +6,14 @@ import { AppendixPhotos } from '../components/AppendixPhotos'
 import { LossEstimateFigures } from '../components/LossEstimateFigures'
 import { PurposeScope } from '../components/PurposeScope'
 import { RiskQualityFigures } from '../components/RiskQualityFigures'
-import { AppendixReport, OfisReport, PurposeText } from './page/ReportParts'
+import {
+  AppendixReport,
+  OfisReport,
+  ProgramsTable,
+  PurposeText,
+  ReferencesList,
+} from './page/ReportParts'
+import { NOT_ENTERED } from '../reportFigures'
 import { DocumentPartsContext } from './parts'
 import { LOSS_LEVEL_IDS } from './sections'
 
@@ -17,6 +24,8 @@ const LABELS: Record<string, string> = {
   'loss-estimates': 'Values and loss estimates',
   table: 'Table filled from measured values',
   appendix: 'Photos chosen for Appendix A',
+  programs: 'Management Programs table',
+  references: 'References',
 }
 
 // Section 5's level tables, read-only: their drafted rows are the text below.
@@ -56,12 +65,34 @@ function OfiList({ ofis }: { ofis: AcceptedOfi[] }) {
 
 // A part of the report filled in elsewhere, shown read-only where it sits in
 // the document (the locked blocks of schema.ts).
-export function LockedBlockView({ node }: NodeViewProps) {
+export function LockedBlockView({ node, editor, getPos }: NodeViewProps) {
   const parts = useContext(DocumentPartsContext)
   const kind = node.attrs.kind as string
   const section = node.attrs.section as string
   if (!parts) return <NodeViewWrapper />
   const { reference } = parts
+  // Section 6's programs as Marsh's table, over the rows written below it:
+  // only in the page layout, where those rows are hidden (page/programs.ts).
+  // The continuous view shows the rows themselves.
+  if (kind === 'programs')
+    return parts.pageLayout ? (
+      <NodeViewWrapper className="dm-locked" data-kind={kind} contentEditable={false}>
+        <div className="dm-locked-body">
+          <ProgramsTable editor={editor} getPos={getPos} />
+        </div>
+      </NodeViewWrapper>
+    ) : (
+      <NodeViewWrapper className="dm-locked" data-kind={kind} hidden />
+    )
+  // The export's numbered references (EX-01 AC6), after the report.
+  if (kind === 'references')
+    return (
+      <NodeViewWrapper className="dm-locked" data-kind={kind} contentEditable={false}>
+        <div className="dm-locked-body">
+          <ReferencesList groups={parts.references ?? []} />
+        </div>
+      </NodeViewWrapper>
+    )
   // In Marsh's page layout (RV-12), Sections 1 and 3 and Appendix A read as
   // the report has them; Sections 4 and 5 hide their screen controls (pages.css).
   const report = !parts.pageLayout ? null : kind === 'purpose' ? (
@@ -70,6 +101,10 @@ export function LockedBlockView({ node }: NodeViewProps) {
     <OfisReport ofis={parts.ofis} observations={parts.observations} />
   ) : kind === 'appendix' ? (
     <AppendixReport reference={reference} />
+  ) : kind === 'table' ? (
+    // Nothing fills these tables yet, so the report says so as it does for a
+    // missing figure, rather than the screen's note (EX-01 AC3, AC10).
+    <p>{NOT_ENTERED}</p>
   ) : null
   const body =
     report ??

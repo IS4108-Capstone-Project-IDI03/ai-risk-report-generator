@@ -1368,13 +1368,22 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E10 — Export & Handover
 
-- [ ] **EX-01** — Export finished report to file (risk engineer, Must, 2 pts, deps: RV-04, RV-09, CP-04, Sprint 5)
+- [ ] **EX-01** — Export the report as PDF and Word files (risk engineer, Must, deps: RV-12, RV-04, F-05, GN-01, IN-04, KB-01, GN-03, GN-07, GN-11, GN-12, CP-04, PV-02, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: export the completed, reviewed report into Marsh's report template, so the report leaves the tool in the format the existing process expects.
+  Goal: export the finished report as a PDF or an editable Word document laid out like Marsh's existing reports, so that I can issue the PDF to the client and use the Word file for review rounds in Marsh's usual process. (Replaces "Export finished report to file", 4 Nov 2026.)
 
-  1. Given a completed, reviewed report, when I export it, then it matches Marsh's section structure and template.
-  2. Given a completed report, when I export it, then DOCX or PDF can be chosen, and structure and citations are preserved in either.
-  3. Given the engineer has selected and ordered appendix content, when the report is exported, then Appendix A site photos and Appendix B site map are included in that order.
-  4. Given outstanding review items remain, when I attempt to export, then export is only allowed once they are cleared or explicitly overridden.
+  1. Given RV-04's checks allow the report to be exported, when I choose PDF or Word on the Validation and export screen and export, then any pending edits are saved first. The file then downloads, named with the report reference and the export date.
+  2. Given my role lacks the export permission (F-05's matrix gives it to risk engineers only), when I open the report, then no export action is offered, and the export API returns 403.
+  3. Given a PDF export, when I open it, then it matches page layout (RV-12) page for page: the same cover, contents page, page breaks and page numbers. Its fonts are embedded so it looks the same on any computer.
+  4. Given a PDF export, when I select an entry on its contents page or in the reader's bookmarks, then it opens at that section.
+  5. Given a Word export, when I open it in Microsoft Word, then it opens without a repair prompt, and: headings use Word's heading styles; the contents page is a Word table of contents that updates; page numbers are Word page-number fields; tables are editable Word tables, not pictures.
+  6. Given I choose whether to include citations and the photo appendix, when the file is generated, then both choices apply the same way in PDF and Word. With citations, each marker becomes a numbered reference: a standard, by its title, edition, heading and page; an observation, by its location and capture date; a past Marsh report, by facility type and year only, never another client's name, site or reference. Without citations, no markers remain.
+  7. Given the report holds the Section 3 and 4 charts, Risk Assessment Matrix and Rating Legend (GN-12), the Section 5 tables (GN-03) and the Section 6 tables (GN-11), when it is exported, then each appears as it does in page layout. Charts appear as images, and Section 6 rank cells keep their colours.
+  8. Given Appendix A photos are stored as unaltered originals (CP-04), when the report is exported, then each photo appears whole at its original aspect ratio, in the order Appendix A shows them, at an agreed print resolution. The stored original is unchanged.
+  9. Given client details were masked before drafting (PV-02), when the report is exported, then the file shows the real names and no placeholder such as "Person 1" remains.
+  10. Given passages carry AI styling, review states, open flags or comment threads in the app, when the report is exported, then none of them appear in the file.
+  11. Given the file cannot be generated, or the report is demo sample data shown without the gateway, when I try to export, then the cause is shown, with a retry where one can help. No file is produced or simulated.
+
+  Built 4 Nov 2026 (DECISIONS 2026-11-04, "The export is the page layout, printed"). AC1: RV-04 is not built, so a check stands in for it: only a complete report is exported (DECISIONS 2026-11-05), with the Executive Summary drafted and current, an OFI accepted, Sections 4-12 written, Sections 4 and 5's figures entered, and every finding decided, none unsupported, out of date or citing a withdrawn source; RV-04 replaces `exportBlockers`. AC3: the PDF is printed from the page layout's own pages; Page layout now shows citation markers as the PDF prints them and Section 6's programs as Marsh's table, so the two match. With citations, References follow the report on pages of their own; without them, lines may rewrap where markers were. AC4: bookmarks name each section by its title. AC5: Word's contents reads "Section 7 Construction", as Word builds an entry from the heading, and Word refreshes it on opening (it may ask to update fields first). AC8: the agreed print resolution is 300 dpi of the printed size, never above the original's own. AC9: the gateway refuses a file whose text still holds a privacy placeholder, naming where. Comment threads (AC10) are not built yet (RV-03), so none exist to leave out.
   </details>
