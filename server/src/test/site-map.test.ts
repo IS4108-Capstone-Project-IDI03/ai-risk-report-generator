@@ -202,3 +202,125 @@ describe('the map key (CP-26 AC13)', () => {
     config.googleMapsBrowserKey = before
   })
 })
+
+// CP-26: an engineer's position saved on a location, through POST and PATCH
+// /api/assessments/:reference/locations.
+describe('coordinates on a location (CP-26 AC22-25)', () => {
+  const LOBBY = { building: 'Block A', floor: 'Level 1', name: 'Lobby' }
+  const OTHER_SPOT = { lat: 1.3, lng: 103.86 }
+  const locationsOf = (reference: string) => `/api/assessments/${reference}/locations`
+
+  it('saves them on the location, and the first in a block sets its pin', async () => {
+    const { body } = await firstVisit()
+    const added = await api
+      .post(locationsOf(body.reference))
+      .send({ ...LOBBY, coordinates: SPOT })
+    expect(added.status).toBe(201)
+    expect(added.body.coordinates).toEqual(SPOT)
+    expect((await shown(body.reference)).pins).toEqual([{ name: 'Block A', ...SPOT }])
+  })
+
+  it('leaves a block pin alone once it has one, whatever the case', async () => {
+    const { body } = await firstVisit()
+    await api.post(locationsOf(body.reference)).send({ ...LOBBY, coordinates: SPOT })
+    await api
+      .post(locationsOf(body.reference))
+      .send({ building: 'block a', name: 'Roof', coordinates: OTHER_SPOT })
+    expect((await shown(body.reference)).pins).toEqual([{ name: 'Block A', ...SPOT }])
+  })
+
+  it('sets no pin for a location outside a building', async () => {
+    const { body } = await firstVisit()
+    const added = await api
+      .post(locationsOf(body.reference))
+      .send({ name: 'Guardhouse', coordinates: SPOT })
+    expect(added.body.coordinates).toEqual(SPOT)
+    expect((await shown(body.reference)).pins).toEqual([])
+  })
+
+  it('changes them, keeps them when not sent, and clears them with null', async () => {
+    const { body } = await firstVisit()
+    const path = locationsOf(body.reference)
+    const { id } = (await api.post(path).send({ ...LOBBY, coordinates: SPOT })).body
+    const moved = await api.patch(`${path}/${id}`).send({ ...LOBBY, coordinates: OTHER_SPOT })
+    expect(moved.body.coordinates).toEqual(OTHER_SPOT)
+    const renamed = await api.patch(`${path}/${id}`).send({ ...LOBBY, name: 'Entrance' })
+    expect(renamed.body.coordinates).toEqual(OTHER_SPOT)
+    const cleared = await api.patch(`${path}/${id}`).send({ ...LOBBY, coordinates: null })
+    expect(cleared.body.coordinates).toBeUndefined()
+  })
+
+  it('sets a block pin from an edit when the block has none', async () => {
+    const { body } = await firstVisit()
+    const path = locationsOf(body.reference)
+    const { id } = (await api.post(path).send(LOBBY)).body
+    await api.patch(`${path}/${id}`).send({ ...LOBBY, coordinates: SPOT })
+    expect((await shown(body.reference)).pins).toEqual([{ name: 'Block A', ...SPOT }])
+  })
+
+  it('moves the block pin with changed coordinates, keeping its place in the list', async () => {
+    const { body } = await firstVisit()
+    const path = locationsOf(body.reference)
+    const { id } = (await api.post(path).send({ ...LOBBY, coordinates: SPOT })).body
+    await api.post(path).send({ building: 'Block B', name: 'Roof', coordinates: SPOT })
+    await api.patch(`${path}/${id}`).send({ ...LOBBY, coordinates: OTHER_SPOT })
+    expect((await shown(body.reference)).pins).toEqual([
+      { name: 'Block A', ...OTHER_SPOT },
+      { name: 'Block B', ...SPOT },
+    ])
+  })
+
+  it('pins a block a location moves to with the same coordinates', async () => {
+    const { body } = await firstVisit()
+    const path = locationsOf(body.reference)
+    const { id } = (await api.post(path).send({ ...LOBBY, coordinates: SPOT })).body
+    await api
+      .patch(`${path}/${id}`)
+      .send({ ...LOBBY, building: 'Block B', coordinates: SPOT })
+    expect((await shown(body.reference)).pins).toEqual([
+      { name: 'Block A', ...SPOT },
+      { name: 'Block B', ...SPOT },
+    ])
+  })
+
+  it('refuses coordinates on an archived assessment', async () => {
+    const { body } = await firstVisit()
+    await AssessmentModel.updateOne({ reference: body.reference }, { archivedAt: new Date() })
+    const added = await api
+      .post(locationsOf(body.reference))
+      .send({ ...LOBBY, coordinates: SPOT })
+    expect(added.status).toBe(409)
+    expect((await shown(body.reference)).pins).toEqual([])
+  })
+
+  it('brings back no removed pin when a location with coordinates is renamed', async () => {
+    const { body } = await firstVisit()
+    const path = locationsOf(body.reference)
+    const { id } = (await api.post(path).send({ ...LOBBY, coordinates: SPOT })).body
+    await api.put(`/api/sites/${body.site.id}/map`).send({ block: 'Block A', point: null })
+    await api.patch(`${path}/${id}`).send({ ...LOBBY, name: 'Entrance', coordinates: SPOT })
+    expect((await shown(body.reference)).pins).toEqual([])
+  })
+
+  it('refuses coordinates out of range, and from an unassigned engineer', async () => {
+    const { body } = await firstVisit()
+    const path = locationsOf(body.reference)
+    const wrong = await api.post(path).send({ ...LOBBY, coordinates: { lat: 91, lng: 103 } })
+    expect(wrong.status).toBe(400)
+    const refused = await jideApi.post(path).send({ ...LOBBY, coordinates: SPOT })
+    expect(refused.status).toBe(403)
+    expect(refused.body.fields.coordinates).toMatch(/assigned/)
+    expect((await shown(body.reference)).pins).toEqual([])
+  })
+
+  it('carries them to the next visit with the copied locations', async () => {
+    const first = (await firstVisit()).body
+    await api.post(locationsOf(first.reference)).send({ ...LOBBY, coordinates: SPOT })
+    const site = (await AssessmentModel.findOne({ reference: first.reference }))!.site
+    const next = await api
+      .post('/api/assessments')
+      .send(oneAssessment({ client: 'NUS', site: { id: String(site) }, siteVisitDate: '2026-03-10' }))
+    const reference = next.body.assessments[0].reference
+    expect((await api.get(locationsOf(reference))).body[0].coordinates).toEqual(SPOT)
+  })
+})

@@ -290,12 +290,15 @@ export async function createAll(
               reportDueDate: day(visit.reportDueDate),
               siteContacts: visit.siteContacts,
               engineer: new Types.ObjectId(user.id),
-              locations: (copied?.locations ?? []).map(({ building, floor, name, key }) => ({
-                building,
-                floor,
-                name,
-                key,
-              })),
+              locations: (copied?.locations ?? []).map(
+                ({ building, floor, name, key, coordinates }) => ({
+                  building,
+                  floor,
+                  name,
+                  key,
+                  coordinates,
+                }),
+              ),
             }),
         )
       }

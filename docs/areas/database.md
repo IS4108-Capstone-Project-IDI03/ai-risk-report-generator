@@ -289,6 +289,12 @@ A site may have `coordinates` and `blockPins` (CP-26), shown on the Overview's
 Geolocation card. They sit on the site, not a visit, because buildings don't move:
 each pin's `key` is its block's lowercased name, so a later visit's "Block A" finds
 it. Blocks only, never levels or rooms. Neither field reaches a report or an AI call.
+A location may have its own `coordinates` (CP-26), saved by the engineer. The first
+saved in a block adds that block's pin if it has none, changing them moves it, and
+later visits copy them
+with the locations. They reach no report or AI call either. Sending them needs the
+assigned engineer; `coordinates: null` on `PATCH` clears them, and leaving it out
+keeps them.
 
 Site routes go by the site's own id, so a site with no client yet can be
 corrected. A removed site's name doesn't stop a new site taking it (a

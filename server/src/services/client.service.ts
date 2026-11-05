@@ -3,7 +3,7 @@ import { isValidObjectId, Types } from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
 import { ClientModel } from '../models/client.model'
 import type { IStamp } from '../models/observation.model'
-import { SiteModel, type ISite } from '../models/site.model'
+import { SiteModel, type ICoordinates, type ISite } from '../models/site.model'
 import type { SessionUser } from './auth.service'
 import { FACILITY_TYPES } from './knowledge-document.service'
 import { isDuplicateKeyError } from './mongo-errors'
@@ -499,17 +499,29 @@ export async function changeSiteMap(id: string, change: SiteMapChange, user: Ses
     await SiteModel.updateOne({ _id: site._id }, { $pull: { blockPins: { key } } })
     return
   }
-  const pin = { key, name: change.block, ...change.point }
-  // Moved in place, so its number on the map stays the same; added if it's new.
+  await moveBlockPin(site._id, change.block, change.point)
+}
+
+// Moved in place, so its number on the map stays the same; added if it's new.
+// Also called by location.service.ts, when a location's coordinates change (CP-26).
+export async function moveBlockPin(site: Types.ObjectId, block: string, point: ICoordinates) {
+  const key = clientKey(block)
   const moved = await SiteModel.updateOne(
-    { _id: site._id, 'blockPins.key': key },
-    { $set: { 'blockPins.$': pin } },
+    { _id: site, ...LISTED, 'blockPins.key': key },
+    { $set: { 'blockPins.$': { key, name: block, ...point } } },
   )
-  if (!moved.matchedCount)
-    await SiteModel.updateOne(
-      { _id: site._id, 'blockPins.key': { $ne: key } },
-      { $push: { blockPins: pin } },
-    )
+  if (!moved.matchedCount) await addBlockPin(site, block, point)
+}
+
+// Pins a block unless it already has a pin. Matching on the key in the same
+// update makes it atomic, so two engineers can't pin one block twice. Also
+// called by location.service.ts, when a location saved there has coordinates (CP-26).
+export async function addBlockPin(site: Types.ObjectId, block: string, point: ICoordinates) {
+  const key = clientKey(block)
+  await SiteModel.updateOne(
+    { _id: site, ...LISTED, 'blockPins.key': { $ne: key } },
+    { $push: { blockPins: { key, name: block, ...point } } },
+  )
 }
 
 // Removes a site (CP-18), a soft removal: it leaves the client's page and the

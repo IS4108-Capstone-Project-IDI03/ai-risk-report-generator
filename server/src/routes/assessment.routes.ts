@@ -260,10 +260,21 @@ router.post('/:reference/locations', requirePermission('assessments:edit'), asyn
     return
   }
   try {
-    res.status(201).json(await addLocation(req.params.reference, parsed.data))
+    res
+      .status(201)
+      .json(await addLocation(req.params.reference, parsed.data, res.locals.user!))
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })
+      return
+    }
+    // Only coordinates are refused, so the form says so under that field.
+    if (error instanceof NotAssignedError) {
+      res.status(403).json({ error: error.message, fields: { coordinates: error.message } })
+      return
+    }
+    if (error instanceof AssessmentArchivedError) {
+      res.status(409).json({ error: error.message })
       return
     }
     if (error instanceof DuplicateLocationError) {

@@ -48,7 +48,7 @@ const stampFields = {
   },
 }
 
-const coordinateFields = {
+export const coordinateFields = {
   lat: { type: Number, required: true },
   lng: { type: Number, required: true },
 }
