@@ -1,4 +1,4 @@
-# Risk Report Generator design system, v2.1
+# Risk Report Generator design system, v2.2
 
 The look every new screen follows: calm, Apple-like screens, white cards on a pale page, Marsh navy for actions and titles, and colour only where it means something.
 
@@ -68,6 +68,7 @@ The point of this system is **consistency**. The same kind of information looks 
 - **Tooltips name the action only** ("Rename client", "Delete document"), never the client, site or file, so a long name never buries it. The screen-reader name still names the item ("Rename client NUS"): pass `tooltip` beside `label` on IconButton, RowAction or NavAction.
 - **Not allowed yet: grey out and explain.** A blocked action stays visible, greyed and focusable (`aria-disabled`). Hover, focus or tap opens a reason box saying why ("Can't remove yet · This client has 1 open assessment. Archive it, then remove the client."). No error after a click, and no names in the reason.
 - **Hover by background.** Hover changes the fill, not the border: grey on white, white with a ring on grey, darker on grey buttons, a white veil in segmented tracks and on navy. The surface sets it; hover only where a pointer can hover.
+- **Dropdown options keep their icons.** If a value shows an icon anywhere in the interface (a status pill, a type tile, a Report due state), its dropdown option shows that same icon and colour. Values with no icon of their own, such as jurisdictions, stay plain.
 - **Keyboard-only focus ring.** The navy focus ring shows for keyboard use only (`:focus-visible`), never after a mouse click, on every control.
 - **A toast for every confirmed action.** Create, save, delete, archive, upload and restore each show a toast (section 7), so the state is always clear.
 - **Collapsed sidebar = full width.** When the sidebar collapses, the page content fills the full width, keeping its 32 px side padding. Check every screen with the sidebar open AND collapsed.
@@ -212,6 +213,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
 - **Changelog:**
   - v2.0 (4 Nov 2026, CP-23): first version from the CP-23 canvas.
   - v2.1 (5 Nov 2026, CP-23 feedback rounds 7–16): tooltips name the action only; grey out and explain (reason box); hover by background; keyboard-only focus ring; one list frame with a helper line; first column left, the rest centred; labelled sort; "just changed" row; dates as dd/mm/yyyy in forms; Not-sure icon placement; Back button, date picker, sheets, sticky action bar, Apple dialog (look, copy and motion), long lists in popovers, Found so far; one date cell for Report due and Next survey; toast tick and width; the full motion set with its rules (replaces the seven-motion list, and "no shake" becomes one shake on a repeated error).
+  - v2.2 (5 Nov 2026): sidebar and phone drawer back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover.
 
 ## 10. When this file says nothing
 

@@ -250,3 +250,9 @@ it('shows a toast with its message and action through the helper', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
   expect(undo).toHaveBeenCalled()
 })
+
+it('gives a status the same look by key or by label, and plain grey when unknown', () => {
+  expect(UI.statusLook('under_review')).toEqual(UI.statusLook('Under review'))
+  expect(UI.statusLook('Under review').icon).toBe('eye')
+  expect(UI.statusLook('Paused')).toMatchObject({ label: 'Paused', icon: 'circle' })
+})

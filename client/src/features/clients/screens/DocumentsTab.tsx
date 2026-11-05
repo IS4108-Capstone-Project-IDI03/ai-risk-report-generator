@@ -9,6 +9,7 @@ import {
   EmptyState,
   SearchField,
   TableFooter,
+  TAG_GROUPS,
   toast,
   useIsPhone,
 } from '../../../design-system'
@@ -125,7 +126,11 @@ export function DocumentsTab({
           />
           <FilterMenu
             name="Tag"
-            choices={tags.map((t) => ({ value: t.label, label: t.label }))}
+            choices={tags.map((t) => ({
+              value: t.label,
+              label: t.label,
+              icon: TAG_GROUPS.find((g) => g.group === (t.group ?? 'client'))?.icon,
+            }))}
             value={tag}
             onChange={setTag}
           />

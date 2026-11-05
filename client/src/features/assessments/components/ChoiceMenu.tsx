@@ -58,6 +58,8 @@ export function ChoiceMenu({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
+  // Choices without an icon keep its column when others have one, so labels line up.
+  const hasIcons = choices.some((c) => c.icon)
   const list = useRef<HTMLUListElement>(null)
   // Caps the list to the room below the trigger, so it scrolls instead of running
   // off the screen; without this a phone clipped the last choices.
@@ -106,7 +108,11 @@ export function ChoiceMenu({
                     if (!multiple) setOpen(false)
                   }}
                 >
-                  {c.icon ? <Icon name={c.icon} size={16} color={c.color} /> : <span />}
+                  {c.icon ? (
+                    <Icon name={c.icon} size={16} color={c.color} />
+                  ) : (
+                    <span style={hasIcons ? { width: 16 } : undefined} />
+                  )}
                   <span>{c.label}</span>
                   {on && <Icon name="check" size={16} color="var(--marsh-navy)" />}
                 </button>

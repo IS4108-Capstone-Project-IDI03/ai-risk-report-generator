@@ -47,15 +47,23 @@ const STATUSES: Record<
   },
 }
 
+/** Returns a status's label, icon and colours; an unknown status is plain grey with its own text. */
+export function statusLook(status: string) {
+  const key = status.trim().toLowerCase().replace(/\s+/g, '_')
+  return (
+    STATUSES[key] ?? {
+      label: status,
+      icon: 'circle',
+      fg: 'var(--graphite-700)',
+      bg: 'var(--graphite-100)',
+      bd: undefined,
+    }
+  )
+}
+
 /** Returns the status pill; an unknown status shows as a plain grey pill with its own text. */
 export function StatusPill({ status }: StatusPillProps) {
-  const key = status.trim().toLowerCase().replace(/\s+/g, '_')
-  const s = STATUSES[key] ?? {
-    label: status,
-    icon: 'circle',
-    fg: 'var(--graphite-700)',
-    bg: 'var(--graphite-100)',
-  }
+  const s = statusLook(status)
   return (
     <span
       className="ds-pill"

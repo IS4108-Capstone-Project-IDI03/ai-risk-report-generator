@@ -16,7 +16,7 @@ export type TagPickerProps = {
   onChange: (value: string) => void
 }
 
-const GROUPS = [
+export const GROUPS = [
   { group: 'client', heading: '', icon: 'briefcase' },
   { group: 'site', heading: 'Sites', icon: 'map-pin' },
   { group: 'assessment', heading: 'Assessments', icon: 'clipboard-list' },

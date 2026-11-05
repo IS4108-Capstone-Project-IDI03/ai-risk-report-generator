@@ -1,7 +1,13 @@
 // The Assessments card's toolbar (CP-23, boards 03 and 04): search, the Status /
 // Report due / Type pills, the By client | All toggle, Sort and New assessment.
 // Used by screens/Dashboard; the filtering itself is in useAssessmentWorkflow.tsx.
-import { FilterPill, SearchField, SegmentedControl } from '../../../design-system'
+import {
+  ASSESSMENT_TYPES,
+  FilterPill,
+  SearchField,
+  SegmentedControl,
+  statusLook,
+} from '../../../design-system'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
 import type { DateFilter } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -10,8 +16,14 @@ import { ChoiceMenu, type Choice } from './ChoiceMenu'
 import { SortPill } from './SortPill'
 
 const DUE_CHOICES: Choice[] = [
-  { value: 'overdue', label: 'Late', icon: 'circle-alert', color: 'var(--red-600)' },
-  { value: 'due-soon', label: 'Due within 7 days', icon: 'calendar-clock' },
+  // Late and Due soon wear the icon and colour of the Report due column's states.
+  { value: 'overdue', label: 'Late', icon: 'calendar-x', color: 'var(--red-600)' },
+  {
+    value: 'due-soon',
+    label: 'Due within 7 days',
+    icon: 'calendar-clock',
+    color: 'var(--amber-600)',
+  },
   { value: 'visit-soon', label: 'Site visit within 7 days', icon: 'map-pin' },
 ]
 
@@ -48,7 +60,6 @@ function Filter({
 
 // `compact` (under 1024 px): New assessment lives in the top bar instead (screens/Dashboard).
 export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: boolean }) {
-  const asChoices = (values: string[]) => values.map((value) => ({ value, label: value }))
   return (
     <div className="at-toolbar">
       <SearchField
@@ -61,7 +72,11 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
       <div className="at-pills">
         <Filter
           name="Status"
-          choices={asChoices(v.statusOptions)}
+          // Each status wears the icon and colour of its pill, so the two read as one thing.
+          choices={v.statusOptions.map((value) => {
+            const { icon, fg } = statusLook(value)
+            return { value, label: value, icon, color: fg }
+          })}
           value={v.statusFilter}
           onChoose={v.setStatusFilter}
         />
@@ -73,7 +88,15 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
         />
         <Filter
           name="Type"
-          choices={v.visitTypeOptions.map((value) => ({ value, label: typeName(value) }))}
+          choices={v.visitTypeOptions.map((value) => {
+            const name = typeName(value)
+            return {
+              value,
+              label: name,
+              icon: ASSESSMENT_TYPES[name].icon,
+              color: ASSESSMENT_TYPES[name].fg,
+            }
+          })}
           value={v.visitType}
           onChoose={v.setVisitType}
         />

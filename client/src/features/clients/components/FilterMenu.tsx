@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { FilterPill, Icon, Popover } from '../../../design-system'
 
-export type Choice = { value: string; label: string }
+export type Choice = { value: string; label: string; icon?: string; color?: string }
 
 export function FilterMenu({
   name,
@@ -21,6 +21,8 @@ export function FilterMenu({
 }) {
   const [open, setOpen] = useState(false)
   const chosen = choices.find((c) => c.value === value)
+  // When any option has an icon, the ones without (like All) keep its column so labels line up.
+  const hasIcons = choices.some((c) => c.icon)
   const pick = (v: string) => {
     onChange(v)
     setOpen(false)
@@ -52,6 +54,11 @@ export function FilterMenu({
             className="ds-menu-item"
             onClick={() => pick(c.value)}
           >
+            {c.icon ? (
+              <Icon name={c.icon} size={16} color={c.color} />
+            ) : (
+              hasIcons && <span style={{ width: 16, flexShrink: 0 }} />
+            )}
             <span className="ds-menu-text">{c.label}</span>
             {c.value === value ? <Icon name="check" size={16} /> : null}
           </button>
