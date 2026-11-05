@@ -121,7 +121,7 @@
   max-height: 100dvh;
   border: 0;
   overflow: hidden;
-  background: var(--report-navy);
+  background: var(--surface-nav);
   /* Transitions, not keyframes: reopening mid-close turns back from where it is. */
   transition: transform var(--duration-slow) var(--ease-out);
 }

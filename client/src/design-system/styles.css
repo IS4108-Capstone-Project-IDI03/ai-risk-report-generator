@@ -169,7 +169,7 @@
    pale-blue labels, blue-green mark on the current page. Collapsed it is a 56px
    icon rail. The three colours below come from board 02 and are used only here. */
 .ds-sidenav {
-  --sn-bg: var(--report-navy);
+  --sn-bg: var(--surface-nav);
   --sn-label: #a7e2f0;
   --sn-mark: #00a8c7;
   display: flex;
