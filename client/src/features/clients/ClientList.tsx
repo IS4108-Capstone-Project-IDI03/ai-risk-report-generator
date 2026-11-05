@@ -137,6 +137,7 @@ export function ClientList({
       <TopBar
         eyebrow="Risk engineering"
         title="Clients"
+        helper="Your clients, their sites and what is due next."
         bell={bell}
         action={
           compact && onStart ? (

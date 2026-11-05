@@ -46,13 +46,14 @@ function Switch({ label, checked = false, disabled = false, onChange, style = {}
             style={{
               position: 'absolute',
               top: 2,
-              left: checked ? 18 : 2,
+              left: 2,
+              transform: checked ? 'translateX(16px)' : 'none',
               width: 14,
               height: 14,
               borderRadius: 'var(--radius-pill)',
               background: 'var(--graphite-0)',
               boxShadow: 'var(--shadow-sm)',
-              transition: 'left var(--duration-fast) var(--ease-standard)',
+              transition: 'transform var(--duration-fast) var(--ease-standard)',
             }}
           />
         </span>

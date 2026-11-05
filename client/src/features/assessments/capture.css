@@ -25,8 +25,8 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 160ms var(--cap-ease),
-    transform 100ms var(--cap-ease);
+    background-color 120ms var(--cap-ease),
+    transform 120ms var(--cap-ease);
 }
 .cap-btn:active:not(:disabled) {
   transform: scale(0.97);
@@ -179,7 +179,7 @@
   color: var(--text-secondary);
   font: 500 15px/1 var(--font-sans);
   cursor: pointer;
-  transition: background-color 160ms var(--cap-ease);
+  transition: background-color 120ms var(--cap-ease);
 }
 .cap-modes button[aria-pressed='true'] {
   background: var(--surface-card);
@@ -395,8 +395,8 @@
   font-size: 15px;
   cursor: pointer;
   transition:
-    background-color 160ms var(--cap-ease),
-    box-shadow 160ms var(--cap-ease);
+    background-color 120ms var(--cap-ease),
+    box-shadow 120ms var(--cap-ease);
 }
 .cap-cat:has(input:checked) {
   background: color-mix(in srgb, var(--cap-tint) 14%, var(--surface-card));
@@ -594,10 +594,10 @@
   background: rgb(255 255 255 / 0.92);
   color: var(--marsh-navy);
   box-shadow: 0 1px 4px rgb(0 15 71 / 0.25);
-  transition: transform 100ms var(--cap-ease);
+  transition: transform 120ms var(--cap-ease);
 }
 .cap-tile-go:active > span {
-  transform: scale(0.93);
+  transform: scale(0.97);
 }
 @media (prefers-reduced-motion: reduce) {
   .cap-tile-go > span {

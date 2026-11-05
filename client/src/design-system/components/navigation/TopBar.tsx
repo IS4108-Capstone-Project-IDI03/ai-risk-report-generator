@@ -8,6 +8,8 @@ import './shell.css'
 export type TopBarProps = {
   eyebrow?: string
   title: React.ReactNode
+  // One short line under the title saying what a list page is for (v2 section 2).
+  helper?: string
   // Next to the title, e.g. chips.
   titleItems?: React.ReactNode
   // The screen's one main action, top right.
@@ -26,6 +28,7 @@ export type TopBarProps = {
 export function TopBar({
   eyebrow,
   title,
+  helper,
   titleItems,
   action,
   bell,
@@ -43,6 +46,7 @@ export function TopBar({
           <h1>{title}</h1>
           {titleItems}
         </div>
+        {helper ? <p className="ds-topbar-helper">{helper}</p> : null}
       </div>
       {action}
       {bell}

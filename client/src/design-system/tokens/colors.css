@@ -36,7 +36,7 @@
 
   /* Semantic hues. The 600 steps carry TEXT (badge labels, status copy) and must hold
      4.5:1 on their own 50-level background — brightness lives in the --icon-* tier instead. */
-  --green-50: #e2f6ea;
+  --green-50: #e6f4ea;
   --green-600: #2f7049;
   --amber-50: #fdf1d8;
   /* A step stronger than the 50 tint, for a count that must catch the eye
@@ -79,7 +79,8 @@
   --border-subtle: var(--graphite-100);
   --border-default: var(--graphite-200);
   --border-strong: var(--graphite-300);
-  --border-focus: var(--ink-500);
+  /* The focus ring is navy (v2 section 2). */
+  --border-focus: var(--marsh-navy);
 
   /* One navy for every filled button and selected state (CP-22). */
   --action-primary: var(--marsh-navy);
@@ -121,7 +122,7 @@
   --diff-deleted-bg: var(--red-50);
   --diff-changed-border: var(--ink-400);
 
-  --focus-ring: 0 0 0 3px rgba(63, 110, 167, 0.32);
+  --focus-ring: 0 0 0 3px rgba(0, 15, 71, 0.16);
 
   /* Chart series — usage and cost charts (EV-04). One hue family per billed
      vendor, a dark and a light step where a vendor bills two services. They

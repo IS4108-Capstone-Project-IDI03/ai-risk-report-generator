@@ -45,10 +45,10 @@ function Input({
       {label ? (
         <span
           style={{
-            fontSize: 'var(--text-small-size)',
-            lineHeight: 'var(--text-small-lh)',
-            fontWeight: 'var(--weight-medium)',
-            color: 'var(--text-body)',
+            fontSize: 'var(--text-label-size)',
+            lineHeight: 'var(--text-label-lh)',
+            fontWeight: 'var(--text-label-weight)',
+            color: 'var(--graphite-700)',
           }}
         >
           {label}
@@ -81,7 +81,7 @@ function Input({
               : focus
                 ? 'var(--border-focus)'
                 : 'var(--border-default)'),
-          borderRadius: 'var(--radius-md)',
+          borderRadius: 'var(--radius-field)',
           boxShadow: focus ? 'var(--focus-ring)' : 'none',
           transition: 'var(--transition-control)',
           ...style,
@@ -103,7 +103,7 @@ function Input({
             outline: 'none',
             background: 'transparent',
             fontFamily: 'inherit',
-            fontSize: 'var(--text-body-size)',
+            fontSize: 'var(--text-small-size)',
             color: 'var(--text-primary)',
           }}
           {...rest}

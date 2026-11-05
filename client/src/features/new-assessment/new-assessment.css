@@ -707,10 +707,13 @@
   display: grid;
   gap: 16px;
 }
-/* Blurred at once, not animated: animating a filter repaints the whole page every frame,
-   and the Done card fading in over it already carries the change. */
+/* The blur fades away with the done card (--duration-base must match LEAVE_MS in useIntake.ts). */
+.na-reading-page {
+  transition: filter var(--duration-base) var(--ease-out);
+}
 .na-reading-page.is-blurred {
-  filter: blur(4px);
+  filter: blur(6px);
+  transition-duration: var(--duration-slow);
   pointer-events: none;
   user-select: none;
 }
@@ -760,8 +763,8 @@
   background: var(--marsh-navy);
   transform-origin: left;
   transition:
-    transform 250ms var(--ease-out),
-    background-color 200ms var(--ease-out);
+    transform 400ms var(--ease-out),
+    background-color 400ms var(--ease-out);
 }
 .na-bar > span::after {
   content: '';
@@ -945,6 +948,8 @@
   animation: na-rise var(--duration-base) var(--ease-out) both;
 }
 .na-found-text {
+  /* Keyed by its words (FoundSoFar.tsx), so a new "+ N more" number fades in. */
+  animation: na-fade var(--duration-fast) var(--ease-out);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -982,7 +987,7 @@
   background: var(--surface-card);
   box-shadow: var(--shadow-popover);
   text-align: center;
-  animation: na-pop 200ms var(--ease-out) both;
+  animation: na-pop var(--duration-base) var(--ease-out) both;
 }
 .na-done-card strong {
   color: var(--marsh-navy);
@@ -1002,10 +1007,10 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 40;
-  animation: na-draw 300ms var(--ease-out) 120ms both;
+  animation: na-draw var(--duration-slow) var(--ease-out) both;
 }
 .na-done.is-leaving .na-done-card {
-  animation: na-out 200ms var(--ease-out) forwards;
+  animation: na-out var(--duration-base) var(--ease-out) forwards;
 }
 @keyframes na-pop {
   from {
@@ -1056,7 +1061,7 @@
 @keyframes na-rise-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
 }
 
@@ -1100,6 +1105,10 @@
 @media (max-width: 767px) {
   .na-field {
     --na-box-h: 44px;
+  }
+  /* A 44 px tap target; the rule above (.na-mode) would keep it at 40. */
+  .na-mode .ds-segmented button {
+    height: 44px;
   }
   .na-body {
     padding-inline: 16px;
@@ -1269,13 +1278,9 @@
 
 /* ---- Reduced motion: fades only, no rise, no blur ramp, no sweep ---- */
 @media (prefers-reduced-motion: reduce) {
-  .na-enter > *,
-  .na-found-item,
-  .na-error-line,
-  .na-done-card {
-    animation-name: na-fade;
+  .na-reading-page {
+    transition: opacity var(--duration-fast) linear;
   }
-  .na-reading-page,
   .na-docs-btn {
     transition: none;
   }
@@ -1283,6 +1288,7 @@
   .na-reading-page.is-blurred {
     filter: none;
     opacity: 0.4;
+    transition-duration: var(--duration-fast);
   }
   .na-bar > span::after,
   .na-done-tick,
@@ -1378,17 +1384,14 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .na-block,
-  .na-block-inner,
   .na-pick,
   .na-field input,
   .na-field select {
     transition: none;
   }
-  .na-block[data-late] > .na-block-inner,
-  .na-pick.is-checked .na-pick-box svg,
-  .na > .ds-action-bar,
-  .na-file-error {
-    animation: na-fade var(--duration-fast) linear;
+  /* The block only fades; the space closes when it is removed (Block.tsx). */
+  .na-block[data-leaving] {
+    grid-template-rows: 1fr;
   }
 }
 /* The tag pill fills its column; a long name ends in … (full name on hover). */
@@ -1403,9 +1406,8 @@
   position: absolute;
   z-index: 3;
   padding: 6px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
+  border-radius: var(--radius-popover);
   background: var(--surface-card);
-  box-shadow: var(--shadow-popover, 0 8px 24px rgba(26, 31, 38, 0.16));
+  box-shadow: var(--shadow-popover);
   animation: na-block-in var(--duration-fast) var(--ease-out);
 }

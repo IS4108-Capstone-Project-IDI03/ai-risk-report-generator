@@ -22,9 +22,9 @@
   margin-inline: auto;
   z-index: 90;
   width: max-content;
-  max-width: min(480px, calc(100vw - 48px));
+  max-width: min(356px, calc(100vw - 48px));
   /* Rises and scales up into place on a long exponential settle (no bounce). */
-  animation: toast-in 360ms var(--ease-out) both;
+  animation: toast-in var(--duration-slow) var(--ease-out) both;
 }
 .workflow[data-sidenav='open'] .workflow-toast {
   left: calc(var(--sidebar-width) + 24px);
@@ -65,18 +65,22 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .workflow-toast {
-    animation-name: toast-fade;
-  }
   /* The close fades only, without the small drop. */
   .workflow-toast > div {
     transform: none !important;
   }
-  @keyframes toast-fade {
-    from {
-      opacity: 0;
-    }
-  }
+}
+/* The old page while it fades out (ScreenMotion.tsx). Its copy must not replay its entrances. */
+.screen-exit {
+  position: fixed;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.screen-exit * {
+  animation: none !important;
+  transition: none !important;
 }
 /* The chat's look (apple-design): a pill shape in the app's system font. */
 .workflow-toast.chat-toast {

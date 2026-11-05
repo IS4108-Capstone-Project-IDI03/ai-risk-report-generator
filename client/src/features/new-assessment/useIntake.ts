@@ -20,12 +20,12 @@ export const EXPECTED_SECONDS = 20
 // Past this, the card says the read is slow rather than counting down.
 const SLOW_SECONDS = 40
 // After the result: one found item (and one file tick) every 150 ms, then both
-// columns held in view for 1.5 s, the "All read" card for 3 s, then 200 ms for it
+// columns held in view for 1.5 s, the "All read" card for 3 s, then 180 ms for it
 // and the blur to fade (boards 02 and 17, motion 5).
 export const REVEAL_MS = 150
 export const HELD_MS = 1500
 export const DONE_MS = 3000
-export const LEAVE_MS = 200
+export const LEAVE_MS = 180
 // Found so far shows at most this many sites and assessments (board 10).
 export const FOUND_ROWS = 4
 

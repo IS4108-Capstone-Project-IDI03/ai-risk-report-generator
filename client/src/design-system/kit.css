@@ -62,7 +62,7 @@
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
-  border-radius: var(--radius-field);
+  border-radius: var(--radius-tile);
 }
 .ds-type-tile-row {
   display: inline-flex;
@@ -291,6 +291,12 @@
     transition: none;
   }
 }
+/* Hover is a white veil on the grey track (v2 section 2). */
+@media (hover: hover) and (pointer: fine) {
+  .ds-segmented button:hover:not(:disabled):not([aria-checked='true']) {
+    background: rgb(255 255 255 / 0.6);
+  }
+}
 .ds-segmented button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -407,6 +413,19 @@
 .ds-reading-words {
   animation: ds-fade-in var(--duration-fast) var(--ease-out);
 }
+.ds-reading {
+  position: relative;
+}
+/* The words just replaced, drawn from an attribute so they are never read twice. */
+.ds-reading-was {
+  position: absolute;
+  right: 24px;
+  white-space: nowrap;
+  animation: ds-fade-out var(--duration-fast) var(--ease-out) forwards;
+}
+.ds-reading-was::before {
+  content: attr(data-was);
+}
 .ds-reading-waiting {
   color: var(--graphite-600);
 }
@@ -483,6 +502,12 @@
   font: 700 28px/1.2 var(--font-sans);
   letter-spacing: -0.01em;
 }
+/* The list pages' helper line: 14 px muted, under the title (v2 section 2). */
+.ds-topbar-helper {
+  margin: 2px 0 0;
+  color: var(--graphite-600);
+  font: 400 14px/1.4 var(--font-sans);
+}
 /* With tabs (client page): the tabs take a full row under the title and sit on the bar's edge. */
 .ds-topbar[data-tabs] {
   flex-wrap: wrap;
@@ -509,7 +534,15 @@
 .ds-filter-pill {
   -webkit-tap-highlight-color: transparent;
 }
-.ds-press:active:not(:disabled) {
+.ds-filter-pill,
+.ds-add-row {
+  transition:
+    var(--transition-control),
+    transform var(--duration-fast) var(--ease-out);
+}
+.ds-press:active:not(:disabled),
+.ds-add-row:active:not(:disabled),
+.ds-filter-pill:active:not(:disabled) {
   transform: scale(0.97);
 }
 /* Touch targets are at least 44 px (v2 section 2): buttons, pills, tabs, icon buttons, small links. */
@@ -529,14 +562,10 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ds-press:active:not(:disabled) {
+  .ds-press:active:not(:disabled),
+  .ds-add-row:active:not(:disabled),
+  .ds-filter-pill:active:not(:disabled) {
     transform: none;
-  }
-  [role='dialog'][data-state] {
-    animation-name: ds-fade-in;
-  }
-  [role='dialog'][data-state='closed'] {
-    animation: none;
   }
   .ds-reading-tick,
   .ds-reading-spin {
@@ -646,7 +675,7 @@
     0 24px 64px rgb(0 15 71 / 0.18),
     0 2px 8px rgb(0 15 71 / 0.08);
 }
-.ds-dialog--v2[open] {
+.ds-dialog[open] {
   animation: ds-dialog-in 220ms var(--ease-out);
 }
 @keyframes ds-dialog-in {
@@ -725,18 +754,18 @@
    the card that Dialog.tsx shows for 150 ms (.is-leaving), faster than the open. A
    save error slides in, and a step change (Edit site to its scope check) crossfades
    the header and the body (.ds-swap). */
-.ds-dialog--v2[open]::backdrop {
-  animation: ds-fade-in 200ms var(--ease-out);
+.ds-dialog[open]::backdrop {
+  animation: ds-fade-in 220ms var(--ease-out);
 }
-.ds-dialog--v2.is-leaving {
+.ds-dialog.is-leaving {
   animation: ds-dialog-out 150ms var(--ease-in) forwards;
   pointer-events: none;
 }
 /* The copy's header, error and step fades would replay as it is added; it only fades out. */
-.ds-dialog.ds-dialog--v2.is-leaving * {
+.ds-dialog.is-leaving * {
   animation: none;
 }
-.ds-dialog--v2.is-leaving::backdrop {
+.ds-dialog.is-leaving::backdrop {
   animation: ds-fade-out 150ms var(--ease-in) forwards;
 }
 @keyframes ds-dialog-out {
@@ -750,7 +779,7 @@
     opacity: 0;
   }
 }
-.ds-dialog--v2 [role='alert'] {
+.ds-dialog [role='alert'] {
   animation: ds-err-slide 180ms var(--ease-out);
 }
 @keyframes ds-err-slide {
@@ -759,18 +788,7 @@
     transform: translateY(-4px);
   }
 }
-.ds-dialog--v2 .ds-dialog-header,
-.ds-dialog--v2 .ds-swap {
+.ds-dialog .ds-dialog-header,
+.ds-dialog .ds-swap {
   animation: ds-fade-in 160ms var(--ease-out);
-}
-@media (prefers-reduced-motion: reduce) {
-  .ds-dialog--v2[open] {
-    animation-name: ds-fade-in;
-  }
-  .ds-dialog--v2.is-leaving {
-    animation-name: ds-fade-out;
-  }
-  .ds-dialog--v2 [role='alert'] {
-    animation-name: ds-fade-in;
-  }
 }

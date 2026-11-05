@@ -72,6 +72,7 @@ export function WorkRow({
           <Tooltip label="Archive" placement="top">
             <IconButton
               icon="archive"
+              size="sm"
               label={'Archive ' + r.id}
               title={undefined}
               style={{ borderRadius: 999 }}

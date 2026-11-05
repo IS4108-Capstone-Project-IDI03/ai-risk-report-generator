@@ -2214,7 +2214,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           opacity: rejected ? '.5' : '1',
           borderLeft: '2px solid ' + (active ? 'var(--action-primary)' : 'transparent'),
           background: active ? 'var(--surface-selected)' : 'transparent',
-          transition: 'background 80ms cubic-bezier(.2,0,.2,1)',
+          transition: 'background 120ms cubic-bezier(.2,0,.2,1)',
         } as React.CSSProperties,
       }
     })

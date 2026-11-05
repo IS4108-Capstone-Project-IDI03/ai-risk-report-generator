@@ -145,7 +145,7 @@
 }
 .knowledge-assistant .openui-agent-thread-button {
   border-radius: 8px;
-  transition: background-color 160ms var(--chat-ease);
+  transition: background-color 120ms var(--chat-ease);
 }
 .knowledge-assistant .openui-agent-thread-button-title {
   color: var(--text-secondary);
@@ -223,9 +223,9 @@
   font-size: 14px;
   text-align: left;
   transition:
-    background-color 160ms var(--chat-ease),
-    border-color 160ms var(--chat-ease),
-    transform 100ms var(--chat-ease);
+    background-color 120ms var(--chat-ease),
+    border-color 120ms var(--chat-ease),
+    transform 120ms var(--chat-ease);
 }
 .knowledge-assistant .openui-agent-conversation-starter-item-long:hover {
   border-color: var(--ink-200);
@@ -366,8 +366,8 @@
   letter-spacing: -0.01em;
   cursor: pointer;
   transition:
-    background-color 160ms var(--chat-ease),
-    transform 100ms var(--chat-ease);
+    background-color 120ms var(--chat-ease),
+    transform 120ms var(--chat-ease);
 }
 .chat-button:hover:not(:disabled) {
   background: var(--chat-hover);
@@ -500,8 +500,8 @@
   font: 15px/1.5 var(--chat-font);
   resize: vertical;
   transition:
-    border-color 160ms var(--chat-ease),
-    box-shadow 160ms var(--chat-ease);
+    border-color 120ms var(--chat-ease),
+    box-shadow 120ms var(--chat-ease);
 }
 .chat-dialog-textarea::placeholder {
   color: var(--text-muted);
@@ -636,8 +636,8 @@
   backdrop-filter: blur(20px) saturate(180%);
   box-shadow: 0 4px 12px rgb(15 23 42 / 0.06);
   transition:
-    border-color 160ms var(--chat-ease),
-    box-shadow 160ms var(--chat-ease);
+    border-color 120ms var(--chat-ease),
+    box-shadow 120ms var(--chat-ease);
 }
 .knowledge-assistant .openui-agent-thread-composer__input-wrapper:focus-within {
   /* --graphite-500 is about 4.5:1 on white; a lighter border fell under 3:1. */
@@ -661,7 +661,7 @@
   background: var(--marsh-navy);
 }
 .knowledge-assistant .openui-agent-thread-composer__submit-button:active {
-  transform: scale(0.94);
+  transform: scale(0.97);
 }
 /* The "latest message" arrow is gone: the thread now follows the answer as it
    streams (scrollVariant="always"), and the arrow confused more than it helped. */
@@ -817,7 +817,7 @@
   left: 5px;
   width: 2px;
   background: transparent;
-  transition: background-color 150ms var(--chat-ease);
+  transition: background-color 120ms var(--chat-ease);
 }
 .chat-split-handle:hover::after,
 .chat-split-handle:focus-visible::after,
@@ -1090,7 +1090,7 @@
   display: flex;
   align-items: center;
   border-radius: 8px;
-  transition: background-color 160ms var(--chat-ease);
+  transition: background-color 120ms var(--chat-ease);
 }
 .chat-thread-row:hover,
 .chat-thread-row:focus-within {

@@ -4,7 +4,7 @@
 // SiteCard.tsx (assessments). Its remove button calls `useExit()` instead of removing at once.
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
 
-// Runs `remove` after the block has left; plain removal when the block isn't wrapped or motion is reduced.
+// Runs `remove` after the block has left; plain removal when the block isn't wrapped.
 const ExitContext = createContext<(remove: () => void) => void>((remove) => remove())
 export const useExit = () => useContext(ExitContext)
 
@@ -18,10 +18,11 @@ export function Block({ children }: { children: ReactNode }) {
   const [leaving, setLeaving] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   const exit = (remove: () => void) => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return remove()
+    // Reduced motion: only the 120 ms fade, no closing space.
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     setLeaving(true)
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(remove, 300)
+    timer.current = window.setTimeout(remove, still ? 120 : 300)
   }
   return (
     <ExitContext.Provider value={exit}>

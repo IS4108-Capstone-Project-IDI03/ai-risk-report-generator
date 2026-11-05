@@ -34,6 +34,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
       <TopBar
         eyebrow="RISK ENGINEERING"
         title="Assessments"
+        helper="Every assessment you are working on, grouped by client and site."
         bell={bell}
         action={
           compact && v.canEdit ? (

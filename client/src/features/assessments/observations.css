@@ -61,8 +61,8 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 160ms var(--ob-ease),
-    transform 100ms var(--ob-ease);
+    background-color 120ms var(--ob-ease),
+    transform 120ms var(--ob-ease);
 }
 .ob-button:hover:not(:disabled) {
   background: var(--ob-hover);
@@ -347,7 +347,7 @@
   cursor: pointer;
   transition:
     background-color 120ms var(--ob-ease),
-    transform 100ms var(--ob-ease);
+    transform 120ms var(--ob-ease);
 }
 .ob-foot-row:active {
   transform: scale(0.98);
@@ -930,8 +930,8 @@
   resize: vertical;
   field-sizing: content;
   transition:
-    background-color 160ms var(--ob-ease),
-    border-color 160ms var(--ob-ease);
+    background-color 120ms var(--ob-ease),
+    border-color 120ms var(--ob-ease);
 }
 .ob-note:hover {
   background: rgb(0 15 71 / 0.075);
@@ -1167,7 +1167,7 @@
    over the row; the thumbnail sits above it and zooms the photo instead. */
 .ob-pt-row {
   position: relative;
-  transition: background-color 140ms var(--ob-ease);
+  transition: background-color 120ms var(--ob-ease);
 }
 .ob-pt-text::after {
   content: '';
@@ -1206,8 +1206,8 @@ span.ob-pt-thumb {
   display: flex;
   color: var(--text-muted);
   transition:
-    color 140ms var(--ob-ease),
-    transform 160ms var(--ob-ease);
+    color 120ms var(--ob-ease),
+    transform 120ms var(--ob-ease);
 }
 @media (prefers-reduced-motion: reduce) {
   .ob-pt-row,

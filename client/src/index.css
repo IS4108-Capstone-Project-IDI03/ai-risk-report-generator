@@ -49,12 +49,50 @@ button:disabled {
     transform: rotate(360deg);
   }
 }
+/* Reduced motion (v2 section 8): every motion becomes a fade. Moves and spins stop;
+   fades and colour changes keep their transition. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation: none !important;
-    transition: none !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow !important;
     scroll-behavior: auto !important;
+  }
+  /* Beats the rule above by specificity, whatever the import order. */
+  .na-enter > *,
+  .na-found-item,
+  .na-error-line,
+  .na-done-card,
+  .na-block[data-late] > .na-block-inner,
+  .na-pick.is-checked .na-pick-box svg,
+  .na > .ds-action-bar,
+  .na-file-error,
+  .na-tag-float,
+  .ds-reading-words,
+  .ds-shake,
+  .ds-cal,
+  .ds-cal-grid[data-animate],
+  .ds-datepicker-msg[data-error],
+  [role='dialog'][data-state='open'],
+  .ds-dialog[open],
+  .ds-dialog [role='alert'],
+  .ds-dialog-header,
+  .ds-swap,
+  .cl-panel,
+  .cl-docs tr[data-retagged] td[data-label='Tag'],
+  .workflow-toast {
+    animation: ds-fade-in var(--duration-fast) var(--ease-out) !important;
+  }
+  .na-done.is-leaving .na-done-card,
+  .ds-reading-was,
+  [role='dialog'][data-state='closed'],
+  .ds-dialog.is-leaving {
+    animation: ds-fade-out var(--duration-fast) var(--ease-out) forwards !important;
+  }
+  .cl-docs tr[data-fresh] {
+    animation:
+      ds-fade-in var(--duration-fast) var(--ease-out),
+      cl-tint 1260ms linear !important;
   }
 }

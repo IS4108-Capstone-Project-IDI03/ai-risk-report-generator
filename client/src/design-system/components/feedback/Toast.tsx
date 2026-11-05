@@ -28,7 +28,7 @@ const TONES: Record<string, { fill: string }> = {
 }
 // Good news fades by itself; warnings and errors wait to be read and closed.
 const AUTO_CLOSE_MS = 5000
-const EXIT_MS = 200 // the fade-out before the toast is removed
+const EXIT_MS = 120 // the fade-out before the toast is removed
 const AUTO_CLOSE_TONES = ['success', 'info']
 function Toast({
   tone = 'info',
@@ -81,9 +81,9 @@ function Toast({
         borderRadius: 'var(--radius-popover)',
         boxShadow: 'var(--shadow-popover)',
         fontFamily: 'var(--font-sans)',
-        fontSize: 'var(--text-body-size)',
+        fontSize: 'var(--text-small-size)',
         fontWeight: 'var(--weight-medium)',
-        maxWidth: 480,
+        maxWidth: 356,
         ...style,
       }}
     >

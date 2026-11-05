@@ -84,7 +84,7 @@
 }
 /* ---- Table: header, group headers and rows share these columns ---- */
 .at-list {
-  --at-cols: minmax(0, 1fr) 128px 132px 164px 168px 76px;
+  --at-cols: minmax(0, 1fr) 128px 132px 164px 168px 52px;
   font: 400 14px/1.3 var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--graphite-900);
@@ -104,8 +104,8 @@
 .at-head {
   min-height: 44px;
   border-top: 1px solid var(--graphite-200);
-  color: var(--graphite-900);
-  font-size: 13px;
+  color: var(--graphite-700);
+  font-size: 12px;
   font-weight: 600;
 }
 .at-head > .at-th {
@@ -158,7 +158,7 @@
   border: 0;
   background: none;
   color: var(--graphite-900);
-  font: 600 15px/1.3 var(--font-sans);
+  font: 600 14px/1.3 var(--font-sans);
   text-align: left;
   cursor: pointer;
 }
@@ -190,7 +190,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 2px;
   opacity: 0;
 }
 .at-row:hover .at-actions,

@@ -118,7 +118,7 @@ function Section({
               {shown && (
                 <span className="na-found-item">
                   {item.tile}
-                  <span className="na-found-text" dir="auto" title={item.text}>
+                  <span key={item.text} className="na-found-text" dir="auto" title={item.text}>
                     {item.text}
                   </span>
                   {item.isNew && <NewBadge />}

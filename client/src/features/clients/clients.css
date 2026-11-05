@@ -92,7 +92,7 @@
   border-top: 1px solid var(--graphite-200);
   border-bottom: 1px solid var(--graphite-200);
   color: var(--graphite-700);
-  font: 600 13px/1 var(--font-sans);
+  font: 600 12px/1 var(--font-sans);
   text-align: left;
 }
 .cl-table td {
@@ -156,7 +156,7 @@
 }
 /* Column widths (v2 section 2: fixed content gets fixed widths). Actions: the icons' width. */
 .cl-col-num {
-  width: 72px;
+  width: 64px;
 }
 .cl-col-juris,
 .cl-col-survey {
@@ -179,13 +179,13 @@
   width: 204px;
 }
 .cl-col-actions-3 {
-  width: 120px;
+  width: 116px;
 }
 .cl-col-actions-2 {
-  width: 88px;
+  width: 82px;
 }
 .cl-col-actions-1 {
-  width: 52px;
+  width: 48px;
 }
 /* With a Site column, the reference keeps its full width. */
 .cl-assess col:first-child {
@@ -215,7 +215,7 @@
 .cl-row-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 2px;
 }
 /* Hover actions show on hover or focus; touch screens always show them. No motion (board 17). */
 @media (hover: hover) and (pointer: fine) {

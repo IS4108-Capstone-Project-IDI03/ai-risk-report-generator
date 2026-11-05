@@ -14,11 +14,11 @@ export type DialogProps = {
   children?: ReactNode
   style?: CSSProperties
 }
-// Where the browser can animate (not jsdom), a v2 dialog fades out on closing.
+// Where the browser can animate (not jsdom), a dialog fades out on closing.
 const canAnimate = typeof Element !== 'undefined' && 'animate' in Element.prototype
-const LEAVE_MS = 150 // must match .ds-dialog--v2.is-leaving in kit.css
+const LEAVE_MS = 150 // must match .ds-dialog.is-leaving in kit.css
 
-/** Shows a still copy of a closing v2 dialog that fades out, and returns it. React removes the
+/** Shows a still copy of a closing dialog that fades out, and returns it. React removes the
     real one at once, however it closes (Cancel, the X, Esc or a confirmed action). */
 function leaveCopy(element: HTMLDialogElement) {
   const copy = element.cloneNode(true) as HTMLDialogElement
@@ -59,10 +59,7 @@ export function Dialog({
     return () => {
       // Only when React really removed it: StrictMode's test unmount (development) keeps the
       // node in the page, and a copy then would flash over the opening dialog.
-      const copy =
-        canAnimate && !element.isConnected && element.classList.contains('ds-dialog--v2')
-          ? leaveCopy(element)
-          : null
+      const copy = canAnimate && !element.isConnected ? leaveCopy(element) : null
       element.close()
       const refocus = () => {
         if (previousFocus instanceof HTMLElement) previousFocus.focus()
@@ -92,7 +89,7 @@ export function Dialog({
     >
       {title || description ? (
         // Keyed by the title, so a step change (Edit site to its scope check) replays the
-        // header's fade (.ds-dialog--v2 .ds-dialog-header in kit.css).
+        // header's fade (.ds-dialog .ds-dialog-header in kit.css).
         <header className="ds-dialog-header" key={typeof title === 'string' ? title : undefined}>
           <div>
             <h2 id={titleId}>{title}</h2>

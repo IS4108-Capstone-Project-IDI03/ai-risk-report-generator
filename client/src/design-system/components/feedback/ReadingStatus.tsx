@@ -1,5 +1,6 @@
 // Reading status cell (CP-23, v2 section 6): words + a 16 px indicator at the right edge.
 // Called by the reading screen's file rows. Calls Icon.
+import { useState } from 'react'
 import { Icon } from '../core/Icon'
 
 export type ReadingStatusProps = {
@@ -11,8 +12,14 @@ export type ReadingStatusProps = {
 
 /** Returns the cell; spinner, circle and tick are all 16 px and share one right-hand column. */
 export function ReadingStatus({ state, label = 'Reading' }: ReadingStatusProps) {
+  // The last two phrases, so they can crossfade (v2 section 8).
+  const [words, setWords] = useState({ now: label, was: '' })
+  if (words.now !== label) setWords({ now: label, was: words.now })
   return (
     <span className="ds-reading" data-state={state}>
+      {state === 'working' && words.was ? (
+        <span key={words.was} className="ds-reading-was" data-was={words.was} aria-hidden="true" />
+      ) : null}
       {/* Keyed by the words, so a new phrase fades in over 120 ms (v2 section 8). */}
       {state === 'working' ? (
         <span key={label} className="ds-reading-words">

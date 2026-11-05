@@ -111,11 +111,11 @@
   font-size: 10px;
   line-height: 1;
   font-weight: var(--weight-semibold);
-  animation: notif-badge-pulse 400ms var(--ease-out);
+  animation: notif-badge-pulse var(--duration-slow) var(--ease-out);
 }
 .notif-bell--ring {
   transform-origin: 50% 0;
-  animation: notif-bell-tilt 600ms var(--ease-out);
+  animation: notif-bell-tilt var(--duration-slow) var(--ease-out);
 }
 @keyframes notif-badge-pulse {
   0% {

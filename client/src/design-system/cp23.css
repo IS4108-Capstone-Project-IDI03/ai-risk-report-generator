@@ -14,9 +14,9 @@
 .ds-icon-button {
   background: transparent;
   transition:
-    background-color 180ms var(--ease-out),
-    box-shadow 180ms var(--ease-out),
-    transform 80ms var(--ease-out);
+    background-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 @media (hover: hover) and (pointer: fine) {
   .ds-icon-button[data-ghost]:not(:disabled):not([aria-disabled='true']):hover {
@@ -24,11 +24,10 @@
     box-shadow:
       0 0 0 1px var(--hover-ring),
       var(--shadow-sm);
-    transition-duration: 120ms;
   }
 }
 .ds-icon-button:not(:disabled):not([aria-disabled='true']):active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 .ds-icon-button[data-ghost]:not(:disabled):not([aria-disabled='true']):active {
   background: var(--hover-bg);
@@ -90,7 +89,7 @@
 @keyframes dsReasonIn {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: scale(0.98);
   }
 }
 
@@ -176,7 +175,7 @@
   align-items: center;
   gap: 14px;
   width: 100%;
-  min-height: 52px;
+  min-height: 44px;
   padding: 0 4px;
   border: 0;
   border-radius: var(--radius-md);
@@ -301,7 +300,7 @@
   padding: 0 10px 0 4px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
 }
 .ds-datepicker-field:focus-within {
   border-color: var(--border-focus);
@@ -321,7 +320,7 @@
 .ds-datepicker-field input,
 .ds-datepicker-mask {
   font: inherit;
-  font-size: var(--text-body-size);
+  font-size: var(--text-small-size);
   font-variant-numeric: tabular-nums;
 }
 .ds-datepicker-field input {
@@ -367,21 +366,27 @@
     transform: translateY(-4px);
   }
 }
-/* Month change by the arrows: the grid fades in, 120 ms. No slide: rapid clicks restart a
-   keyframe from zero, and a short fade hides that where a slide would stutter. */
+/* Month change by the arrows: the new month slides in from the side it comes from. */
 .ds-cal-grid[data-animate] {
-  animation: dsFade var(--duration-fast) var(--ease-out);
+  animation: dsCalSlide var(--duration-base) var(--ease-out);
+}
+.ds-cal-grid[data-animate='prev'] {
+  animation-name: dsCalSlidePrev;
+}
+@keyframes dsCalSlide {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@keyframes dsCalSlidePrev {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
 }
 .ds-cal {
   animation: dsFade var(--duration-base) var(--ease-out);
-}
-@media (prefers-reduced-motion: reduce) {
-  .ds-cal-grid[data-animate] {
-    animation-name: dsFade;
-  }
-  .ds-datepicker-msg[data-error] {
-    animation-name: dsFade;
-  }
 }
 .ds-cal {
   padding: 12px 16px 8px;
@@ -574,14 +579,18 @@
   .ds-sheet-root[data-state='closed'] .ds-sheet,
   .ds-sheet-root[data-centred][data-state='closed'] .ds-sheet,
   .ds-sheet-root[data-state='closed'] .ds-sheet-scrim {
-    animation-name: dsFade !important;
-    animation-direction: reverse !important;
+    animation: dsFade 120ms var(--ease-out) reverse forwards !important;
   }
   .ds-icon-button:active {
     transform: none;
   }
-  .ds-shake {
-    animation: none;
+}
+
+/* Reduced motion: Sonner's slide becomes a fade. */
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toaster] [data-sonner-toast],
+  [data-sonner-toaster] [data-sonner-toast][data-removed='true'] {
+    transition: opacity var(--duration-fast) var(--ease-out) !important;
   }
 }
 

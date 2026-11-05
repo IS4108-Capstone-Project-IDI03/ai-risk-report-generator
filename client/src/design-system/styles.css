@@ -224,6 +224,8 @@
   letter-spacing: 0.04em;
 }
 .ds-sidenav-subtitle {
+  /* The R's side bearing would otherwise sit it 1px right of the logo. */
+  margin-left: -1px;
   color: var(--sn-label);
   font-size: 12px;
   font-weight: 500;

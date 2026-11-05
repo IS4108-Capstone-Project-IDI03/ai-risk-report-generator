@@ -16,13 +16,12 @@ export function NavDrawer({ open, onClose, children }: NavDrawerProps) {
     dialog.current = el
     if (el && !el.open) el.showModal?.()
   }
-  // Stays mounted while it slides out, then unmounts when that transition ends.
-  // With reduced motion there is no animation, so it goes at once.
+  // Stays mounted while it slides out (with reduced motion, fades), then unmounts when that ends.
   const [mounted, setMounted] = useState(open)
   // jsdom has no matchMedia and fires no transitionend, so tests close at once too.
-  const reduce = !window.matchMedia || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   if (open && !mounted) setMounted(true)
-  if (!open && mounted && reduce) setMounted(false)
+  if (!open && mounted && !window.matchMedia) setMounted(false)
   if (!open && !mounted) return null
   return (
     <dialog
@@ -30,7 +29,11 @@ export function NavDrawer({ open, onClose, children }: NavDrawerProps) {
       className="ds-navdrawer navigation-drawer"
       data-closing={!open || undefined}
       onTransitionEnd={(e) => {
-        if (!open && e.target === e.currentTarget && e.propertyName === 'transform')
+        if (
+          !open &&
+          e.target === e.currentTarget &&
+          e.propertyName === (reduce ? 'opacity' : 'transform')
+        )
           setMounted(false)
       }}
       aria-label="Navigation"
