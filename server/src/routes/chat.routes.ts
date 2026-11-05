@@ -3,7 +3,7 @@
 // back unchanged, apart from the usage event at the end, which the service
 // records and removes (EV-03). Called by client/src/features/chat/api.ts.
 import { randomUUID } from 'node:crypto'
-import { Router, type Request, type RequestHandler, type Response } from 'express'
+import express, { Router, type Request, type RequestHandler, type Response } from 'express'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
@@ -13,6 +13,7 @@ import { checkChatLimits, pickReply, UNAVAILABLE } from '../services/chat-limits
 import { chatSaveTap, lastQuestion, saveQuestion } from '../services/chat-save.service'
 import { chatUsageTap } from '../services/chat-usage.service'
 import { chatPrivacy } from '../services/privacy.service'
+import { MAX_AUDIO_BYTES, transcribeQuestion } from '../services/chat-voice.service'
 import {
   addFact,
   deleteFact,
@@ -86,6 +87,17 @@ function refuse(res: Response, reason: string) {
       event({ type: 'TEXT_MESSAGE_END', messageId: id }),
   )
 }
+
+// A spoken question as text (CB-10 AC1). The recording is the raw request body.
+router.post(
+  '/transcribe',
+  requirePermission('knowledge:view'),
+  express.raw({ type: 'audio/*', limit: MAX_AUDIO_BYTES }),
+  handle(async (req, res) => {
+    const audio = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0)
+    res.json({ text: await transcribeQuestion(audio, req.get('Content-Type') ?? '') })
+  }),
+)
 
 router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   // Refused here, before S4, so no model is called and nothing is spent. It is a
