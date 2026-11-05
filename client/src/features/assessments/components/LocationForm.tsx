@@ -3,8 +3,10 @@
 // the one navy button, bottom right. Also changes a location (the sidebar's
 // pencil). Used by LocationSheet.tsx's picker and screens/Observations.tsx's dialog.
 import { useEffect, useId, useRef } from 'react'
-import { Callout, Combobox } from '../../../design-system'
+import { Callout, Combobox, Input } from '../../../design-system'
+import { formatCoordinates } from '../googleMaps'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { MyLocationButton } from './MyLocationButton'
 import '../capture.css'
 
 // Asks about a building, level or location name new to the site that looks
@@ -156,6 +158,25 @@ export function LocationForm({ v }: { v: AssessmentWorkflow }) {
         error={v.lfErrors.name}
       />
       {v.lfCheck?.field === 'name' && <NameCheckCallout v={v} />}
+      {/* Optional (CP-26). The first in a block also sets its pin on the site. */}
+      <Input
+        label="Coordinates"
+        size="lg"
+        placeholder="e.g. 1.2966, 103.8520"
+        value={v.lf.coordinates}
+        error={v.lfErrors.coordinates}
+        onChange={(e) => v.setLfCoordinates(e.target.value)}
+      />
+      {/* While the picker tracks, the field already follows the engineer. */}
+      {v.locHere ? (
+        !v.lfOwnPoint && (
+          <p className="cap-hint" style={{ marginTop: '-8px' }}>
+            {'Filled in from tracking. Type over it or clear it to stop.'}
+          </p>
+        )
+      ) : (
+        <MyLocationButton onFound={(point) => v.setLfCoordinates(formatCoordinates(point))} />
+      )}
       <div className="cap-form-actions">
         {!v.noLocations && (
           <button

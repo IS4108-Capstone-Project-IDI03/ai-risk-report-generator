@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -92,7 +92,10 @@ function mockGateway() {
       const body = JSON.parse(String(init.body))
       if (stored.some((l) => l.id !== id && key(l) === key(body))) return duplicate()
       edited.push({ id, body })
-      const location = place(id, body.name, body.floor ?? null, body.building ?? null)
+      const location = {
+        ...place(id, body.name, body.floor ?? null, body.building ?? null),
+        ...(body.coordinates && { coordinates: body.coordinates }),
+      }
       stored = stored.map((l) => (l.id === id ? location : l))
       return json(200, location)
     }
@@ -1204,5 +1207,109 @@ describe('Locations by building and level (CP-16)', () => {
     expect(groups.map((g) => [g.title, g.levels.map((l) => l.title)])).toEqual([
       ['Block A', ['Level 1']],
     ])
+  })
+})
+
+describe('Coordinates on a location (CP-26)', () => {
+  const SPOT = { lat: 1.2966, lng: 103.852 }
+  const coordinatesBox = (root = sheet) =>
+    within(root()).getByRole('textbox', { name: /^Coordinates/ })
+  afterEach(() => {
+    // Unmounted first: tracking stops through the fake location service.
+    cleanup()
+    Reflect.deleteProperty(window.navigator, 'geolocation')
+  })
+
+  it('saves where the engineer stands with a new location (AC22)', async () => {
+    Object.defineProperty(window.navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (done: (p: unknown) => void) =>
+          done({ coords: { latitude: SPOT.lat, longitude: SPOT.lng, accuracy: 20 } }),
+      },
+    })
+    stored = [place('l1', 'Lobby', 'Level 1', 'Block A')]
+    await openCapture()
+    await within(sheet()).findByText('Block A')
+    press('Add a location')
+    fill({ Building: 'Block B', Location: 'Lift lobby' })
+    press('Use my current location')
+    await vi.waitFor(() => expect(coordinatesBox()).not.toHaveValue(''))
+    press('Add location')
+
+    await screen.findByRole('button', { name: /Location: Block B/ })
+    expect(added).toEqual([{ building: 'Block B', name: 'Lift lobby', coordinates: SPOT }])
+  })
+
+  it('fills the form from tracking, follows the engineer, and stops at typing (AC28)', async () => {
+    let move = (_: unknown) => {}
+    const at = (latitude: number) =>
+      act(() => move({ coords: { latitude, longitude: SPOT.lng, accuracy: 20 } }))
+    Object.defineProperty(window.navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        watchPosition: (onMove: typeof move) => {
+          move = onMove
+          return 1
+        },
+        clearWatch: () => undefined,
+      },
+    })
+    stored = [place('l1', 'Lobby', 'Level 1', 'Block A')]
+    await openCapture()
+    await within(sheet()).findByText('Block A')
+    press('Track my location')
+    at(SPOT.lat)
+    press('Add a location')
+
+    // One way to say where they are: no second button to ask again.
+    expect(coordinatesBox()).toHaveValue('1.2966, 103.852')
+    expect(within(sheet()).queryByRole('button', { name: 'Use my current location' })).toBeNull()
+    at(1.3)
+    expect(coordinatesBox()).toHaveValue('1.3, 103.852')
+
+    // One rough reading must not stop it following.
+    act(() => move({ coords: { latitude: 1.4, longitude: SPOT.lng, accuracy: 900 } }))
+    at(1.305)
+    expect(coordinatesBox()).toHaveValue('1.305, 103.852')
+
+    fireEvent.change(coordinatesBox(), { target: { value: '1.25, 103.8' } })
+    at(1.31)
+    expect(coordinatesBox()).toHaveValue('1.25, 103.8')
+
+    // Cleared on purpose, it stays clear.
+    fireEvent.change(coordinatesBox(), { target: { value: '' } })
+    at(1.32)
+    expect(coordinatesBox()).toHaveValue('')
+  })
+
+  it('names the field when the coordinates make no sense, and saves nothing (AC22)', async () => {
+    stored = [place('l1', 'Lobby', 'Level 1', 'Block A')]
+    await openCapture()
+    await within(sheet()).findByText('Block A')
+    press('Add a location')
+    fill({ Building: 'Block B', Location: 'Lift lobby' })
+    fireEvent.change(coordinatesBox(), { target: { value: 'near the gate' } })
+    press('Add location')
+
+    expect(await within(sheet()).findByText(/Enter coordinates such as/)).toBeVisible()
+    expect(added).toEqual([])
+  })
+
+  it('changes them from All locations, and clears them (AC23, AC24)', async () => {
+    stored = [{ ...place('l1', 'Lobby', 'Level 1', 'Block A'), coordinates: SPOT }]
+    await openNavigator()
+    await pressNav('Edit Block A › Level 1 › Lobby')
+    expect(coordinatesBox(editDialog)).toHaveValue('1.2966, 103.852')
+    fireEvent.change(coordinatesBox(editDialog), { target: { value: '1.3, 103.86' } })
+    press('Save location', editDialog)
+    await vi.waitFor(() =>
+      expect(edited.at(-1)?.body.coordinates).toEqual({ lat: 1.3, lng: 103.86 }),
+    )
+
+    await pressNav('Edit Block A › Level 1 › Lobby')
+    fireEvent.change(coordinatesBox(editDialog), { target: { value: '' } })
+    press('Save location', editDialog)
+    await vi.waitFor(() => expect(edited.at(-1)?.body.coordinates).toBeNull())
   })
 })

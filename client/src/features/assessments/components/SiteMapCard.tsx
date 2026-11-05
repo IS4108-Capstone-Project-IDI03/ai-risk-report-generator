@@ -8,6 +8,7 @@ import { GatewayError } from '../api'
 import { changeSiteMap, type SiteMap, type SiteMapChange } from '../../clients/api'
 import { directionsUrl, formatCoordinates, parseCoordinates, type Coordinates } from '../googleMaps'
 import { sameName } from '../locations'
+import { MyLocationButton } from './MyLocationButton'
 import { SiteMapView, type MapPin } from './SiteMapView'
 
 const SITE = 'Site'
@@ -119,6 +120,11 @@ export function SiteMapCard({
       {placing && (
         <div className="sm-placing">
           <p>{'Click the map to place ' + placing.name + ', or paste its coordinates.'}</p>
+          <MyLocationButton
+            key={placing.key}
+            disabled={saving}
+            onFound={(point) => place(placing, point)}
+          />
           <div className="sm-placing-row">
             <Input
               label="Coordinates"

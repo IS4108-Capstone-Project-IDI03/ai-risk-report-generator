@@ -397,6 +397,22 @@ describe('A new site on the map (CP-26)', () => {
     expect(body().sites[0].coordinates).toEqual({ lat: 1.2966, lng: 103.852 })
   })
 
+  it("fills in Coordinates from the engineer's position (CP-26 AC18)", async () => {
+    gateway({ 'GET /api/clients': () => json(200, []) })
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: {
+        getCurrentPosition: (done: (p: unknown) => void) =>
+          done({ coords: { latitude: 1.34, longitude: 103.84, accuracy: 8 } }),
+      },
+    })
+    open()
+    fireEvent.click(within(site(1)).getByRole('button', { name: 'Use my current location' }))
+    await vi.waitFor(() =>
+      expect(within(site(1)).getByLabelText(/^Coordinates/)).toHaveValue('1.34, 103.84'),
+    )
+  })
+
   it('creates a site without coordinates as before (AC4)', async () => {
     gateway({ 'GET /api/clients': () => json(200, []), 'POST /api/assessments': assessments })
     const { onCreated } = open()

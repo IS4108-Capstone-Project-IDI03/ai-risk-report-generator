@@ -200,6 +200,21 @@ describe('while placing a pin', () => {
     expect(sentMap()).toEqual({ block: 'Block B', point: SITE.coordinates })
   })
 
+  it("saves the pin being placed at the engineer's position (CP-26 AC19)", async () => {
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: {
+        getCurrentPosition: (done: (p: unknown) => void) =>
+          done({ coords: { latitude: 1.34, longitude: 103.84, accuracy: 8 } }),
+      },
+    })
+    open({ buildings: ['Block B'] })
+    fireEvent.click(row('Block B').getByRole('button', { name: 'Pin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use my current location' }))
+    await vi.waitFor(() => expect(put).toHaveBeenCalled())
+    expect(sentMap()).toEqual({ block: 'Block B', point: { lat: 1.34, lng: 103.84 } })
+  })
+
   it('clears a typing mistake on Cancel', async () => {
     open()
     fireEvent.click(row('Site').getByRole('button', { name: 'Move' }))

@@ -232,13 +232,19 @@ export type WorkflowState = {
   locOpen: boolean
   locDismissed: boolean
   locQuery: string
+  // The block Use my current location found, narrowing the picker to it (CP-26).
+  locBlock: string | null
   // The form adding a location, or changing the one locEdit names (CP-16).
   locAdding: boolean
   locEdit: string | null
   lf: LocationForm
   lfBusy: boolean
   // Why the form was refused, by field: building, floor or name.
-  lfErrors: Partial<Record<'building' | 'floor' | 'name', string>>
+  // Where the picker's tracking last put the engineer (CP-26). Never saved as such.
+  locHere: { lat: number; lng: number } | null
+  // The engineer typed in or cleared Coordinates, so tracking leaves it alone.
+  lfOwnPoint: boolean
+  lfErrors: Partial<Record<'building' | 'floor' | 'name' | 'coordinates', string>>
   // A new building, level or location name the form asks about before
   // saving, as it is probably mistyped (CP-16), and those the engineer chose
   // to keep as typed.
@@ -340,6 +346,8 @@ export type LocationForm = {
   building: string
   floor: string
   name: string
+  // As typed, "1.2966, 103.8520" (CP-26); optional.
+  coordinates: string
 }
 
 // A recording or audio file held in the browser until Save observation uploads it.

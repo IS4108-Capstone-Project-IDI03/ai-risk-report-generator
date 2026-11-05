@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { AddRow, Icon, IconButton, NewBadge, toast } from '../../../design-system'
 import { plural } from '../../clients/formatClient'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { MyLocationButton } from '../../assessments/components/MyLocationButton'
 import { SiteMapView } from '../../assessments/components/SiteMapView'
 import { formatCoordinates, parseCoordinates } from '../../assessments/googleMaps'
 import {
@@ -112,6 +113,7 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
             error={f.errors[path + 'coordinates']}
             onChange={(e) => f.setSite(i, { coordinates: e.target.value })}
           />
+          <MyLocationButton onFound={(p) => f.setCoordinates(site.ref, formatCoordinates(p))} />
           <SiteMapView
             label={'Map to place site ' + (i + 1)}
             pins={point ? [{ ...point, label: 'S', title: 'Site' }] : []}

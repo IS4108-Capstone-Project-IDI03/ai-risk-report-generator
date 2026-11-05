@@ -21,6 +21,11 @@ export type GoogleMaps = {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMapInstance
   Marker: new (options: Record<string, unknown>) => GoogleMarker
   LatLngBounds: new () => { extend(point: Coordinates): void }
+  Geocoder: new () => {
+    geocode(request: {
+      location: Coordinates
+    }): Promise<{ results: { formatted_address: string }[] }>
+  }
 }
 
 const inRange = ({ lat, lng }: Coordinates) => Math.abs(lat) <= 90 && Math.abs(lng) <= 180
@@ -99,4 +104,20 @@ export function loadGoogleMaps(): Promise<GoogleMaps | null> {
       return null
     })
   return loading
+}
+
+/**
+ * Returns the address nearest the point (reverse geocoding), or null if Google
+ * has none or can't be reached (CP-26). Google bills each call, and needs the
+ * Geocoding API on the key (see docs/areas/cloud.md).
+ */
+export async function streetAddress(point: Coordinates) {
+  try {
+    const maps = await loadGoogleMaps()
+    if (!maps) return null
+    const { results } = await new maps.Geocoder().geocode({ location: point })
+    return results[0]?.formatted_address ?? null
+  } catch {
+    return null
+  }
 }

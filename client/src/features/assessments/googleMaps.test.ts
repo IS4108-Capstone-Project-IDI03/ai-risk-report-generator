@@ -7,6 +7,7 @@ import {
   loadGoogleMaps,
   parseCoordinates,
   resetGoogleMaps,
+  streetAddress,
 } from './googleMaps'
 
 describe('parseCoordinates (CP-26 AC2, AC3)', () => {
@@ -97,5 +98,40 @@ describe('loadGoogleMaps (CP-26 AC13)', () => {
   it('answers null when the gateway has no answer', async () => {
     vi.stubGlobal('fetch', async () => new Response('{}', { status: 500 }))
     await expect(loadGoogleMaps()).resolves.toBeNull()
+  })
+})
+
+describe('streetAddress (CP-26 AC27)', () => {
+  const SPOT = { lat: 1.2966, lng: 103.852 }
+  const withGeocoder = async (geocode: () => Promise<unknown>) => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ key: 'k' }), { status: 200 }))
+    vi.stubGlobal('google', {
+      maps: {
+        Geocoder: function () {
+          return { geocode }
+        },
+      },
+    })
+    const answer = streetAddress(SPOT)
+    await vi.waitFor(() =>
+      expect(document.head.querySelector('script[data-google-maps]')).not.toBeNull(),
+    )
+    ;(window as unknown as { marshMapsReady: () => void }).marshMapsReady()
+    return answer
+  }
+
+  beforeEach(resetGoogleMaps)
+  afterEach(() => {
+    document.head.querySelector('script[data-google-maps]')?.remove()
+    vi.unstubAllGlobals()
+  })
+
+  it('gives the nearest address Google has', async () => {
+    const found = { results: [{ formatted_address: '10 Bayfront Avenue, Singapore' }] }
+    await expect(withGeocoder(async () => found)).resolves.toBe('10 Bayfront Avenue, Singapore')
+  })
+
+  it('gives null when Google has none, so tracking carries on without it', async () => {
+    await expect(withGeocoder(() => Promise.reject(new Error('ZERO_RESULTS')))).resolves.toBeNull()
   })
 })

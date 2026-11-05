@@ -7,6 +7,7 @@ import { Callout, Dialog, Icon, Input, Popover } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { LocationForm } from './LocationForm'
 import { LocationPath } from './LocationPath'
+import { FindMyBlock } from './FindMyBlock'
 import { useSave } from './useSave'
 import '../capture.css'
 
@@ -155,6 +156,15 @@ function LocationChoices({ v }: { v: AssessmentWorkflow }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {!v.noLocations && (
         <>
+          <FindMyBlock pins={v.locPins} onBlock={v.showBlock} onHere={v.trackedTo} />
+          {v.locBlock && (
+            <p className="sm-found">
+              {'Showing ' + v.locBlock}
+              <button type="button" onClick={() => v.showBlock(null)}>
+                {'Show all locations'}
+              </button>
+            </p>
+          )}
           <Input
             type="search"
             label="Search locations"
