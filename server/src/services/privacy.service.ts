@@ -113,3 +113,14 @@ export async function chatPrivacy(): Promise<Privacy> {
   if (config.piiProtection === 'off') return { enabled: false, known_entities: [] }
   return { enabled: true, known_entities: await chatKnownEntities() }
 }
+
+// The `privacy` field sent with a knowledge document's labelling and ingestion
+// (PV-05). A past report has no assessment and may name any client, so it is
+// chat's list, and organisations and buildings nobody listed are looked for too
+// (`detect`, CP-23).
+export type IngestionPrivacy = Privacy & { detect?: ('CLIENT' | 'SITE')[] }
+
+export async function ingestionPrivacy(): Promise<IngestionPrivacy> {
+  const privacy = await chatPrivacy()
+  return privacy.enabled ? { ...privacy, detect: ['CLIENT', 'SITE'] } : privacy
+}

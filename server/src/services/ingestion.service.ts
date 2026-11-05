@@ -5,6 +5,7 @@
 // services touch Chroma.
 import { config } from '../config'
 import { labelUsageToWire, recordAiCalls } from './ai-usage.service'
+import { ingestionPrivacy } from './privacy.service'
 
 // Ingestion (its service or its queue) is down; the upload can be retried.
 export class IngestionUnavailableError extends Error {
@@ -101,10 +102,15 @@ const LABEL_TIMEOUT_MS = 180_000
 // detail Unconfirmed. Its paid calls are recorded against `documentId`.
 export async function labelDocument(pdf: Buffer, documentId?: string): Promise<LabelAnswer | null> {
   try {
+    // The PDF and whether, and against which names, its pages are masked before
+    // any model reads them (PV-05). Inside the try: if the names can't be read,
+    // the document is not labelled at all, rather than labelled unprotected.
+    const form = new FormData()
+    form.append('file', new Blob([new Uint8Array(pdf)], { type: 'application/pdf' }), 'upload.pdf')
+    form.append('privacy', JSON.stringify(await ingestionPrivacy()))
     const response = await fetch(`${config.ingestionServiceUrl}/label`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/pdf' },
-      body: new Uint8Array(pdf),
+      body: form,
       signal: AbortSignal.timeout(LABEL_TIMEOUT_MS),
     })
     if (!response.ok) throw new Error(`/label answered ${response.status}`)

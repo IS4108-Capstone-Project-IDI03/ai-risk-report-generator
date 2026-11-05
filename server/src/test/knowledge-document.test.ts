@@ -2,8 +2,10 @@ import { createHash, randomUUID } from 'crypto'
 import { Readable } from 'stream'
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { config } from '../config'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
+import { ClientModel } from '../models/client.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import {
@@ -82,6 +84,7 @@ afterEach(() => {
   inspect.mockReset()
   labelling.mockReset()
   converting.mockReset()
+  config.piiProtection = 'off'
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
@@ -152,6 +155,12 @@ function labelAnswer(details: Record<string, string>) {
 // tests that store several documents need different bytes for each.
 let pdfCount = 0
 const freshPdf = () => Buffer.concat([PDF, Buffer.from(`\n% copy ${++pdfCount}`)])
+
+// What the last upload sent /label (PV-05): a form holding the PDF and the privacy settings.
+const formSentToLabel = () => labelling.mock.calls.at(-1)![1]!.body as FormData
+const fileSentToLabel = async () =>
+  Buffer.from(await (formSentToLabel().get('file') as Blob).arrayBuffer())
+const privacySentToLabel = () => JSON.parse(formSentToLabel().get('privacy') as string)
 
 // Uploads with only the file name; /label answers with `details`.
 function upload(
@@ -365,7 +374,44 @@ describe('POST /api/knowledge-documents', () => {
     const bodySentTo = (calls: [string?, RequestInit?][], path: string) =>
       Buffer.from(calls.find(([url]) => String(url).endsWith(path))![1]!.body as Uint8Array)
     expect(bodySentTo(inspect.mock.calls, '/inspect')).toEqual(CONVERTED_PDF)
-    expect(bodySentTo(labelling.mock.calls, '/label')).toEqual(CONVERTED_PDF)
+    expect(await fileSentToLabel()).toEqual(CONVERTED_PDF)
+  })
+
+  // PV-05: labelling reads the pages with client details masked. A past report has no
+  // assessment, so every known client, site, address and person is listed, and
+  // organisations and buildings nobody listed are looked for too.
+  it('sends /label the PDF and the privacy settings when protection is on', async () => {
+    config.piiProtection = 'required'
+    await ClientModel.create({ name: 'Acme Pte Ltd', key: 'acme pte ltd' })
+    const pdf = freshPdf()
+
+    await upload(pdf, REPORT)
+
+    expect(await fileSentToLabel()).toEqual(pdf)
+    const privacy = privacySentToLabel()
+    expect(privacy).toMatchObject({ enabled: true, detect: ['CLIENT', 'SITE'] })
+    expect(privacy.known_entities).toContainEqual({ type: 'CLIENT', names: ['Acme Pte Ltd'] })
+  })
+
+  it('leaves the details Unconfirmed, without calling /label, when the names to mask cannot be read', async () => {
+    // A guard: the names are read inside labelling's own failure handling.
+    config.piiProtection = 'required'
+    vi.setSystemTime(new Date('2026-10-06T21:00:00Z')) // past the names another test read
+    vi.spyOn(ClientModel, 'find').mockImplementationOnce(() => {
+      throw new Error('database unavailable')
+    })
+
+    const response = await upload(freshPdf(), REPORT)
+
+    expect(response.status).toBe(201)
+    expect(labelling).not.toHaveBeenCalled()
+    expect(response.body.unconfirmed).toContain('sourceType')
+  })
+
+  it('tells /label protection is off when it is', async () => {
+    await upload(freshPdf(), REPORT)
+
+    expect(privacySentToLabel()).toEqual({ enabled: false, known_entities: [] })
   })
 
   it.each([
