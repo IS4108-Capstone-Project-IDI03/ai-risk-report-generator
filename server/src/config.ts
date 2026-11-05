@@ -51,8 +51,7 @@ export const config = {
     // A trial key is free (1,000 calls a month), so its calls cost $0. Trial
     // unless COHERE_KEY_TIER says production; then the estimates below apply.
     cohereKeyTier: (process.env.COHERE_KEY_TIER === 'production' ? 'production' : 'trial') as
-      | 'trial'
-      | 'production',
+      'trial' | 'production',
     cohereEmbedUsdPer1M: Number(process.env.COHERE_EMBED_USD_PER_1M_TOKENS ?? 0.12),
     cohereRerankUsdPer1K: Number(process.env.COHERE_RERANK_USD_PER_1K_SEARCHES ?? 2),
   },

@@ -9,6 +9,7 @@ import { z } from 'zod'
 import type { SessionUser } from './auth.service'
 import { AssessmentModel } from '../models/assessment.model'
 import type { ISite } from '../models/site.model'
+import { UserModel } from '../models/user.model'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentNotFoundError } from './capture-session.service'
 import { clientNameOf } from './client.service'
@@ -174,7 +175,10 @@ export async function exportBlockers(reference: string): Promise<ExportBlocker[]
 
 type ListedSite = Pick<ISite, 'name' | 'address'> & { client?: { name: string } | null }
 
-// The assessment, when the user is its assigned engineer (AC2). An archived
+// The assessment, when the user is its assigned engineer (AC2), with that
+// engineer's name as their account now has it. Checked on the stored id, as
+// every assignment check is: a populated engineer would be null, and the
+// check fail, for an account no longer in the users collection. An archived
 // report can still be exported again.
 async function assessmentToExport(reference: string, user: SessionUser) {
   const assessment = await AssessmentModel.findOne({ reference })
@@ -183,12 +187,12 @@ async function assessmentToExport(reference: string, user: SessionUser) {
       select: 'name address client',
       populate: { path: 'client', select: 'name' },
     })
-    .populate<{ engineer: { _id: unknown; name: string } | null }>('engineer', 'name')
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
-  if (String(assessment.engineer?._id) !== user.id)
+  if (String(assessment.engineer) !== user.id)
     throw new NotAssignedError('Only the assigned engineer can export this report.')
-  return assessment
+  const account = await UserModel.findById(assessment.engineer, 'name').lean()
+  return { ...assessment, engineerName: account?.name ?? user.name }
 }
 
 const MONTHS = [
@@ -264,7 +268,7 @@ export async function exportReport(
     address: given(site?.address),
     assessmentType: given(assessment.surveyType),
     visitDate: marshDay(assessment.siteVisitDate),
-    engineer: given(assessment.engineer?.name),
+    engineer: given(assessment.engineerName),
   }
 
   const file = await withExportPage(input.html, async (page) => {
