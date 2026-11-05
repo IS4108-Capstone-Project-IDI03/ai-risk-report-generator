@@ -105,7 +105,6 @@ def labels_of(doc):
 PROTECTED = {
     "enabled": True,
     "known_entities": [{"type": "PERSON", "names": ["John Tan"]}],
-    "detect": ["CLIENT", "SITE"],
 }
 
 

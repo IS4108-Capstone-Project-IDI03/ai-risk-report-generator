@@ -128,3 +128,57 @@ def test_when_the_privacy_service_fails_nothing_is_redacted_or_sent(fake_privacy
         redact_pdf(pdf_of(["Inspected by John Tan on 3 May."]), session(PRIVACY))
 
     assert "John Tan" not in str(raised.value)  # no value from the document (Rule 5)
+
+
+def stream_text_of(pdf: bytes) -> list[str]:
+    """Each page's text in drawing order, as Docling reads a paragraph, not by position."""
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        return [" ".join(page.get_text().split()) for page in doc]
+
+
+def test_tags_sit_in_place_in_drawing_order_as_docling_reads(fake_privacy):
+    # Docling orders a paragraph's text as it is drawn. A tag drawn after the page's other text
+    # was read at the paragraph's end, away from the sentence it belongs in.
+    pdf = pdf_of(["Acme Pte Ltd fire survey", "Shown by John Tan (Tel: +65 9123 4567).", "End."])
+
+    redacted, _ = redact_pdf(pdf, session(PRIVACY))
+
+    assert stream_text_of(redacted) == [
+        "[CLIENT_1] fire survey Shown by [PERSON_1] (Tel: [PHONE_1]). End."
+    ]
+
+
+def test_a_redrawn_page_keeps_its_headings_bold_and_any_script_readable(fake_privacy):
+    # A guard: written with the redraw. Docling finds headings partly by weight, and a report
+    # may hold names in Chinese, which Helvetica cannot draw.
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((50, 80), "Fire Survey", fontname="hebo", fontsize=14)
+    page.insert_text((50, 110), "Shown by John Tan.")
+    page.insert_text((50, 140), "业主 陈先生", fontname="china-s")
+    redacted, _ = redact_pdf(doc.tobytes(), session(PRIVACY))
+
+    with pymupdf.open(stream=redacted, filetype="pdf") as out:
+        spans = [
+            s
+            for b in out[0].get_text("dict")["blocks"]
+            for line in b.get("lines", [])
+            for s in line["spans"]
+        ]
+    heading = next(s for s in spans if s["text"].strip() == "Fire Survey")
+    assert heading["flags"] & 16  # bold
+    assert stream_text_of(redacted) == ["Fire Survey Shown by [PERSON_1]. 业主 陈先生"]
+
+
+def test_a_word_drawn_in_two_pieces_reaches_mask_as_one_word(fake_privacy):
+    # A PDF may draw one word as two runs with no gap ("Sprinkl" + "er"); reading a space into
+    # it made the name model take "Sprinkl" for a person. Words split by a real gap stay apart.
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((50, 100), "Sprinkl", fontname="helv")
+    joined = 50 + pymupdf.get_text_length("Sprinkl", "helv", 11)
+    page.insert_text((joined, 100), "er", fontname="hebo")
+    page.insert_text((150, 100), "Test", fontname="hebo")
+    redact_pdf(doc.tobytes(), session(PRIVACY))
+
+    assert fake_privacy.requests[0]["texts"][0].split() == ["Sprinkler", "Test"]

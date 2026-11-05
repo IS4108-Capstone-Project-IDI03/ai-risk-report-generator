@@ -35,14 +35,15 @@ const ask = (id: string, key: string | null = KEY!) => {
 }
 
 describe('GET /api/internal/knowledge-documents/:id/privacy', () => {
-  it('lists every name to mask and asks for unlisted ones when protection is on', async () => {
+  it('lists every name to mask when protection is on', async () => {
     config.piiProtection = 'required'
     await ClientModel.create({ name: 'Acme Pte Ltd', key: 'acme pte ltd' })
 
     const res = await ask(await storedReport())
 
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({ enabled: true, detect: ['CLIENT', 'SITE'] })
+    expect(res.body.enabled).toBe(true)
+    expect(res.body).not.toHaveProperty('detect')
     expect(res.body.known_entities).toContainEqual({ type: 'CLIENT', names: ['Acme Pte Ltd'] })
   })
 

@@ -378,8 +378,7 @@ describe('POST /api/knowledge-documents', () => {
   })
 
   // PV-05: labelling reads the pages with client details masked. A past report has no
-  // assessment, so every known client, site, address and person is listed, and
-  // organisations and buildings nobody listed are looked for too.
+  // assessment, so every known client, site, address and person is listed.
   it('sends /label the PDF and the privacy settings when protection is on', async () => {
     config.piiProtection = 'required'
     await ClientModel.create({ name: 'Acme Pte Ltd', key: 'acme pte ltd' })
@@ -389,7 +388,9 @@ describe('POST /api/knowledge-documents', () => {
 
     expect(await fileSentToLabel()).toEqual(pdf)
     const privacy = privacySentToLabel()
-    expect(privacy).toMatchObject({ enabled: true, detect: ['CLIENT', 'SITE'] })
+    expect(privacy.enabled).toBe(true)
+    // No detection of unlisted names: on a real report it tagged headings and building terms.
+    expect(privacy).not.toHaveProperty('detect')
     expect(privacy.known_entities).toContainEqual({ type: 'CLIENT', names: ['Acme Pte Ltd'] })
   })
 

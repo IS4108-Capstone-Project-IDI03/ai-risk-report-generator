@@ -116,11 +116,9 @@ export async function chatPrivacy(): Promise<Privacy> {
 
 // The `privacy` field sent with a knowledge document's labelling and ingestion
 // (PV-05). A past report has no assessment and may name any client, so it is
-// chat's list, and organisations and buildings nobody listed are looked for too
-// (`detect`, CP-23).
-export type IngestionPrivacy = Privacy & { detect?: ('CLIENT' | 'SITE')[] }
+// chat's list. No `detect` (CP-23): on a real report it tagged section headings
+// and building terms ("Opportunities for Improvement", "Reinforced Concrete") as
+// clients and sites, which would leave passages without their technical words.
+export type IngestionPrivacy = Privacy
 
-export async function ingestionPrivacy(): Promise<IngestionPrivacy> {
-  const privacy = await chatPrivacy()
-  return privacy.enabled ? { ...privacy, detect: ['CLIENT', 'SITE'] } : privacy
-}
+export const ingestionPrivacy = chatPrivacy

@@ -1438,6 +1438,19 @@ joins its `editionFamily` (when it has one); otherwise it is active. A
 correction re-runs `/match` when the source type, standard number or edition
 changed, not the title.
 
+#### A redacted report's mapping (PV-05)
+
+`privacyMapping`: absent, or an object from each tag to the client detail it
+replaced, e.g. `{ "[PERSON_1]": "John Tan", "[CLIENT_1]": "Acme Pte Ltd" }`, and
+`[LITERAL_n]` to placeholder-shaped text the report already held. Written only by
+the ingestion worker, when it redacted the report before parsing (protection on,
+not a standard), before relabelling makes the passages searchable; removed if the
+run fails or is cancelled. Read only by rag-service, which puts a stored
+passage's real words back from it (`app/past_reports.py`). It is personal data,
+kept here and nowhere else (never in Chroma, never in a log). The schema marks
+it `select: false`, so the gateway never loads it unless it asks by name, and no
+route or DTO includes it. See [privacy.md](privacy.md) "Ingestion of past reports".
+
 `file.sha256` has a **unique partial index** covering documents whose `status`
 is `queued`, `processing` or `complete`, so a failed document's file can be
 uploaded again. It stops two identical files uploaded together both being
@@ -1466,8 +1479,9 @@ copies and restart. The upload's own check still rejects most repeats.
 One document per ingestion run, written by the ingestion worker and read by the
 gateway to enrich the `KnowledgeDocument` DTO (E2). Keyed by `documentId` (unique
 index → `knowledge_documents._id`), so the gateway finds a run with one query and
-no `$lookup`. Fields: `currentStage` (one of `parsing`, `anonymising`,
-`chunking`, `indexing`, `complete`, `failed`), `pageCurrent` and
+no `$lookup`. Fields: `currentStage` (one of `anonymising`, `parsing`,
+`chunking`, `indexing`, `complete`, `failed`; `anonymising` is the redaction
+before parsing, only for a protected report, PV-05), `pageCurrent` and
 `pageTotal` (the page reached and the document's page count: while parsing, the
 last page parsed, `0` as parsing starts, then written after each 10-page batch; while chunking, the page being
 chunked, set to the page count once every page has been walked (trailing blank or
@@ -1483,6 +1497,8 @@ OCR, and at the start of every stage), `stageLog` (completed stages, each with
 `stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
 progress when ingestion failed, written on failure so it need not be inferred
 from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),
+`privacy` (`{ enabled, masked_count }`: whether the document was redacted and
+how many details, never the mapping, PV-05; written when the run finishes),
 `currentStageStartedAt`, `startedAt`, and
 `updatedAt` (the worker
 sets `updatedAt` itself; the schema has no `timestamps`). Every write is an upsert
