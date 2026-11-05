@@ -806,6 +806,7 @@
   color: var(--red-600);
 }
 .na-read-error strong {
+  flex: none;
   font-weight: 600;
 }
 .na-files {
