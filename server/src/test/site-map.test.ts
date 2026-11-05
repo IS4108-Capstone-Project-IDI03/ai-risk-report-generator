@@ -212,9 +212,7 @@ describe('coordinates on a location (CP-26 AC22-25)', () => {
 
   it('saves them on the location, and the first in a block sets its pin', async () => {
     const { body } = await firstVisit()
-    const added = await api
-      .post(locationsOf(body.reference))
-      .send({ ...LOBBY, coordinates: SPOT })
+    const added = await api.post(locationsOf(body.reference)).send({ ...LOBBY, coordinates: SPOT })
     expect(added.status).toBe(201)
     expect(added.body.coordinates).toEqual(SPOT)
     expect((await shown(body.reference)).pins).toEqual([{ name: 'Block A', ...SPOT }])
@@ -274,9 +272,7 @@ describe('coordinates on a location (CP-26 AC22-25)', () => {
     const { body } = await firstVisit()
     const path = locationsOf(body.reference)
     const { id } = (await api.post(path).send({ ...LOBBY, coordinates: SPOT })).body
-    await api
-      .patch(`${path}/${id}`)
-      .send({ ...LOBBY, building: 'Block B', coordinates: SPOT })
+    await api.patch(`${path}/${id}`).send({ ...LOBBY, building: 'Block B', coordinates: SPOT })
     expect((await shown(body.reference)).pins).toEqual([
       { name: 'Block A', ...SPOT },
       { name: 'Block B', ...SPOT },
@@ -286,9 +282,7 @@ describe('coordinates on a location (CP-26 AC22-25)', () => {
   it('refuses coordinates on an archived assessment', async () => {
     const { body } = await firstVisit()
     await AssessmentModel.updateOne({ reference: body.reference }, { archivedAt: new Date() })
-    const added = await api
-      .post(locationsOf(body.reference))
-      .send({ ...LOBBY, coordinates: SPOT })
+    const added = await api.post(locationsOf(body.reference)).send({ ...LOBBY, coordinates: SPOT })
     expect(added.status).toBe(409)
     expect((await shown(body.reference)).pins).toEqual([])
   })
@@ -319,7 +313,9 @@ describe('coordinates on a location (CP-26 AC22-25)', () => {
     const site = (await AssessmentModel.findOne({ reference: first.reference }))!.site
     const next = await api
       .post('/api/assessments')
-      .send(oneAssessment({ client: 'NUS', site: { id: String(site) }, siteVisitDate: '2026-03-10' }))
+      .send(
+        oneAssessment({ client: 'NUS', site: { id: String(site) }, siteVisitDate: '2026-03-10' }),
+      )
     const reference = next.body.assessments[0].reference
     expect((await api.get(locationsOf(reference))).body[0].coordinates).toEqual(SPOT)
   })

@@ -55,7 +55,7 @@ describe('MyLocationButton', () => {
 
 describe('a slow answer', () => {
   it('saves nothing once the engineer has left, so a cancelled pin stays unsaved (AC21)', async () => {
-    let answer = (_: unknown) => {}
+    let answer: (v: unknown) => void = () => {}
     vi.stubGlobal('navigator', {
       geolocation: { getCurrentPosition: (done: (p: unknown) => void) => (answer = done) },
     })
@@ -85,8 +85,8 @@ describe('FindMyBlock', () => {
   const AT_B = { ...HERE, latitude: 1.31 }
   const track = () => screen.getByRole('button', { name: 'Track my location' })
   // The browser's live feed, driven by hand.
-  let move = (_: unknown) => {}
-  let fail = (_: unknown) => {}
+  let move: (v: unknown) => void = () => {}
+  let fail: (v: unknown) => void = () => {}
   const cleared = vi.fn()
 
   beforeEach(() => {
@@ -144,7 +144,7 @@ describe('FindMyBlock', () => {
   })
 
   it('keeps the latest address when an older lookup answers last (AC27)', async () => {
-    let older = (_: string) => {}
+    let older: (v: string) => void = () => {}
     vi.mocked(streetAddress)
       .mockReturnValueOnce(new Promise((done) => (older = done as typeof older)))
       .mockResolvedValueOnce('New Street')
@@ -174,7 +174,7 @@ describe('FindMyBlock', () => {
   })
 
   it('drops an address that arrives after tracking stopped (AC27)', async () => {
-    let answer = (_: string) => {}
+    let answer: (v: string) => void = () => {}
     vi.mocked(streetAddress).mockReturnValueOnce(
       new Promise((done) => (answer = done as typeof answer)),
     )

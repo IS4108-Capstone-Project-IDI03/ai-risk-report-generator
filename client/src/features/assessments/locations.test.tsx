@@ -1242,7 +1242,7 @@ describe('Coordinates on a location (CP-26)', () => {
   })
 
   it('fills the form from tracking, follows the engineer, and stops at typing (AC28)', async () => {
-    let move = (_: unknown) => {}
+    let move: (v: unknown) => void = () => {}
     const at = (latitude: number) =>
       act(() => move({ coords: { latitude, longitude: SPOT.lng, accuracy: 20 } }))
     Object.defineProperty(window.navigator, 'geolocation', {

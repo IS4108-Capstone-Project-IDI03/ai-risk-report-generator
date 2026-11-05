@@ -260,9 +260,7 @@ router.post('/:reference/locations', requirePermission('assessments:edit'), asyn
     return
   }
   try {
-    res
-      .status(201)
-      .json(await addLocation(req.params.reference, parsed.data, res.locals.user!))
+    res.status(201).json(await addLocation(req.params.reference, parsed.data, res.locals.user!))
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })
