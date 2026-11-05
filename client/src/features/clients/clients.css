@@ -48,10 +48,11 @@
   margin-left: auto;
 }
 .ds-filter-pill[data-active] {
-  background: var(--ink-100);
+  background: var(--ink-50);
   color: var(--marsh-navy);
 }
 .cl-filter-menu {
+  text-align: left;
   min-width: 220px !important;
 }
 .cl-sort {

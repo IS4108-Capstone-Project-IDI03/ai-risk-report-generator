@@ -15,13 +15,13 @@ export function FilterMenu({
   // The pill's text when nothing is chosen, e.g. "Status".
   name: string
   choices: Choice[]
-  // The chosen value, or '' for all.
+  // The chosen value, or '' for any.
   value: string
   onChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const chosen = choices.find((c) => c.value === value)
-  // When any option has an icon, the ones without (like All) keep its column so labels line up.
+  // When any option has an icon, the ones without (like Any status) keep its column so labels line up.
   const hasIcons = choices.some((c) => c.icon)
   const pick = (v: string) => {
     onChange(v)
@@ -45,7 +45,7 @@ export function FilterMenu({
       }
     >
       <div className="ds-menu" role="listbox" aria-label={name}>
-        {[{ value: '', label: `All` }, ...choices].map((c) => (
+        {[{ value: '', label: `Any ${name.toLowerCase()}` }, ...choices].map((c) => (
           <button
             key={c.value}
             type="button"
