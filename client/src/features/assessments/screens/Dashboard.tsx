@@ -2,10 +2,20 @@
 // boards 03 and 04): top bar, then one card of toolbar, table and footer, by
 // client and site or one flat list. Rendered by AssessmentApp. Calls WorkToolbar,
 // ClientGroup and WorkRow; the list's data is from useAssessmentWorkflow.tsx.
-import { Button, Callout, EmptyState, Icon, TableFooter, TopBar } from '../../../design-system'
+import { useState } from 'react'
+import {
+  Button,
+  Callout,
+  EmptyState,
+  Icon,
+  TableFooter,
+  TopBar,
+  toast,
+} from '../../../design-system'
+import { ReassignDialog } from '../../assignment/components/ReassignDialog'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
 import { ClientGroup } from '../components/ClientGroup'
-import { WorkRow } from '../components/WorkRow'
+import { WorkRow, type AssignControls, type WorkRowData } from '../components/WorkRow'
 import { WorkToolbar } from '../components/WorkToolbar'
 import { useCompact } from '../useCompact'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -24,6 +34,15 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.ReactNode }) {
   const grouped = v.workByClient
   const compact = useCompact()
+  // An admin's list (RV-11): the row being reassigned, and the one just changed (its tint
+  // holds 1 s + 260 ms, as the Documents list's does).
+  const [reassigning, setReassigning] = useState<WorkRowData | null>(null)
+  const [changed, setChanged] = useState<string | null>(null)
+  // The row as the list holds it now: a refused move reads the list again, and the dialog follows.
+  const held = reassigning && (v.filteredRows.find((r) => r.id === reassigning.id) ?? reassigning)
+  const assign: AssignControls | undefined = v.canAssign
+    ? { changed, onReassign: setReassigning }
+    : undefined
   // The heading of the column the list is sorted by gets the arrow.
   const sorted = (i: number) => v.workSort === v.sortOptions[i]
   // A row's Archive icon, only for what this engineer may archive.
@@ -34,7 +53,11 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
       <TopBar
         eyebrow="RISK ENGINEERING"
         title="Assessments"
-        helper="Every assessment you are working on, grouped by client and site."
+        helper={
+          v.canAssign
+            ? 'Every assessment across the team, grouped by client and site.'
+            : 'Every assessment you are working on, grouped by client and site.'
+        }
         bell={bell}
         action={
           compact && v.canEdit ? (
@@ -56,13 +79,18 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
         )}
         <div className="at-card">
           <WorkToolbar v={v} compact={compact} />
-          <div className="at-list" data-grouped={grouped || undefined}>
+          <div
+            className="at-list"
+            data-grouped={grouped || undefined}
+            data-engineer={assign ? '' : undefined}
+          >
             <div className="at-head" aria-hidden="true">
               <Head arrow={sorted(2) ? 'up' : undefined}>{'Assessment'}</Head>
               <span className="at-meta">
                 <span>{'Type'}</span>
                 <Head arrow={sorted(0) ? 'down' : undefined}>{'Survey date'}</Head>
               </span>
+              {!!assign && <span className="at-engineer-head">{'Engineer'}</span>}
               <span className="at-foot">
                 <span>{'Status'}</span>
                 <Head arrow={sorted(1) ? 'up' : undefined}>{'Report due'}</Head>
@@ -78,6 +106,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
                       site={site}
                       onOpen={v.onRow}
                       onArchive={archiveOf}
+                      assign={assign}
                     />
                   )),
                 )
@@ -88,6 +117,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
                     grouped={false}
                     onOpen={v.onRow}
                     onArchive={archiveOf(r)}
+                    assign={assign}
                   />
                 ))}
             {!!v.noResults && (
@@ -131,6 +161,24 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
           </TableFooter>
         </div>
       </div>
+      {held && (
+        <ReassignDialog
+          reference={held.id}
+          engineer={{ id: held.engineerId ?? null, name: held.eng }}
+          me={v.me}
+          onClose={() => setReassigning(null)}
+          onStale={v.refreshList}
+          onMoved={(moved) => {
+            v.rowMoved(moved)
+            setReassigning(null)
+            setChanged(moved.reference)
+            window.setTimeout(() => setChanged(null), 1400)
+            toast.success(moved.reference + ' reassigned', {
+              description: 'Now with ' + (moved.engineer?.name ?? 'no one'),
+            })
+          }}
+        />
+      )}
     </div>
   )
 }

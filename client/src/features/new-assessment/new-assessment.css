@@ -126,6 +126,15 @@
 .na-grid--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+/* An admin's fourth column, Assigned engineer (RV-11); two by two where four would squeeze. */
+.na-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 1099px) {
+  .na-grid--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .na-site-fields {
   display: grid;
   gap: 12px;
@@ -1128,6 +1137,7 @@
   }
   .na-grid--2,
   .na-grid--3,
+  .na-grid--4,
   .na-site-row,
   .na-picks,
   .na-contact-grid {

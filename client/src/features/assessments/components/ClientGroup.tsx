@@ -4,7 +4,7 @@
 import { Icon, IconButton, Tooltip } from '../../../design-system'
 import { ClientAvatar } from '../../clients/components/ClientAvatar'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
-import { WorkRow, type WorkRowData } from './WorkRow'
+import { WorkRow, type AssignControls, type WorkRowData } from './WorkRow'
 
 type WorkGroup = AssessmentWorkflow['workGroups'][number]
 
@@ -13,12 +13,15 @@ export function ClientGroup({
   site,
   onOpen,
   onArchive,
+  assign,
 }: {
   client: WorkGroup
   site: WorkGroup['sites'][number]
   onOpen: (e: React.MouseEvent<HTMLElement>) => void
   // Returns a row's archive action, or nothing when it may not be archived.
   onArchive: (r: WorkRowData) => (() => void) | undefined
+  // Given only to an admin (RV-11).
+  assign?: AssignControls
 }) {
   return (
     <section aria-label={client.title + ', ' + site.name} className="at-group">
@@ -58,7 +61,14 @@ export function ClientGroup({
         )}
       </div>
       {site.rows.map((r) => (
-        <WorkRow key={r.id} r={r} grouped onOpen={onOpen} onArchive={onArchive(r)} />
+        <WorkRow
+          key={r.id}
+          r={r}
+          grouped
+          onOpen={onOpen}
+          onArchive={onArchive(r)}
+          assign={assign}
+        />
       ))}
     </section>
   )

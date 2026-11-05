@@ -45,9 +45,11 @@ export function RecordingItem({ r }: { r: Recording }) {
           <p className="ob-line ob-line--problem" role="status">
             <Icon name="circle-alert" size={14} />
             <span>{r.error || r.text}</span>
-            <button type="button" className="ob-button ob-button--small" onClick={r.retry}>
-              {'Retry'}
-            </button>
+            {!!r.retry && (
+              <button type="button" className="ob-button ob-button--small" onClick={r.retry}>
+                {'Retry'}
+              </button>
+            )}
             <button
               type="button"
               className="ob-button ob-button--small ob-icon-button"

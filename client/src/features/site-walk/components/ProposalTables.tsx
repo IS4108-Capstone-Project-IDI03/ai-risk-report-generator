@@ -32,7 +32,8 @@ export function ProposalTable({
   location: ProposedLocation | null
   // The selected entry's name, e.g. "No location yet".
   title: string
-  onAdd: () => void
+  // Left out for someone reading another engineer's walk (RV-11 AC2).
+  onAdd?: () => void
 }) {
   return (
     <div className="ob-card">
@@ -40,20 +41,22 @@ export function ProposalTable({
         <div className="ob-filter-set">
           <ProposalFilterChips filters={s.filters} onChange={s.onFilters} />
         </div>
-        <div className="ob-head-actions">
-          <button
-            type="button"
-            className="ob-button ob-button--tinted"
-            aria-label="Add manually"
-            onClick={onAdd}
-          >
-            <Icon name="plus" size={16} />
-            {/* One span, so the button's gap doesn't double the space before "manually". */}
-            <span>
-              Add<span className="ob-more"> manually</span>
-            </span>
-          </button>
-        </div>
+        {onAdd && (
+          <div className="ob-head-actions">
+            <button
+              type="button"
+              className="ob-button ob-button--tinted"
+              aria-label="Add manually"
+              onClick={onAdd}
+            >
+              <Icon name="plus" size={16} />
+              {/* One span, so the button's gap doesn't double the space before "manually". */}
+              <span>
+                Add<span className="ob-more"> manually</span>
+              </span>
+            </button>
+          </div>
+        )}
       </div>
       {selected !== ALL && (
         <p className="ob-where">
@@ -76,7 +79,7 @@ export function ProposalTable({
 export function DeletedProposalTable({
   onRestore,
   ...s
-}: Shared & { onRestore: (ref: string) => void }) {
+}: Shared & { onRestore?: (ref: string) => void }) {
   return (
     <div className="ob-card">
       <div className="ob-filters">

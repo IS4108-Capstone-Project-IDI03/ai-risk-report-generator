@@ -1533,32 +1533,104 @@ it('says why a colleague’s site can’t be changed, and opens the client’s p
   }
 })
 
-it('shows a knowledge admin the same assessment record, read-only', async () => {
-  vi.stubGlobal('fetch', (url: string) =>
-    respond(200, url === '/api/assessments' ? [{ ...CREATED, status: 'capturing' }] : []),
-  )
-  // A knowledge admin starts on the knowledge base; open the work list instead.
-  window.history.pushState({}, '', '/assessments')
-  try {
+// RV-11: an admin has every screen an engineer has, and changes only the assessments assigned
+// to them. On anyone else's they read every tab and see no control that would be refused.
+describe('A knowledge admin in the workspace (RV-11)', () => {
+  const ALEX = '6ab39017e45cf009e4507731'
+  const SANA = '6ab39017e45cf009e4507734'
+  const draft = { id: 'd1', sectionId: '7', subsections: [] }
+  const SECTIONS = [
+    { id: '7', usableObservations: 2, latestDraft: draft, title: 'Construction' },
+    { id: '9', usableObservations: 1, latestDraft: null, title: 'Fire Protection' },
+  ].map((s) => ({
+    minObservations: 1,
+    changesSinceDraft: 0,
+    copeDimensions: [],
+    changeCounts: { added: 0, changed: 0, removed: 0 },
+    ...s,
+  }))
+  const state = (s: { id: string }, n: string) => ({
+    id: s.id,
+    draft: n === 'none' ? null : draft,
+    review: { state: n, unsupportedStatements: 0, withdrawnSources: 0, changesSinceDraft: 0 },
+  })
+  const REPLIES: Record<string, unknown> = {
+    checklist: {
+      scope: { facilityType: 'Warehouse', jurisdiction: 'SG' },
+      standards: [],
+      checklist: null,
+    },
+    sections: SECTIONS,
+    review: { sections: [state(SECTIONS[0], 'ai_draft'), state(SECTIONS[1], 'none')] },
+    summary: {
+      purposeAndScope: ['x'],
+      executiveSummary: { draft: null, missing: [], staleSections: [] },
+    },
+    ofis: { suggestions: [], accepted: [] },
+  }
+  // Opens the admin's list with one assessment assigned to `engineerId`, on its Overview.
+  async function open(engineerId: string) {
+    vi.stubGlobal('fetch', (url: string) =>
+      respond(
+        200,
+        url === '/api/assessments'
+          ? [{ ...CREATED, status: 'capturing', engineer: { id: engineerId, name: 'Alex Rowe' } }]
+          : (REPLIES[url.split('/').pop()!.split('?')[0]] ?? []),
+      ),
+    )
+    window.history.pushState({}, '', '/assessments')
     render(<App />)
     await signIn('knowledge_admin')
     const row = (await screen.findAllByRole('button', { name: /Jurong Distribution Hub/ })).find(
       (b) => b.getAttribute('data-id') === 'RPT-2026-0001',
     )!
     fireEvent.click(row)
+  }
+  const tab = (name: RegExp) => fireEvent.click(screen.getByRole('tab', { name }))
+  const has = (name: string) => screen.queryByRole('button', { name }) !== null
 
+  it('reads someone else’s assessment on every tab, with no control that changes it', async () => {
+    await open(ALEX)
+    // The same record as the engineer's.
     expect(screen.getByText('Address')).toBeInTheDocument()
     expect(screen.getByText('Malaysia')).toBeInTheDocument()
     expect(screen.getByText('Alex Rowe')).toBeInTheDocument()
-    // Only the assigned engineer edits, archives or captures.
-    expect(screen.queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-    expect(screen.queryByRole('button', { name: 'Add manually' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Record site walk' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
-  } finally {
-    window.history.pushState({}, '', '/')
-  }
+    // Overview: nothing to edit or archive.
+    for (const name of ['Edit details', 'Edit site', 'Archive']) expect(has(name)).toBe(false)
+    // The report tabs are there to read.
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent)
+    for (const name of ['Checklist', 'Generation', 'Review', 'Export'])
+      expect(tabs.some((t) => t?.startsWith(name))).toBe(true)
+    tab(/^Checklist/)
+    await vi.waitFor(() => expect(screen.queryByText('Loading the checklist…')).toBeNull())
+    expect(has('Generate checklist')).toBe(false)
+    tab(/^Observations/)
+    for (const name of ['Add manually', 'Record site walk', 'Add location']) {
+      expect(has(name)).toBe(false)
+    }
+    tab(/^Generation/)
+    expect(await screen.findByRole('button', { name: 'Review report' })).toBeInTheDocument()
+    for (const name of ['Draft', 'Redraft section', 'Capture evidence']) {
+      expect(has(name)).toBe(false)
+    }
+    // Export is a read-only simulation: it opens, and records nothing.
+    tab(/^Export/)
+    expect(screen.getByText('Completeness checklist')).toBeInTheDocument()
+  })
+
+  it('does everything an engineer does on their own', async () => {
+    await open(SANA)
+    for (const name of ['Edit details', 'Edit site', 'Archive']) expect(has(name)).toBe(true)
+    tab(/^Checklist/)
+    expect(await screen.findByRole('button', { name: 'Generate checklist' })).toBeInTheDocument()
+    tab(/^Observations/)
+    for (const name of ['Add manually', 'Record site walk', 'Add location']) {
+      expect(has(name)).toBe(true)
+    }
+    tab(/^Generation/)
+    expect(await screen.findByRole('button', { name: 'Redraft section' })).toBeInTheDocument()
+    expect(has('Draft')).toBe(true)
+  })
 })
 
 it('offers no capture when none of my assessments is capturing, not even the demo one', async () => {

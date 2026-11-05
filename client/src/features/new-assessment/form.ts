@@ -28,6 +28,8 @@ export type FormAssessment = {
   siteVisitEndDate: string
   reportDueDate: string
   siteContacts: Contact[]
+  // Who it is assigned to (RV-11), for an admin; '' is untouched, which means Me.
+  engineerId: string
 }
 export type FormSite = {
   ref: string
@@ -82,6 +84,7 @@ export function blankAssessment(): FormAssessment {
     siteVisitEndDate: '',
     reportDueDate: addDays(today, REPORT_DUE_DAYS),
     siteContacts: [],
+    engineerId: '',
   }
 }
 /** Returns an empty site with one assessment. */
@@ -163,6 +166,7 @@ export function formFromResult(
               visitType: fromApi(a.visitType.value) as AssessmentType | '',
               notSure: [...visit.notSure, ...(a.visitType.value ? [] : ['visitType'])],
               siteContacts: a.siteContacts.map((c) => ({ name: c.name, role: c.role ?? '' })),
+              engineerId: '',
             }
           }),
       }
@@ -248,8 +252,12 @@ export function placementOf(tag: string): Placement {
 }
 
 const optional = (value: string) => value.trim() || undefined
-/** Returns the request body the gateway's create routes take. */
-export function toBody(form: Form, sitesOf?: ClientSite[]): NewAssessments {
+/**
+ * Returns the request body the gateway's create routes take. `meId` is given for an admin
+ * (RV-11), who names an engineer for every assessment, Me where none was chosen; an
+ * engineer sends none, and the gateway assigns them.
+ */
+export function toBody(form: Form, sitesOf?: ClientSite[], meId?: string): NewAssessments {
   const { client } = form
   return {
     client:
@@ -275,6 +283,7 @@ export function toBody(form: Form, sitesOf?: ClientSite[]): NewAssessments {
         siteContacts: a.siteContacts
           .filter((c) => c.name.trim())
           .map((c) => ({ name: c.name.trim(), role: optional(c.role) })),
+        ...(meId && { engineerId: a.engineerId || meId }),
       })),
     })),
   }

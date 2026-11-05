@@ -596,6 +596,11 @@
 .ob-menu-item > span:nth-child(2) {
   flex: 1 1 auto;
 }
+.ob-menu-trail {
+  color: var(--graphite-600);
+  font-size: 13px;
+  font-weight: 400;
+}
 .ob-menu-item[aria-checked='true'] {
   color: var(--marsh-navy);
   font-weight: 600;

@@ -1,7 +1,7 @@
 import { SourcePanel } from './components/SourcePanel'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeAll, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { ReviewWorkspace as ReviewWorkspaceScreen } from './screens/ReviewWorkspace'
@@ -1061,4 +1061,40 @@ it('shows decisions without the actions to whoever may not decide', async () => 
   // The replacement can still be read.
   fireEvent.click(screen.getByRole('button', { name: 'Replacement' }))
   expect(within(editor()).getByText(REPLACEMENT_TEXT)).toBeInTheDocument()
+})
+
+// RV-11: an admin reviews only the assessments assigned to them, and reads the rest.
+describe('A knowledge admin in Review (RV-11)', () => {
+  const SANA = '6ab39017e45cf009e4507734'
+  async function openAsAdmin(engineerId: string) {
+    mockGateway(reply([WAITING, FIRE, EXPOSURES]))
+    const gateway = globalThis.fetch
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+      url === '/api/assessments'
+        ? json(200, [{ ...RECORD, engineer: { id: engineerId, name: 'Someone' } }])
+        : gateway(url, init),
+    )
+    window.history.pushState({}, '', '/assessments')
+    render(<App />)
+    await signIn('knowledge_admin')
+    const row = (await screen.findAllByRole('button', { name: /Jurong Distribution Hub/ })).find(
+      (b) => b.getAttribute('data-id') === REF,
+    )!
+    fireEvent.click(row)
+    fireEvent.click(screen.getByRole('tab', { name: /^Review/ }))
+    await screen.findByRole('region', { name: 'Draft editor' })
+  }
+
+  it('reads someone else’s drafts with nothing to decide, regenerate or accept', async () => {
+    await openAsAdmin('6ab39017e45cf009e4507731')
+    expect(screen.queryByRole('button', { name: /^(Accept|Edit|Reject) finding/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Bulk accept/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Regenerate' })).toBeNull()
+  })
+
+  it('reviews their own like an engineer', async () => {
+    await openAsAdmin(SANA)
+    expect(within(editor()).getByRole('button', { name: 'Regenerate' })).toBeInTheDocument()
+    expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeInTheDocument()
+  })
 })

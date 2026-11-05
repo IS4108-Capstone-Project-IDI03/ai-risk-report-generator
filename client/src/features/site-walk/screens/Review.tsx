@@ -52,6 +52,7 @@ export function SiteWalkReview({
   onClose,
   onCreated,
   notify,
+  readOnly = false,
 }: {
   reference: string
   walkId: string
@@ -65,6 +66,9 @@ export function SiteWalkReview({
   onCreated: (message: string) => void
   // Shows a toast in the workspace, after each action here (round 4).
   notify: (message: string) => void
+  // Someone else's proposal (RV-11 AC2): it can be read in full, and no control that changes it
+  // shows, or each would only fail with a 403.
+  readOnly?: boolean
 }) {
   const r = useProposal(reference, walkId)
   const phone = usePhone()
@@ -213,6 +217,7 @@ export function SiteWalkReview({
           onCreate={() =>
             void r.create().then((created) => created && onCreated(edit.createdMessage(p!)))
           }
+          readOnly={readOnly}
         />
       )}
       {!page && screen === 'deleted' && (
@@ -229,7 +234,11 @@ export function SiteWalkReview({
         </p>
       )}
       {!ready || !p ? (
-        <WalkStatusMessage walk={r.walk} problem={r.problem} onRetry={() => void r.retry()} />
+        <WalkStatusMessage
+          walk={r.walk}
+          problem={r.problem}
+          onRetry={readOnly ? undefined : () => void r.retry()}
+        />
       ) : (
         // Inert while Create all runs: the server locks the proposal after its first save,
         // so an edit made now would be lost.
@@ -249,6 +258,7 @@ export function SiteWalkReview({
               onRestore={() => restore(page.ref)}
               onStep={setOpenRef}
               onView={setViewing}
+              readOnly={readOnly}
             />
           ) : screen === 'photos' || screen === 'pages' ? (
             <ProposalMedia
@@ -266,7 +276,7 @@ export function SiteWalkReview({
               filters={filters}
               onFilters={setFilters}
               onOpen={setOpenRef}
-              onRestore={restore}
+              onRestore={readOnly ? undefined : restore}
             />
           ) : (
             <div ref={pane} className="ob-layout" data-fit="">
@@ -276,15 +286,19 @@ export function SiteWalkReview({
                 title={title}
                 phone={phone}
                 onPick={pick}
-                onAdd={() => setForm({ kind: 'add' })}
+                onAdd={readOnly ? undefined : () => setForm({ kind: 'add' })}
                 onPhotos={() => setScreen('photos')}
                 onScans={() => setScreen('pages')}
                 onDeleted={() => setScreen('deleted')}
-                actions={{
-                  rename: (ref) => setForm({ kind: 'rename', ref }),
-                  useExisting: setMatching,
-                  remove: setRemoving,
-                }}
+                actions={
+                  readOnly
+                    ? undefined
+                    : {
+                        rename: (ref) => setForm({ kind: 'rename', ref }),
+                        useExisting: setMatching,
+                        remove: setRemoving,
+                      }
+                }
               />
               <ProposalTable
                 proposal={p}
@@ -294,7 +308,7 @@ export function SiteWalkReview({
                 title={title}
                 filters={filters}
                 onFilters={setFilters}
-                onAdd={() => void addObservation()}
+                onAdd={readOnly ? undefined : () => void addObservation()}
                 onOpen={setOpenRef}
               />
             </div>

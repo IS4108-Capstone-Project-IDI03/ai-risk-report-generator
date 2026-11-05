@@ -288,10 +288,22 @@ export function SectionDrafts({
   return (
     <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
       <div style={{ maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Callout tone="ai" title={running ? 'Drafting in progress' : 'Draft sections 2 to 12'}>
+        <Callout
+          tone="ai"
+          title={
+            running
+              ? 'Drafting in progress'
+              : canDraft
+                ? 'Draft sections 2 to 12'
+                : 'Sections 2 to 12'
+          }
+        >
           {running
             ? 'Sections appear here as each one completes. Each takes a minute or two.'
-            : 'Draft one section from its row, or every section at once. Each section is drafted from the observations filed under its categories, observations from other categories where they concern it, and the standards in the knowledge base. Uncategorised observations are not used. Every statement cites its evidence.'}
+            : // Someone who can't draft has no draft buttons, so no line telling them to press one.
+              !canDraft
+              ? 'Only the assigned engineer drafts these sections. You can read each draft as it appears. Every statement cites its evidence.'
+              : 'Draft one section from its row, or every section at once. Each section is drafted from the observations filed under its categories, observations from other categories where they concern it, and the standards in the knowledge base. Uncategorised observations are not used. Every statement cites its evidence.'}
         </Callout>
         {loadError && (
           <Callout tone="danger" title="The sections could not be loaded">
