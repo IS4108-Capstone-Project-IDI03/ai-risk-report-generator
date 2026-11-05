@@ -882,6 +882,21 @@ const stamp = (user: SessionUser): IStamp => ({
   by: { id: user.id, name: user.name },
 })
 
+// Throws unless the user is the engineer assigned to the observation's assessment.
+// For the changes that need no other check (a transcription retry, reading the
+// photos): without it a knowledge admin, who holds assessments:edit (RV-11), could
+// start work, and spend AI money, on someone else's assessment.
+async function mustBeAssigned(id: string, user: SessionUser) {
+  const observation = await ObservationModel.findById(id, 'assessment').lean()
+  if (!observation) throw new ObservationNotFoundError()
+  const assessment = await AssessmentModel.findById(observation.assessment, 'engineer').lean()
+  if (String(assessment?.engineer) !== user.id) {
+    throw new NotAssignedError(
+      'Only the engineer assigned to this assessment can change its observations.',
+    )
+  }
+}
+
 // The observation, with its assessment's locations, when the user may change
 // it (CP-08): only the assessment's assigned engineer, as for its other details
 // (RV-10), and not once the assessment is archived.
@@ -1201,8 +1216,13 @@ export async function listCategoryObservations(
 // Starts a new attempt for the same recording (CP-03 AC7). Matching on the
 // failed status makes it atomic, so a double click cannot start two attempts.
 // A removed recording (CP-08) is not retried until it is restored.
-export async function retryTranscription(id: string, recordingId: string): Promise<void> {
+export async function retryTranscription(
+  id: string,
+  recordingId: string,
+  user: SessionUser,
+): Promise<void> {
   if (!isValidObjectId(id) || !isValidObjectId(recordingId)) throw new ObservationNotFoundError()
+  await mustBeAssigned(id, user)
   const { matchedCount } = await ObservationModel.updateOne(
     {
       _id: id,
@@ -1318,8 +1338,13 @@ export async function runTranscription(
 // Starts a new attempt for the same handwritten page (CP-19 AC11), as for a
 // recording: matching on the failed status makes it atomic, so a double click
 // cannot start two attempts.
-export async function retryPageTranscription(id: string, pageId: string): Promise<void> {
+export async function retryPageTranscription(
+  id: string,
+  pageId: string,
+  user: SessionUser,
+): Promise<void> {
   if (!isValidObjectId(id) || !isValidObjectId(pageId)) throw new ObservationNotFoundError()
+  await mustBeAssigned(id, user)
   const { matchedCount } = await ObservationModel.updateOne(
     { _id: id, pages: { $elemMatch: { _id: pageId, 'transcription.status': 'failed' } } },
     {
@@ -1474,8 +1499,13 @@ export type ReadingPart = (typeof READING_PARTS)[number]
 // transcript; the description reads the photos, with the note as a hint.
 // Matching on the state it found makes it atomic, so a double click cannot
 // start two.
-export async function readObservation(id: string, part?: ReadingPart): Promise<void> {
+export async function readObservation(
+  id: string,
+  part: ReadingPart | undefined,
+  user: SessionUser,
+): Promise<void> {
   if (!isValidObjectId(id)) throw new ObservationNotFoundError()
+  await mustBeAssigned(id, user)
   const o = await ObservationModel.findById(
     id,
     'note recordings pages photos interpretation deleted',

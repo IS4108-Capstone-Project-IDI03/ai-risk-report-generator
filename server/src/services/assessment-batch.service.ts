@@ -2,12 +2,14 @@
 // assessment form, filled in by hand or from client documents. Called by
 // routes/assessment.routes.ts (POST /api/assessments) and
 // client-intake-create.service.ts. Calls client.service.ts (find or add the
-// client, duplicate-site rules) and assessment.service.ts (codes, DTOs).
+// client, duplicate-site rules), assessment.service.ts (codes, DTOs) and
+// assessment-assign.service.ts (who the engineer is, and telling them, RV-11).
 import { z } from 'zod'
 import { Types } from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
 import { ClientModel } from '../models/client.model'
 import { SiteModel, type ISite } from '../models/site.model'
+import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 import {
   dueDateRule,
@@ -33,6 +35,7 @@ import {
   UnknownClientError,
 } from './client.service'
 import { FACILITY_TYPES } from './knowledge-document.service'
+import { assignedEngineers, tellAssignedEngineers } from './assessment-assign.service'
 
 // A ref names a site or assessment within one request, e.g. "site-1", so a
 // client document can be placed under it before it has an id. Used as a key
@@ -51,6 +54,10 @@ const newVisitSchema = z
       .array(z.object({ name: required('Contact name'), role: optional('Contact role') }))
       .max(20, 'List at most 20 site contacts.')
       .default([]),
+    // The assigned engineer (RV-11): honoured, and required, only for someone
+    // with assessments:assign. Checked in assignedEngineers, which needs the
+    // database; here it is only read.
+    engineerId: z.string().optional(),
   })
   .refine(
     (a) => !a.siteVisitEndDate || (!!a.siteVisitDate && a.siteVisitEndDate >= a.siteVisitDate),
@@ -220,7 +227,8 @@ const day = (date?: string) => (date ? new Date(date) : undefined)
 
 /**
  * Finds or adds the client, adds each new site and each assessment, assigned
- * to the signed-in engineer, in steps a-f. `then` runs once they exist (the
+ * to the engineer chosen for it (the signed-in user unless they may assign),
+ * in steps a-f. `then` runs once they exist (the
  * intake keeps its documents there). Returns the client's id and the
  * assessments in request order. A failure, in `then` too, removes what this
  * call made, so nothing is left half created. Throws AssessmentFieldsError
@@ -231,7 +239,9 @@ export async function createAll(
   user: SessionUser,
   then?: (made: Made) => Promise<void>,
 ): Promise<CreatedAssessments> {
-  // a. Check.
+  // a. Check, and settle who each assessment is for (RV-11).
+  const { engineers, fields } = await assignedEngineers(input, user)
+  if (Object.keys(fields).length) throw new AssessmentFieldsError(fields)
   const { listed, recorded } = await checkAgainstRecords(input)
 
   // b. The client, and c. the ids.
@@ -285,7 +295,7 @@ export async function createAll(
               siteVisitEndDate: day(visit.siteVisitEndDate),
               reportDueDate: day(visit.reportDueDate),
               siteContacts: visit.siteContacts,
-              engineer: new Types.ObjectId(user.id),
+              engineer: new Types.ObjectId(engineers[visit.ref].id),
               locations: (copied?.locations ?? []).map(({ building, floor, name, key }) => ({
                 building,
                 floor,
@@ -300,6 +310,9 @@ export async function createAll(
     // Named before `then` keeps documents: a failure here must not orphan them.
     const assessments = await dtosOf(planned, sites, client, user)
     await then?.({ clientId: String(client._id), ...ids })
+    // Told last, once nothing can roll the create back: an Inbox item for an
+    // assessment that was then removed would point at nothing.
+    await tellAssignedEngineers(assessments, engineers, ids.assessmentIds, user)
     return { clientId: String(client._id), assessments }
   } catch (error) {
     // No transaction (dev and test MongoDB are standalone servers), so a failed
@@ -337,7 +350,8 @@ export async function createdBefore(
   return { clientId, assessments: await dtosOf(ids, sites, client, user) }
 }
 
-// The created assessments, in request order, as the work list shows them.
+// The created assessments, in request order, as the work list shows them. Each
+// shows its own engineer, read from the saved record: a form can assign several.
 async function dtosOf(
   ids: Types.ObjectId[],
   sites: StoredSite[],
@@ -347,10 +361,14 @@ async function dtosOf(
   const stored = await AssessmentModel.find({ _id: { $in: ids } }).lean()
   const shown = sites.map((site) => ({ ...site, client }))
   const rights = await changeRights(shown, user.id)
-  const engineer = { _id: user.id, name: user.name }
+  const engineers = new Map(
+    (await UserModel.find({ _id: { $in: stored.map((a) => a.engineer) } }, 'name').lean()).map(
+      (e) => [String(e._id), e],
+    ),
+  )
   return ids.flatMap((id) => {
     const a = stored.find((s) => s._id.equals(id))
     const site = a && shown.find((s) => s._id.equals(a.site))
-    return a && site ? [toDto(a, site, engineer, rights(site))] : []
+    return a && site ? [toDto(a, site, engineers.get(String(a.engineer)), rights(site))] : []
   })
 }

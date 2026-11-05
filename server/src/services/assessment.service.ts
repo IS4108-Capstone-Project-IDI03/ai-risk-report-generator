@@ -147,12 +147,17 @@ export type ListedSite = Omit<ISite, 'client'> & {
 export type Rights = ReturnType<Awaited<ReturnType<typeof changeRights>>>
 
 // Assigned assessments for engineers, all assessments for knowledge admins.
-// Two queries: matching assessments, then their capture sessions.
+// Two queries: matching assessments, then their capture sessions. `only`
+// narrows it further, e.g. to one reference.
 // ponytail: paginate once one engineer's work list outgrows one response.
-export async function listAssessments(user: SessionUser): Promise<AssessmentDto[]> {
-  const assessments = await AssessmentModel.find(
-    user.role === 'knowledge_admin' ? {} : { engineer: user.id },
-  )
+export async function listAssessments(
+  user: SessionUser,
+  only: { reference?: string } = {},
+): Promise<AssessmentDto[]> {
+  const assessments = await AssessmentModel.find({
+    ...(user.role === 'knowledge_admin' ? {} : { engineer: user.id }),
+    ...only,
+  })
     .sort({ siteVisitDate: -1, createdAt: -1 })
     .populate<{ site: ListedSite }>({ path: 'site', populate: { path: 'client', select: 'name' } })
     .populate<{ engineer: AssignedEngineer | null }>('engineer', 'name')

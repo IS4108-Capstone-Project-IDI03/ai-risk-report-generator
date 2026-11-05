@@ -156,13 +156,34 @@ describe('The client page (CP-18)', () => {
     ])
   })
 
-  it('is refused for a client the engineer has no assessment for, an unknown one, and admins', async () => {
+  it('is refused for a client the engineer has no assessment for, and an unknown one', async () => {
     const { clientId } = await firstVisit(jideApi)
     expect((await api.get(`/api/clients/${clientId}`)).status).toBe(403)
     expect((await api.get(`/api/clients/${new Types.ObjectId()}`)).status).toBe(404)
     expect((await api.get('/api/clients/not-an-id')).status).toBe(404)
+  })
+
+  it('opens for a knowledge admin who holds none of its assessments, read-only (RV-11)', async () => {
+    const { clientId, siteId } = await firstVisit(jideApi)
     const admin = signedInAsRole(app, 'knowledge_admin')
-    expect((await admin.get(`/api/clients/${clientId}`)).status).toBe(403)
+
+    const page = await admin.get(`/api/clients/${clientId}`)
+
+    expect(page.status).toBe(200)
+    // Nothing on the page is theirs to change.
+    expect(page.body.rename.allowed).toBe(false)
+    expect(page.body.remove.allowed).toBe(false)
+    expect(page.body.sites[0].change.allowed).toBe(false)
+    expect((await admin.put(`/api/clients/${clientId}`).send({ name: 'Other' })).status).toBe(403)
+    expect(
+      (
+        await admin.put(`/api/sites/${siteId}`).send({
+          name: 'Renamed',
+          jurisdiction: 'SG',
+          facilityType: 'Distribution warehouse',
+        })
+      ).status,
+    ).toBe(403)
   })
 })
 

@@ -1,15 +1,20 @@
+import { Types } from 'mongoose'
 import { describe, expect, it } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { SiteModel } from '../models/site.model'
 import { useMemoryMongo } from './memory-mongo'
-import { signedInAsRole } from './auth-test-helpers'
+import { signedInAs } from './auth-test-helpers'
+import type { IUser } from '../models/user.model'
 
 useMemoryMongo()
 
 // A risk engineer is allowed everything below (F-05); role limits are in permissions.test.ts.
-const api = signedInAsRole(app, 'risk_engineer')
+// Only an assessment's assigned engineer can open capture on it (RV-11), so the
+// assessments below are assigned to this one.
+const engineer = { _id: new Types.ObjectId(), role: 'risk_engineer', name: 'Test User' }
+const api = signedInAs(app, engineer as unknown as IUser & { _id: unknown })
 
 async function createAssessment(reference = 'RPT-2026-0411') {
   const site = await SiteModel.create({
@@ -23,6 +28,7 @@ async function createAssessment(reference = 'RPT-2026-0411') {
     site: site._id,
     client: 'Northgate Logistics',
     surveyType: 'Property risk survey',
+    engineer: engineer._id,
   })
 }
 

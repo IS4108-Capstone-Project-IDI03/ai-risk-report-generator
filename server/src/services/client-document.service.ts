@@ -64,14 +64,14 @@ export type ClientDocumentDto = {
 // those tagged to a site where they have an own assessment or to one of their
 // own assessments. Without the narrowing, a document tagged to another
 // engineer's site or assessment would be open to every engineer at the client.
-async function visibleDocuments(clientId: Types.ObjectId, user: SessionUser) {
+async function visibleDocuments(clientId: Types.ObjectId, user: SessionUser, forChange = false) {
   const sites = await SiteModel.find({ client: clientId }, '_id').lean()
   const mine = await AssessmentModel.find(
-    { site: { $in: sites.map((s) => s._id) }, ...own(user) },
+    { site: { $in: sites.map((s) => s._id) }, ...own(user, forChange) },
     '_id site',
   ).lean()
   if (!mine.length) throw new ClientSiteError('You have no assessments for this client.', 403)
-  if (user.role === 'knowledge_admin') return { client: clientId }
+  if (user.role === 'knowledge_admin' && !forChange) return { client: clientId }
   return {
     client: clientId,
     $or: [
@@ -85,8 +85,12 @@ async function visibleDocuments(clientId: Types.ObjectId, user: SessionUser) {
   }
 }
 
-// The assessments the user's client page lists: their own, or all for a knowledge admin.
-const own = (user: SessionUser) => (user.role === 'knowledge_admin' ? {} : { engineer: user.id })
+// The assessments the user's client page lists: their own, or all for a knowledge
+// admin who is only reading. A change (an upload, a new tag, a delete) is judged
+// on their own assessments for everyone (RV-11): an admin holds assessments:edit
+// now, and without this could file or delete documents at any client.
+const own = (user: SessionUser, forChange = false) =>
+  user.role === 'knowledge_admin' && !forChange ? {} : { engineer: user.id }
 // A site still listed (CP-18): a removed one takes no documents.
 const LISTED = { removed: { $exists: false } }
 
@@ -209,12 +213,20 @@ export type ClientPlacement = z.infer<typeof placementSchema>
 // 400 for a site or assessment the user's client page doesn't show (another
 // client's, another engineer's, or removed): without it, a document could be
 // filed where its engineer can't see it.
-async function resolvePlacement(client: Types.ObjectId, tag: ClientPlacement, user: SessionUser) {
+async function resolvePlacement(
+  client: Types.ObjectId,
+  tag: ClientPlacement,
+  user: SessionUser,
+  forChange = false,
+) {
   const refuse = () => new ClientSiteError('Choose a site or assessment of this client.', 400)
   if (tag.kind === 'client') return { placement: { kind: 'client' as const } }
   const assessment =
     tag.kind === 'assessment' && isValidObjectId(tag.assessmentId)
-      ? await AssessmentModel.findOne({ _id: tag.assessmentId, ...own(user) }, 'site').lean()
+      ? await AssessmentModel.findOne(
+          { _id: tag.assessmentId, ...own(user, forChange) },
+          'site',
+        ).lean()
       : null
   const siteId = tag.kind === 'site' ? tag.siteId : assessment?.site
   const site =
@@ -225,7 +237,7 @@ async function resolvePlacement(client: Types.ObjectId, tag: ClientPlacement, us
     site &&
     (tag.kind === 'assessment'
       ? !!assessment
-      : !!(await AssessmentModel.exists({ site: site._id, ...own(user) })))
+      : !!(await AssessmentModel.exists({ site: site._id, ...own(user, forChange) })))
   if (!shown) throw refuse()
   return {
     site,
@@ -260,8 +272,8 @@ export async function uploadClientDocuments(
   user: SessionUser,
 ): Promise<UploadedFile[]> {
   const client = await getClient(clientId)
-  await visibleDocuments(client._id, user)
-  const { placement, site } = await resolvePlacement(client._id, tag, user)
+  await visibleDocuments(client._id, user, true)
+  const { placement, site } = await resolvePlacement(client._id, tag, user, true)
   // Each file kept (its saved record) or refused, in the order sent.
   const answered: ({ name: string; saved: LeanDocument } | { name: string; reason: string })[] = []
   for (const { name, bytes } of files) {
@@ -330,8 +342,8 @@ export async function retagClientDocument(
   tag: ClientPlacement,
   user: SessionUser,
 ): Promise<ClientDocumentDto> {
-  const document = await documentById(id, user)
-  const { placement, site } = await resolvePlacement(document.client, tag, user)
+  const document = await documentById(id, user, true)
+  const { placement, site } = await resolvePlacement(document.client, tag, user, true)
   const updated = await ClientDocumentModel.findByIdAndUpdate(
     id,
     {
@@ -351,10 +363,10 @@ export async function retagClientDocument(
 // The document, when the user may see it: ClientDocumentNotFoundError for an
 // unknown one or one outside their set (as if it did not exist), 403 when they
 // have no assessment at its client.
-async function documentById(id: string, user: SessionUser) {
+async function documentById(id: string, user: SessionUser, forChange = false) {
   const found = isValidObjectId(id) ? await ClientDocumentModel.findById(id, 'client').lean() : null
   if (!found) throw new ClientDocumentNotFoundError()
-  const visible = await visibleDocuments(found.client, user)
+  const visible = await visibleDocuments(found.client, user, forChange)
   const document = await ClientDocumentModel.findOne({ _id: id, ...visible }).lean()
   if (!document) throw new ClientDocumentNotFoundError()
   return document
@@ -376,7 +388,7 @@ export async function getClientDocumentFile(id: string, user: SessionUser) {
  * ClientDocumentFileError when S3 refuses, keeping the record.
  */
 export async function deleteClientDocument(id: string, user: SessionUser): Promise<void> {
-  const document = await documentById(id, user)
+  const document = await documentById(id, user, true)
   // The file first: delete is permanent (decision 3), so without this a failed
   // S3 delete would report success while the original stayed. S3 deletes a
   // missing key without error, so a retry after a half-done delete works.

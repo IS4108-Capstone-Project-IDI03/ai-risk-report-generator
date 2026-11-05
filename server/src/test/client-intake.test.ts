@@ -255,9 +255,9 @@ describe('Adding client documents (CP-23 AC1, AC3)', () => {
     expect((await upload({}, 'Survey Tuas please.')).status).toBe(201)
   })
 
-  it('is for those who create assessments', async () => {
+  it('is open to a knowledge admin, who creates assessments too (RV-11)', async () => {
     const admin = signedInAsRole(app, 'knowledge_admin')
-    expect((await upload({ 'Request.pdf': PDF }, undefined, admin)).status).toBe(403)
+    expect((await upload({ 'Request.pdf': PDF }, undefined, admin)).status).toBe(201)
   })
 })
 
@@ -1147,5 +1147,38 @@ describe('Documents tagged to another engineer (CP-23 review C1)', () => {
     // A knowledge admin sees every assessment, so every document.
     const admin = signedInAsRole(app, 'knowledge_admin')
     expect((await admin.get(`/api/client-documents/${onVisit._id}/file`)).status).toBe(200)
+  })
+})
+
+describe('Creating from an intake as an admin (RV-11)', () => {
+  const sana = { ...engineer('Sana Patel', 'TEST-3'), role: 'knowledge_admin' as const }
+  const sanaApi = signedInAs(app, sana)
+
+  it('assigns each assessment to the engineer the admin chose, and tells them', async () => {
+    await UserModel.create(sana)
+    const uploaded = await upload({ 'Request.pdf': PDF }, undefined, sanaApi)
+    rag.mockImplementation(() => ({ status: 200, body: proposal(uploaded.body.files[0].id) }))
+    await sanaApi.post(`/api/client-intakes/${uploaded.body.id}/read`).expect(200)
+    const form = structuredClone(FORM)
+    Object.assign(form.sites[0].assessments[0], { engineerId: String(jide._id) })
+
+    const created = await sanaApi
+      .post(`/api/client-intakes/${uploaded.body.id}/create`)
+      .send({ ...form, documents: [] })
+
+    expect(created.status).toBe(201)
+    expect(created.body.assessments[0].engineer).toEqual({
+      id: String(jide._id),
+      name: 'Jide Okafor',
+    })
+    const inbox = await jideApi.get('/api/notifications?kind=inbox').expect(200)
+    expect(inbox.body.items.map((i: { message: string }) => i.message)).toEqual([
+      'New assessment: Tuas Cold Store',
+    ])
+    // The admin must choose: a form with no engineer is refused, and nothing is created.
+    const second = await upload({ 'Request.pdf': PDF }, undefined, sanaApi)
+    const refused = await sanaApi.post(`/api/client-intakes/${second.body.id}/create`).send(FORM)
+    expect(refused.status).toBe(400)
+    expect(refused.body.fields).toHaveProperty(['sites.0.assessments.0.engineerId'])
   })
 })

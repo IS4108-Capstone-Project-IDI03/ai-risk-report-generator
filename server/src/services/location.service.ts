@@ -124,13 +124,19 @@ export async function listLocations(reference: string): Promise<LocationDto[]> {
 
 // Adds a location unless one with the same name, level and building exists.
 // Matching on the key in the same update makes it atomic, so two taps cannot
-// add two.
+// add two. Only the assigned engineer can, as for changing a location.
 export async function addLocation(
   reference: string,
   details: LocationDetails,
+  user: SessionUser,
 ): Promise<LocationDto> {
-  const listed = await AssessmentModel.findOne({ reference }, 'locations').lean()
+  const listed = await AssessmentModel.findOne({ reference }, 'locations engineer').lean()
   if (!listed) throw new AssessmentNotFoundError(reference)
+  if (String(listed.engineer) !== user.id) {
+    throw new NotAssignedError(
+      'Only the engineer assigned to this assessment can change its locations.',
+    )
+  }
   const location = listedSpelling(listed.locations ?? [], details)
   const key = locationKey(location.name, location.floor, location.building)
   const assessment = await AssessmentModel.findOneAndUpdate(
@@ -199,15 +205,20 @@ export async function editLocation(
   throw new LocationNotFoundError()
 }
 
-// Removes a location added by mistake. One with observations stays, so no
+// Removes a location added by mistake, for the assigned engineer only. One with observations stays, so no
 // observation loses where it was captured. Deleted observations count too
 // (CP-08), so a restored one never comes back without its location.
 // ponytail: an observation saved or moved here between the check and the
 // removal would keep a location that is gone; it then shows no location until
 // its tags are edited (CP-06).
-export async function removeLocation(reference: string, id: string) {
-  const assessment = await AssessmentModel.findOne({ reference }, 'locations').lean()
+export async function removeLocation(reference: string, id: string, user: SessionUser) {
+  const assessment = await AssessmentModel.findOne({ reference }, 'locations engineer').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
+  if (String(assessment.engineer) !== user.id) {
+    throw new NotAssignedError(
+      'Only the engineer assigned to this assessment can change its locations.',
+    )
+  }
   const location = isValidObjectId(id)
     ? assessment.locations?.find((l) => l._id.equals(id))
     : undefined

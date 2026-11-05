@@ -18,6 +18,12 @@ import {
 } from '../services/capture-session.service'
 import { ClientSiteError } from '../services/client.service'
 import {
+  listAssignableEngineers,
+  reassignAssessment,
+  UnknownEngineerError,
+  AssessmentReassignedError,
+} from '../services/assessment-assign.service'
+import {
   AssessmentFieldsError,
   createAll,
   newAssessmentsSchema,
@@ -126,8 +132,16 @@ router.get('/', requirePermission('assessments:view'), async (_req, res) => {
   res.json(await listAssessments(res.locals.user!))
 })
 
+// The accounts an assessment can be assigned to (RV-11): active ones by name,
+// the caller included. Registered before the `/:reference` routes so it is never
+// read as a reference.
+router.get('/assignable-engineers', requirePermission('assessments:assign'), async (_req, res) => {
+  res.json({ items: await listAssignableEngineers() })
+})
+
 // Creates one client's sites and assessments together (CP-23), each assigned
-// to the signed-in engineer: 201 { clientId, assessments }. 400 names the
+// to the signed-in engineer, or to the engineer an admin chose for it (RV-11):
+// 201 { clientId, assessments }. 400 names the
 // first problem with each invalid field by its path, e.g.
 // `sites.0.assessments.1.visitType`, including an unknown client, a site of
 // another client, a site name the client has, and a visit type a site with no
@@ -148,18 +162,54 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
   }
 })
 
+// Moves an assessment to another engineer (RV-11): 200 with its row as the
+// Assessments list shows it. 400 names `engineerId` for an unknown or inactive
+// account, 404 for an unknown assessment, 409 once it is archived or when another
+// admin reassigned it first.
+router.post('/:reference/reassign', requirePermission('assessments:assign'), async (req, res) => {
+  try {
+    res.json(await reassignAssessment(req.params.reference, req.body?.engineerId, res.locals.user!))
+  } catch (error: unknown) {
+    if (error instanceof UnknownEngineerError) {
+      res.status(400).json({ error: error.message, fields: { engineerId: error.message } })
+      return
+    }
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof AssessmentArchivedError) {
+      res.status(409).json({ error: `${error.message} Restore it before reassigning it.` })
+      return
+    }
+    if (error instanceof AssessmentReassignedError) {
+      res.status(409).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
 // Opens capture for an assessment: 201 when a new session was started, 200
-// when the assessment's active session was returned.
+// when the assessment's active session was returned, 403 for anyone but its
+// assigned engineer.
 router.post(
   '/:reference/capture-session',
   requirePermission('assessments:edit'),
   async (req, res) => {
     try {
-      const { created, session, assessment } = await startCaptureSession(req.params.reference)
+      const { created, session, assessment } = await startCaptureSession(
+        req.params.reference,
+        res.locals.user!,
+      )
       res.status(created ? 201 : 200).json({ session, assessment })
     } catch (error: unknown) {
       if (error instanceof AssessmentNotFoundError) {
         res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
         return
       }
       if (error instanceof AssessmentArchivedError) {
@@ -250,7 +300,8 @@ router.get('/:reference/locations', requirePermission('assessments:view'), async
   }
 })
 
-// Adds a location. 409 when the same name, level and building is already listed.
+// Adds a location. 403 for anyone but the assigned engineer, 409 when the same
+// name, level and building is already listed.
 router.post('/:reference/locations', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = locationSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -260,10 +311,14 @@ router.post('/:reference/locations', requirePermission('assessments:edit'), asyn
     return
   }
   try {
-    res.status(201).json(await addLocation(req.params.reference, parsed.data))
+    res.status(201).json(await addLocation(req.params.reference, parsed.data, res.locals.user!))
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof NotAssignedError) {
+      res.status(403).json({ error: error.message })
       return
     }
     if (error instanceof DuplicateLocationError) {
@@ -314,17 +369,22 @@ router.patch(
   },
 )
 
-// Removes a location with no observations: 204, 404, or 409 while it has some.
+// Removes a location with no observations: 204, 403 for anyone but the assigned
+// engineer, 404, or 409 while it has some.
 router.delete(
   '/:reference/locations/:id',
   requirePermission('assessments:edit'),
   async (req, res) => {
     try {
-      await removeLocation(req.params.reference, req.params.id)
+      await removeLocation(req.params.reference, req.params.id, res.locals.user!)
       res.status(204).end()
     } catch (error: unknown) {
       if (error instanceof AssessmentNotFoundError || error instanceof LocationNotFoundError) {
         res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
         return
       }
       if (error instanceof LocationInUseError) {
