@@ -56,6 +56,10 @@ export const config = {
     cohereRerankUsdPer1K: Number(process.env.COHERE_RERANK_USD_PER_1K_SEARCHES ?? 2),
   },
   serviceApiKey: process.env.SERVICE_API_KEY, // for authenticating external api calls
+  // Google Maps key for the site map (CP-26). Sent to signed-in browsers, so it
+  // must be restricted to this app's domain in the Google console. Optional:
+  // without it the map says so, and coordinates and directions still work.
+  googleMapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || undefined,
   piiProtection: piiProtectionFrom(process.env.PII_PROTECTION),
   piiCheckAnswers: piiCheckAnswersFrom(process.env.PII_CHECK_ANSWERS),
   // Where the browser app is served; the emailed reset (F-06) and invitation

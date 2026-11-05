@@ -109,6 +109,11 @@ scp -i a2603.pem .env ubuntu@<elastic-ip>:~/ai-risk-report-generator/.env
 
 Or simply run `nano .env` on the instance and paste the contents. The `.env` must have all the values set to cloud use (MONGODB_URI to actual Atlas URI, CHROMA_MODE=cloud, all API keys filled, etc).
 
+For the Geolocation card (CP-26), set `GOOGLE_MAPS_BROWSER_KEY`. Browsers can read
+this key, so in the Google Cloud console restrict it to the Maps JavaScript API and
+to this app's HTTP referrer. Set a budget alert too. Without a key the map says
+it's unavailable; coordinates and directions still work.
+
 On the box, check: Atlas `MONGODB_URI`, `CHROMA_MODE=cloud` plus credentials,
 AWS keys empty, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `OCR_PROVIDER=anthropic`.
 

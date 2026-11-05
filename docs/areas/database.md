@@ -280,8 +280,15 @@ changed until it is restored.
 | `POST /api/clients/:id/remove` | Removes all its listed sites as one batch (`removed.withClient`). 204, or 403, 404, 409 not all archived, finalised, or already removed |
 | `POST /api/clients/:id/restore` | Restores that batch, one site at a time: 200 `{ restored, nameTaken }`, naming any held back because another listed site now has its name. 403, 404, 409 none removed with it |
 | `PUT /api/sites/:id` | Corrects a site's `name`, `address`, `jurisdiction` and `facilityType`, validated as a new site's, for every assessment at it. A changed facility type must be one of `FACILITY_TYPES`; an older one unchanged is kept. 204, or 400 a name the client already has or a facility type off the list (`fields.name`, `fields.facilityType`), 403, 404, 409 finalised or removed |
+| `PUT /api/sites/:id/map` | One change (CP-26): `{ coordinates }`, or `{ block, point }`, either value `{ lat, lng }` or null to remove. One at a time, so engineers pinning different blocks can't erase each other's pins. Any engineer with an assessment there, since a pin changes no report. 204, or 400 naming the field, 403, 404, 409 removed |
+| `GET /api/sites/map-config` | The Google Maps browser key, `{ key }`, null when none is set. Any signed-in user (CP-26) |
 | `POST /api/sites/:id/remove` | Removes it. 204, or 403, 404, 409 not all archived, finalised, or already removed |
 | `POST /api/sites/:id/restore` | Restores it, renamed when JSON `name` is given. 204, or 400 when another listed site of the client has the name it would have (`fields.name`), 403, 404, 409 not removed |
+
+A site may have `coordinates` and `blockPins` (CP-26), shown on the Overview's
+Geolocation card. They sit on the site, not a visit, because buildings don't move:
+each pin's `key` is its block's lowercased name, so a later visit's "Block A" finds
+it. Blocks only, never levels or rooms. Neither field reaches a report or an AI call.
 
 Site routes go by the site's own id, so a site with no client yet can be
 corrected. A removed site's name doesn't stop a new site taking it (a

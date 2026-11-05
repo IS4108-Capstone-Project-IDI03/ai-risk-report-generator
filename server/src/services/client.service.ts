@@ -413,6 +413,28 @@ export type SiteFields = {
   facilityType: string
 }
 
+// A point on the map (CP-26), checked here because a browser can send anything.
+const COORDINATES_RULE = 'Enter a latitude from -90 to 90 and a longitude from -180 to 180.'
+export const coordinatesSchema = z.object(
+  {
+    lat: z.number(COORDINATES_RULE).min(-90, COORDINATES_RULE).max(90, COORDINATES_RULE),
+    lng: z.number(COORDINATES_RULE).min(-180, COORDINATES_RULE).max(180, COORDINATES_RULE),
+  },
+  COORDINATES_RULE,
+)
+
+// One change to a site's map (CP-26): its location, or one block's pin, null to
+// remove either. One at a time, so two engineers pinning different blocks can't
+// erase each other's work, as saving the whole map would.
+export const siteMapChangeSchema = z.union([
+  z.strictObject({ coordinates: coordinatesSchema.nullable() }),
+  z.strictObject({
+    block: z.string('Name the block.').trim().min(1, 'Name the block.'),
+    point: coordinatesSchema.nullable(),
+  }),
+])
+export type SiteMapChange = z.infer<typeof siteMapChangeSchema>
+
 // Corrects a site's name, address, jurisdiction and facility type (CP-18), so
 // every assessment at it shows the change. Only when every assessment there,
 // archived or not, is the engineer's, none is finalised, and the site is not
@@ -453,6 +475,41 @@ export async function correctSite(id: string, input: SiteFields, user: SessionUs
       ...(!address && { $unset: { address: 1 } }),
     },
   )
+}
+
+// Applies one change to a site's map (CP-26). Any engineer with a visit there
+// may, unlike correctSite: a pin changes no report, so a colleague's assessment
+// there is no reason to refuse.
+export async function changeSiteMap(id: string, change: SiteMapChange, user: SessionUser) {
+  const site = await siteById(id)
+  if (site.removed) throw new ClientSiteError('This site has been removed.', 409)
+  if (!holdingOf(await holdings([site._id], user.id), site).mine)
+    throw new ClientSiteError('You have no assessment at this site.', 403)
+  if ('coordinates' in change) {
+    await SiteModel.updateOne(
+      { _id: site._id },
+      change.coordinates
+        ? { $set: { coordinates: change.coordinates } }
+        : { $unset: { coordinates: 1 } },
+    )
+    return
+  }
+  const key = clientKey(change.block)
+  if (!change.point) {
+    await SiteModel.updateOne({ _id: site._id }, { $pull: { blockPins: { key } } })
+    return
+  }
+  const pin = { key, name: change.block, ...change.point }
+  // Moved in place, so its number on the map stays the same; added if it's new.
+  const moved = await SiteModel.updateOne(
+    { _id: site._id, 'blockPins.key': key },
+    { $set: { 'blockPins.$': pin } },
+  )
+  if (!moved.matchedCount)
+    await SiteModel.updateOne(
+      { _id: site._id, 'blockPins.key': { $ne: key } },
+      { $push: { blockPins: pin } },
+    )
 }
 
 // Removes a site (CP-18), a soft removal: it leaves the client's page and the
