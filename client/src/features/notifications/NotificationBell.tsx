@@ -81,7 +81,12 @@ export function NotificationBell({
           }}
         >
           {n.unread > 0 && (
-            <span key={pulse} aria-hidden="true" className="notif-badge">
+            <span
+              key={pulse}
+              aria-hidden="true"
+              className="notif-badge"
+              data-long={n.unread > 99 ? '' : undefined}
+            >
               {n.unread > 99 ? '99+' : n.unread}
             </span>
           )}

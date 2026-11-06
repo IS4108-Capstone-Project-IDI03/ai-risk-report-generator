@@ -43,7 +43,6 @@ function makeItems(count: number, startAt = 1): Notification[] {
       context: null,
       read: false,
       done: false,
-      doneAt: null,
       createdAt: '2026-04-11T09:22:00.000Z',
     }
   })

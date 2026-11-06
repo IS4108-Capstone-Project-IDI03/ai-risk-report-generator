@@ -82,11 +82,12 @@
 .notif-badge {
   position: absolute;
   top: 1px;
-  right: 1px;
+  /* Anchored by its left edge so a longer count grows right, not over the bell. */
+  left: 21px;
   box-sizing: border-box;
   min-width: 18px;
   height: 18px;
-  padding: 0 4px;
+  padding: 0 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -94,10 +95,11 @@
   background: var(--red-600);
   color: var(--text-inverse);
   box-shadow: 0 0 0 2px var(--notif-ring);
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   line-height: 1;
-  font-weight: var(--weight-semibold);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   animation: notif-badge-pulse var(--duration-slow) var(--ease-out);
 }
 .notif-bell--ring {
@@ -327,7 +329,35 @@
   z-index: 1;
 }
 
+/* Phone sheet (item 17): a roomier header, 19 px title, and 44 px buttons with 20 px icons.
+   The buttons set their size inline, hence !important. */
+.notif-sheet .notification-list__header {
+  height: 60px;
+}
+.notif-sheet .notification-list__header h2 {
+  font-size: 19px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.notif-sheet .notif-action {
+  width: 44px !important;
+  height: 44px !important;
+}
+.notif-sheet .notification-list__header .notif-action > [role='presentation'] {
+  width: 20px !important; /* the icon is a masked span with an inline size */
+  height: 20px !important;
+}
+
+/* The phone's bell sits 13 px from the screen's edge, so "99+" at left: 21px would run off it.
+   It moves 6 px left, trims its padding and rides 5 px higher so it clears the bell:
+   about 5 px from the edge to spare. */
 @media (max-width: 767px) {
+  .notif-badge[data-long] {
+    top: -4px;
+    left: 15px;
+    padding: 0 4px;
+  }
+
   .notification-popover-surface {
     position: fixed !important;
     top: auto !important;
