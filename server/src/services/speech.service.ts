@@ -173,6 +173,19 @@ export async function describeChatPhoto(
   return { description: body.description, unclear: body.unclear ?? '' }
 }
 
+// The text of each page of a PDF attached to a chat (CB-09). S5 stores nothing. A file it refuses
+// (scanned, protected, too long) is a SpeechServiceError that is not retryable, with the reason.
+export async function extractChatPdf(
+  pdf: Buffer,
+): Promise<{ pages: { page: number; text: string }[]; skipped: number[] }> {
+  return callS5<{ pages: { page: number; text: string }[]; skipped: number[] }>(
+    '/chat-pdf/extract',
+    { pdf_base64: pdf.toString('base64') },
+    'The PDF service could not be reached.',
+    (b) => Array.isArray(b.pages),
+  )
+}
+
 // Usage items with `_` in their feature turned into `-`, the gateway's spelling.
 export function hyphenated(usage: unknown): unknown {
   if (!Array.isArray(usage)) return usage

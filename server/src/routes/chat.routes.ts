@@ -24,6 +24,14 @@ import {
   sentPhotoIds,
 } from '../services/chat-attachment.service'
 import { SpeechServiceError } from '../services/speech.service'
+import {
+  MAX_PDF_BYTES,
+  addPdf,
+  bindPdfs,
+  pdfPassage,
+  pdfsForChat,
+  removeUnsentPdf,
+} from '../services/chat-pdf.service'
 import { ChatMessageModel } from '../models/chat-message.model'
 import {
   addFact,
@@ -150,6 +158,27 @@ router.delete(
   }),
 )
 
+// A PDF for a conversation (CB-09): the file is the raw body, its name is in `X-File-Name`. Read at
+// once, so a file that cannot be used is refused before the question is written.
+router.post(
+  '/pdfs',
+  requirePermission('knowledge:view'),
+  express.raw({ type: 'application/pdf', limit: MAX_PDF_BYTES }),
+  handle(async (req, res) => {
+    if (!Buffer.isBuffer(req.body)) throw new ChatError(415, 'That file is not a PDF.')
+    const name = decodeURIComponent(req.get('X-File-Name') ?? '').trim()
+    res.json(await addPdf(res.locals.user!.id, req.body, name))
+  }),
+)
+router.delete(
+  '/pdfs/:id',
+  requirePermission('knowledge:view'),
+  handle(async (req, res) => {
+    await removeUnsentPdf(res.locals.user!.id, req.params.id)
+    res.status(204).end()
+  }),
+)
+
 router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   // Refused here, before S4, so no model is called and nothing is spent. It is a
   // 200 stream, not a 429, because OpenUI's fetchLLM would show a generic error
@@ -177,12 +206,19 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   } catch (error) {
     return chatError(res, error)
   }
+  // a3. The PDF sent with the question (CB-09): tied to this chat, one per chat.
+  let pdfs: { id: string; name: string; flagged: boolean }[] = []
+  try {
+    pdfs = typeof threadId === 'string' ? await bindPdfs(userId, threadId, req.body?.pdfs) : []
+  } catch (error) {
+    return chatError(res, error)
+  }
   // b. Save the question before asking S4, so it is kept even if the answer fails.
   const question = lastQuestion(req.body)
   // A failed save is logged, not fatal: the engineer still gets their answer.
   const questionId =
     typeof threadId === 'string' && question
-      ? await saveQuestion(threadId, userId, question, photos).catch((error) => {
+      ? await saveQuestion(threadId, userId, question, photos, pdfs).catch((error) => {
           console.error('Could not save the chat question:', error)
           return null
         })
@@ -202,6 +238,8 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
       // The gateway decides protection (PV-03), replacing any privacy the browser sent.
       {
         ...(await withChatDocuments(await withChatMemory(withContext(req.body, seen), userId))),
+        // The pages of this chat's PDF, read from storage, never from the browser (CB-09).
+        attachments: typeof threadId === 'string' ? await pdfsForChat(userId, threadId) : [],
         role: res.locals.user!.role,
         privacy: await chatPrivacy(),
       },
@@ -309,6 +347,11 @@ router.use('/conversations', requirePermission('knowledge:view'), chats)
 // One passage behind a citation (CB-02): its text and page boxes, passed through from S4.
 router.get('/passages/:id', requirePermission('knowledge:view'), async (req, res) => {
   try {
+    // A page of the engineer's own attached PDF is kept here, not in S4's index (CB-09).
+    if (req.params.id.startsWith('att:')) {
+      res.json(await pdfPassage(res.locals.user!.id, req.params.id))
+      return
+    }
     res.json(await getPassage(req.params.id))
   } catch (error: unknown) {
     if (!(error instanceof RagServiceError)) throw error

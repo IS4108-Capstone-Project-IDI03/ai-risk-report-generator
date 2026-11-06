@@ -5,6 +5,7 @@
 import { Types, type HydratedDocument } from 'mongoose'
 import { ChatError } from './chat-error'
 import { photoUrl, removePhotos } from './chat-attachment.service'
+import { removePdfsOf } from './chat-pdf.service'
 import { ChatConversationModel } from '../models/chat-conversation.model'
 import { ChatMessageModel, type IChatMessage } from '../models/chat-message.model'
 
@@ -94,6 +95,8 @@ function pathView(leafId: Types.ObjectId | undefined, all: Stored[]) {
       role: m.role,
       content: m.content,
       // The photos sent with a question (CB-08), as links the chat can show.
+      // The PDF attached with a question (CB-09).
+      ...(m.pdfs?.length && { pdfs: m.pdfs }),
       ...(m.attachments?.length && {
         attachments: m.attachments.map((id) => ({ id, url: photoUrl(id) })),
       }),
@@ -149,6 +152,8 @@ export async function deleteConversation(userId: string, id: string) {
     userId,
     sent.flatMap((m) => m.attachments ?? []),
   )
+  // Also the PDFs and their text (CB-09 AC4).
+  await removePdfsOf(userId, String(chat._id))
   await ChatMessageModel.deleteMany({ conversationId: chat._id })
   await chat.deleteOne()
 }
