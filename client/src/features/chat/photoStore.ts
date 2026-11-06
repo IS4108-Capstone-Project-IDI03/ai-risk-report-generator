@@ -16,8 +16,19 @@ export type PendingPhoto = {
   preview: string
 }
 
+/** A PDF attached to the question being written (CB-09). `flagged`: its text looks like instructions. */
+export type PendingPdf = {
+  id: string
+  name: string
+  pages: number
+  skipped: number[]
+  flagged: boolean
+}
+
 let pending: PendingPhoto[] = []
+let pendingPdf: PendingPdf | null = null
 const sent = new Map<string, string[]>()
+const sentPdfs = new Map<string, { id: string; name: string; flagged: boolean }[]>()
 const listeners = new Set<() => void>()
 const tell = () => listeners.forEach((listener) => listener())
 const subscribe = (listener: () => void) => (
@@ -30,6 +41,17 @@ export const idToSend = (p: PendingPhoto) =>
   p.faces && p.blurredId && p.choice === 'blur' ? p.blurredId : p.id
 
 export const usePending = () => useSyncExternalStore(subscribe, () => pending)
+export const usePendingPdf = () => useSyncExternalStore(subscribe, () => pendingPdf)
+/** The PDF a sent question carried, by its message id. */
+export const useSentPdfs = (messageId: string) =>
+  useSyncExternalStore(subscribe, () => sentPdfs.get(messageId))
+/** Whether any question sent from this page carried a PDF (a chat holds one). */
+export const useAnySentPdf = () => useSyncExternalStore(subscribe, () => sentPdfs.size > 0)
+
+export function setPendingPdf(pdf: PendingPdf | null) {
+  pendingPdf = pdf
+  tell()
+}
 /** The photos a sent question carried, by its message id. */
 export const useSentPhotos = (messageId: string) =>
   useSyncExternalStore(subscribe, () => sent.get(messageId))
@@ -37,7 +59,9 @@ export const useSentPhotos = (messageId: string) =>
 /** Forgets every photo, attached or sent. For tests; the page never needs it. */
 export function resetPhotos() {
   pending = []
+  pendingPdf = null
   sent.clear()
+  sentPdfs.clear()
   tell()
 }
 export function addPending(photo: PendingPhoto) {
@@ -55,19 +79,31 @@ export function removePending(key: string) {
 }
 
 /**
- * Wraps the chat link's fetch: the chosen photos go with the question, are remembered under that
+ * Wraps the chat link's fetch: the chosen photos and PDF go with the question, are remembered under that
  * question's id so it can show them at once, and the tray is emptied. A send with no photos (a
  * retry, an edit) is passed on unchanged: the gateway reuses a retried question's saved photos.
  */
 export function withPhotos(send: typeof fetch): typeof fetch {
   return (input, init) => {
-    if (!pending.length || typeof init?.body !== 'string') return send(input, init)
+    if ((!pending.length && !pendingPdf) || typeof init?.body !== 'string') return send(input, init)
     const body = JSON.parse(init.body) as { messages?: { id?: string; role?: string }[] }
     const ids = pending.map(idToSend)
+    const pdf = pendingPdf
     const last = body.messages?.findLast((m) => m.role === 'user')
-    if (last?.id) sent.set(last.id, ids)
+    if (last?.id) {
+      if (ids.length) sent.set(last.id, ids)
+      if (pdf) sentPdfs.set(last.id, [{ id: pdf.id, name: pdf.name, flagged: pdf.flagged }])
+    }
     pending = []
+    pendingPdf = null
     tell()
-    return send(input, { ...init, body: JSON.stringify({ ...body, attachments: ids }) })
+    return send(input, {
+      ...init,
+      body: JSON.stringify({
+        ...body,
+        ...(ids.length && { attachments: ids }),
+        ...(pdf && { pdfs: [pdf.id] }),
+      }),
+    })
   }
 }

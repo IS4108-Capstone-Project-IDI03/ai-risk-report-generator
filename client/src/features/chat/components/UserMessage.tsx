@@ -4,7 +4,8 @@ import type { UserMessage as Message } from '@openuidev/react-headless'
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useVersions } from '../useVersions'
 import { IconButton } from '../../../design-system'
-import { useSentPhotos } from '../photoStore'
+import { useSentPdfs, useSentPhotos } from '../photoStore'
+import { MessagePdf } from './MessagePdf'
 import { MessagePhotos } from './MessagePhotos'
 import { VersionSwitcher } from './VersionSwitcher'
 
@@ -19,6 +20,9 @@ export function UserMessage({ message }: { message: Message }) {
   const saved = (message as { attachments?: { id: string }[] }).attachments?.map((a) => a.id)
   const justSent = useSentPhotos(message.id)
   const photos = saved ?? justSent ?? []
+  const savedPdfs = (message as { pdfs?: { id: string; name: string; flagged: boolean }[] }).pdfs
+  const sentPdfs = useSentPdfs(message.id)
+  const pdfs = savedPdfs ?? sentPdfs ?? []
   // The box grows with its text (up to a cap, then scrolls) instead of showing a fixed-size field.
   useLayoutEffect(() => {
     const el = box.current
@@ -71,6 +75,7 @@ export function UserMessage({ message }: { message: Message }) {
   return (
     <div className="openui-agent-thread-message-user has-actions">
       <MessagePhotos ids={photos} />
+      <MessagePdf pdfs={pdfs} />
       <div className="openui-agent-thread-message-user__content">{text}</div>
       <div className="message-actions">
         {info && (

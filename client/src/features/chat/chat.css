@@ -1434,3 +1434,64 @@
     min-height: 44px;
   }
 }
+
+/* Ask about a PDF (CB-09): the PDF button beside the photo button, its chip, the instructions
+   warning (amber, as design system v2's "not sure" colour), and the chip on a sent question. */
+.pdf-attach {
+  position: absolute;
+  left: 52px;
+  bottom: 10px;
+}
+.pdf-chip span {
+  display: grid;
+  max-width: 260px;
+}
+.pdf-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdf-chip small,
+.message-pdf small {
+  color: var(--graphite-600);
+  font-size: var(--text-caption-size);
+}
+.pdf-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--amber-600);
+  border-radius: 10px;
+  background: var(--amber-50);
+  color: var(--graphite-700);
+  font-size: var(--text-caption-size);
+}
+.pdf-warning strong,
+.pdf-warning .ds-icon,
+.message-pdf[data-flagged] .ds-icon {
+  color: var(--amber-600);
+}
+.message-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--graphite-200);
+  border-radius: 999px;
+  background: #fff;
+  font-size: var(--text-caption-size);
+}
+.message-pdf[data-flagged] {
+  border-color: var(--amber-600);
+  background: var(--amber-50);
+}
+@media (pointer: coarse) {
+  .pdf-attach button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

@@ -135,3 +135,20 @@ export async function removeChatPhoto(id: string): Promise<void> {
 }
 /** Where a stored photo is shown from. */
 export const photoUrl = (id: string) => `/api/chat/photos/${id}`
+
+/** A PDF the gateway has read (CB-09): its pages, any pages with no text, and whether it looks like instructions. */
+export type UploadedPdf = {
+  id: string
+  name: string
+  pages: number
+  skipped: number[]
+  flagged: boolean
+}
+/** Reads a PDF for the next question. Throws GatewayError with the reason (scanned, protected, too long...). */
+export async function uploadChatPdf(file: File): Promise<UploadedPdf> {
+  return (await request<UploadedPdf>('POST', '/api/chat/pdfs', file)).data
+}
+/** Removes a PDF that was attached but not sent. */
+export async function removeChatPdf(id: string): Promise<void> {
+  await request('DELETE', `/api/chat/pdfs/${id}`)
+}

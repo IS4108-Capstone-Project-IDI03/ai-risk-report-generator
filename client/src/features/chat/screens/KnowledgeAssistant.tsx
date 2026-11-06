@@ -17,6 +17,7 @@ import { CloseOnChatChange } from '../components/CloseOnChatChange'
 import { CitationSelectionContext, type SelectedCitation } from '../components/citationSelection'
 import { DocumentsContext, useDocumentMap } from '../components/documents'
 import { SearchStep } from '../components/SearchStep'
+import { PdfAttach } from '../components/PdfAttach'
 import { PhotoAttach } from '../components/PhotoAttach'
 import { UserMessage } from '../components/UserMessage'
 import { VoiceInput } from '../components/VoiceInput'
@@ -107,6 +108,7 @@ export function KnowledgeAssistant({
                 <CloseOnChatChange />
                 <AnswerBar />
                 <PhotoAttach />
+                <PdfAttach />
                 <VoiceInput />
               </AgentInterface>
               {selected && <CitationPanel selected={selected} onClose={close} />}

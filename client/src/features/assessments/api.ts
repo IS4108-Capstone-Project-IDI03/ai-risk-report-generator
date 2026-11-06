@@ -277,7 +277,14 @@ export async function request<T>(
         : body instanceof FormData
           ? { body }
           : body instanceof Blob
-            ? { headers: { 'Content-Type': body.type }, body }
+            ? {
+                headers: {
+                  'Content-Type': body.type,
+                  // A file's name travels beside its bytes (a PDF's name is shown back, CB-09).
+                  ...(body instanceof File && { 'X-File-Name': encodeURIComponent(body.name) }),
+                },
+                body,
+              }
             : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     })
   } catch (error: unknown) {
