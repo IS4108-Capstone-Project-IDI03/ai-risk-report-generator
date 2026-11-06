@@ -147,8 +147,7 @@ function ReassignAction({
         size="sm"
         label={'Reassign ' + reference}
         title={undefined}
-        className="at-reassign"
-        style={{ borderRadius: 999 }}
+        style={{ borderRadius: 999, color: 'var(--ink-600)' }}
         onClick={(e) => {
           e.stopPropagation()
           onClick()

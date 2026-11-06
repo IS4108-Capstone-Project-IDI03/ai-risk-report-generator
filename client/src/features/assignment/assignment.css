@@ -60,11 +60,26 @@
   border-color: var(--action-danger);
 }
 .ap-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A long name is cut; the role beside it keeps its width. */
+.ap-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Grey and on the right, as .ob-menu-trail in the list. */
+.ap-role {
+  flex: none;
+  margin-left: auto;
+  color: var(--graphite-600);
+  font-size: 13px;
 }
 .ap-value[data-empty] {
   color: var(--graphite-400);
@@ -83,6 +98,18 @@
   overscroll-behavior: contain;
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+}
+/* A long name is cut; without this it would push the role word out of the row. */
+.ap-anchor .ob-menu-item > span:nth-child(2),
+.ap-sheet .ob-menu-item > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-anchor .ob-menu-trail,
+.ap-sheet .ob-menu-trail {
+  flex: none;
 }
 /* Rows show the avatar at 28 px with the name and its role word at the right edge. */
 .ob-menu-item .person-avatar {

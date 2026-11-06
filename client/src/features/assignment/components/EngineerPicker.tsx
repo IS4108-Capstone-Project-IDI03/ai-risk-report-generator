@@ -82,7 +82,15 @@ export function EngineerPicker({
           >
             {chosen && <PersonAvatar name={chosen.name} size={24} />}
             <span id={valueId} className="ap-value" data-empty={chosen ? undefined : ''}>
-              {chosen ? nameOf(chosen) : 'Choose'}
+              {chosen ? (
+                <>
+                  <span className="ap-name">{nameOf(chosen)}</span>
+                  {/* A space so a screen reader says "Me, Admin" (the flex row draws none). */}{' '}
+                  <span className="ap-role">{roleWord(chosen.role)}</span>
+                </>
+              ) : (
+                'Choose'
+              )}
             </span>
             <Icon name="chevron-down" size={14} color="var(--text-muted)" />
           </button>

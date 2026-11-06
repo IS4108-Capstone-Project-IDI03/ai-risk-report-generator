@@ -33,10 +33,11 @@ export function ReassignDialog({
   const [missing, setMissing] = useState(0)
   const { busy, problem, fields, run } = useDialogSave()
   const error = fields.engineerId ?? (missing && !chosen ? 'Choose an engineer' : undefined)
-  // A refused press lands on the field that's missing (v2 "Forms").
+  // The dialog starts on the picker (the browser would pick the X), and a refused press lands
+  // back on it (v2 "Forms"). This effect runs after Dialog's showModal, which moves focus.
   const field = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (missing) field.current?.querySelector('button')?.focus()
+    field.current?.querySelector('button')?.focus()
   }, [missing])
   const submit = () => {
     if (!chosen) return setMissing((n) => n + 1)

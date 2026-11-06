@@ -4,6 +4,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { Toaster } from '../../design-system'
+import type { Person } from '../assignment/api'
+import { EngineerPicker } from '../assignment/components/EngineerPicker'
 import { NewAssessment } from './screens/NewAssessment'
 import { blankForm, formFromResult, toBody } from './form'
 import { calls, created, gateway, json, sent } from './testKit'
@@ -87,6 +89,22 @@ describe('Assigned engineer (RV-11)', () => {
     const trigger = await screen.findByRole('button', { name: /^Assigned engineer/ })
     expect(trigger).toHaveTextContent('Me')
     expect(within(visit(site(1), 1).getByText(/^Assigned engineer/)).getByText('*')).toBeVisible()
+  })
+
+  it('shows the chosen person’s role in the field, inside the name a screen reader hears', async () => {
+    gateway(routes())
+    open(ME)
+    const trigger = await screen.findByRole('button', { name: /^Assigned engineer/ })
+    expect(within(trigger).getByText('Admin')).toBeVisible()
+    expect(trigger).toHaveAccessibleName('Assigned engineer Me Admin')
+  })
+
+  it('shows no role while nobody is chosen', () => {
+    const people = PEOPLE.items as Person[]
+    render(<EngineerPicker people={people} me={ME} value="" onChange={vi.fn()} />)
+    const trigger = screen.getByRole('button', { name: /^Assigned engineer/ })
+    expect(trigger).toHaveTextContent('Choose')
+    expect(trigger).not.toHaveTextContent(/Admin|Engineer$/)
   })
 
   it('sends the chosen engineer for each assessment, and a new block copies the one before', async () => {

@@ -388,13 +388,18 @@
   .at-list[data-engineer] .at-meta {
     grid-area: meta;
     display: flex;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 0 6px;
     padding-left: 44px;
     color: var(--graphite-600);
     font-size: 13px;
   }
   .at-list[data-engineer] .at-meta > span {
     color: var(--graphite-600);
+  }
+  .at-list[data-engineer] .at-type,
+  .at-list[data-engineer] .at-date {
+    white-space: nowrap;
   }
   .at-list[data-engineer] .at-date::before {
     content: '·';
@@ -443,7 +448,8 @@
   .at-meta {
     grid-area: meta;
     display: flex;
-    gap: 6px;
+    flex-wrap: wrap; /* a narrow column drops the date to its own line, never mid-phrase */
+    gap: 0 6px;
     padding-left: 44px;
     color: var(--graphite-600);
     font-size: 13px;
@@ -454,6 +460,10 @@
   .at-date::before {
     content: '·';
     margin-right: 6px;
+  }
+  .at-type,
+  .at-date {
+    white-space: nowrap;
   }
   .at-status {
     grid-area: status;
@@ -528,8 +538,35 @@
     color: var(--graphite-600);
     font-size: 13px;
   }
-  .at-engineer-name {
-    display: inline;
+}
+
+/* A narrow card (sidebar open on a tablet) drops the date to its own line, where a "·" would
+   start the line. */
+@container at (min-width: 601px) and (max-width: 640px) {
+  .at-date::before,
+  .at-list[data-engineer] .at-date::before {
+    content: none;
+  }
+}
+
+/* Tablet rows (item 18): the tile floats on the row's middle line with the text lines beside it,
+   and the date sits at the right of its column, nearer the buttons and away from the status pill.
+   Not on a phone, whose grid holds the tile in its own column. */
+@container at (min-width: 601px) and (max-width: 860px) {
+  .at-row {
+    position: relative;
+  }
+  .at-assessment > :first-child {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .at-text {
+    padding-left: 44px; /* room for the floating tile (32 px + 12 px) */
+  }
+  .at-list .at-due {
+    justify-self: end;
   }
 }
 
@@ -686,17 +723,13 @@
     grid-template-areas:
       'tile main due actions'
       'tile status due actions'
-      '. engineer engineer actions';
+      'tile engineer due actions';
   }
   .at-list[data-engineer] .at-meta {
     display: none; /* the phone's rows drop Type and Survey date */
   }
   .at-list[data-engineer] .at-engineer {
     padding-left: 0;
-  }
-  /* The round grey icon of board 10; on a phone there is no hover to find it by. */
-  .at-reassign {
-    background: var(--graphite-100);
   }
   /* It lines up with the group head's plus above it, off the screen's edge. */
   .at-list[data-engineer] .at-row {
@@ -713,8 +746,8 @@
   .at-list:not([data-grouped]) .at-row {
     grid-template-areas:
       'tile main due actions'
-      '. sub sub sub'
-      '. status status status';
+      '. sub sub actions'
+      '. status status actions';
     grid-template-rows: 44px auto auto;
     row-gap: 4px;
     padding-top: 8px;
