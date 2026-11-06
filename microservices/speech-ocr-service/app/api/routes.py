@@ -1,11 +1,12 @@
+import base64
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.privacy import PrivacyUnavailable
 from app.processors.handwriting import HandwritingError, transcribe_page
-from app.processors.stt import TranscriptionError, transcribe
+from app.processors.stt import TranscriptionError, transcribe, transcribe_clip
 from app.processors.vision import InterpretationError, describe_photo, interpret
 
 router = APIRouter()
@@ -73,6 +74,26 @@ def transcribe_audio(request: S3KeyRequest) -> dict:
     # The gateway stores the result and shows `detail` to the engineer on failure.
     try:
         return transcribe(request.s3_key)
+    except TranscriptionError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+class ClipRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    audio_base64: str
+    # Its extension tells Whisper the format (webm, m4a...).
+    filename: str = "question.webm"
+
+
+@router.post("/transcribe-clip")
+def transcribe_audio_clip(request: ClipRequest) -> dict:
+    """A spoken chat question sent as bytes (CB-10): no S3 round trip, stored nowhere."""
+    try:
+        audio = base64.b64decode(request.audio_base64, validate=True)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="The audio is not valid base64.") from error
+    try:
+        return transcribe_clip(audio, request.filename)
     except TranscriptionError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 

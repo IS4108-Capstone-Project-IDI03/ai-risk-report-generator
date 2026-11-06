@@ -3,6 +3,7 @@
 Photos (test_vision.py) and handwritten pages (test_handwriting.py) have their own.
 """
 
+import base64
 import io
 
 from fastapi.testclient import TestClient
@@ -90,6 +91,31 @@ def test_transcribe_reads_s3_and_returns_whisper_text(monkeypatch):
     assert usage["usage_status"] == "recorded"
     assert usage["input_tokens"] is None
     assert isinstance(usage["duration_ms"], int)
+
+
+def test_transcribe_clip_takes_the_audio_directly_with_a_vocabulary_hint(monkeypatch):
+    # A spoken chat question (CB-10): no S3 round trip, so the answer comes back sooner.
+    s3 = FakeS3()
+    use_fakes(monkeypatch, s3)
+
+    response = client.post(
+        "/transcribe-clip",
+        json={"audio_base64": base64.b64encode(b"clip bytes").decode(), "filename": "q.webm"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["transcript"] == "Sprinkler valve chained open."
+    assert s3.requested is None
+    assert FakeOpenAI.file == ("q.webm", b"clip bytes")
+    assert FakeOpenAI.language == "en"
+    # The hint names the standards and terms engineers say, which Whisper otherwise mishears.
+    assert "NFPA" in FakeOpenAI.prompt["prompt"]
+    assert response.json()["usage"][0]["feature"] == "transcribe"
+
+
+def test_transcribe_clip_rejects_bad_base64():
+    response = client.post("/transcribe-clip", json={"audio_base64": "!!", "filename": "q.webm"})
+    assert response.status_code == 422
 
 
 def test_transcribe_marks_usage_unavailable_without_duration(monkeypatch):
