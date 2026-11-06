@@ -10,10 +10,13 @@ export type ToastOptions = {
   action?: ToastAction
   // Second, grey line (errors: the fix).
   description?: string
+  // Milliseconds before it closes itself (success toasts only; errors stay).
+  duration?: number
 }
 
 const wrap = (o: ToastOptions = {}) => ({
   description: o.description,
+  duration: o.duration,
   action: o.action ? { label: o.action.label, onClick: o.action.onClick } : undefined,
 })
 
