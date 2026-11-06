@@ -1,13 +1,15 @@
 // The client card of the New Assessment form (CP-23, boards 08, 09, 12): a
 // new client's name and division, or a recorded client chosen from the list
-// (avatar, name, Change). Either way the documents
-// button sits at the right. Used by screens/NewAssessmentForm.tsx.
+// (avatar, name, Change). Either way the Rejected and documents
+// buttons sit at the right. Used by screens/NewAssessmentForm.tsx.
 import { useState } from 'react'
 import { Button, Combobox, Icon } from '../../../design-system'
 import { ClientAvatar } from '../../clients/components/ClientAvatar'
+import type { IntakeFile } from '../api'
 import type { NewAssessmentForm } from '../useNewAssessment'
 import { DocumentsPopover } from './DocumentsPopover'
 import { ErrorLine, TextField } from './Field'
+import { RejectedPopover } from './RejectedPopover'
 import { Suggestion } from './Suggestion'
 
 // A recorded client: chosen when the typed name is one on the list.
@@ -41,7 +43,8 @@ function ChooseClient({ f }: { f: NewAssessmentForm }) {
   )
 }
 
-export function ClientCard({ f }: { f: NewAssessmentForm }) {
+// `rejected` are the intake's refused or failed files; none for a form filled in by hand.
+export function ClientCard({ f, rejected }: { f: NewAssessmentForm; rejected: IntakeFile[] }) {
   const { client, clientMode } = f.form
   if (clientMode === 'existing' && !client.id) return <ChooseClient f={f} />
   if (clientMode === 'existing') {
@@ -53,6 +56,7 @@ export function ClientCard({ f }: { f: NewAssessmentForm }) {
           <strong dir="auto">{name}</strong>
         </span>
         <span className="na-card-actions">
+          <RejectedPopover files={rejected} />
           <DocumentsPopover f={f} />
           <Button
             variant="ghost"
@@ -74,6 +78,7 @@ export function ClientCard({ f }: { f: NewAssessmentForm }) {
         </span>
         <h2>{'Client'}</h2>
         <span className="na-card-actions">
+          <RejectedPopover files={rejected} />
           <DocumentsPopover f={f} />
         </span>
       </div>

@@ -20,12 +20,17 @@ export function ReadingFileRow({
   row,
   onRemove,
   onRetry,
+  plainTile,
 }: {
   row: FileRow
   onRemove?: () => void
   onRetry?: () => void
+  // Every tile neutral grey, as in the Rejected popup (Sprint 4 fixes AC24).
+  plainTile?: boolean
 }) {
-  const tile = <FileTile name={row.name} kind={row.pasted ? 'text' : undefined} />
+  const tile = (
+    <FileTile name={row.name} kind={plainTile ? 'unknown' : row.pasted ? 'text' : undefined} />
+  )
   if (row.failure)
     return (
       <li className="na-file is-failed">

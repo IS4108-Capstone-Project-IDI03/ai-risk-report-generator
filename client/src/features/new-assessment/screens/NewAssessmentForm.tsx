@@ -9,6 +9,7 @@ import { Block, FormOpened } from '../components/Block'
 import { ClientCard } from '../components/ClientCard'
 import { SiteCard } from '../components/SiteCard'
 import { SitesPicker } from '../components/SitesPicker'
+import type { IntakeFile } from '../api'
 import type { ClientMode } from '../form'
 import { scrollToField } from '../scrollToField'
 import type { NewAssessmentForm as Form } from '../useNewAssessment'
@@ -22,11 +23,14 @@ export function NewAssessmentForm({
   f,
   enter,
   readNothing,
+  rejected,
 }: {
   f: Form
   // Fresh from reading: the cards fade and rise in, 40 ms apart (motion 5).
   enter: boolean
   readNothing: boolean
+  // The files refused or failed to read, for the Rejected pill; none if filled in by hand.
+  rejected: IntakeFile[]
 }) {
   const { form } = f
   const root = useRef<HTMLDivElement>(null)
@@ -85,7 +89,7 @@ export function NewAssessmentForm({
             onChange={f.setClientMode}
           />
         </div>
-        <ClientCard f={f} />
+        <ClientCard f={f} rejected={rejected} />
         {form.clientMode === 'existing' && !!form.client.id && <SitesPicker f={f} />}
         {chosen &&
           form.sites.map((site, i) => (

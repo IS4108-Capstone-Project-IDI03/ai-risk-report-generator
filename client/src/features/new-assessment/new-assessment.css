@@ -93,6 +93,11 @@
   font: 700 12px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
+/* The Rejected pill's count: red, not the neutral grey. */
+.na-count--red {
+  background: var(--red-50);
+  color: var(--red-600);
+}
 .na-text-btn {
   color: var(--marsh-navy) !important;
   font-weight: 600 !important;
@@ -276,6 +281,35 @@
 .na-docs-btn:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
+}
+/* Rejected popup (Sprint 4 fixes AC25): as wide as its longest message, which
+   stays on one line from 768 px up; a long file name is cut, never widens it.
+   The Popover caps its width inline, hence !important. */
+.na-rejected-menu {
+  width: max-content;
+  min-width: 320px;
+  max-width: min(720px, calc(100vw - 32px)) !important;
+  padding: 0 !important;
+}
+.na-rejected-list .na-file-error strong {
+  /* With the full stops gone, this keeps the error and its fix reading as two parts. */
+  margin-right: 4px;
+}
+.na-rejected-list .na-file {
+  grid-template-columns: 32px minmax(0, 1fr);
+  padding-inline: 0;
+}
+.na-rejected-list .na-file:first-child {
+  border-top: 0;
+}
+.na-rejected-list .na-file-name {
+  width: 0;
+  min-width: 100%;
+}
+@media (min-width: 768px) {
+  .na-rejected-list .na-file-error {
+    white-space: nowrap;
+  }
 }
 /* Wide enough for a long name beside the 300 px tag; the Popover caps at 420
    inline, and its tag menu must not be clipped by the surface. */
@@ -1287,6 +1321,54 @@
   }
   .na button[title] {
     min-width: 44px;
+  }
+}
+
+/* ---- A phone with a Rejected pill: the two pills share a row below "Client",
+   44 px tall, no chevrons (Sprint 4 fixes AC26). Without the pill nothing changes. ---- */
+@media (max-width: 559px) {
+  .na-card-head:has(.na-rejected-btn) {
+    flex-wrap: wrap;
+  }
+  .na-card-head:has(.na-rejected-btn) .na-card-actions {
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+  /* A recorded client: the name and Change stay on the first row, the pills below. */
+  .na-client-chosen:has(.na-rejected-btn) .na-card-actions {
+    display: contents;
+  }
+  /* Wide enough to keep the pills off this row, yet it still shrinks for Change. */
+  .na-client-chosen:has(.na-rejected-btn) .na-client-text {
+    flex: 1 1 calc(100% - 150px);
+  }
+  .na-client-chosen:has(.na-rejected-btn) .na-text-btn {
+    order: 1;
+  }
+  .na-client-chosen:has(.na-rejected-btn) .na-docs-anchor {
+    order: 2;
+    flex: 1 1 calc(50% - 6px);
+  }
+  .na-card:has(.na-rejected-btn) .na-docs-anchor {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .na-client-chosen:has(.na-rejected-btn) .na-docs-anchor {
+    flex-basis: calc(50% - 6px);
+  }
+  .na-card:has(.na-rejected-btn) .na-docs-anchor > span {
+    flex: 1;
+    min-width: 0;
+  }
+  .na-card:has(.na-rejected-btn) .na-docs-btn {
+    flex: 1;
+    justify-content: center;
+    height: 44px;
+    min-width: 0;
+  }
+  /* Icon sets its display inline, hence !important. */
+  .na-card:has(.na-rejected-btn) .na-docs-chev {
+    display: none !important;
   }
 }
 
