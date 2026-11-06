@@ -58,9 +58,12 @@ export async function removeUnsentPdf(userId: string, id: string) {
   await ChatAttachmentModel.deleteOne({ _id: id, userId, conversationId: null })
 }
 
+export const MAX_PDFS_PER_CHAT = 3
+
 /**
- * Ties the PDFs named in a question to its conversation (one per chat) and returns them as
- * {id, name, flagged}. Throws a 400 for one that is not the engineer's, or a second one.
+ * Ties the PDFs named in a question to its conversation (up to 3 per chat) and returns them as
+ * {id, name, flagged}. Throws a 400 for one that is not the engineer's, or when the chat would
+ * hold more than 3. A PDF the chat already holds is not counted twice, so a retry is fine.
  */
 export async function bindPdfs(userId: string, conversationId: string, ids: unknown) {
   if (ids === undefined || ids === null) return []
@@ -69,18 +72,25 @@ export async function bindPdfs(userId: string, conversationId: string, ids: unkn
     ids.some((id) => typeof id !== 'string' || !Types.ObjectId.isValid(id))
   )
     throw new ChatError(400, 'That PDF could not be attached.')
-  if (!ids.length) return []
-  if (ids.length > 1) throw new ChatError(400, 'Attach one PDF to a chat.')
-  const existing = await ChatAttachmentModel.findOne({ conversationId, userId })
-  if (existing && String(existing._id) !== ids[0])
-    throw new ChatError(400, 'This chat already has a PDF. Start a new chat to use another.')
-  const bound = await ChatAttachmentModel.findOneAndUpdate(
-    { _id: ids[0], userId, $or: [{ conversationId: null }, { conversationId }] },
-    { $set: { conversationId } },
-    { new: true },
+  const wanted = [...new Set(ids as string[])]
+  if (!wanted.length) return []
+  const held = new Set(
+    (await ChatAttachmentModel.find({ conversationId, userId }, '_id')).map((f) => String(f._id)),
   )
-  if (!bound) throw new ChatError(400, 'That PDF could not be attached.')
-  return [{ id: String(bound._id), name: bound.name, flagged: bound.flagged }]
+  if (held.size + wanted.filter((id) => !held.has(id)).length > MAX_PDFS_PER_CHAT)
+    throw new ChatError(
+      400,
+      `A chat can use up to ${MAX_PDFS_PER_CHAT} PDFs. Start a new chat to use more.`,
+    )
+  const bound = await ChatAttachmentModel.find({
+    _id: { $in: wanted },
+    userId,
+    $or: [{ conversationId: null }, { conversationId }],
+  })
+  // Anything asked for but not found is someone else's, or gone.
+  if (bound.length !== wanted.length) throw new ChatError(400, 'That PDF could not be attached.')
+  await ChatAttachmentModel.updateMany({ _id: { $in: wanted } }, { $set: { conversationId } })
+  return bound.map((f) => ({ id: String(f._id), name: f.name, flagged: f.flagged }))
 }
 
 /** The pages of the PDFs on this conversation, in the shape S4 takes. */

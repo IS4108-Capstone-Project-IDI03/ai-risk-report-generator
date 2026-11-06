@@ -124,11 +124,31 @@ describe('asking about a PDF (CB-09 AC1-AC4)', () => {
     expect((await ask(jide, theirs, [id])).status).toBe(400)
   })
 
-  it('allows one PDF per chat', async () => {
+  it('allows several PDFs in a chat, up to 3, and gives S4 all of them', async () => {
     const threadId = await newChat()
-    await ask(alex, threadId, [(await upload(alex, PDF)).body.id])
-    const second = (await upload(alex, PDF)).body.id
-    expect((await ask(alex, threadId, [second], 'q2')).status).toBe(400)
+    const first = (await upload(alex, PDF, 'One.pdf')).body.id
+    const second = (await upload(alex, PDF, 'Two.pdf')).body.id
+    // Two in one question, a third in a later one.
+    expect((await ask(alex, threadId, [first, second])).status).toBe(200)
+    const third = (await upload(alex, PDF, 'Three.pdf')).body.id
+    expect((await ask(alex, threadId, [third], 'q2')).status).toBe(200)
+    expect(s4Body.attachments?.map((a) => a.name).sort()).toEqual([
+      'One.pdf',
+      'Three.pdf',
+      'Two.pdf',
+    ])
+    // A fourth is refused, and the chat keeps the three it has.
+    const fourth = (await upload(alex, PDF, 'Four.pdf')).body.id
+    const refused = await ask(alex, threadId, [fourth], 'q3')
+    expect(refused.status).toBe(400)
+    expect(refused.body.error).toMatch(/up to 3/i)
+  })
+
+  it('does not count a PDF twice when a retry names it again', async () => {
+    const threadId = await newChat()
+    const { id } = (await upload(alex, PDF)).body
+    await ask(alex, threadId, [id])
+    expect((await ask(alex, threadId, [id], 'q2')).status).toBe(200)
   })
 
   it('shows the PDF with the question when the chat is reopened', async () => {

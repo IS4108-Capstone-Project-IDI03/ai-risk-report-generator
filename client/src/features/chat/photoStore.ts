@@ -26,7 +26,7 @@ export type PendingPdf = {
 }
 
 let pending: PendingPhoto[] = []
-let pendingPdf: PendingPdf | null = null
+let pendingPdfs: PendingPdf[] = []
 const sent = new Map<string, string[]>()
 const sentPdfs = new Map<string, { id: string; name: string; flagged: boolean }[]>()
 const listeners = new Set<() => void>()
@@ -41,15 +41,22 @@ export const idToSend = (p: PendingPhoto) =>
   p.faces && p.blurredId && p.choice === 'blur' ? p.blurredId : p.id
 
 export const usePending = () => useSyncExternalStore(subscribe, () => pending)
-export const usePendingPdf = () => useSyncExternalStore(subscribe, () => pendingPdf)
+export const usePendingPdfs = () => useSyncExternalStore(subscribe, () => pendingPdfs)
 /** The PDF a sent question carried, by its message id. */
 export const useSentPdfs = (messageId: string) =>
   useSyncExternalStore(subscribe, () => sentPdfs.get(messageId))
-/** Whether any question sent from this page carried a PDF (a chat holds one). */
-export const useAnySentPdf = () => useSyncExternalStore(subscribe, () => sentPdfs.size > 0)
+/** The ids of every PDF sent from this page, joined (a string, so React sees a stable value). */
+export const useSentPdfIds = () =>
+  useSyncExternalStore(subscribe, () =>
+    [...new Set([...sentPdfs.values()].flatMap((list) => list.map((p) => p.id)))].join(','),
+  )
 
-export function setPendingPdf(pdf: PendingPdf | null) {
-  pendingPdf = pdf
+export function addPendingPdf(pdf: PendingPdf) {
+  pendingPdfs = [...pendingPdfs, pdf]
+  tell()
+}
+export function removePendingPdf(id: string) {
+  pendingPdfs = pendingPdfs.filter((p) => p.id !== id)
   tell()
 }
 /** The photos a sent question carried, by its message id. */
@@ -59,7 +66,7 @@ export const useSentPhotos = (messageId: string) =>
 /** Forgets every photo, attached or sent. For tests; the page never needs it. */
 export function resetPhotos() {
   pending = []
-  pendingPdf = null
+  pendingPdfs = []
   sent.clear()
   sentPdfs.clear()
   tell()
@@ -85,24 +92,29 @@ export function removePending(key: string) {
  */
 export function withPhotos(send: typeof fetch): typeof fetch {
   return (input, init) => {
-    if ((!pending.length && !pendingPdf) || typeof init?.body !== 'string') return send(input, init)
+    if ((!pending.length && !pendingPdfs.length) || typeof init?.body !== 'string')
+      return send(input, init)
     const body = JSON.parse(init.body) as { messages?: { id?: string; role?: string }[] }
     const ids = pending.map(idToSend)
-    const pdf = pendingPdf
+    const pdfs = pendingPdfs
     const last = body.messages?.findLast((m) => m.role === 'user')
     if (last?.id) {
       if (ids.length) sent.set(last.id, ids)
-      if (pdf) sentPdfs.set(last.id, [{ id: pdf.id, name: pdf.name, flagged: pdf.flagged }])
+      if (pdfs.length)
+        sentPdfs.set(
+          last.id,
+          pdfs.map((p) => ({ id: p.id, name: p.name, flagged: p.flagged })),
+        )
     }
     pending = []
-    pendingPdf = null
+    pendingPdfs = []
     tell()
     return send(input, {
       ...init,
       body: JSON.stringify({
         ...body,
         ...(ids.length && { attachments: ids }),
-        ...(pdf && { pdfs: [pdf.id] }),
+        ...(pdfs.length && { pdfs: pdfs.map((p) => p.id) }),
       }),
     })
   }

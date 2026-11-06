@@ -37,8 +37,8 @@ afterEach(() => {
 
 const pdf = (name = 'Site survey.pdf', type = 'application/pdf', size = 1000) =>
   Object.defineProperty(new File(['%PDF-'], name, { type }), 'size', { value: size })
-const attach = (file: File) =>
-  fireEvent.change(document.querySelector('input[type=file]')!, { target: { files: [file] } })
+const attach = (...files: File[]) =>
+  fireEvent.change(document.querySelector('input[type=file]')!, { target: { files } })
 
 describe('attach a PDF (CB-09)', () => {
   it('reads the file, shows its chip, and sends it with the question (AC1)', async () => {
@@ -59,12 +59,51 @@ describe('attach a PDF (CB-09)', () => {
       }),
     )
     expect(JSON.parse(body).pdfs).toEqual(['a1'])
-    // The chip leaves the tray once the question is sent, and the button is blocked: one per chat.
+    // The chip leaves the tray once the question is sent, and the button still works: more can follow.
     expect(screen.queryByText('Site survey.pdf')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Attach a PDF' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+  })
+
+  it('takes more than one PDF before sending, up to 3, and sends them together', async () => {
+    let n = 0
+    vi.stubGlobal('fetch', async () => {
+      n += 1
+      return Response.json({
+        id: `a${n}`,
+        name: `File ${n}.pdf`,
+        pages: 1,
+        skipped: [],
+        flagged: false,
+      })
+    })
+    render(<PdfAttach />)
+    attach(pdf('File 1.pdf'), pdf('File 2.pdf'))
+    expect(await screen.findByText('File 2.pdf')).toBeInTheDocument()
+    attach(pdf('File 3.pdf'))
+    expect(await screen.findByText('File 3.pdf')).toBeInTheDocument()
+    // Three held: the button says why it is blocked, and a fourth is refused.
     expect(screen.getByRole('button', { name: 'Attach a PDF' })).toHaveAttribute(
       'aria-disabled',
       'true',
     )
+    attach(pdf('File 4.pdf'))
+    expect(await screen.findByText('Up to 3 PDFs per chat')).toBeInTheDocument()
+
+    let body = ''
+    const send = withPhotos((async (_u: unknown, init?: { body?: string }) => {
+      body = init?.body ?? ''
+      return new Response('')
+    }) as unknown as typeof fetch)
+    await act(() =>
+      send('/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({ messages: [{ id: 'q1', role: 'user' }] }),
+      }),
+    )
+    expect(JSON.parse(body).pdfs).toEqual(['a1', 'a2', 'a3'])
   })
 
   it('refuses a file that is not a PDF, or is over 10 MB, without asking the gateway (AC5)', async () => {
@@ -109,8 +148,18 @@ describe('attach a PDF (CB-09)', () => {
     expect(calls.some((c) => c.startsWith('DELETE'))).toBe(true)
   })
 
-  it('blocks the button, and says why, in a chat that already has a PDF', () => {
+  it('lets a chat that has PDFs take more, until it holds 3', () => {
     messages = [{ id: 'q1', role: 'user', content: 'Q', pdfs: [{ id: 'a1', name: 'Old.pdf' }] }]
+    render(<PdfAttach />)
+    expect(screen.getByRole('button', { name: 'Attach a PDF' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+    cleanup()
+    messages = [
+      { id: 'q1', role: 'user', content: 'Q', pdfs: [{ id: 'a1' }, { id: 'a2' }] },
+      { id: 'q2', role: 'user', content: 'Q', pdfs: [{ id: 'a3', name: 'Third.pdf' }] },
+    ]
     render(<PdfAttach />)
     expect(screen.getByRole('button', { name: 'Attach a PDF' })).toHaveAttribute(
       'aria-disabled',

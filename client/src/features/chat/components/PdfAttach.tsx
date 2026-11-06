@@ -1,49 +1,73 @@
-// The PDF button in the chat box and its chip under it (CB-09): attach one PDF (10 MB, 20 pages) to
-// a chat and ask about it. The file is read at once, so a file that cannot be used is refused
-// before the question is written. Drawn inside AgentInterface (screens/KnowledgeAssistant.tsx).
+// The PDF button in the chat box and the chips under it (CB-09): attach up to 3 PDFs (10 MB and 20
+// pages each) to a chat and ask about them. Each file is read at once, so a file that cannot be
+// used is refused before the question is written. Drawn inside AgentInterface
+// (screens/KnowledgeAssistant.tsx).
 import { useThread } from '@openuidev/react-headless'
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon, IconButton } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import { removeChatPdf, uploadChatPdf } from '../api'
-import { setPendingPdf, useAnySentPdf, usePendingPdf } from '../photoStore'
+import {
+  addPendingPdf,
+  removePendingPdf,
+  usePendingPdfs,
+  useSentPdfIds,
+  type PendingPdf,
+} from '../photoStore'
 import { asProblem, type Problem } from '../speech'
 import { useComposerHosts } from './useComposerHosts'
 
 const MAX_BYTES = 10 * 1024 * 1024
+// Must match MAX_PDFS_PER_CHAT in server/src/services/chat-pdf.service.ts.
+const MAX_PDFS = 3
 
-/** PDF button and the chip for the file being attached. */
+/** PDF button and the chips for the files being attached. */
 export function PdfAttach() {
-  const pdf = usePendingPdf()
-  const sentHere = useAnySentPdf()
-  // A chat reopened from storage holds a PDF when one of its questions carried it.
-  const saved = useThread((s) => s.messages.some((m) => !!(m as { pdfs?: unknown[] }).pdfs?.length))
+  const pending = usePendingPdfs()
+  const sentIds = useSentPdfIds()
+  // The PDFs a chat reopened from storage already holds, from the questions that carried them.
+  const savedIds = useThread((s) =>
+    s.messages
+      .flatMap((m) => (m as { pdfs?: { id: string }[] }).pdfs ?? [])
+      .map((p) => p.id)
+      .join(','),
+  )
   const { card, below } = useComposerHosts()
   const [note, setNote] = useState<Problem | null>(null)
-  const [busy, setBusy] = useState(false)
+  // Files still being read; they count toward the limit.
+  const [busy, setBusy] = useState(0)
   const picker = useRef<HTMLInputElement>(null)
-  const hasPdf = sentHere || saved
+  // A PDF counts once, whether it came from this page or from storage.
+  const inChat = new Set([...sentIds.split(','), ...savedIds.split(',')].filter(Boolean)).size
+  const used = inChat + pending.length + busy
+  const full = used >= MAX_PDFS
 
-  const add = async (file: File | undefined) => {
+  const add = async (files: File[]) => {
     setNote(null)
-    if (!file) return
-    if (file.type !== 'application/pdf')
-      return setNote({ problem: 'Only PDF files', fix: `${file.name} was not added.` })
-    if (file.size > MAX_BYTES)
-      return setNote({ problem: 'Over 10 MB', fix: `${file.name} was not added.` })
-    setBusy(true)
-    try {
-      setPendingPdf(await uploadChatPdf(file))
-    } catch (error) {
-      setNote(asProblem(error instanceof GatewayError ? error.message : 'Could not add that PDF.'))
-    } finally {
-      setBusy(false)
+    let count = used
+    for (const file of files) {
+      const refusal = refuse(file, count)
+      if (refusal) {
+        setNote(refusal)
+        continue
+      }
+      count += 1
+      setBusy((n) => n + 1)
+      try {
+        addPendingPdf(await uploadChatPdf(file))
+      } catch (error) {
+        count -= 1
+        setNote(
+          asProblem(error instanceof GatewayError ? error.message : 'Could not add that PDF.'),
+        )
+      } finally {
+        setBusy((n) => n - 1)
+      }
     }
   }
-  const remove = () => {
-    if (!pdf) return
-    setPendingPdf(null)
+  const remove = (pdf: PendingPdf) => {
+    removePendingPdf(pdf.id)
     void removeChatPdf(pdf.id).catch(() => {})
   }
 
@@ -52,10 +76,9 @@ export function PdfAttach() {
       <IconButton
         icon="file-plus"
         label="Attach a PDF"
-        disabled={!!pdf || busy}
         disabledReason={
-          hasPdf
-            ? { title: 'One PDF per chat', text: 'Start a new chat to use another PDF.' }
+          full
+            ? { title: 'Up to 3 PDFs per chat', text: 'Remove one, or start a new chat.' }
             : undefined
         }
         onClick={() => picker.current?.click()}
@@ -64,43 +87,47 @@ export function PdfAttach() {
         ref={picker}
         type="file"
         accept="application/pdf"
+        multiple
         hidden
         onChange={(e) => {
-          void add(e.target.files?.[0])
+          void add([...(e.target.files ?? [])])
           // So choosing the same file again still fires a change.
           e.target.value = ''
         }}
       />
     </div>
   )
-  const tray = (pdf || busy || note) && (
+  const tray = (pending.length > 0 || busy > 0 || note) && (
     <div className="photo-tray">
-      {pdf && (
-        <div className="photo-tray__item pdf-chip">
-          <Icon name="file-text" size={20} />
-          <span>
-            <strong>{pdf.name}</strong>
-            <small>
-              {pdf.pages} {pdf.pages === 1 ? 'page' : 'pages'} read
-              {pdf.skipped.length > 0 && ` · picture-only pages skipped: ${pdf.skipped.join(', ')}`}
-            </small>
-          </span>
-          <IconButton
-            icon="x"
-            label={`Remove PDF ${pdf.name}`}
-            tooltip="Remove PDF"
-            onClick={remove}
-          />
+      {pending.map((pdf) => (
+        <div key={pdf.id} className="pdf-tray__file">
+          <div className="photo-tray__item pdf-chip">
+            <Icon name="file-text" size={20} />
+            <span>
+              <strong>{pdf.name}</strong>
+              <small>
+                {pdf.pages} {pdf.pages === 1 ? 'page' : 'pages'} read
+                {pdf.skipped.length > 0 &&
+                  ` · picture-only pages skipped: ${pdf.skipped.join(', ')}`}
+              </small>
+            </span>
+            <IconButton
+              icon="x"
+              label={`Remove PDF ${pdf.name}`}
+              tooltip="Remove PDF"
+              onClick={() => remove(pdf)}
+            />
+          </div>
+          {pdf.flagged && (
+            <p className="pdf-warning" role="status">
+              <Icon name="triangle-alert" size={16} />
+              <strong>Looks like instructions</strong>
+              <span>{pdf.name} tells the assistant what to do. It is read as plain text only.</span>
+            </p>
+          )}
         </div>
-      )}
-      {pdf?.flagged && (
-        <p className="pdf-warning" role="status">
-          <Icon name="triangle-alert" size={16} />
-          <strong>Looks like instructions</strong>
-          <span>This file tells the assistant what to do. It is read as plain text only.</span>
-        </p>
-      )}
-      {busy && (
+      ))}
+      {busy > 0 && (
         <p className="voice-input__state" role="status">
           Reading PDF…
         </p>
@@ -120,4 +147,14 @@ export function PdfAttach() {
       {below && tray && createPortal(tray, below)}
     </>
   )
+}
+
+// Why a file cannot be added, in design system v2's wording (short problem, then the fix); null if it can.
+function refuse(file: File, already: number): Problem | null {
+  if (already >= MAX_PDFS)
+    return { problem: 'Up to 3 PDFs per chat', fix: 'Remove one, or start a new chat.' }
+  if (file.type !== 'application/pdf')
+    return { problem: 'Only PDF files', fix: `${file.name} was not added.` }
+  if (file.size > MAX_BYTES) return { problem: 'Over 10 MB', fix: `${file.name} was not added.` }
+  return null
 }
