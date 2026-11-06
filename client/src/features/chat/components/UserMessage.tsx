@@ -4,6 +4,8 @@ import type { UserMessage as Message } from '@openuidev/react-headless'
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useVersions } from '../useVersions'
 import { IconButton } from '../../../design-system'
+import { useSentPhotos } from '../photoStore'
+import { MessagePhotos } from './MessagePhotos'
 import { VersionSwitcher } from './VersionSwitcher'
 
 /** Shows a question; Edit turns it into a box whose Send asks the new wording as another version. */
@@ -13,6 +15,10 @@ export function UserMessage({ message }: { message: Message }) {
   const [draft, setDraft] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement>(null)
   const info = versions[message.id]
+  // The photos it carried: from the saved chat, or just sent from this page (CB-08).
+  const saved = (message as { attachments?: { id: string }[] }).attachments?.map((a) => a.id)
+  const justSent = useSentPhotos(message.id)
+  const photos = saved ?? justSent ?? []
   // The box grows with its text (up to a cap, then scrolls) instead of showing a fixed-size field.
   useLayoutEffect(() => {
     const el = box.current
@@ -64,6 +70,7 @@ export function UserMessage({ message }: { message: Message }) {
     )
   return (
     <div className="openui-agent-thread-message-user has-actions">
+      <MessagePhotos ids={photos} />
       <div className="openui-agent-thread-message-user__content">{text}</div>
       <div className="message-actions">
         {info && (

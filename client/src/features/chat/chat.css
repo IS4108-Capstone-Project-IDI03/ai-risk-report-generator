@@ -1377,3 +1377,60 @@
 .voice-settings > * {
   max-width: 320px;
 }
+
+/* Ask about a photo (CB-08): the photo button at the left of the chat box, the tray of chosen
+   photos under it, the face choice, and the photos shown with a sent question. */
+.photo-attach {
+  position: absolute;
+  left: 8px;
+  bottom: 10px;
+}
+.photo-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: var(--space-4) var(--space-5) 0;
+}
+.photo-tray__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card, 16px);
+  background: #fff;
+  animation: voice-settings-in var(--duration-base) var(--ease-out);
+}
+.photo-tray__item img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.face-choice {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--graphite-600);
+}
+.message-photos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.message-photos img {
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+}
+@media (pointer: coarse) {
+  .photo-attach button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

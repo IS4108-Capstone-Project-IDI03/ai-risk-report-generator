@@ -17,11 +17,8 @@ import {
   useVoiceSettings,
   type Problem,
 } from '../speech'
+import { COMPOSER_BOX, useComposerHosts } from './useComposerHosts'
 
-// The chat's own box, not the edit box inside a sent question.
-const BOX = '.knowledge-assistant .openui-agent-thread-composer textarea'
-const COMPOSER = '.knowledge-assistant .openui-agent-thread-composer'
-const CARD = `${COMPOSER}__input-wrapper`
 // Recording ends after this much quiet once speech was heard, after this long with none, or at the cap.
 const QUIET_MS = 1200
 const NO_SPEECH_MS = 8000
@@ -67,7 +64,7 @@ function watchQuiet(
 
 // Puts text in the chat box the way typing would, so OpenUI's own state sees it.
 function fillBox(text: string) {
-  const box = document.querySelector<HTMLTextAreaElement>(BOX)
+  const box = document.querySelector<HTMLTextAreaElement>(COMPOSER_BOX)
   if (!box) return
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(box, text)
   box.dispatchEvent(new Event('input', { bubbles: true }))
@@ -85,19 +82,7 @@ export function VoiceInput() {
   const [level, setLevel] = useState(0)
   const peak = useRef(0)
   const recorder = useRef<MediaRecorder | null>(null)
-  const [host, setHost] = useState<Element | null>(null)
-  const [card, setCard] = useState<Element | null>(null)
-  useEffect(() => {
-    // The box is drawn by OpenUI after this component; look again whenever the page changes.
-    const find = () => {
-      setHost(document.querySelector(COMPOSER))
-      setCard(document.querySelector(CARD))
-    }
-    find()
-    const watch = new MutationObserver(find)
-    watch.observe(document.body, { childList: true, subtree: true })
-    return () => watch.disconnect()
-  }, [])
+  const { card, below: host } = useComposerHosts()
 
   // Read when the recording ends, not when it began, so a switch flipped mid-recording counts.
   const handsFree = useRef(settings.handsFree)
@@ -159,7 +144,9 @@ export function VoiceInput() {
         deliver(await transcribeQuestion(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })))
       } catch (error) {
         setNote(
-          asProblem(error instanceof GatewayError ? error.message : 'Could not read the recording.'),
+          asProblem(
+            error instanceof GatewayError ? error.message : 'Could not read the recording.',
+          ),
         )
       } finally {
         setState('idle')
@@ -200,7 +187,11 @@ export function VoiceInput() {
             label={state === 'paused' ? 'Resume recording' : 'Pause recording'}
             onClick={togglePause}
           />
-          <IconButton icon="square" label="Stop recording" onClick={() => recorder.current?.stop()} />
+          <IconButton
+            icon="square"
+            label="Stop recording"
+            onClick={() => recorder.current?.stop()}
+          />
           <IconButton
             icon="settings"
             label="Hands-free settings"
@@ -219,15 +210,16 @@ export function VoiceInput() {
     </div>
   )
   // Errors follow design system v2: a red icon and short problem, then the fix in grey.
-  const message = cog && live ? (
-    <div className="voice-input__panel">
-      <Switch
-        label="Hands-free: read answers and listen again"
-        checked={settings.handsFree}
-        onChange={(on) => change({ handsFree: on })}
-      />
-    </div>
-  ) : note ? (
+  const message =
+    cog && live ? (
+      <div className="voice-input__panel">
+        <Switch
+          label="Hands-free: read answers and listen again"
+          checked={settings.handsFree}
+          onChange={(on) => change({ handsFree: on })}
+        />
+      </div>
+    ) : note ? (
       <p className="voice-input__note" role="alert">
         <Icon name="circle-alert" size={16} />
         <strong>{note.problem}</strong>

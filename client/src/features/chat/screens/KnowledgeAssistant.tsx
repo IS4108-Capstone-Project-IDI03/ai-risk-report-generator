@@ -17,6 +17,7 @@ import { CloseOnChatChange } from '../components/CloseOnChatChange'
 import { CitationSelectionContext, type SelectedCitation } from '../components/citationSelection'
 import { DocumentsContext, useDocumentMap } from '../components/documents'
 import { SearchStep } from '../components/SearchStep'
+import { PhotoAttach } from '../components/PhotoAttach'
 import { UserMessage } from '../components/UserMessage'
 import { VoiceInput } from '../components/VoiceInput'
 import { chatLibrary } from '../library'
@@ -105,6 +106,7 @@ export function KnowledgeAssistant({
                 <AgentInterface.Composer placeholder="Ask about a standard or a past report" />
                 <CloseOnChatChange />
                 <AnswerBar />
+                <PhotoAttach />
                 <VoiceInput />
               </AgentInterface>
               {selected && <CitationPanel selected={selected} onClose={close} />}

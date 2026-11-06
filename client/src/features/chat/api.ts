@@ -8,11 +8,17 @@ import {
   type Message,
   type Thread,
 } from '@openuidev/react-headless'
+import { withPhotos } from './photoStore'
 import { smoothAdapter } from './smoothAdapter'
 import { request } from '../assessments/api'
 
 /** The chat screen's link to POST /api/chat, read as AG-UI events (the gateway's format). */
-export const chatLLM = fetchLLM({ url: '/api/chat', streamAdapter: smoothAdapter(agUIAdapter()) })
+export const chatLLM = fetchLLM({
+  url: '/api/chat',
+  streamAdapter: smoothAdapter(agUIAdapter()),
+  // The photos chosen for the question go with it (CB-08).
+  fetch: withPhotos((input, init) => fetch(input, init)),
+})
 
 /** One passage as GET /api/chat/passages/:id sends it (CB-02). Boxes are in PDF points, origin bottom-left. */
 export type Passage = {
@@ -115,3 +121,17 @@ export function askAdminToAdd(question: string, message: string): Promise<unknow
 export async function transcribeQuestion(audio: Blob): Promise<string> {
   return (await request<{ text: string }>('POST', '/api/chat/transcribe', audio)).data.text
 }
+
+/** A photo the gateway has stored and checked for faces (CB-08). `blurredId` is the copy with faces blurred. */
+export type UploadedPhoto = { id: string; faces: number; blurredId: string | null }
+
+/** Stores a photo for the next question and finds its faces. Throws GatewayError with the reason. */
+export async function uploadChatPhoto(file: File): Promise<UploadedPhoto> {
+  return (await request<UploadedPhoto>('POST', '/api/chat/photos', file)).data
+}
+/** Removes a photo that was attached but not sent. */
+export async function removeChatPhoto(id: string): Promise<void> {
+  await request('DELETE', `/api/chat/photos/${id}`)
+}
+/** Where a stored photo is shown from. */
+export const photoUrl = (id: string) => `/api/chat/photos/${id}`

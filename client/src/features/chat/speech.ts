@@ -56,7 +56,10 @@ export function useVoiceSettings() {
     (tell) => (listeners.add(tell), () => void listeners.delete(tell)),
     read,
   )
-  return [settings, (change: Partial<VoiceSettings>) => saveSettings({ ...settings, ...change })] as const
+  return [
+    settings,
+    (change: Partial<VoiceSettings>) => saveSettings({ ...settings, ...change }),
+  ] as const
 }
 
 /** What went wrong and what to do about it, as design system v2 shows errors: a short problem, then the fix. */
