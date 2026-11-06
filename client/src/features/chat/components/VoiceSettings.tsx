@@ -1,12 +1,13 @@
-// The voice options in a panel under the answer bar (CB-10 add-ons A and B): reading speed, voice and
-// hands-free mode. Shown in the answer bar by components/PlayAnswer.tsx. Saved by speech.ts.
+// The voice options in a panel under the answer bar (CB-10 add-on A): reading speed and voice.
+// Hands-free mode is set from the mic's own cog (components/VoiceInput.tsx). Shown in the answer
+// bar by components/PlayAnswer.tsx. Saved by speech.ts.
 import { useEffect, useState } from 'react'
-import { IconButton, Select, Switch } from '../../../design-system'
+import { IconButton, Select } from '../../../design-system'
 import { useVoiceSettings } from '../speech'
 
 const SPEEDS = ['0.75', '1', '1.25', '1.5']
 
-/** A cog that shows speed, voice and hands-free controls right under the bar (a popover was clipped by the answer). */
+/** A cog that shows speed and voice controls right under the bar (a popover was clipped by the answer). */
 export function VoiceSettings() {
   const [open, setOpen] = useState(false)
   const [settings, change] = useVoiceSettings()
@@ -41,11 +42,6 @@ export function VoiceSettings() {
               ...voices.map((v) => ({ value: v.voiceURI, label: `${v.name} (${v.lang})` })),
             ]}
             onChange={(e) => change({ voiceURI: e.target.value })}
-          />
-          <Switch
-            label="Hands-free: read answers and listen again"
-            checked={settings.handsFree}
-            onChange={(handsFree) => change({ handsFree })}
           />
         </div>
       )}

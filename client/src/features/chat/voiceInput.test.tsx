@@ -4,11 +4,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VoiceInput } from './components/VoiceInput'
+import { saveSettings } from './speech'
 
+const processMessage = vi.fn()
 vi.mock('@openuidev/react-headless', async (original) => ({
   ...(await original<object>()),
-  useThread: (pick: (s: { processMessage: () => void }) => unknown) =>
-    pick({ processMessage: vi.fn() }),
+  useThread: (pick: (s: { processMessage: typeof processMessage }) => unknown) =>
+    pick({ processMessage }),
 }))
 
 // A recorder that only remembers what it was told; stop() ends it like the real one.
@@ -51,6 +53,8 @@ beforeEach(() => {
     mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop: () => {} }] }) },
   })
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} })
+  saveSettings({ rate: 1, voiceURI: '', handsFree: false })
+  processMessage.mockClear()
   vi.stubGlobal('fetch', async () => Response.json({ text: 'What is the density for OH2?' }))
 })
 afterEach(() => {
@@ -89,5 +93,21 @@ describe('ask by voice (CB-10)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
     expect(await screen.findByText('No speech was heard')).toBeInTheDocument()
+  })
+
+  it('turns hands-free on from the mic cog, so the question is sent without being checked', async () => {
+    render(<VoiceInput />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Hands-free settings' }))
+    // Switched on mid-recording: it counts when the recording ends.
+    fireEvent.click(screen.getByRole('switch', { name: /Hands-free/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
+    await waitFor(() =>
+      expect(processMessage).toHaveBeenCalledWith({
+        role: 'user',
+        content: 'What is the density for OH2?',
+      }),
+    )
+    expect(document.querySelector('textarea')).toHaveValue('')
   })
 })

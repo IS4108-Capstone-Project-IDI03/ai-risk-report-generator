@@ -1325,6 +1325,9 @@
 .answer-bar {
   flex-wrap: wrap;
 }
+.voice-input__panel {
+  margin: var(--space-3) var(--space-5) 0;
+}
 .voice-settings {
   display: grid;
   flex: 0 0 100%;

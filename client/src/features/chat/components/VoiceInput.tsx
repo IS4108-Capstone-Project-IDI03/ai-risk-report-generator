@@ -5,7 +5,7 @@
 import { useThread } from '@openuidev/react-headless'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Icon, IconButton } from '../../../design-system'
+import { Icon, IconButton, Switch } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import { transcribeQuestion } from '../api'
 import {
@@ -23,7 +23,7 @@ const BOX = '.knowledge-assistant .openui-agent-thread-composer textarea'
 const COMPOSER = '.knowledge-assistant .openui-agent-thread-composer'
 const CARD = `${COMPOSER}__input-wrapper`
 // Recording ends after this much quiet once speech was heard, after this long with none, or at the cap.
-const QUIET_MS = 2000
+const QUIET_MS = 1200
 const NO_SPEECH_MS = 8000
 const MAX_MS = 60_000
 const LOUD = 0.02
@@ -71,6 +71,7 @@ export function VoiceInput() {
   const [settings, change] = useVoiceSettings()
   const [state, setState] = useState<'idle' | 'recording' | 'paused' | 'working'>('idle')
   const [note, setNote] = useState<Problem | null>(null)
+  const [cog, setCog] = useState(false)
   const recorder = useRef<MediaRecorder | null>(null)
   const [host, setHost] = useState<Element | null>(null)
   const [card, setCard] = useState<Element | null>(null)
@@ -86,15 +87,20 @@ export function VoiceInput() {
     return () => watch.disconnect()
   }, [])
 
+  // Read when the recording ends, not when it began, so a switch flipped mid-recording counts.
+  const handsFree = useRef(settings.handsFree)
+  useEffect(() => {
+    handsFree.current = settings.handsFree
+  }, [settings.handsFree])
   const deliver = useCallback(
     (text: string) => {
-      if (!settings.handsFree) return fillBox(text)
+      if (!handsFree.current) return fillBox(text)
       // Saying "stop" leaves hands-free mode without asking anything.
       if (isStopWord(text)) return change({ handsFree: false })
       handsFreeTurn.waiting = true
       void processMessage({ role: 'user', content: text })
     },
-    [settings.handsFree, change, processMessage],
+    [change, processMessage],
   )
 
   const start = useCallback(async () => {
@@ -167,6 +173,12 @@ export function VoiceInput() {
             onClick={togglePause}
           />
           <IconButton icon="square" label="Stop recording" onClick={() => recorder.current?.stop()} />
+          <IconButton
+            icon="settings"
+            label="Hands-free settings"
+            selected={cog}
+            onClick={() => setCog((open) => !open)}
+          />
         </>
       ) : (
         <IconButton
@@ -179,8 +191,15 @@ export function VoiceInput() {
     </div>
   )
   // Errors follow design system v2: a red icon and short problem, then the fix in grey.
-  const message =
-    note ? (
+  const message = cog && live ? (
+    <div className="voice-input__panel">
+      <Switch
+        label="Hands-free: read answers and listen again"
+        checked={settings.handsFree}
+        onChange={(on) => change({ handsFree: on })}
+      />
+    </div>
+  ) : note ? (
       <p className="voice-input__note" role="alert">
         <Icon name="circle-alert" size={16} />
         <strong>{note.problem}</strong>

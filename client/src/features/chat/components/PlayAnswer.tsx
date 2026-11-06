@@ -14,8 +14,11 @@ export function PlayAnswer({ answer }: { answer: Element | null }) {
 function Player({ answer }: { answer: Element | null }) {
   const [settings] = useVoiceSettings()
   const [state, setState] = useState<'idle' | 'playing' | 'paused'>('idle')
-  // A later answer must not inherit an earlier one's "playing" state.
   const spoken = useRef<SpeechSynthesisUtterance | null>(null)
+  // What is being read, and how far the voice has got in it (characters), so a change of speed
+  // or voice can carry on from the same word instead of starting over.
+  const text = useRef('')
+  const at = useRef(0)
 
   const stop = () => {
     // Without clearing onend first, stopping would look like "finished" and re-open the mic.
@@ -23,16 +26,19 @@ function Player({ answer }: { answer: Element | null }) {
     speechSynthesis.cancel()
     setState('idle')
   }
-  // Speaks the answer. The state follows the voice's own events, so this can run from an effect.
-  const speak = () => {
-    const text = answer ? spokenText(answer) : ''
-    if (!text) return
+  // Speaks the answer from character `from`. The state follows the voice's own events, so this
+  // can run from an effect.
+  const speak = (from = 0) => {
+    if (!from) text.current = answer ? spokenText(answer) : ''
+    const rest = text.current.slice(from)
+    if (!rest) return
     if (spoken.current) spoken.current.onend = null
     speechSynthesis.cancel()
-    const say = new SpeechSynthesisUtterance(text)
+    const say = new SpeechSynthesisUtterance(rest)
     say.rate = settings.rate
     const voice = speechSynthesis.getVoices().find((v) => v.voiceURI === settings.voiceURI)
     if (voice) say.voice = voice
+    say.onboundary = (e) => void (at.current = from + e.charIndex)
     say.onstart = () => setState('playing')
     say.onend = () => {
       setState('idle')
@@ -42,6 +48,11 @@ function Player({ answer }: { answer: Element | null }) {
     spoken.current = say
     speechSynthesis.speak(say)
   }
+  // A new speed or voice applies at once, from the word being read, with no stop and start.
+  useEffect(() => {
+    if (state !== 'idle') speak(at.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the settings change
+  }, [settings.rate, settings.voiceURI])
   const togglePause = () => {
     if (state === 'playing') {
       speechSynthesis.pause()
@@ -65,7 +76,7 @@ function Player({ answer }: { answer: Element | null }) {
   return (
     <>
       {state === 'idle' ? (
-        <IconButton icon="volume-2" label="Read answer aloud" onClick={speak} />
+        <IconButton icon="volume-2" label="Read answer aloud" onClick={() => speak()} />
       ) : (
         <>
           <IconButton
