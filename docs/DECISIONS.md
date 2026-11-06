@@ -2220,3 +2220,16 @@ Rejected in round 2:
 Known limits: a third person's Engineer column updates on their next visit, because their counts don't change; a visible list reloading on a colleague's change refreshes the session, as the Inbox's did; a notification's `reportDue` is a snapshot from creation; an Inbox item expires with the rest after 90 days, though the thing it points at still exists.
 
 Stories: F-10, RV-11, F-05.
+
+## 2026-11-07 — Site walk uploads are converted on arrival, and removal waits on the device
+
+Chose: the gateway turns any accepted photo into a JPEG and any recording Whisper can't read into `.m4a` when it arrives, using `sharp`, `heic-convert` and `ffmpeg-static`. Removing a photo, recording or note hides it at once and deletes it after a 10 second Undo, or at once on Finish or on leaving the screen.
+
+Reason: everything stored stays in a format the viewer, photo reading and report export already handle, so nothing downstream changes. Waiting on the device needs no new stored state, and a removed item is never left half in a proposal; if the tab closes first, the item simply stays.
+
+Rejected:
+- Storing the original format and converting when read: every reader would need to handle it.
+- A `removed` flag on the walk: every reader of a walk's recordings and photos would have to check it.
+- Raising the 100 MB upload limit for a long uncompressed WAV: it needs a change to EC2's nginx.
+
+Stories: CP-22.
