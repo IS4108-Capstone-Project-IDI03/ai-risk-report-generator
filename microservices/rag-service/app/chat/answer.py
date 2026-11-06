@@ -26,7 +26,7 @@ from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
 
 # Bump on every prompt change; each scored eval run records it (AC12).
-PROMPT_VERSION = "cb01-v24"  # v24: v23 plus the Preference: rule for remembered facts (CB-05)
+PROMPT_VERSION = "cb01-v25"  # v25: v24 plus the photo rules (CB-08)
 # The component signatures, generated from the client's library (must match
 # client/src/features/chat/library.test.ts, which rewrites this file).
 COMPONENTS = (Path(__file__).parent / "answer_components.txt").read_text()
@@ -102,6 +102,10 @@ ANSWER_RULES = f"""
   answers). Use them only to choose what to emphasise and how to phrase the answer. They are
   not evidence: never cite them, never state one as a finding, and still answer only from
   the passages.
+- Lines that start "Engineer context: Photo" describe a photo the engineer attached. Address
+  what the photo shows, and say what you could not make out when the line says "Could not
+  make out:". Never guess at it. Never cite a photo: only the passages are evidence, so any
+  requirement, number or finding still comes from a passage and is cited.
 - Write `root = Answer([...])` first and nothing before it. Never write meta or Meta.
 - Every Statement that says what a document says cites the passage it came from:
   Cite("P<n>", "<exact words from P<n>, at most 25>").
@@ -159,6 +163,8 @@ ANSWER_RULES = f"""
 """
 
 PLAN_SYSTEM = f"""You prepare a knowledge base search for a property risk engineer's chat.
+If a <photos> block is given, it describes what the engineer attached to their LAST message. Use
+what the photos show when you write `query`, so the search is about the equipment in them.
 Read the conversation and decide for its LAST message:
 - kind "search": write `query` as a standalone search question, resolving any reference to
   earlier messages ("it", "the 2022 edition") into full words.
@@ -620,6 +626,10 @@ def _events(
         context = masked[len(history) : len(masked) - len(titles)]
         listed = "".join(f"- {title}\n" for title in masked[len(masked) - len(titles) :])
         transcript = "\n".join(f"{m['role']}: {m['content']}" for m in history)
+        # What the engineer's photos show (CB-08), for the planner.
+        seen = "".join(f"{c}\n" for c in context if c.startswith("Photo "))
+        if seen:
+            transcript += f"\n\n<photos>\n{seen}</photos>"
         # a. Plan: turn the last message into a search, a clarifying question, a reply or a decline.
         plan = complete_json(
             PLAN_SYSTEM,

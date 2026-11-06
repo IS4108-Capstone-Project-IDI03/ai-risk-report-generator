@@ -158,6 +158,30 @@ def test_engineer_context_reaches_the_model_and_is_not_evidence(fake):
     assert "never cite them" in " ".join(system.split())
 
 
+def test_a_photo_description_steers_the_search_and_is_not_evidence(fake):
+    # CB-08: what the engineer's photo shows reaches the planner, so the search is about it, and
+    # the answer model, which must say what it could not make out and never cite the photo.
+    context = [
+        "Photo 1: A corroded sprinkler riser with a shut valve. Could not make out: the gauge.",
+        "Preference: I mostly survey Singapore offices",
+    ]
+    list(
+        answer.answer_events(
+            [{"role": "user", "content": "Is this acceptable?"}],
+            context,
+            [],
+        )
+    )
+    planner_input = fake["calls"]["plan"][0]
+    assert "<photos>" in planner_input and "corroded sprinkler riser" in planner_input
+    # A remembered preference is not a photo.
+    assert "Singapore offices" not in planner_input
+    system, messages = fake["calls"]["answer"][0]
+    assert "Engineer context: Photo 1: A corroded sprinkler riser" in messages[-1]["content"]
+    rules = " ".join(system.split())
+    assert "never cite a photo" in rules.lower() and "could not make out" in rules.lower()
+
+
 def test_declines_without_citations_when_nothing_is_relevant(fake):
     fake["passages"] = [P1 | {"relevance_score": 0.01}]
     events = _ask("What does the knowledge base say about earthquakes?")
