@@ -86,6 +86,7 @@ import {
   proposalCapture,
   type ProposalCaptureTarget,
 } from '../site-walk/proposalCapture'
+import { formatCoordinates, parseCoordinates, type Coordinates } from './googleMaps'
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
 import {
@@ -290,7 +291,21 @@ const pathOf = (o: Observation) => ({
   bare: !o.locationName,
 })
 // The picker's form, empty, adding a location in a building.
-const BLANK_LOCATION: LocationForm = { kind: 'building', building: '', floor: '', name: '' }
+const BLANK_LOCATION: LocationForm = {
+  kind: 'building',
+  building: '',
+  floor: '',
+  name: '',
+  coordinates: '',
+}
+// The form filled in from a saved location, to change it.
+const formOf = (l: SiteLocation): LocationForm => ({
+  kind: l.building || l.floor ? 'building' : 'elsewhere',
+  building: l.building ?? '',
+  floor: l.floor ?? '',
+  name: l.name,
+  coordinates: l.coordinates ? formatCoordinates(l.coordinates) : '',
+})
 // The form with nothing refused, asked about or kept as typed.
 const FORM_CLEAR = { lfErrors: {}, lfCheck: null, lfKept: {} } satisfies Partial<WorkflowState>
 const plural = (n: number, word: string) => n + ' ' + word + (n === 1 ? '' : 's')
@@ -1040,6 +1055,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       locOpen: false,
       locDismissed: true,
       locQuery: '',
+      locBlock: null,
       locAdding: false,
       locEdit: null,
       ...FORM_CLEAR,
@@ -1048,7 +1064,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const query = s.locQuery.trim().toLowerCase()
     // The picker's groups, of the locations the search matches (CP-16).
     const locationGroups = groupLocations(
-      pickable.filter((l) => !query || locationLabel(l).toLowerCase().includes(query)),
+      pickable.filter(
+        (l) =>
+          (!s.locBlock || sameName(l.building, s.locBlock)) &&
+          (!query || locationLabel(l).toLowerCase().includes(query)),
+      ),
     )
     const currentGroup = currentLocation && groupKey(currentLocation)
     // A recording is named by its number; an uploaded file keeps its own name.
@@ -1513,14 +1533,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const building = inBuilding ? form.building.trim() : ''
       const typedFloor = inBuilding ? form.floor.trim() : ''
       const floor = typedFloor && (standardLevel(typedFloor) ?? typedFloor)
+      const typedPoint = form.coordinates.trim()
+      const coordinates = parseCoordinates(typedPoint)
+      // Sent only when there's something to save or clear, so an edit of a
+      // location without any stays as it was.
+      const before = places.locations.find((l) => l.id === editing)
+      const hadPoint = before?.coordinates
       const details = {
         name: form.name.trim(),
         ...(building && { building }),
         ...(floor && { floor }),
+        ...((coordinates || hadPoint) && { coordinates }),
       }
       const missing = {
         ...(inBuilding && !building && { building: 'Name the building.' }),
         ...(!details.name && { name: 'Name the location.' }),
+        ...(typedPoint &&
+          !coordinates && { coordinates: 'Enter coordinates such as 1.2966, 103.8520' }),
       }
       if (Object.keys(missing).length) return setState({ lf: form, lfErrors: missing })
       const others = places.locations.filter((l) => l.id !== editing)
@@ -1587,10 +1616,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         locEdit: null,
         obsLocForm: false,
         locQuery: '',
+        locBlock: null,
         // A new location is where the engineer is now; an edited one changes
         // nothing about where they are.
         ...(!editing && { locOpen: false, fLocationId: location.id }),
       })
+      // The first coordinates in a block also set its pin on the site, so the
+      // Geolocation card and the picker's tracking read the site again.
+      const moved =
+        coordinates?.lat !== hadPoint?.lat ||
+        coordinates?.lng !== hadPoint?.lng ||
+        building !== (before?.building ?? '')
+      if (places.live && coordinates && moved) void reloadRows()
       if (!editing) return
       // Every observation saved there follows it: the gateway's are listed
       // again, and those kept in this browser take the new details.
@@ -2554,14 +2591,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         locAdding: true,
         locEdit: l?.id ?? null,
         ...FORM_CLEAR,
-        lf: l
-          ? {
-              kind: l.building || l.floor ? 'building' : 'elsewhere',
-              building: l.building ?? '',
-              floor: l.floor ?? '',
-              name: l.name,
-            }
-          : BLANK_LOCATION,
+        lf: l ? formOf(l) : BLANK_LOCATION,
       })
     return {
       /* access (F-05) */
@@ -2706,6 +2736,22 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               },
             }
           : null,
+      // The Overview's Geolocation card (CP-26): the site, this visit's buildings, and
+      // whether the engineer may change its pins. A record from a gateway
+      // before CP-26 has no pins.
+      ovMap: targetRow?.record
+        ? {
+            site: {
+              id: targetRow.record.site.id,
+              coordinates: targetRow.record.site.coordinates ?? null,
+              pins: targetRow.record.site.pins ?? [],
+            },
+            buildings: groupLocations(places.locations)
+              .filter((g) => g.key.startsWith('building:'))
+              .map((g) => g.title),
+            canEdit: isMine && canCapture && !targetRow.record.site.removed,
+          }
+        : null,
       // A site corrected from the Overview: the work list reads it again, and
       // the header takes its name.
       siteSaved: async (message: string) => {
@@ -3521,6 +3567,33 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // The location bar opens the picker, or closes the dropdown it anchors.
       toggleLocations: () => setState(locSheetOpen ? pickerClosed : { locOpen: true }),
       locQuery: s.locQuery,
+      // Every pin, so standing at a block with no location on this visit isn't
+      // reported as being near the next one along (CP-26).
+      locPins: targetRow?.record?.site.pins ?? [],
+      // The block found (CP-26). Matched exactly, not by the search, or
+      // "Block 1" would also bring up "Block 10".
+      locBlock: s.locBlock,
+      // A block with no location on this visit would narrow the list to nothing.
+      showBlock: (name: string | null) =>
+        setState({
+          locBlock: name && pickable.some((l) => sameName(l.building, name)) ? name : null,
+        }),
+      // A new reading from the picker's tracking. An open Add a location form
+      // follows it, unless the engineer has typed in or cleared the field.
+      locHere: s.locHere,
+      lfOwnPoint: s.lfOwnPoint,
+      trackedTo: (point: Coordinates | null) =>
+        updateState((previous) => ({
+          ...previous,
+          locHere: point,
+          ...(point &&
+            previous.locAdding &&
+            !previous.locEdit &&
+            !previous.lfOwnPoint && {
+              lf: { ...previous.lf, coordinates: formatCoordinates(point) },
+              lfErrors: { ...previous.lfErrors, coordinates: undefined },
+            }),
+        })),
       setLocQuery: (e: React.ChangeEvent<HTMLInputElement>) =>
         setState({ locQuery: e.target.value }),
       // By building, then level, then elsewhere on site (CP-16). A group
@@ -3558,12 +3631,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                         locAdding: true,
                         locEdit: l.id,
                         ...FORM_CLEAR,
-                        lf: {
-                          kind: l.building || l.floor ? 'building' : 'elsewhere',
-                          building: l.building ?? '',
-                          floor: l.floor ?? '',
-                          name: l.name,
-                        },
+                        lf: formOf(l),
                       })
                   : undefined,
               }
@@ -3581,6 +3649,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fLocationId: id,
           locOpen: false,
           locQuery: '',
+          locBlock: null,
           locAdding: false,
           locEdit: null,
           ...FORM_CLEAR,
@@ -3595,8 +3664,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           locAdding: true,
           locEdit: null,
           ...FORM_CLEAR,
+          lfOwnPoint: false,
           lf: {
             ...BLANK_LOCATION,
+            ...(s.locHere && { coordinates: formatCoordinates(s.locHere) }),
             ...(currentLocation?.building
               ? { building: currentLocation.building, floor: currentLocation.floor ?? '' }
               : currentLocation && !currentLocation.floor && { kind: 'elsewhere' as const }),
@@ -3622,6 +3693,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           lfCheck: null,
           lfKept: { ...s.lfKept, [field]: undefined },
         }),
+      // On the latest form: the browser's position can arrive seconds later,
+      // and what was typed meanwhile must stay (CP-26).
+      setLfCoordinates: (coordinates: string) =>
+        updateState((previous) => ({
+          ...previous,
+          lf: { ...previous.lf, coordinates },
+          lfOwnPoint: true,
+          lfErrors: { ...previous.lfErrors, coordinates: undefined },
+        })),
       // The question about a new building or level that looks mistyped: use
       // the name it was probably meant to be, keep it as typed, or change it.
       // Either of the first two carries on saving.

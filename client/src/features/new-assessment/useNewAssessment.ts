@@ -102,6 +102,17 @@ export function useNewAssessment(
       { ...form, sites: form.sites.map((s, k) => (k === i ? edit(s, patch) : s)) },
       Object.keys(patch).map((k) => `sites.${i}.${k}`),
     )
+  // From the browser's location (CP-26), which answers seconds later: by ref and
+  // on the latest form, so what was typed meanwhile isn't undone.
+  const setCoordinates = (ref: string, coordinates: string) => {
+    setForm((now) => ({
+      ...now,
+      sites: now.sites.map((s) => (s.ref === ref ? { ...s, coordinates } : s)),
+    }))
+    setErrors((all) =>
+      Object.fromEntries(Object.entries(all).filter(([k]) => !k.endsWith('.coordinates'))),
+    )
+  }
   const setAssessment = (i: number, j: number, patch: Partial<FormAssessment>) => {
     const assessments = form.sites[i].assessments.map((a, k) => (k === j ? edit(a, patch) : a))
     update(
@@ -237,6 +248,7 @@ export function useNewAssessment(
     setDivision: (division: string) =>
       update({ ...form, client: edit(form.client, { division }) }, ['client.division']),
     setSite,
+    setCoordinates,
     // Ticking a recorded site adds its card; unticking removes it.
     toggleSite: (siteId: string) => {
       const at = form.sites.findIndex((s) => s.choice === siteId)

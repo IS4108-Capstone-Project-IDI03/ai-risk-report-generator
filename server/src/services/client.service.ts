@@ -3,7 +3,7 @@ import { isValidObjectId, Types } from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
 import { ClientModel } from '../models/client.model'
 import type { IStamp } from '../models/observation.model'
-import { SiteModel, type ISite } from '../models/site.model'
+import { SiteModel, type ICoordinates, type ISite } from '../models/site.model'
 import type { SessionUser } from './auth.service'
 import { FACILITY_TYPES } from './knowledge-document.service'
 import { isDuplicateKeyError } from './mongo-errors'
@@ -413,6 +413,28 @@ export type SiteFields = {
   facilityType: string
 }
 
+// A point on the map (CP-26), checked here because a browser can send anything.
+const COORDINATES_RULE = 'Enter a latitude from -90 to 90 and a longitude from -180 to 180.'
+export const coordinatesSchema = z.object(
+  {
+    lat: z.number(COORDINATES_RULE).min(-90, COORDINATES_RULE).max(90, COORDINATES_RULE),
+    lng: z.number(COORDINATES_RULE).min(-180, COORDINATES_RULE).max(180, COORDINATES_RULE),
+  },
+  COORDINATES_RULE,
+)
+
+// One change to a site's map (CP-26): its location, or one block's pin, null to
+// remove either. One at a time, so two engineers pinning different blocks can't
+// erase each other's work, as saving the whole map would.
+export const siteMapChangeSchema = z.union([
+  z.strictObject({ coordinates: coordinatesSchema.nullable() }),
+  z.strictObject({
+    block: z.string('Name the block.').trim().min(1, 'Name the block.'),
+    point: coordinatesSchema.nullable(),
+  }),
+])
+export type SiteMapChange = z.infer<typeof siteMapChangeSchema>
+
 // Corrects a site's name, address, jurisdiction and facility type (CP-18), so
 // every assessment at it shows the change. Only when every assessment there,
 // archived or not, is the engineer's, none is finalised, and the site is not
@@ -452,6 +474,53 @@ export async function correctSite(id: string, input: SiteFields, user: SessionUs
       },
       ...(!address && { $unset: { address: 1 } }),
     },
+  )
+}
+
+// Applies one change to a site's map (CP-26). Any engineer with a visit there
+// may, unlike correctSite: a pin changes no report, so a colleague's assessment
+// there is no reason to refuse.
+export async function changeSiteMap(id: string, change: SiteMapChange, user: SessionUser) {
+  const site = await siteById(id)
+  if (site.removed) throw new ClientSiteError('This site has been removed.', 409)
+  if (!holdingOf(await holdings([site._id], user.id), site).mine)
+    throw new ClientSiteError('You have no assessment at this site.', 403)
+  if ('coordinates' in change) {
+    await SiteModel.updateOne(
+      { _id: site._id },
+      change.coordinates
+        ? { $set: { coordinates: change.coordinates } }
+        : { $unset: { coordinates: 1 } },
+    )
+    return
+  }
+  const key = clientKey(change.block)
+  if (!change.point) {
+    await SiteModel.updateOne({ _id: site._id }, { $pull: { blockPins: { key } } })
+    return
+  }
+  await moveBlockPin(site._id, change.block, change.point)
+}
+
+// Moved in place, so its number on the map stays the same; added if it's new.
+// Also called by location.service.ts, when a location's coordinates change (CP-26).
+export async function moveBlockPin(site: Types.ObjectId, block: string, point: ICoordinates) {
+  const key = clientKey(block)
+  const moved = await SiteModel.updateOne(
+    { _id: site, ...LISTED, 'blockPins.key': key },
+    { $set: { 'blockPins.$': { key, name: block, ...point } } },
+  )
+  if (!moved.matchedCount) await addBlockPin(site, block, point)
+}
+
+// Pins a block unless it already has a pin. Matching on the key in the same
+// update makes it atomic, so two engineers can't pin one block twice. Also
+// called by location.service.ts, when a location saved there has coordinates (CP-26).
+export async function addBlockPin(site: Types.ObjectId, block: string, point: ICoordinates) {
+  const key = clientKey(block)
+  await SiteModel.updateOne(
+    { _id: site, ...LISTED, 'blockPins.key': { $ne: key } },
+    { $push: { blockPins: { key, name: block, ...point } } },
   )
 }
 

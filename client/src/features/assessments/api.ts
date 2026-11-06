@@ -1,6 +1,8 @@
 // Gateway (S2) calls for assessments. Requests go to /api, which Vite proxies
 // to the gateway in development.
 
+import type { Coordinates } from './googleMaps'
+
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
 export type AssessmentStatus =
@@ -32,6 +34,9 @@ export type Assessment = {
     code: string
     name: string
     address: string | null
+    // Where it is and its block pins (CP-26), shared by every visit to it.
+    coordinates?: { lat: number; lng: number } | null
+    pins?: { name: string; lat: number; lng: number }[]
     jurisdiction: string
     facilityType: string
     // Removed from its client (CP-18): it takes no new visit.
@@ -181,9 +186,17 @@ export type SiteLocation = {
   building: string | null
   floor: string | null
   name: string
+  // Where it is (CP-26), when the engineer has saved that.
+  coordinates?: Coordinates
 }
-// What the engineer gives for a new or changed location; blank ones are left out.
-export type LocationDetails = { building?: string; floor?: string; name: string }
+// What the engineer gives for a new or changed location; blank ones are left
+// out. null coordinates clear the ones saved.
+export type LocationDetails = {
+  building?: string
+  floor?: string
+  name: string
+  coordinates?: Coordinates | null
+}
 
 // An observation saved on the server: any of a note (CP-02), recordings
 // (CP-03), photos (CP-04) and handwritten pages (CP-19).

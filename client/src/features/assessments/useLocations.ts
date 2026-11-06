@@ -14,6 +14,7 @@ const localLocation = (id: string, details: LocationDetails): SiteLocation => ({
   building: details.building?.trim() || null,
   floor: details.floor?.trim() || null,
   name: details.name.trim(),
+  ...(details.coordinates && { coordinates: details.coordinates }),
 })
 
 // The assessment's locations. With a capture session live they come from the

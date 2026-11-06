@@ -128,6 +128,9 @@ export type AssessmentDto = {
     code: string
     name: string
     address: string | null
+    // Where it is and its block pins (CP-26), shared by every visit to it.
+    coordinates: { lat: number; lng: number } | null
+    pins: { name: string; lat: number; lng: number }[]
     jurisdiction: string
     facilityType: string
     // Removed from its client (CP-18): it takes no new visit.
@@ -328,6 +331,10 @@ export function toDto(
       code: site.code,
       name: site.name,
       address: site.address ?? null,
+      coordinates: site.coordinates
+        ? { lat: site.coordinates.lat, lng: site.coordinates.lng }
+        : null,
+      pins: (site.blockPins ?? []).map(({ name, lat, lng }) => ({ name, lat, lng })),
       jurisdiction: site.jurisdiction,
       facilityType: site.facilityType,
       removed: !!site.removed,
