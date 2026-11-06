@@ -92,11 +92,10 @@ function engineerTexts(body: unknown): string[] {
   return [...said, ...noted].filter((t): t is string => typeof t === 'string')
 }
 
-// `{ attachments }` for this chat's PDF, or nothing when it has none, so a chat without one sends
-// S4 exactly what it did before (CB-09).
+// `{ attachments }` for this chat's PDFs (CB-09). Always set, even when empty: the browser's own
+// `attachments` is a list of photo ids (CB-08), and without this override S4 answers 422 to them.
 async function attachedPdfs(userId: string, threadId: unknown) {
-  const files = typeof threadId === 'string' ? await pdfsForChat(userId, threadId) : []
-  return files.length ? { attachments: files } : {}
+  return { attachments: typeof threadId === 'string' ? await pdfsForChat(userId, threadId) : [] }
 }
 
 // The request with extra context lines added after any the browser sent.

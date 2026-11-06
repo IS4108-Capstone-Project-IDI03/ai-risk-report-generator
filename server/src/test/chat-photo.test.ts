@@ -39,7 +39,7 @@ let faces = 0
 let unclear = ''
 let faceCheckDown = false
 let describeDown = false
-let s4Body: { context?: { value: string }[] } = {}
+let s4Body: { context?: { value: string }[]; attachments?: unknown } = {}
 const s5Calls: string[] = []
 
 beforeEach(() => {
@@ -148,6 +148,13 @@ describe('asking about a photo (CB-08 AC1, AC4, AC5)', () => {
     const line = (s4Body.context ?? []).map((c) => c.value).join('\n')
     expect(line).toContain('Photo 1: A wet-pipe riser with a shut valve.')
     expect(line).toContain('Could not make out: The gauge reading.')
+  })
+
+  it("does not forward the photo ids to S4 as its PDF 'attachments' (S4 answers 422 to them)", async () => {
+    const threadId = await newChat()
+    const { id } = (await upload(alex, JPEG)).body
+    await ask(alex, threadId, [id])
+    expect(s4Body.attachments).toEqual([])
   })
 
   it('sends the blurred copy when the engineer chose it and drops the original', async () => {

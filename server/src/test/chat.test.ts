@@ -52,6 +52,7 @@ describe('POST /api/chat', () => {
     expect(sent).toHaveBeenCalledWith(expect.stringMatching(/\/chat$/), {
       ...BODY,
       documents: [],
+      attachments: [],
       role: 'risk_engineer',
       privacy: { enabled: false, known_entities: [] },
     })
