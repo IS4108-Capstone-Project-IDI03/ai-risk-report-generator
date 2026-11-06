@@ -13,12 +13,18 @@ const ICON_FOR_PURPOSE: Record<Notification['purpose'], string> = {
   knowledge_document_status: 'book-open',
   account_status: 'user',
   assessment_status: 'clipboard-list',
-  knowledge_gap_request: 'inbox',
+  knowledge_gap_request: 'book-open',
   site_walk_ready: 'sparkles',
+  site_walk_failed: 'mic',
+  assessment_assigned: 'clipboard-list',
+  assessment_moved: 'arrow-left-right',
 }
 
 export function NotificationIcon({ notification }: { notification: Notification }) {
-  const { fg, bg } = toneFor(notification.context?.status)
+  // A move is a plain update, so its tile is grey, not the navy of "no status".
+  const status =
+    notification.purpose === 'assessment_moved' ? 'dismissed' : notification.context?.status
+  const { fg, bg } = toneFor(status)
   const icon = ICON_FOR_PURPOSE[notification.purpose] ?? 'bell'
   return (
     <span className="notif-icon" data-icon={icon} style={{ color: fg, background: bg }}>

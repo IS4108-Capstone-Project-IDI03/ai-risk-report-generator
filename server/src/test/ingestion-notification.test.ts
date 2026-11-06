@@ -35,11 +35,12 @@ const failurePayload = () => ({
 const postFailure = (body: object = failurePayload()) =>
   request(app).post('/api/internal/notifications').set('x-service-key', KEY).send(body)
 
+// A failed document is an Inbox item (F-10), so these read the Inbox, not the bell.
 describe('ingestion failure → notification', () => {
   it('reaches a knowledge admin through the user API', async () => {
     await postFailure().expect(201)
 
-    const res = await admin.get('/api/notifications').expect(200)
+    const res = await admin.get('/api/notifications?kind=inbox').expect(200)
     expect(res.body.items).toHaveLength(1)
     const item = res.body.items[0]
     expect(item.message).toBe('"NFPA 13 sprinkler standard" failed to ingest during chunking.')
@@ -52,21 +53,21 @@ describe('ingestion failure → notification', () => {
   it('is not shown to a risk engineer', async () => {
     await postFailure().expect(201)
 
-    const res = await engineer.get('/api/notifications').expect(200)
+    const res = await engineer.get('/api/notifications?kind=inbox').expect(200)
     expect(res.body.items).toEqual([])
   })
 
-  it('surfaces on the unread count the admin\u2019s session carries', async () => {
+  it('surfaces on the Inbox To do count the admin\u2019s session carries, not the bell', async () => {
     await postFailure().expect(201)
 
     const res = await admin.get('/api/notifications/count').expect(200)
-    expect(res.body).toEqual({ total: 1, unread: 1 })
+    expect(res.body).toMatchObject({ total: 0, unread: 0, inboxTodo: 1 })
   })
 
   it('carries the stage in the message so the admin knows where it broke', async () => {
     await postFailure().expect(201)
 
-    const res = await admin.get('/api/notifications').expect(200)
+    const res = await admin.get('/api/notifications?kind=inbox').expect(200)
     expect(res.body.items[0].message).toContain('chunking')
   })
 
@@ -76,7 +77,7 @@ describe('ingestion failure → notification', () => {
     await postFailure().expect(201)
     await postFailure().expect(201)
 
-    const res = await admin.get('/api/notifications').expect(200)
+    const res = await admin.get('/api/notifications?kind=inbox').expect(200)
     expect(res.body.items).toHaveLength(1)
   })
 
@@ -93,7 +94,7 @@ describe('ingestion failure → notification', () => {
       context: { documentId: DOC_ID, status: 'failed', stage: 'chunking', attempt: '1' },
     }).expect(201)
 
-    const res = await admin.get('/api/notifications').expect(200)
+    const res = await admin.get('/api/notifications?kind=inbox').expect(200)
     expect(res.body.items).toHaveLength(2)
   })
 
@@ -105,7 +106,7 @@ describe('ingestion failure → notification', () => {
     await postFailure(retryOne).expect(201)
     await postFailure(retryOne).expect(201)
 
-    const res = await admin.get('/api/notifications').expect(200)
+    const res = await admin.get('/api/notifications?kind=inbox').expect(200)
     expect(res.body.items).toHaveLength(1)
   })
 
@@ -123,14 +124,17 @@ describe('ingestion failure → notification', () => {
       context: { documentId: '6ab39017e45cf009e4507799', status: 'failed', stage: 'parsing' },
     }).expect(201)
 
-    const res = await admin.get('/api/notifications').expect(200)
-    expect(res.body.items).toHaveLength(3)
+    // Three rows: the two failures wait in the Inbox, the finished one is a bell update.
+    const inbox = await admin.get('/api/notifications?kind=inbox').expect(200)
+    expect(inbox.body.items).toHaveLength(2)
+    const bell = await admin.get('/api/notifications').expect(200)
+    expect(bell.body.items).toHaveLength(1)
   })
 
   it('rejects an unknown purpose and lists nothing', async () => {
     await postFailure({ ...failurePayload(), purpose: 'bogus' }).expect(400)
 
-    const res = await admin.get('/api/notifications').expect(200)
+    const res = await admin.get('/api/notifications?kind=inbox').expect(200)
     expect(res.body.items).toEqual([])
   })
 })

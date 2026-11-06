@@ -36,7 +36,8 @@ export function ProposalTree({
   proposal: Proposal
   selected: string
   onPick: (ref: string) => void
-  actions: LocationActions
+  // Left out for someone reading another engineer's walk (RV-11 AC2).
+  actions?: LocationActions
 }) {
   // Buildings and levels fold; each remembers its fold for the visit.
   const [folded, setFolded] = useState<Record<string, boolean>>({})
@@ -80,7 +81,7 @@ export function ProposalTree({
                           depth={depth}
                           onPick={() => onPick(l.ref)}
                           actions={
-                            l.existingId ? null : (
+                            l.existingId || !actions ? null : (
                               <>
                                 <NavAction
                                   icon="link"

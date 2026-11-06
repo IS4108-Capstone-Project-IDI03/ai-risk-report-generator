@@ -39,6 +39,8 @@ export function Toaster() {
       position="bottom-center"
       closeButton
       visibleToasts={3}
+      // Clear of a phone's home bar (16 px is Sonner's own offset there).
+      mobileOffset={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }}
       icons={{
         success: <SuccessIcon />,
         error: <Icon name="circle-alert" size={18} color="var(--red-600)" />,

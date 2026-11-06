@@ -210,7 +210,7 @@ export async function createAll(
   }
 
   // d. Observations, in the capture session (started if there is none).
-  const { session } = await startCaptureSession(reference)
+  const { session } = await startCaptureSession(reference, user)
   for (const o of proposal.observations) {
     await createWalkObservation({
       reference,

@@ -5,37 +5,34 @@ import type { UseNotifications } from './useNotifications'
 import type { Notification } from './api'
 import './notifications.css'
 
-// The dropdown's body: a header with the two bulk actions, the list of rows,
+// The dropdown's body: a thin header with the two bulk actions, the list of rows,
 // and a Load more at the foot. Takes the hook's state and the activate handler;
-// owns no fetching of its own.
+// owns no fetching of its own. Esc, a press outside, or the phone sheet closes it.
 export function NotificationList({
   n,
   onActivate,
-  onClose,
 }: {
   n: UseNotifications
   onActivate: (notification: Notification) => void
-  onClose?: () => void
 }) {
   const empty = !n.loading && !n.failed && n.items.length === 0
 
   return (
     <div className="notification-list">
       <header className="notification-list__header">
-        <div className="notification-list__heading">
-          <h2>Notifications</h2>
-          <span className="notification-list__count">
-            {n.unread > 0 ? `${n.unread} unread` : 'All caught up'}
-          </span>
-        </div>
+        <h2>Notifications</h2>
         <div className="notification-list__actions">
           {n.unread > 0 && (
-            <ActionButton icon="check-check" label="Mark all as read" onClick={n.markAllRead} />
+            <ActionButton
+              icon="check-check"
+              label="Mark all as read"
+              box={28}
+              onClick={n.markAllRead}
+            />
           )}
           {n.items.length > 0 && (
-            <ActionButton icon="trash-2" label="Dismiss all" onClick={n.dismissAll} />
+            <ActionButton icon="trash-2" label="Dismiss all" box={28} onClick={n.dismissAll} />
           )}
-          {onClose && <ActionButton icon="x" label="Close notifications" onClick={onClose} />}
         </div>
       </header>
 

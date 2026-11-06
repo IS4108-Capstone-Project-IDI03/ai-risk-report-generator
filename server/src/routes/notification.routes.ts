@@ -1,18 +1,24 @@
-// The header dropdown's API: list the signed-in user's notifications, mark one
-// or all read, dismiss them all. Each handler reads res.locals.user (set by
+// The bell's and the Inbox's API: list the signed-in user's notifications, open,
+// tick, untick, bin or restore one, mark all read and dismiss all (bell only).
+// Each handler reads res.locals.user (set by
 // requireAuth, mounted in index.ts) and leaves the work to
 // notification.service.ts. No requirePermission: these are scoped to the
 // caller's own session, like /api/auth/me, not to a role capability.
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import {
   dismissAllForUser,
   dismissForUser,
   listForUser,
+  listQuerySchema,
   markAllReadForUser,
   markAsRead,
+  markDone,
   NotificationNotFoundError,
+  restoreForUser,
+  unmarkDone,
 } from '../services/notification.service'
+import type { SessionUser } from '../services/auth.service'
 import { fieldErrors } from './field-errors'
 
 const router = Router()
@@ -41,60 +47,64 @@ const pageSchema = z.object({
     .default(0),
 })
 
-// One page of the caller's notifications, with the totals the dropdown needs.
-// An oversized limit is capped to MAX_LIMIT by the client, so the server only
-// has to clamp (not reject) a large limit and reject one it cannot interpret.
+// One page of the caller's bell (the default) or Inbox, with the totals the
+// screens need. An oversized limit is clamped to MAX_LIMIT; a limit, offset,
+// kind or tab the server cannot interpret is a 400 naming the field.
 router.get('/', async (req, res) => {
-  const parsed = pageSchema.safeParse(req.query)
+  const parsed = pageSchema.and(listQuerySchema).safeParse(req.query)
   if (!parsed.success) {
     res.status(400).json({ error: 'The page is invalid.', fields: fieldErrors(parsed.error) })
     return
   }
-  const { limit, offset } = parsed.data
-  res.json(await listForUser(res.locals.user!, limit, offset))
+  const { limit, offset, kind, tab } = parsed.data
+  res.json(await listForUser(res.locals.user!, limit, offset, { kind, tab }))
 })
 
-// Marks one notification read for the caller. 404 for an id that is malformed,
-// unknown or outside what the caller may see — the service draws no
+// Answers a single-notification change: 204 when done, 404 for an id that is
+// malformed, unknown or outside what the caller may see — the service draws no
 // distinction, so the call cannot probe for notifications meant for others.
-router.patch('/:id/read', async (req, res) => {
-  try {
-    await markAsRead(req.params.id, res.locals.user!)
-    res.status(204).end()
-  } catch (error: unknown) {
-    if (error instanceof NotificationNotFoundError) {
-      res.status(404).json({ error: error.message })
-      return
+function oneChange(change: (id: string, user: SessionUser) => Promise<void>) {
+  return async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      await change(req.params.id, res.locals.user!)
+      res.status(204).end()
+    } catch (error: unknown) {
+      if (error instanceof NotificationNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      throw error
     }
-    throw error
   }
-})
+}
 
-// Marks everything the caller can see as read, clearing the badge while
-// leaving the list in place.
+// Opens a notification for the caller: read, and on an Inbox item Done for them only.
+router.patch('/:id/read', oneChange(markAsRead))
+
+// Ticks an Inbox item without opening it: Done for the caller only.
+router.post('/:id/done', oneChange(markDone))
+
+// Unticks an Inbox item: back to To do for the caller only.
+router.delete('/:id/done', oneChange(unmarkDone))
+
+// Undoes a bin, for the caller only.
+router.post('/:id/restore', oneChange(restoreForUser))
+
+// Marks everything in the caller's bell as read, clearing the badge while
+// leaving the list in place. Inbox items are not touched.
 router.post('/read-all', async (_req, res) => {
   await markAllReadForUser(res.locals.user!)
   res.status(204).end()
 })
 
-// Clears the caller's list. Per user: another user in the role still sees them.
+// Clears the caller's bell. Per user: another user in the role still sees them.
+// Inbox items are not touched.
 router.post('/dismiss-all', async (_req, res) => {
   await dismissAllForUser(res.locals.user!)
   res.status(204).end()
 })
 
-// Dismisses one notification for the caller only. 404 as for mark-read.
-router.post('/:id/dismiss', async (req, res) => {
-  try {
-    await dismissForUser(req.params.id, res.locals.user!)
-    res.status(204).end()
-  } catch (error: unknown) {
-    if (error instanceof NotificationNotFoundError) {
-      res.status(404).json({ error: error.message })
-      return
-    }
-    throw error
-  }
-})
+// Bins one notification for the caller only. 404 as for opening it.
+router.post('/:id/dismiss', oneChange(dismissForUser))
 
 export default router

@@ -157,11 +157,11 @@ describe('Clients and their sites (CP-17 AC3, AC4)', () => {
     expect(sites[1].latest.reference).not.toBe(mistake.body.reference)
   })
 
-  it('answers 404 for an unknown client, and only to those who create assessments', async () => {
+  it('answers 404 for an unknown client, and lists clients for a knowledge admin too (RV-11)', async () => {
     expect((await api.get(`/api/clients/${new Types.ObjectId()}/sites`)).status).toBe(404)
     expect((await api.get('/api/clients/not-an-id/sites')).status).toBe(404)
     const admin = signedInAsRole(app, 'knowledge_admin')
-    expect((await admin.get('/api/clients')).status).toBe(403)
+    expect((await admin.get('/api/clients')).status).toBe(200)
   })
 })
 

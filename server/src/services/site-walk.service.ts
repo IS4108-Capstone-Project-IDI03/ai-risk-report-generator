@@ -29,6 +29,7 @@ import {
   transcribeWithSegments,
   transcriptionFailureReason,
 } from './speech.service'
+import { notifyFailed } from './site-walk-notice.service'
 import * as storage from './storage.service'
 
 // The walk does not exist on this assessment (404).
@@ -140,8 +141,10 @@ async function loadAssessment(reference: string): Promise<LoadedAssessment> {
   return { ...assessment, locations: assessment.locations ?? [] }
 }
 
-// The walk with its assessment. A change needs the walk's own engineer and an
-// assessment that is not archived; a read needs neither.
+// The walk with its assessment. A change needs the engineer the assessment is
+// assigned to now, not the one who started the walk (RV-11: after a reassignment
+// the new engineer carries on the walks already made), and an assessment that is
+// not archived; a read needs neither.
 export async function loadWalk(
   reference: string,
   walkId: string,
@@ -154,8 +157,6 @@ export async function loadWalk(
     : null
   if (!walk) throw new SiteWalkNotFoundError()
   if (forChange) {
-    if (String(walk.engineerId) !== user.id)
-      throw new NotAssignedError('Only the engineer who started this site walk can change it.')
     // Without this, an engineer the assessment was reassigned away from could still change the walk.
     if (String(assessment.engineer) !== user.id)
       throw new NotAssignedError(
@@ -169,7 +170,7 @@ export async function loadWalk(
 const dto = async (reference: string, walkId: Types.ObjectId | string) =>
   toSiteWalkDto(reference, (await SiteWalkModel.findById(walkId).lean<StoredWalk>())!)
 
-// Starts a walk, or returns this engineer's walk still being recorded, so a
+// Starts a walk, or returns the assessment's walk still being recorded, so a
 // second device or a reload carries on with the same one. Only the assessment's
 // assigned engineer, like its locations and observations.
 export async function startWalk(reference: string, user: SessionUser) {
@@ -180,7 +181,11 @@ export async function startWalk(reference: string, user: SessionUser) {
     )
   if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
   const mine = { assessment: assessment._id, engineerId: user.id, status: 'recording' as const }
-  const reuse = async () => SiteWalkModel.findOne(mine).lean<StoredWalk>()
+  // Whoever started it: after a reassignment the new engineer finishes the old
+  // engineer's walk. Matching on `mine` would start a second walk and strand the
+  // first one's recordings.
+  const reuse = async () =>
+    SiteWalkModel.findOne({ assessment: assessment._id, status: 'recording' }).lean<StoredWalk>()
   const existing = await reuse()
   if (existing) return { created: false, walk: toSiteWalkDto(reference, existing) }
   try {
@@ -202,14 +207,12 @@ export async function startWalk(reference: string, user: SessionUser) {
   }
 }
 
-// The caller's own walks on this assessment, newest first, created ones too
-// (the list folds those away). Returns the walks as the client reads them.
-export async function listWalks(reference: string, user: SessionUser): Promise<SiteWalkDto[]> {
+// The walks on this assessment, newest first, created ones too (the list folds
+// those away), whoever started them: after a reassignment the new engineer sees
+// the walks already made. Returns the walks as the client reads them.
+export async function listWalks(reference: string): Promise<SiteWalkDto[]> {
   const assessment = await loadAssessment(reference)
-  const walks = await SiteWalkModel.find({
-    assessment: assessment._id,
-    engineerId: user.id,
-  })
+  const walks = await SiteWalkModel.find({ assessment: assessment._id })
     .sort({ createdAt: -1 })
     .lean<StoredWalk[]>()
   return walks.map((w) => toSiteWalkDto(reference, w))
@@ -270,10 +273,11 @@ async function queueTranscription(walkId: string | Types.ObjectId, seq: number, 
         },
       },
     )
-    await SiteWalkModel.updateOne(
+    const failed = await SiteWalkModel.updateOne(
       { _id: walkId, status: 'transcribing' },
       { status: 'failed', error: FAILED_RECORDING(seq, NOT_QUEUED) },
     )
+    if (failed.modifiedCount) await notifyFailed(walkId)
   }
 }
 
@@ -535,10 +539,11 @@ export async function queueProposal(walkId: string | Types.ObjectId, retry = fal
     await proposalQueue.add(retry ? retryJobId(jobId) : jobId, { walkId: String(walkId) })
   } catch (error) {
     console.error('Queueing site walk proposal failed:', error)
-    await SiteWalkModel.updateOne(
+    const failed = await SiteWalkModel.updateOne(
       { _id: walkId, status: 'proposing' },
       { status: 'failed', error: 'The site walk could not be queued for reading. Retry it.' },
     )
+    if (failed.modifiedCount) await notifyFailed(walkId)
   }
 }
 
@@ -576,7 +581,7 @@ export async function retryWalk(reference: string, walkId: string, user: Session
     : 'proposing'
   const moved = await SiteWalkModel.findOneAndUpdate(
     { _id: walk._id, status: 'failed' },
-    { status: next, $unset: { error: 1 } },
+    { status: next, $unset: { error: 1 }, $inc: { retries: 1 } },
   ).lean()
   if (moved) {
     if (next === 'transcribing') await redoFailedRecordings(walk)
@@ -823,8 +828,9 @@ async function markRecordingFailed(walkId: string, seq: number, error: unknown) 
       },
     },
   )
-  await SiteWalkModel.updateOne(
+  const failed = await SiteWalkModel.updateOne(
     { _id: walkId, status: 'transcribing' },
     { status: 'failed', error: FAILED_RECORDING(seq, reason) },
   )
+  if (failed.modifiedCount) await notifyFailed(walkId)
 }

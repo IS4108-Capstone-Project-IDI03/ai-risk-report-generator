@@ -514,6 +514,22 @@
 .ds-toast:has([data-description]) .ds-toast-icon {
   align-self: flex-start;
 }
+/* Touch: 44 px to press (v2 "Phone"), with the toast's small look kept by invisible hit areas.
+   Undo grows up and down only; its left and right are wide enough, and the close sits beside it. */
+@media (pointer: coarse) {
+  .ds-toast-action {
+    position: relative;
+  }
+  .ds-toast-action::after,
+  .ds-toast-close::after {
+    content: '';
+    position: absolute;
+    inset: -8px 0;
+  }
+  .ds-toast-close::after {
+    inset: -8px;
+  }
+}
 
 /* Phones: 44 px fields, 16 px text (stops iOS zooming on focus), chip-size status pill */
 @media (max-width: 767px) {

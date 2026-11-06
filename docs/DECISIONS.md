@@ -2192,3 +2192,31 @@ Rejected:
 Reason: at 22 ACs and 13 points, CP-18 held two jobs, seeing and clearing away a client's sites and correcting their details, which can be planned and accepted separately.
 
 Stories: CP-18, CP-28, RV-12, CP-44.
+
+## 2026-11-05 — Admins hold the engineer's powers, and may assign assessments; the Inbox holds what needs a person
+
+Chose:
+- (F-10, RV-11) `knowledge_admin` gains `assessments:edit` and `reports:generate`, and a new `assessments:assign` belongs to `knowledge_admin` only. An admin can do everything an engineer can under Assessments and Clients, including Generation, Review and Export, on the same screens. `reports:export` (EX-01, 4 Nov) belongs to `knowledge_admin` too, for the same reason; only the assigned engineer can export.
+- This reverses the 30 Sep F-05 decision that rejected a wildcard admin and kept admins read-only on assessments. The "only the assigned engineer can change it" checks stay, so an admin changes only assessments assigned to them and reads the rest. Routes that had no such check because only engineers could reach them (starting capture, adding and removing locations, retrying a transcription, reading an observation, filing and deleting client documents) now have one.
+- An admin chooses the engineer when creating an assessment (required, any active account including themselves), and can reassign one later (`POST /api/assessments/:reference/reassign`; archived ones are refused). Engineers still get themselves. Observations, drafts and costs follow the assessment. After a reassignment the new engineer carries on its observations, locations and site walks, and the old one is refused.
+- The Inbox holds what stalls work if the person ignores it; the bell holds updates. Inbox items stay in the `notifications` collection with a `kind` set at creation from one lookup in the notification service, so the ingestion worker does not change. To do and Done are worked out per person, not stored.
+
+Reason: nobody on the team could state the motivation for the F-05 limit, and an admin should not be able to do less than an engineer; a person can only hand work over if an admin can do it. A second collection for the Inbox would rebuild audiences, per-user state, polling and the worker's route.
+
+Rejected:
+- A second collection for Inbox items.
+- A stored status for each item: it differs per person for the items shared by all admins.
+- Closing a shared item automatically when it is filled: Jesper chose not to track whether work was done, so Omar still sees a request Sana filled in To do until he opens or bins it.
+- Engineers choosing another engineer, or asking for a handover in the app.
+
+- Round 2 (6 Nov, replaced by round 3): tick and untick change the item for everyone, open and bin change only your list. Counts are checked every 10 seconds, and any change reloads the open Inbox or Assessments list. A sound plays only for an item newer than anything this person has seen, compared by the newest item's time from the count route, so an item coming back by an untick stays silent.
+
+- Round 3 (6 Nov): tick and untick are personal too, so every Inbox action changes only your own list. `markDone` adds you to `readBy` and `unmarkDone` removes only you; `doneAt`, `doneBy` and the DTO's `shared` are gone. Reason: a tick that moved an item for everyone hid work from an admin who had not seen it, and "Done" should mean done by me. A shared item therefore stays in the other admins' To do until each presses it. Pressing a request or document row first reads that item (`GET /api/knowledge-gaps/:id`, `GET /api/knowledge-documents/:id`) to tell if someone already handled it; knowledge documents record who last handled them in `handled`, written by correct, decide, retry and cancel.
+
+Rejected in round 2:
+- Server push (SSE): instant, but a new endpoint, Redis signals, an nginx rule on EC2 and reconnect handling, for a list of 0 to 20 items. It can be added later without changing the screens.
+- Webhooks: a browser has no address a server can call.
+
+Known limits: a third person's Engineer column updates on their next visit, because their counts don't change; a visible list reloading on a colleague's change refreshes the session, as the Inbox's did; a notification's `reportDue` is a snapshot from creation; an Inbox item expires with the rest after 90 days, though the thing it points at still exists.
+
+Stories: F-10, RV-11, F-05.

@@ -11,11 +11,16 @@ export function WalkStatusMessage({
 }: {
   walk: SiteWalk | null
   problem: string | null
-  onRetry: () => void
+  // Left out for someone reading another engineer's walk (RV-11 AC2).
+  onRetry?: () => void
 }) {
   let text = problem ?? 'Opening the proposal…'
   if (walk?.status === 'failed')
-    text = walk.error ?? 'The walk could not be read. Retry, or record it again.'
+    text =
+      walk.error ??
+      (onRetry
+        ? 'The walk could not be read. Retry, or record it again.'
+        : 'The walk could not be read.')
   else if (walk?.status === 'created') text = 'Everything from this walk is on the assessment.'
   else if (walk && walk.status !== 'ready')
     text = 'This walk is still being read. We’ll let you know when it’s ready.'
@@ -25,7 +30,7 @@ export function WalkStatusMessage({
         icon={walk?.status === 'failed' ? 'circle-alert' : 'loader'}
         title={text}
         action={
-          walk?.status === 'failed' ? (
+          walk?.status === 'failed' && onRetry ? (
             <button type="button" className="ob-button ob-button--primary" onClick={onRetry}>
               Retry
             </button>

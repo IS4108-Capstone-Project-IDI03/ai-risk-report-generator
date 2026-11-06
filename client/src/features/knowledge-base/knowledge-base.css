@@ -760,6 +760,10 @@
   border-color: var(--ink-300);
   box-shadow: 0 0 0 3px var(--surface-selected);
 }
+/* A document a notification opened (F-10): the same soft blue ring as a request. */
+.kb-doc-row[data-focused] > td {
+  background: var(--surface-selected);
+}
 .kb-request-body {
   min-width: 0;
   max-width: 68ch;

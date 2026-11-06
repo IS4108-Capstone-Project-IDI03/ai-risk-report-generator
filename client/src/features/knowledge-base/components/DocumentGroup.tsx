@@ -14,6 +14,7 @@ export function DocumentGroup({
   group,
   documents,
   openId,
+  focused,
   onToggle,
   onEdit,
   onHistory,
@@ -24,6 +25,7 @@ export function DocumentGroup({
   group: Group
   documents: KnowledgeDocument[]
   openId: string | null
+  focused?: string | null
   onToggle: (id: string) => void
   onEdit: (document: KnowledgeDocument) => void
   onHistory: (document: KnowledgeDocument) => void
@@ -55,6 +57,7 @@ export function DocumentGroup({
             key={d.id}
             document={d}
             open={openId === d.id}
+            focused={d.id === focused}
             onToggle={() => onToggle(d.id)}
             onEdit={() => onEdit(d)}
             onHistory={() => onHistory(d)}

@@ -75,6 +75,7 @@ export function ProposalHeader({
   onRename,
   onFix,
   onCreate,
+  readOnly = false,
 }: {
   back: { label: string; onClick: () => void }
   name: string
@@ -85,6 +86,8 @@ export function ProposalHeader({
   onRename: () => void
   onFix: () => void
   onCreate: () => void
+  // Someone else's proposal (RV-11 AC2): the name and the words only, nothing to press.
+  readOnly?: boolean
 }) {
   const blocked =
     !proposal || creating || !proposal.observations.length || incompleteCount(proposal) > 0
@@ -96,25 +99,29 @@ export function ProposalHeader({
       // Never mistaken for the real Observations tab (round 6).
       badge={<ObservationBadge kind="proposal" />}
       titleAction={
-        <button
-          type="button"
-          className="swr-rename"
-          aria-label="Rename proposal"
-          title="Rename"
-          onClick={onRename}
-        >
-          <Icon name="pencil" size={16} />
-        </button>
+        !readOnly && (
+          <button
+            type="button"
+            className="swr-rename"
+            aria-label="Rename proposal"
+            title="Rename"
+            onClick={onRename}
+          >
+            <Icon name="pencil" size={16} />
+          </button>
+        )
       }
       detail={
-        proposal && (
+        proposal &&
+        !readOnly && (
           <span className="swr-saved" role="status" data-state={saveState}>
             <SaveStatus state={saveState} onSave={onSave} />
           </span>
         )
       }
       actions={
-        proposal && (
+        proposal &&
+        !readOnly && (
           <>
             {!creating && <ReadyState proposal={proposal} onFix={onFix} />}
             <ProposalHelp />

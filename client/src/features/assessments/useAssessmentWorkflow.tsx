@@ -81,6 +81,7 @@ import type { BoxContent } from './components/StatBox'
 import { useCaptureSession } from './useCaptureSession'
 import type { Cope, Severity } from '../site-walk/api'
 import { siteWalkReview } from '../site-walk/openReview'
+import { reportAssessmentMissing } from './openAssessment'
 import {
   addCapturedObservation,
   proposalCapture,
@@ -674,6 +675,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
   const [listFailed, setListFailed] = useState(false)
+  // Counts up with every read of the list and every change made here since. A reply is used only
+  // if it is the latest: without this, a read sent just before a reassign could land after it and
+  // put the old engineer back on the row.
+  const rowsRead = useRef(0)
   // The assessment the open Archive confirm is for, when asked from a list row (CP-23).
   const [archiveRef, setArchiveRef] = useState<string | null>(null)
   // The Clients list is drawn from the work list, and a client page (CP-18)
@@ -682,28 +687,48 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const onClientScreen = state.screen === 'client' && canOpen('client', session)
   const onClientsScreen = state.screen === 'clients' && canOpen('clients', session)
   const onDashboard = state.screen === 'dashboard' && canOpen('dashboard', session)
+  // The Inbox opens an assessment from a row (F-10), which needs the list to find it.
+  const onInbox = state.screen === 'inbox' && canOpen('inbox', session)
   const listScreen = onDashboard
     ? 'dashboard'
     : onClientScreen
       ? 'client'
       : onClientsScreen
         ? 'clients'
-        : null
+        : onInbox
+          ? 'inbox'
+          : null
   const clientPage = useClientPage(onClientScreen ? state.clientPage : null)
   // A refresh inside a workspace needs the list too, for the assessment's own record.
   const needsRows =
     listScreen ?? ((onWorkspace || onField) && serverRows === null ? 'workspace' : null)
+  // Reads the work list and returns it. Its rows are used only if nothing newer happened since
+  // it was sent: a read sent before a reassign or a create would otherwise undo it.
+  async function readRows(signal?: AbortSignal) {
+    const sent = ++rowsRead.current
+    const list = await listAssessments(signal)
+    if (sent === rowsRead.current) {
+      setServerRows(list.map(toRow))
+      // A row created in this browser that the gateway no longer lists has moved to another
+      // engineer; without this it would stay on the old engineer's list until a refresh.
+      const listed = new Set(list.map((a) => a.reference))
+      updateState((previous) => ({
+        ...previous,
+        createdRows: previous.createdRows.filter((r) => !r.persisted || listed.has(r.id)),
+      }))
+    }
+    return list
+  }
   useEffect(() => {
     // Refetched on every return to the dashboard, so capture progress shows.
     if (!needsRows) return
     const controller = new AbortController()
-    listAssessments(controller.signal).then(
+    readRows(controller.signal).then(
       (list) => {
-        const rows = list.map(toRow)
-        setServerRows(rows)
         setListFailed(false)
         // An assessment reopened from the URL knows only its reference: its
         // site name (header, Recent) comes from the list.
+        const rows = list.map(toRow)
         updateState((previous) => {
           const row = rows.find((r) => r.id === previous.captureTarget.reference)
           if (!row || previous.captureTarget.site) return previous
@@ -723,11 +748,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   }, [needsRows])
   // Reads the work list again after a change elsewhere, e.g. a site corrected
   // from the Overview or a client page (CP-18).
-  async function reloadRows() {
-    const list = await listAssessments().catch(() => null)
-    if (list) setServerRows(list.map(toRow))
-    return list
-  }
+  const reloadRows = () => readRows().catch(() => null)
   // The Undo in the archived toast (CP-23): restores it and reads the list again.
   async function undoArchive(reference: string) {
     try {
@@ -878,6 +899,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // Created from the New Assessment screen (CP-23): every new assessment is
   // the engineer's own (AC10), so each joins their list, which shows next.
   function addCreatedRows(rows: AssessmentRow[]) {
+    rowsRead.current += 1
     updateState((previous) => ({
       ...previous,
       createdRows: [...rows, ...previous.createdRows],
@@ -1773,6 +1795,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setState({ fRec: true, fSecs: 0, fVoiceError: null })
     }
 
+    // Opens an assessment pressed elsewhere (an Inbox or bell row). A row that came in by poll
+    // can be newer than the list held here, so a miss reads the list again before giving up.
+    async function openFromOutside(reference: string, tab?: 'observations') {
+      const row =
+        rows.find((r) => r.id === reference) ??
+        (await reloadRows())?.map(toRow).find((r) => r.id === reference)
+      if (!row) {
+        // Without this the walk's review would open on the next assessment's Observations tab.
+        siteWalkReview.walkId = null
+        sonner.error('Assessment not found', {
+          description: 'It may have moved. Check your Assessments list.',
+        })
+        return reportAssessmentMissing(reference)
+      }
+      releaseDraft(row.id)
+      const target = { reference: row.id, site: row.site }
+      updateState((previous) => ({
+        ...previous,
+        ...openAssessment(target, previous),
+        ...(tab && { tab }),
+      }))
+    }
+
     /* dashboard rows: demo rows until the gateway answers */
     // The gateway scopes persisted rows to the signed-in engineer. Sample rows
     // remain explicitly labelled demo data when the gateway is unavailable.
@@ -1805,22 +1850,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // gateway limits to the engineer's own, so the demo default never opens
     // for an engineer it is not assigned to. An archived one takes no captures.
     const targetRow = rows.find((r) => r.id === s.captureTarget.reference)
-    const canCapture = !!targetRow && targetRow.status !== STATUS_LABEL.archived
     const isMine = !!targetRow?.persisted && targetRow.engineerId === session.user.id
+    // An admin's list holds everyone's assessments (RV-11), and they change only their own:
+    // someone else's saved assessment is read-only here, as the gateway makes it.
+    const readOnlyHere = !!targetRow?.persisted && !isMine
+    const canCapture = !!targetRow && targetRow.status !== STATUS_LABEL.archived && !readOnlyHere
     // Changing an observation takes the assessment's assigned engineer, and
     // not once it is archived (CP-08 AC17). The gateway decides; the browser
     // hides the actions once the work list shows they'd be refused, for the
     // sample observations too, which change in this browser only.
     const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
     // An observation's handwritten pages as shown (CP-19): where each stands
-    // when there is no text, Retry after a failure (open to any risk engineer,
-    // as a recording's), and Transcribe again once one is finished (only for
-    // whoever may change the observation, as it replaces evidence; CP-20).
+    // when there is no text, Retry after a failure (only for the assigned
+    // engineer, as a recording's), and Transcribe again once one is finished (only
+    // for whoever may change the observation, as it replaces evidence; CP-20).
     const pageViews = (o: Observation): PageView[] =>
       (o.pages ?? []).map((p) => ({
         ...p,
         note: pageNote(p),
-        retry: canEdit && !o.deleted && o.id ? () => void retryPage(o.id!, p.id) : null,
+        retry:
+          canEdit && !readOnlyHere && !o.deleted && o.id ? () => void retryPage(o.id!, p.id) : null,
         again:
           canChangeObs && !o.deleted && o.id && p.status === 'transcribed'
             ? () => void transcribeAgain(o.id!, p.id)
@@ -1868,17 +1917,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         },
       ]
     })
-    // Work and Tools (CP-23), then the assessments last opened, which fold away. A role sees
-    // only the places it may open, and a group with none of them is left out.
-    const order =
-      session.user.role === 'risk_engineer'
-        ? ['Work', 'Tools', 'Recent']
-        : ['Tools', 'Work', 'Recent']
+    // The Inbox (F-10) above the groups, then Work and Tools (CP-23) in that order for both
+    // roles, then the assessments last opened, which fold away. A role sees only the places
+    // it may open, and a group with none of them is left out.
+    const order = ['', 'Work', 'Tools', 'Recent']
     const navSections = [
+      // No heading: the Inbox is the one item that sits apart. Its red count is added by
+      // AssessmentApp, from the shared notification counts.
+      { label: '', items: [{ value: 'inbox', label: 'Inbox', icon: 'inbox' }] },
       {
         label: 'Work',
         items: [
-          { value: 'dashboard', label: 'Assessments', icon: 'clipboard-list', count: rows.length },
+          { value: 'dashboard', label: 'Assessments', icon: 'clipboard-list' },
           // The engineer's clients and their pages (CP-18).
           { value: 'clients', label: 'Clients', icon: IconRegistry.object.client },
         ],
@@ -1901,8 +1951,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ),
       }))
       .filter((section) => section.items.length > 0)
-      // A risk engineer works from the assessments, so Work comes first; the knowledge
-      // admin starts from Tools, where the knowledge base and user accounts are.
       .sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label))
 
     const q = s.q.trim().toLowerCase()
@@ -2384,7 +2432,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // It is read only when a risk engineer asks (CP-05, CP-21), through the
       // gateway, or in this demo for a sample observation.
       const readPart = (part?: ReadingPart) =>
-        canEdit && !o.deleted
+        canEdit && !readOnlyHere && !o.deleted
           ? o.id
             ? () => void readSaved(o.id!, part)
             : () => readSample(key, part)
@@ -2497,7 +2545,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         // transcription stands. Only a finished one can be corrected (AC10).
         recordings: (o.recordings ?? []).map((r) => ({
           ...r,
-          retry: () => void retryVoice(o.id!, r.id),
+          // Someone else's recording is read, never retried (RV-11): the gateway would refuse.
+          retry: readOnlyHere ? null : () => void retryVoice(o.id!, r.id),
           // A recording added in the demo has no transcript to correct.
           canCorrect: canChange && !o.deleted && r.status === 'transcribed' && !!o.id,
           correct: () => setState({ obsDialog: { kind: 'transcript', key, recordingId: r.id } }),
@@ -2608,10 +2657,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Its assigned engineer exports its report, archived or not (EX-01 AC2).
       canExportReport: isMine && can('reports:export', session),
       // Anyone who can open the assessment comments on its report (RV-03 AC7):
-      // its assigned engineer, or a knowledge admin; not once it is archived.
+      // its assigned engineer, or a knowledge admin; not once it is archived. Not canCapture:
+      // that is false on someone else's assessment (RV-11), so admins could no longer comment.
       canComment:
         !!targetRow?.persisted &&
-        canCapture &&
+        targetRow.status !== STATUS_LABEL.archived &&
         (isMine || session.user.role === 'knowledge_admin') &&
         can('reports:comment', session),
       roleName: roleLabel(session.user.role),
@@ -2861,6 +2911,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           tab: 'review',
         }),
+      isInbox: sc === 'inbox',
       isDashboard: sc === 'dashboard',
       isCreate: sc === 'create',
       isField: sc === 'field',
@@ -3052,15 +3103,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         places.reload()
       },
       // Opens an assessment on its Observations tab, e.g. from the bell (CP-22).
-      openObservationsOf: (reference: string) => {
-        const row = rows.find((r) => r.id === reference)
-        if (!row) return
-        releaseDraft(row.id)
-        setState({
-          ...openAssessment({ reference: row.id, site: row.site }, s),
-          tab: 'observations',
-        })
-      },
+      openObservationsOf: (reference: string) => void openFromOutside(reference, 'observations'),
+      // Opens an assessment on its Overview, e.g. from an assigned Inbox row (F-10).
+      openOverviewOf: (reference: string) => void openFromOutside(reference),
       // Opens an observation on its own page, or back to the list with null.
       // `step` is the page's arrows, which stay on the same way in; from the list it starts afresh.
       openObs: (key: string, step = false) =>
@@ -3340,6 +3385,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       dateFilter: s.fDate,
       setDateFilter: (filter: DateFilter | null) => setState({ fDate: filter }),
       listOffline: listFailed && !serverRows,
+      /* assigning (RV-11): an admin sees the Engineer column and can reassign a row */
+      canAssign: can('assessments:assign', session),
+      me: { id: session.user.id, name: session.user.name },
+      // A row the gateway answered after a move replaces its entry in the list.
+      rowMoved: (moved: Assessment) => {
+        rowsRead.current += 1
+        setServerRows(
+          (list) => list?.map((r) => (r.id === moved.reference ? toRow(moved) : r)) ?? list,
+        )
+      },
+      // Reads the list again, e.g. after a row turned out to be archived, or someone moved one.
+      refreshList: () => void reloadRows(),
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id
         const row = rows.find((r) => r.id === id)
@@ -3353,6 +3410,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       /* create (CP-23) */
       newAssessment: {
         start: s.createStart,
+        // An admin picks each assessment's engineer (RV-11); an engineer's own is assigned for them.
+        assign: can('assessments:assign', session)
+          ? { id: session.user.id, name: session.user.name }
+          : undefined,
         // Back on the list with the new assessments; the screen's own toast names them (CP-23).
         onCreated: (created: Assessment[]) => addCreatedRows(created.map(toRow)),
         // The toast's View opens the first one.

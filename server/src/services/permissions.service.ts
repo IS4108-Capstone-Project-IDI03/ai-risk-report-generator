@@ -8,8 +8,13 @@ export const PERMISSIONS = [
   'assessments:view',
   // Create assessments, capture on site (sessions, locations, observations)
   // and change, delete or restore observations. Changing an assessment's own
-  // observations also needs its assigned engineer (RV-10, CP-08).
+  // observations also needs its assigned engineer (RV-10, CP-08). A knowledge
+  // admin holds it too (RV-11), so every "assigned engineer" check below is what
+  // keeps an admin read-only on someone else's assessment.
   'assessments:edit',
+  // Choose which engineer an assessment is for when creating it, and move an
+  // existing one to another engineer (RV-11). Knowledge admins only.
+  'assessments:assign',
   // Draft report sections (RAG), and decide on their findings: accept, edit,
   // reject, regenerate (RV-02). Also needs the assigned engineer.
   'reports:generate',
@@ -34,10 +39,11 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number]
 
 //                    | Risk engineer | Knowledge admin
-// assessments:view   |      yes      |      yes (read-only)
-// assessments:edit   |      yes      |      -
-// reports:generate   |      yes      |      -
-// reports:export     |      yes      |      -
+// assessments:view   |      yes      |      yes
+// assessments:edit   |      yes      |      yes (RV-11: only on their own assessments)
+// assessments:assign |      -        |      yes
+// reports:generate   |      yes      |      yes (RV-11: only on their own assessments)
+// reports:export     |      yes      |      yes (RV-11: only on their own assessments)
 // reports:comment    |      yes      |      yes
 // knowledge:view     |      yes      |      yes
 // knowledge:manage   |      -        |      yes
@@ -55,6 +61,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   ],
   knowledge_admin: [
     'assessments:view',
+    'assessments:edit',
+    'assessments:assign',
+    'reports:generate',
+    'reports:export',
     'reports:comment',
     'knowledge:view',
     'knowledge:manage',

@@ -114,7 +114,7 @@ function allowedChoices(document: Doc, other: Doc): Decision[] {
 
 type Change = {
   doc: Doc
-  set: Partial<Pick<IKnowledgeDocument, 'match' | 'withdrawn' | 'editionFamily'>>
+  set: Partial<Pick<IKnowledgeDocument, 'match' | 'withdrawn' | 'editionFamily' | 'handled'>>
 }
 
 // Saves each change, then puts the new labels on the passages of every
@@ -123,8 +123,8 @@ type Change = {
 // this, MongoDB would show the decision while search still used the old status.
 async function saveAndRelabel(changes: Change[]): Promise<void> {
   const snapshot = ({ doc }: Change) => {
-    const { match, withdrawn, editionFamily } = doc.toObject()
-    return { match, withdrawn, editionFamily }
+    const { match, withdrawn, editionFamily, handled } = doc.toObject()
+    return { match, withdrawn, editionFamily, handled }
   }
   const before = changes.map((change) => ({
     old: snapshot(change),
@@ -203,9 +203,14 @@ export async function decideKnowledgeDocument(
   if (!allowedChoices(document, other).includes(choice)) {
     throw new KnowledgeDocumentWrongStateError(NOT_ALLOWED)
   }
-  // True when the other document's own match points back here (both in one batch).
+  // Who decided, recorded on each document the decision settles (nothing to record on a discarded one).
+  const handled = { at: new Date(), by }
+  // True when the other document's own match points back here (both in one batch). Its review is
+  // settled too, so it records the name: without this its Inbox row would show none, or an old one.
   const otherPointsHere = other.match && String(other.match.documentId) === String(document._id)
-  const clearOther: Change[] = otherPointsHere ? [{ doc: other, set: { match: null } }] : []
+  const clearOther: Change[] = otherPointsHere
+    ? [{ doc: other, set: { match: null, handled } }]
+    : []
 
   // Replacing must leave one active edition: refused while another member of
   // the stored edition's family is still active (the reinstate rule, AC15).
@@ -228,6 +233,7 @@ export async function decideKnowledgeDocument(
   }
   if (choice === 'discard_other') {
     await discard(other)
+    await KnowledgeDocumentModel.updateOne({ _id: id }, { handled })
     return toDtoOf((await KnowledgeDocumentModel.findById(id).lean()) ?? document.toObject())
   }
   if (choice === 'keep_both') {
@@ -239,7 +245,10 @@ export async function decideKnowledgeDocument(
           ...(other.editionFamily ? { editionFamily: other.editionFamily } : {}),
         }
       : {}
-    await saveAndRelabel([{ doc: document, set: { match: null, ...status } }, ...clearOther])
+    await saveAndRelabel([
+      { doc: document, set: { match: null, handled, ...status } },
+      ...clearOther,
+    ])
   } else {
     // supersede and add_as_older put both in one edition family: the stored
     // document's own, or its id if it had none. The older edition is withdrawn
@@ -256,8 +265,8 @@ export async function decideKnowledgeDocument(
       },
     })
     await saveAndRelabel([
-      change(document, { match: null }),
-      change(other, otherPointsHere ? { match: null } : {}),
+      change(document, { match: null, handled }),
+      change(other, otherPointsHere ? { match: null, handled } : {}),
     ])
   }
   return toDtoOf(document.toObject())

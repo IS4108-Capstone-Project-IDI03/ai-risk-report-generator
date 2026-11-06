@@ -74,8 +74,8 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
     window.history.replaceState(null, '', window.location.pathname + '?' + q.toString())
   }, [walk])
   const waiting = useKeptUploads(v.captureRef, reload)
-  // The bell's "site walk ready" opens its review, whether this tab was already
-  // showing or is only now mounting.
+  // An Inbox row for a ready or failed site walk opens its review, whether this tab
+  // was already showing or is only now mounting.
   useEffect(() => {
     const take = () => {
       const walkId = siteWalkReview.walkId
@@ -120,8 +120,11 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
     target.focus({ preventScroll: true })
   })
 
+  // Only whoever may capture here changes a walk; an admin reading someone else's assessment
+  // (RV-11 AC2) can read every walk, and without this got controls that each failed with a 403.
+  const canCapture = v.canEdit && v.canCapture
   // a. Recording a site walk takes the whole screen; its review sits in this tab.
-  if (walk?.kind === 'record')
+  if (walk?.kind === 'record' && canCapture)
     return (
       <SiteWalkRecording
         reference={v.captureRef}
@@ -137,6 +140,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
       <SiteWalkReview
         reference={v.captureRef}
         walkId={walk.walkId}
+        readOnly={!canCapture}
         opened={walk.open}
         onOpen={reviewOpened}
         backTo={walk.from ? 'Site walk proposals' : 'Observations'}
@@ -160,7 +164,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
         walks={walks}
         waiting={waiting}
         onBack={() => setWalk(null)}
-        onRecord={() => setWalk({ kind: 'record', from: 'list' })}
+        onRecord={canCapture ? () => setWalk({ kind: 'record', from: 'list' }) : undefined}
         onOpen={(w) =>
           setWalk(
             w.status === 'recording'
@@ -168,23 +172,28 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
               : { kind: 'review', walkId: w.id, from: 'list' },
           )
         }
-        onRetry={(walkId) =>
-          void retryWalk(v.captureRef, walkId)
-            .then(() => {
-              reload()
-              v.notify('Reading the walk again')
-            })
-            .catch(() => v.notify('The walk could not be retried. Try again.', 'danger'))
+        onRetry={
+          canCapture
+            ? (walkId) =>
+                void retryWalk(v.captureRef, walkId)
+                  .then(() => {
+                    reload()
+                    v.notify('Reading the walk again')
+                  })
+                  .catch(() => v.notify('The walk could not be retried. Try again.', 'danger'))
+            : undefined
         }
-        onDelete={(walkId) =>
-          discardWalk(v.captureRef, walkId).then(() => {
-            reload()
-            v.notify('Proposal deleted')
-          })
+        onDelete={
+          canCapture
+            ? (walkId) =>
+                discardWalk(v.captureRef, walkId).then(() => {
+                  reload()
+                  v.notify('Proposal deleted')
+                })
+            : undefined
         }
       />
     )
-  const canCapture = v.canEdit && v.canCapture
   const shownWalks = openWalks(walks)
   const readyWalks = shownWalks.filter((w) => w.status === 'ready').length
   // Add manually opens capture at the location picked, when there is one.
@@ -220,7 +229,7 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                   </div>
                   {/* Deleted list: its count sits in the toolbar, by the table. */}
                   {v.obsShowDeleted && <span className="ob-count">{v.obsCountLabel}</span>}
-                  {canCapture && !v.obsShowDeleted && (
+                  {!v.obsShowDeleted && (
                     <div className="ob-head-actions">
                       {(shownWalks.length > 0 || waiting > 0) && (
                         <button
@@ -242,29 +251,33 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
                           )}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="ob-button ob-button--primary"
-                        aria-label="Record site walk"
-                        onClick={() => setWalk({ kind: 'record' })}
-                      >
-                        <Icon name="mic" size={16} />
-                        {/* One span, so the button's gap doesn't double the space before "site walk". */}
-                        <span>
-                          Record<span className="ob-more"> site walk</span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="ob-button ob-button--tinted"
-                        aria-label="Add manually"
-                        onClick={addManually}
-                      >
-                        <Icon name="plus" size={16} />
-                        <span>
-                          Add<span className="ob-more"> manually</span>
-                        </span>
-                      </button>
+                      {canCapture && (
+                        <>
+                          <button
+                            type="button"
+                            className="ob-button ob-button--primary"
+                            aria-label="Record site walk"
+                            onClick={() => setWalk({ kind: 'record' })}
+                          >
+                            <Icon name="mic" size={16} />
+                            {/* One span, so the button's gap doesn't double the space before "site walk". */}
+                            <span>
+                              Record<span className="ob-more"> site walk</span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="ob-button ob-button--tinted"
+                            aria-label="Add manually"
+                            onClick={addManually}
+                          >
+                            <Icon name="plus" size={16} />
+                            <span>
+                              Add<span className="ob-more"> manually</span>
+                            </span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

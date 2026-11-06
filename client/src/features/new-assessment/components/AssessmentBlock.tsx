@@ -9,6 +9,7 @@ import {
   Switch,
   type AssessmentType,
 } from '../../../design-system'
+import { EngineerPicker } from '../../assignment/components/EngineerPicker'
 import { plural } from '../../clients/formatClient'
 import { TYPE_HELP, type FormAssessment } from '../form'
 import type { NewAssessmentForm } from '../useNewAssessment'
@@ -120,10 +121,25 @@ export function AssessmentBlock({
           <ErrorLine text={typeError} />
         </div>
       )}
-      <div className="na-grid na-grid--3">
+      {/* An admin also picks who it is for, as the fourth column (RV-11, board 12). */}
+      <div className={'na-grid ' + (f.assign ? 'na-grid--4' : 'na-grid--3')}>
         {date('siteVisitDate', 'Survey start')}
         {date('siteVisitEndDate', 'Survey end')}
         {date('reportDueDate', 'Report due')}
+        {f.assign && (
+          <EngineerPicker
+            people={f.assign.people}
+            me={f.assign.me}
+            value={a.engineerId || f.assign.me.id}
+            onChange={(engineerId) => f.setAssessment(i, j, { engineerId })}
+            error={f.errors[path + 'engineerId']}
+            notice={
+              f.assign.failed
+                ? 'Couldn’t load the other accounts. Reload to assign someone else.'
+                : undefined
+            }
+          />
+        )}
       </div>
       {/* Its own row under the dates, so the label reads on one line (round 13). */}
       {copy && (

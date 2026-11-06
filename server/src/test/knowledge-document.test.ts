@@ -86,6 +86,9 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+// Who presses retry or cancel in the service-level tests below (F-10).
+const BY = { id: 'u-sana', name: 'Sana Patel' }
+
 const PDF = Buffer.from('%PDF-1.7\nfake but well-formed enough\n%%EOF')
 // A Word file starts as a ZIP whose entries sit under word/.
 const DOCX = Buffer.from('PK\x03\x04\x14\x00[Content_Types].xml PK\x03\x04 word/document.xml')
@@ -845,6 +848,46 @@ async function stored(details: Record<string, string>, state: object = { status:
   return body.id as string
 }
 
+describe('GET /api/knowledge-documents/:id (F-10)', () => {
+  it('returns the one document, with no handled record while nobody has handled it', async () => {
+    const id = await stored(REPORT)
+
+    const response = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+
+    expect(response.body).toMatchObject({ id, title: REPORT.title, handled: null })
+  })
+
+  it('returns who handled it, and when', async () => {
+    const id = await stored(REPORT)
+    const at = new Date('2026-10-01T00:00:00Z')
+    await KnowledgeDocumentModel.updateOne({ _id: id }, { handled: { at, by: BY } })
+
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+
+    expect(body.handled).toEqual({ at: at.toISOString(), by: BY })
+  })
+
+  it('answers 404 for an unknown or malformed id, and does not capture /ingested', async () => {
+    await api.get('/api/knowledge-documents/6abb28ae16068a0793e99999').expect(404)
+    await api.get('/api/knowledge-documents/not-an-id').expect(404)
+    await api.get('/api/knowledge-documents/ingested').expect(200)
+  })
+
+  it('records who corrected a document, and when', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...REPORT, jurisdiction: 'SG', fileName: undefined })
+      .expect(200)
+
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+    expect(body.handled).toMatchObject({ by: { name: 'Test User' } })
+    expect(new Date(body.handled.at).getTime()).toBe(Date.now())
+  })
+})
+
 describe('GET /api/knowledge-documents/ingested', () => {
   it('lists every active document, however old, by title, and nothing still ingesting or failed', async () => {
     const longAgo = new Date('2025-01-01')
@@ -1496,7 +1539,7 @@ describe('retryIngestion', () => {
   it('flips a failed document back to queued, clearing the failure fields', async () => {
     await seed()
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
 
     const doc = await stored()
     expect(doc!.status).toBe('queued')
@@ -1505,10 +1548,30 @@ describe('retryIngestion', () => {
     expect(doc!.result).toBeUndefined()
   })
 
+  it('records who retried it, and puts the earlier record back if re-queueing fails', async () => {
+    const earlier = { at: new Date('2026-01-01'), by: { id: 'u1', name: 'Omar Khan' } }
+    await seed({ handled: earlier })
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
+    expect((await stored())!.handled).toMatchObject({ by: { name: 'Omar Khan' } })
+
+    await retryIngestion(DOC_ID, BY)
+    expect((await stored())!.handled).toMatchObject({ at: new Date(), by: BY })
+  })
+
+  it('leaves handled absent again if the first retry fails to re-queue', async () => {
+    await seed()
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
+
+    expect((await stored())!.handled).toBeUndefined()
+  })
+
   it('increments the retry counter on each retry', async () => {
     await seed()
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
     expect((await stored())!.retryCount).toBe(1)
 
     // Fail it again, then retry a second time: the counter keeps climbing.
@@ -1516,7 +1579,7 @@ describe('retryIngestion', () => {
       { _id: DOC_ID },
       { $set: { status: 'failed', error: 'again', finishedAt: new Date() } },
     )
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
     expect((await stored())!.retryCount).toBe(2)
   })
 
@@ -1529,7 +1592,7 @@ describe('retryIngestion', () => {
       cancelRequestedAt: undefined,
     })
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
 
     const doc = await stored()
     expect(doc!.status).toBe('queued')
@@ -1541,7 +1604,7 @@ describe('retryIngestion', () => {
   it('re-queues the document', async () => {
     await seed()
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
 
     expect(requeued).toHaveBeenCalledWith(DOC_ID, 1)
   })
@@ -1549,7 +1612,9 @@ describe('retryIngestion', () => {
   it('refuses a document that is not failed, leaving it and its counter untouched', async () => {
     await seed({ status: 'complete', error: undefined, finishedAt: undefined })
 
-    await expect(retryIngestion(DOC_ID)).rejects.toBeInstanceOf(KnowledgeDocumentWrongStateError)
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toBeInstanceOf(
+      KnowledgeDocumentWrongStateError,
+    )
 
     const doc = await stored()
     expect(doc!.status).toBe('complete')
@@ -1558,13 +1623,15 @@ describe('retryIngestion', () => {
   })
 
   it('rejects an unknown id', async () => {
-    await expect(retryIngestion('6abb28ae16068a0793e99999')).rejects.toBeInstanceOf(
+    await expect(retryIngestion('6abb28ae16068a0793e99999', BY)).rejects.toBeInstanceOf(
       KnowledgeDocumentNotFoundError,
     )
   })
 
   it('rejects a malformed id without reaching the database', async () => {
-    await expect(retryIngestion('not-an-id')).rejects.toBeInstanceOf(KnowledgeDocumentNotFoundError)
+    await expect(retryIngestion('not-an-id', BY)).rejects.toBeInstanceOf(
+      KnowledgeDocumentNotFoundError,
+    )
   })
 
   it('refuses with 409 when the same file was uploaded again after it failed', async () => {
@@ -1588,7 +1655,7 @@ describe('retryIngestion', () => {
       },
     })
 
-    await expect(retryIngestion(DOC_ID)).rejects.toThrow(
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow(
       'An identical file is already in the knowledge base.',
     )
     expect((await stored())!.status).toBe('failed')
@@ -1599,7 +1666,7 @@ describe('retryIngestion', () => {
     await seed()
     requeued.mockRejectedValueOnce(new Error('queue down'))
 
-    await expect(retryIngestion(DOC_ID)).rejects.toThrow()
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
 
     const doc = await stored()
     // Back to failed, with a re-queue-specific reason, and the counter undone.
@@ -1617,7 +1684,7 @@ describe('retryIngestion', () => {
     })
     requeued.mockRejectedValueOnce(new Error('queue down'))
 
-    await expect(retryIngestion(DOC_ID)).rejects.toThrow()
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
 
     const doc = await stored()
     expect(doc!.status).toBe('cancelled')
@@ -1654,7 +1721,7 @@ describe('cancelIngestion', () => {
   it('cancels a queued document and removes its queue job', async () => {
     await seed()
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1662,10 +1729,26 @@ describe('cancelIngestion', () => {
     expect(removed).toHaveBeenCalledWith(CANCEL_ID, 0)
   })
 
+  it('records who cancelled a queued or a processing document', async () => {
+    await seed()
+    await cancelIngestion(CANCEL_ID, BY)
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.handled).toMatchObject({
+      at: new Date(),
+      by: BY,
+    })
+
+    await KnowledgeDocumentModel.deleteOne({ _id: CANCEL_ID })
+    await seed({ status: 'processing' })
+    await cancelIngestion(CANCEL_ID, BY)
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.handled).toMatchObject({
+      by: BY,
+    })
+  })
+
   it('cancels a processing document immediately for cooperative cleanup', async () => {
     await seed({ status: 'processing' })
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1677,7 +1760,7 @@ describe('cancelIngestion', () => {
   it('does not change an already terminal document', async () => {
     await seed({ status: 'complete' })
 
-    await expect(cancelIngestion(CANCEL_ID)).rejects.toBeInstanceOf(
+    await expect(cancelIngestion(CANCEL_ID, BY)).rejects.toBeInstanceOf(
       KnowledgeDocumentWrongStateError,
     )
 
@@ -1690,7 +1773,7 @@ describe('cancelIngestion', () => {
     removed.mockRejectedValueOnce(new Error('queue down'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+    await expect(cancelIngestion(CANCEL_ID, BY)).resolves.toBeUndefined()
 
     expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('cancelled')
     expect(error).toHaveBeenCalled()
@@ -1726,7 +1809,7 @@ describe('cancelIngestion', () => {
   it('cancels a queued document and removes its queue job', async () => {
     await seed()
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1737,7 +1820,7 @@ describe('cancelIngestion', () => {
   it('marks a processing document for cooperative cancellation', async () => {
     await seed({ status: 'processing' })
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1749,7 +1832,7 @@ describe('cancelIngestion', () => {
   it('does not change an already terminal document', async () => {
     await seed({ status: 'complete' })
 
-    await expect(cancelIngestion(CANCEL_ID)).rejects.toBeInstanceOf(
+    await expect(cancelIngestion(CANCEL_ID, BY)).rejects.toBeInstanceOf(
       KnowledgeDocumentWrongStateError,
     )
 
@@ -1762,7 +1845,7 @@ describe('cancelIngestion', () => {
     removed.mockRejectedValueOnce(new Error('queue down'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+    await expect(cancelIngestion(CANCEL_ID, BY)).resolves.toBeUndefined()
 
     expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('cancelled')
     expect(error).toHaveBeenCalled()

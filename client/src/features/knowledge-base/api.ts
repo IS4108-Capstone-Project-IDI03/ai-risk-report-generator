@@ -133,6 +133,8 @@ export type KnowledgeDocument = {
   history: DocumentVersion[]
   // Who took it out of use and when (KB-01 AC14); null while it is active.
   withdrawn: { at: string; by: { id: string; name: string } } | null
+  // Who last reviewed, retried or cancelled it (F-10 round 3) and when; null if nobody has.
+  handled: { at: string; by: { id: string; name: string } } | null
   // The document it matches, which makes it Needs review (IN-07); else null.
   match: DocumentMatch | null
   // For a withdrawn edition: the newest edition of its family (IN-07 AC14).
@@ -174,6 +176,14 @@ export type StoredDetails = Pick<
   | 'jurisdiction'
   | 'facilityType'
 >
+
+// One document by id, for the Inbox's already-handled check (F-10 round 3). A deleted one is a
+// 404 (GatewayError.status).
+export function getKnowledgeDocument(id: string, signal?: AbortSignal): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}`, {
+    signal,
+  })
+}
 
 // Every accepted upload with its ingestion status, newest first.
 export function listKnowledgeDocuments(signal?: AbortSignal): Promise<KnowledgeDocument[]> {
@@ -327,11 +337,28 @@ export type KnowledgeGapRequest = {
   status: 'open' | 'filled' | 'dismissed'
 }
 
+// One request as its read route answers (F-10 round 3). The list doesn't send `closed`.
+export type KnowledgeGapRequestDetail = KnowledgeGapRequest & {
+  // Who closed it (filled or dismissed) and when; null while it is open.
+  closed: { at: string; by: { id: string; name: string } } | null
+}
+
 const jsonPost = (body: unknown): RequestInit => ({
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 })
+
+// One request by id, for the Inbox's already-handled check (F-10 round 3). A deleted one is a 404
+// (GatewayError.status).
+export function getKnowledgeRequest(
+  id: string,
+  signal?: AbortSignal,
+): Promise<KnowledgeGapRequestDetail> {
+  return request<KnowledgeGapRequestDetail>(`/api/knowledge-gaps/${encodeURIComponent(id)}`, {
+    signal,
+  })
+}
 
 // The open requests, newest first (knowledge admins only).
 export async function listKnowledgeRequests(signal?: AbortSignal): Promise<KnowledgeGapRequest[]> {

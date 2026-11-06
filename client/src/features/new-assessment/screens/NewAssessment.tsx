@@ -18,6 +18,17 @@ import { NewAssessmentForm } from './NewAssessmentForm'
 import { ReadingDocuments } from './ReadingDocuments'
 import '../new-assessment.css'
 
+// The toast's second line when an admin created work for someone else: "Assigned to Alex Rowe".
+function assignedTo(created: Assessment[], meId?: string) {
+  if (!meId) return {}
+  const names = [
+    ...new Set(
+      created.filter((a) => a.engineer && a.engineer.id !== meId).map((a) => a.engineer!.name),
+    ),
+  ]
+  return names.length ? { description: 'Assigned to ' + names.join(', ') } : {}
+}
+
 export function NewAssessment({
   mode,
   start,
@@ -25,6 +36,7 @@ export function NewAssessment({
   onLeave,
   onView,
   bell,
+  assign,
 }: {
   mode: StartMode
   start: CreateStart
@@ -33,22 +45,32 @@ export function NewAssessment({
   // Opens a created assessment from the toast's View.
   onView?: (assessment: Assessment) => void
   bell?: ReactNode
+  // The signed-in admin, who picks each assessment's engineer (RV-11); none for an engineer.
+  assign?: { id: string; name: string }
 }) {
   // a. The documents, read on their own screen.
   const intake = useIntake()
   // b. The form; once created through the intake, its documents are the client's.
-  const f = useNewAssessment(start, (created, fromIntake) => {
-    if (fromIntake) intake.keep()
-    toast.success(
-      created.length === 1
-        ? created[0].reference + ' created'
-        : plural(created.length, 'assessment') + ' created',
-      onView && created[0]
-        ? { action: { label: 'View', onClick: () => onView(created[0]) } }
-        : undefined,
-    )
-    onCreated(created)
-  })
+  const f = useNewAssessment(
+    start,
+    (created, fromIntake) => {
+      if (fromIntake) intake.keep()
+      toast.success(
+        created.length === 1
+          ? created[0].reference + ' created'
+          : plural(created.length, 'assessment') + ' created',
+        {
+          // Who got them, when it wasn't the admin themselves (RV-11).
+          ...assignedTo(created, assign?.id),
+          ...(onView && created[0]
+            ? { action: { label: 'View', onClick: () => onView(created[0]) } }
+            : {}),
+        },
+      )
+      onCreated(created)
+    },
+    assign,
+  )
   // c. A reading fills the form in (AC5) while the found items reveal; one
   // that named nothing says so once the form opens.
   const [readNothing, setReadNothing] = useState(false)

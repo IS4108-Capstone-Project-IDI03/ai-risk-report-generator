@@ -31,6 +31,12 @@ export function KnowledgeBase({
   // How many knowledge requests are open (CB-07), for the Requests tab's count.
   const [openRequests, setOpenRequests] = useState(0)
   const [visit, setVisit] = useState(0)
+  // The document a notification's row opened (F-10), shown highlighted once. Read at first
+  // paint, since the screen mounts after the popstate that named it, and again on each popstate.
+  const [focusDoc, setFocusDoc] = useState(() => knowledgeTab.document)
+  useEffect(() => {
+    knowledgeTab.document = null
+  }, [])
   const [completed, setCompleted] = useState(0)
   // Decisions made on a Review page change the count too (IN-07).
   const [decided, setDecided] = useState(0)
@@ -59,6 +65,8 @@ export function KnowledgeBase({
       setReviewId(reviewIdForPath(window.location.pathname))
       // A tab chosen from elsewhere (openKnowledgeTab) shows on arrival.
       setTab(knowledgeTab.current)
+      setFocusDoc(knowledgeTab.document)
+      knowledgeTab.document = null
       // A new visit re-reads which request to highlight, even if Requests is already open.
       setVisit((v) => v + 1)
     }
@@ -138,6 +146,7 @@ export function KnowledgeBase({
       />
       {tab === 'documents' ? (
         <KnowledgeDocuments
+          focused={focusDoc}
           notify={notify}
           onAdd={() => open('add')}
           onNeedReview={setNeedReview}

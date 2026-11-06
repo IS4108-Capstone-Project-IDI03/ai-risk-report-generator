@@ -49,13 +49,14 @@ export function WalkRow({
   onDelete,
 }: {
   walk: SiteWalk
-  onOpen: () => void
-  onRetry: () => void
-  onDelete: () => void
+  // Each left out where this person can't do it (RV-11 AC2).
+  onOpen?: () => void
+  onRetry?: () => void
+  onDelete?: () => void
 }) {
   const status = walk.status
   const name = walkName(walk)
-  const opens = status !== 'created'
+  const opens = status !== 'created' && !!onOpen
   const state = stateOf(walk)
   const thumbs = walk.photos.slice(0, MAX_THUMBS)
   const more = walk.photos.length - thumbs.length
@@ -105,7 +106,7 @@ export function WalkRow({
         </span>
       </div>
       <div className="wr-actions">
-        {status === 'failed' && (
+        {status === 'failed' && onRetry && (
           <button
             type="button"
             className="wr-icon"
@@ -116,7 +117,7 @@ export function WalkRow({
             <Icon name="rotate-ccw" size={17} />
           </button>
         )}
-        {status !== 'created' && (
+        {status !== 'created' && onDelete && (
           <button
             type="button"
             className="wr-icon wr-delete"

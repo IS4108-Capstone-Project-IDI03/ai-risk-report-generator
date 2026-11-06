@@ -48,7 +48,8 @@ Python service ports to loopback; do not expose them publicly as-is.
 `siteVisitDate`, `siteVisitEndDate` (the last day of a visit over several days,
 CP-23) and `reportDueDate`, optional `siteContacts` (`[{ name, role? }]`, who to
 meet at the site, CP-23), and `engineer`: the assigned engineer's user ID
-(one per assessment). The engineer's name is read from their account, so a rename shows everywhere.
+(one per assessment; RV-11: may be an admin, and is changed only by `POST /api/assessments/:reference/reassign`).
+The engineer's name is read from their account, so a rename shows everywhere.
 Its client is read through its site (CP-17); an assessment saved before then
 also keeps the `client` name typed on it, unused once its site is migrated.
 Extend it rather than creating a parallel assessment schema.
@@ -82,8 +83,11 @@ each a listed site (`id`, with `copyLocations`) or a new one (`name`, `address`,
 entry each (`visitType`, optional `siteVisitDate`, `siteVisitEndDate`,
 `reportDueDate`, `siteContacts`). Every site and assessment has a `ref` (e.g.
 `site-1`), unique in the request, so a document can be placed under it before it
-has an id. There is no `engineerId`: each assessment is assigned to the signed-in
-engineer. The end date must be on or after the visit date, and the report due
+has an id. Each `assessments` entry takes an `engineerId` (RV-11), honoured only
+with `assessments:assign`: for a knowledge admin it is required and must be an
+active account (400 naming `sites.i.assessments.j.engineerId`); for anyone else it
+is ignored and the signed-in user is the engineer. An engineer who is not the
+creator gets an `assessment_assigned` Inbox item. The end date must be on or after the visit date, and the report due
 date too. A listed site of another client is refused, as is a new site named like
 one the client has, ignoring case, or two new sites of one name in the request
 (CP-17). On a listed site each assessment starts with a copy of the locations of
@@ -485,9 +489,10 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28) | yes | no |
-| `reports:generate` | `POST /api/rag/generate` | yes | no |
-| `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01) | yes | no |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
+| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only) | yes | yes |
+| `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
+| `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
@@ -498,9 +503,9 @@ user's next sign-in (sessions last 15 minutes). The seed script turns accounts
 saved with the retired `reviewer` role into risk engineers; any left unmigrated
 get no permissions.
 
-`npm --prefix server run seed` inserts four sample accounts (`MRE-0001` to
-`MRE-0004`, `example.com` emails, dev password `password123`; Sana Patel is the
-knowledge admin, the rest risk engineers) only when their staff ID is missing, so
+`npm --prefix server run seed` inserts five sample accounts (`MRE-0001` to
+`MRE-0005`, `example.com` emails, dev password `password123`; Sana Patel and Omar Khan are the
+knowledge admins, the rest risk engineers) only when their staff ID is missing, so
 re-seeding keeps edits made on screen. Against the shared Atlas cluster, those
 edits are visible to the whole team.
 
@@ -607,7 +612,7 @@ Only the assessment's assigned engineer can change, delete or restore its
 observations, or add, remove and restore their recordings and photos (403
 otherwise), and not once the assessment is archived (409), as for its other
 details (RV-10). Capturing observations, retrying a failed transcription and
-reading photos stay open to any risk engineer.
+reading photos are for the assigned engineer only too (RV-11).
 
 The API gives each recording `type: "Voice"`; the note is text by being the
 `note` field. The observation's `engineerId` is set from the signed session;
@@ -1183,9 +1188,15 @@ recording or walk, so queueing twice runs once.
 | `POST /:walkId/create` | Create all: `{ locationIds, observationIds }`; idempotent. |
 | `DELETE /:walkId` | Discards a walk not yet `created`. |
 
-Writes need `assessments:edit` and the walk's own engineer; reads need
-`assessments:view`. Ready walks notify the engineer (`notifications` purpose
-`site_walk_ready`, `context: { reference, walkId }`).
+Writes need `assessments:edit` and the engineer the assessment is assigned to
+now, not the one who started the walk (RV-11: after a reassignment the new
+engineer carries on its walks, and the list shows every walk on the assessment);
+reads need `assessments:view`. Ready and failed walks notify that same current
+engineer (`notifications` purposes `site_walk_ready` and `site_walk_failed`,
+`kind: inbox`, `context: { reference, walkId, client, site, reportDue? }`).
+`retries` counts the times the engineer pressed Retry; it is the only thing that
+tells one failure of a walk from the next, so a retry that fails again notifies
+again.
 
 ## Pre-survey checklists (CP-30)
 
@@ -1392,6 +1403,12 @@ corrected. Reinstating removes `withdrawn` and records no one. Only the latest
 withdrawal is kept. As with a correction, a failed relabel puts `withdrawn` back
 as it was. The API returns `withdrawn` as `{ at, by } | null`.
 
+`handled: { at, by: { id, name } }` (F-10) records who last corrected, decided on
+(keep both, supersede, add as older, discard the other), retried or cancelled the
+document; it is absent on older documents and the API returns `{ at, by } | null`.
+Withdrawing keeps using `withdrawn`. A discarded document is gone, so it has none.
+A failed correction or re-queue puts `handled` back as it was.
+
 #### Duplicates and newer editions (IN-07)
 
 Two more fields on `knowledge_documents`:
@@ -1435,6 +1452,7 @@ copies and restart. The upload's own check still rejects most repeats.
 | `POST /api/knowledge-documents` | Body is the file, up to 100 MB: a PDF, or a Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT file, converted to PDF first. The type is read from the file's bytes; `Content-Type` is ignored; `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
+| `GET /api/knowledge-documents/:id` | One document as the lists show it (F-10), `knowledge:view`. 200, or 404 (unknown or malformed id) |
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn, or IN-07: another edition in its `editionFamily` is active, named in `error`) / 503 (search not updated, still withdrawn) |
@@ -1478,15 +1496,17 @@ read, never stored.
 ## Notifications
 
 `notifications` holds one document per event a user is told about, read by the
-header dropdown. A notification is **shared** by the users it targets rather than
-copied per user, so the plan is one document per event and per-user state held on
-it as lists of user ids.
+header bell and by the Inbox (F-10). A notification is **shared** by the users it
+targets rather than copied per user, so the plan is one document per event and
+per-user state held on it as lists of user ids.
 
 Fields: `purpose` (one of `ingestion_status`, `transcription_status`,
 `drafting_status`, `knowledge_document_status`, `account_status`,
-`assessment_status`, `knowledge_gap_request`, `site_walk_ready`), `message` (the line shown in the dropdown), `details` (the
-longer text behind the row's expand control, e.g. a failure reason),
-`targetRole` (a `USER_ROLES` value), `targetUserIds`, `readBy`, `dismissedBy`,
+`assessment_status`, `knowledge_gap_request`, `site_walk_ready`,
+`site_walk_failed`, `assessment_assigned`, `assessment_moved`), `kind` (`inbox` or
+`bell`), `message` (the line shown), `details` (the longer text behind the row's
+expand control, e.g. a failure reason), `targetRole` (a `USER_ROLES` value),
+`targetUserIds`, `readBy`, `dismissedBy`,
 `createdBy` and `createdByService`, and `context`.
 
 `targetUserIds` names who within the role sees it: user ids, or `['all']` for
@@ -1498,31 +1518,92 @@ Read paths match `targetRole` against the **session's current role**, never a
 copy stored per recipient. That is what makes a role change take effect at once:
 a user moved from `knowledge_admin` to `risk_engineer` stops seeing the admin
 notifications on their next request, with no migration of existing documents.
+For the same reason a producer addresses a person by their **current** role,
+looked up (`audienceOf`), never a role written into the code: a site walk
+notification addressed to `risk_engineer` would be hidden from an admin who holds
+the assessment.
 
 `readBy` and `dismissedBy` exist because the document is shared. Marking as read
 adds the caller to `readBy`; "mark all as read" adds them to `readBy` across
-everything they can see; "dismiss" (one row, `POST /api/notifications/:id/dismiss`)
+everything in their bell; "dismiss" (one row, `POST /api/notifications/:id/dismiss`)
 and "dismiss all" add them to `dismissedBy`. None delete,
 since deleting a shared document would clear it for everyone else too — so one
 user reading or dismissing never changes what another user in the role sees.
+"Mark all as read" and "Dismiss all" are the bell's buttons and touch bell items
+only; without that, "Dismiss all" would silently wipe someone's Inbox.
+
+### Inbox and bell (F-10)
+
+`kind` says where a notification shows. The Inbox holds what stalls work if the
+person ignores it; the bell holds updates. It is set once, when the notification
+is created, from one lookup in `notification.service.ts` keyed on `purpose` (and,
+for the ingestion worker, `context.status`, so the worker does not change). It is
+the only place that decides routing, and a notification posted through
+`/api/internal/notifications` goes through it too.
+
+| Purpose | Who gets it | Kind |
+|---|---|---|
+| `assessment_assigned` | the engineer | inbox |
+| `site_walk_ready`, `site_walk_failed` | the assessment's current engineer | inbox |
+| `knowledge_gap_request`, no `context.status` (a new request) | all admins | inbox |
+| `ingestion_status`, status `failed` or `needs_review` | all admins | inbox |
+| `knowledge_gap_request`, status `filled` or `dismissed` | the asker | bell |
+| `ingestion_status`, status `complete` | all admins | bell |
+| `assessment_moved` | the previous engineer | bell |
+
+A document saved before F-10 has no `kind` and counts as `bell`, so every bell
+query matches "kind is not `inbox`", never "kind is `bell`". No migration.
+
+To do and Done are worked out for each person, never stored as a status:
+
+```
+To do for me:  kind is inbox, I haven't dismissed it, I'm not in readBy
+Done for me:   kind is inbox, I haven't dismissed it, and I'm in readBy
+Open:          add me to readBy
+Tick:          add me to readBy
+Untick:        remove me from readBy
+Bin:           add me to dismissedBy; restore removes me
+```
+
+Every action is personal: open, tick, untick and bin change only the list of the
+person who did them, so a tick by one admin never moves a shared item for another.
+Open and tick are the same write, so an Undo of a tick also returns an item the
+admin had only opened to their To do. Known gap, accepted: an admin who opens a
+request and fills it never ticks it, so the other admin still sees it in To do;
+there is no auto-closing on fill. The Inbox checks the item's current state when
+it is pressed (`GET /api/knowledge-gaps/:id`, `GET /api/knowledge-documents/:id`).
+
+When an assessment moves to another engineer, the old engineer's Inbox items for
+it (found by `context.reference` and a `targetUserIds` naming them) have them
+pulled from `targetUserIds`, so they go away for them alone and cannot be brought
+back with restore. An item that named only them is left with an empty list: nobody
+sees it, and the 90-day expiry drops it.
 
 `createdBy` (a user) and `createdByService` (a service name) are both nullable,
 and normally exactly one is set: a notification raised by the ingestion worker
 has no user behind it, and there is no system or service role to point at.
 
-`context` is the purpose-specific payload, e.g. `{ documentId, stage }` for
-`ingestion_status`. It is deliberately **not** called `metadata`: in this
+`context` is the purpose-specific payload, a string map the client lays rows out
+from, e.g. `{ documentId, stage }` for `ingestion_status`, `{ reference, client,
+site, reportDue?, sender, assessmentId }` for `assessment_assigned` (`reportDue` is
+a snapshot from creation) and `{ reference, sender, newEngineer }` for
+`assessment_moved`. A new knowledge request carries `{ requestId, question,
+askedBy }`. It is deliberately **not** called `metadata`: in this
 codebase that name means the five mandatory label fields (see CLAUDE.md), and
 notifications carry none of them — they are not retrieval evidence.
 
-Indexes: `{ targetRole: 1, createdAt: -1 }` for the dropdown's query, and a TTL
+Indexes: `{ targetRole: 1, createdAt: -1 }` for the list query, and a TTL
 index on `createdAt` expiring documents after 90 days. The TTL is load-bearing:
-nothing else ever deletes a notification, because dismissing is per user.
+nothing else ever deletes a notification, because dismissing is per user. An
+Inbox item expires with the rest, even one never opened; nothing is lost, since
+the assessment, request or document it points at still exists on its own screen.
 
 Purposes are a closed set so every notification has a known audience and a known
-screen to open. Only `ingestion_status` has a producer today. Deadline and
-reminder purposes are absent on purpose: nothing in the repo schedules work, so
-nothing could fire them.
+screen to open. Producers today: `ingestion_status` (the ingestion worker),
+`knowledge_gap_request`, `site_walk_ready`, `site_walk_failed`,
+`assessment_assigned` and `assessment_moved`; the other purposes are agreed but
+have no producer yet. Deadline and reminder purposes are absent on purpose:
+nothing in the repo schedules work, so nothing could fire them.
 
 ## Knowledge gap requests (CB-07)
 
@@ -1543,6 +1624,11 @@ Each `knowledge_gap_request` notification's `context` carries the request's part
 strings, so the bell can lay them out with labels: `requestId` and `question` always;
 `askedBy` and `message` (if given) on a new request; `status` plus `documents` (a JSON
 array of `{ title, uploadedAt }`) or `reason` on a closed one.
+
+`GET /api/knowledge-gaps/:id` (F-10, `knowledge:manage`) returns one request, open or
+closed, with `closed: { at, by: { id, name } } | null` read from `closedAt` and
+`closedBy`. `closed` is null while open, or when the closer's account no longer exists.
+The list route does not carry it. 404 for an unknown or malformed id.
 
 Index: `{ status: 1, createdAt: -1 }` for the admin's open list.
 

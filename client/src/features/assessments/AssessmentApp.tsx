@@ -13,6 +13,9 @@ import {
 } from '../../design-system'
 import type { Session } from '../auth/api'
 import { NotificationBell } from '../notifications/NotificationBell'
+import { useNotificationCounts } from '../notifications/useNotificationCounts'
+import { Inbox } from '../inbox/screens/Inbox'
+import { assessmentOpen, assessmentsStale } from './openAssessment'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import { guardLeave } from './leaveGuard'
 import { ScreenMotion } from './ScreenMotion'
@@ -51,6 +54,18 @@ import marshLogo from '../../assets/marsh-logo.png'
 import marshMark from '../../assets/marsh-m.png'
 
 export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: Session }) {
+  const { counts } = useNotificationCounts()
+  // The Inbox's red count (F-10) rides on its sidebar item: a number, a dot on the rail and
+  // the phone menu, and the words a screen reader hears.
+  const inboxTodo = counts.inboxTodo
+  const navSections = v.navSections.map((section) => ({
+    ...section,
+    items: section.items.map((item) =>
+      item.value === 'inbox'
+        ? { ...item, count: inboxTodo, countLabel: `${inboxTodo} to do` }
+        : item,
+    ),
+  }))
   const captureOnPhone = v.isField && v.phone && !v.routeBlocked
   // Going somewhere else asks first while the document editor has unsaved
   // changes (RV-08 AC14); choosing where you already are does not.
@@ -64,7 +79,16 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
         v.openObservationsOf((e as CustomEvent<{ reference: string }>).detail.reference),
       )
     window.addEventListener(siteWalkReview.event, open)
-    return () => window.removeEventListener(siteWalkReview.event, open)
+    // An assigned assessment's Inbox row opens its Overview, the same way.
+    const openOverview = (e: Event) =>
+      guardLeave(() => v.openOverviewOf((e as CustomEvent<{ reference: string }>).detail.reference))
+    window.addEventListener(assessmentOpen.event, openOverview)
+    window.addEventListener(assessmentsStale.event, v.refreshList)
+    return () => {
+      window.removeEventListener(assessmentsStale.event, v.refreshList)
+      window.removeEventListener(siteWalkReview.event, open)
+      window.removeEventListener(assessmentOpen.event, openOverview)
+    }
   })
   // Each screen opens at the top, not where the last one was scrolled to. A
   // layout effect, so a screen that scrolls itself on opening (the
@@ -97,7 +121,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 logoSrc={marshLogo}
                 subtitle="Risk Report Generator"
                 markSrc={marshMark}
-                sections={v.navSections}
+                sections={navSections}
                 value={v.navValue}
                 onChange={(to: string) => leave(to === v.navValue, () => v.go(to))}
                 footer={v.navFooter}
@@ -109,7 +133,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
               <SideNav
                 logoSrc={marshLogo}
                 subtitle="Risk Report Generator"
-                sections={v.navSections}
+                sections={navSections}
                 value={v.navValue}
                 onChange={(to: string) => leave(to === v.navValue, () => v.goFromDrawer(to))}
                 footer={v.navFooter}
@@ -123,7 +147,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 <PhoneBar
                   logoSrc={marshLogo}
                   onMenu={v.toggleNav}
-                  bell={<NotificationBell counts={session.notifications} tone="dark" />}
+                  alert={{ count: inboxTodo, label: `${inboxTodo} to do in Inbox` }}
+                  bell={<NotificationBell tone="dark" />}
                   back={
                     captureOnPhone
                       ? {
@@ -143,6 +168,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 !(v.isClient && !v.routeBlocked) &&
                 !(v.isClients && !v.routeBlocked) &&
                 !(v.isDashboard && !v.routeBlocked) &&
+                // The Inbox heads itself with the kit TopBar (F-10).
+                !(v.isInbox && !v.routeBlocked) &&
                 // New Assessment heads itself with the kit TopBar and its Create (CP-23).
                 !(v.isCreate && !v.routeBlocked) && (
                   <div
@@ -253,9 +280,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {/* Desktop has no top bar, so the bell lives in the page
                         header. On phones the navy bar carries it instead, so
                         this copy is suppressed to avoid a second one. */}
-                        {!v.showTopBar && !v.routeBlocked && (
-                          <NotificationBell counts={session.notifications} />
-                        )}
+                        {!v.showTopBar && !v.routeBlocked && <NotificationBell />}
                       </div>
                     </div>
                     {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
@@ -301,11 +326,24 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                   <AccessDenied roleLabel={v.roleName} onLeave={v.leaveBlocked} />
                 ) : (
                   <>
+                    {v.isInbox && (
+                      <Inbox
+                        meId={session.user.id}
+                        eyebrow={
+                          session.user.role === 'risk_engineer'
+                            ? 'Risk engineering'
+                            : 'Administration'
+                        }
+                        // Desktop has no top bar, so the bell sits in the page's own header.
+                        bell={!v.showTopBar && <NotificationBell />}
+                      />
+                    )}
+
                     {v.isDashboard && (
                       <Dashboard
                         v={v}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                        bell={!v.showTopBar && <NotificationBell />}
                       />
                     )}
 
@@ -313,10 +351,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <NewAssessment
                         mode={v.newAssessment.start.mode}
                         start={v.newAssessment.start}
+                        assign={v.newAssessment.assign}
                         onCreated={v.newAssessment.onCreated}
                         onView={v.newAssessment.onView}
                         onLeave={v.cancelForm}
-                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                        bell={!v.showTopBar && <NotificationBell />}
                       />
                     )}
 
@@ -329,7 +368,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {...v.clientList}
                         onStart={v.canEdit ? v.goCreate : undefined}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                        bell={!v.showTopBar && <NotificationBell />}
                       />
                     )}
 
@@ -337,7 +376,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <ClientPage
                         {...v.clientPage}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell counts={session.notifications} />}
+                        bell={!v.showTopBar && <NotificationBell />}
                       />
                     )}
 

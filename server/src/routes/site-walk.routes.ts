@@ -87,9 +87,7 @@ router.post(
 router.get(
   '/',
   view,
-  guarded(
-    async (req, res) => void res.json(await listWalks(req.params.reference, res.locals.user!)),
-  ),
+  guarded(async (req, res) => void res.json(await listWalks(req.params.reference))),
 )
 
 router.get(

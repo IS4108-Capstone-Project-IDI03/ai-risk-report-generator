@@ -1,7 +1,6 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import app from '../index'
-import { AssessmentModel } from '../models/assessment.model'
 import { UserModel } from '../models/user.model'
 import {
   hasPermission,
@@ -43,6 +42,8 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['post', `/api/observations/${ID}/recordings/${ID}/transcription/retry`, 'assessments:edit'],
   ['get', `/api/observations/${ID}/recordings/${ID}/audio`, 'assessments:view'],
   ['post', '/api/rag/generate', 'reports:generate'],
+  ['get', '/api/assessments/assignable-engineers', 'assessments:assign'],
+  ['post', '/api/assessments/RPT-2026-0411/reassign', 'assessments:assign'],
   ['get', '/api/assessments/RPT-2026-0411/export', 'reports:export'],
   ['post', '/api/assessments/RPT-2026-0411/export', 'reports:export'],
   ['get', '/api/assessments/RPT-2026-0411/comments', 'reports:comment'],
@@ -52,7 +53,9 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['post', '/api/knowledge-documents', 'knowledge:manage'],
   ['get', `/api/knowledge-documents/${ID}/file`, 'knowledge:view'],
   ['get', '/api/knowledge-documents/ingested', 'knowledge:view'],
+  ['get', `/api/knowledge-documents/${ID}`, 'knowledge:view'],
   ['put', `/api/knowledge-documents/${ID}`, 'knowledge:manage'],
+  ['get', `/api/knowledge-gaps/${ID}`, 'knowledge:manage'],
   ['post', `/api/knowledge-documents/${ID}/retry`, 'knowledge:manage'],
   ['delete', `/api/knowledge-documents/${ID}`, 'knowledge:manage'],
   ['get', '/api/users', 'users:manage'],
@@ -131,13 +134,20 @@ describe('allowed operations succeed', () => {
     expect(list.body).toHaveLength(1)
   })
 
-  it('lets a knowledge admin read assessments, but not change them', async () => {
+  it('lets a knowledge admin read and list assessments, and create one for themselves (RV-11)', async () => {
     const list = await admin.get('/api/assessments')
     expect(list.status).toBe(200)
 
+    // The admin picks the engineer (RV-11 AC4), so a body without one is a 400, not a 403.
     const created = await admin.post('/api/assessments').send({ client: 'Anything' })
-    expect(created.status).toBe(403)
-    expect(await AssessmentModel.countDocuments()).toBe(0)
+    expect(created.status).toBe(400)
+  })
+
+  it('gives assessments:assign to knowledge admins only (RV-11)', () => {
+    expect(hasPermission('knowledge_admin', 'assessments:assign')).toBe(true)
+    expect(hasPermission('risk_engineer', 'assessments:assign')).toBe(false)
+    expect(hasPermission('knowledge_admin', 'assessments:edit')).toBe(true)
+    expect(hasPermission('knowledge_admin', 'reports:generate')).toBe(true)
   })
 
   it('lets a knowledge admin assign roles, and refuses a risk engineer', async () => {

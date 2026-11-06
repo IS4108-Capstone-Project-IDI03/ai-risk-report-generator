@@ -21,6 +21,7 @@ import {
   type ClientPage,
   type UploadedFile,
 } from '../clients/api'
+import { useAssignableEngineers } from '../assignment/useAssignableEngineers'
 import { createAssessments, createFromIntake, type Placement } from './api'
 import {
   blankAssessment,
@@ -51,6 +52,8 @@ let handFiles = 0
 export function useNewAssessment(
   start: CreateStart,
   onCreated: (a: Assessment[], fromIntake: boolean) => void,
+  // The signed-in admin (RV-11): given, the form asks who each assessment is for.
+  me?: { id: string; name: string },
 ) {
   const [form, setForm] = useState<Form>(() => blankForm(start))
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -86,6 +89,8 @@ export function useNewAssessment(
     return () => controller.abort()
   }, [clientId, sites])
 
+  // The people an admin can assign to; an engineer asks for nobody.
+  const people = useAssignableEngineers(!!me)
   const listed = clients?.find((c) => c.id === clientId)
   const clientName = listed?.name ?? form.client.name.trim()
   // Edits clear their own field's problem; adding or removing rows shifts
@@ -207,6 +212,8 @@ export function useNewAssessment(
 
   return {
     form,
+    // Present for an admin only: who they are, and who they can pick (RV-11).
+    assign: me && { me, people: people.people ?? [], failed: people.failed },
     errors,
     typed,
     markTyped,
@@ -271,12 +278,21 @@ export function useNewAssessment(
     setAssessment,
     setContacts: (i: number, j: number, siteContacts: Contact[]) =>
       setAssessment(i, j, { siteContacts }),
+    // A new assessment starts on the engineer of the one before it (RV-11).
     addAssessment: (i: number) =>
       update(
         {
           ...form,
           sites: form.sites.map((s, k) =>
-            k === i ? { ...s, assessments: [...s.assessments, blankAssessment()] } : s,
+            k === i
+              ? {
+                  ...s,
+                  assessments: [
+                    ...s.assessments,
+                    { ...blankAssessment(), engineerId: s.assessments.at(-1)?.engineerId ?? '' },
+                  ],
+                }
+              : s,
           ),
         },
         null,
@@ -336,7 +352,7 @@ export function useNewAssessment(
       }
       setBusy(true)
       try {
-        const body = toBody(form, sitesOf)
+        const body = toBody(form, sitesOf, me?.id)
         const read = form.documents.filter((d) => !d.file)
         const created = intakeId
           ? await createFromIntake(intakeId, {

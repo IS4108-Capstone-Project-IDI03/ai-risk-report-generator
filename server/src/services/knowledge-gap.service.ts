@@ -11,7 +11,7 @@ import {
 } from '../models/knowledge-gap-request.model'
 import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
-import { createNotification, type NewNotification } from './notification.service'
+import { audienceOf, createNotification, type NewNotification } from './notification.service'
 
 export const createRequestSchema = z.object({
   question: z.string('A question is required.').trim().min(1, 'A question is required.').max(4000),
@@ -76,9 +76,10 @@ async function namesFor(ids: Types.ObjectId[]): Promise<Map<string, string>> {
 
 // Without the catch, a notification error would fail an action that already
 // saved: the request is the record, the notification only a nudge.
-async function notifyQuietly(input: NewNotification) {
+async function notifyQuietly(pending: NewNotification | null | Promise<NewNotification | null>) {
   try {
-    await createNotification(input)
+    const input = await pending
+    if (input) await createNotification(input)
   } catch (error) {
     console.error('Could not create the knowledge request notification:', error)
   }
@@ -119,6 +120,27 @@ export async function listOpenRequests(): Promise<GapRequestDto[]> {
   return open.map((r) => toDto(r, names.get(String(r.askedBy)) ?? 'Unknown user'))
 }
 
+/** One request with who closed it and when; `closed` is null while open or when the closer's account is gone. */
+export type GapRequestDetailDto = GapRequestDto & {
+  closed: { at: string; by: { id: string; name: string } } | null
+}
+
+/** Returns one request, open or closed. Throws GapRequestNotFoundError for an unknown or malformed id. */
+export async function getRequest(id: string): Promise<GapRequestDetailDto> {
+  if (!isValidObjectId(id)) throw new GapRequestNotFoundError()
+  const r = await KnowledgeGapRequestModel.findById(id).lean<Stored>()
+  if (!r) throw new GapRequestNotFoundError()
+  const names = await namesFor(r.closedBy ? [r.askedBy, r.closedBy] : [r.askedBy])
+  const closer = r.closedBy && names.get(String(r.closedBy))
+  return {
+    ...toDto(r, names.get(String(r.askedBy)) ?? 'Unknown user'),
+    closed:
+      closer && r.closedAt
+        ? { at: r.closedAt.toISOString(), by: { id: String(r.closedBy), name: closer } }
+        : null,
+  }
+}
+
 // Closes a request only while it is still open, so two admins acting at once
 // cannot both win. Throws not-found (no such id) or closed (someone got there first).
 async function closeRequest(
@@ -138,21 +160,28 @@ async function closeRequest(
     : new GapRequestNotFoundError()
 }
 
-const outcomeNotification = (
+// The asker's bell notification. Addressed by the asker's role now, looked up,
+// not the engineer role they asked with: a person promoted since would never see
+// one addressed to the old role. Null for an account that no longer exists.
+const outcomeNotification = async (
   r: Stored,
   status: 'filled' | 'dismissed',
   lines: string[],
   parts: Record<string, string>,
   closer: SessionUser,
-): NewNotification => ({
-  purpose: 'knowledge_gap_request',
-  message: `Your knowledge request was ${status}`,
-  details: [r.question, ...lines].join('\n'),
-  targetRole: 'risk_engineer',
-  targetUserIds: [String(r.askedBy)],
-  context: { requestId: String(r._id), status, question: r.question, ...parts },
-  createdBy: closer.id,
-})
+): Promise<NewNotification | null> => {
+  const to = await audienceOf(String(r.askedBy))
+  return (
+    to && {
+      purpose: 'knowledge_gap_request',
+      message: `Your knowledge request was ${status}`,
+      details: [r.question, ...lines].join('\n'),
+      ...to,
+      context: { requestId: String(r._id), status, question: r.question, ...parts },
+      createdBy: closer.id,
+    }
+  )
+}
 
 const askerName = async (r: Stored) =>
   (await namesFor([r.askedBy])).get(String(r.askedBy)) ?? 'Unknown user'

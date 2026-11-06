@@ -1,0 +1,648 @@
+/* The Inbox (F-10, boards 01, 02, 04, 07, 08): a mail list crossed with a checklist. One card
+   of rows, each a circle, a tile, three lines of words, a due date and a time that a bin
+   replaces on hover. Wide, the rows are a flex line; on a phone (under 768 px) they are a grid
+   with the ring first and time over due on the right. Motion: spec "Motion" table. Used by
+   screens/Inbox.tsx and the components it renders. Times here must match useInbox.ts. */
+
+.inbox-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  font-family: var(--font-sans);
+}
+.inbox-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px var(--page-gutter) 24px;
+}
+.inbox-tabs {
+  display: flex;
+}
+/* The To do count is red, like the sidebar's (.ds-sidenav-count). Scoped here: the Client page's
+   tabs share .ds-seg-count and stay blue. */
+.inbox-tabs .ds-seg-count {
+  background: var(--red-600);
+  color: var(--text-inverse);
+}
+/* A tab switch: the new list fades in, rising 4 px, 180 ms. */
+.inbox-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: inbox-rise var(--duration-base) var(--ease-out);
+}
+.inbox-card {
+  overflow: hidden;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+.inbox-card ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---- A row ---- */
+.inbox-row {
+  position: relative;
+  display: grid;
+  /* minmax(0, ...): without it a long question pushes the time and bin off the card. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  border-top: 1px solid var(--graphite-100);
+  background: var(--surface-card);
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+.inbox-row:first-child {
+  border-top: 0;
+}
+/* The grid child that closes up; it only clips while a row is animating, so focus rings and
+   tooltips are never cut off at rest. */
+.inbox-row__inner {
+  min-height: 0;
+}
+.inbox-row[data-phase] .inbox-row__inner {
+  overflow: hidden;
+}
+.inbox-row__line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 88px;
+  padding: 12px 20px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .inbox-row:hover {
+    background: var(--graphite-50);
+  }
+}
+
+/* Leaving: a tick or untick plays the circle first (620 ms), then the row fades, lifts 4 px
+   and the list closes up (180 ms). A bin skips the wait. Same timing on every path. */
+.inbox-row[data-phase='ticking'],
+.inbox-row[data-phase='unticking'],
+.inbox-row[data-phase='leaving'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+.inbox-row[data-phase='ticking'],
+.inbox-row[data-phase='unticking'] {
+  transition-delay: 620ms;
+}
+/* A new row: fades in rising 6 px and holds the blue "just changed" tint for 1 s, then 260 ms
+   to fade (the same tint as the Documents and Clients lists). */
+.inbox-row[data-fresh] {
+  animation:
+    inbox-in var(--duration-base) var(--ease-out),
+    inbox-tint 1260ms linear;
+}
+@keyframes inbox-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes inbox-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes inbox-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes inbox-tint {
+  0%,
+  79% {
+    background: var(--ink-50);
+  }
+  100% {
+    background: var(--surface-card);
+  }
+}
+
+/* ---- The circle ---- */
+.inbox-tick {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  /* A 40 px target around the 22 px circle, which stays where a 22 px control would sit. */
+  margin: -9px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* A touch tablet: a 44 px target (v2 "Phone"), with the circle still where it was. */
+@media (pointer: coarse) {
+  .inbox-tick {
+    width: 44px;
+    height: 44px;
+    margin: -11px;
+  }
+  .inbox-panel > button {
+    min-height: 44px;
+  }
+}
+.inbox-tick:focus-visible {
+  outline: 2px solid var(--marsh-navy);
+  outline-offset: -2px;
+  border-radius: 50%;
+}
+.inbox-check {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--graphite-300);
+  border-radius: 50%;
+  background: var(--surface-card);
+  /* Untick: the tick undraws first (260 ms), then the circle empties (120 ms). */
+  transition:
+    background-color var(--duration-fast) var(--ease-standard) var(--duration-slow),
+    border-color var(--duration-fast) var(--ease-standard) var(--duration-slow),
+    transform var(--duration-fast) var(--ease-out);
+}
+.inbox-check svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--text-inverse);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.inbox-check path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-out);
+}
+/* Press: 0.88 while held. Tick: the circle fills (120 ms), then the tick draws (260 ms). */
+.inbox-tick:active .inbox-check {
+  transform: scale(0.88);
+}
+.inbox-check[data-on] {
+  border-color: var(--green-600);
+  background: var(--green-600);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out);
+}
+.inbox-check[data-on] path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-out) var(--duration-fast);
+}
+@media (hover: hover) and (pointer: fine) {
+  .inbox-tick:hover .inbox-check:not([data-on]) {
+    border-color: var(--graphite-400);
+  }
+}
+
+/* ---- The tile ---- */
+.inbox-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile);
+  background: var(--ink-50);
+  color: var(--ink-600);
+  transition: var(--transition-control);
+}
+.inbox-tile[data-tone='violet'] {
+  background: var(--violet-50);
+  color: var(--violet-600);
+}
+.inbox-tile[data-tone='red'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.inbox-tile[data-tone='amber'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.inbox-tile[data-tone='grey'] {
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+}
+
+/* ---- Words ---- */
+/* The row's one pressable: its ::after covers the whole row (a stretched link), so the tick
+   and the bin, which sit above it, are never inside another button. */
+.inbox-row__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.inbox-row__main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.inbox-row__main:focus-visible {
+  outline: none;
+}
+.inbox-row:has(.inbox-row__main:focus-visible) {
+  outline: 2px solid var(--marsh-navy);
+  outline-offset: -2px;
+}
+/* The words keep their own column (the due and time columns are fixed, so they never run under
+   them). The title and the detail each wrap to two lines, then "…"; the sender stays on one.
+   On a wide screen the text stops at 640 px, so a long question wraps instead of stretching. */
+.inbox-row__main > * {
+  max-width: 640px;
+}
+.inbox-row__sender,
+.inbox-row__detail {
+  display: block;
+  overflow: hidden;
+  color: var(--graphite-600);
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-row__detail {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+/* A failure's reason is red, a document that needs a look is amber; a Done row goes grey again
+   so the word matches its grey tile. */
+.inbox-row__detail[data-tone='red'] {
+  color: var(--red-600);
+  font-weight: 500;
+}
+.inbox-row__detail[data-tone='amber'] {
+  color: var(--amber-600);
+  font-weight: 500;
+}
+.inbox-row[data-done] .inbox-row__detail[data-tone] {
+  color: var(--graphite-600);
+  font-weight: 400;
+}
+.inbox-row__task {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--graphite-900);
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 600;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+/* Done: not bold, and grey. */
+.inbox-row[data-done] .inbox-row__task {
+  color: var(--graphite-600);
+  font-weight: 400;
+}
+
+/* ---- Due and time ---- */
+.inbox-row__due {
+  flex: none;
+  display: flex;
+  width: 168px;
+}
+.inbox-row__end {
+  flex: none;
+  display: grid;
+  align-items: center;
+  justify-items: end;
+  width: 76px;
+  color: var(--graphite-600);
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.inbox-row__end > * {
+  grid-area: 1 / 1;
+}
+.inbox-bin-slot {
+  --inbox-bin: 36px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+}
+
+/* A mouse: the bin appears on hover and keyboard focus, in place of the time, on both tabs.
+   Under 768 px (a phone, or a narrow window) the bin shows at rest on Done rows instead. */
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+  .inbox-row__end .inbox-bin-slot {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+  .inbox-row__end time {
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+  .inbox-row:hover .inbox-bin-slot,
+  .inbox-row:focus-within .inbox-bin-slot {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .inbox-row:hover .inbox-row__end time,
+  .inbox-row:focus-within .inbox-row__end time {
+    opacity: 0;
+  }
+}
+/* A touch screen of 768 px or more has no hover, so its bin shows at rest, beside the time. */
+@media (min-width: 768px) and (hover: none), (min-width: 768px) and (pointer: coarse) {
+  .inbox-row__end {
+    width: auto;
+    grid-auto-flow: column;
+    justify-items: end;
+    gap: 8px;
+  }
+  .inbox-row__end > * {
+    grid-area: auto;
+  }
+  .inbox-bin-slot {
+    --inbox-bin: 44px;
+  }
+}
+
+/* ---- Empty ---- */
+.inbox-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  /* One height for both empty cards, so switching tabs doesn't make the card jump. */
+  box-sizing: border-box;
+  height: 184px;
+  justify-content: center;
+  padding: 16px;
+  color: var(--graphite-900);
+  font-size: 15px;
+  font-weight: 600;
+}
+.inbox-empty svg {
+  fill: none;
+  stroke: var(--green-600);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.inbox-empty p {
+  margin: 0;
+}
+.inbox-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+}
+.inbox-empty .inbox-empty__help {
+  color: var(--graphite-600);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  text-align: center;
+  margin-top: -6px;
+}
+/* The last row has gone: the tick draws (260 ms) and the words rise 4 px (180 ms). */
+.inbox-empty[data-draw] circle {
+  stroke-dasharray: 64;
+  stroke-dashoffset: 64;
+  animation: inbox-draw var(--duration-slow) var(--ease-out) forwards;
+}
+.inbox-empty[data-draw] path {
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+  animation: inbox-draw var(--duration-slow) var(--ease-out) 120ms forwards;
+}
+.inbox-empty[data-draw] p {
+  animation: inbox-rise var(--duration-base) var(--ease-out) 200ms backwards;
+}
+@keyframes inbox-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---- Phone (under 768 px), boards 07 and 08 ---- */
+@media (max-width: 767px) {
+  .inbox-content {
+    padding: 12px 16px 24px;
+  }
+  .inbox-tabs .ds-segmented {
+    display: flex;
+    width: 100%;
+  }
+  .inbox-tabs .ds-segmented button {
+    flex: 1;
+    justify-content: center;
+    height: 44px;
+  }
+  /* The ring is first, the words fill the middle, and the due date sits in a fixed column on
+     the right (board 20, option C), so its icon lines up from row to row. A Done row ends at
+     the bin instead. A row with no due date has nothing on the right. */
+  .inbox-row__line {
+    gap: 10px;
+    min-height: 76px;
+    padding: 12px;
+  }
+  .inbox-tick {
+    width: 44px;
+    height: 44px;
+    margin: 0;
+  }
+  .inbox-row__due {
+    width: 100px;
+    align-items: center;
+  }
+  .inbox-row__due .ds-due {
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .inbox-row__due .ds-due-date {
+    font-size: 13px;
+  }
+  .inbox-row__end {
+    width: auto;
+  }
+  .inbox-bin-slot {
+    --inbox-bin: 44px;
+  }
+  .inbox-check--ring {
+    width: 40px;
+    height: 40px;
+    color: var(--ink-600);
+  }
+  .inbox-check--ring[data-tone='violet'] {
+    color: var(--violet-600);
+  }
+  .inbox-check--ring[data-tone='red'] {
+    border-color: var(--red-600);
+    color: var(--red-600);
+  }
+  .inbox-check--ring[data-tone='amber'] {
+    border-color: var(--amber-600);
+    color: var(--amber-600);
+  }
+  /* The ring holds the type's icon; ticked, the icon gives way to a green tick on green. */
+  .inbox-check--ring > span {
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+  .inbox-check--ring svg {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    stroke: var(--green-600);
+  }
+  .inbox-check--ring[data-on] {
+    border-color: var(--green-50);
+    background: var(--green-50);
+    color: var(--green-600);
+  }
+  .inbox-check--ring[data-on] > span {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: every motion becomes a fade. The row fades out where it stands and the
+   list closes up when it has gone, with no lift, no collapse and no press. The animations are
+   !important to beat index.css, which stops every animation it isn't told about. */
+@media (prefers-reduced-motion: reduce) {
+  .inbox-row {
+    transition:
+      opacity var(--duration-base) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-standard);
+  }
+  .inbox-row[data-phase='ticking'],
+  .inbox-row[data-phase='unticking'],
+  .inbox-row[data-phase='leaving'] {
+    grid-template-rows: 1fr;
+    transform: none;
+  }
+  .inbox-row[data-fresh] {
+    animation:
+      inbox-fade var(--duration-base) var(--ease-out),
+      inbox-tint 1260ms linear !important;
+  }
+  .inbox-panel {
+    animation: inbox-fade var(--duration-base) var(--ease-out) !important;
+  }
+  .inbox-tick:active .inbox-check {
+    transform: none;
+  }
+  .inbox-check path {
+    stroke-dashoffset: 0;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+  .inbox-check[data-on] path {
+    opacity: 1;
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+  .inbox-empty[data-draw] circle,
+  .inbox-empty[data-draw] path {
+    stroke-dashoffset: 0;
+    animation: inbox-fade var(--duration-base) var(--ease-out) !important;
+  }
+  .inbox-empty[data-draw] p {
+    animation: inbox-fade var(--duration-base) var(--ease-out) !important;
+  }
+}
+
+/* ---- Already-handled dialog (F-10 round 3, board 23) ---- */
+/* The Dialog draws its header first, so `order` puts the badge above the title. */
+.ds-dialog.inbox-handled {
+  padding: 28px 28px 24px;
+}
+.ds-dialog.inbox-handled[open] {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+.ds-dialog.inbox-handled .ds-dialog-header {
+  order: 2;
+  padding: 0;
+}
+.ds-dialog.inbox-handled h2 {
+  padding-right: 0; /* the v2 title keeps room for an X this dialog doesn't have */
+  font-size: 17px;
+}
+.ds-dialog.inbox-handled .ds-dialog-body {
+  order: 1;
+  padding: 0 0 14px;
+}
+.ds-dialog.inbox-handled .ds-dialog-footer {
+  order: 3;
+  justify-content: center;
+  padding: 20px 0 0;
+}
+/* Only as wide as its words, even on a phone, where kit.css stretches dialog buttons. */
+.ds-dialog.inbox-handled .ds-dialog-footer button {
+  flex: none;
+}
+.inbox-handled__badge {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--green-50);
+}
+.ds-dialog.inbox-handled .ds-dialog-header p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  margin-top: 10px;
+  /* Name and time share this size, so they sit on one line at the same height. */
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.inbox-handled__name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.inbox-handled__time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 767px) {
+  .ds-dialog.inbox-handled {
+    padding: 24px;
+  }
+}
